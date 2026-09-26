@@ -90,6 +90,12 @@ RemoteServer.make({
 - A content type with no `published` role has nothing to hide, and needs none.
 - **`create` and `update` go to the CMS, not to `RemoteServer.make`.** Registered
   there too, they are a way to publish with no draft, no revision and no `allow`.
+- **Content that exists already is imported, not inserted.** `cms.import({ type,
+  values, as, at, entry })` makes the entry and a draft of `values`, then publishes
+  it as a publish does: your `create` handler writes the row, as `as`, and revision
+  1 records `values`, dated `at`. It is one transaction, and the server's own act,
+  so `allow` is not asked. Writing the CMS's tables by hand has to match what a
+  publish writes, and drifts.
 
 ## Verify the audience boundary
 
@@ -246,8 +252,9 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
 | `published(column, isAuthor)` | A `visible` rule for a content table: a visitor sees rows whose column is set. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, and `bindings`. |
+| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. |
 | `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each. |
+| `cms.import({ type, values, as, at?, entry? })` | Content that is published already (a seed, or what another CMS held), written by the publish path; an Effect of `{ entry, targetId }`. |
 
 ## Limits
 

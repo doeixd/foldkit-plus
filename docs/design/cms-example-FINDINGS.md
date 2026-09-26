@@ -85,7 +85,10 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
    server-side way to create a published entry (row, entry, revision) without a
    client session, so `seed.ts` inserts into `cms_entries` and `cms_revisions`
    itself and must match what a publish writes. *Proposed:* a `CmsServer`
-   import or seed operation. Status: worked around.
+   import or seed operation. **Fixed** (plan area 5a): `cms.import` makes the
+   entry and a draft, then publishes by the same path as an author's publish, in
+   one transaction; `seed.ts` is data and imports, and a test checks what it
+   leaves.
 
 10. **An active read written by hand repeats `owner: Data.contract.owner ?? {}`.**
     The `?? {}` is a quiet fallback (AGENTS.md De-slop), and the object shape

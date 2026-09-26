@@ -282,6 +282,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-cms-drizzle`: `cms.import({ type, values, as, at?, entry? })`**
+  publishes content that exists already (a seed, or another CMS's) by the
+  publish path, in one transaction, instead of an application writing the CMS's
+  tables by hand.
 - **`foldkit-cms`: the Entry has a server-derived `may`,** the transitions the
   reader may ask by the server's `allow`; the placed editor gives
   `may(model, transition)`, and `Cms.transitions` lists them all.

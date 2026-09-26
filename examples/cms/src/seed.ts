@@ -1,53 +1,38 @@
 /**
  * What `pnpm dev` starts with: four published posts and two published pages,
- * written as a publish would have left them (the row, its CMS entry, and its
- * first revision), so the worklist, the history and the public site all have
- * something to show. The scripted run starts empty and builds its own.
+ * imported by the CMS (`cms.import`), which publishes each as an author's publish
+ * would: the application's own create handler writes the row, and the entry and
+ * its first revision follow. The scripted run starts empty and builds its own.
  */
-import type { DatabaseSync } from 'node:sqlite'
+import { Effect } from 'effect'
+
+/** What `cms.import` takes, less whom it is imported as, which the server fixes. */
+interface Imported {
+  readonly type: 'posts' | 'pages'
+  readonly values: unknown
+  readonly at: Date
+  readonly entry: string
+}
 
 interface Seeded {
-  readonly id: string
-  readonly type: 'posts' | 'pages'
-  readonly table: 'posts' | 'pages'
-  readonly label: string
-  /** The row's columns, as the publish handler writes them. */
-  readonly row: Readonly<Record<string, string>>
-  /** What was published: the form's value. */
+  /** The name the rest of the seed knows it by; the row's id is the create handler's. */
+  readonly key: string
   readonly values: Readonly<Record<string, unknown>>
   readonly daysAgo: number
 }
 
 const post = (
-  id: string,
+  key: string,
   title: string,
   slug: string,
   excerpt: string,
   body: ReadonlyArray<string>,
   daysAgo: number,
-): Seeded => {
-  const values = { title, slug, excerpt, cover: '', body: body.join('\n\n') }
-  return { id, type: 'posts', table: 'posts', label: title, row: values, values, daysAgo }
-}
-
-const page = (
-  id: string,
-  title: string,
-  slug: string,
-  document: unknown,
-  daysAgo: number,
-): Seeded => {
-  const values = { title, slug, document }
-  return {
-    id,
-    type: 'pages',
-    table: 'pages',
-    label: title,
-    row: { title, slug, document: JSON.stringify(document) },
-    values,
-    daysAgo,
-  }
-}
+): Seeded => ({
+  key,
+  values: { title, slug, excerpt, cover: '', body: body.join('\n\n') },
+  daysAgo,
+})
 
 const node = (
   block: string,
@@ -56,7 +41,8 @@ const node = (
   appearance?: Readonly<Record<string, string>>,
 ) => ({ block, props, regions, ...(appearance === undefined ? {} : { appearance }) })
 
-const home = {
+/** The home page, with the featured post by the id its import gave it. */
+const home = (featured: string) => ({
   format: 1,
   roots: ['hero', 'latest', 'featured', 'about'],
   nodes: {
@@ -85,7 +71,7 @@ const home = {
     latest: node('Section', { heading: '' }, { body: ['posts'] }),
     posts: node('PostList', { heading: 'Latest writing', count: 3 }),
     featured: node('Section', { heading: '' }, { body: ['feature'] }, { tone: 'muted' }),
-    feature: node('FeaturedPost', { post: 'post-page-as-data' }),
+    feature: node('FeaturedPost', { post: featured }),
     about: node(
       'Section',
       { heading: 'What this is' },
@@ -100,7 +86,7 @@ const home = {
       body: 'Open the page editor, change this page, and publish it. The site shows what was published, and nothing else.',
     }),
   },
-}
+})
 
 const about = {
   format: 1,
@@ -129,7 +115,7 @@ const about = {
   },
 }
 
-export const seeded: ReadonlyArray<Seeded> = [
+const posts: ReadonlyArray<Seeded> = [
   post(
     'post-owning-state',
     'Who owns this state?',
@@ -176,31 +162,32 @@ export const seeded: ReadonlyArray<Seeded> = [
     ],
     1,
   ),
-  page('page-home', 'Home', 'home', home, 8),
-  page('page-about', 'About', 'about', about, 8),
 ]
 
-/** Writes the seed into a database whose tables are made: each item as a publish would leave it. */
-export const seed = (sqlite: DatabaseSync, now: Date): void => {
-  for (const item of seeded) {
-    const at = new Date(now.getTime() - item.daysAgo * 86_400_000).toISOString()
-    const columns = { id: item.id, ...item.row, published_at: at }
-    const names = Object.keys(columns)
-    sqlite
-      .prepare(
-        `insert into ${item.table} (${names.join(', ')}) values (${names.map(() => '?').join(', ')})`,
-      )
-      .run(...Object.values(columns))
-    const entry = `entry-${item.id}`
-    sqlite
-      .prepare(
-        'insert into cms_entries (id, type, target_id, label, created_by, created_at, archived_at, revision) values (?, ?, ?, ?, ?, ?, null, 1)',
-      )
-      .run(entry, item.type, item.id, item.label, 'edda', at)
-    sqlite
-      .prepare(
-        'insert into cms_revisions (id, entry_id, n, "values", published_at, published_by) values (?, ?, 1, ?, ?, ?)',
-      )
-      .run(`${entry}:1`, entry, JSON.stringify(item.values), at, 'edda')
-  }
-}
+/** Imports the seed, as `imported` imports each item: the posts, then the pages that point at them. */
+export const seed = <E, R>(
+  imported: (item: Imported) => Effect.Effect<{ readonly targetId: string }, E, R>,
+  now: Date,
+): Effect.Effect<void, E, R> =>
+  Effect.gen(function* () {
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000)
+    const ids = new Map<string, string>()
+    for (const { key, values, daysAgo } of posts) {
+      const { targetId } = yield* imported({
+        type: 'posts',
+        values,
+        at: ago(daysAgo),
+        entry: `entry-${key}`,
+      })
+      ids.set(key, targetId)
+    }
+    const pages = [
+      {
+        key: 'page-home',
+        values: { title: 'Home', slug: 'home', document: home(ids.get('post-page-as-data') ?? '') },
+      },
+      { key: 'page-about', values: { title: 'About', slug: 'about', document: about } },
+    ]
+    for (const { key, values } of pages)
+      yield* imported({ type: 'pages', values, at: ago(8), entry: `entry-${key}` })
+  })

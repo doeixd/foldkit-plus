@@ -24,7 +24,8 @@ const principals: Readonly<Record<string, Principal>> = {
 export const startHttpServer = async (
   port: number,
 ): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
-  const backend = openServer(() => new Date(), { seeded: true })
+  const backend = openServer(() => new Date())
+  await backend.seed()
   // The payload is JSON from the wire: decoded by the protocol's own schema before a handler sees it.
   const run = (
     principal: Principal | null,
@@ -49,7 +50,10 @@ export const startHttpServer = async (
   const clock = setInterval(() => {
     void Effect.runPromise(
       backend.cms
-        .due(new Date(), { as: name => principals[name ?? ''] ?? null })
+        .due(new Date(), {
+          as: name =>
+            name !== null && Object.hasOwn(principals, name) ? (principals[name] ?? null) : null,
+        })
         .pipe(Effect.provide(backend.database)),
     ).then(outcomes => {
       for (const { entry, error } of outcomes)

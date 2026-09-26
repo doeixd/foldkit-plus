@@ -677,8 +677,8 @@ export const CmsServer = {
         return { draft, creating, handler, decoded }
       })
 
-    /** A publish, for the operation that asks for one and for the schedule that comes due. */
-    const publishing = (found: Found, principal: P, basedOn: number | null) =>
+    /** A publish, for the operation that asks for one, the schedule that comes due, and an import. */
+    const publishing = (found: Found, principal: P, basedOn: number | null, at: Date = now()) =>
       Effect.gen(function* () {
         const { entry, served } = found
         const database = yield* DrizzleDatabase
@@ -736,7 +736,6 @@ export const CmsServer = {
           const targetId = creating
             ? String((ran.output as { readonly id: unknown }).id)
             : entry.targetId!
-          const at = now()
           const shown = served.type.roles.published
           if (shown !== undefined) {
             // Publishing shows the row. One already shown keeps its first date.
@@ -1022,6 +1021,74 @@ export const CmsServer = {
         return outcomes
       })
 
+    /**
+     * Content published already, such as a site's first pages or what another CMS
+     * held, written by the path a publish takes: an entry and a draft of
+     * `values`, then the publish, which runs the type's own `create` handler as
+     * `as` and records revision 1. It is the server's act, not an author's, so
+     * `allow` is not asked. `at` is when it was published (default now); `entry`
+     * names the entry (default a new id). One transaction: it all lands or none.
+     */
+    const importing = (item: {
+      readonly type: string
+      readonly values: unknown
+      readonly as: P
+      readonly at?: Date | undefined
+      readonly entry?: string | undefined
+    }) =>
+      config.transaction(
+        Effect.gen(function* () {
+          const served = byType.get(item.type)
+          if (served === undefined)
+            return yield* refuse(`"${item.type}" is not a type of content this server knows`)
+          const writes = yield* drizzleWrites
+          const id = item.entry ?? Cms.newEntryId()
+          const at = item.at ?? now()
+          const labelKey = served.type.roles.label?.key
+          const named =
+            labelKey === undefined
+              ? undefined
+              : (item.values as Readonly<Record<string, unknown>> | null)?.[labelKey]
+          const entry: EntryRow = {
+            id,
+            type: item.type,
+            targetId: null,
+            label: typeof named === 'string' ? named : '',
+            archivedAt: null,
+            revision: null,
+          }
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes.insert(tables.entries).values({
+                ...entry,
+                createdBy: nameOf(item.as),
+                createdAt: at.toISOString(),
+              }),
+            ),
+          )
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes.insert(tables.drafts).values({
+                id,
+                values: item.values,
+                model: null,
+                form: '',
+                updatedAt: at.toISOString(),
+                updatedBy: nameOf(item.as),
+                baseRevision: null,
+              }),
+            ),
+          )
+          const facts: Facts = {
+            archivedAt: null,
+            row: 'none',
+            draft: { scheduledFor: null, scheduleError: null },
+          }
+          const published = yield* publishing({ entry, served, facts }, item.as, null, at)
+          return { entry: id, targetId: published.output.targetId }
+        }),
+      )
+
     const Unpublish = operation(Cms.Operations.Unpublish, ({ input, principal }) =>
       Effect.gen(function* () {
         const { entry, served } = yield* offering(input.entry, 'unpublish')
@@ -1085,6 +1152,7 @@ export const CmsServer = {
       queries: [worklist, ...bySlug] as ReadonlyArray<QuerySource<P, DrizzleDatabase>>,
       mutations,
       due,
+      import: importing,
       /** The bindings of `Entry`, `Draft` and `Revision`, for a handler that returns patches of them. */
       bindings: Db,
     }

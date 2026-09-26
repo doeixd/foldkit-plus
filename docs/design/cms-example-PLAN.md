@@ -1,6 +1,6 @@
 # Revising the packages after the CMS example
 
-**Status:** areas 1 to 4 built; 5 proposed. The tracking table at
+**Status:** all five areas built. What each built, where it differs from the proposal, is under *As built* in each area and in the findings. The tracking table at
 the end is current.
 **Source:** [cms-example-FINDINGS.md](./cms-example-FINDINGS.md), whose item
 numbers (F1, F2, …) this plan cites. Read the findings for what happened; read
@@ -234,6 +234,9 @@ and no annotated routing callback.
 - `cms.import({ type, values, as, at })` writes a published item (the row, its
   entry, its first revision) by the same path as a publish, without the
   handler. `seed.ts` shrinks to data, and moving from another CMS has a path (F9).
+- *As built:* it runs the type's own `create` handler, as a publish does, rather
+  than bypassing it: the row is the application's to write. It takes `at` and
+  `entry`, and is one transaction.
 
 ### 5b. Permissions reach the client
 
@@ -241,6 +244,10 @@ and no annotated routing callback.
   server's `allow`. The editor exposes `placed.may(model, 'publish')`, so an
   application disables what would be refused instead of reporting it after the
   click (F25).
+- *As built:* `may` is what `allow` lets the principal ask, not also what the
+  state offers: the state already says that, and a draft saved a moment later
+  changes it without a new read. `FormView` gained `submits: false` so the
+  form's own Publish can be left out.
 
 ### 5c. The Builder's interaction
 
@@ -254,6 +261,11 @@ and no annotated routing callback.
 - A Selection's value type has a name (`Entity.Selected<typeof S>`, or `.Type`)
   (F2).
 - A Crud list's `active.projectionOf` is typed as always present (F12).
+- *As built:* `Selected<typeof S>` is a type alias, not a phantom `.Type`. The
+  list's `projectionOf` stays an `Option` (a list with no input reads nothing);
+  the example no longer reads it (`Worklist.refresh`). Removing the demo's casts
+  found the CMS editor typing its Commands' requirements as `any` (now the
+  form's), and the HTTP endpoint trusting its input (F28).
 
 **Done when:** `seed.ts` calls `cms.import`; a writer sees no Publish button they
 cannot use; an inserted Block is in view; the example has no `!` and no
@@ -267,4 +279,4 @@ cannot use; an inserted Block is in view; the example has no `!` and no
 | 2. Styling contract | F1, F15–F18, F21, F23, F27 | yes | built (all fixed; F27 found and fixed on the way) |
 | 3. Remote windows and writes | F10, F12, F19, F22 | yes (paging API) | built (3b with area 1; F22 moved into Remote; the Drizzle casts of F12 gone) |
 | 4. Schema words and inference | F3–F5, F8, F20, F26 | no | built (F3, F5, F26 fixed; F8 explained in its error) |
-| 5. First-week capabilities | F2, F6, F9, F12, F24, F25 | no | proposed |
+| 5. First-week capabilities | F2, F6, F9, F12, F24, F25 | yes (`Asked` removed) | built (all fixed; F28 found and fixed on the way) |

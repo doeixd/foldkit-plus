@@ -273,8 +273,54 @@ const world = () => {
 
   const rows = (query: string) =>
     sqlite.prepare(query).all() as ReadonlyArray<Record<string, unknown>>
-  return { author, rows, sent, reads, sqlite }
+  /** Content brought in by the server, as a seed or a migration would. */
+  const imported = (item: Parameters<typeof cms.import>[0]) =>
+    Effect.runPromise(cms.import(item).pipe(Effect.provide(database)))
+  return { author, rows, sent, reads, sqlite, imported }
 }
+
+describe('an import', () => {
+  it('is published by the publish path, as whom it names and when, and opens like any entry', async () => {
+    const { imported, rows, author } = world()
+    const at = new Date('2025-06-01T00:00:00.000Z')
+    const done = await imported({
+      type: 'posts',
+      values: { title: 'Imported', body: 'From before' },
+      as: { name: 'edda' },
+      at,
+      entry: 'old1',
+    })
+    expect(done).toEqual({ entry: 'old1', targetId: 'made1' })
+    // The row the application's own create wrote, shown from when it was published.
+    expect(rows(`select title, published_at from posts where id = 'made1'`)).toEqual([
+      { title: 'Imported', published_at: at.toISOString() },
+    ])
+    expect(
+      rows(`select label, target_id, revision, created_by from cms_entries where id = 'old1'`),
+    ).toEqual([{ label: 'Imported', target_id: 'made1', revision: 1, created_by: 'edda' }])
+    expect(
+      rows(`select n, published_by, published_at from cms_revisions where entry_id = 'old1'`),
+    ).toEqual([{ n: 1, published_by: 'edda', published_at: at.toISOString() }])
+    expect(rows(`select id from cms_drafts where id = 'old1'`)).toEqual([])
+
+    const ada = author('ada')
+    await ada.open('old1')
+    expect(ada.state()).toBe('Published')
+    expect(ada.field('title').value).toBe('Imported')
+  })
+
+  it('is refused whole: an unknown type, or values its create does not take, leave nothing', async () => {
+    const { imported, rows } = world()
+    await expect(
+      imported({ type: 'recipes', values: {}, as: { name: 'edda' }, entry: 'bad1' }),
+    ).rejects.toThrow('"recipes" is not a type of content this server knows')
+    await expect(
+      imported({ type: 'posts', values: { title: 3 }, as: { name: 'edda' }, entry: 'bad2' }),
+    ).rejects.toThrow('This draft is not ready to publish')
+    expect(rows(`select id from cms_entries where id like 'bad%'`)).toEqual([])
+    expect(rows(`select id from cms_drafts where id like 'bad%'`)).toEqual([])
+  })
+})
 
 describe('something new', () => {
   it('is saved as it is typed, under the id it was made with, and is on the worklist by its title', async () => {

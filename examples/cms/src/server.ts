@@ -64,8 +64,7 @@ const write = (run: (database: DrizzleWrites) => PromiseLike<unknown>) =>
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
-/** `seeded`: start with the posts and pages of `seed.ts`, as `pnpm dev` does. */
-export const openServer = (clock: () => Date, options: { readonly seeded?: boolean } = {}) => {
+export const openServer = (clock: () => Date) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     ${sqliteSchema}
@@ -164,12 +163,18 @@ export const openServer = (clock: () => Date, options: { readonly seeded?: boole
     mutations: [...cms.mutations],
   })
 
-  if (options.seeded === true) seed(sqlite, clock())
-
+  const database = databaseLayer(drizzle({ client: sqlite }))
   return {
     server,
     cms,
-    database: databaseLayer(drizzle({ client: sqlite })),
+    database,
+    /** Starts with the posts and pages of `seed.ts`, imported as an editor, as `pnpm dev` does. */
+    seed: () =>
+      Effect.runPromise(
+        seed(item => cms.import({ ...item, as: { name: 'edda', role: 'editor' } }), clock()).pipe(
+          Effect.provide(database),
+        ),
+      ),
     rows: (query: string) =>
       sqlite.prepare(query).all() as ReadonlyArray<Readonly<Record<string, unknown>>>,
   }
