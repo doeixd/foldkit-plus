@@ -27,10 +27,12 @@ import {
   type Position,
   type PropsOf,
   type Refusal,
+  type Tree,
 } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
 import { controls, inputOf, settingsOf, type Settings } from './settings.js'
+import { copyText, readText } from 'foldkit-primitives/dom'
 import { LiveAnnounce, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History, HistoryModel } from 'foldkit-primitives/state'
 import * as Command from 'foldkit/command'
@@ -115,6 +117,12 @@ export const Model = Schema.Struct({
   inspector: Schema.OptionFromOptionalNullOr(
     Schema.Struct({ id: NodeId, forms: Schema.Record(Schema.String, Schema.Json) }),
   ),
+  /**
+   * The last node copied or cut, and all it holds: what a paste inserts when
+   * the system clipboard cannot be read. Kept across pages, so a copy on one
+   * pastes on another.
+   */
+  clipboard: Schema.OptionFromOptionalNullOr(Composition.Tree),
 })
 export type Model = typeof Model.Type
 
@@ -145,7 +153,20 @@ export { controlOf, inputOf, settingsOf, type Settings } from './settings.js'
 const Request = Schema.Union([
   Schema.TaggedStruct('Insert', { block: Schema.String, at: Composition.Position }),
   Schema.TaggedStruct('Duplicate', { id: NodeId, at: Composition.Position }),
+  Schema.TaggedStruct('Paste', { tree: Composition.Tree, at: Composition.Position }),
 ])
+
+/**
+ * A copied node as the system clipboard holds it: JSON, tagged, so text that
+ * is not part of a page is not pasted as one.
+ */
+const Clip = Schema.fromJsonString(
+  Schema.Struct({ format: Schema.Literal('foldkit-composition'), tree: Composition.Tree }),
+)
+const clipText = (tree: Tree): string =>
+  Schema.encodeSync(Clip)({ format: 'foldkit-composition', tree })
+// Strict: a clipboard is anyone's text, and a key misspelled is refused, not dropped.
+const clipOf = Schema.decodeUnknownResult(Clip, { onExcessProperty: 'error' })
 
 export const Message = defineMessageUnion({
   ...Layers.cases,
@@ -162,6 +183,14 @@ export const Message = defineMessageUnion({
   InsertAsked: { block: Schema.String, at: Composition.Position },
   /** A copy of a node and everything it holds, once ids are minted. */
   DuplicateAsked: { id: NodeId, at: Composition.Position },
+  /** The selected node and all it holds, copied. */
+  CopyAsked: { id: NodeId },
+  /** The selected node and all it holds, copied and removed. */
+  CutAsked: { id: NodeId },
+  /** A paste: the system clipboard is read, and what it holds goes in by the selection. */
+  PasteAsked: {},
+  /** What the system clipboard held for a paste; none when it could not be read. */
+  ClipboardRead: { text: Schema.OptionFromNullOr(Schema.String) },
   /** The ids a request waited for. */
   Minted: { ids: Schema.Array(NodeId), request: Request },
   Undid: {},
@@ -565,6 +594,7 @@ export const Builder = {
       drag: Option.none(),
       preview: { ...config.preview },
       inspector: Option.none(),
+      clipboard: Option.none(),
     }).model
 
     /** Says `text` to assistive technology, once the Builder's transition is done. */
@@ -636,6 +666,17 @@ export const Builder = {
         to: at => Composition.Op.insert({ id: trial, block: source.block, props, at }),
       }))
     }
+
+    /** Puts a node's tree on the system clipboard, then says `said`, whether it could or not. */
+    const copy = (tree: Tree, said: string): Commands => [
+      {
+        name: `${name}.copy`,
+        effect: Effect.as(
+          copyText(clipText(tree)).effect,
+          LiveAnnounce.say(Announcer)<Message>(said, 'polite'),
+        ),
+      },
+    ]
 
     /** What is said when a drag ends with nothing done. */
     const unmoved = (source: DragSource): string =>
@@ -888,6 +929,69 @@ export const Builder = {
             commands: mint(count, { _tag: 'Duplicate', id: message.id, at: message.at }),
           }
         }
+        case 'CopyAsked':
+        case 'CutAsked': {
+          const node = documentOf(model).nodes[message.id]
+          if (node === undefined)
+            return refuse(model, {
+              code: 'composition:missing-node',
+              message: `"${message.id}" is not a node`,
+            })
+          const tree = Composition.takeTree(documentOf(model), message.id)
+          const copied = { ...model, clipboard: Option.some(tree) }
+          if (message._tag === 'CopyAsked')
+            return { model: copied, commands: copy(tree, `Copied ${node.block}`) }
+          const cut = applyOp(copied, Composition.Op.remove(message.id))
+          // A node its Region cannot do without is not cut: nothing is copied either.
+          return cut.model.page === model.page
+            ? { ...cut, model: { ...cut.model, clipboard: model.clipboard } }
+            : { model: cut.model, commands: copy(tree, `Cut ${node.block}`) }
+        }
+        case 'PasteAsked':
+          return {
+            model,
+            commands: [
+              {
+                name: `${name}.paste`,
+                effect: Effect.map(readText().effect, read =>
+                  Message.ClipboardRead({
+                    text: read._tag === 'Read' ? Option.some(read.text) : Option.none(),
+                  }),
+                ),
+              },
+            ],
+          }
+        case 'ClipboardRead': {
+          // Text read wins, so a copy made in another tab pastes here; the
+          // Builder's own copy is for a browser that would not let it be read.
+          const tree = Option.match(message.text, {
+            onNone: () => model.clipboard,
+            onSome: text => Option.map(Result.getSuccess(clipOf(text)), ({ tree }) => tree),
+          })
+          if (Option.isNone(tree))
+            return refuse(model, {
+              code: 'composition:malformed-tree',
+              message: Option.isSome(message.text)
+                ? 'The clipboard holds no part of a page'
+                : 'Nothing has been copied',
+            })
+          const root = tree.value.nodes[tree.value.root]
+          // Where it fits by the selection; else last, where `apply` says why it does not.
+          const at = Option.getOrElse(
+            Option.flatMap(Option.fromUndefinedOr(root), node =>
+              placeFor(catalog, documentOf(model), model.selected, node.block),
+            ),
+            () => Composition.root(documentOf(model).roots.length),
+          )
+          return {
+            model,
+            commands: mint(Object.keys(tree.value.nodes).length, {
+              _tag: 'Paste',
+              tree: tree.value,
+              at,
+            }),
+          }
+        }
         case 'Minted': {
           const { request, ids } = message
           if (request._tag === 'Insert') {
@@ -906,6 +1010,14 @@ export const Builder = {
                 at: request.at,
               }),
             )
+          }
+          if (request._tag === 'Paste') {
+            // Its own ids are kept out of the page: each node gets a new one.
+            const renamed = Composition.rekey(
+              request.tree,
+              Object.fromEntries(Object.keys(request.tree.nodes).map((id, at) => [id, ids[at]!])),
+            )
+            return applyOp(model, Composition.Op.insertTree({ tree: renamed, at: request.at }))
           }
           if (documentOf(model).nodes[request.id] === undefined)
             return refuse(model, {
@@ -1270,6 +1382,20 @@ export const Builder = {
         ),
       },
       {
+        id: 'copy',
+        label: 'Copy',
+        keys: [{ key: 'c', mod: true }],
+        placement: ['node'],
+        run: onSelected((_, selected) => Option.some(Message.CopyAsked({ id: selected }))),
+      },
+      {
+        id: 'cut',
+        label: 'Cut',
+        keys: [{ key: 'x', mod: true }],
+        placement: ['node'],
+        run: onSelected((_, selected) => Option.some(Message.CutAsked({ id: selected }))),
+      },
+      {
         id: 'delete',
         label: 'Delete',
         keys: [{ key: 'Delete' }, { key: 'Backspace' }],
@@ -1294,6 +1420,13 @@ export const Builder = {
         ],
         placement: ['toolbar'],
         run: model => history(model).redo,
+      },
+      {
+        id: 'paste',
+        label: 'Paste',
+        keys: [{ key: 'v', mod: true }],
+        placement: ['toolbar'],
+        run: () => Option.some(Message.PasteAsked()),
       },
       {
         id: 'deselect',

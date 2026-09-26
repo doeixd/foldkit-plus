@@ -332,7 +332,8 @@ const result = Composition.apply(
   agent's tool or a replay.
 - `Composition.takeTree(document, id)` takes a subtree, and
   `Composition.rekey(tree, ids)` renames every id in it, which is how a paste
-  is inserted twice without a collision.
+  is inserted twice without a collision. A reference to a node the tree does
+  not hold is kept as it is, for `apply` to refuse by name.
 
 ## Undo
 

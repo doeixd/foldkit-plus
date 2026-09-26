@@ -18,6 +18,7 @@ submits it, and a CMS autosaves it.
 | The page being edited | the Builder's Model, as the form key's value |
 | Undo | the Builder's Model: the page is kept as a `foldkit-primitives/state` history |
 | What is selected, the open panel, the viewport | the Builder's Model, beside the page |
+| The last node copied or cut | the Builder's Model, as `clipboard`, and the system clipboard as text |
 | A prop's field while it holds text that does not decode yet | the Builder's Model, as `inspector` |
 | The layers' keyboard focus and which rows are open | the Builder's Model, as a `TreeNavigation` placement |
 | What the editor last said to assistive technology | the Builder's Model, as a `LiveAnnounce` placement |
@@ -71,6 +72,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Applied({ op })` | applies an Operation; a button, a key, a drag or an agent sends the same |
 | `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
+| `CopyAsked({ id })`, `CutAsked({ id })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
@@ -153,8 +155,10 @@ Behaviors; `foldkit-mixins-builder` does.
   | Alt+Left | move it out of its parent, to just after it |
   | Alt+Right | move it into the node above it, last in the first Region that takes it |
   | Mod+D | duplicate it, just after it |
+  | Mod+C, Mod+X | copy it; cut it |
   | Delete, Backspace | remove it |
   | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
+  | Mod+V | paste inside it, or after it, as a new node of the copy's Block goes |
   | Escape | deselect it |
 
   Attach `keyCommand` to the layers panel and the canvas, not the whole editor,
@@ -167,6 +171,30 @@ Behaviors; `foldkit-mixins-builder` does.
 - **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
   Section body", and so are undo, redo, and a refusal, assertively. A prop
   edit is not: the field being typed in already says it.
+
+## Copy, cut and paste
+
+A copy is a node and all it holds, as `Composition.takeTree` takes it. It goes
+in two places: the Model's `clipboard`, and the system clipboard as JSON,
+`{ "format": "foldkit-composition", "tree": … }`, so a copy made in one tab
+pastes in another.
+
+- **`CopyAsked({ id })`** keeps the copy and writes it out; **`CutAsked({ id })`**
+  also removes the node, as one undoable edit. A node its Region cannot do
+  without is not cut, and nothing is copied.
+- **`PasteAsked()`** reads the system clipboard in a Command, which answers
+  `ClipboardRead({ text })`. Text read wins; the Model's copy is used only when
+  the browser would not let the clipboard be read.
+- **The text is untrusted.** It is decoded strictly (a key it should not have
+  is refused, not dropped), each node gets a newly minted id by
+  `Composition.rekey`, and the tree goes in by one `insertTree`, which checks
+  every node against the Catalog. Anything that does not decode or fit (text
+  that is not part of a page, an unknown Block, a prop of the wrong type, a
+  child it names but does not hold) is refused whole: nothing goes in, and
+  `refused` says why.
+- **It goes where a new node of its root's Block would** (`placeFor`): inside
+  the selection when it fits there, else after it. Where it fits nowhere, it
+  is tried last on the page, and refused there with the reason.
 
 The announcer debounces and clears on Effect's clock through Commands named
 `LiveAnnounce.read` and `LiveAnnounce.clear`. A runtime runs them beside

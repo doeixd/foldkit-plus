@@ -598,6 +598,149 @@ describe('dragging a node', () => {
   })
 })
 
+describe('copy, cut and paste', () => {
+  const id = NodeId.make
+  // A Section holding a Heading and a Card titled by a Heading; an empty Section after it.
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1'), id('s2')],
+      nodes: {
+        [id('s1')]: { block: 'Section', props: {}, regions: { body: [id('h1'), id('c')] } },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('c')]: { block: 'Card', props: {}, regions: { title: [id('t')] } },
+        [id('t')]: { block: 'Heading', props: { text: 'Title' }, regions: {} },
+        [id('s2')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    }),
+  )
+  const document = page.page.present
+  const clip = (tree: unknown) => JSON.stringify({ format: 'foldkit-composition', tree })
+  /** A paste of `text` read from the system clipboard, with `selected` selected. */
+  const paste = (model: Model, text: string) =>
+    send(model, Message.ClipboardRead({ text: Option.some(text) }))
+
+  it('pastes a copy of a node and all it holds under new ids, by the selection', () => {
+    const copied = send(
+      send(page, Message.Selected({ id: id('c') })),
+      Message.CopyAsked({ id: id('c') }),
+    )
+    expect(copied.page).toBe(page.page)
+    expect(copied.announcer.pending?.message).toBe('Copied Card')
+    // Into the empty Section: with it selected, the copy goes inside it.
+    const into = send(copied, Message.Selected({ id: id('s2') }))
+    // No system clipboard here, so the paste takes the Builder's own copy.
+    const pasted = send(into, Message.PasteAsked())
+    const body = required(pasted.page.present.nodes[id('s2')]?.regions['body'], 'a body')
+    const card = required(body[0], 'the pasted Card')
+    expect(card).not.toBe(id('c'))
+    const title = required(pasted.page.present.nodes[card]?.regions['title']?.[0], 'its title')
+    expect(title).not.toBe(id('t'))
+    expect(pasted.page.present.nodes[title]?.props).toEqual({ text: 'Title' })
+    expect(pasted.selected).toEqual(Option.some(card))
+    // The original is where it was, and a second paste mints ids again.
+    expect(pasted.page.present.nodes[id('s1')]).toEqual(document.nodes[id('s1')])
+    const twice = send(pasted, Message.PasteAsked())
+    expect(Object.keys(twice.page.present.nodes)).toHaveLength(
+      Object.keys(document.nodes).length + 4,
+    )
+  })
+
+  it('pastes what the system clipboard holds over its own copy', () => {
+    const copied = send(page, Message.CopyAsked({ id: id('c') }))
+    const selected = send(copied, Message.Selected({ id: id('h1') }))
+    const pasted = paste(
+      selected,
+      clip({
+        root: 'x',
+        nodes: { x: { block: 'Heading', props: { text: 'Elsewhere' }, regions: {} } },
+      }),
+    )
+    // After the selected Heading, among the Section's body.
+    const body = required(pasted.page.present.nodes[id('s1')]?.regions['body'], 'a body')
+    expect(body).toHaveLength(3)
+    expect(pasted.page.present.nodes[required(body[1], 'the pasted Heading')]?.props).toEqual({
+      text: 'Elsewhere',
+    })
+  })
+
+  it('refuses a paste whole when any of it does not hold together or fit the Catalog', () => {
+    const heading = (text: unknown) => ({ block: 'Heading', props: { text }, regions: {} })
+    const refusals: ReadonlyArray<readonly [string, string]> = [
+      [
+        clip({ root: 'x', nodes: { x: { block: 'Carousel', props: {}, regions: {} } } }),
+        'Carousel',
+      ],
+      [
+        clip({
+          root: 'g',
+          nodes: {
+            g: { block: 'Group', props: {}, regions: { items: ['a', 'b'] } },
+            a: heading('A'),
+            b: heading(7),
+          },
+        }),
+        'text',
+      ],
+      // A child it names but does not hold.
+      [
+        clip({
+          root: 'g',
+          nodes: {
+            g: { block: 'Group', props: {}, regions: { items: ['a', 'gone'] } },
+            a: heading('A'),
+          },
+        }),
+        'gone',
+      ],
+      [
+        clip({ root: 'x', nodes: { x: heading('A') } }).replace('}}}}', '}}},"extra":1}'),
+        'no part of a page',
+      ],
+      ['just some text', 'no part of a page'],
+    ]
+    for (const [text, why] of refusals) {
+      const refused = paste(page, text)
+      expect(refused.page).toBe(page.page)
+      expect(some(refused.refused, `a refusal of ${text}`).message).toContain(why)
+    }
+  })
+
+  it('says so when nothing was copied and the system clipboard cannot be read', () => {
+    const refused = send(page, Message.PasteAsked())
+    expect(some(refused.refused, 'a refusal').message).toBe('Nothing has been copied')
+  })
+
+  it('cuts a node into the clipboard, and does not cut one its Region needs', () => {
+    const cut = send(page, Message.CutAsked({ id: id('c') }))
+    expect(cut.page.present.nodes[id('c')]).toBeUndefined()
+    expect(cut.announcer.pending?.message).toBe('Cut Card')
+    const back = send(send(cut, Message.Selected({ id: id('h1') })), Message.PasteAsked())
+    expect(Object.keys(back.page.present.nodes)).toHaveLength(Object.keys(document.nodes).length)
+    // A Card's title is all it holds: it stays, and what was copied before stays copied.
+    const copied = send(page, Message.CopyAsked({ id: id('h1') }))
+    const kept = send(copied, Message.CutAsked({ id: id('t') }))
+    expect(kept.page).toBe(page.page)
+    expect(kept.clipboard).toBe(copied.clipboard)
+    expect(some(kept.refused, 'a refusal').code).toBe('composition:region-cardinality')
+  })
+
+  it('runs copy, cut and paste from their keys', () => {
+    const selected = send(page, Message.Selected({ id: id('h1') }))
+    const key = (key: string) =>
+      PageBuilder.keyCommand(selected, key, {
+        ctrlKey: true,
+        metaKey: false,
+        altKey: false,
+        shiftKey: false,
+      })
+    expect(key('c')).toEqual(Option.some(Message.CopyAsked({ id: id('h1') })))
+    expect(key('x')).toEqual(Option.some(Message.CutAsked({ id: id('h1') })))
+    expect(key('v')).toEqual(Option.some(Message.PasteAsked()))
+  })
+})
+
 describe('previewing the page', () => {
   it('starts from the preview it was given, and sets and unsets one key at a time', () => {
     const Previewing = Builder.make('Previewing', {

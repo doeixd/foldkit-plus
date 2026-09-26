@@ -460,6 +460,7 @@ export const takeTree = (document: Document, id: NodeId): Tree => {
 /**
  * The same subtree under new ids: every id in it, and every reference between
  * them, renamed through `ids`, which must name each node once and nothing else.
+ * A reference to a node the tree does not hold is kept, for `apply` to refuse.
  */
 export const rekey = (tree: Tree, ids: Readonly<Record<NodeId, NodeId>>): Tree => {
   const held = Object.keys(tree.nodes)
@@ -477,7 +478,7 @@ export const rekey = (tree: Tree, ids: Readonly<Record<NodeId, NodeId>>): Tree =
   const fresh = Object.values(ids)
   if (new Set(fresh).size !== fresh.length)
     refuse('composition:malformed-tree', 'two nodes of the tree are given the same new id')
-  const rename = (id: NodeId): NodeId => ids[id]!
+  const rename = (id: NodeId): NodeId => (Object.hasOwn(ids, id) ? ids[id]! : id)
   return {
     root: rename(tree.root),
     nodes: Object.fromEntries(

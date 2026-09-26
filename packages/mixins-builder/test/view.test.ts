@@ -260,9 +260,12 @@ describe('the drawn Builder', () => {
       'Alt+←',
       'Alt+→',
       'Ctrl+D',
+      'Ctrl+C',
+      'Ctrl+X',
       'Delete',
       'Ctrl+Z',
       'Ctrl+Shift+Z',
+      'Ctrl+V',
       'Escape',
     ])
     expect(Inert.all(root).some(node => Inert.value(node, 'aria-label') === 'Selected block')).toBe(
@@ -283,9 +286,12 @@ describe('the drawn Builder', () => {
       '⌥←',
       '⌥→',
       '⌘D',
+      '⌘C',
+      '⌘X',
       'Delete',
       '⌘Z',
       '⇧⌘Z',
+      '⌘V',
       'Escape',
     ])
     expect(
@@ -311,9 +317,16 @@ describe('the drawn Builder', () => {
       Inert.all(Inert.all(root).find(node => Inert.value(node, 'aria-label') === label))
         .filter(node => node.sel === 'button')
         .map(Inert.text)
-    expect(actionsOf('Selected block')).toEqual(['Move up', 'Move down', 'Move out', 'Move in'])
+    expect(actionsOf('Selected block')).toEqual([
+      'Move up',
+      'Move down',
+      'Move out',
+      'Move in',
+      'Copy',
+      'Cut',
+    ])
     // In the table's order, where delete comes first.
-    expect(actionsOf('Page actions')).toEqual(['Delete', 'Undo', 'Redo'])
+    expect(actionsOf('Page actions')).toEqual(['Delete', 'Undo', 'Redo', 'Paste'])
   })
 
   it('draws the canvas with the data its inputs give each node, as a published page is', () => {

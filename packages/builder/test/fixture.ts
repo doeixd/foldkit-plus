@@ -81,13 +81,19 @@ export const Group = Block.define('Group', {
   regions: { items: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Flow],
 })
+/** Flow that must hold one thing: its title cannot be cut away. Not offered. */
+export const Card = Block.define('Card', {
+  Props: Schema.Struct({}),
+  regions: { title: Region.one({ accepts: [Content.Flow] }) },
+  provides: [Content.Flow],
+})
 export const Section = Block.define('Section', {
   Props: Schema.Struct({}),
   regions: { body: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Section],
 })
 export const Site = Catalog.make({
-  blocks: [Heading, Button, Group, Section, Stat, Swatch],
+  blocks: [Heading, Button, Group, Card, Section, Stat, Swatch],
   actions: [Subscribe],
   roots: [Content.Section],
 })
@@ -96,6 +102,7 @@ export const SiteRenderer = Renderer.make(Site, {
   Heading: ({ props, h }) => h.h2([], [props.text]),
   Button: ({ props, h }) => h.span([h.Class('button')], [props.label]),
   Group: ({ regions, h }) => h.div([], [...regions.items]),
+  Card: ({ regions, h }) => h.div([], [...regions.title]),
   Section: ({ regions, h }) => h.section([], [...regions.body]),
   Swatch: ({ props, h }) => h.span([], [props.tint]),
   Stat: ({ props, h }) => h.p([], [`${props.value} ${props.caption}`]),

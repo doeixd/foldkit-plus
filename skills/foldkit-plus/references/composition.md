@@ -212,9 +212,11 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
 
 - Model: `page` (an undo history from `foldkit-primitives/state`; `page.present`
   is the Document; `PageBuilder.document(model)` reads it), `selected`,
-  `hovered`, `refused`, `drag` (each an `Option`, stored as `null`), `panel`,
+  `hovered`, `refused`, `drag`, `clipboard` (each an `Option`, stored as `null`), `panel`,
   `viewport`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
-  `DuplicateAsked({ id, at })`, `Minted` (from its own Command),
+  `DuplicateAsked({ id, at })`, `CopyAsked({ id })` / `CutAsked({ id })` / `PasteAsked()`
+  (the paste reads the system clipboard, `ClipboardRead({ text })`, decodes it strictly,
+  rekeys it and inserts it whole or refuses), `Minted` (from its own Command),
   `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
   `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
   `DragStarted({ source })` (`{ _tag: 'Existing', id }`, or `{ _tag: 'New', block }` from the
