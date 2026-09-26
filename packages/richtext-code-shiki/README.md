@@ -71,7 +71,8 @@ theme to tokenize at all, even though its colours are discarded.
 Each tokenizer remembers the last 64 texts it read, so an editor that retokenizes every code
 block on every patch pays for a block only when its text changes. Reading scopes
 (`includeExplanation`) is Shiki's slow path, so a very large block still costs a full parse on
-each edit to it.
+each edit to it. Shiki's per-line time limit is turned off: with explanations on, a line cut
+short by it made Shiki throw, so a slow line now costs time rather than a failed render.
 
 ## Limits
 

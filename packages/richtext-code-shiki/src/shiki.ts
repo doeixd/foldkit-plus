@@ -76,6 +76,10 @@ export const shikiTokenizer = (highlighter: HighlighterCore, language: string): 
       lang: language,
       theme,
       includeExplanation: true,
+      // Explanations tokenize each line twice, each pass under this limit; when one pass is
+      // cut short and the other is not, Shiki reads past the shorter one and throws. With no
+      // limit both passes finish, so a slow line costs time instead of a failed render.
+      tokenizeTimeLimit: 0,
     })
     for (const line of lines) {
       for (const token of line) {
