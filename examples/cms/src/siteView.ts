@@ -17,7 +17,7 @@ import {
   type Message,
   type Model,
 } from './siteApp.js'
-import { SiteRenderer, coverOf, dateOf, paragraphs, postGrid } from './site.js'
+import { SiteRenderer, article, postGrid } from './site.js'
 import { SiteSlots, SiteStyle } from './style.js'
 import { chairOf } from './transport.js'
 
@@ -52,12 +52,6 @@ const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
       Renderer.render(SiteRenderer, document, h, { data: actives.blocks.data(model) }),
   })
 
-/** How long a post takes to read, at a reader's usual pace. */
-const readingTime = (body: string) => {
-  const words = body.split(/\s+/).filter(word => word !== '').length
-  return `${Math.max(1, Math.round(words / 230))} min read`
-}
-
 const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   const first = Option.flatMap(postRead(model), read => firstOf(read.read(model)))
   if (Option.isNone(first))
@@ -66,21 +60,13 @@ const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
     ]
   const found = first.value
   return [
-    h.article(slots.article.attrs(), [
-      h.header(slots.articleHead.attrs(), [
-        h.p(slots.meta.attrs(), [
-          `${dateOf(Option.fromNullOr(found.publishedAt))} · ${readingTime(found.body)}`,
-        ]),
-        h.h1(slots.title.attrs(), [found.title]),
-        ...(found.excerpt === '' ? [] : [h.p(slots.standfirst.attrs(), [found.excerpt])]),
-      ]),
-      h.div(slots.cover.attrs([h.Style({ background: coverOf(found) })]), []),
-      h.div(
-        slots.body.attrs(),
-        paragraphs(found.body).map(paragraph => h.p([], [paragraph])),
-      ),
-      h.a(slots.back.attrs([h.Href(siteLink('/site/blog'))]), ['← More from the blog']),
-    ]),
+    article({
+      slots,
+      h,
+      post: found,
+      publishedAt: Option.fromNullOr(found.publishedAt),
+      after: [h.a(slots.back.attrs([h.Href(siteLink('/site/blog'))]), ['← More from the blog'])],
+    }),
   ]
 }
 

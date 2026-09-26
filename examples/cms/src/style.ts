@@ -464,10 +464,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.nest('> button', { marginInlineStart: 'auto' }),
     ),
-    preview: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space.md })),
-      Style.nest('> p', { fontFamily: serif, fontSize: '1.2rem', lineHeight: '1.8', margin: '0' }),
-    ),
+    preview: Style.self({ paddingBlockEnd: t.space['2xl'] }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
     button: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
     primary: primaryButton,

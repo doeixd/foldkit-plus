@@ -16,14 +16,14 @@ import { Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
-import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
+import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { Post, PostById, PostId, RecentPosts } from './domain.js'
-import { BuilderStyle, t } from './style.js'
+import { Post, PostById, PostId, PostPreview, RecentPosts } from './domain.js'
+import { BuilderStyle, SiteSlots, t } from './style.js'
 
 /** The looks' base rules sit in `components`, below the application's own. */
 const components = Layers.standard.layer('components')
@@ -56,6 +56,45 @@ export const paragraphs = (body: string): ReadonlyArray<string> =>
     .split(/\n\s*\n/)
     .map(paragraph => paragraph.trim())
     .filter(paragraph => paragraph !== '')
+
+/** How long a post takes to read, at a reader's usual pace. */
+const readingTime = (body: string) => {
+  const words = body.split(/\s+/).filter(word => word !== '').length
+  return `${Math.max(1, Math.round(words / 230))} min read`
+}
+
+/**
+ * A post as a reader sees it: its date and reading time, title and excerpt
+ * above its cover, then its body. The site draws it at a post's address; the
+ * studio draws it to preview a draft, so the preview is the page.
+ */
+export const article = <M>({
+  slots,
+  h,
+  post,
+  publishedAt,
+  after,
+}: {
+  readonly slots: SlotView.SlotBuilders<typeof SiteSlots, M>
+  readonly h: HtmlBuilder<M>
+  readonly post: Selected<typeof PostPreview>
+  readonly publishedAt: Option.Option<string>
+  /** What follows the body, such as the way back to the blog. */
+  readonly after: ReadonlyArray<Html>
+}): Html =>
+  h.article(slots.article.attrs(), [
+    h.header(slots.articleHead.attrs(), [
+      h.p(slots.meta.attrs(), [`${dateOf(publishedAt)} · ${readingTime(post.body)}`]),
+      h.h1(slots.title.attrs(), [post.title]),
+      ...(post.excerpt === '' ? [] : [h.p(slots.standfirst.attrs(), [post.excerpt])]),
+    ]),
+    h.div(slots.cover.attrs([h.Style({ background: coverOf(post) })]), []),
+    h.div(
+      slots.body.attrs(),
+      paragraphs(post.body).map(paragraph => h.p([], [paragraph])),
+    ),
+    ...after,
+  ])
 
 // --- Hero: the top of a page ------------------------------------------------------
 

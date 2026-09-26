@@ -13,6 +13,7 @@ import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
+import type { Selected } from 'foldkit-entity'
 import { SlotView, Style } from 'foldkit-mixins'
 import { ListView } from 'foldkit-mixins-crud'
 import {
@@ -26,10 +27,11 @@ import {
   postPage,
   type Model,
 } from './app.js'
+import type { PostPreview } from './domain.js'
 import { icon } from './icons.js'
 import { badge, chair, failed, shell, stateIs, statusLine } from './shell.js'
-import { coverOf, paragraphs, postHref } from './site.js'
-import { AdminSlots, AdminStyle, ListStyle } from './style.js'
+import { article, postHref } from './site.js'
+import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from './style.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 
@@ -103,7 +105,13 @@ const list = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
 
 // --- the editor -------------------------------------------------------------------
 
-/** The post as its page will read, from the application's own read of the row. */
+/** The post as its page will read: the site's own article, in the site's look. */
+const Preview = SlotView.define(
+  SiteSlots,
+  (post: Selected<typeof PostPreview>, slots, h: HtmlBuilder<Message>) =>
+    article({ slots, h, post, publishedAt: Option.none(), after: [] }),
+).pipe(Style.attach(SiteStyle))
+
 const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const post = Option.flatMap(PostEditor.pageId(model), id => {
     const read = postPage(id).read(model)
@@ -112,21 +120,8 @@ const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
       : Option.none()
   })
   return Option.match(post, {
-    onNone: () =>
-      h.p(slots.muted.attrs([h.Id('page')]), ['There is nothing to preview yet: write a title.']),
-    onSome: post =>
-      h.article(slots.preview.attrs([h.Id('page')]), [
-        h.div(
-          [h.Style({ aspectRatio: '21 / 9', background: coverOf(post), borderRadius: '14px' })],
-          [],
-        ),
-        h.h1(
-          [h.Style({ fontSize: '2.5rem', letterSpacing: '-0.025em', margin: '0' })],
-          [post.title],
-        ),
-        h.p(slots.muted.attrs(), [post.excerpt]),
-        ...paragraphs(post.body).map(paragraph => h.p([], [paragraph])),
-      ]),
+    onNone: () => h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.']),
+    onSome: post => h.div(slots.preview.attrs(), [Preview(post, h)]),
   })
 }
 
@@ -285,6 +280,11 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
               ],
             },
           ),
+          // A writer cannot publish: say who can, rather than leave the button
+          // missing. A post not yet saved has no permissions to read.
+          ...(Option.isNone(state) || may('publish')
+            ? []
+            : [h.p(slots.muted.attrs(), ['An editor publishes it when it is ready.'])]),
           ...(may('schedule')
             ? [
                 h.label(slots.muted.attrs([h.For('at')]), ['Publish later']),
