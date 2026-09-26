@@ -16,8 +16,8 @@ lit.
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
 versions. The mark toolbar, the block style picker, the slash menu, the link editor, the
-Markdown source editor, and the status line are built; the rest of the design's editor chrome
-(floating toolbar, block handle) arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
+Markdown source editor, the status line, and the command palette are built; the rest of the
+design's editor chrome (floating toolbar, block handle) arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
 because it is drawn inside the editable subtree this package stays out of.
 
 ## The mark toolbar
@@ -82,6 +82,47 @@ undo what it shows.
 | `root` | Container | the picker's wrapper |
 | `toolbar` | Collection | the row, `role="toolbar"` |
 | `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
+
+## The command palette
+
+The slash menu's catalogue, searched from a field of its own instead of typed into the
+document. The palette keeps no state: whether it is open, its query, and its highlighted index
+are the application's, as `{ query, index } | null` in its Model.
+
+```ts
+import { commandPalette, slashEntries } from 'foldkit-mixins-richtext'
+
+const commands = slashEntries(event => Message.ChoseCommand({ event }))
+
+model.palette === null
+  ? h.empty
+  : commandPalette<Message>()(
+      {
+        id: 'commands',
+        entries: commands,
+        query: model.palette.query,
+        index: model.palette.index,
+        changed: (query, index) => Message.ChangedPalette({ query, index }),
+        closed: Message.ClosedPalette(),
+      },
+      h,
+    )
+```
+
+Typing sends `changed(query, 0)`. ArrowUp and ArrowDown send `changed(query, next)`, wrapping;
+Home and End stay the field's. Enter and a click send the entry's own Message, which is why the
+entries are wrapped: the application's `ChoseCommand` closes the palette and hands `event` to the
+editor. Enter with nothing matching sends nothing. Escape sends `closed`. An index the matches
+do not hold highlights the first match, as the slash menu does. The field is a `combobox` whose
+`aria-activedescendant` names the highlighted option, so `id` must be unique on the page.
+Opening the palette on a chord and moving focus into it are the application's.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the palette, `role="dialog"` |
+| `input` | TextInput | the search field, `role="combobox"` |
+| `list` | Collection | the matches, `role="listbox"` |
+| `option` | Interactive | one entry, `data-entry` and `aria-selected` |
 
 ## The status line
 

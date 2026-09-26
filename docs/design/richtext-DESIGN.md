@@ -7,8 +7,9 @@ Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules 
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
-mark toolbar, the block style picker, the slash menu, link editing, the placeholder, and the
-status line (§119, §123, §132, §133, §134, §141), with their views in
+mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
+status line, and the command palette (§119, §123, §132, §133, §134, §141, §142), with their
+views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
@@ -4705,8 +4706,10 @@ block type picker         `textBlockAt` in the core, `blockStyles` in the Mixins
                           family (§134)
 status                    `count` in the core, `editorStatus` in the Mixins family,
                           showing the problems the caller passes (§141)
-block handle, command
-palette, floating toolbar not started (§11, §120 slice 2)
+command palette           `commandPalette` in the Mixins family, over the slash
+                          catalogue (§142)
+block handle, floating
+toolbar                   not started (§11, §120 slice 2)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7684,3 +7687,37 @@ node would change the Model and show nothing.
 
 Not done: a live region. Announcing counts on every keystroke is noise, and whether a new
 problem should interrupt a writer is the application's call, so the view sets no `aria-live`.
+
+---
+
+# 142. The command palette
+
+§68 says the palette "can be a Bundle or ordinary local Model state". It is neither: it is
+`commandPalette`, a stateless view in `foldkit-mixins-richtext`, and the state is the
+application's `{ query, index } | null`. That is the link editor's shape (§132), and the reason is
+the same. Opening on a chord, where focus goes, and what else the application lists are its
+business, and a Bundle would own those without knowing them.
+
+The entries are `SlashEntry` values, the slash menu's type, and `matchingEntries` filters them,
+so a palette and a slash menu offer the same catalogue matched the same way. The difference is
+where the query lives. The slash menu reads it from the document before the caret, and its
+choice removes that text (`runAction`, §123). The palette's query is in its own field, so a
+choice sends the entry's Message as it is, and the editor applies it at the selection it still
+holds.
+
+A choice has to close the palette as well as reach the editor, and the view cannot know which of
+the caller's Messages closes it. So the caller wraps its entries
+(`slashEntries(event => Message.ChoseCommand({ event }))`), and its `update` closes the palette
+and forwards `event`. That is the seam the toolbar's `toggled` and the picker's `wrap` already
+use.
+
+Keys: ArrowUp and ArrowDown move through `RovingTabindex.move`, wrapping, as the slash menu's do.
+Home and End are left to the field, because in a text field they move the caret, and taking them
+would make the query uneditable from the keyboard. A modified arrow moves nothing, which is
+`move`'s rule. The field is a `combobox` with `aria-activedescendant` naming the highlighted
+`option`, since focus stays in the field while the highlight moves. That is why the view takes an
+`id`.
+
+Not done: entries a selection makes meaningless (a retype under a node selection) are listed
+anyway and refused by the editor when chosen; a palette that greys them out would need the
+picker's `live` rule per entry.

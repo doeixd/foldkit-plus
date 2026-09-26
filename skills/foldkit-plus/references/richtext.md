@@ -181,7 +181,10 @@ beside it is split mode: `{ session, document, rendering? }`, the draft rendered
 the document it would become. `editorStatus<Message>()` is the status line: `{ document,
 diagnostics? }` in, `EditorStatusSlots` (`root`, `counts`, `problems`, `problem`) out; the counts
 are `RichText.count(document)` (`{ words, characters }`), the problems whatever the caller passes,
-usually `RichText.validate` against its Kit.
+usually `RichText.validate` against its Kit. `commandPalette<Message>()` searches the same
+catalogue from its own field: `{ id, entries, query, index, changed, closed }` in,
+`CommandPaletteSlots` (`root`, `input`, `list`, `option`) out; the application keeps
+`{ query, index } | null`, and Enter or a click sends the entry's own Message.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,

@@ -98,6 +98,8 @@ check(
     typeof family.SourceEditorSlots === 'object' &&
     typeof family.BlockStyleSlots === 'object' &&
     typeof family.editorStatus === 'function' &&
+    typeof family.commandPalette === 'function' &&
+    typeof family.CommandPaletteSlots === 'object' &&
     typeof family.EditorStatusSlots === 'object' &&
     typeof family.LinkEditorSlots === 'object',
 )
