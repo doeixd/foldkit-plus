@@ -31,6 +31,11 @@ version changed; `pnpm` skips versions already in the registry.
   `inspectorSectionTitle`, `choices`, `choice`, `shortcuts`, `shortcutKeys`,
   `shortcutWhat`, and `label` and `option` for a field's name and a
   many-choice picker's choice, which were drawn outside any Slot.
+- **`foldkit-builder`: Escape deselects** in `keyCommand`.
+  **`foldkit-mixins-builder`** takes the shortcuts on the canvas as well as the
+  layers (the canvas is now focusable), and draws a breadcrumb of where the
+  selection is (`crumbs`, one `crumb` button per node holding it, the page
+  first, the current one `aria-current="location"`).
 - **`foldkit-surface`: `Action`, a named capability that ends in a Message.**
   `Action.define({ name, description, input, toMessage })` declares one, and
   `Action.run(action, data)` decodes the data as its input before making the

@@ -260,6 +260,7 @@ describe('the drawn Builder', () => {
       'Delete',
       'Ctrl+Z',
       'Ctrl+Shift+Z',
+      'Escape',
     ])
     expect(all(root).some(node => attr(node, 'aria-label') === 'Selected block')).toBe(false)
   })
@@ -504,6 +505,23 @@ describe('the drawn Builder', () => {
     expect(all(root).some(node => attr(node, 'aria-live') === 'assertive')).toBe(true)
   })
 
+  it('says where the selection is, from the page down, the last one current', () => {
+    const crumbs = (model: Model) => {
+      const [trail] = all(draw(model)).filter(
+        node => attr(node, 'aria-label') === 'Where the selection is',
+      )
+      return all(trail)
+        .filter(node => node.sel === 'button')
+        .map(button => [text(button), attr(button, 'aria-current')])
+    }
+    expect(crumbs(page)).toEqual([
+      ['Page', undefined],
+      ['Section', undefined],
+      ['Promo banner', 'location'],
+    ])
+    expect(crumbs(send(page, Message.Deselected()))).toEqual([['Page', 'location']])
+  })
+
   it('offers the selected node’s actions as the shortcuts would send them', () => {
     const root = draw(page)
     expect(prop(buttonNamed(root, 'Move up'), 'disabled')).toBe(false)
@@ -517,9 +535,9 @@ describe('the drawn Builder', () => {
 describe('its Behaviors', () => {
   const builders = SlotView.buildersFor(BuilderSlots, PageView.mixins, { input: page, h })
 
-  it('takes the editor’s shortcuts on the layers panel', () => {
-    const handler = Attributes.find(builders.layers.attrs(), 'OnKeyDownPreventDefault')?.f
-    if (handler === undefined) throw new Error('no shortcuts on the layers panel')
+  it.each(['layers', 'canvas'] as const)('takes the editor’s shortcuts on the %s', slot => {
+    const handler = Attributes.find(builders[slot].attrs(), 'OnKeyDownPreventDefault')?.f
+    if (handler === undefined) throw new Error(`no shortcuts on the ${slot}`)
     const up = handler('ArrowUp', { shiftKey: false, ctrlKey: false, altKey: true, metaKey: false })
     expect(up._tag === 'Some' && up.value._tag).toBe('Applied')
     expect(

@@ -272,7 +272,7 @@ const PageForm = Form.make('PageForm', PageInput, {
   shown), undo/redo, viewport frame, refusal as `role="alert"`, live region,
   and the page via the site's Renderer in edit mode.
 - Behaviors: `TreeNavigation` on `tree`/`row`; `keyCommand` shortcuts on
-  `layers`; `Targets` on `canvas` (hover marks, press selects, a link does not
+  `layers` and the focusable `canvas` (Escape deselects); a `crumbs` breadcrumb; `Targets` on `canvas` (hover marks, press selects, a link does not
   navigate). No state, no Messages of its own.
 - A Block's words: `Block.annotate(BuilderView.describe({ label, description, group }))`;
   the label defaults to the name spaced. Palette items and rows carry `data-block`.

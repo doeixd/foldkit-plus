@@ -114,6 +114,20 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(rowNamed('Heading')).toBeDefined())
 
+    // The page's crumb lets go of the selection; Escape on the page does too.
+    const crumb = (name: string) =>
+      Array.from(document.querySelectorAll('[aria-label="Where the selection is"] button')).find(
+        button => button.textContent === name,
+      )
+    crumb('Section')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))
+    crumb('Page')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
+    rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(selectedRow()).toBeDefined())
+    key(document.querySelector('[aria-label="Page"]') ?? undefined, 'Escape')
+    await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
+
     // A click on a row selects it.
     rowNamed('Section')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))

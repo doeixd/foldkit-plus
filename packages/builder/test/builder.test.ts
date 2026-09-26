@@ -316,6 +316,10 @@ describe('the keyboard, the layers and the announcer', () => {
       PageBuilder.keyCommand({ ...removed, selected: Option.none() }, 'Delete', plain),
     ).toEqual(Option.none())
     expect(PageBuilder.keyCommand(removed, 'a', plain)).toEqual(Option.none())
+    // Escape lets go of the selection, and with none there is nothing to let go.
+    const released = press(removed, 'Escape')
+    expect(released.selected).toEqual(Option.none())
+    expect(PageBuilder.keyCommand(released, 'Escape', plain)).toEqual(Option.none())
   })
 
   it('selects the node the layers’ keyboard focus moves to', () => {

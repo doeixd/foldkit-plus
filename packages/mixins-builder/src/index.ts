@@ -85,6 +85,9 @@ export const BuilderSlots = Slots.define({
   shortcutKeys: Slot.make({ capability: Capability.Base }),
   shortcutWhat: Slot.make({ capability: Capability.Base }),
   history: Slot.make({ capability: Capability.Container }),
+  /** Where the selection is: the page, then each node holding it, then it. One `crumb` button each. */
+  crumbs: Slot.make({ capability: Capability.Container }),
+  crumb: Slot.make({ capability: Capability.Interactive }),
   undo: Slot.make({ capability: Capability.Interactive }),
   redo: Slot.make({ capability: Capability.Interactive }),
   viewports: Slot.make({ capability: Capability.Container }),
@@ -93,7 +96,7 @@ export const BuilderSlots = Slots.define({
   preview: Slot.make({ capability: Capability.Container }),
   /** Why the last edit was refused. */
   alert: Slot.make({ capability: Capability.Base }),
-  /** The page in edit mode, and the frame that sets its width. */
+  /** The page in edit mode, and the frame that sets its width. It takes the shortcuts when focused. */
   canvas: Slot.make({ capability: Capability.Container }),
   frame: Slot.make({ capability: Capability.Container }),
   /** The live region the Builder's announcements are read from. */
@@ -321,6 +324,7 @@ const SHORTCUTS: ReadonlyArray<readonly [keys: string, what: string]> = [
   ...ACTIONS.map(action => [action.keys, action.label] as const),
   ['Ctrl+Z', 'Undo'],
   ['Ctrl+Shift+Z', 'Redo'],
+  ['Escape', 'Select nothing'],
 ]
 
 /** The control a Block asked for its prop, else the one its Schema resolves to. */
@@ -618,7 +622,7 @@ export const BuilderView = {
             h.p(slots.inspectorHint.attrs(), [
               'Select a block on the page or in the layers to change it.',
             ]),
-            h.h3(slots.inspectorSectionTitle.attrs(), ['Shortcuts in the layers']),
+            h.h3(slots.inspectorSectionTitle.attrs(), ['Shortcuts, in the layers or on the page']),
             h.dl(
               slots.shortcuts.attrs(),
               SHORTCUTS.flatMap(([keys, what]) => [
@@ -642,6 +646,40 @@ export const BuilderView = {
           'Redo',
           History.canRedo(model.page) ? Option.some(Message.Redid()) : Option.none(),
           [h.Title('Redo (Ctrl+Shift+Z)')],
+        ),
+      ])
+
+      // The page, then each node from the top down to the selected one, which is where you are.
+      const holders = (id: NodeId): ReadonlyArray<NodeId> => {
+        const places = Composition.index(document)
+        const chain: Array<NodeId> = [id]
+        for (
+          let place = places.get(id);
+          place?.parent !== undefined;
+          place = places.get(place.parent)
+        )
+          chain.unshift(place.parent)
+        return chain
+      }
+      const trail = Option.match(selected, { onNone: () => [], onSome: holders })
+      const crumbs = h.nav(slots.crumbs.attrs([h.AriaLabel('Where the selection is')]), [
+        h.button(
+          slots.crumb.attrs([
+            h.Type('button'),
+            h.OnClick(Message.Deselected()),
+            ...(trail.length === 0 ? [h.AriaCurrent('location')] : []),
+          ]),
+          ['Page'],
+        ),
+        ...trail.map((id, index) =>
+          h.button(
+            slots.crumb.attrs([
+              h.Type('button'),
+              h.OnClick(Message.Selected({ id })),
+              ...(index === trail.length - 1 ? [h.AriaCurrent('location')] : []),
+            ]),
+            [labelAt(id)],
+          ),
         ),
       ])
 
@@ -684,30 +722,35 @@ export const BuilderView = {
               ),
             ]
 
-      const canvas = h.div(slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page')]), [
-        h.div(
-          slots.frame.attrs([
-            h.DataAttribute('viewport', model.viewport),
-            h.Style({ maxWidth: viewportWidths[model.viewport], margin: '0 auto' }),
-          ]),
-          [
-            ...Renderer.render(builder.renderer, document, inertHtml, {
-              mode: 'edit',
-              selected: Option.getOrUndefined(selected),
-              hovered: Option.getOrUndefined(model.hovered),
-              drop: Option.getOrUndefined(drop),
-              context: model.preview,
-              data: model.data,
-            }),
-          ],
-        ),
-      ])
+      // Focusable, so a press on the page leaves the shortcuts where the selection is.
+      const canvas = h.div(
+        slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page'), h.Tabindex(0)]),
+        [
+          h.div(
+            slots.frame.attrs([
+              h.DataAttribute('viewport', model.viewport),
+              h.Style({ maxWidth: viewportWidths[model.viewport], margin: '0 auto' }),
+            ]),
+            [
+              ...Renderer.render(builder.renderer, document, inertHtml, {
+                mode: 'edit',
+                selected: Option.getOrUndefined(selected),
+                hovered: Option.getOrUndefined(model.hovered),
+                drop: Option.getOrUndefined(drop),
+                context: model.preview,
+                data: model.data,
+              }),
+            ],
+          ),
+        ],
+      )
 
       return h.div(slots.root.attrs(), [
         palette,
         layers,
         inspector,
         history,
+        crumbs,
         viewports,
         ...preview,
         ...Option.match(model.refused, {
@@ -1142,6 +1185,14 @@ export const BuilderView = {
       ])
     }
 
+    const shortcuts = ({
+      input,
+      h,
+    }: {
+      readonly input: BuilderInput
+      readonly h: HtmlBuilder<Message>
+    }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyCommand(input, key, modifiers))]
+
     return SlotView.forMessages<Message>()
       .define(BuilderSlots, (input: BuilderInput, slots, h) => draw(input, slots, h), {
         name: 'Builder',
@@ -1190,19 +1241,8 @@ export const BuilderView = {
         Behavior.attach(
           Behavior.forSlots(BuilderSlots)<BuilderInput, Message>(
             {
-              layers: Behavior.slot({
-                attributes: ({
-                  input,
-                  h,
-                }: {
-                  readonly input: BuilderInput
-                  readonly h: HtmlBuilder<Message>
-                }) => [
-                  h.OnKeyDownPreventDefault((key, modifiers) =>
-                    builder.keyCommand(input, key, modifiers),
-                  ),
-                ],
-              }),
+              layers: Behavior.slot({ attributes: shortcuts }),
+              canvas: Behavior.slot({ attributes: shortcuts }),
             },
             { name: 'BuilderShortcuts' },
           ),

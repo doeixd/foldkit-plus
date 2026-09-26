@@ -859,7 +859,8 @@ export const Builder = {
      * The editor's keyboard shortcuts, for the layers panel: Alt with an arrow
      * moves the selected node up, down, out of its parent or into the node
      * above it; Mod+D duplicates it; Delete removes it; Mod+Z undoes, and
-     * Mod+Shift+Z or Mod+Y redoes. None for a key it does not handle.
+     * Mod+Shift+Z or Mod+Y redoes; Escape deselects. None for a key it does
+     * not handle.
      */
     const keyCommand = (
       model: Model,
@@ -872,6 +873,7 @@ export const Builder = {
         return Option.some(modifiers.shiftKey ? Message.Redid() : Message.Undid())
       if (mod && !modifiers.altKey && lower === 'y') return Option.some(Message.Redid())
       if (Option.isNone(model.selected)) return Option.none()
+      if (key === 'Escape' && !mod && !modifiers.altKey) return Option.some(Message.Deselected())
       const selected = model.selected.value
       const document = documentOf(model)
       if (modifiers.altKey && !mod)

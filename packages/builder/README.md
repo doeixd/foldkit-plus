@@ -98,7 +98,7 @@ Behaviors; `foldkit-mixins-builder` does.
 
 - **Moving keyboard focus in the layers selects the node** it lands on.
 - **`PageBuilder.keyCommand(model, key, modifiers)`** is the editor's shortcuts
-  as the Message they send, or `undefined`:
+  as the Message they send, or none:
 
   | Keys | What they do to the selected node |
   | --- | --- |
@@ -108,9 +108,10 @@ Behaviors; `foldkit-mixins-builder` does.
   | Mod+D | duplicate it, just after it |
   | Delete, Backspace | remove it |
   | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
+  | Escape | deselect it |
 
-  Attach it to the layers panel, not the whole editor, so Delete in a text box
-  edits the text. A move the page refuses is refused as any edit is.
+  Attach it to the layers panel and the canvas, not the whole editor, so
+  Delete in a text box edits the text. A move the page refuses is refused as any edit is.
 - **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
   Section body", and so are undo, redo, and a refusal, assertively. A prop
   edit is not: the field being typed in already says it.
