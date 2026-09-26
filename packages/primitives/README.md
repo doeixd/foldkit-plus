@@ -95,7 +95,7 @@ Each subpath is one concern, one import:
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Measure, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -378,6 +378,17 @@ its subtree newly matches `selector` (the row just selected, the node just
 inserted), it is scrolled into view the least amount that shows it. It sends no
 Message and redraws nothing, so a focused row stays focused. Where there is no
 layout (jsdom), it scrolls nothing.
+
+`Measure({ targets: { selected: '[aria-selected="true"]' } })` measures, for
+each named target, the first element in its subtree that matches, relative to
+its scroll box, and writes `--fk-selected-x`, `-y`, `-w`, `-h` (pixels) and
+`--fk-selected-display` (`block`, or `none` while nothing matches) on the
+element (`measured('selected')` names them). A child placed absolutely from
+them, such as an editor's selection outline, sits over the target and scrolls
+with it. Where an element is, is presentation: it sends no Message and keeps
+nothing in the Model. It measures again when the subtree changes, when the
+element scrolls, when it or a target changes size, and when the window
+resizes, at most once a frame.
 
 ## State: `foldkit-primitives/state`
 
