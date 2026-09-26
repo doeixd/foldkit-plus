@@ -5,7 +5,10 @@
     "outDir": ".tsbuild",
     "emitDeclarationOnly": true,
     "composite": true,
-    "noEmit": false
+    "noEmit": false,
+    "paths": {
+      "foldkit-durable": ["./src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "bench/**/*.ts", "tsdown.config.ts"]
 }

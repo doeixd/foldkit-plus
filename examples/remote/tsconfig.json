@@ -8,20 +8,38 @@
     "noEmit": false,
     "paths": {
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
+      "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
+      "foldkit-mixins/layers": ["../../packages/mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
+      "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
+      "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
-    { "path": "../../packages/mixins/tsconfig.build.json" },
-    { "path": "../../packages/mixins-surface/tsconfig.build.json" },
-    { "path": "../../packages/remote/tsconfig.build.json" },
-    { "path": "../../packages/metadata/tsconfig.build.json" },
-    { "path": "../../packages/entity/tsconfig.build.json" },
-    { "path": "../../packages/surface/tsconfig.build.json" }
+    {
+      "path": "../../packages/mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    }
   ]
 }

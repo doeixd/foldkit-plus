@@ -7,23 +7,35 @@
     "composite": true,
     "noEmit": false,
     "paths": {
-      "foldkit-ssr": ["./src/index.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"],
       "foldkit-bundle": ["../bundle/src/index.ts"],
-      "foldkit-mirror": ["../mirror/src/index.ts"],
-      "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
-      "foldkit-metadata": ["../metadata/src/index.ts"]
+      "foldkit-metadata": ["../metadata/src/index.ts"],
+      "foldkit-mirror": ["../mirror/src/index.ts"],
+      "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-ssr": ["./src/index.ts"],
+      "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
-    { "path": "../bundle/tsconfig.build.json" },
-    { "path": "../mirror/tsconfig.build.json" },
-    { "path": "../remote/tsconfig.build.json" },
-    { "path": "../entity/tsconfig.build.json" },
-    { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../surface/tsconfig.build.json" }
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../mirror/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    }
   ]
 }

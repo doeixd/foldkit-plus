@@ -14,6 +14,9 @@
     },
     {
       "path": "../richtext-dom/tsconfig.build.json"
+    },
+    {
+      "path": "../primitives/tsconfig.build.json"
     }
   ]
 }

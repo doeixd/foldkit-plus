@@ -9,13 +9,23 @@
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
+      "foldkit-richtext-dom": ["./src/index.ts"],
       "foldkit-richtext-dom/editor": ["./src/editor.ts"],
-      "foldkit-richtext-dom/host": ["./src/host.ts"]
+      "foldkit-richtext-dom/editor-bundle": ["./src/editor-bundle.ts"],
+      "foldkit-richtext-dom/events": ["./src/events.ts"],
+      "foldkit-richtext-dom/host": ["./src/host.ts"],
+      "foldkit-richtext-dom/html": ["./src/html.ts"],
+      "foldkit-richtext-dom/toolbar": ["./src/toolbar.ts"],
+      "foldkit-richtext-dom/view": ["./src/view.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
-    { "path": "../bundle/tsconfig.build.json" },
-    { "path": "../richtext/tsconfig.build.json" }
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext/tsconfig.build.json"
+    }
   ]
 }

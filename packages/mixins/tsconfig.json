@@ -5,7 +5,15 @@
     "outDir": ".tsbuild",
     "emitDeclarationOnly": true,
     "composite": true,
-    "noEmit": false
+    "noEmit": false,
+    "paths": {
+      "foldkit-mixins": ["./src/index.ts"],
+      "foldkit-mixins/defaults": ["./src/defaults.ts"],
+      "foldkit-mixins/layers": ["./src/layers.ts"],
+      "foldkit-mixins/layout": ["./src/layout.ts"],
+      "foldkit-mixins/prose": ["./src/prose.ts"],
+      "foldkit-mixins/theme": ["./src/theme.ts"]
+    }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]
 }
