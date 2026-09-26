@@ -12,13 +12,13 @@
  * `data-composition-node`, so an editor can find the node under the pointer.
  */
 import { Result } from 'effect'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import { createKeyedLazy, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Update from 'foldkit/update'
 import { Block, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
 import { Catalog } from '../catalog.js'
 import { messageOf } from '../action.js'
 import { holds } from '../condition.js'
-import type { Document, NodeId } from '../document.js'
+import type { Document, Node, NodeId } from '../document.js'
 import { statefulNodes } from '../stateful.js'
 
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
@@ -95,6 +95,120 @@ const make =
     return Object.freeze({ _tag: 'Renderer', catalog, entries, dispatches })
   }
 
+/** What stands in for a node that cannot be drawn: nothing in view mode, a labelled box in edit mode. */
+const placeholder = (
+  h: HtmlBuilder<unknown>,
+  mode: Mode,
+  id: NodeId,
+  block: string,
+  reason: string,
+): Html =>
+  mode === 'view'
+    ? null
+    : h.div(
+        [h.DataAttribute(PLACEHOLDER_ATTRIBUTE, block), h.DataAttribute(NODE_ATTRIBUTE, id)],
+        [`${block}: ${reason}`],
+      )
+
+/** Everything one node's drawing reads, in order, its regions' drawn children last. */
+type DrawArgs = [
+  renderer: Renderer<AnyBlock, unknown>,
+  h: HtmlBuilder<unknown>,
+  mode: Mode,
+  id: NodeId,
+  node: Node,
+  shown: boolean,
+  data: unknown,
+  mark: 'selected' | 'hovered' | undefined,
+  drop: 'before' | 'inside' | 'after' | undefined,
+  ...children: ReadonlyArray<Html>,
+]
+
+/**
+ * One node, given its children already drawn: a function of its arguments
+ * alone, so a node none of whose arguments changed is not drawn again. Nodes
+ * are shared between versions of a Document when unchanged, so an edit redraws
+ * the nodes it touched and those holding them.
+ */
+const drawNode = (
+  ...[renderer, h, mode, id, node, shown, data, mark, drop, ...children]: DrawArgs
+): Html => {
+  const block = Catalog.block(renderer.catalog, node.block)
+  if (block === undefined)
+    return placeholder(
+      h,
+      mode,
+      id,
+      node.block,
+      'this Block is not in this version of the application',
+    )
+  const props = Block.decode(block, node.props)
+  if (Result.isFailure(props))
+    return placeholder(h, mode, id, node.block, 'its settings are not valid')
+  // The children arrive flat, region by region, in the Block's order.
+  let at = 0
+  const regions = Object.fromEntries(
+    Object.keys(block.regions).map(name => {
+      const count = (node.regions[name] ?? []).length
+      const drawn = children.slice(at, at + count)
+      at += count
+      return [name, drawn]
+    }),
+  )
+  const entries = renderer.entries as unknown as Readonly<
+    Record<string, (context: RenderContext<AnyBlock, unknown>) => Html>
+  >
+  let html: Html
+  try {
+    html = entries[block.name]!({
+      id,
+      props: props.success,
+      regions,
+      h,
+      mode,
+      appearance: Block.offeredAppearance(block, node.appearance),
+      data,
+      on: event =>
+        renderer.dispatches
+          ? // `forMessages` checked the Catalog's actions end in this Renderer's Messages.
+            messageOf(renderer.catalog.actions, block, node.actions, event)
+          : undefined,
+    })
+  } catch (error) {
+    // One node's view failing, such as a look whose choice a Behavior also owns,
+    // is that node's placeholder, not the page's end.
+    return placeholder(h, mode, id, node.block, `it could not be drawn: ${String(error)}`)
+  }
+  // Keyed by the node, so a node moved among its siblings is moved, not patched
+  // into its neighbour: its drawing is reused, and one reused drawing must keep
+  // one place. In view mode the Block's own root takes the key, unless it set one.
+  if (mode === 'view') {
+    if (html !== null && html.key === undefined) html.key = id
+    return html
+  }
+  return h.div(
+    [
+      h.Key(id),
+      h.DataAttribute(NODE_ATTRIBUTE, id),
+      h.Style({ display: 'contents' }),
+      ...(mark === undefined ? [] : [h.DataAttribute(MARK_ATTRIBUTE, mark)]),
+      ...(drop === undefined ? [] : [h.DataAttribute(DROP_ATTRIBUTE, drop)]),
+      ...(shown ? [] : [h.DataAttribute(HIDDEN_ATTRIBUTE, '')]),
+    ],
+    [html],
+  )
+}
+
+/** One memo per Renderer, keyed by node id. */
+const lazies = new WeakMap<object, ReturnType<typeof createKeyedLazy>>()
+const lazyOf = (renderer: Renderer<AnyBlock, unknown>): ReturnType<typeof createKeyedLazy> => {
+  const known = lazies.get(renderer)
+  if (known !== undefined) return known
+  const made = createKeyedLazy()
+  lazies.set(renderer, made)
+  return made
+}
+
 /**
  * Draws a Document's roots. Nothing stored makes it throw: a node whose Block
  * the Catalog lacks, whose props do not decode, that is missing or reached
@@ -134,78 +248,62 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
 ): ReadonlyArray<Html> => {
   // For a Renderer that sends nothing, `Into` is the application's Message, and
   // no view can make one: drawing with the application's builder is safe.
-  const h = given as unknown as HtmlBuilder<Message>
+  const h = given as unknown as HtmlBuilder<unknown>
   const mode = options.mode ?? 'view'
-  const entries = renderer.entries as unknown as Readonly<
-    Record<string, (context: RenderContext<AnyBlock, Message>) => Html>
-  >
-  const placeholder = (id: NodeId, block: string, reason: string): Html =>
-    mode === 'view'
-      ? null
-      : h.div(
-          [h.DataAttribute(PLACEHOLDER_ATTRIBUTE, block), h.DataAttribute(NODE_ATTRIBUTE, id)],
-          [`${block}: ${reason}`],
-        )
+  const loose = renderer as unknown as Renderer<AnyBlock, unknown>
+  const lazy = lazyOf(loose)
+  // Memoized only inside a runtime-driven render, which the lazy slot needs; drawn
+  // inert outside one (a test, a server's first pass), every node is drawn afresh.
+  let memoize = true
 
   const drawn = new Set<NodeId>()
   const draw = (id: NodeId): Html => {
     const node = document.nodes[id]
-    if (node === undefined) return placeholder(id, 'Missing', 'this node is not in the page')
+    if (node === undefined)
+      return placeholder(h, mode, id, 'Missing', 'this node is not in the page')
     // A node reached twice is drawn once, which also ends a cycle.
-    if (drawn.has(id)) return placeholder(id, node.block, 'this node is already on the page')
+    if (drawn.has(id))
+      return placeholder(h, mode, id, node.block, 'this node is already on the page')
     drawn.add(id)
     const shown = holds(node.when, options.context)
     if (!shown && mode === 'view') return null
-    const block = Catalog.block(renderer.catalog, node.block)
+    const block = Catalog.block(loose.catalog, node.block)
     if (block === undefined)
-      return placeholder(id, node.block, 'this Block is not in this version of the application')
-    const props = Block.decode(block, node.props)
-    if (Result.isFailure(props)) return placeholder(id, node.block, 'its settings are not valid')
-    const regions = Object.fromEntries(
-      Object.keys(block.regions).map(name => [name, (node.regions[name] ?? []).map(draw)]),
-    )
-    let html: Html
-    try {
-      html = entries[block.name]!({
-        id,
-        props: props.success,
-        regions,
+      return placeholder(
         h,
         mode,
-        appearance: Block.offeredAppearance(block, node.appearance),
-        data: options.data?.[id],
-        on: event =>
-          renderer.dispatches
-            ? // `forMessages` checked the Catalog's actions end in this Renderer's Messages.
-              (messageOf(renderer.catalog.actions, block, node.actions, event) as
-                Message | undefined)
-            : undefined,
-      })
-    } catch (error) {
-      // One node's view failing, such as a look whose choice a Behavior also owns,
-      // is that node's placeholder, not the page's end.
-      return placeholder(id, node.block, `it could not be drawn: ${String(error)}`)
+        id,
+        node.block,
+        'this Block is not in this version of the application',
+      )
+    // The structure is walked every time, so a node reached twice is still caught;
+    // only each node's own drawing is memoized, on what it reads.
+    const children = Object.keys(block.regions).flatMap(name =>
+      (node.regions[name] ?? []).map(draw),
+    )
+    const args: DrawArgs = [
+      loose,
+      h,
+      mode,
+      id,
+      node,
+      shown,
+      options.data?.[id],
+      options.selected === id ? 'selected' : options.hovered === id ? 'hovered' : undefined,
+      options.drop?.id === id ? options.drop.zone : undefined,
+      ...children,
+    ]
+    if (memoize) {
+      try {
+        return lazy(id, drawNode, args)
+      } catch {
+        // No runtime frame to memoize under: draw this render uncached.
+        memoize = false
+      }
     }
-    return mode === 'view'
-      ? html
-      : h.div(
-          [
-            h.DataAttribute(NODE_ATTRIBUTE, id),
-            h.Style({ display: 'contents' }),
-            ...(options.selected === id
-              ? [h.DataAttribute(MARK_ATTRIBUTE, 'selected')]
-              : options.hovered === id
-                ? [h.DataAttribute(MARK_ATTRIBUTE, 'hovered')]
-                : []),
-            ...(options.drop?.id === id
-              ? [h.DataAttribute(DROP_ATTRIBUTE, options.drop.zone)]
-              : []),
-            ...(shown ? [] : [h.DataAttribute(HIDDEN_ATTRIBUTE, '')]),
-          ],
-          [html],
-        )
+    return drawNode(...args)
   }
-  return document.roots.map(draw)
+  return document.roots.map(draw) as ReadonlyArray<Html>
 }
 
 export const Renderer = {

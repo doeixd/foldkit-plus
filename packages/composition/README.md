@@ -375,8 +375,17 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   `undefined`: an editor's canvas draws a page without running its actions.
   `Renderer.forMessages<Message>()` requires every Message the Catalog's
   actions make to be one of `Message`.
-- It adds no reconciler, no component runtime and no per-node state. It needs
-  `foldkit` installed; the core does not.
+- **A node is drawn again only when what it reads changed.** Inside a
+  runtime-driven render, each node's drawing is memoized with Foldkit's
+  `createKeyedLazy` on its node object, its drawn children, its read, whether
+  it shows, and its marks. `apply` shares every node it does not change, so an
+  edit redraws the node it touched and the nodes holding it, and a change
+  elsewhere in the Model redraws none. Each node is keyed by its id (the edit
+  wrapper, or in view mode the Block's own root, unless it set a key), so a
+  moved node moves with its drawing. Drawn outside a runtime (a test with
+  `inertHtml`, a server's first pass), nothing is memoized.
+- It adds no reconciler and no component runtime. It needs `foldkit`
+  installed; the core does not.
 
 ### URLs
 

@@ -414,6 +414,13 @@ Inert.bySlot(root, 'paletteItem').map(node => Inert.item(node).data.block)
 - Types: `@ts-expect-error` cases for a missing `data`, and for a predicate
   reading a field the Slot does not declare.
 
+> **Deferred, 2026-09-26, to decide with X2 after parts (3d).** It adds a
+> generic to `Slot` and threads it through every `SlotBuilders`, which every
+> package uses, and its first use is the example's block icons. Parts let an
+> application draw its own palette tile and layer row, icon included, which
+> covers that use without CSS, so X2 and 2c are better decided once parts
+> exist.
+
 **Acceptance for the phase.** Every package view test calls `assertSlotted`.
 No test in the repository selects by `aria-label` text except to test the
 label itself. The example has no attribute selectors into package markup.
@@ -427,6 +434,9 @@ what changed. They read environment facts and words the same way everywhere.
 Addresses U1, U2, U3, U5, U6, and B9 and B10 on the way.
 
 ### 3a. `Environment` (S)
+
+> **Built with 5a,** its first reader (the command table's key names), rather
+> than ahead of any reader.
 
 In `foldkit-mixins`:
 
@@ -564,6 +574,20 @@ measurement below shows the root pass still matters.
 keystroke in the inspector, a hover, a selection change. Record the numbers in
 `pagebuilder-DESIGN.md` §25, and in `reactivity-DESIGN.md` as its Phase 1
 result.
+
+> **Renderer nodes done, 2026-09-26.** `Renderer.render` memoizes each node
+> on `[renderer, h, mode, id, node, shown, data, mark, drop, ...children]`,
+> with the structure still walked every render so a node reached twice is
+> still caught. Two things found building it:
+>
+> - Foldkit's lazy slot needs a runtime frame and throws without one, and
+>   Foldkit exposes no way to ask. The Renderer tries the slot and draws that
+>   render uncached if it throws. **Upstream request:** a public `inRender()`.
+> - A reused drawing must keep one place, so every node is keyed by its id;
+>   without keys, a move patched one node's drawing into its neighbour's.
+>
+> A runtime test counts view calls; the Builder's parts and per-row
+> boundaries come with 3d.
 
 ### 3d. Parts and an assembly (L)
 

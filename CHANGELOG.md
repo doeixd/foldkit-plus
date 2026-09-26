@@ -22,6 +22,12 @@ version changed; `pnpm` skips versions already in the registry.
   `head: rendered => string`, put before the template's `</head>` (a template
   without one is refused when there is something to add; `SSR.entry` refuses it
   when it is made, and answers a `head` that throws `500`).
+- **`foldkit-composition/foldkit`: `Renderer.render` draws a node again only
+  when what it reads changed.** Inside a runtime render, each node's drawing is
+  memoized on its node object, drawn children, read, visibility and marks, so
+  an edit redraws the node it touched and its ancestors, and an unrelated Model
+  change redraws no node. Each node's element is keyed by its id (the edit
+  wrapper, or the Block's root in view mode unless the Block set a key).
 - **`foldkit-mixins/testing`: `Inert.draw`, `unslotted`, `fixedInline` and
   `bySlot`,** which check a package view's customization contract: every
   element it draws comes from a Slot, however deeply its views nest, and no
