@@ -67,7 +67,7 @@ is the `EditorState` that transition committed.
 
 Read the calls literally:
 
-- `mount(ownerDocument, content, renderer?)` builds the subtree and the identity
+- `mount(ownerDocument, content, renderer?, decorations?)` builds the subtree and the identity
   index it is patched through: `data-block` on a block, `data-run` on a run. It
   listens to nothing and runs nothing. A renderer (§121) nests each mark as an
   element *inside* its run element, exactly as the read-only renderer nests them,
@@ -76,7 +76,11 @@ Read the calls literally:
   entry renders a node block as its element — attributes included, its nested blocks
   inside — and `data-block` stays the interpreter's identity; a kind no entry renders
   keeps a `div`. The registry is kept on the `EditorDom`, and every later patch uses
-  that one, so a run or a container cannot come back rendered differently.
+  that one, so a run or a container cannot come back rendered differently. A decoration
+  set (§129) is drawn as the read-only view draws it — each covered piece of a run inside a
+  `span[data-decoration=<kind>]`, the run's marks inside that — so one stylesheet styles
+  both; the run's text then spans several text nodes, and the position mapping reads across
+  them.
 - `attach(dom, { onIntent })` listens for `beforeinput`, `keydown`, composition,
   copy, cut, and paste, and reports each one it understands as intent. Everything
   it understands it `preventDefault`s, so the browser never mutates the DOM behind
@@ -87,16 +91,19 @@ Read the calls literally:
   `attachment.sync(state, changeSet)` does the patch and selection restore below
   in one call, and `detach()` removes the listeners. `keymap` adds or overrides
   chord bindings, checked before the built-in chords.
-- `patch(dom, content, changeSet)` removes the identities the change set removed,
-  re-renders the ones it marked dirty, and places inserted or moved elements in
-  document order. Every other element is left alone — but "left alone" is decided
+- `patch(dom, content, changeSet, decorations?)` removes the identities the change set
+  removed, re-renders the ones it marked dirty, and places inserted or moved elements in
+  document order. `decorations` is the next render's set, not an addition to the last: a
+  run whose share of the decorations changed is redrawn even when no edit touched it, and a
+  patch without a set clears what was drawn. Every other element is left alone — but "left alone" is decided
   against the whole block, not its text: an element that is no longer what its block
   renders as (a heading re-leveled to `h3`, or a kind whose entry names another tag)
   is re-rendered rather than kept as the old one.
 - `repair(dom, content)` is recovery, not domain state (§31): it drops anything the
   subtree holds that the document does not, re-renders blocks whose rendering
-  drifted (text, marks, or the element itself), and returns the same `EditorDom`
-  when nothing was wrong. Call it after a cancelled IME.
+  drifted (text, marks, decorations, or the element itself), and returns the same
+  `EditorDom` when nothing was wrong. A run is compared with a fresh render of it, and the
+  decorations drawn are drawn again. Call it after a cancelled IME.
 - `positionToRange` and `rangeToPosition` translate between a semantic `Position`
   and a DOM `Range`. A DOM caret carries no affinity, so mapping back derives it
   (`after` at a run's end, `before` elsewhere) rather than pretending to
@@ -222,8 +229,9 @@ A decoration set (§64, §126) is projected with `RichText.decorationsIn` and ea
 piece becomes a `span` with `data-decoration=<kind>`, with the run's marks inside it — so a
 stylesheet reaches both — and a run no decoration covers renders exactly as before.
 `renderBlocks` takes no set: a slice's positions cannot be resolved without the document
-they came from. The editable adapter does not overlay decorations yet (§126 records why),
-so a stylesheet serving both interpreters styles decorations in the read-only one.
+they came from. The editable adapter draws the same elements (`mount`/`patch` above), so a
+stylesheet serves both interpreters. `attachment.sync` and the editor Bundle do not carry a
+set yet, so an editor drawn through them shows none.
 
 Foldkit types one builder per tag name and publishes no builder for an arbitrary tag,
 so a renderer tag outside the tags Foldkit can build — a custom element's, say — is

@@ -6144,7 +6144,8 @@ For async Shiki, let a Bundle Command compute the highlighting and commit the ep
 > `codeDecorations` in the core (format-agnostic, like `searchDecorations`), a JSON lexer in
 > `foldkit-richtext-code`, Shiki in `foldkit-richtext-code-shiki` — and §129 decides how the
 > editable adapter draws the result. The core half is built: `CodeTokenizer` and
-> `codeDecorations`, drawn by the read-only view. The grammars and the editable overlay are not.
+> `codeDecorations`, drawn by the read-only view. The JSON grammar and the editable overlay
+> followed (see §130 and §129).
 
 ---
 
@@ -6910,7 +6911,7 @@ shares with `textRangeBefore`, the block-offset-to-position mapping both need. T
 view draws such a set without any hand-made decoration, so §64's first example now runs end to
 end.
 
-The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping one
+The **editable** adapter did not overlay decorations at first (built since; see §129). Its runs mapped a caret by keeping one
 text node per run, and splitting a run at decoration edges breaks that mapping unless the
 mapping learns to read across the text nodes. §129 decides that: the adapter nests the same
 elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
@@ -7102,6 +7103,15 @@ tokenizer names its kinds `syntax-string`, `syntax-number` — a registry over `
 over marks, is the alternative), and whether the editable subtree should clip a decoration to
 the rendered window.
 
+> **Built (2026-09-26).** `mount` and `patch` take a decoration set and draw it as the view
+> does, from one shared cut (`RichText.runPieces`), and the mapping reads a run's text nodes
+> in order. One correction to the plan above: a decoration change is *not* carried by the
+> `ChangeSet`. A new search query changes the decorations with no edit at all. So `patch`
+> compares each run's share of the new set with what it drew and redraws the runs that
+> differ; the same set again redraws nothing. `repair` compares a run with a fresh render of
+> it, which covers decorations as well as marks. Not yet wired: `attachment.sync` and the
+> editor Bundle do not pass a set, so an editor drawn through them shows no decorations.
+
 ---
 
 # 130. Where a code tokenizer lives
@@ -7143,4 +7153,4 @@ hand-rolled.
 > **Built (2026-09-26): the JSON grammar.** `foldkit-richtext-code` exports `jsonTokenizer`,
 > exact on JSON and total on anything else: it never throws, and an unterminated string ends
 > at the line break. A key is `syntax-property`, told from a string value by the colon after
-> it. The Shiki adapter and the editable overlay (§129) remain.
+> it. The Shiki adapter remains; the editable overlay is built (§129).

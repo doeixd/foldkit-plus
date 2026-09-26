@@ -69,5 +69,5 @@ the tokens form a JSON value.
 
 - **JSON only.** TypeScript, JavaScript, and the rest wait for the Shiki adapter rather than
   a hand-written lexer that would be half right.
-- **The editable adapter does not draw decorations yet.** The read-only view does; the
-  editable overlay is designed (§129) but not built.
+- **The editor Bundle does not carry decorations yet.** The read-only view and the editable
+  adapter's `mount`/`patch` draw them; `attachment.sync` and the Bundle do not pass a set.

@@ -117,7 +117,7 @@ attributes are read — a link's `href`, an image's `src`/`alt`, a fence's langu
 each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it),
 which refuses a scheme outside http/https/mailto/tel after
 removing control characters and leaves a relative URL alone; `style` and `onclick` are
-never read. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
+never read. The adapter's `mount(ownerDocument, content, renderer?, decorations?)` builds an owned
 `contenteditable` subtree and takes the same `rendering(...)` registry — as do
 `mountInto` and `attachEditor` — so each mark
 nests as an element inside its run element exactly as the read-only view nests it,
@@ -196,8 +196,11 @@ runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language`
 its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
 `jsonTokenizer` is the first grammar, and never throws on half-typed JSON), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
-`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
-overlay decorations yet.
+`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter draws the
+same elements: `mount(…, decorations)` and `patch(dom, content, changeSet, decorations)`
+take the render's set, a run whose decorations changed is redrawn with no edit, and the
+position mapping reads across the pieces. `attachment.sync` and the editor Bundle do not
+pass a set yet.
 
 The harness also carries a page (`examples/richtext/harness.html`, served from
 source with `pnpm exec vite examples/richtext`) for exercising the editable

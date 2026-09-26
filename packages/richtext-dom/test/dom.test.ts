@@ -732,3 +732,86 @@ describe('the editable subtree with a rendering registry', () => {
     ])
   })
 })
+
+describe('decorations over the editable subtree (§129)', () => {
+  const over = (node: string, from: number, to: number, kind = 'search'): RichText.Decoration => ({
+    from: at(node, from),
+    to: at(node, to),
+    kind,
+  })
+  const unchanged: RichText.ChangeSet = {
+    dirtyNodes: new Set(),
+    insertedNodes: new Set(),
+    removedNodes: new Set(),
+    textChanged: new Set(),
+    structureChanged: false,
+    selectionChanged: false,
+  }
+  const decorated = (element: Element | undefined) =>
+    Array.from(element?.querySelectorAll('[data-decoration]') ?? [], found => [
+      found.getAttribute('data-decoration'),
+      found.textContent,
+    ])
+
+  it('wraps the covered text, marks inside, and keeps the marks on the rest', () => {
+    const dom = mount(document, content(), RichText.noRendering, [over('b', 0, 1)])
+    const run = dom.elements.get(id('b'))!
+    expect(decorated(run)).toEqual([['search', 'c']])
+    // Both pieces, `c` and `d`, are still bold and italic.
+    expect(run.querySelectorAll('strong em, em strong')).toHaveLength(2)
+    expect(run.textContent).toBe('cd')
+    expect(toText(dom)).toBe('abcd\nTitle')
+  })
+
+  it('maps every offset in a cut run both ways', () => {
+    const dom = mount(document, content(), RichText.noRendering, [over('c', 1, 3)])
+    for (let offset = 0; offset <= 5; offset += 1) {
+      const range = positionToRange(dom, at('c', offset))!
+      expect(rangeToPosition(dom, range.startContainer, range.startOffset)).toEqual(
+        at('c', offset, offset === 5 ? 'after' : 'before'),
+      )
+    }
+    // An offset into the last piece counts the pieces before it.
+    const last = dom.elements.get(id('c'))!.lastChild as Text
+    expect(last.data).toBe('le')
+    expect(rangeToPosition(dom, last, 1)).toEqual(at('c', 4, 'before'))
+    expect(positionToRange(dom, at('c', 6))).toBeUndefined()
+    expect(positionToRange(dom, at('c', -1))).toBeUndefined()
+  })
+
+  it('addresses only the start of a run the browser emptied of text nodes', () => {
+    const dom = mount(document, content())
+    const run = dom.elements.get(id('a'))!
+    run.replaceChildren()
+    expect(positionToRange(dom, at('a', 0))?.startContainer).toBe(run)
+    expect(positionToRange(dom, at('a', 1))).toBeUndefined()
+  })
+
+  it('redraws a run whose decorations changed, though the document did not', () => {
+    const before = mount(document, content(), RichText.noRendering, [over('a', 0, 1)])
+    const kept = before.elements.get(id('c'))
+    const moved = patch(before, before.content, unchanged, [over('c', 0, 2)])
+    expect(decorated(moved.root)).toEqual([['search', 'Ti']])
+    expect(moved.elements.get(id('a'))).not.toBe(before.elements.get(id('a')))
+    expect(moved.elements.get(id('b'))).toBe(before.elements.get(id('b')))
+    expect(moved.elements.get(id('c'))).not.toBe(kept)
+    // The same set again redraws nothing, and a patch with none clears them.
+    const again = patch(moved, moved.content, unchanged, [over('c', 0, 2)])
+    expect(again.elements.get(id('c'))).toBe(moved.elements.get(id('c')))
+    // Over the same range, a different kind is a different drawing.
+    const rekinded = patch(again, again.content, unchanged, [over('c', 0, 2, 'lint')])
+    expect(decorated(rekinded.root)).toEqual([['lint', 'Ti']])
+    expect(decorated(patch(rekinded, rekinded.content, unchanged).root)).toEqual([])
+  })
+
+  it('leaves a decorated subtree alone, and redraws one the browser stripped', () => {
+    const before = mount(document, content(), RichText.noRendering, [over('c', 1, 3)])
+    expect(repair(before, before.content)).toBe(before)
+    // A browser unwrapping the decoration keeps the text; recovery puts it back.
+    const wrapper = before.root.querySelector('[data-decoration]')!
+    wrapper.replaceWith(...Array.from(wrapper.childNodes))
+    const after = repair(before, before.content)
+    expect(decorated(after.root)).toEqual([['search', 'it']])
+    expect(toText(after)).toBe('abcd\nTitle')
+  })
+})
