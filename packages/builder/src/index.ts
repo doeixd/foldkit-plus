@@ -154,6 +154,7 @@ const Request = Schema.Union([
   Schema.TaggedStruct('Insert', { block: Schema.String, at: Composition.Position }),
   Schema.TaggedStruct('Duplicate', { id: NodeId, at: Composition.Position }),
   Schema.TaggedStruct('Paste', { tree: Composition.Tree, at: Composition.Position }),
+  Schema.TaggedStruct('Pattern', { pattern: Schema.String, at: Composition.Position }),
 ])
 
 /**
@@ -183,6 +184,8 @@ export const Message = defineMessageUnion({
   InsertAsked: { block: Schema.String, at: Composition.Position },
   /** A copy of a node and everything it holds, once ids are minted. */
   DuplicateAsked: { id: NodeId, at: Composition.Position },
+  /** One of the Catalog's patterns, once ids are minted for its nodes. */
+  PatternAsked: { pattern: Schema.String, at: Composition.Position },
   /** The selected node and all it holds, copied. */
   CopyAsked: { id: NodeId },
   /** The selected node and all it holds, copied and removed. */
@@ -441,8 +444,22 @@ const indent = (catalog: Catalog, document: Document, id: NodeId): Option.Option
   )
 }
 
+/** The node a pattern's use makes its root; none for a pattern the Catalog lacks. */
+const patternRoot = (
+  catalog: Catalog,
+  op: { readonly pattern: string; readonly ids: Readonly<Record<NodeId, NodeId>> },
+): Option.Option<NodeId> =>
+  Option.flatMap(Catalog.pattern(catalog, op.pattern), pattern =>
+    Option.fromUndefinedOr(op.ids[pattern.tree.root]),
+  )
+
 /** What an applied edit says to assistive technology; none for a prop change. */
-const describeEdit = (before: Document, after: Document, op: Operation): Option.Option<string> => {
+const describeEdit = (
+  catalog: Catalog,
+  before: Document,
+  after: Document,
+  op: Operation,
+): Option.Option<string> => {
   const blockOf = (document: Document, id: NodeId) => document.nodes[id]?.block ?? 'Block'
   const where = (id: NodeId): string => {
     const place = Composition.index(after).get(id)
@@ -468,6 +485,11 @@ const describeEdit = (before: Document, after: Document, op: Operation): Option.
       return Option.map(
         Option.fromUndefinedOr(op.ids[op.id]),
         copy => `Duplicated ${blockOf(after, copy)}${where(copy)}`,
+      )
+    case 'UsePattern':
+      return Option.map(
+        patternRoot(catalog, op),
+        root => `Added ${blockOf(after, root)}${where(root)}`,
       )
     case 'Remove':
       return Option.some(`Removed ${blockOf(before, op.id)}`)
@@ -503,14 +525,16 @@ const settle = (model: Model): Model => ({
 })
 
 /** The node an Operation that creates nodes creates first, to select it. */
-const created = (op: Operation): Option.Option<NodeId> =>
+const created = (catalog: Catalog, op: Operation): Option.Option<NodeId> =>
   op._tag === 'Insert'
     ? Option.some(op.id)
     : op._tag === 'InsertTree'
       ? Option.some(op.tree.root)
       : op._tag === 'Duplicate'
         ? Option.fromUndefinedOr(op.ids[op.id])
-        : Option.none()
+        : op._tag === 'UsePattern'
+          ? patternRoot(catalog, op)
+          : Option.none()
 
 /**
  * A key that runs a command, named as `KeyboardEvent.key` names it. `mod` is
@@ -626,10 +650,10 @@ export const Builder = {
         model: {
           ...model,
           page: History.push(model.page, document, { capacity, group: groupOf(op) }),
-          selected: Option.orElse(created(op), () => kept),
+          selected: Option.orElse(created(catalog, op), () => kept),
           refused: Option.none(),
         },
-        ...Option.match(describeEdit(documentOf(model), document, op), {
+        ...Option.match(describeEdit(catalog, documentOf(model), document, op), {
           onNone: () => ({}),
           onSome: said => ({ commands: announce(said) }),
         }),
@@ -993,6 +1017,22 @@ export const Builder = {
             }),
           }
         }
+        case 'PatternAsked':
+          return Option.match(Catalog.pattern(catalog, message.pattern), {
+            onNone: () =>
+              refuse(model, {
+                code: 'composition:unknown-pattern',
+                message: `the Catalog has no pattern "${message.pattern}"`,
+              }),
+            onSome: pattern => ({
+              model,
+              commands: mint(Object.keys(pattern.tree.nodes).length, {
+                _tag: 'Pattern',
+                pattern: message.pattern,
+                at: message.at,
+              }),
+            }),
+          })
         case 'Minted': {
           const { request, ids } = message
           if (request._tag === 'Insert') {
@@ -1008,6 +1048,21 @@ export const Builder = {
                 id: ids[0],
                 block: request.block,
                 props: props.value,
+                at: request.at,
+              }),
+            )
+          }
+          if (request._tag === 'Pattern') {
+            // Asked for by name, so it is the Catalog's still: its ids, in its order.
+            const held = Option.match(Catalog.pattern(catalog, request.pattern), {
+              onNone: () => [],
+              onSome: pattern => Object.keys(pattern.tree.nodes),
+            })
+            return applyOp(
+              model,
+              Composition.Op.usePattern({
+                pattern: request.pattern,
+                ids: Object.fromEntries(held.map((id, at) => [id, ids[at]!])),
                 at: request.at,
               }),
             )
@@ -1478,6 +1533,13 @@ export const Builder = {
       /** Where a new node of a Block goes, given the selection; none where it may not go. */
       placeFor: (document: Document, selected: Option.Option<NodeId>, block: Blocks['name']) =>
         placeFor(catalog, document, selected, block),
+      /** Where a pattern goes, as a new node of its root's Block would; none where it may not. */
+      patternAt: (document: Document, selected: Option.Option<NodeId>, pattern: string) =>
+        Option.flatMap(Catalog.pattern(catalog, pattern), found =>
+          Option.flatMap(Option.fromUndefinedOr(found.tree.nodes[found.tree.root]), root =>
+            placeFor(catalog, document, selected, root.block),
+          ),
+        ),
       moveBy,
       /** Where what is dragged over `target`, in `zone`, would go; none where it may not. */
       dropAt: (document: Document, dragged: DragSource, target: NodeId, zone: DropZone) =>

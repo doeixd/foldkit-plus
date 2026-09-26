@@ -72,6 +72,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Applied({ op })` | applies an Operation; a button, a key, a drag or an agent sends the same |
 | `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
+| `PatternAsked({ pattern, at })` | one of the Catalog's patterns, once ids are minted for its nodes |
 | `CopyAsked({ id })`, `CutAsked({ id })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
@@ -194,8 +195,9 @@ pastes in another.
   `refused` says why. Text that is not part of a page, or no copy at all, is
   `builder:nothing-to-paste`; the rest are `apply`'s own codes.
 - **It goes where a new node of its root's Block would** (`placeFor`): inside
-  the selection when it fits there, else after it. Where it fits nowhere, it
-  is tried last on the page, and refused there with the reason.
+  the selection when it fits there, else after it, else last among the roots.
+  Where it can go nowhere, it is tried last on the page, and refused there
+  with the reason.
 
 The announcer debounces and clears on Effect's clock through Commands named
 `LiveAnnounce.read` and `LiveAnnounce.clear`. A runtime runs them beside
@@ -344,6 +346,9 @@ Each helper that may have no answer returns an `Option`, as the Model's
 - `PageBuilder.placeFor(document, selected, block)` is where the palette puts a
   new node: inside the selection when a Region there accepts it, else after the
   selection, else last among the roots; none where the Block cannot go.
+- `PageBuilder.patternAt(document, selected, pattern)` is the same for a
+  pattern, by its root's Block; none for a pattern the Catalog lacks. Its use
+  is one `usePattern` edit, undone as one.
 - `PageBuilder.moveBy(document, id, delta)` is the Operation that moves a node
   among its siblings; none at an end.
 - `PageBuilder.dropAt(document, source, target, zone)` is where a drag over

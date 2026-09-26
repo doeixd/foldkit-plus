@@ -96,6 +96,19 @@ export const Site = Catalog.make({
   blocks: [Heading, Button, Group, Card, Section, Stat, Swatch],
   actions: [Subscribe],
   roots: [Content.Section],
+  patterns: [
+    {
+      name: 'Intro',
+      description: 'A section that opens with a heading',
+      tree: {
+        root: 'intro',
+        nodes: {
+          intro: { block: 'Section', props: {}, regions: { body: ['title'] } },
+          title: { block: 'Heading', props: { text: 'Welcome' }, regions: {} },
+        },
+      },
+    },
+  ],
 })
 
 export const SiteRenderer = Renderer.make(Site, {

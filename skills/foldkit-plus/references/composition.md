@@ -219,7 +219,8 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   is the Document; `PageBuilder.document(model)` reads it), `selected`,
   `hovered`, `refused`, `drag`, `clipboard` (each an `Option`, stored as `null`), `panel`,
   `viewport`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
-  `DuplicateAsked({ id, at })`, `CopyAsked({ id })` / `CutAsked({ id })` / `PasteAsked()`
+  `DuplicateAsked({ id, at })`, `PatternAsked({ pattern, at })` (place it with
+  `PageBuilder.patternAt(doc, selected, pattern)`), `CopyAsked({ id })` / `CutAsked({ id })` / `PasteAsked()`
   (the paste reads the system clipboard, `ClipboardRead({ text })`, decodes it strictly,
   rekeys it and inserts it whole or refuses), `Minted` (from its own Command),
   `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,

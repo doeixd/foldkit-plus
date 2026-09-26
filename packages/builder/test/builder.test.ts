@@ -744,6 +744,52 @@ describe('copy, cut and paste', () => {
   })
 })
 
+describe('patterns', () => {
+  const id = NodeId.make
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1'), id('s2')],
+      nodes: {
+        [id('s1')]: { block: 'Section', props: {}, regions: { body: [id('h1')] } },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('s2')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    }),
+  )
+
+  it('adds a pattern under new ids where its root’s Block would go, and selects it', () => {
+    const selected = send(page, Message.Selected({ id: id('s1') }))
+    // A Section goes beside a Section: just after the selected one, not last.
+    const at = some(
+      PageBuilder.patternAt(selected.page.present, selected.selected, 'Intro'),
+      'a place',
+    )
+    expect(at).toEqual(Composition.root(1))
+    const added = send(selected, Message.PatternAsked({ pattern: 'Intro', at }))
+    const intro = required(added.page.present.roots[1], 'the new Section')
+    expect(intro).not.toBe(id('intro'))
+    const title = required(added.page.present.nodes[intro]?.regions['body']?.[0], 'its heading')
+    expect(added.page.present.nodes[title]).toEqual({
+      block: 'Heading',
+      props: { text: 'Welcome' },
+      regions: {},
+    })
+    expect(added.selected).toEqual(Option.some(intro))
+    expect(added.announcer.pending?.message).toBe('Added Section, 2 of 3 in the page')
+    // One undo step takes it all away.
+    expect(send(added, Message.Undid()).page.present).toBe(page.page.present)
+  })
+
+  it('refuses a pattern the Catalog lacks, and finds no place for one', () => {
+    const refused = send(page, Message.PatternAsked({ pattern: 'Outro', at: Composition.root(1) }))
+    expect(some(refused.refused, 'a refusal').code).toBe('composition:unknown-pattern')
+    expect(refused.page).toBe(page.page)
+    expect(PageBuilder.patternAt(page.page.present, page.selected, 'Outro')).toEqual(Option.none())
+  })
+})
+
 describe('previewing the page', () => {
   it('starts from the preview it was given, and sets and unsets one key at a time', () => {
     const Previewing = Builder.make('Previewing', {
