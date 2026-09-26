@@ -7,7 +7,8 @@
 import { Effect, Layer, Option, Stream } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
-import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemotePolicy } from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, Remote, RemotePolicy } from 'foldkit-remote'
+import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import {
   Data,
@@ -34,19 +35,15 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   /** One chair: a principal, a Remote client that asks as them, and a Model of their own. */
   const chair = (principal: Principal) => {
     const handlers = RemoteServer.handlers(backend.server, principal)
-    const served = <A, E>(effect: Effect.Effect<A, E, any>) =>
-      effect.pipe(Effect.provide(backend.database)) as never
     const sent: string[] = []
-    const service: (typeof RemoteClient)['Service'] = {
-      read: batch => served(handlers.FoldkitRemoteRead(batch)),
-      query: request => served(handlers.FoldkitRemoteQuery(request)),
-      mutate: request => {
+    // The server in process, as the client's transport, noting each mutation it is sent.
+    const client = Remote.clientLayer({
+      ...handlers,
+      FoldkitRemoteMutate: request => {
         sent.push(request.mutation.replace('Cms', ''))
-        return served(handlers.FoldkitRemoteMutate(request))
+        return handlers.FoldkitRemoteMutate(request)
       },
-      live: () => Stream.empty,
-    }
-    const client = Layer.succeed(RemoteClient, service)
+    }).pipe(Layer.provide(backend.database))
     let model: Model = initial
 
     /** What the runtime does: update, run the Commands, feed their Messages back. */
@@ -54,11 +51,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       const next = update(model, message)
       model = next.model
       for (const command of next.commands ?? []) {
-        const settled = await Effect.runPromise(
-          (command.effect as Effect.Effect<Message, never, RemoteClient>).pipe(
-            Effect.provide(client),
-          ),
-        )
+        const settled = await Effect.runPromise(command.effect.pipe(Effect.provide(client)))
         await send(settled)
       }
     }
@@ -125,25 +118,23 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       /** The site's page for an address: what `bySlug` finds, read as a page. */
       visit: async (slug: string): Promise<string> => {
-        const found = await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteQuery({
-              query: Cms.bySlug(Posts).name,
-              input: { slug },
-              window: { first: 1 },
-            }),
-          ) as Effect.Effect<{ readonly edges: ReadonlyArray<{ readonly id: string }> }>,
+        const asked = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
+          Effect.runPromise(effect.pipe(Effect.provide(backend.database)))
+        const found = await asked(
+          handlers.FoldkitRemoteQuery({
+            query: Cms.bySlug(Posts).name,
+            input: { slug },
+            window: { first: 1 },
+          }),
         )
         const id = found.edges[0]?.id
         if (id === undefined) return '404'
-        const read = (await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteRead({
-              version: REMOTE_PROTOCOL_VERSION,
-              requests: [{ entity: 'Post', id, fields: ['title', 'body'] }],
-            } as never),
-          ),
-        )) as { readonly entities: ReadonlyArray<{ readonly values: Record<string, unknown> }> }
+        const read = await asked(
+          handlers.FoldkitRemoteRead({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [{ entity: 'Post', id, fields: ['title', 'body'] }],
+          }),
+        )
         const values = read.entities[0]?.values
         return values === undefined ? '404' : `"${values['title']}": ${values['body']}`
       },

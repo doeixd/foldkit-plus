@@ -21,7 +21,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
 2. **A Selection's value has no name.** `Entity.select(Post, {...})` has no
    `.Type`; the value type is `typeof PostCard.schema.Type`, which a reader has
    to find in the source. *Proposed:* an `Entity.Selected<typeof S>` type (or
-   `.Type` on the Selection, like a Schema). Status: worked around.
+   `.Type` on the Selection, like a Schema). **Fixed** (plan area 5d):
+   `Selected<typeof S>` from `foldkit-entity`, a type alias rather than a
+   phantom property every Selection value would carry.
 
 3. **`query<Principal>(descriptor, …)` in `foldkit-remote-drizzle` loses the
    input type.** Naming the principal type argument makes TypeScript default
@@ -109,6 +111,10 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
       so the example no longer reads the projection itself.
     - `effect.pipe(…) as never` and `{ … } as never` (`demo.ts`), around
       `RemoteServer.handlers` results and a hand-made client service.
+      **Fixed** (plan area 5d): the demo builds its client with
+      `Remote.clientLayer(handlers)`; the cast on its Commands hid a real gap,
+      the CMS editor typing its Commands' requirements as `any`, which now
+      carries the form's.
     - `(yield* DrizzleDatabase) as unknown as Writes` (`server.ts`): the
       database service is not typed for a plain `insert`/`update` in a handler.
       **Fixed** (plan area 3c): `drizzleWrites` is typed by each table, and
@@ -285,6 +291,17 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     unfilled variants read `var(--fk-ink, <tone ink>)`, so a band that sets
     `--fk-ink: currentColor` (beside `--fk-heading`) recolors them too.
     **Fixed** (plan area 2c): they do, and the Hero's tones set both.
+
+28. **The example's HTTP endpoint trusted its input.** Found removing its
+    cast (plan area 5d): `http.ts` passed the request's JSON to the handlers
+    unchecked (`payload: never`), and looked the chair up with
+    `principals[header]`, a plain object indexed by a client-chosen name, so
+    `x-chair: constructor` read `Object`'s own member as a principal. **Fixed:**
+    the envelope and each payload are decoded with the protocol's schemas
+    (`ReadBatch`, `QueryRequest`, `MutationRequest`) before a handler sees them,
+    and the chair is looked up with `Object.hasOwn`. Checked against the running
+    server: a `constructor` chair reads as a visitor, and a payload without
+    `version` or an unknown operation is refused with the schema's error.
 
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
 

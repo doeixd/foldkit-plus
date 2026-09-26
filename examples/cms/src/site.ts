@@ -14,7 +14,7 @@ import { Block, Catalog, Content, Region, Url } from 'foldkit-composition'
 import { Appearance } from 'foldkit-composition/appearance'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
-import { Entity } from 'foldkit-entity'
+import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
 import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
 import { BuilderView } from 'foldkit-mixins-builder'
@@ -407,7 +407,7 @@ export const PostCard = Entity.select(Post, {
   cover: true,
   publishedAt: true,
 })
-type PostCard = typeof PostCard.schema.Type
+type PostCard = Selected<typeof PostCard>
 
 const PostsSlots = Slots.define({
   root: part,

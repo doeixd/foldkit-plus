@@ -88,6 +88,7 @@ const PostRow = Entity.select(Blog.Post, {
 
 PostRow.schema   // Struct: title, commentCount, author {id,name}, editor {..} | null, comments EntityRef[]
 PostRow.members  // what was selected, for an interpreter to walk
+type Row = Selected<typeof PostRow> // the value it reads (import type { Selected } from 'foldkit-entity')
 ```
 
 **Read an operation's input against an Entity** (experimental). The operation

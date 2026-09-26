@@ -238,6 +238,9 @@ export interface Selection<
 
 type AnySelection<Name extends string = string> = Selection<Name, any, any>
 
+/** The value a Selection reads: `Selected<typeof PostCard>` is one card's fields. */
+export type Selected<S extends Selection<string, unknown, Schema.Constraint>> = S['schema']['Type']
+
 /** `true` for any member; a relation also takes a Selection of its target. */
 /**
  * Which part of a `many` relation to read: the first or last so many, from a

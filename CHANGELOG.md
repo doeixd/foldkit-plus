@@ -282,6 +282,12 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-entity`: `Selected<typeof selection>`,** the value a Selection
+  reads.
+- **`foldkit-cms`: the editor's Commands carry the form's requirements, not
+  `any`.** `EditorForm`, `EditorContent` and `Editor.make` gain a `Services`
+  parameter (default `never`), so an application's `update` types its Commands
+  as `RemoteClient` and its runner needs no cast.
 - **`foldkit-entity`: `Words.of(schema)`,** a schema's `title` and
   `description` as `Option`s, including a title given before a check (which
   Effect 4 resolves past). `foldkit-form`, `foldkit-crud`'s column labels and

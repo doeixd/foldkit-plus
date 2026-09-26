@@ -112,7 +112,8 @@ export type EditorOut =
   | { readonly _tag: 'Overwrite' }
 
 /** The parts of a `Form.make` result the editor drives. */
-export interface EditorForm<FormModel, FormMessage, Value, Resources = {}> {
+/** `Services` is what the form's Commands and Subscriptions require, which the editor's then do. */
+export interface EditorForm<FormModel, FormMessage, Value, Resources = {}, Services = never> {
   readonly name: string
   readonly input: { readonly schema: Schema.Struct<any> }
   readonly bundle: {
@@ -122,9 +123,11 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}> {
       model: FormModel,
       message: FormMessage,
       args: void,
-    ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, any>
+    ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, Services>
     /** The Subscriptions of the form's controls backed by a Bundle, which the editor runs while open. */
-    readonly subscriptions?: (args: void) => Subscription.Subscriptions<FormModel, FormMessage, any>
+    readonly subscriptions?: (
+      args: void,
+    ) => Subscription.Subscriptions<FormModel, FormMessage, Services>
     /** Their Resources, which the editor holds while open. */
     readonly resources?: (args: void) => Resources
   }
@@ -176,10 +179,10 @@ export interface EditorDomain<Root> {
   ): ActiveSurface<Root>
 }
 
-export interface EditorContent<FormModel, FormMessage, Value, Resources = {}> {
+export interface EditorContent<FormModel, FormMessage, Value, Resources = {}, Services = never> {
   readonly name: string
   readonly entity: AnyEntity
-  readonly form: EditorForm<FormModel, FormMessage, Value, Resources>
+  readonly form: EditorForm<FormModel, FormMessage, Value, Resources, Services>
   readonly roles: {
     readonly label: { readonly key: string } | undefined
     readonly slug: { readonly key: string } | undefined
@@ -268,10 +271,11 @@ export const makeEditor =
     FormMessage extends { readonly _tag: string },
     Value,
     Resources = {},
+    Services = never,
   >(
     name: Name,
     config: {
-      readonly content: EditorContent<FormModel, FormMessage, Value, Resources>
+      readonly content: EditorContent<FormModel, FormMessage, Value, Resources, Services>
       /** How long after the last edit the draft is saved. Default: one second. */
       readonly rest?: Duration.Input
       /** Bumped when the form changes so that a saved Model no longer fits it. */
@@ -368,7 +372,7 @@ export const makeEditor =
       OverwriteAsked: { _tag: 'Overwrite' },
     }
 
-    type Returned = Update.ReturnWithOutMessage<Model, Message, EditorOut, any>
+    type Returned = Update.ReturnWithOutMessage<Model, Message, EditorOut, Services>
 
     const viaForm = (model: Model, message: FormMessage): Returned => {
       const next = form.bundle.update(model.form, message, undefined)
@@ -376,15 +380,16 @@ export const makeEditor =
       // not start a save, and a control the editor does not know about does.
       const edited = form.authoredChanged(model.form, next.model)
       const edits = edited ? model.edits + 1 : model.edits
-      const commands: ReadonlyArray<Command<Message, never, any>> = [
-        ...((next.commands ?? []) as ReadonlyArray<Command<Message, never, any>>),
+      const commands: ReadonlyArray<Command<Message, never, Services>> = [
+        // A form Message is one of the editor's, so the form's Commands are the editor's.
+        ...((next.commands ?? []) as ReadonlyArray<Command<Message, never, Services>>),
         ...(edited
           ? [
               {
                 name: `${name}.rest`,
                 args: { edit: edits },
                 effect: Effect.sleep(rest).pipe(Effect.as(Own.Rested({ edit: edits }))),
-              } as Command<Message, never, any>,
+              } satisfies Command<Message, never, never>,
             ]
           : []),
       ]

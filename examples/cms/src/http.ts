@@ -9,8 +9,10 @@
  */
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
+import { MutationRequest, QueryRequest, ReadBatch } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
+import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { openServer, type Principal } from './server.js'
 import type { Operation } from './transport.js'
 
@@ -23,22 +25,26 @@ export const startHttpServer = async (
   port: number,
 ): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
   const backend = openServer(() => new Date(), { seeded: true })
+  // The payload is JSON from the wire: decoded by the protocol's own schema before a handler sees it.
   const run = (
-    principal: Principal,
+    principal: Principal | null,
     operation: Operation,
-    payload: never,
+    payload: unknown,
   ): Effect.Effect<unknown, { readonly message: string }> => {
     const handlers = RemoteServer.handlers(backend.server, principal)
-    const asked =
+    const as = <A>(schema: Schema.Codec<A, unknown>) => Schema.decodeUnknownEffect(schema)(payload)
+    const asked: Effect.Effect<unknown, { readonly message: string }, DrizzleDatabase> =
       operation === 'read'
-        ? handlers.FoldkitRemoteRead(payload)
+        ? Effect.flatMap(as(ReadBatch), handlers.FoldkitRemoteRead)
         : operation === 'query'
-          ? handlers.FoldkitRemoteQuery(payload)
-          : handlers.FoldkitRemoteMutate(payload)
-    return (asked as Effect.Effect<unknown, { readonly message: string }, any>).pipe(
-      Effect.provide(backend.database),
-    ) as Effect.Effect<unknown, { readonly message: string }>
+          ? Effect.flatMap(as(QueryRequest), handlers.FoldkitRemoteQuery)
+          : Effect.flatMap(as(MutationRequest), handlers.FoldkitRemoteMutate)
+    return asked.pipe(Effect.provide(backend.database))
   }
+  const Envelope = Schema.Struct({
+    operation: Schema.Literals(['read', 'query', 'mutate']),
+    payload: Schema.Unknown,
+  })
 
   const clock = setInterval(() => {
     void Effect.runPromise(
@@ -58,16 +64,17 @@ export const startHttpServer = async (
     }
     if (request.method !== 'POST' || request.url !== '/remote')
       return reply(404, { error: 'not found' })
-    const principal = principals[String(request.headers['x-chair'])] ?? null
+    // A name the client chose: only the principals' own keys, never an Object member.
+    const chair = String(request.headers['x-chair'])
+    const principal = Object.hasOwn(principals, chair) ? (principals[chair] ?? null) : null
     const chunks: Buffer[] = []
     request.on('data', chunk => chunks.push(chunk as Buffer))
     request.on('end', () => {
       void (async () => {
         try {
-          const { operation, payload } = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
-            readonly operation: Operation
-            readonly payload: never
-          }
+          const { operation, payload } = Schema.decodeUnknownSync(Envelope)(
+            JSON.parse(Buffer.concat(chunks).toString('utf8')),
+          )
           const result = await Effect.runPromise(
             run(principal, operation, payload).pipe(
               Effect.map(value => ({ status: 200, body: { result: value } })),

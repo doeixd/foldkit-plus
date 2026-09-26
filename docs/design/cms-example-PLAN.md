@@ -1,6 +1,6 @@
 # Revising the packages after the CMS example
 
-**Status:** areas 1 to 3 built; 4 and 5 proposed. The tracking table at
+**Status:** areas 1 to 4 built; 5 proposed. The tracking table at
 the end is current.
 **Source:** [cms-example-FINDINGS.md](./cms-example-FINDINGS.md), whose item
 numbers (F1, F2, …) this plan cites. Read the findings for what happened; read
@@ -266,5 +266,5 @@ cannot use; an inserted Block is in view; the example has no `!` and no
 | 1. Absence and stored vs. decoded | F4, F11, F13, F14 | yes | built (F4, F7, F10, F11, F13, F14 fixed) |
 | 2. Styling contract | F1, F15–F18, F21, F23, F27 | yes | built (all fixed; F27 found and fixed on the way) |
 | 3. Remote windows and writes | F10, F12, F19, F22 | yes (paging API) | built (3b with area 1; F22 moved into Remote; the Drizzle casts of F12 gone) |
-| 4. Schema words and inference | F3–F5, F8, F20, F26 | no | proposed (F20 fixed in the form) |
+| 4. Schema words and inference | F3–F5, F8, F20, F26 | no | built (F3, F5, F26 fixed; F8 explained in its error) |
 | 5. First-week capabilities | F2, F6, F9, F12, F24, F25 | no | proposed |
