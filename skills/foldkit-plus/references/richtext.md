@@ -169,13 +169,15 @@ any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots
 the highlighted one, and the entry's own Message on click.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
-vocabulary (`Typed`, `Entered`, `ToggledMark`, `RetypedBlock`, `Selected`, `Pasted`,
+vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,
+`Selected`, `Pasted`,
 `Undone`, `Redone`, `Patched`), `toMessage`, the `events` mount a view renders as its
 host element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, and `lifted()`
-for the wrap, convert, and lift commands. `foldkit-richtext-dom/editor-bundle` is the editor as a
+for the wrap, convert, and lift commands, and `applied(mark)` and `cleared(name)` for
+`SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`,
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the

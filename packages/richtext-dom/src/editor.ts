@@ -20,6 +20,10 @@ export const Message = defineMessageUnion({
   DeletedForward: {},
   Entered: {},
   ToggledMark: { mark: Schema.String },
+  /** Exactly this mark over the selection, or over the mark's extent at a caret: a link's new `href`. */
+  AppliedMark: { mark: RichText.RunMark },
+  /** The named mark off the selection, or off the mark's extent at a caret: unlinking. */
+  ClearedMark: { mark: Schema.String },
   RetypedBlock: { block: RichText.TextBlock },
   /** The caret's block, wrapped in containers listed outermost first: a quote, a list item. */
   WrappedBlock: { containers: Schema.Array(RichText.Container) },
@@ -283,6 +287,8 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.DeletedForward,
     Message.Entered,
     Message.ToggledMark,
+    Message.AppliedMark,
+    Message.ClearedMark,
     Message.RetypedBlock,
     Message.WrappedBlock,
     Message.ConvertedBlock,

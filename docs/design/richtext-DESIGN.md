@@ -7340,8 +7340,9 @@ The extent stops at a run whose mark of that name has other props, so two neighb
 stay two, and at the block's edge. It needs no new operation: the extent's ends are run edges,
 so no run is split, and the caret keeps its node.
 
-Not built yet: the popover itself (the Messages the editor Bundle sends, and a Mixins slot for
-the view). `SetMark` knows no mark's props, so it stores an `href` as given; the URL policy
+The editor carries them as `AppliedMark { mark }` and `ClearedMark { mark }`, which the Bundle
+maps to the two commands like any other editing Message, so each is one transition and one
+undo step. Not built yet: the popover itself, a Mixins slot for the view. `SetMark` knows no mark's props, so it stores an `href` as given; the URL policy
 belongs where the link is drawn.
 
 Checking that turned up a gap older than this section: `safeUrl` ran only at import, and

@@ -116,6 +116,10 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'SplitBlock' }
     case 'ToggledMark':
       return { type: 'ToggleMark', mark: message.mark }
+    case 'AppliedMark':
+      return { type: 'SetMark', mark: message.mark }
+    case 'ClearedMark':
+      return { type: 'ClearMark', mark: message.mark }
     case 'RetypedBlock':
       return { type: 'RetypeBlock', to: message.block }
     case 'WrappedBlock':
@@ -406,6 +410,9 @@ export const typed = (text: string): ParentMessage => edited(Message.Typed({ tex
 export const pressed = (tag: 'Backspace' | 'DeletedForward' | 'Entered'): ParentMessage =>
   edited(Message[tag]())
 export const toggled = (mark: string): ParentMessage => edited(Message.ToggledMark({ mark }))
+export const applied = (mark: RichText.RunMark): ParentMessage =>
+  edited(Message.AppliedMark({ mark }))
+export const cleared = (mark: string): ParentMessage => edited(Message.ClearedMark({ mark }))
 export const retyped = (block: RichText.TextBlock): ParentMessage =>
   edited(Message.RetypedBlock({ block }))
 export const wrapped = (containers: ReadonlyArray<RichText.Container>): ParentMessage =>
