@@ -705,6 +705,10 @@ export const apply = (
       if (fromPath === undefined) return { ok: false, error: 'MissingNode' }
       const target = containerPathOf(operation.parent)
       if ('error' in target) return { ok: false, error: target.error }
+      // A block cannot hold itself: moving one into its own subtree would detach both.
+      if (fromPath.every((index, depth) => target.path[depth] === index)) {
+        return { ok: false, error: 'InvalidParent' }
+      }
       const sourcePath = fromPath.slice(0, -1)
       const fromIndex = fromPath[fromPath.length - 1]!
       // A move within one container lands at an existing index; a move into
@@ -715,8 +719,18 @@ export const apply = (
       if (sameContainer && operation.to === fromIndex) continue
       const source = ensureContainer(sourcePath)
       const [moved] = source.splice(fromIndex, 1)
-      const destination = sameContainer ? source : ensureContainer(target.path)
-      destination.splice(operation.to, 0, moved!)
+      if (sameContainer) {
+        source.splice(operation.to, 0, moved!)
+      } else {
+        // The removal is folded in and the destination found again before inserting: taking
+        // the block out can shift the destination's path, and inserting can shift the
+        // source's, so neither copy may be folded against the other's old indices.
+        materialize()
+        reindex()
+        const destination = containerPathOf(operation.parent)
+        if ('error' in destination) return { ok: false, error: destination.error }
+        ensureContainer(destination.path).splice(operation.to, 0, moved!)
+      }
       materialize()
       reindex()
       dirtyNodes.add(operation.node)
