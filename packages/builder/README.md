@@ -139,8 +139,13 @@ The Builder places two `foldkit-primitives/interaction` bundles in its Model:
 Behaviors; `foldkit-mixins-builder` does.
 
 - **Moving keyboard focus in the layers selects the node** it lands on.
-- **`PageBuilder.keyCommand(model, key, modifiers)`** is the editor's shortcuts
-  as the Message they send, or none:
+- **`PageBuilder.commands`** is the editor's commands, one table: each has an
+  `id`, a `label`, its `keys`, where a drawn Builder offers it (`placement`:
+  the node's actions, the toolbar, or by key only), and `run(model)`, the
+  Message it sends now, or none while it has nothing to do. A view draws the
+  node's actions, the toolbar, their titles and the list of shortcuts from it,
+  and `PageBuilder.keyCommand(model, key, modifiers)` is derived from it: the
+  first command one of whose keys is pressed. The built table:
 
   | Keys | What they do to the selected node |
   | --- | --- |
@@ -152,8 +157,13 @@ Behaviors; `foldkit-mixins-builder` does.
   | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
   | Escape | deselect it |
 
-  Attach it to the layers panel and the canvas, not the whole editor, so
-  Delete in a text box edits the text. A move the page refuses is refused as any edit is.
+  Attach `keyCommand` to the layers panel and the canvas, not the whole editor,
+  so Delete in a text box edits the text. A move the page refuses is refused
+  as any edit is. A key's `mod` is Ctrl, or ⌘ on a Mac; `mod` and `alt` must be
+  as given, and `shift` only where given, so Delete takes Shift+Delete too.
+- **`Builder.make(name, { commands: built => ... })`** changes the table: another
+  key for a command, one left out, one moved to the toolbar. What runs a key,
+  the node's actions and the toolbar all follow it.
 - **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
   Section body", and so are undo, redo, and a refusal, assertively. A prop
   edit is not: the field being typed in already says it.

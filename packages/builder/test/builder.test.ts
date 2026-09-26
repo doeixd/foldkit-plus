@@ -336,6 +336,38 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(PageBuilder.keyCommand(released, 'Escape', plain)).toEqual(Option.none())
   })
 
+  it('runs a key through the command table, which an application may change', () => {
+    const { model } = twoSections()
+    const second = required(model.page.present.roots[1], 'the second section')
+    const selected = send(model, Message.Selected({ id: second }))
+    // Undo has nothing to do on a fresh page, so its key is not taken.
+    expect(PageBuilder.keyCommand(PageBuilder.initial, 'z', ctrl)).toEqual(Option.none())
+    // Shift is matched only where a key says: Delete takes it, undo does not.
+    expect(PageBuilder.keyCommand(selected, 'Delete', { ...plain, shiftKey: true })).toEqual(
+      Option.some(Message.Applied({ op: Composition.Op.remove(second) })),
+    )
+    // Delete by Mod+Backspace only, and no duplicating at all.
+    const Rebound = Builder.make('Rebound', {
+      catalog: Site,
+      renderer: SiteRenderer,
+      starters: { Section: {}, Heading: { text: 'New heading' } },
+      commands: built =>
+        built
+          .filter(command => command.id !== 'duplicate')
+          .map(command =>
+            command.id === 'delete'
+              ? { ...command, keys: [{ key: 'Backspace', mod: true }] }
+              : command,
+          ),
+    })
+    expect(Rebound.commands.map(command => command.id)).not.toContain('duplicate')
+    expect(Rebound.keyCommand(selected, 'Delete', plain)).toEqual(Option.none())
+    expect(Rebound.keyCommand(selected, 'd', ctrl)).toEqual(Option.none())
+    expect(Rebound.keyCommand(selected, 'Backspace', ctrl)).toEqual(
+      Option.some(Message.Applied({ op: Composition.Op.remove(second) })),
+    )
+  })
+
   it('selects the node the layers’ keyboard focus moves to', () => {
     const { model, first } = twoSections()
     const focused = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: first })))

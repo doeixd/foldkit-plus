@@ -85,15 +85,19 @@ Five Behaviors are attached, each from `foldkit-primitives`:
 | Where | Behavior | What it does |
 | --- | --- | --- |
 | `tree`, `row` | `TreeNavigation` | Up, Down, Home and End move focus between rows; Right opens a row, then moves to its first child; Left closes it, then moves to its parent. Focus moving selects the row's node. |
-| `layers`, `canvas` | the Builder's `keyCommand` | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo; Escape deselects. |
+| `layers`, `canvas` | the Builder's `keyCommand`, from its commands | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo; Escape deselects. |
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
 | `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
 | `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
 
 The shortcuts are on the layers panel and the canvas, not the whole editor,
 so Delete in a text box edits the text. The canvas is focusable, so a press on
-the page leaves focus where the shortcuts are. The action buttons send the same Messages the
-shortcuts do. A drag is the pointer's way to do what Alt with an arrow does;
+the page leaves focus where the shortcuts are. The node's action buttons, the
+toolbar's and the list of shortcuts are all drawn from the Builder's commands
+(`PageBuilder.commands`), so a command given another key or left out there
+changes each of them, and a button sends what its key does. Keys are written
+for the author's platform, given as a view input
+(`BuilderView.inputs({ platform: 'mac' })` writes ⌘D, else Ctrl+D). A drag is the pointer's way to do what Alt with an arrow does;
 it adds no roles or keys to the tree, and a drop is announced like a key's
 move.
 
@@ -188,7 +192,7 @@ const Compact = BuilderView.assemble((_model, slots, h, draw) =>
 )
 ```
 
-The parts are `Palette`, `Layers`, `Inspector`, `History`, `Crumbs`,
+The parts are `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
 `Viewports`, `Preview`, `Alert`, `Canvas` and `Live`. Each brings its own
 Behaviors: `Layers` its tree keyboard and dragging, `Canvas` the pointer, and
 both the shortcuts. A layout without `Layers` has no tree keyboard. Styles

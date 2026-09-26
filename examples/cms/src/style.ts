@@ -1110,12 +1110,14 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       whiteSpace: 'nowrap',
     }),
     shortcutWhat: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
-    history: Style.compose(
+    toolbar: Style.compose(
       Style.self({ display: 'flex', gap: '2px', gridColumn: '2', gridRow: '1' }),
       Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
-    undo: Style.compose(iconButton, Style.self({ '--icon': iconUrl('undo') })),
-    redo: Style.compose(iconButton, Style.self({ '--icon': iconUrl('redo') })),
+    toolbarAction: Style.compose(
+      iconButton,
+      iconsBy('data-action', { undo: 'undo', redo: 'redo' }),
+    ),
     crumbs: Style.compose(
       Style.self({
         alignItems: 'center',

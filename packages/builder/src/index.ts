@@ -465,6 +465,38 @@ const created = (op: Operation): Option.Option<NodeId> =>
         ? Option.fromUndefinedOr(op.ids[op.id])
         : Option.none()
 
+/**
+ * A key that runs a command, named as `KeyboardEvent.key` names it. `mod` is
+ * Ctrl, or ⌘ on a Mac. `mod` and `alt` must be as given; `shift` must be as
+ * given only where it is given, so a key that leaves it out takes either.
+ */
+export interface CommandKey {
+  readonly key: string
+  readonly mod?: boolean
+  readonly alt?: boolean
+  readonly shift?: boolean
+}
+
+/** One thing the editor does, and every way to ask for it. */
+export interface BuilderCommand {
+  readonly id: string
+  /** What it is called, on its button and in the list of shortcuts. */
+  readonly label: string
+  /** The keys that run it; the first is the one shown. None for one run only by a button. */
+  readonly keys: ReadonlyArray<CommandKey>
+  /** Where a drawn Builder offers it: with the selected node's actions, in the toolbar, or by key only. */
+  readonly placement: ReadonlyArray<'node' | 'toolbar' | 'keyboard'>
+  /** The Message it sends now; none while it has nothing to do, which disables its button. */
+  readonly run: (model: Pick<Model, 'page' | 'selected'>) => Option.Option<Message>
+}
+
+/** Whether a key press is `spec`. A letter is matched as either case. */
+const pressed = (spec: CommandKey, key: string, modifiers: KeyboardModifiers): boolean =>
+  spec.key.toLowerCase() === key.toLowerCase() &&
+  (spec.mod ?? false) === (modifiers.ctrlKey || modifiers.metaKey) &&
+  (spec.alt ?? false) === modifiers.altKey &&
+  (spec.shift === undefined || spec.shift === modifiers.shiftKey)
+
 export const Builder = {
   /**
    * Block metadata: the control the inspector draws a prop with, where its
@@ -489,6 +521,12 @@ export const Builder = {
       readonly capacity?: number
       /** The context the editor previews the page as at first, by the Catalog's context keys. */
       readonly preview?: Readonly<Record<string, ContextValue>>
+      /**
+       * The editor's commands, given the built ones: another key for one, one
+       * left out, another order. What runs a key, the node's actions and the
+       * toolbar are all drawn from the table this returns.
+       */
+      readonly commands?: (built: ReadonlyArray<BuilderCommand>) => ReadonlyArray<BuilderCommand>
     },
   ) => {
     const { catalog, renderer } = config
@@ -1114,46 +1152,103 @@ export const Builder = {
       view,
     })
 
+    /** Undo and redo, which need no selection. */
+    const history = (model: Pick<Model, 'page'>) => ({
+      undo: History.canUndo(model.page) ? Option.some(Message.Undid()) : Option.none(),
+      redo: History.canRedo(model.page) ? Option.some(Message.Redid()) : Option.none(),
+    })
+    /** A command on the selected node, which runs nothing while none is selected. */
+    const onSelected =
+      (run: (document: Document, selected: NodeId) => Option.Option<Message>) =>
+      (model: Pick<Model, 'page' | 'selected'>): Option.Option<Message> =>
+        Option.flatMap(model.selected, selected => run(documentOf(model), selected))
+
+    const built: ReadonlyArray<BuilderCommand> = [
+      {
+        id: 'move-up',
+        label: 'Move up',
+        keys: [{ key: 'ArrowUp', alt: true }],
+        placement: ['node'],
+        run: onSelected((document, selected) => applied(moveBy(document, selected, -1))),
+      },
+      {
+        id: 'move-down',
+        label: 'Move down',
+        keys: [{ key: 'ArrowDown', alt: true }],
+        placement: ['node'],
+        run: onSelected((document, selected) => applied(moveBy(document, selected, 1))),
+      },
+      {
+        id: 'move-out',
+        label: 'Move out',
+        keys: [{ key: 'ArrowLeft', alt: true }],
+        placement: ['node'],
+        run: onSelected((document, selected) => applied(outdent(document, selected))),
+      },
+      {
+        id: 'move-in',
+        label: 'Move in',
+        keys: [{ key: 'ArrowRight', alt: true }],
+        placement: ['node'],
+        run: onSelected((document, selected) => applied(indent(catalog, document, selected))),
+      },
+      {
+        id: 'duplicate',
+        label: 'Duplicate',
+        keys: [{ key: 'd', mod: true }],
+        placement: ['node'],
+        run: onSelected((document, selected) =>
+          Option.map(after(document, selected), at => Message.DuplicateAsked({ id: selected, at })),
+        ),
+      },
+      {
+        id: 'delete',
+        label: 'Delete',
+        keys: [{ key: 'Delete' }, { key: 'Backspace' }],
+        placement: ['node'],
+        run: onSelected((_, selected) =>
+          Option.some(Message.Applied({ op: Composition.Op.remove(selected) })),
+        ),
+      },
+      {
+        id: 'undo',
+        label: 'Undo',
+        keys: [{ key: 'z', mod: true, shift: false }],
+        placement: ['toolbar'],
+        run: model => history(model).undo,
+      },
+      {
+        id: 'redo',
+        label: 'Redo',
+        keys: [
+          { key: 'z', mod: true, shift: true },
+          { key: 'y', mod: true },
+        ],
+        placement: ['toolbar'],
+        run: model => history(model).redo,
+      },
+      {
+        id: 'deselect',
+        label: 'Select nothing',
+        keys: [{ key: 'Escape' }],
+        placement: ['keyboard'],
+        run: onSelected(() => Option.some(Message.Deselected())),
+      },
+    ]
+    const commands = config.commands === undefined ? built : config.commands(built)
+
     /**
-     * The editor's keyboard shortcuts, for the layers panel: Alt with an arrow
-     * moves the selected node up, down, out of its parent or into the node
-     * above it; Mod+D duplicates it; Delete removes it; Mod+Z undoes, and
-     * Mod+Shift+Z or Mod+Y redoes; Escape deselects. None for a key it does
-     * not handle.
+     * The Message a key sends, for the layers panel and the canvas: the first
+     * command one of whose keys it is, and whose run has one. None for a key
+     * no command takes, or one whose command has nothing to do.
      */
     const keyCommand = (
       model: Pick<Model, 'page' | 'selected'>,
       key: string,
       modifiers: KeyboardModifiers,
     ): Option.Option<Message> => {
-      const mod = modifiers.ctrlKey || modifiers.metaKey
-      const lower = key.toLowerCase()
-      if (mod && !modifiers.altKey && lower === 'z')
-        return Option.some(modifiers.shiftKey ? Message.Redid() : Message.Undid())
-      if (mod && !modifiers.altKey && lower === 'y') return Option.some(Message.Redid())
-      if (Option.isNone(model.selected)) return Option.none()
-      if (key === 'Escape' && !mod && !modifiers.altKey) return Option.some(Message.Deselected())
-      const selected = model.selected.value
-      const document = documentOf(model)
-      if (modifiers.altKey && !mod)
-        return applied(
-          key === 'ArrowUp'
-            ? moveBy(document, selected, -1)
-            : key === 'ArrowDown'
-              ? moveBy(document, selected, 1)
-              : key === 'ArrowLeft'
-                ? outdent(document, selected)
-                : key === 'ArrowRight'
-                  ? indent(catalog, document, selected)
-                  : Option.none(),
-        )
-      if (mod && lower === 'd')
-        return Option.map(after(document, selected), at =>
-          Message.DuplicateAsked({ id: selected, at }),
-        )
-      if (!mod && !modifiers.altKey && (key === 'Delete' || key === 'Backspace'))
-        return Option.some(Message.Applied({ op: Composition.Op.remove(selected) }))
-      return Option.none()
+      const command = commands.find(each => each.keys.some(spec => pressed(spec, key, modifiers)))
+      return command === undefined ? Option.none() : command.run(model)
     }
 
     /** The form control that places this Builder as a key, drawn by `drawn`. */
@@ -1187,6 +1282,8 @@ export const Builder = {
         Option.map(landing(catalog, document, dragged, target, zone), ({ at }) => at),
       replace,
       settle,
+      /** The editor's commands: what a key, a node's action or the toolbar runs. */
+      commands,
       keyCommand,
       /**
        * The selected node's settings form and its Model, for the inspector to

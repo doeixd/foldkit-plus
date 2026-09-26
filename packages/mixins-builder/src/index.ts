@@ -21,6 +21,8 @@ import {
   Message,
   layersArgs,
   type ContextValue,
+  type BuilderCommand,
+  type CommandKey,
   type DropZone,
   type InspectedForm,
   type Inspecting,
@@ -51,7 +53,6 @@ import {
 import { FormView, type FormViewInputs, type Renderers } from 'foldkit-mixins-form'
 import { KeepInView, Measure, measured } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
-import { History } from 'foldkit-primitives/state'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { createLazy, inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
@@ -105,12 +106,12 @@ export const BuilderSlots = Slots.define({
   shortcuts: Slot.make({ capability: Capability.Container }),
   shortcutKeys: Slot.make({ capability: Capability.Base }),
   shortcutWhat: Slot.make({ capability: Capability.Base }),
-  history: Slot.make({ capability: Capability.Container }),
+  /** The commands offered in the toolbar, undo and redo by default. One `toolbarAction` each, with `data-action`. */
+  toolbar: Slot.make({ capability: Capability.Container }),
+  toolbarAction: Slot.make({ capability: Capability.Interactive }),
   /** Where the selection is: the page, then each node holding it, then it. One `crumb` button each. */
   crumbs: Slot.make({ capability: Capability.Container }),
   crumb: Slot.make({ capability: Capability.Interactive }),
-  undo: Slot.make({ capability: Capability.Interactive }),
-  redo: Slot.make({ capability: Capability.Interactive }),
   viewports: Slot.make({ capability: Capability.Container }),
   viewport: Slot.make({ capability: Capability.Interactive }),
   /** What the page is previewed as: one field per key of the Catalog's context. */
@@ -189,6 +190,8 @@ export interface BuilderLike {
     selected: Option.Option<NodeId>,
     block: string,
   ): Option.Option<Position>
+  /** What a key, a node's action and the toolbar run. */
+  readonly commands: ReadonlyArray<BuilderCommand>
   readonly inspecting: (
     model: Pick<Model, 'page' | 'selected' | 'inspector'>,
   ) => Option.Option<Inspecting>
@@ -329,31 +332,47 @@ const SUMMARY_LENGTH = 40
 /** The most values a look offers as buttons; one with more is a select. */
 const CHOICES_SHOWN = 4
 
-/** The node actions: what each is called, its shortcut, and the key `keyCommand` takes for it. */
-const ACTIONS = [
-  { id: 'move-up', label: 'Move up', keys: 'Alt+↑', key: 'ArrowUp', modifiers: 'alt' },
-  { id: 'move-down', label: 'Move down', keys: 'Alt+↓', key: 'ArrowDown', modifiers: 'alt' },
-  { id: 'move-out', label: 'Move out', keys: 'Alt+←', key: 'ArrowLeft', modifiers: 'alt' },
-  { id: 'move-in', label: 'Move in', keys: 'Alt+→', key: 'ArrowRight', modifiers: 'alt' },
-  { id: 'duplicate', label: 'Duplicate', keys: 'Ctrl+D', key: 'd', modifiers: 'ctrl' },
-  { id: 'delete', label: 'Delete', keys: 'Delete', key: 'Delete', modifiers: 'plain' },
-] as const
-
-/** Every shortcut, as the empty inspector lists them. */
-const SHORTCUTS: ReadonlyArray<readonly [keys: string, what: string]> = [
+/** The keys the tree's own keyboard takes, beside the commands: they move focus, not the page. */
+const TREE_KEYS: ReadonlyArray<readonly [keys: string, what: string]> = [
   ['↑ ↓', 'Go to the layer above or below'],
   ['← →', 'Close or open a layer'],
-  ...ACTIONS.map(action => [action.keys, action.label] as const),
-  ['Ctrl+Z', 'Undo'],
-  ['Ctrl+Shift+Z', 'Redo'],
-  ['Escape', 'Select nothing'],
 ]
+
+/** How a key is named on screen. */
+const keyNames: Readonly<Record<string, string>> = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+}
+
+/**
+ * A command's key as a person on `platform` reads it, in its own order: `⌥⇧⌘Z`
+ * on a Mac, where `mod` is ⌘, and `Ctrl+Alt+Shift+Z` elsewhere.
+ */
+export const keysOf = (key: CommandKey, platform: Platform = 'other'): string => {
+  const name = keyNames[key.key] ?? (key.key.length === 1 ? key.key.toUpperCase() : key.key)
+  const held = (
+    words: { mod: string; alt: string; shift: string },
+    order: ReadonlyArray<'mod' | 'alt' | 'shift'>,
+  ) => order.flatMap(modifier => (key[modifier] === true ? [words[modifier]] : []))
+  return platform === 'mac'
+    ? [...held({ mod: '⌘', alt: '⌥', shift: '⇧' }, ['alt', 'shift', 'mod']), name].join('')
+    : [...held({ mod: 'Ctrl', alt: 'Alt', shift: 'Shift' }, ['mod', 'alt', 'shift']), name].join(
+        '+',
+      )
+}
+
+/** The platform keys are named for: a Mac's, or any other's. */
+export type Platform = 'mac' | 'other'
 
 /**
  * What the drawn Builder is given beside its Model, by the page's parent: the
  * application's, never the Builder's to keep.
  */
 export interface BuilderViewInputs {
+  /** The platform the author is on, so keys are named as theirs are (⌘ on a Mac). Default: `other`. */
+  readonly platform?: Platform | undefined
   /**
    * Each node's read, by node id, as a published page is drawn with it: the
    * page's Query and Surface Blocks' values, so the canvas shows their rows.
@@ -438,7 +457,8 @@ export interface BuilderParts {
   readonly Layers: BuilderPart
   /** The selected node's props, looks, conditions and actions, or the shortcuts. */
   readonly Inspector: BuilderPart
-  readonly History: BuilderPart
+  /** The toolbar's commands: undo and redo, unless the Builder's commands say otherwise. */
+  readonly Toolbar: BuilderPart
   /** Where the selection is, from the page down. */
   readonly Crumbs: BuilderPart
   readonly Viewports: BuilderPart
@@ -911,6 +931,22 @@ export const BuilderView = {
         [label],
       )
 
+    /** A command as a button: disabled while it has nothing to do, titled with its first key. */
+    const commandButton = (
+      h: HtmlBuilder<Message>,
+      slot: SlotView.SlotBuilder<Message>,
+      command: BuilderCommand,
+      input: Pick<BuilderInput, 'page' | 'selected' | 'platform'>,
+    ) => {
+      const [key] = command.keys
+      return button(h, slot, command.label, command.run(input), [
+        h.DataAttribute('action', command.id),
+        h.Title(
+          key === undefined ? command.label : `${command.label} (${keysOf(key, input.platform)})`,
+        ),
+      ])
+    }
+
     const labelAt = (document: Document, id: NodeId): string =>
       Option.match(Option.fromUndefinedOr(document.nodes[id]), {
         onNone: () => id,
@@ -1159,20 +1195,13 @@ export const BuilderView = {
 
     const Inspector = Parts.part(
       'Inspector',
-      { reads: ['page', 'selected', 'options', 'inspector'] },
+      { reads: ['page', 'selected', 'options', 'inspector', 'platform'] },
       (input, slots, h) => {
-        const modifierOf = { plain, alt, ctrl } as const
         const actions = h.div(
           slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]),
-          ACTIONS.map(action =>
-            button(
-              h,
-              slots.action,
-              action.label,
-              builder.keyCommand(input, action.key, modifierOf[action.modifiers]),
-              [h.DataAttribute('action', action.id), h.Title(`${action.label} (${action.keys})`)],
-            ),
-          ),
+          builder.commands
+            .filter(command => command.placement.includes('node'))
+            .map(command => commandButton(h, slots.action, command, input)),
         )
         return Option.match(input.selected, {
           onNone: () =>
@@ -1185,7 +1214,15 @@ export const BuilderView = {
               ]),
               h.dl(
                 slots.shortcuts.attrs(),
-                SHORTCUTS.flatMap(([keys, what]) => [
+                [
+                  ...TREE_KEYS,
+                  ...builder.commands.flatMap(command => {
+                    const [key] = command.keys
+                    return key === undefined
+                      ? []
+                      : [[keysOf(key, input.platform), command.label] as const]
+                  }),
+                ].flatMap(([keys, what]) => [
                   h.dt(slots.shortcutKeys.attrs(), [keys]),
                   h.dd(slots.shortcutWhat.attrs(), [what]),
                 ]),
@@ -1205,23 +1242,16 @@ export const BuilderView = {
       },
     )
 
-    const HistoryPart = Parts.part('History', { reads: ['page'] }, (input, slots, h) =>
-      h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
-        button(
-          h,
-          slots.undo,
-          'Undo',
-          History.canUndo(input.page) ? Option.some(Message.Undid()) : Option.none(),
-          [h.Title('Undo (Ctrl+Z)')],
+    const Toolbar = Parts.part(
+      'Toolbar',
+      { reads: ['page', 'selected', 'platform'] },
+      (input, slots, h) =>
+        h.div(
+          slots.toolbar.attrs([h.Role('toolbar'), h.AriaLabel('Page actions')]),
+          builder.commands
+            .filter(command => command.placement.includes('toolbar'))
+            .map(command => commandButton(h, slots.toolbarAction, command, input)),
         ),
-        button(
-          h,
-          slots.redo,
-          'Redo',
-          History.canRedo(input.page) ? Option.some(Message.Redid()) : Option.none(),
-          [h.Title('Redo (Ctrl+Shift+Z)')],
-        ),
-      ]),
     )
 
     const Crumbs = Parts.part('Crumbs', { reads: ['page', 'selected'] }, (input, slots, h) => {
@@ -1395,7 +1425,7 @@ export const BuilderView = {
       Palette,
       Layers: LayersPart,
       Inspector,
-      History: HistoryPart,
+      Toolbar,
       Crumbs,
       Viewports,
       Preview,
@@ -1429,7 +1459,7 @@ export const BuilderView = {
         draw(parts.Palette),
         draw(parts.Layers),
         draw(parts.Inspector),
-        draw(parts.History),
+        draw(parts.Toolbar),
         draw(parts.Crumbs),
         draw(parts.Viewports),
         draw(parts.Preview),
@@ -1440,7 +1470,3 @@ export const BuilderView = {
     )
   },
 }
-
-const plain: KeyboardModifiers = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }
-const alt: KeyboardModifiers = { ...plain, altKey: true }
-const ctrl: KeyboardModifiers = { ...plain, ctrlKey: true }

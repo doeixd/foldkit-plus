@@ -299,12 +299,16 @@ const PageForm = Form.make('PageForm', PageInput, {
   `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,
   loaded by the application.
 - `PointerDrag` on `tree` (rows carry `data-builder-row`) and `canvas`.
+- Commands: one table, `PageBuilder.commands` (`{ id, label, keys, placement, run }`), from which
+  `keyCommand`, the node's actions, the toolbar (`toolbar`/`toolbarAction` Slots, `data-action`)
+  and the shortcut list are drawn; change it with `Builder.make(..., { commands: built => ... })`.
+  `BuilderView.inputs({ platform: 'mac' })` writes keys as ⌘D.
 - Canvas overlay: `selectionBox` (with `selectionLabel`, the Block's label) and `hoverBox` Slots
   are drawn over the selected and hovered nodes, placed from `Measure` (`foldkit-primitives/dom`);
   style how they look, the Builder places them.
 - Your own layout: `const parts = BuilderView.parts(PageBuilder)`, then
   `BuilderView.assemble((model, slots, h, draw) => h.div(slots.root.attrs(), [draw(parts.Palette),
-  draw(parts.Canvas)]))`. Parts: `Palette`, `Layers`, `Inspector`, `History`, `Crumbs`,
+  draw(parts.Canvas)]))`. Parts: `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
   `Viewports`, `Preview`, `Alert`, `Canvas`, `Live`; each brings its Behaviors and redraws only
   when the Model fields it reads change.
 - With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's

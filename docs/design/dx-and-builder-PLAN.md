@@ -855,6 +855,18 @@ builder.keyCommand      // derived: the first command whose keys match and whose
 - An application's commands (Publish, Preview) take keys and appear in the
   list like the Builder's. The example moves its Publish button onto one.
 
+> **Done, 2026-09-26, but for three things.** `PageBuilder.commands` is the
+> table (`{ id, label, keys, placement, run }`); `keyCommand` is derived from
+> it; the node's actions, the toolbar (now `Toolbar`, its `toolbar` and
+> `toolbarAction` Slots in place of `history`, `undo` and `redo`), their
+> titles and the shortcut list are drawn from it; `Builder.make`'s
+> `commands` changes it. `ACTIONS` and `SHORTCUTS` are gone. Not done:
+> **labels are English** until words (3b); **the platform is a view input**
+> (`platform: 'mac'`), not an `Environment` (3a), which waits for a second
+> reader; and **an application's commands** (Publish) need a Message the
+> Builder's fixed union cannot carry, so they wait for a design that maps
+> one out. 5e's editing-only check is 5e's.
+
 ### 5b. Hover and the selection overlay (M)
 
 - `Hovered`, `Unhovered` and `model.hovered` are removed. The canvas's and the

@@ -12,7 +12,7 @@ import { Attributes, A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
-import { PageBuilder, PageView, Quote, answer, isTimer } from './fixture.js'
+import { PageBuilder, PageView, Quote, Site, SiteRenderer, answer, isTimer } from './fixture.js'
 import { Inert } from 'foldkit-mixins/testing'
 import { FieldSlots, FormSlots, type Renderers } from 'foldkit-mixins-form'
 
@@ -268,6 +268,52 @@ describe('the drawn Builder', () => {
     expect(Inert.all(root).some(node => Inert.value(node, 'aria-label') === 'Selected block')).toBe(
       false,
     )
+  })
+
+  it('names keys as a Mac does, for an author on one', () => {
+    const root = PageView({ ...send(page, Message.Deselected()), platform: 'mac' }, h)
+    const keys = Inert.all(root)
+      .filter(node => node.sel === 'dt')
+      .map(Inert.text)
+    expect(keys).toEqual([
+      '↑ ↓',
+      '← →',
+      '⌥↑',
+      '⌥↓',
+      '⌥←',
+      '⌥→',
+      '⌘D',
+      'Delete',
+      '⌘Z',
+      '⇧⌘Z',
+      'Escape',
+    ])
+    expect(
+      Inert.value(buttonNamed(PageView({ ...page, platform: 'mac' }, h), 'Duplicate'), 'title'),
+    ).toBe('Duplicate (⌘D)')
+  })
+
+  it('draws the node’s actions and the toolbar from the Builder’s commands', () => {
+    // No duplicating, and delete moved to the toolbar.
+    const Trimmed = Builder.make('Trimmed', {
+      catalog: Site,
+      renderer: SiteRenderer,
+      starters: { Section: { tone: 'plain' } },
+      commands: built =>
+        built
+          .filter(command => command.id !== 'duplicate')
+          .map(command =>
+            command.id === 'delete' ? { ...command, placement: ['toolbar'] as const } : command,
+          ),
+    })
+    const root = Inert.draw(BuilderView.define(Trimmed), page)
+    const actionsOf = (label: string) =>
+      Inert.all(Inert.all(root).find(node => Inert.value(node, 'aria-label') === label))
+        .filter(node => node.sel === 'button')
+        .map(Inert.text)
+    expect(actionsOf('Selected block')).toEqual(['Move up', 'Move down', 'Move out', 'Move in'])
+    // In the table's order, where delete comes first.
+    expect(actionsOf('Page actions')).toEqual(['Delete', 'Undo', 'Redo'])
   })
 
   it('draws the canvas with the data its inputs give each node, as a published page is', () => {
