@@ -1197,6 +1197,14 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         transition: 'max-width 200ms ease',
       }),
     ),
+    empty: Style.self({
+      border: `2px dashed ${t.outline.default}`,
+      borderRadius: t.radius.lg,
+      color: t.text.muted,
+      margin: '0',
+      padding: `${t.space['2xl']} ${t.space.lg}`,
+      textAlign: 'center',
+    }),
     // The live region is read, not seen; hidden absolutely, it takes no cell of the grid.
     live: visuallyHidden,
   },
