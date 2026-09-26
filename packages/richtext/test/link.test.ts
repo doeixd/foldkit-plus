@@ -40,15 +40,14 @@ const range = (from: RichText.Position, to: RichText.Position): RichText.Selecti
 })
 const caret = (node: string, offset: number) => range(at(node, offset), at(node, offset))
 const marks = RichText.markRegistry(RichText.standardMarks)
+/** Distinct identities, so a refusal can only come from the check under test. */
+const ids = () => {
+  let n = 0
+  return { mint: () => `new-${++n}` }
+}
 
 const run = (selection: RichText.Selection, command: RichText.Command) => {
-  let n = 0
-  const result = RichText.run(
-    { document: document(), selection },
-    command,
-    { mint: () => `new-${++n}` },
-    { marks },
-  )
+  const result = RichText.run({ document: document(), selection }, command, ids(), { marks })
   if (!result.ok) throw new Error(result.error)
   return result.state
 }
@@ -116,11 +115,31 @@ describe('setting a mark', () => {
     expect(state.document).toEqual(before)
   })
 
+  it.each<[string, RichText.Command]>([
+    [
+      'an href that is not a string',
+      { type: 'SetMark', mark: { name: 'Link', props: { href: 4 } } },
+    ],
+    ['a link with no props', { type: 'SetMark', mark: 'Link' }],
+    [
+      'a prop the schema does not declare',
+      { type: 'ToggleMark', mark: { name: 'Link', props: { href: '/x', title: 't' } } },
+    ],
+    [
+      'stored marks whose props fail',
+      { type: 'InsertText', text: 'x', marks: [{ name: 'Link', props: {} }] },
+    ],
+  ])('refuses a mark whose props its definition does not accept: %s', (_, command) => {
+    const selection = command.type === 'InsertText' ? caret('a', 1) : range(at('a', 0), at('a', 3))
+    const result = RichText.run({ document: document(), selection }, command, ids(), { marks })
+    expect(result).toMatchObject({ ok: false, error: 'InvalidInput' })
+  })
+
   it('refuses a mark the vocabulary does not declare', () => {
     const result = RichText.run(
       { document: document(), selection: caret('b', 1) },
       { type: 'SetMark', mark: link('/z') },
-      { mint: () => 'x' },
+      ids(),
     )
     expect(result).toMatchObject({ ok: false, error: 'InvalidInput' })
   })

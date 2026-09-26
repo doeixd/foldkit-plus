@@ -313,7 +313,8 @@ either with `markName`/`markProps`, and compare with `sameMark`/`sameMarkSet`.
 mark expands across a boundary (`expansionOf`). Props are part of a mark's
 identity: normalization does not merge runs whose props differ, and `AddMark` is a
 set for its name (append, replace props, no-op on the same value) while
-`RemoveMark` keys on the name alone. Declared names are what `run` may add, so a
+`RemoveMark` keys on the name alone. Declared marks whose props decode
+(`MarkRegistry.accepts`) are what `run` may add, so a
 Kit's marks work by name or value: `InsertText`'s stored marks and `ToggleMark`'s
 mark each take a bare name or a `{ name, props }` value. `SetMark` replaces a mark's
 props over a range (a link's `href`) and `ClearMark` removes one by name; at a caret both act

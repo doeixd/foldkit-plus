@@ -230,12 +230,13 @@ export const Editor = Bundle.make({
       model.selection?.type === 'Range' &&
       model.selection.anchor.node === model.selection.focus.node &&
       model.selection.anchor.offset === model.selection.focus.offset
-    // The caret never carries a mark the vocabulary cannot type, so an unknown
-    // one is refused here rather than at the first keystroke after it.
+    // The caret never carries a mark the vocabulary cannot type — an unknown one, or one
+    // like Link whose props a bare name lacks — so it is refused here rather than at the
+    // first keystroke after it.
     if (
       message._tag === 'ToggledMark' &&
       collapsed &&
-      !(vocabulary.marks ?? RichText.shippedRegistry).declares(message.mark)
+      !(vocabulary.marks ?? RichText.shippedRegistry).accepts(message.mark)
     ) {
       return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
     }

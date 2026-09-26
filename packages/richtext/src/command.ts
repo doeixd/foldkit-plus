@@ -23,11 +23,12 @@ import { withFreshIds, type Slice } from './clipboard.js'
 import {
   markName,
   resolveInsertion,
+  propsFailure,
   sameMark,
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
-import { blockKind, propsFailure, type NodeRegistry } from './kit.js'
+import { blockKind, type NodeRegistry } from './kit.js'
 import {
   Edit,
   apply,
@@ -792,7 +793,7 @@ export const run = (
     const marks: Array<RunMark> = []
     if (stored !== undefined) {
       for (const mark of stored) {
-        if (!declared.declares(markName(mark))) return failure('InvalidInput')
+        if (!declared.accepts(mark)) return failure('InvalidInput')
         marks.push(mark)
       }
       // A mark-free kind refuses the format however it arrives, so inserting text
@@ -976,9 +977,9 @@ export const run = (
       targets.push(target)
     }
     if (adding) {
-      // Adding needs the vocabulary to declare the mark; removing a preserved
-      // one by name is always allowed.
-      if (!declared.declares(name)) return failure('InvalidInput')
+      // Adding needs the vocabulary to declare the mark and accept its props; removing a
+      // preserved one by name is always allowed.
+      if (!declared.accepts(mark)) return failure('InvalidInput')
       if (spans.some(entry => forbidsMarks(state.document, entry.run.path, options.nodes))) {
         return failure('ForbiddenMark')
       }

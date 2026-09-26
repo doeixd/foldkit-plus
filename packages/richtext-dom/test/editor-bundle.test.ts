@@ -342,6 +342,18 @@ describe('stored marks', () => {
     expect(after).toEqual(before)
     expect(after.document).toBe(before.document)
   })
+
+  it('refuses a declared mark whose props a bare name lacks, at the toggle itself', () => {
+    editorAt('link-toggle-editor', {
+      vocabulary: { marks: RichText.markRegistry(RichText.standardMarks) },
+    })
+    const before = start(caret('a', 1))
+    const placed: Model = { ...before, editor: { ...before.editor, hostId: 'link-toggle-editor' } }
+    // Stored, it would refuse every keystroke after it; refused, nothing is stored.
+    expect(step(placed, toggled('Link'))).toEqual(placed)
+    // Control: a declared mark with no props is stored, so the placement is in effect.
+    expect(step(placed, toggled('Strikethrough')).editor.storedMarks).toEqual(['Strikethrough'])
+  })
 })
 
 describe('Enter in a live slash query (§123)', () => {

@@ -200,7 +200,8 @@ cell, Enter splits only the block, as before.
 `InsertText` takes an optional `marks`. With it, the inserted text carries
 exactly that set wherever it lands; without it, the boundary rule decides and the
 text inherits the marks of the run it joins. A mark the caller's vocabulary does
-not declare is rejected. That is how *stored marks* stay the application's state:
+not declare is rejected, and so is one whose props its definition does not decode — a
+`Link` named bare, with no `href` (`MarkRegistry.accepts` is the check). That is how *stored marks* stay the application's state:
 the caret's format belongs to the caller, and the command layer reads no hidden
 cursor state. A collapsed `ToggleMark` is likewise a no-op — the application
 decides what the caret carries and passes it back on the next `InsertText`.

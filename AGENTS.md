@@ -612,6 +612,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   printer's test asserted `\1. not a list` as the escape for an ordered marker; a
   backslash before a digit is no escape, so the parser kept it as text, and the test
   locked the bug in. A round trip through the real parser is what catches it.
+- **A constant `mint` makes a refusal test pass for any reason.** A test that an
+  `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
+  split a run twice, `apply` refused the duplicate id, and the case stayed green
+  with the props check deleted. Mint distinct ids in every test that expects a
+  refusal, so the refusal can only come from the check under test.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
 - **A fixture too small cannot tell right from wrong.** An ordering test with
