@@ -1,13 +1,16 @@
 /**
- * The page editor in the browser: the site's pages to open one from, and the
- * page form with the Builder in it, at full width. The address says which page
- * is open and which Block is selected (`?page=…&block=…`), so a link opens the
- * editor on a Block; `pageApp.ts` reads it and writes it back.
+ * The page editor in the browser: the site's pages to open one from, and, with
+ * one open, the editor across the screen: a bar with the way back, where the
+ * page stands and Publish, then its title and address, then the Builder. The
+ * address says which page is open and which Block is selected
+ * (`?page=…&block=…`), so a link opens the editor on a Block; `pageApp.ts`
+ * reads it and writes it back.
  */
 import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style } from 'foldkit-mixins'
 import {
+  Editor,
   Message,
   PageEditor,
   pageView,
@@ -15,6 +18,7 @@ import {
   view as editorView,
   type Model,
 } from './pageApp.js'
+import { icon } from './icons.js'
 import { badge, chair, failed, shell, stateIs, statusLine } from './shell.js'
 import { pageHref } from './site.js'
 import { AdminSlots, AdminStyle } from './style.js'
@@ -24,10 +28,21 @@ type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const read = sitePages.read(model)
   const pages = read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.items : []
-  return h.section(slots.panel.attrs([h.Id('pages')]), [
-    h.div(slots.panelHead.attrs(), [
-      h.h2(slots.panelTitle.attrs(), ['Pages']),
-      h.button(slots.primary.attrs([h.Id('new'), h.OnClick(Message.AskedForPage())]), ['New page']),
+  return h.div(slots.screen.attrs([h.Id('pages')]), [
+    h.header(slots.screenHead.attrs(), [
+      h.div(
+        [],
+        [
+          h.h1(slots.screenTitle.attrs(), ['Pages']),
+          h.p(slots.muted.attrs(), [
+            'Build the site’s pages from blocks: the home page, the about page, anything.',
+          ]),
+        ],
+      ),
+      h.button(slots.primary.attrs([h.Id('new'), h.OnClick(Message.AskedForPage())]), [
+        icon(h, 'plus'),
+        'New page',
+      ]),
     ]),
     pages.length === 0
       ? h.p(slots.muted.attrs(), [read._tag === 'Loading' ? 'Loading…' : 'Nothing yet.'])
@@ -40,6 +55,7 @@ const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => 
                 h.button(
                   slots.listButton.attrs([h.OnClick(Message.OpenedEntry({ entry: page.id }))]),
                   [
+                    icon(h, 'pages'),
                     h.span([], [page.label === '' ? 'Untitled page' : page.label]),
                     badge(slots, h, Option.some(page.state)),
                   ],
@@ -55,6 +71,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PageEditor.status(model)
   const error = PageEditor.error(model)
   const state = PageEditor.state(model)
+  const loaded = !['Loading', 'NotFound', 'LoadFailed'].includes(status)
+  const published = stateIs(state, 'Published')
   // The page's address on the site, once it is shown there.
   const live = Option.flatMap(
     Option.filter(PageEditor.pageId(model), () => stateIs(state, 'Published', 'Changed')),
@@ -65,36 +83,53 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         : Option.none()
     },
   )
-  return h.section(slots.panel.attrs([h.Id('editor')]), [
-    h.div(slots.panelHead.attrs(), [
-      h.div(slots.toolbar.attrs(), [
-        h.button(slots.button.attrs([h.Id('close'), h.OnClick(Message.ClosedEditor())]), [
-          '← All pages',
-        ]),
-        h.h2(slots.panelTitle.attrs(), ['Edit page']),
-        badge(slots, h, state),
+  return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
+    h.div(slots.editorBar.attrs(), [
+      h.button(slots.ghost.attrs([h.Id('close'), h.OnClick(Message.ClosedEditor())]), [
+        icon(h, 'back'),
+        'Pages',
       ]),
-      h.div(slots.toolbar.attrs(), [
-        h.p(
-          slots.status.attrs([
-            h.Id('status'),
-            h.Role('status'),
-            ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
-          ]),
-          [
-            statusLine[status],
-            Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
-          ],
-        ),
+      badge(slots, h, state),
+      h.p(
+        slots.status.attrs([
+          h.Id('status'),
+          h.Role('status'),
+          ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
+        ]),
+        [
+          statusLine[status],
+          Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
+        ],
+      ),
+      h.div(slots.barActions.attrs(), [
         ...Option.match(live, {
           onNone: () => [],
           onSome: slug => [
-            h.a(slots.button.attrs([h.Href(`${pageHref(slug)}?as=${chair}`)]), ['View on site ↗']),
+            h.a(slots.ghost.attrs([h.Href(`${pageHref(slug)}?as=${chair}`)]), [
+              icon(h, 'external', 14),
+              'View on site',
+            ]),
           ],
         }),
+        // Publishing submits the form, so the page's own checks decide.
+        ...(loaded && PageEditor.may(model, 'publish')
+          ? [
+              h.button(
+                slots.primary.attrs([
+                  h.Id('publish'),
+                  h.Disabled(published || stateIs(state, 'Archived')),
+                  h.OnClick(Message.GotEditorMessage({ message: Editor.Message.PublishAsked() })),
+                ]),
+                published ? [icon(h, 'check'), 'Published'] : ['Publish'],
+              ),
+            ]
+          : []),
       ]),
     ]),
-    ...(['Loading', 'NotFound', 'LoadFailed'].includes(status) ? [] : [editorView(model, h)]),
+    h.div(
+      slots.workbench.attrs(),
+      loaded ? [editorView(model, h)] : [h.p(slots.muted.attrs(), [statusLine[status]])],
+    ),
   ])
 }
 
@@ -105,9 +140,10 @@ const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Me
     'pages',
     chair === 'visitor'
       ? [
-          h.section(slots.panel.attrs(), [
+          h.div(slots.screen.attrs(), [
+            h.h1(slots.screenTitle.attrs(), ['Pages']),
             h.p(slots.muted.attrs(), [
-              'A visitor reads the site. Choose a writer or an editor above to build pages.',
+              'A visitor reads the site. Choose a writer or an editor in the sidebar to build pages.',
             ]),
           ]),
         ]

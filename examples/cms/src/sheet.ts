@@ -10,11 +10,12 @@ import { lookStyles } from './site.js'
 import {
   AdminStyle,
   BuilderStyle,
-  FieldStyle,
   FormStyle,
   ListStyle,
   SiteStyle,
   WritingFieldStyle,
+  PageFieldStyle,
+  PageFormStyle,
   theme,
 } from './style.js'
 
@@ -28,9 +29,10 @@ export const stylesheet = Style.stylesheet(
   L.in('defaults', Defaults.all),
   ...lookStyles,
   AdminStyle,
-  FieldStyle,
   WritingFieldStyle,
+  PageFieldStyle,
   FormStyle,
+  PageFormStyle,
   ListStyle,
   BuilderStyle,
   SiteStyle,

@@ -25,7 +25,7 @@ import { QueryBlock } from 'foldkit-composition/remote'
 import { Post, PostById, RecentPosts } from './domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
 import { PageBuilder, Site } from './site.js'
-import { FieldStyle, FormStyle } from './style.js'
+import { PageFieldStyle, PageFormStyle } from './style.js'
 
 // A rest of zero: the scripted run does not wait on a clock to save.
 export const Editor = Cms.editor('PageEditor', { content: Pages, rest: 0 })
@@ -33,9 +33,9 @@ export const Editor = Cms.editor('PageEditor', { content: Pages, rest: 0 })
 // The Builder is drawn with its own view, inside the page form.
 const PageFormView = FormView.define(PageForm, {
   field: FormView.field(PageForm, { renderers: Cms.controlRenderers() }).pipe(
-    Style.attach(FieldStyle),
+    Style.attach(PageFieldStyle),
   ),
-}).pipe(Style.attach(FormStyle))
+}).pipe(Style.attach(PageFormStyle))
 const Slot = Bundle.declare(
   Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(PageForm, PageFormView)))),
   'editor',
@@ -320,8 +320,7 @@ export const builderInputs = (model: Model): BuilderViewInputs => {
 /** The page editor drawn: the form, the Builder in it drawn with `builderInputs`. */
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   EditorSlot.view(model, h, {
-    words: { submit: 'Publish' },
-    // A writer may not publish: what the server would refuse is not offered.
-    submits: PageEditor.may(model, 'publish'),
+    // Published from the editor's bar; the form draws no button of its own.
+    submits: false,
     controls: { document: builderInputs(model) },
   })

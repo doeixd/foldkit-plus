@@ -91,6 +91,8 @@ export const AdminSlots = Slots.define({
   editorBar: part,
   barActions: part,
   editorBody: part,
+  /** Where a page is built, across the whole width. */
+  workbench: part,
   canvas: part,
   aside: part,
   /** One group of settings in the aside. */
@@ -102,9 +104,6 @@ export const AdminSlots = Slots.define({
   preview: part,
   /** One published revision in the history. */
   revision: part,
-  panel: part,
-  panelHead: part,
-  panelTitle: part,
   toolbar: part,
   button: control,
   primary: control,
@@ -401,6 +400,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.media('(max-width: 64rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
+    workbench: Style.self({ padding: t.space.lg }),
     canvas: Style.self({
       boxSizing: 'border-box',
       margin: '0 auto',
@@ -468,26 +468,6 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       L.in('layouts', Layout.stack({ gap: t.space.md })),
       Style.nest('> p', { fontFamily: serif, fontSize: '1.2rem', lineHeight: '1.8', margin: '0' }),
     ),
-    panel: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space.md })),
-      Style.self({
-        background: t.surface.base,
-        border: `1px solid ${t.outline.subtle}`,
-        borderRadius: t.radius.lg,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px rgb(0 0 0 / 4%)',
-        padding: t.space.lg,
-      }),
-    ),
-    panelHead: L.in(
-      'layouts',
-      Layout.cluster({ gap: t.space.sm, justify: 'space-between', align: 'center' }),
-    ),
-    panelTitle: Style.self({
-      fontFamily: t.font.heading,
-      fontSize: t.size.lg,
-      fontWeight: t.weight.semibold,
-      margin: '0',
-    }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
     button: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
     primary: primaryButton,
@@ -497,35 +477,37 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.nest('&[data-tone="error"]', { color: t.error.ink }),
     ),
     muted: Style.self({ color: t.text.muted, margin: '0' }),
-    list: Style.self({
-      display: 'grid',
-      gap: t.space['3xs'],
-      listStyle: 'none',
-      margin: '0',
-      padding: '0',
-    }),
+    list: Style.compose(
+      Style.self({
+        border: `1px solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        listStyle: 'none',
+        margin: '0',
+        overflow: 'hidden',
+        padding: '0',
+      }),
+      Style.nest('> li + li', { borderBlockStart: `1px solid ${t.outline.subtle}` }),
+    ),
     listButton: Style.compose(
       Style.self({
         alignItems: 'center',
-        background: 'transparent',
+        background: t.surface.base,
         border: '0',
-        borderRadius: t.radius.md,
-        color: 'inherit',
+        color: t.text.overt,
         cursor: 'pointer',
         display: 'flex',
         font: 'inherit',
-        gap: t.space.xs,
-        justifyContent: 'space-between',
-        padding: '0.5rem 0.65rem',
+        fontSize: t.size.md,
+        fontWeight: t.weight.semibold,
+        gap: t.space.sm,
+        padding: `${t.space.md} ${t.space.lg}`,
         textAlign: 'start',
         width: '100%',
       }),
-      Style.pseudo(':hover', { background: t.surface.muted }),
-      Style.nest('&[aria-current="page"]', {
-        background: t.accent.subtle,
-        color: t.accent.ink,
-        fontWeight: t.weight.semibold,
-      }),
+      Style.nest('> svg', { color: t.text.muted }),
+      // The state sits at the row's end.
+      Style.nest('> :last-child', { marginInlineStart: 'auto' }),
+      Style.pseudo(':hover', { background: t.surface.subtle }),
     ),
     badge: stateBadge('data-state'),
     search: Style.compose(field, Style.self({ paddingInlineStart: '2.1rem' })),
@@ -534,23 +516,6 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
 )
 
 // --- the form, the worklist, and the Builder --------------------------------------
-
-export const FieldStyle = Style.forSlots(FieldSlots)(
-  {
-    root: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
-    group: Style.self({ alignItems: 'center', display: 'flex' }),
-    affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
-    label: Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
-    description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
-    error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
-    text: field,
-    number: field,
-    select: field,
-    multiline: Style.compose(field, Style.self({ minHeight: '7rem', resize: 'vertical' })),
-    choices: L.in('layouts', Layout.cluster({ gap: t.space.sm })),
-  },
-  { name: 'FieldStyle', layer: app },
-)
 
 /** Out of sight and still read: a label a field's placeholder stands in for. */
 const visuallyHidden = Style.self({
@@ -669,6 +634,49 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
   { name: 'WritingFieldStyle', layer: app },
 )
 
+/**
+ * A page's form: its title and address side by side above the Builder, which
+ * takes the whole width. The Builder's field has no label of its own: it is the
+ * page.
+ */
+export const PageFieldStyle = Style.forSlots(FieldSlots)(
+  {
+    root: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
+      onKey(['document'], Style.self({ gridColumn: '1 / -1', marginBlockStart: t.space.sm })),
+    ),
+    group: Style.self({ alignItems: 'center', display: 'flex' }),
+    affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
+    label: Style.compose(
+      Style.self({ color: t.text.muted, fontSize: t.size.xs, fontWeight: t.weight.semibold }),
+      onKey(['document'], visuallyHidden),
+    ),
+    description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
+    error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
+    text: Style.compose(
+      field,
+      onKey(['title'], Style.self({ fontSize: t.size.lg, fontWeight: t.weight.semibold })),
+    ),
+  },
+  { name: 'PageFieldStyle', layer: app },
+)
+
+export const PageFormStyle = Style.forSlots(FormSlots)(
+  {
+    root: Style.compose(
+      Style.self({
+        alignItems: 'start',
+        display: 'grid',
+        gap: t.space.md,
+        gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+      }),
+      Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+    ),
+    errors: Style.self({ color: t.error.ink, gridColumn: '1 / -1' }),
+  },
+  { name: 'PageFormStyle', layer: app },
+)
+
 export const FormStyle = Style.forSlots(FormSlots)(
   {
     root: L.in('layouts', Layout.stack({ gap: t.space.md })),
@@ -722,48 +730,105 @@ export const ListStyle = Style.forSlots(ListSlots)(
   { name: 'ListStyle', layer: app },
 )
 
+/** A panel of the Builder's: a white card on the editor's grey, with its name above it. */
+const builderPanel = (name: string) =>
+  Style.compose(
+    Style.self({
+      background: t.surface.base,
+      border: `1px solid ${t.outline.subtle}`,
+      borderRadius: t.radius.lg,
+      padding: t.space.sm,
+    }),
+    // The panel's name: its `aria-label` says the same to assistive technology.
+    Style.nest('&::before', {
+      color: t.text.muted,
+      content: `"${name}"`,
+      display: 'block',
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.05em',
+      marginBlockEnd: t.space.xs,
+      textTransform: 'uppercase',
+    }),
+  )
+
 /**
- * The Builder: its panels in a column, the canvas beside them for as many rows
- * as they take. The canvas marks the selection, the hovered node and where a
- * drop would land on the element inside each node's wrapper, since a wrapper is
- * `display: contents` and draws nothing.
+ * The Builder, as a page builder's three columns: the blocks to add and the
+ * page's layers on the left; the page itself in the middle, with undo and the
+ * viewport above it; the selected block's settings on the right. The Builder
+ * draws its parts in one order, so each is placed on the grid by its Slot. The
+ * canvas marks the selection, the hovered node and where a drop would land on
+ * the element inside each node's wrapper, since a wrapper is `display:
+ * contents` and draws nothing.
  */
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
   {
     root: Style.compose(
       Style.self({
         alignItems: 'start',
-        columnGap: t.space.lg,
         display: 'grid',
-        gridTemplateColumns: '18rem minmax(0, 1fr)',
+        gap: t.space.md,
+        gridTemplateColumns: '15rem minmax(0, 1fr) 18rem',
+        // A thin first row for undo and the viewport, then the panels beside the page.
+        gridTemplateRows: 'auto auto auto auto 1fr',
       }),
-      // Spaced by margins, not a row gap: the canvas spans rows the panels leave empty.
-      Style.nest('> *', { marginBlockEnd: t.space.sm }),
-      Style.media('(max-width: 56rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      // With nothing selected there are no settings to show: say how to get some.
+      Style.nest('&::after', {
+        color: t.text.muted,
+        content: '"Select a block on the page or in the layers to edit it."',
+        fontSize: t.size.sm,
+        gridColumn: '3',
+        gridRow: '2',
+        padding: t.space.sm,
+      }),
+      Style.nest('&:has(> [aria-label="Properties"])::after', { display: 'none' }),
+      Style.media('(max-width: 72rem)', { gridTemplateColumns: '14rem minmax(0, 1fr)' }),
+      Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
     palette: Style.compose(
-      L.in('layouts', Layout.cluster({ gap: t.space['2xs'] })),
+      builderPanel('Add a block'),
       Style.self({
-        background: t.surface.muted,
-        borderRadius: t.radius.md,
-        padding: t.space.xs,
+        display: 'grid',
+        gap: t.space['3xs'],
+        gridColumn: '1',
+        gridRow: '2',
+        gridTemplateColumns: '1fr 1fr',
       }),
+      Style.nest('&::before', { gridColumn: '1 / -1' }),
+      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
-    paletteItem: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-    layers: Style.self({
-      border: `1px solid ${t.outline.subtle}`,
-      borderRadius: t.radius.md,
-      maxHeight: '18rem',
-      overflow: 'auto',
-      padding: t.space['2xs'],
-    }),
+    paletteItem: Style.compose(
+      Style.self({
+        background: t.surface.subtle,
+        border: `1px solid ${t.outline.subtle}`,
+        borderRadius: t.radius.md,
+        color: t.text.default,
+        cursor: 'pointer',
+        font: 'inherit',
+        fontSize: t.size.xs,
+        fontWeight: t.weight.medium,
+        padding: '0.5rem 0.4rem',
+        textAlign: 'center',
+      }),
+      Style.pseudo(':hover:not(:disabled)', {
+        background: t.accent.subtle,
+        borderColor: t.accent.default,
+        color: t.accent.ink,
+      }),
+      Style.pseudo(':disabled', { cursor: 'not-allowed', opacity: '0.4' }),
+    ),
+    layers: Style.compose(
+      builderPanel('Layers'),
+      Style.self({ gridColumn: '1', gridRow: '3', maxHeight: '22rem', overflow: 'auto' }),
+      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
     tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
     row: Style.compose(
       Style.self({
         borderRadius: t.radius.sm,
         cursor: 'pointer',
         fontSize: t.size.sm,
-        padding: '0.25rem 0.5rem',
+        padding: '0.3rem 0.5rem',
         // TreeNavigation writes each row's depth, 1 at the top.
         paddingInlineStart: 'calc(0.5rem + (var(--fk-tree-level) - 1) * 1rem)',
       }),
@@ -771,19 +836,22 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.nest('&[aria-selected="true"]', {
         background: t.accent.subtle,
         color: t.accent.ink,
+        fontWeight: t.weight.semibold,
       }),
       Style.nest('&[data-builder-dragging]', { opacity: '0.5' }),
       Style.nest('&[data-builder-drop]', { boxShadow: `inset 0 0 0 2px ${t.accent.default}` }),
     ),
-    actions: L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
-    action: button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+    actions: Style.compose(
+      L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
+      Style.self({ gridColumn: '1', gridRow: '4' }),
+      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    action: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
     inspector: Style.compose(
+      builderPanel('Block settings'),
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      Style.self({
-        border: `1px solid ${t.outline.subtle}`,
-        borderRadius: t.radius.md,
-        padding: t.space.sm,
-      }),
+      Style.self({ gridColumn: '3', gridRow: '2 / span 3' }),
+      Style.media('(max-width: 72rem)', { gridColumn: '1', gridRow: 'auto' }),
     ),
     field: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
@@ -793,37 +861,74 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         fontWeight: t.weight.semibold,
       }),
     ),
-    control: Style.compose(field, Style.self({ fontSize: t.size.sm, padding: '0.35rem 0.5rem' })),
-    history: L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
-    undo: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-    redo: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-    viewports: L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
+    control: Style.compose(field, Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.55rem' })),
+    history: Style.compose(
+      L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
+      Style.self({ gridColumn: '2', gridRow: '1', justifySelf: 'start' }),
+      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    undo: button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+    redo: button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+    viewports: Style.compose(
+      Style.self({
+        background: t.surface.muted,
+        borderRadius: t.radius.md,
+        display: 'flex',
+        gap: '2px',
+        gridColumn: '2',
+        gridRow: '1',
+        justifySelf: 'end',
+        padding: '2px',
+      }),
+      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
     viewport: Style.compose(
-      button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+      Style.self({
+        background: 'transparent',
+        border: '0',
+        borderRadius: t.radius.sm,
+        color: t.text.muted,
+        cursor: 'pointer',
+        font: 'inherit',
+        fontSize: t.size.xs,
+        fontWeight: t.weight.medium,
+        padding: '0.3rem 0.65rem',
+        textTransform: 'capitalize',
+      }),
       Style.nest('&[aria-pressed="true"]', {
-        background: t.accent.subtle,
-        color: t.accent.ink,
+        background: t.surface.base,
+        boxShadow: '0 1px 2px rgb(0 0 0 / 8%)',
+        color: t.text.overt,
       }),
     ),
-    preview: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    preview: Style.compose(
+      builderPanel('Preview as'),
+      L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+      Style.self({ gridColumn: '3', gridRow: '5' }),
+      Style.media('(max-width: 72rem)', { gridColumn: '1', gridRow: 'auto' }),
+    ),
     alert: Style.self({
       background: t.error.subtle,
       borderRadius: t.radius.md,
       color: t.error.ink,
       fontSize: t.size.sm,
+      gridColumn: '2',
+      gridRow: '1',
+      justifySelf: 'center',
       margin: '0',
       padding: t.space.xs,
     }),
     canvas: Style.compose(
       Style.self({
-        background: t.surface.muted,
+        background: `repeating-linear-gradient(45deg, ${t.surface.muted} 0 1px, transparent 1px 12px), ${t.surface.subtle}`,
+        border: `1px solid ${t.outline.subtle}`,
         borderRadius: t.radius.lg,
         gridColumn: '2',
-        gridRow: '1 / span 20',
-        minHeight: '28rem',
-        padding: t.space.md,
+        gridRow: '2 / -1',
+        minHeight: '36rem',
+        padding: t.space.lg,
       }),
-      Style.media('(max-width: 56rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
       // Warm, so it shows on the accent a Hero or a Button is drawn in.
       Style.nest('[data-composition-mark="hovered"] > *', {
         outline: `1px dashed ${t.warning.default}`,
@@ -848,8 +953,10 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.self({
         background: t.surface.base,
         borderRadius: t.radius.md,
-        boxShadow: '0 1px 3px rgb(0 0 0 / 8%)',
+        boxShadow: '0 1px 2px rgb(0 0 0 / 6%), 0 12px 32px rgb(0 0 0 / 8%)',
+        margin: '0 auto',
         padding: t.space.md,
+        transition: 'max-width 200ms ease',
       }),
     ),
   },
