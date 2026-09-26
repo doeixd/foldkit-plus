@@ -357,7 +357,10 @@ owns fullscreen state.
 `copyText` copies text as a Command: use it in `update` beside any bundle.
 It yields `Copied` on success and `CopyFailed` otherwise — denial, insecure
 context, or no clipboard API (SSR) all become the failure Message instead of
-throwing. No Model involved: the clipboard is not application state.
+throwing. `readText()` reads it the same way, yielding a
+`ClipboardReadMessage`: `Read { text }`, or `ReadFailed` when the browser
+refuses. No Model involved: the clipboard is not
+application state.
 
 `share(data)` posts `{ title?, text?, url? }` to the platform sheet: `Shared`
 on success, `Dismissed` on sheet cancel (its own outcome, not a failure),

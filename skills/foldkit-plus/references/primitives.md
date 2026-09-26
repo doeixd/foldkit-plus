@@ -16,7 +16,7 @@ imports.
 | A placed slice: match, count, page, value, selection, locale, scroll position, heights | the parent Model | bundle, placed like any other |
 | Key presses, pointer moves, scroll positions, focus identity | the parent Model, if kept | entry mapped to the parent's Message |
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
-| A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
+| A clipboard write or read, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
 | The current item of a roving tab stop, a typeahead query, or both for a list; whether an element is pressed; the open dismissable layers; the selected items; the live-region text | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
@@ -55,7 +55,7 @@ name })`, and `permissions({ name })` are factories over a resource tag;
 `debounce({ name, value })` is a factory whose settled value surfaces as an
 OutMessage the placement handles with `onOut` — required, so it cannot be
 dropped. `Throttle` pairs leading-edge against that trailing edge.
-`chat.helpers.send('hi')` sends on a placed socket; `copyText`, `share`,
+`chat.helpers.send('hi')` sends on a placed socket; `copyText`, `readText`, `share`,
 `loadScript`, `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
