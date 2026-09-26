@@ -443,6 +443,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Library behaviour**
 
+- **An embedded runtime draws in place of its container.** A test that kept
+  the container element and read `container.querySelector(...)` saw an empty
+  page for good, and it looked like the view never ran. Read the page from
+  `document`, as the other runtime tests do.
+- **Foldkit's lazy slots throw outside a runtime render.** `createLazy` and
+  `createKeyedLazy` read the current frame and throw when there is none (an
+  inert test, a server's first pass), and Foldkit offers no way to ask first.
+  The Renderer tries the slot and draws uncached when it throws. A memoized
+  drawing is also reused at one position only: key it, or a move patches it
+  into its neighbour.
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
