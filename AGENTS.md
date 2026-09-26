@@ -608,6 +608,10 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   duplicating an `Effect.ensuring`. The fix is to delete the redundant guard, not
   to write a test for a window that does not exist. One guard per window, one
   test per guard.
+- **Test a serializer by reading its output back, not by its string.** The Markdown
+  printer's test asserted `\1. not a list` as the escape for an ordered marker; a
+  backslash before a digit is no escape, so the parser kept it as text, and the test
+  locked the bug in. A round trip through the real parser is what catches it.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
 - **A fixture too small cannot tell right from wrong.** An ordering test with
@@ -707,6 +711,9 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   scripted insert landed in two functions and broke an unrelated one; a later one
   matched nothing and quietly did not apply, so a field was simply absent. Assert
   the anchor, then re-read the diff -- not just the check.
+- **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
+  git commit` committed a file prettier had just flagged, because `tail` succeeded.
+  Redirect instead (`>/dev/null &&`) when a check gates the next command.
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.

@@ -140,7 +140,11 @@ interface InputRule {
 `applyInputRules(rules, { textBefore, text, insertion })` builds the action — the insertion,
 one `DeleteBackward` per character the rule consumed, then the rule's commands. The deletes
 are what let a rule work without a range: `# ` is not in the document until the insertion
-that completes it has run, so a range read before that would be the wrong range.
+that completes it has run, so a range read before that would be the wrong range. A rule that
+claims to consume more than the text it was shown throws, because those deletes would run
+past the block's start and join it to the one before. `textBefore` for a selection that is
+a range is read from `rangeStart(document, range)` — the end that comes first, whichever
+way the range was made — since that is where what is typed over it lands.
 
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
@@ -169,7 +173,8 @@ that resolves to nothing gives an empty string.
 
 `textRangeBefore(document, position, length)` is its inverse, for a rule that removes
 what it matched: the range covering the `length` characters before the position in its
-block, or `undefined` when they do not all precede it. Endpoints land at run boundaries
+block, or `undefined` when they do not all precede it. An offset past the run's end clamps
+to it, as `textBefore` clamps. Endpoints land at run boundaries
 at `after` affinity, where a caret that typed that character would sit.
 
 ## Mark definitions

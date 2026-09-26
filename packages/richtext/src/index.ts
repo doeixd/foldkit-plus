@@ -18,6 +18,7 @@ export {
   textBefore,
   textRangeBefore,
   positionInBlock,
+  rangeStart,
   Text,
   Paragraph,
   Heading,
@@ -96,6 +97,7 @@ export {
   decorationsIn,
 } from './decoration.js'
 export { SEARCH_DECORATION, searchDecorations } from './search.js'
+export { safeUrl } from './url.js'
 export {
   Slice,
   emptySlice,

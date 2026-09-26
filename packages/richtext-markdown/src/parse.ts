@@ -74,9 +74,14 @@ const runsFrom = (
         case 'delete':
           walk(node.children, [...at, 'Strikethrough'])
           break
-        case 'link':
-          walk(node.children, [...at, { name: 'Link', props: { href: node.url } }])
+        case 'link': {
+          // Markdown is as untrusted as pasted HTML, so a link passes the same policy; one
+          // it refuses keeps its text, unlinked.
+          const href = RichText.safeUrl(node.url)
+          if (href === undefined) diagnostics.push({ code: 'UnsafeUrl', detail: 'link' })
+          walk(node.children, href === undefined ? at : [...at, { name: 'Link', props: { href } }])
           break
+        }
         case 'break':
           // The model has no line break inside a block (§116), so the line becomes its own
           // paragraph, as HTML import already does for a `<br>`.
@@ -192,13 +197,16 @@ const blockFrom = (
       // keeps the round trip, because the model's Image is a block.
       const only = node.children.length === 1 ? node.children[0] : undefined
       if (only !== undefined && only.type === 'image') {
+        const src = RichText.safeUrl(only.url)
+        if (src === undefined) {
+          diagnostics.push({ code: 'UnsafeUrl', detail: 'image' })
+          return []
+        }
         const alt = only.alt
         return [
           holder(
             'Image',
-            alt === null || alt === undefined || alt.length === 0
-              ? { src: only.url }
-              : { src: only.url, alt },
+            alt === null || alt === undefined || alt.length === 0 ? { src } : { src, alt },
             [],
             mint,
           ),

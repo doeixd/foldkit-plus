@@ -509,6 +509,23 @@ describe('an input rule placed for the editor (§124 §4)', () => {
     expect(RichText.inspectHistory(after.editor.history).past).toBe(1)
   })
 
+  it('reads what a backwards range is typed over from its start, not its anchor', () => {
+    editorAt('rule-editor', { inputRules: [heading] })
+    const initial = start(caret('b', 0))
+    const placed: Model = { ...initial, editor: { ...initial.editor, hostId: 'rule-editor' } }
+    const hash = step(placed, typed('#'))
+    // `ab` / `#cd`, selected from after the hash back to after the `a`: the anchor reads `#`,
+    // but typing replaces the range from its start, so the block becomes `a cd`, which no
+    // rule matches.
+    const over = step(
+      { ...hash, editor: { ...hash.editor, selection: range(['b', 1], ['a', 1]) } },
+      typed(' '),
+    )
+    expect(over.document.children).toHaveLength(1)
+    expect(over.document.children[0]).toMatchObject({ type: 'Paragraph' })
+    expect(over.document.children[0]?.children.map(run => run.text).join('')).toBe('a cd')
+  })
+
   it('leaves the text alone when the placement placed no rule', () => {
     const after = step(step(start(caret('a', 0)), typed('#')), typed(' '))
     expect(after.document.children[0]).toMatchObject({ type: 'Paragraph' })

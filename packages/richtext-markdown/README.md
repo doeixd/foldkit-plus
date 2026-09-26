@@ -81,7 +81,10 @@ editor.
 It reads CommonMark, plus GFM's task lists, strikethrough, and tables. It reports instead
 of guessing: raw HTML, a link definition, a footnote, a hard line break (which becomes its
 own paragraph, because a block holds no line break), and an image inside a paragraph
-(`Image` is a block, so a paragraph holding only one is hoisted to it).
+(`Image` is a block, so a paragraph holding only one is hoisted to it). Markdown is as
+untrusted as pasted HTML, so a link's or an image's URL passes the same `safeUrl` policy
+HTML import uses: a refused link keeps its text unlinked, a refused image is dropped, and
+each is reported as `UnsafeUrl`.
 
 `print(parse(markdown))` returns the same Markdown and `parse(print(document))` a document
 that prints the same, which is how the two directions are tested against each other.
@@ -89,14 +92,15 @@ that prints the same, which is how the two directions are tested against each ot
 ## Input rules
 
 `markdownInputRules` retypes a block when a heading marker is completed at its start — `# `
-through `###### ` — which is the set the command vocabulary can carry out. `foldkit-richtext-dom`
-places and applies them, so this package holds no editor state and the editor holds no
-Markdown:
+through `###### ` — which is the set the command vocabulary can carry out. An editor
+placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
+editor state and the editor holds no Markdown:
 
 ```ts
-import { placeInputRules } from 'foldkit-richtext-dom/host'
+import { editorAt } from 'foldkit-richtext-dom/editor-bundle'
+import { markdownInputRules } from 'foldkit-richtext-markdown'
 
-placeInputRules('article-body', markdownInputRules)
+const body = editorAt('article-body', { inputRules: markdownInputRules })
 ```
 
 The markers that need a block *wrapped* in a container or *replaced* by an atom — `> `,
@@ -112,6 +116,11 @@ command. Until it does, those markers stay text.
 - **Inline atoms.** The model has no inline image or break, so an `Image` is a block and
   prints as its own line — which a parser reads back as a paragraph holding an image.
 - **A link with no `href`** prints as its label, with an `UnsupportedMark` diagnostic.
+- **A mark on whitespace at a run's edge.** `**bold **` is not emphasis in CommonMark, so a
+  marked run's leading and trailing whitespace is printed outside its delimiters: the text
+  survives, and the space reads back unmarked.
+- **A bare URL in text.** GFM links `https://…`, `www.…`, and email addresses written as
+  plain text, and no escape stops it, so such text reads back as a link.
 - **A hard line break** has no shape inside a block, so it ends the paragraph and the rest
   starts a new one, with a diagnostic. Raw HTML, link definitions, and footnotes are
   reported and skipped: a document holds none of them.

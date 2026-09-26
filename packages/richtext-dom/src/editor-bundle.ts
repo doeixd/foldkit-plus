@@ -140,12 +140,15 @@ const patch = (hostId: string, state: RichText.EditorState, changeSet: RichText.
 
 /**
  * The text between the start of the caret's block and the caret, or `''` when the
- * selection names no caret. A menu reads this; nothing about the query is stored.
+ * selection names no caret. A menu and the input rules read this; nothing about the query
+ * is stored. A range is read from its start, which is where what is typed over it lands,
+ * whichever way it was dragged.
  */
-const textBeforeOf = (model: EditorView): string =>
-  model.selection?.type === 'Range'
-    ? RichText.textBefore(model.document, model.selection.anchor)
-    : ''
+const textBeforeOf = (model: EditorView): string => {
+  if (model.selection?.type !== 'Range') return ''
+  const start = RichText.rangeStart(model.document, model.selection)
+  return start === undefined ? '' : RichText.textBefore(model.document, start)
+}
 
 export const Editor = Bundle.make({
   name: 'RichTextEditor',
