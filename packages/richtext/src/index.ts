@@ -39,6 +39,7 @@ export {
   decodeDocument,
   selectionIsValid,
   inspect,
+  count,
 } from './document.js'
 export {
   type MarkDef,

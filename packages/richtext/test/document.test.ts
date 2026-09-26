@@ -39,6 +39,43 @@ describe('semantic documents', () => {
     ).toEqual({ nodeCount: 1, textLength: 0, depth: 1 })
   })
 
+  it('counts words and characters as a reader would', () => {
+    const run = (id: string, text: string, marks: ReadonlyArray<string> = []) => ({
+      type: 'Text',
+      id,
+      text,
+      marks,
+    })
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        // A word whose mark changes midway is one word.
+        { type: 'Paragraph', id: 'p', children: [run('a', 'Wa'), run('b', 'ter, 🌱', ['Bold'])] },
+        // Blocks never join: "ends" and "next" stay two words.
+        { type: 'Heading', id: 'h', level: 1, children: [run('c', 'ends')] },
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'ListItem',
+              id: 'i',
+              props: {},
+              children: [],
+              blocks: [{ type: 'Paragraph', id: 'q', children: [run('d', 'next 你好')] }],
+            },
+          ],
+        },
+      ],
+    })
+    // Words: Water, ends, next, 你好. Characters: "Water, 🌱" is 8, "ends" 4, "next 你好" 7.
+    expect(RichText.count(document)).toEqual({ words: 4, characters: 19 })
+  })
+
   it.each([
     ['unsupported version', { version: 2, children: [] }],
     ['unknown root data', { version: 1, children: [], focus: true }],

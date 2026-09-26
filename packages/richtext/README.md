@@ -234,6 +234,11 @@ reports what its whole subtree agrees on.
 paragraph, or a heading at its level — in the shape `RetypeBlock` takes, or undefined for any
 other block (a code block) or a node selection, which is what a style picker presses.
 
+`count(document)` is `{ words, characters }` as a reader counts them: `Intl.Segmenter`'s
+word-like segments and graphemes, so an emoji is one character and a word in a script without
+spaces still counts. Runs join within a block, so a word whose mark changes midway is one word;
+blocks never join.
+
 `isBlank(document)` says whether a reader would see nothing — no blocks, or a lone paragraph
 or heading with no text — which is when an editor shows its placeholder.
 

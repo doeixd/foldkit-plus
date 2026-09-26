@@ -587,3 +587,23 @@ export const inspect = (document: Document) => {
   })
   return { nodeCount, textLength, depth }
 }
+
+const words = new Intl.Segmenter(undefined, { granularity: 'word' })
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+/**
+ * What a reader would count: words and user-perceived characters, as `Intl.Segmenter` splits
+ * them in the default locale, so a word in a script without spaces still counts. Runs are
+ * joined within a block, so a word that changes mark midway is one word, and blocks never
+ * join, so the last word of one block and the first of the next are two.
+ */
+export const count = (document: Document): { words: number; characters: number } => {
+  let wordCount = 0
+  let characterCount = 0
+  eachBlock(document.children, block => {
+    const text = block.children.map(run => run.text).join('')
+    for (const segment of words.segment(text)) if (segment.isWordLike) wordCount += 1
+    for (const _ of graphemes.segment(text)) characterCount += 1
+  })
+  return { words: wordCount, characters: characterCount }
+}
