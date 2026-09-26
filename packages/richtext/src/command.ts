@@ -479,6 +479,75 @@ const liftOperations = (
   return operations.length === 0 ? undefined : operations
 }
 
+/** A list item around a block: its container, where that stands, and the list holding it. */
+interface ItemAround {
+  readonly container: Extract<Block, { readonly type: 'Node' }>
+  readonly containerPath: BlockPath
+  readonly list: Block
+}
+
+/**
+ * The item a block sits in, when the vocabulary says its container is one: a kind its own
+ * parent declares it holds, as a `List` declares `ListItem`, and not isolating, as a table
+ * cell is. Enter treats such a container as the unit it splits.
+ */
+const itemAround = (
+  document: Document,
+  path: BlockPath,
+  nodes: NodeRegistry | undefined,
+): ItemAround | undefined => {
+  if (nodes === undefined) return undefined
+  const containerPath = path.slice(0, -1)
+  const container = blockAtPath(document, containerPath)
+  const list = blockAtPath(document, containerPath.slice(0, -1))
+  if (container?.type !== 'Node' || list?.type !== 'Node') return undefined
+  const declaredList = nodes.definitionFor(list.kind)
+  const declaredItem = nodes.definitionFor(container.kind)
+  const holdsItems =
+    declaredList?.kind === 'node' &&
+    typeof declaredList.children !== 'string' &&
+    declaredList.children.of.includes(container.kind)
+  const isolating = declaredItem?.kind === 'node' && declaredItem.isolating === true
+  return holdsItems && !isolating ? { container, containerPath, list } : undefined
+}
+
+/**
+ * Enter inside a list item. An empty block that is the item's whole content leaves the list,
+ * as Backspace does. Otherwise the block splits and the second half, with every block after
+ * it in the item, becomes a new item of the same kind and props right after this one.
+ */
+const splitItem = (
+  state: EditorState,
+  at: Located,
+  offset: number,
+  { container, containerPath, list }: ItemAround,
+  ids: CommandIds,
+  nodes: NodeRegistry | undefined,
+): TransactionResult => {
+  const blocks = container.blocks ?? []
+  const index = at.path[at.path.length - 1]!
+  const empty = blockAtPath(state.document, at.path)?.children.every(run => run.text === '')
+  if (empty === true && blocks.length === 1) {
+    return apply(state, liftOperations(state.document, at.blockId, ids, nodes) ?? [])
+  }
+  const textId = ids.mint()
+  const blockId = ids.mint()
+  const itemId = NodeId.make(ids.mint())
+  return apply(state, [
+    Edit.splitBlock(at.blockId, at.id, offset, blockId, textId),
+    Edit.insertBlock(
+      { ...container, id: itemId, children: [], blocks: [] },
+      containerPath[containerPath.length - 1]! + 1,
+      list.id,
+    ),
+    Edit.moveBlock(NodeId.make(blockId), 0, itemId),
+    ...blocks
+      .slice(index + 1)
+      .map((later, position) => Edit.moveBlock(later.id, position + 1, itemId)),
+    Edit.setSelection(caretAt({ node: NodeId.make(textId), offset: 0, affinity: 'after' })),
+  ])
+}
+
 /** The block a block-level command acts on, and where it stands. */
 interface StartingBlock {
   readonly block: Block
@@ -777,6 +846,14 @@ export const run = (
     if (at === undefined) return failure('MissingText')
     const deletions = span === undefined ? [] : deleteRange(state.document, span.start, span.end)
     if (deletions === undefined) return failure('InvalidParent')
+    const item = itemAround(state.document, at.path, options.nodes)
+    if (item !== undefined) {
+      // Over a range inside an item, Enter deletes the range and then splits the item, as it
+      // would at a caret; the two commands already say how.
+      return span === undefined
+        ? splitItem(state, at, caret.offset, item, ids, options.nodes)
+        : runAction(state, [{ type: 'DeleteBackward' }, { type: 'SplitBlock' }], ids, options)
+    }
     const textId = ids.mint()
     return apply(state, [
       ...deletions,

@@ -155,3 +155,124 @@ describe('Backspace at the start of a container’s first block', () => {
     }
   })
 })
+
+describe('Enter inside a list item', () => {
+  const listed = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        node('List', 'l', [
+          node('ListItem', 'i1', [paragraph('p1', 'one')]),
+          node('ListItem', 'i2', [paragraph('p2', 'two'), paragraph('p2b', 'more')]),
+          node('ListItem', 'i3', [paragraph('pe', '')]),
+          node('ListItem', 'i4', [paragraph('pe2', ''), paragraph('px', 'x')]),
+          node('ListItem', 'i5', [node('Quote', 'iq', [paragraph('pn', 'nested')])]),
+        ]),
+        node('Quote', 'q', [paragraph('pq', 'quoted')]),
+        node('Table', 't', [
+          node('TableRow', 'r', [node('TableCell', 'c', [paragraph('pc', 'cell')])]),
+        ]),
+      ],
+    } as never)
+  const enter = (at: string, offset: number, options: RichText.RunOptions = { nodes: standard }) =>
+    RichText.run(
+      { document: listed(), selection: caret(at, offset) },
+      { type: 'SplitBlock' },
+      ids(),
+      options,
+    )
+  /** The items after `i2`, which the tests below leave alone. */
+  const rest = [{ i3: [''] }, { i4: ['', 'x'] }, { i5: [{ iq: ['nested'] }] }]
+  const texts = (blocks: ReadonlyArray<RichText.Block>): ReadonlyArray<unknown> =>
+    blocks.map(block =>
+      block.type === 'Node' && block.blocks !== undefined
+        ? { [block.id]: texts(block.blocks) }
+        : block.children.map(run => run.text).join(''),
+    )
+
+  it('starts a new item holding the rest of the text, with the caret at its start', () => {
+    const result = enter('p1-t', 1)
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children)[0]).toEqual({
+      l: [{ i1: ['o'] }, { 'new-3': ['ne'] }, { i2: ['two', 'more'] }, ...rest],
+    })
+    expect(result.state.selection).toEqual(caret('new-1'))
+  })
+
+  it('carries the blocks after the caret’s block into the new item', () => {
+    const result = enter('p2-t', 3)
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children)[0]).toEqual({
+      l: [{ i1: ['one'] }, { i2: ['two'] }, { 'new-3': ['', 'more'] }, ...rest],
+    })
+  })
+
+  it('leaves the list from an empty item', () => {
+    const result = enter('pe-t', 0)
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children).slice(0, 3)).toEqual([
+      { l: [{ i1: ['one'] }, { i2: ['two', 'more'] }] },
+      '',
+      { 'new-1': [{ i4: ['', 'x'] }, { i5: [{ iq: ['nested'] }] }] },
+    ])
+    expect(result.state.selection).toEqual(caret('pe-t'))
+  })
+
+  it('splits an empty block that is not the item’s whole content', () => {
+    const result = enter('pe2-t', 0)
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children)[0]).toMatchObject({
+      l: [{}, {}, {}, { i4: [''] }, { 'new-3': ['', 'x'] }, {}],
+    })
+  })
+
+  it('splits only the block inside a quote nested in an item, the quote being no item', () => {
+    const result = enter('pn-t', 2)
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children)[0]).toMatchObject({
+      l: [{}, {}, {}, {}, { i5: [{ iq: ['ne', 'sted'] }] }],
+    })
+  })
+
+  it('deletes a range inside an item and then splits the item', () => {
+    const result = RichText.run(
+      {
+        document: listed(),
+        selection: {
+          type: 'Range',
+          anchor: { node: id('p1-t'), offset: 1, affinity: 'after' },
+          focus: { node: id('p1-t'), offset: 2, affinity: 'after' },
+        },
+      },
+      { type: 'SplitBlock' },
+      ids(),
+      { nodes: standard },
+    )
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children)[0]).toMatchObject({
+      l: [{ i1: ['o'] }, { 'new-3': ['e'] }, {}, {}, {}, {}],
+    })
+  })
+
+  it.each<[string, string, RichText.RunOptions, number, unknown]>([
+    [
+      'with no vocabulary',
+      'p1-t',
+      {},
+      0,
+      { l: [{ i1: ['on', 'e'] }, { i2: ['two', 'more'] }, ...rest] },
+    ],
+    ['in a quote, which is no item', 'pq-t', { nodes: standard }, 1, { q: ['qu', 'oted'] }],
+    [
+      'in a table cell, which is isolating',
+      'pc-t',
+      { nodes: standard },
+      2,
+      { t: [{ r: [{ c: ['ce', 'll'] }] }] },
+    ],
+  ])('splits only the block %s', (_, at, options, top, expected) => {
+    const result = enter(at, 2, options)
+    if (!result.ok) throw new Error(result.error)
+    expect(texts(result.state.document.children)[top]).toEqual(expected)
+  })
+})

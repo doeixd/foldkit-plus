@@ -7281,5 +7281,27 @@ block, which has no sibling to join. It does so only with a vocabulary, the one 
 knows a list item must leave the list and a table cell must not be left. Without one, in a
 table cell, and forwards, the edge still does nothing.
 
-Still not decided: Enter on an empty list item, which many editors also read as a lift.
+## Enter in a list item
+
+Built with the lift, because the wrap made its absence obvious: after `- a` and Enter, the split
+landed inside the same `ListItem`, a second paragraph in one bullet. With a vocabulary, a block's
+container is an *item* when its parent declares it among the kinds it holds (`List` holds
+`ListItem`) and it is not isolating, and Enter works on the item:
+
+```text
+non-empty, or not the item's only block
+  SplitNode(block)                          the halves, as before
+  + InsertNode(new item, same kind and props, after this one)
+  + MoveNode(second half, and each later block of the item, into it)
+empty, and the item's only block
+  the lift                                  leaves the list, as Backspace does
+```
+
+A range inside an item is deleted and then split, composed from `DeleteBackward` and
+`SplitBlock`. A quote is no item — nothing declares it among an item list — so Enter in one
+splits the paragraph, as it does without a vocabulary and in a table cell.
+
+The new item copies the old one's props, which makes Enter in a checked `TaskItem` start another
+checked one. The core does not know what `checked` means, and a prop reset per kind is a Kit
+declaration nobody has needed yet.
 

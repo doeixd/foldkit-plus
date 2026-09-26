@@ -228,7 +228,8 @@ props }, { kind: 'ListItem' }]`), keeping its identity and the caret. `ConvertBl
 a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
 new identities and moving the selection onto them. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
-of a kind declared `isolating`, such as `TableCell`).
+of a kind declared `isolating`, such as `TableCell`); Enter in a list item starts a new item,
+and Enter in an empty one leaves the list.
 `InsertText` takes an optional `marks`: with it the inserted span carries
 exactly that set, without it the boundary rule decides and the text inherits the
 run it joins; an unknown mark is refused. That keeps stored marks in the
