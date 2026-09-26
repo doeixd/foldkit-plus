@@ -600,6 +600,12 @@ const ProjectsByOwnerSource = query(ProjectsByOwner, {
 })
 ```
 
+`query` takes no type arguments. The input is the descriptor's, and a source
+whose `where` or `orderBy` reads nothing of the principal fits any server's. A
+source that does read it says so on the parameter,
+`where: (input, principal: Principal) => …`, and is then a source for a server
+of that `Principal` only; a server with another principal refuses it at the type.
+
 ### A query that carries its own meaning
 
 When the descriptor was declared with

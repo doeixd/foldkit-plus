@@ -30,7 +30,11 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
    has to spell `query<Principal, typeof RecentPosts.Input.Type>(…)`, as
    `cms-drizzle` does internally. *Proposed:* take the principal from the
    binding or put `Input` first so it is inferred, or a curried
-   `query.for<P>()(descriptor, …)`. Status: worked around.
+   `query.for<P>()(descriptor, …)`. **Fixed** (plan area 4b) without an API
+   change: `query` needs no type arguments. A source that reads no principal fits
+   any server, and one that does types it on its `where` parameter, which
+   infers it. The example and cms-drizzle dropped theirs (and a cast), and
+   `query.test-d.ts` pins it, including the refusal.
 
 4. **`Renderer.render`'s options refuse `undefined`.** Under
    `exactOptionalPropertyTypes`, `{ data: reads?.read(model) }` is an error, so

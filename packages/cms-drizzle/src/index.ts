@@ -412,10 +412,7 @@ export const CmsServer = {
     // The descriptor carries all three questions and the order; this says only
     // which table answers them. The audience boundary is unchanged: `visible`
     // on the binding is conjoined with the body, as for every source here.
-    const worklist: QuerySource<P, DrizzleDatabase> = query<P, typeof Cms.Entries.Input.Type>(
-      Cms.Entries,
-      { entity: Db.Entry },
-    )
+    const worklist: QuerySource<P, DrizzleDatabase> = query(Cms.Entries, { entity: Db.Entry })
 
     /** A mutation of this server: its principal and its database are fixed, its input is the descriptor's. */
     const operation = <Name extends string, Input, Output>(
@@ -1063,13 +1060,7 @@ export const CmsServer = {
     // and says no more: the address column and the order come from the body,
     // through the binding that knows which column holds which field.
     const bySlug = config.content.flatMap(({ type, binding }) =>
-      type.roles.slug === undefined
-        ? []
-        : [
-            query<P, { readonly slug: string }>(Cms.bySlug(type), {
-              entity: binding,
-            }) as QuerySource<P, DrizzleDatabase>,
-          ],
+      type.roles.slug === undefined ? [] : [query(Cms.bySlug(type), { entity: binding })],
     )
 
     return {

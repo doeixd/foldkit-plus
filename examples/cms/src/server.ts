@@ -158,8 +158,8 @@ export const openServer = (clock: () => Date, options: { readonly seeded?: boole
     // The blog's own queries, over the Post binding: its `visible` rule applies to them too.
     queries: [
       ...cms.queries,
-      query<Principal, typeof RecentPosts.Input.Type>(RecentPosts, { entity: Db.Post }),
-      query<Principal, typeof PostById.Input.Type>(PostById, { entity: Db.Post }),
+      query(RecentPosts, { entity: Db.Post }),
+      query(PostById, { entity: Db.Post }),
     ],
     mutations: [...cms.mutations],
   })
