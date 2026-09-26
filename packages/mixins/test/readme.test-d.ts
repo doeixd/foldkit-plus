@@ -87,14 +87,13 @@ const ListParts = SlotView.parts(ListSlots)<{ readonly rows: ReadonlyArray<strin
 const drawRow = (
   slots: SlotView.SlotBuilders<typeof ListSlots, Message>,
   h: HtmlBuilder<Message>,
-  index: number,
-  text: string,
+  { index, text }: { readonly index: number; readonly text: string },
 ) => h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
 
 const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
   h.ul(
     slots.root.attrs(),
-    input.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, [index, text])),
+    input.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, { index, text })),
   ),
 )
 void Rows

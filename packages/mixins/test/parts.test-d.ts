@@ -43,12 +43,12 @@ Parts.part(
 const drawLabel = (
   slots: SlotView.SlotBuilders<typeof FieldSlots, TestMessage>,
   h: HtmlBuilder<TestMessage>,
-  label: string,
+  { label }: { readonly label: string },
 ) => h.div(slots.root.attrs(), [label])
 Parts.part('Rows', { reads: ['label', 'count'] }, (input, slots) =>
-  slots.root.lazy({ index: 0 }, drawLabel, [input.label]),
+  slots.root.lazy({ index: 0 }, drawLabel, { label: input.label }),
 )
 Parts.part('Rows', { reads: ['label', 'count'] }, (input, slots) =>
   // @ts-expect-error a count is not the label the drawing takes.
-  slots.root.lazy({ index: 0 }, drawLabel, [input.count]),
+  slots.root.lazy({ index: 0 }, drawLabel, { label: input.count }),
 )

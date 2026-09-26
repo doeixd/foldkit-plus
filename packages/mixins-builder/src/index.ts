@@ -1080,14 +1080,25 @@ export const BuilderView = {
     const drawRow = (
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
-      index: number,
-      id: string,
-      branch: boolean,
-      node: Document['nodes'][NodeId] | undefined,
-      open: boolean,
-      selected: boolean,
-      drop: DropZone | undefined,
-      dragged: boolean,
+      {
+        index,
+        id,
+        branch,
+        node,
+        open,
+        selected,
+        drop,
+        dragged,
+      }: {
+        readonly index: number
+        readonly id: string
+        readonly branch: boolean
+        readonly node: Document['nodes'][NodeId] | undefined
+        readonly open: boolean
+        readonly selected: boolean
+        readonly drop: DropZone | undefined
+        readonly dragged: boolean
+      },
     ): Html =>
       h.li(
         slots.row.attrs(
@@ -1167,21 +1178,21 @@ export const BuilderView = {
           // Each row drawn again only when what it shows changed: a new selection
           // redraws the row it left and the row it reached.
           shown.map((row, index) =>
-            slots.row.lazy({ index, id: row.id }, drawRow, [
+            slots.row.lazy({ index, id: row.id }, drawRow, {
               index,
-              row.id,
-              row.branch,
-              document.nodes[NodeId.make(row.id)],
-              TreeNavigation.isOpen(input.layers, layersArgs, row.id),
-              Option.contains(selected, NodeId.make(row.id)),
-              Option.getOrUndefined(
+              id: row.id,
+              branch: row.branch,
+              node: document.nodes[NodeId.make(row.id)],
+              open: TreeNavigation.isOpen(input.layers, layersArgs, row.id),
+              selected: Option.contains(selected, NodeId.make(row.id)),
+              drop: Option.getOrUndefined(
                 Option.map(
                   Option.filter(drop, over => over.id === row.id),
                   over => over.zone,
                 ),
               ),
-              Option.contains(dragged, NodeId.make(row.id)),
-            ]),
+              dragged: Option.contains(dragged, NodeId.make(row.id)),
+            }),
           ),
         )
         // The tree inside is what is named "Layers"; the panel around it is not named twice.

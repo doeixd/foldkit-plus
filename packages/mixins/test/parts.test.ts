@@ -140,17 +140,17 @@ it('draws every part again when a Mixin attached to the whole view reads the inp
 const fragile = (
   slots: SlotView.SlotBuilders<typeof PanelSlots, Message>,
   h: HtmlBuilder<Message>,
-  count: number,
+  { count }: { readonly count: number },
 ) => {
   drawn.push('Fragile')
   if (count > 0) throw new Error('Fragile cannot count')
   return h.p(slots.count.attrs(), [String(count)])
 }
 const FragilePart = Parts.part('Fragile', { reads: ['count'] }, (input, slots, h) =>
-  fragile(slots, h, input.count),
+  fragile(slots, h, input),
 )
 const FragileItem = Parts.part('FragileItem', { reads: ['count'] }, (input, slots) =>
-  slots.count.lazy({ index: 0 }, fragile, [input.count]),
+  slots.count.lazy({ index: 0 }, fragile, { count: input.count }),
 )
 
 it.each([
@@ -224,8 +224,7 @@ const Roving = Behavior.forSlots(ListSlots)<Pick<ListModel, 'current'>, ListMess
 const drawRow = (
   slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
   h: HtmlBuilder<ListMessage>,
-  index: number,
-  text: string,
+  { index, text }: { readonly index: number; readonly text: string },
 ) => {
   rowsDrawn.push(text)
   return h.li(slots.row.attrs([h.Key(String(index))], { index }), [text])
@@ -238,7 +237,7 @@ const Rows = ListParts.part(
     h.ul(
       slots.root.attrs(),
       // Keyed by position: a renamed row keeps its key, and only its text changed.
-      input.rows.map((text, index) => slots.row.lazy({ index }, drawRow, [index, text])),
+      input.rows.map((text, index) => slots.row.lazy({ index }, drawRow, { index, text })),
     ),
 )
 // The same rows inside one group, itself drawn per item: the group holds rows
@@ -246,23 +245,22 @@ const Rows = ListParts.part(
 const drawGroupedRow = (
   slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
   h: HtmlBuilder<ListMessage>,
-  index: number,
-  text: string,
+  { index, text }: { readonly index: number; readonly text: string },
 ) => h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
 const drawGroup = (
   slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
   h: HtmlBuilder<ListMessage>,
-  rows: ReadonlyArray<string>,
+  { rows }: { readonly rows: ReadonlyArray<string> },
 ) =>
   h.ol(
     slots.group.attrs([h.Id('grouped')], { index: 9, id: 'group' }),
-    rows.map((text, index) => slots.row.lazy({ index, id: text }, drawGroupedRow, [index, text])),
+    rows.map((text, index) => slots.row.lazy({ index, id: text }, drawGroupedRow, { index, text })),
   )
 const Grouped = ListParts.part(
   'Grouped',
   { reads: ['rows', 'current'], behaviors: [Roving] },
   // Index 9, which no tab stop reaches, so only the rows inside could tell a move.
-  (input, slots) => slots.group.lazy({ index: 9, id: 'group' }, drawGroup, [input.rows]),
+  (input, slots) => slots.group.lazy({ index: 9, id: 'group' }, drawGroup, { rows: input.rows }),
 )
 // A mount made with one function and a Date in its args: a Date's time is not
 // an own key, so only comparing it by identity tells two stamps apart.
@@ -276,8 +274,7 @@ const Stamp = Behavior.forSlots(ListSlots)<Pick<ListModel, 'stamp'>, ListMessage
 const drawStamped = (
   slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
   h: HtmlBuilder<ListMessage>,
-  index: number,
-  text: string,
+  { index, text }: { readonly index: number; readonly text: string },
 ) => {
   stampedDrawn.push(text)
   return h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
@@ -289,7 +286,7 @@ const StampedRows = ListParts.part(
     h.ol(
       slots.root.attrs(),
       input.rows.map((text, index) =>
-        slots.row.lazy({ index, id: text }, drawStamped, [index, text]),
+        slots.row.lazy({ index, id: text }, drawStamped, { index, text }),
       ),
     ),
 )

@@ -30,14 +30,15 @@ export type SlotBuilder<Message, Slots = unknown> = {
    */
   readonly attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => SlotAttributes<Message>
   /**
-   * One item's drawing, drawn again only when `args` changed by identity or
-   * what the Mixins gave the Slots it used for this item changed in value.
-   * `draw` must read nothing but its arguments, so pass a function defined
-   * once, not a closure made per render. Keyed by `item.id`, else its index.
+   * One item's drawing, drawn again only when a value in `args` changed by
+   * identity or what the Mixins gave the Slots it used for this item changed
+   * in value. `draw` must read nothing but its arguments, so pass a function
+   * defined once, not a closure made per render. Keyed by `item.id`, else its
+   * index.
    */
-  readonly lazy: <const Args extends ReadonlyArray<unknown>>(
+  readonly lazy: <const Args extends Readonly<Record<string, unknown>>>(
     item: SlotItem,
-    draw: (slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>, ...args: Args) => Html,
+    draw: (slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>, args: Args) => Html,
     args: Args,
   ) => Html
 }
@@ -205,9 +206,9 @@ const sameData = (left: unknown, right: unknown, depth = 0): boolean => {
   )
 }
 
-const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
+const drawItem = <Slots, Message, Args extends Readonly<Record<string, unknown>>>(
   item: SlotItem,
-  draw: (slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>, ...args: Args) => Html,
+  draw: (slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>, args: Args) => Html,
   args: Args,
   context: {
     readonly builders: SlotBuilders<Slots, Message>
@@ -220,7 +221,7 @@ const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
   // cached: its key would read this one's Slots with the outer item.
   if (using !== undefined) {
     using.add(NESTED)
-    return draw(context.builders, context.h, ...args)
+    return draw(context.builders, context.h, args)
   }
   const memo = itemMemoOf(draw)
   const key = item.id ?? item.index
@@ -228,7 +229,7 @@ const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
     started++
     using = new Set()
     try {
-      const html = draw(context.builders, context.h, ...args)
+      const html = draw(context.builders, context.h, args)
       memo.used.set(key, [...using])
       return html
     } finally {
@@ -244,7 +245,9 @@ const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
   memo.given.set(key, given)
   pending = run
   try {
-    return memoizedOr(() => memo.lazy(key, runPending, [draw, given, ...args]), run)
+    // The record is new every render; its keys and values are what stay the same.
+    const compared = [draw, given, ...Object.keys(args), ...Object.values(args)]
+    return memoizedOr(() => memo.lazy(key, runPending, compared), run)
   } finally {
     pending = undefined
   }
