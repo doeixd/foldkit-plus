@@ -98,6 +98,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
       `RemoteServer.handlers` results and a hand-made client service.
     - `(yield* DrizzleDatabase) as unknown as Writes` (`server.ts`): the
       database service is not typed for a plain `insert`/`update` in a handler.
+      **Fixed** (plan area 3c): `drizzleWrites` is typed by each table, and
+      `server.ts` and cms-drizzle no longer cast; `post-${n} as PostId` became
+      `PostId.make`.
     - `id as never` / `entry as never` for branded ids (`app.ts`): **fixed**
       here with `PostId.make` and `EntryId.make`.
 

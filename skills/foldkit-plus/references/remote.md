@@ -517,6 +517,9 @@ declare const db: Parameters<typeof databaseLayer>[0]
 const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-1')).pipe(
   Layer.provide(databaseLayer(db)), // handlers require DrizzleDatabase because the Sources do
 )
+// In a mutation handler: `const writes = yield* drizzleWrites` (insert/update/delete typed by
+// the table), then return `entities: yield* returning.row(Project, id)`: the whole row it
+// wrote, since the client's store learns only what a mutation patches.
 ```
 
 Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL

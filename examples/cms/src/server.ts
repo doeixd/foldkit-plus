@@ -9,9 +9,16 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
 import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from 'foldkit-cms-drizzle'
-import { DrizzleDatabase, bind, databaseLayer, query } from 'foldkit-remote-drizzle'
+import {
+  DrizzleDatabase,
+  bind,
+  databaseLayer,
+  drizzleWrites,
+  query,
+  type DrizzleWrites,
+} from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Post, PostById, PostInput, Posts, RecentPosts, type PostId } from './domain.js'
+import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from './domain.js'
 import { Page, PageId, PageInput, Pages } from './pageDomain.js'
 import { seed } from './seed.js'
 
@@ -51,13 +58,9 @@ const Db = bind(
   },
 )
 
-type Writes = {
-  insert: (table: unknown) => { values: (values: object) => unknown }
-  update: (table: unknown) => { set: (values: object) => { where: (where: unknown) => unknown } }
-}
-const write = (run: (database: Writes) => unknown) =>
+const write = (run: (database: DrizzleWrites) => PromiseLike<unknown>) =>
   Effect.gen(function* () {
-    const database = (yield* DrizzleDatabase) as unknown as Writes
+    const database = yield* drizzleWrites
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
@@ -93,7 +96,7 @@ export const openServer = (clock: () => Date, options: { readonly seeded?: boole
           { id: PostId }
         >(Posts.publish.create, ({ input }) =>
           Effect.gen(function* () {
-            const id = `post-${++made}` as PostId
+            const id = PostId.make(`post-${++made}`)
             yield* write(database => database.insert(posts).values({ id, ...input }))
             return { output: { id } }
           }),

@@ -770,6 +770,30 @@ to Remote ref keys.
 `selectColumns` and `normalize` are the lower-level halves when you need them
 separately.
 
+**Return the whole row you wrote.** The client's store learns only what a
+mutation's `entities` patch, so a handler that updates a title and returns
+`{ output: {} }` leaves every screen showing the old title. When a handler
+writes more than it wants to list, `returning.row(binding, id)` reads the row
+back, every column with each `one` relation as its ref:
+
+```ts
+import { drizzleWrites, returning } from 'foldkit-remote-drizzle'
+
+const PublishPostSource = RemoteServer.mutation(PublishPost, ({ input }) =>
+  Effect.gen(function* () {
+    const writes = yield* drizzleWrites
+    yield* Effect.promise(() =>
+      Promise.resolve(writes.update(posts).set({ title: input.title }).where(eq(posts.id, input.id))),
+    )
+    return { output: {}, entities: yield* returning.row(Post, input.id) }
+  }),
+)
+```
+
+`drizzleWrites` is the provided database's `insert`, `update` and `delete`,
+typed by each table's columns, so a handler writes without casting the
+`DrizzleDatabase` service, which names only the reads a Source makes.
+
 ## Compose the server
 
 ```ts

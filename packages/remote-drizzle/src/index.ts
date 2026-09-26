@@ -168,16 +168,52 @@ export const normalize = (
  * yield, paired so a mutation cannot select one set of columns and normalize
  * another.
  */
-export const returning = (
-  binding: AnyEntityBinding,
-  fields: readonly string[],
-): {
-  readonly columns: Record<string, AnyColumn>
-  readonly patches: (rows: ReadonlyArray<Record<string, unknown>>) => ReadonlyArray<NormalizedPatch>
-} => ({
-  columns: selectColumns(binding, fields),
-  patches: rows => normalize(binding, rows, fields),
-})
+export const returning = Object.assign(
+  (
+    binding: AnyEntityBinding,
+    fields: readonly string[],
+  ): {
+    readonly columns: Record<string, AnyColumn>
+    readonly patches: (
+      rows: ReadonlyArray<Record<string, unknown>>,
+    ) => ReadonlyArray<NormalizedPatch>
+  } => ({
+    columns: selectColumns(binding, fields),
+    patches: rows => normalize(binding, rows, fields),
+  }),
+  {
+    /**
+     * Every column of row `id` as it now is, with each `one` relation as its ref,
+     * as patches: what a mutation handler returns in `entities` so the client's
+     * store learns all it wrote, not only the fields it patched. Empty when there
+     * is no such row. A collection relation is not read; load it with `source`.
+     */
+    row: (
+      binding: AnyEntityBinding,
+      id: string,
+    ): Effect.Effect<ReadonlyArray<NormalizedPatch>, never, DrizzleDatabase> =>
+      Effect.gen(function* () {
+        // Every column, and each `one` relation as the ref its foreign key encodes.
+        const fields = [
+          ...Object.keys(binding.columns),
+          ...Object.entries(binding.relations).flatMap(([field, relation]) =>
+            relation.kind === 'one' ? [field] : [],
+          ),
+        ]
+        const columns = selectColumns(binding, fields)
+        const database = yield* DrizzleDatabase
+        const rows = yield* Effect.promise(() =>
+          Promise.resolve(
+            database
+              .select(columns)
+              .from(binding.table)
+              .where(whereIds(binding, [id])),
+          ),
+        )
+        return normalize(binding, rows, fields)
+      }),
+  },
+)
 
 /**
  * A pruned reader backed by an injected executor. Use it when the database is

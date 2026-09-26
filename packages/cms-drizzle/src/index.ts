@@ -28,6 +28,7 @@ import { Cms, type Content, type Facts } from 'foldkit-cms'
 import type { MutationDescriptor } from 'foldkit-remote'
 import {
   DrizzleDatabase,
+  drizzleWrites,
   bind,
   query,
   returning,
@@ -47,19 +48,6 @@ import {
 import type { CmsTables } from './tables.js'
 
 export { pgTables, sqliteSchema, sqliteTables, type CmsTables } from './tables.js'
-
-/** The writes the CMS makes, as any Drizzle database for SQLite or Postgres offers them. */
-interface Writes {
-  insert(table: unknown): { values(values: object): PromiseLike<unknown> }
-  update(table: unknown): {
-    set(values: object): {
-      where(condition: SQL | undefined): {
-        returning(columns: Record<string, AnyColumn>): PromiseLike<ReadonlyArray<object>>
-      }
-    }
-  }
-  delete(table: unknown): { where(condition: SQL | undefined): PromiseLike<unknown> }
-}
 
 /**
  * A content type as the server holds it: its declaration, the binding of its
@@ -524,7 +512,7 @@ export const CmsServer = {
         yield* asking(principal, 'save', existing)
         if (existing !== undefined) yield* promised(principal, existing)
 
-        const database = (yield* DrizzleDatabase) as unknown as Writes
+        const database = yield* drizzleWrites
         const who = nameOf(principal)
         const id = existing?.id ?? input.entry
         const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, id)
@@ -614,7 +602,7 @@ export const CmsServer = {
         if (entry === undefined) return yield* refuse('There is no such entry')
         yield* asking(principal, 'discard', entry)
         yield* promised(principal, entry)
-        const database = (yield* DrizzleDatabase) as unknown as Writes
+        const database = yield* drizzleWrites
         yield* Effect.promise(() =>
           Promise.resolve(database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
         )
@@ -714,7 +702,7 @@ export const CmsServer = {
         }
 
         return yield* Effect.gen(function* () {
-          const writes = (yield* DrizzleDatabase) as unknown as Writes
+          const writes = yield* drizzleWrites
           const n = (held ?? 0) + 1
           // Compare and set, first: of two publishes made from one revision, one
           // finds the number already moved, and nothing of it is written.
@@ -779,13 +767,12 @@ export const CmsServer = {
                 .returning({ id: tables.entries.id }),
             ),
           )
-          // The row as the handler left it, every column: a handler need not patch what it wrote.
-          const content = returning(served.binding, Object.keys(served.binding.columns))
           return {
             output: { entry: entry.id as never, targetId, revision: n },
             entities: [
               ...ran.entities,
-              ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
+              // The row as the handler left it, every column: a handler need not patch what it wrote.
+              ...(yield* returning.row(served.binding, targetId)),
               ...(yield* entryPatches(entry.id)),
               ...revisionPatch.patches(
                 yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
@@ -817,7 +804,7 @@ export const CmsServer = {
     /** Writes to an entry's draft, and answers with both as the client should now hold them. */
     const drafted = (id: string, values: object) =>
       Effect.gen(function* () {
-        const writes = (yield* DrizzleDatabase) as unknown as Writes
+        const writes = yield* drizzleWrites
         yield* Effect.promise(() =>
           Promise.resolve(
             writes
@@ -872,7 +859,7 @@ export const CmsServer = {
           Effect.gen(function* () {
             const { entry, served } = yield* offering(input.entry, transition)
             yield* asking(principal, transition, entry)
-            const writes = (yield* DrizzleDatabase) as unknown as Writes
+            const writes = yield* drizzleWrites
             yield* Effect.promise(() =>
               Promise.resolve(
                 writes
@@ -934,7 +921,7 @@ export const CmsServer = {
         if (revision === undefined)
           return yield* refuse(`This entry has no revision ${input.revision}`)
 
-        const writes = database as unknown as Writes
+        const writes = yield* drizzleWrites
         const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, entry.id)
         const at = now().toISOString()
         const updatedAt =
@@ -1031,7 +1018,7 @@ export const CmsServer = {
         const { entry, served } = yield* offering(input.entry, 'unpublish')
         yield* asking(principal, 'unpublish', entry)
         const shown = served.type.roles.published!
-        const writes = (yield* DrizzleDatabase) as unknown as Writes
+        const writes = yield* drizzleWrites
         yield* Effect.promise(() =>
           Promise.resolve(
             writes
