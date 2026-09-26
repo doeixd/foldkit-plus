@@ -7342,8 +7342,11 @@ so no run is split, and the caret keeps its node.
 
 The editor carries them as `AppliedMark { mark }` and `ClearedMark { mark }`, which the Bundle
 maps to the two commands like any other editing Message, so each is one transition and one
-undo step. Not built yet: the popover itself, a Mixins slot for the view. `SetMark` knows no mark's props, so it stores an `href` as given; the URL policy
-belongs where the link is drawn.
+undo step. Not built yet: the popover itself, a Mixins slot for the view.
+
+An added mark's props are checked against its definition (`MarkRegistry.accepts`), so
+`{ href: 4 }` or a bare `Link` is refused. The URL in a string `href` is not: a schema says what
+shape a prop has, not which schemes are safe, so that policy belongs where the link is drawn.
 
 Checking that turned up a gap older than this section: `safeUrl` ran only at import, and
 `standardRendering` wrote any stored `href` or `src` into its attribute. A document decoded
