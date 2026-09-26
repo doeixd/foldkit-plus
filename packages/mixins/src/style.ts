@@ -15,6 +15,7 @@ import type { Any as AnySlot, HiddenOf } from './slot.js'
 import type { Placement } from './layers.js'
 import type { SlotItem } from './slotItem.js'
 import * as SlotView from './slotView.js'
+import { register } from './inject.js'
 import * as Rules from './styleRules.js'
 import {
   allowDiscrete,
@@ -160,8 +161,11 @@ const compileTree = (
 ): StyleValue => {
   const rules = style.rules ?? []
   const generated = rules.length === 0 ? undefined : Rules.className(rules)
-  if (generated !== undefined)
-    collected.push({ className: generated, css: Rules.css(generated, rules) })
+  if (generated !== undefined) {
+    const css = Rules.css(generated, rules)
+    register(generated, css)
+    collected.push({ className: generated, css })
+  }
   const conditions = (style.conditions ?? []).map(condition => ({
     predicate: condition.predicate,
     piece: compileTree(condition.piece, collected),

@@ -178,9 +178,13 @@ the base view. Adding another `OnInput` attachment is a conflict, not a way to
 chain a second application update. Compose the action in the existing Message
 handler instead.
 
-For `Style.pseudo`, `Style.media`, or other compiled rules, also install the
-text returned by `Style.stylesheet(style)` in the page. Calling a SlotView
-returns HTML; it does not inject a stylesheet for you.
+A Style's compiled rules (`Style.pseudo`, `Style.media`, a layer) arrive with
+the Slot that draws them. In a browser, the first time a Slot draws a class,
+its CSS is appended to one `<style data-foldkit-styles>` element, in the
+microtask after the draw and before the browser paints, after the standard
+layer order. Classes a stylesheet already on the page carries are left out, so
+installing `Style.stylesheet(...)` yourself (for the first paint, or on the
+server) never duplicates them. Outside a browser nothing is injected.
 
 ## What the resolver guarantees
 
@@ -279,7 +283,7 @@ Style.stylesheet(FieldStyle, CardStyle)
 Equal rules share a class, so server and client derive the same class and CSS. A rule piece
 inside `Style.whenInput` compiles to its class like any other; the class is static and only its
 presence follows the input, and its CSS is in `Style.stylesheet` whether or not the condition
-ever holds.
+ever holds. Drawn, it is injected like any other class.
 
 Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
 

@@ -75,6 +75,8 @@ const mount = (css: string) => {
   return () => {
     handle.dispose()
     style.remove()
+    // What was injected, so the next test's page counts its stylesheets afresh.
+    document.querySelector('style[data-foldkit-styles]')?.remove()
   }
 }
 
@@ -108,9 +110,9 @@ it('fills the window, the page scrolling inside its canvas rather than the windo
   expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(window.innerHeight)
 })
 
-// Phase 1 of dx-and-builder-PLAN.md makes a Style bring its own rules: until then,
-// a Style left out of the stylesheet draws nothing. This fails until it does.
-it.fails('draws a Style that the stylesheet leaves out', async () => {
+// A Style brings its own rules when it draws (dx-and-builder-PLAN.md, 1b), so one
+// left out of the stylesheet still applies.
+it('draws a Style that the stylesheet leaves out', async () => {
   const L = Layers.standard
   const foundations = Style.stylesheet(
     L.declare,

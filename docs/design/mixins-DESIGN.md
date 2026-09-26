@@ -344,6 +344,11 @@ text; collection stays caller-owned.
 - Compilation is deterministic: declarations are sorted, rules/steps keep
   authored order, and the class/keyframes name is an FNV-1a base36 hash of the
   canonical text. Equal rules share a class; different rules differ.
+- **Superseded 2026-09-26: rules are injected when drawn.** The reasons below
+  (server and browser derive the same classes; no DOM work at import) still
+  hold. Compiling a Style now also records `class → CSS` in a registry, which
+  is data, and a Slot drawing a class in a browser appends its CSS once to one
+  `<style>` element. See [dx-and-builder-PLAN.md](./dx-and-builder-PLAN.md) 1b.
 - **No render-time collection and no import-time DOM mutation.** The CSS text is
   data (`NamedStyle.css`/`globalCss`), so SSR and the browser derive the same
   class and rules, and the application decides where to inject it. `NamedStyle`

@@ -7,6 +7,7 @@
  */
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { SlotContribution, SlotItem } from './contribution.js'
+import { ensure } from './inject.js'
 import { evaluate, type AnyMixin, type Mixin, type MixinFor, type StaticMixin } from './mixin.js'
 import { pipeSelf, type Pipeable } from './pipe.js'
 import { resolve, type SlotAttributes } from './resolver.js'
@@ -57,13 +58,14 @@ export const buildersFor = <Slots, Message, Input>(
         for (const mixin of mixins) {
           const contribution = mixin.contributions[name]
           if (contribution !== undefined) {
-            contributions.push(
-              evaluate(contribution as SlotContribution<Message>, {
-                input: context.input,
-                h: context.h,
-                ...(item === undefined ? {} : { item }),
-              }),
-            )
+            const evaluated = evaluate(contribution as SlotContribution<Message>, {
+              input: context.input,
+              h: context.h,
+              ...(item === undefined ? {} : { item }),
+            })
+            // What this Slot draws brings its CSS, whether or not a stylesheet listed it.
+            ensure(evaluated.classes ?? [], evaluated.globalCss)
+            contributions.push(evaluated)
           }
         }
         return resolve(base, contributions, { slot: name, protected: protection })

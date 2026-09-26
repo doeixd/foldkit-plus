@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins`: a Style's rules arrive with the Slot that draws them.**
+  Compiling a Style records each class with its CSS; in a browser, a class a
+  Slot draws is appended once to one `<style data-foldkit-styles>` element,
+  after the standard layer order, unless a stylesheet on the page already
+  carries it. A Style left out of an application's `Style.stylesheet` now
+  draws instead of silently drawing nothing. `Style.stylesheet` is unchanged.
 - **`foldkit-mixins-builder`: what the editor calls a Block.**
   `Block.annotate(BuilderView.describe({ label, description, group }))` names a
   Block, says what it is for, and files it in a palette group. The palette is

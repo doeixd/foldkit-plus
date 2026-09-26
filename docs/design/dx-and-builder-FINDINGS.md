@@ -100,6 +100,9 @@ in a third place.
 
 ### D2. Styles that arrive with what uses them
 
+**Status: done** for the browser (registry and injection); server extraction
+is the plan's 1c.
+
 **What happened.** The example builds its one stylesheet from a list in
 `sheet.ts`. The writing layout was attached to the form and left out of the
 list: its classes were on the elements, with no rules behind them, and nothing
@@ -146,11 +149,9 @@ Style's contribution carries that CSS (`css` and `globalCss` in
 
 - F30 cannot happen.
 - Code-split views and plugins bring their styles with them.
-- **Conditional rules.** `Style.whenInput(predicate, piece)` today refuses a
-  piece that has rules (`style:conditional-rules-unsupported`), because the
-  one static class cannot switch its rules. With registration by class, each
-  branch compiles to its own class, and the condition picks the class at
-  render. The refusal goes away.
+- **Conditional rules** already compile to a class per piece, and are
+  injected when drawn. (An earlier version of this item said
+  `Style.whenInput` refuses rules; that refusal was lifted before this work.)
 - A development warning comes free: a class with no registry entry is a bug.
 
 **Limits and risks.**

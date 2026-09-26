@@ -224,6 +224,22 @@ Style.registry: ReadonlyMap<string, Registered>  // read-only view
 classes during the patch and call `ensure` once from the runtime's post-patch
 point instead of per element.
 
+> **1a and 1b done, 2026-09-26,** with two changes from the text above.
+>
+> - **At render, not on insert.** A Slot's attributes are resolved during the
+>   draw; that is where the classes are queued (`inject.ts`, called from
+>   `SlotView.buildersFor`), and a microtask appends them after the patch and
+>   before paint. No hook per element, and the check is one Set lookup per
+>   class per draw.
+> - **No marker.** The injector finds the classes a page's stylesheets carry by
+>   scanning their text for compiled class names (`.style-<hash>`) when it
+>   makes its element, so `Style.stylesheet`'s output is unchanged. A sheet
+>   removed later is not noticed; removing the injected element makes it
+>   count again.
+>
+> The browser test that a Style left out of the stylesheet still draws, held
+> as `it.fails` in 0c, now passes.
+
 ### 1c. Server extraction (M)
 
 - `foldkit-ssr` walks the rendered tree's classes after `renderToString`,
@@ -235,12 +251,13 @@ point instead of per element.
   classes and CSS. This replaces the compile-twice test that stood in for
   server/client equality.
 
-### 1d. Conditional rules (S)
+### 1d. Conditional rules: already done
 
-`Style.whenInput(predicate, piece)` compiles `piece` to its own class and
-applies that class when the predicate holds. The
-`style:conditional-rules-unsupported` refusal is removed, with its test turned
-into a positive one. `Style.whenItem` (Phase 2c) uses the same mechanism.
+The findings said `Style.whenInput` refuses a piece with rules
+(`style:conditional-rules-unsupported`). That was true of an earlier version:
+the refusal was lifted when [behaviors-DESIGN.md](./behaviors-DESIGN.md) was
+ported, and a conditional piece already compiles to its own class. The claim
+came from `mixins-DESIGN.md`, which was stale on the point. Nothing to build.
 
 ### 1e. Fixed declarations out of inline style (S)
 

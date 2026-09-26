@@ -324,8 +324,9 @@ them by layer order alone.
   (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`).
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
-- Rule-based CSS is data: put `Style.stylesheet(StyleA, StyleB)` (global then scoped, deduped)
-  into a `<style>` element yourself.
+- Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is
+  appended once to a `<style data-foldkit-styles>`. Install `Style.stylesheet(L.declare, …)`
+  yourself for the layer order, the theme and a first paint; injection skips what it carries.
 
 ## 8. See also
 
