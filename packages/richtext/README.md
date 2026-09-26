@@ -195,8 +195,9 @@ container its parent declares it holds (a `List` holds `ListItem`s), and not iso
 splits the block, and the second half, with every block after it in the item, becomes a new
 item of the same kind and props right after; the caret lands at its start. Enter in an empty
 block that is the item's whole content leaves the list instead, as Backspace does. Over a range
-inside an item, the range is deleted first. The new item copies the old one's props, so Enter in
-a checked task starts another checked task. Without a vocabulary, in a quote, and in a table
+inside an item, the range is deleted first. The new item copies the old one's props, with the
+kind's `splitProps` laid over them when it declares some: the standard `TaskItem`'s
+`{ checked: false }` makes Enter in a done task start an open one. Without a vocabulary, in a quote, and in a table
 cell, Enter splits only the block, as before.
 
 `InsertText` takes an optional `marks`. With it, the inserted text carries
@@ -663,13 +664,19 @@ rendered, and one it refuses is left out, so a `javascript:` URL that reached th
 by decoding, sync, or `SetMark` rather than import is drawn inert.
 
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
-those block kinds, `marks: 'none'` forbids marks on the kind's own runs, and `isolating: true`
-makes the kind a boundary a lift never crosses, as a table cell is:
+those block kinds, `marks: 'none'` forbids marks on the kind's own runs, `isolating: true`
+makes the kind a boundary a lift never crosses, as a table cell is, and `splitProps` names
+props an item split off one of this kind starts with:
 
 ```ts
 RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
 RichText.node('CodeBlock', { Props: Language, children: RichText.textContent, marks: 'none' })
 RichText.atom('Image', { Props: Schema.Struct({ src: Schema.String }) })
+RichText.node('TaskItem', {
+  Props: Schema.Struct({ checked: Schema.Boolean }),
+  children: RichText.blockContent,
+  splitProps: { checked: false },
+})
 ```
 
 `validate` reports those violations as `UnexpectedChild` and `ForbiddenMark`, and checks

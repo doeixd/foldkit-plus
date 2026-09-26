@@ -606,10 +606,12 @@ const splitItem = (
   const textId = ids.mint()
   const blockId = ids.mint()
   const itemId = NodeId.make(ids.mint())
+  const declared = nodes?.definitionFor(container.kind)
+  const props = { ...container.props, ...(declared?.kind === 'node' ? declared.splitProps : {}) }
   return apply(state, [
     Edit.splitBlock(at.blockId, at.id, offset, blockId, textId),
     Edit.insertBlock(
-      { ...container, id: itemId, children: [], blocks: [] },
+      { ...container, id: itemId, props, children: [], blocks: [] },
       containerPath[containerPath.length - 1]! + 1,
       list.id,
     ),

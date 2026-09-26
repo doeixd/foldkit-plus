@@ -86,6 +86,8 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
   node('TaskItem', {
     Props: Schema.Struct({ checked: Schema.Boolean }),
     children: blockContent,
+    // A task split off a done one is a new task, not a done one.
+    splitProps: { checked: false },
   }),
   node('CodeBlock', {
     Props: Schema.Struct({ language: Schema.optional(Schema.String) }),

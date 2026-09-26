@@ -5,6 +5,7 @@ import {
   type Block,
   type ContentMode,
   type Document,
+  type NodeBlock,
   type NodeId,
   type PropsSchema,
 } from './document.js'
@@ -58,6 +59,8 @@ export type NodeDefinition =
        * quote's or a list item's would be lifted out.
        */
       readonly isolating?: boolean | undefined
+      /** Props a copy split off this node starts with, over the original's (§135). */
+      readonly splitProps?: NodeBlock['props'] | undefined
     }
 
 /**
@@ -76,6 +79,7 @@ export interface NodeDefinitionOf<
   readonly marks: MarksPolicy
   readonly props: Props
   readonly isolating: boolean
+  readonly splitProps: NodeBlock['props'] | undefined
 }
 
 /** Declares a block node kind: a top-level node containing text runs. */
@@ -114,6 +118,11 @@ export const node = <
     readonly marks?: MarksPolicy
     /** A boundary a lift never crosses, as a table cell is. */
     readonly isolating?: boolean
+    /**
+     * Props a copy split off this node starts with, laid over the original's: Enter in a
+     * checked task item starts an unchecked one.
+     */
+    readonly splitProps?: NodeBlock['props']
   } = {},
 ): NodeDefinitionOf<Name, Props, Children> => ({
   name,
@@ -122,6 +131,7 @@ export const node = <
   marks: options.marks ?? 'all',
   props: options.Props as Props,
   isolating: options.isolating ?? false,
+  splitProps: options.splitProps,
 })
 
 /**

@@ -7336,9 +7336,8 @@ A range inside an item is deleted and then split, composed from `DeleteBackward`
 `SplitBlock`. A quote is no item — nothing declares it among an item list — so Enter in one
 splits the paragraph, as it does without a vocabulary and in a table cell.
 
-The new item copies the old one's props, which makes Enter in a checked `TaskItem` start another
-checked one. The core does not know what `checked` means, and a prop reset per kind is a Kit
-declaration nobody has needed yet.
+The new item copies the old one's props, which made Enter in a checked `TaskItem` start another
+checked one. The core does not know what `checked` means; the Kit now says it, in §135.
 
 
 ---
@@ -7449,3 +7448,20 @@ Two things were decided rather than assumed:
   button carries its own Message, and `aria-pressed` says which style the block has.
 
 A heading at a level the row does not list (4–6) presses nothing and can still be retyped.
+
+---
+
+# 135. What a split-off item starts with
+
+§131 left Enter in a checked `TaskItem` starting another checked one: the new item copies the
+old one's props, and the core cannot know that `checked` describes one item rather than the
+kind. A node definition can now say so:
+
+```ts
+node('TaskItem', { Props, children: blockContent, splitProps: { checked: false } })
+```
+
+`splitProps` is laid over the copied props when Enter splits an item of that kind; a kind that
+declares none copies its props whole, as before. It is data, as the rest of a Kit is, and it is
+read only where a split makes a new item, so a wrap, a paste, and a lift are untouched. The
+standard `TaskItem` declares `{ checked: false }`.
