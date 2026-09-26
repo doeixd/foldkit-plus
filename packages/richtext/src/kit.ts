@@ -226,12 +226,12 @@ const childKindDiagnostics = (
  * diagnostic is deliberately stable: a schema's own message can name internals
  * an API boundary should not leak, so only the verdict travels.
  */
-const propsFailure = (props: PropsSchema | undefined, node: NodeBlock): boolean => {
+export const propsFailure = (props: PropsSchema | undefined, value: unknown): boolean => {
   if (props === undefined) return false
   try {
     // Strict, like the persisted-content boundary: a field the schema does not
     // declare is a failure, not something silently kept beside the props.
-    Schema.decodeUnknownSync(props, { onExcessProperty: 'error' })(node.props)
+    Schema.decodeUnknownSync(props, { onExcessProperty: 'error' })(value)
     return false
   } catch {
     return true
@@ -323,7 +323,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
         if (
           block.type === 'Node' &&
           declared.kind !== 'block' &&
-          propsFailure(declared.props, block)
+          propsFailure(declared.props, block.props)
         ) {
           diagnostics.push({
             code: 'InvalidProps',

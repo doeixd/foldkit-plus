@@ -81,6 +81,17 @@ describe('wrapping a block in new containers', () => {
     expect(result.state.selection).toEqual(caret('p-t', 2))
   })
 
+  it('acts on the block a range starts in, whichever way it was made', () => {
+    const backwards: RichText.Selection = {
+      type: 'Range',
+      anchor: { node: id('q-p-t'), offset: 2, affinity: 'after' },
+      focus: { node: id('p-t'), offset: 1, affinity: 'after' },
+    }
+    const result = wrap(backwards, [{ kind: 'Quote' }])
+    if (!result.ok) throw new Error(result.error)
+    expect(shape(result.state.document.children)[1]).toBe('Quote(new-1)[Paragraph(p)]')
+  })
+
   it('builds a chain outermost first, with each container’s props', () => {
     const result = wrap(caret('p-t', 0), [
       { kind: 'List', props: { ordered: true, start: 3 } },
@@ -127,6 +138,21 @@ describe('wrapping a block in new containers', () => {
     expect(
       wrap(caret('q-p-t', 0), [{ kind: 'List' }, { kind: 'ListItem' }], { nodes: narrow }),
     ).toMatchObject({ ok: false, error: 'UnexpectedChild' })
+  })
+
+  it('refuses props the vocabulary’s declaration for the kind does not accept', () => {
+    for (const props of [{ ordered: 'yes' }, { colour: 'red' }]) {
+      expect(
+        wrap(caret('p-t', 0), [{ kind: 'List', props }, { kind: 'ListItem' }], {
+          nodes: standard,
+        }),
+      ).toMatchObject({ ok: false, error: 'InvalidInput' })
+    }
+    expect(
+      wrap(caret('p-t', 0), [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }], {
+        nodes: standard,
+      }).ok,
+    ).toBe(true)
   })
 
   it('refuses a wrap in nothing', () => {
@@ -239,6 +265,16 @@ describe('converting a text block to a node kind that holds text', () => {
       ok: false,
       error: 'UnexpectedChild',
     })
+  })
+
+  it('refuses props the kind’s declaration does not accept', () => {
+    expect(
+      convert(
+        caret('q-p-t', 0),
+        { kind: 'CodeBlock', props: { language: 3 } },
+        { nodes: standard },
+      ),
+    ).toMatchObject({ ok: false, error: 'InvalidInput' })
   })
 
   it('refuses to carry marks into a kind that forbids them', () => {

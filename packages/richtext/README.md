@@ -157,7 +157,8 @@ runs.
 being copied, so its identity, its runs, and the caret all survive. Given a vocabulary, a
 wrap the vocabulary would not hold is refused with `UnexpectedChild`: the parent must accept
 the outermost container, each container must be a kind declared to hold nested blocks, and
-each must accept the next.
+each must accept the next. A container's props must decode as its kind declares them, or the
+wrap is refused with `InvalidInput`.
 
 `ConvertBlock` replaces a paragraph or heading with a node kind that holds text —
 `{ type: 'ConvertBlock', to: { kind: 'CodeBlock', props: { language: 'ts' } } }` — carrying
@@ -165,8 +166,9 @@ its text and marks. It is a replace, not a retype: identities are never reused, 
 and every run get new ones from `mint`, and the selection moves onto the new runs at the same
 offsets. Anything that held the old run identities, such as a decoration or a remote cursor,
 has to find the new ones. Given a vocabulary, the kind must be declared to hold text and its
-parent must accept it (`UnexpectedChild`), and a kind that forbids marks refuses a block that
-carries any (`ForbiddenMark`).
+parent must accept it (`UnexpectedChild`), its props must decode as the kind declares them
+(`InvalidInput`), and a kind that forbids marks refuses a block that carries any
+(`ForbiddenMark`).
 
 `InsertText` takes an optional `marks`. With it, the inserted text carries
 exactly that set wherever it lands; without it, the boundary rule decides and the
