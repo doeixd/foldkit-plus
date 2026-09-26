@@ -147,7 +147,7 @@ Each column (`list.columns`, `detail.fields`) has a `display`, one primitive
 `{ kind, shown, data, text }`. The shipped kinds are `Text`, `Number`, `Flag`,
 `Hidden`, `Ref`, and `Nested`; make your own with `Display.kind('Badge', { text })`,
 narrow with `Badge.is(display)`, and draw it everywhere with
-`renderers: { Badge: ctx => ... }` in `foldkit-mixins-crud`. `Nested` is a relation
+`renderers: { Badge: ({ value, h, badge }) => h.span(badge.attrs(), [...]) }` in `foldkit-mixins-crud` (draw in the `badge` Slot). `Nested` is a relation
 read through a Selection, with the target's columns. Set one with `Entity.annotateMembers({ id: Display.of(Display.hidden()) })`;
 `Display.show(display, value, words?)` is the cell's text.
 

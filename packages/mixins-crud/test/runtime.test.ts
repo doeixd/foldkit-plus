@@ -207,6 +207,31 @@ it('draws every column of a kind through the renderer given for that kind', () =
   expect(found).toEqual(['strong', 'span', 'strong', 'span'])
 })
 
+it('gives a renderer the badge Slot, which the list’s Style reaches', () => {
+  const Styled = ListView.forMessages<Message>()
+    .define(Posts)
+    .pipe(Style.attach(Style.forSlots(ListSlots)({ badge: Style.class('pill') })))
+  const root = Styled(
+    {
+      page: ready,
+      renderers: { Flag: ({ value, h, badge }) => h.span(badge.attrs(), [String(value)]) },
+    },
+    SlotView.inertBuilder(),
+  )
+  const pills: Array<string> = []
+  const walk = (node: unknown): void => {
+    const { sel, data, children } = (node ?? {}) as {
+      sel?: string
+      data?: { class?: Readonly<Record<string, boolean>> }
+      children?: ReadonlyArray<unknown>
+    }
+    if (sel === 'span' && data?.class?.['pill'] === true) pills.push(sel)
+    for (const child of children ?? []) walk(child)
+  }
+  walk(root)
+  expect(pills).toHaveLength(2)
+})
+
 it('says what stands in for the rows: loading, failed, and empty', () => {
   // Rendered without a runtime: the states are text, read off the tree.
   const Plain = ListView.forMessages<Message>().define(Posts)

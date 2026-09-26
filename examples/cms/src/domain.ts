@@ -50,6 +50,8 @@ export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   // The address follows the title until the author writes it themselves.
   inputs: {
     slug: Cms.slug('title', { prefix: '/blog/' }),
+    // A long title wraps, as it will on the page.
+    title: Input.multiline(),
     excerpt: Input.multiline(),
     body: Input.multiline(),
   },

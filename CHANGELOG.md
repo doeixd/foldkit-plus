@@ -282,6 +282,9 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-mixins-crud`: `ListSlots` and `DetailSlots` gain `badge`,** and a
+  Display renderer's context carries it, so a value drawn as a label of its own
+  is styled as a Slot. `foldkit-cms`'s state renderer draws in it.
 - **`foldkit-cms-drizzle`: `cms.import({ type, values, as, at?, entry? })`**
   publishes content that exists already (a seed, or another CMS's) by the
   publish path, in one transaction, instead of an application writing the CMS's

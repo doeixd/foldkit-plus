@@ -38,6 +38,8 @@ export interface DisplayContext<Message> {
   readonly row: unknown
   readonly words: ViewWords
   readonly h: HtmlBuilder<Message>
+  /** The Slot a renderer draws a value as a label of its own in, such as a state. */
+  readonly badge: SlotView.SlotBuilder<Message>
 }
 
 /**
@@ -105,6 +107,8 @@ export const ListSlots = Slots.define({
   }),
   /** The button that asks again after a failed read. */
   retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** A value a renderer draws as a label of its own, such as a state. */
+  badge: Slot.make({ capability: Capability.Base }),
 })
 
 /** A detail: each selected member as a term and its value. */
@@ -118,6 +122,8 @@ export const DetailSlots = Slots.define({
   value: Slot.make({ capability: Capability.Base }),
   /** The button that asks again after a failed read. */
   retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** A value a renderer draws as a label of its own, such as a state. */
+  badge: Slot.make({ capability: Capability.Base }),
 })
 
 const shown = <Key extends string>(
@@ -168,6 +174,7 @@ const list = <Message>() => ({
             row,
             words: words ?? {},
             h,
+            badge: slots.badge,
           }) ?? Display.show(column.display, value, words)
 
         // `notice` goes above the rows: a failure that left them on screen.
@@ -331,6 +338,7 @@ const detail = <Message>() => ({
                         row: value,
                         words: words ?? {},
                         h,
+                        badge: slots.badge,
                       }) ??
                       Display.show(
                         field.display,

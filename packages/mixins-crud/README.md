@@ -150,7 +150,9 @@ PostTable(
 - `cells` draws one column specially, and gets the whole row, so a link can use
   the id. `renderers` draws every column of a Display **kind**, a shipped one or
   your own, in any list or detail:
-  `renderers: { Badge: ({ display, value, h }) => h.span([...], [String(value)]) }`.
+  `renderers: { Badge: ({ value, h, badge }) => h.span(badge.attrs(), [String(value)]) }`.
+  `badge` is the list's (or detail's) `badge` Slot, so what a renderer draws is
+  styled like any other part.
   A column's `cells` entry wins over its kind's renderer, and a kind with neither
   says `Display.show`.
 - `words` is text, with `{message}` a blank in `failed`; it shares no key with a

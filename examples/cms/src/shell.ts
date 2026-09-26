@@ -9,14 +9,16 @@ import { Option } from 'effect'
 import { Cms, type EditorStatus, type State } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import type { AdminSlots } from './style.js'
+import { icon } from './icons.js'
 import { chairOf, chairs, type Chair } from './transport.js'
 
 export const chair: Chair = chairOf(window.location.search)
 
-const chairNames: Readonly<Record<Chair, string>> = {
-  wren: 'Wren, a writer',
-  edda: 'Edda, an editor',
-  visitor: 'A visitor',
+/** Who each chair is, as the sidebar introduces them. */
+const people: Readonly<Record<Chair, { readonly name: string; readonly role: string }>> = {
+  wren: { name: 'Wren', role: 'Writer' },
+  edda: { name: 'Edda', role: 'Editor' },
+  visitor: { name: 'A visitor', role: 'Reader' },
 }
 
 /** The editor's status, in words: the posts' editor and the pages' say the same. */
@@ -70,24 +72,41 @@ export const shell = <M>(
   section: 'posts' | 'pages',
   body: ReadonlyArray<Html>,
 ): Html => {
-  const here = (name: 'posts' | 'pages') => (name === section ? [h.AriaCurrent('page')] : [])
+  const link = (name: 'posts' | 'pages', label: string, href: string) =>
+    h.a(slots.navLink.attrs([h.Href(href), ...(name === section ? [h.AriaCurrent('page')] : [])]), [
+      icon(h, name),
+      label,
+    ])
   return h.div(slots.root.attrs(), [
-    h.header(slots.header.attrs(), [
-      h.a(slots.brand.attrs([h.Href(`/?as=${chair}`)]), ['Journal Studio']),
-      h.nav(slots.nav.attrs([h.AriaLabel('Sections')]), [
-        h.a(slots.navLink.attrs([h.Href(`/?as=${chair}`), ...here('posts')]), ['Posts']),
-        h.a(slots.navLink.attrs([h.Href(`/pages?as=${chair}`), ...here('pages')]), ['Pages']),
-        h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`)]), ['View site ↗']),
+    h.aside(slots.sidebar.attrs([h.AriaLabel('Studio')]), [
+      h.a(slots.brand.attrs([h.Href(`/?as=${chair}`)]), [
+        h.span(slots.brandMark.attrs(), ['J']),
+        h.span([], ['Journal']),
       ]),
-      h.nav(slots.who.attrs([h.AriaLabel('Who is looking')]), [
-        'Signed in as',
+      h.nav(slots.nav.attrs([h.AriaLabel('Sections')]), [
+        link('posts', 'Posts', `/?as=${chair}`),
+        link('pages', 'Pages', `/pages?as=${chair}`),
+        h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`)]), [
+          icon(h, 'site'),
+          'View site',
+          h.span(slots.navAside.attrs(), [icon(h, 'external', 14)]),
+        ]),
+      ]),
+      h.nav(slots.account.attrs([h.AriaLabel('Who is looking')]), [
+        h.p(slots.accountLabel.attrs(), ['Signed in as']),
         ...chairs.map(name =>
           h.a(
             slots.whoLink.attrs([
               h.Href(`?as=${name}`),
               ...(name === chair ? [h.AriaCurrent('page')] : []),
             ]),
-            [chairNames[name]],
+            [
+              h.span(slots.avatar.attrs([h.DataAttribute('chair', name)]), [
+                people[name].name.charAt(0),
+              ]),
+              h.span([], [people[name].name]),
+              h.span(slots.navAside.attrs(), [people[name].role]),
+            ],
           ),
         ),
       ]),

@@ -9,22 +9,52 @@ import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
-import { Style } from 'foldkit-mixins'
-import { FormView } from 'foldkit-mixins-form'
+import { Behavior, Style } from 'foldkit-mixins'
+import { FieldSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { EntryRow, Post, PostForm, PostId, PostPage, PostPreview, Posts } from './domain.js'
-import { FieldStyle, FormStyle } from './style.js'
+import { FormStyle, WritingFieldStyle } from './style.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
 
-// The form is drawn by `foldkit-mixins-form`; the CMS adds renderers for its two kinds.
+/** What an empty field says in place of its label, where the page is the field. */
+const placeholders: Readonly<Record<string, string>> = {
+  title: 'Post title',
+  excerpt: 'A line or two that draws a reader in',
+  body: 'Begin writing your post…',
+}
+type PostKey = (typeof PostForm.controls)[number]['key']
+const Placeholders = Behavior.forSlots(FieldSlots)<
+  FieldInput<PostKey>,
+  typeof PostForm.Message.Type
+>(
+  {
+    text: Behavior.slot({
+      attributes: ({ input, h }) =>
+        Object.hasOwn(placeholders, input.control.key)
+          ? [h.Placeholder(placeholders[input.control.key] ?? '')]
+          : [],
+    }),
+    multiline: Behavior.slot({
+      attributes: ({ input, h }) =>
+        Object.hasOwn(placeholders, input.control.key)
+          ? [h.Placeholder(placeholders[input.control.key] ?? '')]
+          : [],
+    }),
+  },
+  { name: 'Placeholders' },
+)
+
+// The form is drawn by `foldkit-mixins-form`, laid out as a page to write on; the
+// CMS adds renderers for its two kinds.
 const PostFormView = FormView.define(PostForm, {
   field: FormView.field(PostForm, { renderers: Cms.controlRenderers() }).pipe(
-    Style.attach(FieldStyle),
+    Style.attach(WritingFieldStyle),
+    Behavior.attach(Placeholders),
   ),
 }).pipe(Style.attach(FormStyle))
 const Slot = Bundle.declare(

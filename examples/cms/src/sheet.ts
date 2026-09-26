@@ -14,6 +14,7 @@ import {
   FormStyle,
   ListStyle,
   SiteStyle,
+  WritingFieldStyle,
   theme,
 } from './style.js'
 
@@ -28,6 +29,7 @@ export const stylesheet = Style.stylesheet(
   ...lookStyles,
   AdminStyle,
   FieldStyle,
+  WritingFieldStyle,
   FormStyle,
   ListStyle,
   BuilderStyle,

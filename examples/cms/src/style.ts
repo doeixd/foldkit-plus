@@ -8,10 +8,10 @@
  * - `SiteSlots`: the public site's shell and its article.
  * - The mixins' own Slots: the form's fields, the worklist's table, the Builder.
  */
-import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
+import { Capability, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
 import { BuilderSlots } from 'foldkit-mixins-builder'
 import { ListSlots } from 'foldkit-mixins-crud'
-import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
+import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
 import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
@@ -26,6 +26,9 @@ export const theme = Theme.compose(
 )
 /** Every token as a typed `var(--fk-…)` reference: the admin's and the site's styles read these. */
 export const t = Theme.ref(theme)
+
+/** A serif for reading and writing long text: the post's body, here and on the site. */
+export const serif = "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif"
 
 const L = Layers.standard
 /** Every slot style is born in `app`, so the value a view attaches is the one the sheet ships. */
@@ -61,15 +64,44 @@ const field = Style.compose(
 
 export const AdminSlots = Slots.define({
   root: part,
-  header: part,
+  /** The studio's sidebar: the brand, the sections, and who is signed in. */
+  sidebar: part,
   brand: part,
+  brandMark: part,
   nav: part,
   navLink: control,
-  who: part,
+  /** Beside a link's words, at its end: an external mark, a role. */
+  navAside: part,
+  account: part,
+  accountLabel: part,
   whoLink: control,
+  avatar: part,
   main: part,
-  /** The list beside the editor. */
-  workspace: part,
+  /** A section's screen: its heading, its filters, then what it lists. */
+  screen: part,
+  screenHead: part,
+  screenTitle: part,
+  filters: part,
+  /** Which of a list's views is shown, as buttons that say whether they are pressed. */
+  tabs: part,
+  tab: control,
+  searchBox: part,
+  /** The editor's screen: a bar across the top, then the page and its settings. */
+  editorScreen: part,
+  editorBar: part,
+  barActions: part,
+  editorBody: part,
+  canvas: part,
+  aside: part,
+  /** One group of settings in the aside. */
+  card: part,
+  cardTitle: part,
+  /** A button with no box until it is pointed at: the bar's back and preview. */
+  ghost: control,
+  /** A post as a reader will see it, in the canvas while previewing. */
+  preview: part,
+  /** One published revision in the history. */
+  revision: part,
   panel: part,
   panelHead: part,
   panelTitle: part,
@@ -89,74 +121,352 @@ export const AdminSlots = Slots.define({
 
 const navLink = Style.compose(
   Style.self({
+    alignItems: 'center',
     borderRadius: t.radius.md,
-    color: t.text.muted,
+    color: t.text.default,
+    display: 'flex',
+    fontSize: t.size.sm,
     fontWeight: t.weight.medium,
-    padding: '0.4rem 0.75rem',
+    gap: t.space.xs,
+    padding: '0.45rem 0.65rem',
     textDecoration: 'none',
   }),
-  Style.pseudo(':hover', { background: t.surface.muted, color: t.text.default }),
-  Style.nest('&[aria-current="page"]', { background: t.accent.subtle, color: t.accent.ink }),
+  Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+  Style.nest('&[aria-current="page"]', {
+    background: t.surface.default,
+    color: t.text.overt,
+    fontWeight: t.weight.semibold,
+  }),
 )
 
-/** The state of an entry, by its tag, in the colors its family says. */
-const badgeFor = (state: string, family: 'success' | 'warning' | 'info' | 'error') =>
-  Style.nest(`&[data-state="${state}"]`, { background: t[family].subtle, color: t[family].ink })
+/** The studio's main action, dark as the page's ink, in the manner of an editor's publish. */
+export const primaryButton = Style.compose(
+  Style.self({
+    alignItems: 'center',
+    background: t.text.overt,
+    border: '0',
+    borderRadius: t.radius.md,
+    color: t.surface.base,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    font: 'inherit',
+    fontSize: t.size.sm,
+    fontWeight: t.weight.semibold,
+    gap: t.space['2xs'],
+    padding: '0.5rem 0.9rem',
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
+  }),
+  Style.pseudo(':hover:not(:disabled)', {
+    background: `color-mix(in oklch, ${t.text.overt} 85%, ${t.surface.base})`,
+  }),
+  Style.pseudo(':disabled', { cursor: 'not-allowed', opacity: '0.45' }),
+  Style.pseudo(':focus-visible', {
+    outline: `3px solid color-mix(in oklch, ${t.accent.default} 40%, transparent)`,
+    outlineOffset: '2px',
+  }),
+)
+
+/** An entry's state as a pill, colored by its tag, which `attribute` names. */
+const stateBadge = (attribute: string) => {
+  const tone = (state: string, family: 'success' | 'warning' | 'info' | 'error') =>
+    Style.nest(`&[${attribute}="${state}"]`, {
+      background: t[family].subtle,
+      color: t[family].ink,
+    })
+  return Style.compose(
+    Style.self({
+      alignItems: 'center',
+      background: t.surface.muted,
+      borderRadius: t.radius.full,
+      color: t.text.muted,
+      display: 'inline-flex',
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      gap: '0.35rem',
+      padding: '0.15rem 0.6rem',
+      whiteSpace: 'nowrap',
+    }),
+    // A dot before the words, in the pill's own color.
+    Style.nest('&::before', {
+      background: 'currentColor',
+      borderRadius: '50%',
+      content: '""',
+      height: '0.4rem',
+      width: '0.4rem',
+    }),
+    tone('Published', 'success'),
+    tone('Changed', 'warning'),
+    tone('New', 'info'),
+    tone('Unpublished', 'warning'),
+    tone('Archived', 'error'),
+  )
+}
 
 export const AdminStyle = Style.forSlots(AdminSlots)(
   {
-    root: Style.self({
-      background: t.surface.muted,
-      color: t.text.default,
-      display: 'grid',
-      fontFamily: t.font.body,
-      gridTemplateRows: 'auto 1fr',
-      minHeight: '100vh',
-    }),
-    header: Style.compose(
-      L.in('layouts', Layout.cluster({ gap: t.space.lg, align: 'center' })),
+    root: Style.compose(
       Style.self({
         background: t.surface.base,
-        borderBottom: `1px solid ${t.outline.subtle}`,
-        padding: `${t.space.sm} ${t.space.lg}`,
+        color: t.text.default,
+        display: 'grid',
+        fontFamily: t.font.body,
+        gridTemplateColumns: '15.5rem minmax(0, 1fr)',
+        minHeight: '100vh',
+      }),
+      Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+    ),
+    sidebar: Style.compose(
+      Style.self({
+        background: t.surface.subtle,
+        borderInlineEnd: `1px solid ${t.outline.subtle}`,
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.lg,
+        height: '100vh',
+        padding: `${t.space.lg} ${t.space.sm}`,
         position: 'sticky',
         top: '0',
-        zIndex: '10',
+      }),
+      Style.media('(max-width: 52rem)', {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        height: 'auto',
+        position: 'static',
       }),
     ),
     brand: Style.self({
+      alignItems: 'center',
       color: t.text.overt,
-      fontFamily: t.font.heading,
-      fontSize: t.size.lg,
+      display: 'flex',
+      fontSize: t.size.md,
       fontWeight: t.weight.bold,
+      gap: t.space.xs,
       letterSpacing: '-0.01em',
+      padding: `0 ${t.space['2xs']}`,
       textDecoration: 'none',
     }),
-    nav: L.in('layouts', Layout.cluster({ gap: t.space['2xs'] })),
+    brandMark: Style.self({
+      alignItems: 'center',
+      background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 50%, ${t.tertiary.default}))`,
+      borderRadius: t.radius.md,
+      color: t.accent['on-fill'],
+      display: 'inline-flex',
+      fontSize: t.size.sm,
+      height: '1.75rem',
+      justifyContent: 'center',
+      width: '1.75rem',
+    }),
+    nav: Style.self({ display: 'flex', flexDirection: 'column', gap: '2px' }),
     navLink,
-    who: Style.compose(
-      L.in('layouts', Layout.cluster({ gap: t.space['2xs'], align: 'center' })),
-      Style.self({ color: t.text.muted, fontSize: t.size.sm, marginInlineStart: 'auto' }),
+    navAside: Style.self({
+      color: t.text.muted,
+      display: 'inline-flex',
+      fontSize: t.size.xs,
+      fontWeight: t.weight.normal,
+      marginInlineStart: 'auto',
+    }),
+    account: Style.compose(
+      Style.self({
+        borderBlockStart: `1px solid ${t.outline.subtle}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        marginBlockStart: 'auto',
+        paddingBlockStart: t.space.sm,
+      }),
+      Style.media('(max-width: 52rem)', { marginBlockStart: '0' }),
     ),
-    whoLink: Style.compose(navLink, Style.self({ fontSize: t.size.sm, padding: '0.25rem 0.6rem' })),
-    main: Style.compose(
+    accountLabel: Style.self({
+      color: t.text.muted,
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.05em',
+      margin: `0 0 ${t.space['3xs']}`,
+      padding: `0 ${t.space['2xs']}`,
+      textTransform: 'uppercase',
+    }),
+    whoLink: Style.compose(navLink, Style.self({ padding: '0.35rem 0.5rem' })),
+    avatar: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        background: t.surface.overt,
+        borderRadius: t.radius.full,
+        color: t.surface.base,
+        display: 'inline-flex',
+        fontSize: t.size.xs,
+        fontWeight: t.weight.bold,
+        height: '1.5rem',
+        justifyContent: 'center',
+        width: '1.5rem',
+      }),
+      Style.nest('&[data-chair="wren"]', {
+        background: t.accent.default,
+        color: t.accent['on-fill'],
+      }),
+      Style.nest('&[data-chair="edda"]', {
+        background: t.tertiary.default,
+        color: t.tertiary['on-fill'],
+      }),
+    ),
+    main: Style.self({ minWidth: '0' }),
+    screen: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({
         boxSizing: 'border-box',
         margin: '0 auto',
-        maxWidth: '84rem',
-        padding: t.space.lg,
-        width: '100%',
+        maxWidth: '64rem',
+        padding: `${t.space['2xl']} ${t.space.xl}`,
       }),
     ),
-    workspace: Style.compose(
+    screenHead: L.in(
+      'layouts',
+      Layout.cluster({ gap: t.space.md, justify: 'space-between', align: 'end' }),
+    ),
+    screenTitle: Style.self({
+      color: t.text.overt,
+      fontSize: t.size['3xl'],
+      fontWeight: t.weight.bold,
+      letterSpacing: '-0.025em',
+      margin: '0',
+    }),
+    filters: Style.compose(
+      L.in(
+        'layouts',
+        Layout.cluster({ gap: t.space.sm, justify: 'space-between', align: 'center' }),
+      ),
+      Style.self({
+        borderBlockEnd: `1px solid ${t.outline.subtle}`,
+        paddingBlockEnd: t.space.sm,
+      }),
+    ),
+    tabs: Style.self({ display: 'flex', gap: t.space['3xs'] }),
+    tab: Style.compose(
+      Style.self({
+        background: 'transparent',
+        border: '0',
+        borderRadius: t.radius.md,
+        color: t.text.muted,
+        cursor: 'pointer',
+        font: 'inherit',
+        fontSize: t.size.sm,
+        fontWeight: t.weight.medium,
+        padding: '0.4rem 0.75rem',
+      }),
+      Style.pseudo(':hover', { color: t.text.overt }),
+      Style.nest('&[aria-pressed="true"]', {
+        background: t.surface.muted,
+        color: t.text.overt,
+        cursor: 'default',
+        fontWeight: t.weight.semibold,
+      }),
+    ),
+    searchBox: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        color: t.text.muted,
+        display: 'flex',
+        gap: t.space['2xs'],
+        minWidth: '14rem',
+        position: 'relative',
+      }),
+      Style.nest('> svg', { insetInlineStart: '0.7rem', position: 'absolute' }),
+    ),
+    editorScreen: Style.self({ display: 'flex', flexDirection: 'column', minHeight: '100vh' }),
+    editorBar: Style.self({
+      alignItems: 'center',
+      background: `color-mix(in oklch, ${t.surface.base} 88%, transparent)`,
+      backdropFilter: 'blur(8px)',
+      borderBlockEnd: `1px solid ${t.outline.subtle}`,
+      display: 'flex',
+      gap: t.space.sm,
+      padding: `${t.space.sm} ${t.space.lg}`,
+      position: 'sticky',
+      top: '0',
+      zIndex: '5',
+    }),
+    barActions: Style.self({
+      alignItems: 'center',
+      display: 'flex',
+      gap: t.space.xs,
+      marginInlineStart: 'auto',
+    }),
+    editorBody: Style.compose(
       Style.self({
         alignItems: 'start',
         display: 'grid',
-        gap: t.space.lg,
-        gridTemplateColumns: 'minmax(15rem, 20rem) minmax(0, 1fr)',
+        flex: '1',
+        gridTemplateColumns: 'minmax(0, 1fr) 20rem',
       }),
-      Style.media('(max-width: 56rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      Style.media('(max-width: 64rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+    ),
+    canvas: Style.self({
+      boxSizing: 'border-box',
+      margin: '0 auto',
+      maxWidth: '46rem',
+      padding: `${t.space['2xl']} ${t.space.xl} ${t.space['3xl']}`,
+      width: '100%',
+    }),
+    aside: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.md })),
+      Style.self({
+        alignSelf: 'stretch',
+        background: t.surface.subtle,
+        borderInlineStart: `1px solid ${t.outline.subtle}`,
+        boxSizing: 'border-box',
+        padding: t.space.lg,
+      }),
+    ),
+    card: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.xs })),
+      Style.self({
+        background: t.surface.base,
+        border: `1px solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        padding: t.space.md,
+      }),
+    ),
+    cardTitle: Style.self({
+      color: t.text.muted,
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.05em',
+      margin: '0',
+      textTransform: 'uppercase',
+    }),
+    ghost: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        background: 'transparent',
+        border: '0',
+        borderRadius: t.radius.md,
+        color: t.text.default,
+        cursor: 'pointer',
+        display: 'inline-flex',
+        font: 'inherit',
+        fontSize: t.size.sm,
+        fontWeight: t.weight.medium,
+        gap: t.space['2xs'],
+        padding: '0.45rem 0.65rem',
+        textDecoration: 'none',
+      }),
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+      Style.nest('&[aria-pressed="true"]', { background: t.surface.muted, color: t.text.overt }),
+    ),
+    revision: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        color: t.text.default,
+        display: 'flex',
+        fontSize: t.size.sm,
+        gap: t.space.xs,
+      }),
+      Style.nest('> button', { marginInlineStart: 'auto' }),
+    ),
+    preview: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.md })),
+      Style.nest('> p', { fontFamily: serif, fontSize: '1.2rem', lineHeight: '1.8', margin: '0' }),
     ),
     panel: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.md })),
@@ -180,7 +490,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
     button: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-    primary: button({ tone: 'accent', variant: 'solid', size: 'sm' }),
+    primary: primaryButton,
     danger: button({ tone: 'danger', variant: 'outline', size: 'sm' }),
     status: Style.compose(
       Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
@@ -217,23 +527,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         fontWeight: t.weight.semibold,
       }),
     ),
-    badge: Style.compose(
-      Style.self({
-        background: t.surface.muted,
-        borderRadius: t.radius.full,
-        color: t.text.muted,
-        fontSize: t.size.xs,
-        fontWeight: t.weight.medium,
-        padding: '0.1rem 0.55rem',
-        whiteSpace: 'nowrap',
-      }),
-      badgeFor('Published', 'success'),
-      badgeFor('Changed', 'warning'),
-      badgeFor('New', 'info'),
-      badgeFor('Unpublished', 'warning'),
-      badgeFor('Archived', 'error'),
-    ),
-    search: field,
+    badge: stateBadge('data-state'),
+    search: Style.compose(field, Style.self({ paddingInlineStart: '2.1rem' })),
   },
   { name: 'AdminStyle', layer: app },
 )
@@ -257,6 +552,123 @@ export const FieldStyle = Style.forSlots(FieldSlots)(
   { name: 'FieldStyle', layer: app },
 )
 
+/** Out of sight and still read: a label a field's placeholder stands in for. */
+const visuallyHidden = Style.self({
+  clipPath: 'inset(50%)',
+  height: '1px',
+  overflow: 'hidden',
+  position: 'absolute',
+  whiteSpace: 'nowrap',
+  width: '1px',
+})
+
+/** A field with no box, focused or not: the page itself is where one writes. */
+const bare = Style.compose(
+  Style.self({
+    background: 'transparent',
+    border: '0',
+    borderRadius: '0',
+    boxShadow: 'none',
+    // As tall as what is written: a page does not scroll inside itself.
+    fieldSizing: 'content',
+    outline: 'none',
+    overflow: 'hidden',
+    padding: '0',
+    resize: 'none',
+  }),
+  Style.pseudo(':focus-visible', { outline: 'none' }),
+)
+
+const keyIs =
+  (...keys: ReadonlyArray<string>) =>
+  (input: FieldInput) =>
+    keys.includes(input.control.key)
+const onKey = (keys: ReadonlyArray<string>, piece: StyleValue) =>
+  Style.whenInput(keyIs(...keys), piece)
+
+/**
+ * A post's form as a page to write on: the title large, the excerpt beneath it
+ * as a standfirst, the body in a serif with room to think, and the address and
+ * cover set apart at the end. Each is placed by its key with `order`, since the
+ * form draws its keys in the order it declares them.
+ */
+export const WritingFieldStyle = Style.forSlots(FieldSlots)(
+  {
+    root: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+      onKey(['title'], Style.self({ order: '1' })),
+      onKey(['excerpt'], Style.self({ order: '2' })),
+      onKey(['body'], Style.self({ marginBlockStart: t.space.md, order: '3' })),
+      onKey(
+        ['slug'],
+        Style.self({
+          borderBlockStart: `1px solid ${t.outline.subtle}`,
+          marginBlockStart: t.space.xl,
+          order: '4',
+          paddingBlockStart: t.space.lg,
+        }),
+      ),
+      onKey(['cover'], Style.self({ order: '5' })),
+    ),
+    group: Style.self({ alignItems: 'center', display: 'flex' }),
+    affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
+    label: Style.compose(
+      Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
+      onKey(['title', 'excerpt', 'body'], visuallyHidden),
+    ),
+    description: Style.compose(
+      Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
+      onKey(['title', 'excerpt', 'body'], visuallyHidden),
+    ),
+    error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
+    text: field,
+    multiline: Style.compose(
+      field,
+      Style.self({ minHeight: '5rem', resize: 'vertical' }),
+      onKey(
+        ['title'],
+        Style.compose(
+          bare,
+          Style.self({
+            color: t.text.overt,
+            fontSize: 'clamp(2rem, 4vw, 2.75rem)',
+            fontWeight: t.weight.bold,
+            letterSpacing: '-0.025em',
+            lineHeight: '1.15',
+            minHeight: '0',
+          }),
+        ),
+      ),
+      onKey(
+        ['excerpt'],
+        Style.compose(
+          bare,
+          Style.self({
+            color: t.text.muted,
+            fontSize: t.size.lg,
+            lineHeight: '1.5',
+            minHeight: '0',
+          }),
+        ),
+      ),
+      onKey(
+        ['body'],
+        Style.compose(
+          bare,
+          Style.self({
+            color: t.text.default,
+            fontFamily: serif,
+            fontSize: '1.2rem',
+            lineHeight: '1.8',
+            minHeight: '55vh',
+          }),
+        ),
+      ),
+    ),
+  },
+  { name: 'WritingFieldStyle', layer: app },
+)
+
 export const FormStyle = Style.forSlots(FormSlots)(
   {
     root: L.in('layouts', Layout.stack({ gap: t.space.md })),
@@ -273,6 +685,7 @@ export const FormStyle = Style.forSlots(FormSlots)(
 export const ListStyle = Style.forSlots(ListSlots)(
   {
     table: Style.self({ borderCollapse: 'collapse', fontSize: t.size.sm, width: '100%' }),
+    badge: stateBadge('data-cms-state'),
     headCell: Style.self({
       borderBottom: `1px solid ${t.outline.subtle}`,
       color: t.text.muted,
@@ -286,7 +699,7 @@ export const ListStyle = Style.forSlots(ListSlots)(
     row: Style.pseudo(':hover', { background: t.surface.muted }),
     cell: Style.self({
       borderBottom: `1px solid ${t.outline.subtle}`,
-      padding: '0.55rem 0.5rem',
+      padding: '0.95rem 0.5rem',
       verticalAlign: 'middle',
     }),
     open: Style.compose(
@@ -296,11 +709,12 @@ export const ListStyle = Style.forSlots(ListSlots)(
         color: t.text.default,
         cursor: 'pointer',
         font: 'inherit',
-        fontWeight: t.weight.medium,
+        fontSize: t.size.md,
+        fontWeight: t.weight.semibold,
         padding: '0',
         textAlign: 'start',
       }),
-      Style.pseudo(':hover', { color: t.accent.ink, textDecoration: 'underline' }),
+      Style.pseudo(':hover', { color: t.accent.ink }),
     ),
     status: Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
     more: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),

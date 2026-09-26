@@ -122,6 +122,7 @@ export interface DisplayContext<Message> {
   readonly value: unknown
   readonly words: unknown
   readonly h: HtmlBuilder<Message>
+  readonly badge: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
 }
 
 /** An ISO moment as a `datetime-local` input writes one, in the viewer's zone; other text as it is. */
@@ -193,16 +194,18 @@ export const Kinds = {
   displayRenderers: <Message>(): Readonly<
     Record<string, (context: DisplayContext<Message>) => Html>
   > => ({
-    [StateDisplay.kind]: ({ display, value, words, h }) =>
+    [StateDisplay.kind]: ({ display, value, words, h, badge }) =>
       h.span(
-        isState(value)
-          ? [
-              h.DataAttribute('cms-state', value._tag),
-              ...(scheduleOf(value) === undefined
-                ? []
-                : [h.DataAttribute('cms-schedule', scheduleOf(value)!)]),
-            ]
-          : [],
+        badge.attrs(
+          isState(value)
+            ? [
+                h.DataAttribute('cms-state', value._tag),
+                ...(scheduleOf(value) === undefined
+                  ? []
+                  : [h.DataAttribute('cms-schedule', scheduleOf(value)!)]),
+              ]
+            : [],
+        ),
         [display.text(value, words)],
       ),
     [Moment.kind]: ({ display, value, words, h }) =>

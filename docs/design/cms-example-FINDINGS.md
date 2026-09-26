@@ -315,6 +315,27 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     server: a `constructor` chair reads as a visitor, and a payload without
     `version` or an unknown operation is refused with the schema's error.
 
+## Building it into a studio (after the plan)
+
+Redesigning the example as a Ghost-like studio (a sidebar, a list screen, a
+writing page with its settings beside it) found these.
+
+29. **A list's state was drawn outside a Slot.** `Cms.displayRenderers()` drew
+    an entry's state as a bare `span` with `data-cms-state`, and a Display
+    renderer had no Slot to draw into, so the list's state could not be styled
+    as a pill without an attribute selector into the package's markup (the
+    area 2 rule). **Fixed:** `ListSlots` and `DetailSlots` gain `badge`, a
+    renderer is given it as `badge` in its context, and the CMS draws the state
+    in it (its `data-cms-state` stays, as a fact on a Slot).
+
+30. **A style attached to a view but missing from the stylesheet draws
+    nothing, silently.** The example compiles its one stylesheet from a list in
+    `sheet.ts`; the new writing layout was attached to the form but not listed,
+    so its classes were on the elements with no rules behind them, and the form
+    looked unstyled with nothing to say why. *Proposed:* a development check
+    that every class a view emits is in an injected sheet, or a registry the
+    sheet is built from. Status: worked around (listed).
+
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
 
 ## Checked in the browser
