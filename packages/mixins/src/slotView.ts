@@ -5,7 +5,7 @@
  * ordinary Foldkit attributes per slot, using the view's own `h` so Message
  * capability masking is preserved.
  */
-import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import { createKeyedLazy, createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { NamedBehavior } from './behavior.js'
 import { DiagnosticError } from './diagnostics.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
@@ -23,17 +23,28 @@ import { pipeSelf, type Pipeable } from './pipe.js'
 import { resolve, type SlotAttributes } from './resolver.js'
 import type { Any as AnySlot, SlotProtection } from './slot.js'
 
-export type SlotBuilder<Message> = {
+export type SlotBuilder<Message, Slots = unknown> = {
   /**
    * The view's base attributes plus every resolved contribution. Pass `item`
    * when the slot is rendered once per item, so a Behavior can decorate each
    * repetition differently.
    */
   readonly attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => SlotAttributes<Message>
+  /**
+   * One item's drawing, drawn again only when `args` changed by identity or
+   * what the Mixins gave the Slots it used for this item changed in value.
+   * `draw` must read nothing but its arguments, so pass a function defined
+   * once, not a closure made per render. Keyed by `item.id`, else its index.
+   */
+  readonly lazy: <const Args extends ReadonlyArray<unknown>>(
+    item: SlotItem,
+    draw: (slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>, ...args: Args) => Html,
+    args: Args,
+  ) => Html
 }
 
 export type SlotBuilders<Slots, Message> = {
-  readonly [K in keyof Slots]: SlotBuilder<Message>
+  readonly [K in keyof Slots]: SlotBuilder<Message, Slots>
 }
 
 export type SlotViewRender<Slots, Input, Message> = (
@@ -74,6 +85,7 @@ const buildersOver = <Slots, Message>(
     const protection: SlotProtection = slot.protected
     builders[name] = {
       attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => {
+        using?.add(name)
         const contributions = []
         for (const { mixins, input } of groups) {
           for (const mixin of mixins) {
@@ -94,9 +106,124 @@ const buildersOver = <Slots, Message>(
         // Only while a test draws with `Inert.draw`: never for a real render.
         return isMarking() ? [...resolved, h.DataAttribute(SLOT_MARK, name)] : resolved
       },
+      lazy: (item, draw, args) =>
+        drawItem(item, draw, args, {
+          builders: builders as SlotBuilders<Slots, Message>,
+          h,
+          given: used =>
+            used.flatMap(slot =>
+              groups.flatMap(({ mixins, input }) =>
+                mixins.flatMap(mixin => {
+                  // As `attrs` reads it: a `Mixin<never>` only ever gives message-free data.
+                  const contribution = mixin.contributions[slot] as
+                    SlotContribution<Message> | undefined
+                  return contribution !== undefined && isDynamic(contribution)
+                    ? [contribution({ input, h, item })]
+                    : []
+                }),
+              ),
+            ),
+          first: name,
+        }),
     }
   }
   return builders as SlotBuilders<Slots, Message>
+}
+
+// The Slots the per-item drawing now running has used, if one is, and whether
+// it drew another inside it.
+const NESTED = Symbol('nested')
+let using: Set<string | typeof NESTED> | undefined
+
+/** One `draw`'s items: their memo, the Slots each used, and what those were given. */
+interface ItemMemo {
+  readonly lazy: ReturnType<typeof createKeyedLazy>
+  readonly used: Map<PropertyKey, ReadonlyArray<string | typeof NESTED>>
+  readonly given: Map<PropertyKey, unknown>
+}
+const itemMemos = new WeakMap<object, ItemMemo>()
+const itemMemoOf = (draw: object): ItemMemo => {
+  const known = itemMemos.get(draw)
+  if (known !== undefined) return known
+  const made = { lazy: createKeyedLazy(), used: new Map(), given: new Map() }
+  itemMemos.set(draw, made)
+  return made
+}
+
+// The drawing a missed item runs: set just before the memo is asked, so the
+// memo sees one function whose arguments are all it compares.
+let pending: (() => Html) | undefined
+const runPending = (..._compared: ReadonlyArray<unknown>): Html => pending!()
+
+/**
+ * Whether two evaluated contributions hold the same data: functions by
+ * identity, everything else by value. A handler made per render is never the
+ * same, so an item a Mixin gives one is drawn again every time: correct, not cached.
+ */
+const sameData = (left: unknown, right: unknown, depth = 0): boolean => {
+  if (Object.is(left, right)) return true
+  if (depth > 8) return false
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
+    return false
+  if (Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) return false
+  const keys = Object.keys(left)
+  if (keys.length !== Object.keys(right).length) return false
+  return keys.every(
+    key =>
+      Object.hasOwn(right, key) &&
+      sameData(
+        (left as Record<string, unknown>)[key],
+        (right as Record<string, unknown>)[key],
+        depth + 1,
+      ),
+  )
+}
+
+const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
+  item: SlotItem,
+  draw: (slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>, ...args: Args) => Html,
+  args: Args,
+  context: {
+    readonly builders: SlotBuilders<Slots, Message>
+    readonly h: HtmlBuilder<Message>
+    readonly given: (used: ReadonlyArray<string>) => ReadonlyArray<unknown>
+    readonly first: string
+  },
+): Html => {
+  // Inside another item's drawing, drawn in place, and the outer one is not
+  // cached: its key would read this one's Slots with the outer item.
+  if (using !== undefined) {
+    using.add(NESTED)
+    return draw(context.builders, context.h, ...args)
+  }
+  const memo = itemMemoOf(draw)
+  const key = item.id ?? item.index
+  const run = (): Html => {
+    using = new Set()
+    try {
+      const html = draw(context.builders, context.h, ...args)
+      memo.used.set(key, [...using])
+      return html
+    } finally {
+      using = undefined
+    }
+  }
+  const used = memo.used.get(key) ?? [context.first]
+  if (used.includes(NESTED)) return run()
+  const now = context.given(used.filter(slot => slot !== NESTED))
+  const before = memo.given.get(key)
+  // The same data keeps the value last compared, so the memo sees it unchanged.
+  const given = before !== undefined && sameData(before, now) ? before : now
+  memo.given.set(key, given)
+  pending = run
+  try {
+    return memo.lazy(key, runPending, [draw, given, ...args])
+  } catch {
+    // No runtime frame to memoize under (a test, a server's first pass).
+    return run()
+  } finally {
+    pending = undefined
+  }
 }
 
 /** Build one `attrs` resolver per published slot, evaluating Mixins lazily. */

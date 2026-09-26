@@ -567,6 +567,32 @@ to it and reach every part's Slots.
 - **A part has one place.** Drawing one part twice in a render throws
   `mixins:part-drawn-twice`, since one cached drawing cannot be two elements.
 
+A Slot drawn once per item can memoize each item, in a part or any SlotView:
+
+```ts
+const drawRow = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, Message>,
+  h: HtmlBuilder<Message>,
+  index: number,
+  text: string,
+) => h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
+
+const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
+  h.ul(
+    slots.root.attrs(),
+    input.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, [index, text])),
+  ),
+)
+```
+
+An item is drawn again only when one of its arguments changed by identity, or
+when a Mixin gave the Slots it used something different for it. A Behavior
+that works out a roving tab stop from the whole list redraws the row the stop
+left and the row it reached, and no other. `drawRow` reads only its arguments,
+so define it once, not per render. A Mixin that gives an item a handler made per
+render, and an item drawing that holds another, are drawn every time: correct,
+not cached.
+
 ## With `foldkit-surface`
 
 Mixins do not require Surface, but the two fit naturally: Surface says **what a feature may

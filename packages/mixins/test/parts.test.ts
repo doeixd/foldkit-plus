@@ -149,3 +149,139 @@ it('refuses a part drawn twice in one render', () => {
   }
   expect(codeOf()).toBe('mixins:part-drawn-twice')
 })
+
+// Rows under one part: each a per-item drawing, with a roving tab stop a
+// Behavior works out from the whole list.
+const ListSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  group: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+const ListModel = Schema.Struct({
+  rows: Schema.Array(Schema.String),
+  current: Schema.Number,
+  other: Schema.Number,
+})
+type ListModel = typeof ListModel.Type
+const ListMessage = defineMessageUnion({ Moved: {}, Renamed: {}, Elsewhere: {} })
+type ListMessage = typeof ListMessage.Type
+
+const rowsDrawn: Array<string> = []
+const Roving = Behavior.forSlots(ListSlots)<Pick<ListModel, 'current'>, ListMessage>({
+  row: Behavior.slot({
+    attributes: ({ input, h, item }) => [h.Tabindex(item?.index === input.current ? 0 : -1)],
+  }),
+})
+const drawRow = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
+  h: HtmlBuilder<ListMessage>,
+  index: number,
+  text: string,
+) => {
+  rowsDrawn.push(text)
+  return h.li(slots.row.attrs([h.Key(String(index))], { index }), [text])
+}
+const ListParts = SlotView.parts(ListSlots)<ListModel, ListMessage>()
+const Rows = ListParts.part(
+  'Rows',
+  { reads: ['rows', 'current'], behaviors: [Roving] },
+  (input, slots, h) =>
+    h.ul(
+      slots.root.attrs(),
+      // Keyed by position: a renamed row keeps its key, and only its text changed.
+      input.rows.map((text, index) => slots.row.lazy({ index }, drawRow, [index, text])),
+    ),
+)
+// The same rows inside one group, itself drawn per item: the group holds rows
+// whose tab stop it cannot see, so it is drawn every time the part is.
+const drawGroupedRow = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
+  h: HtmlBuilder<ListMessage>,
+  index: number,
+  text: string,
+) => h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
+const drawGroup = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
+  h: HtmlBuilder<ListMessage>,
+  rows: ReadonlyArray<string>,
+) =>
+  h.ol(
+    slots.group.attrs([h.Id('grouped')], { index: 9, id: 'group' }),
+    rows.map((text, index) => slots.row.lazy({ index, id: text }, drawGroupedRow, [index, text])),
+  )
+const Grouped = ListParts.part(
+  'Grouped',
+  { reads: ['rows', 'current'], behaviors: [Roving] },
+  // Index 9, which no tab stop reaches, so only the rows inside could tell a move.
+  (input, slots) => slots.group.lazy({ index: 9, id: 'group' }, drawGroup, [input.rows]),
+)
+const List = ListParts.assemble((input, _slots, h, draw) =>
+  h.div(
+    [],
+    [
+      h.button([h.Id('moved'), h.OnClick(ListMessage.Moved())], ['Move']),
+      h.button([h.Id('renamed'), h.OnClick(ListMessage.Renamed())], ['Rename']),
+      h.button([h.Id('elsewhere'), h.OnClick(ListMessage.Elsewhere())], [String(input.other)]),
+      draw(Rows),
+      draw(Grouped),
+    ],
+  ),
+)
+
+it('draws a row again only when its values or what a Behavior gave it changed', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'list'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: ListModel,
+      container,
+      init: () => ({ model: { rows: ['a', 'b', 'c', 'd'], current: 0, other: 0 } }),
+      update: (model: ListModel, message: ListMessage) => {
+        switch (message._tag) {
+          case 'Moved':
+            return { model: { ...model, current: model.current + 1 } }
+          case 'Renamed':
+            return { model: { ...model, rows: model.rows.map(row => (row === 'd' ? 'e' : row)) } }
+          case 'Elsewhere':
+            return { model: { ...model, other: model.other + 1 } }
+        }
+      },
+      view: (model: ListModel, h: HtmlBuilder<ListMessage>) => List(model, h),
+    }),
+  )
+  const find = (selector: string) => document.querySelector(selector)
+  const stops = (list = 'ul') =>
+    Array.from(document.querySelectorAll(`${list} li`), row => row.getAttribute('tabindex'))
+  const press = async (button: string, settled: () => void) => {
+    rowsDrawn.length = 0
+    find(`#${button}`)?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(settled)
+  }
+  try {
+    await vi.waitFor(() => expect(stops()).toEqual(['0', '-1', '-1', '-1']))
+
+    // The part is drawn again (it reads `current`), but only the two rows
+    // whose tab stop moved are.
+    await press('moved', () => expect(stops()).toEqual(['-1', '0', '-1', '-1']))
+    expect(rowsDrawn).toEqual(['a', 'b'])
+    expect(stops('#grouped')).toEqual(['-1', '0', '-1', '-1'])
+    // Again, now that each drawing's Slots are known from its last draw.
+    await press('moved', () => expect(stops()).toEqual(['-1', '-1', '0', '-1']))
+    expect(rowsDrawn).toEqual(['b', 'c'])
+    expect(stops('#grouped')).toEqual(['-1', '-1', '0', '-1'])
+
+    // A row whose own value changed, alone.
+    await press('renamed', () => expect(find('ul li:last-child')?.textContent).toBe('e'))
+    expect(rowsDrawn).toEqual(['e'])
+
+    await press('elsewhere', () => expect(find('#elsewhere')?.textContent).toBe('1'))
+    expect(rowsDrawn).toEqual([])
+  } finally {
+    handle.dispose()
+  }
+})

@@ -3,6 +3,7 @@
  * documentation cannot drift from the API.
  */
 import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from '../src/index.js'
 import { Inert } from '../src/testing.js'
@@ -77,3 +78,23 @@ const Panel = Parts.assemble((input, slots, h, draw) =>
   h.section(slots.root.attrs(), [draw(Title), draw(Count)]),
 )
 void Panel
+
+const ListSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+const ListParts = SlotView.parts(ListSlots)<{ readonly rows: ReadonlyArray<string> }, Message>()
+const drawRow = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, Message>,
+  h: HtmlBuilder<Message>,
+  index: number,
+  text: string,
+) => h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
+
+const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
+  h.ul(
+    slots.root.attrs(),
+    input.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, [index, text])),
+  ),
+)
+void Rows
