@@ -7342,7 +7342,12 @@ so no run is split, and the caret keeps its node.
 
 The editor carries them as `AppliedMark { mark }` and `ClearedMark { mark }`, which the Bundle
 maps to the two commands like any other editing Message, so each is one transition and one
-undo step. Not built yet: the popover itself, a Mixins slot for the view.
+undo step. The view is `linkEditor` in `foldkit-mixins-richtext`, a SlotView like the toolbar
+and the slash menu: it reads `linkAt` (`markExtent` for `Link`, from a selection's start), the
+application owns the typed address and where the editor appears, and it sends
+`safeUrl(draft)`, so a refused address is never sent (apply is disabled and Enter falls
+through). Floating it over the selection is the application's placement, as the slash menu's
+is.
 
 An added mark's props are checked against its definition (`MarkRegistry.accepts`), so
 `{ href: 4 }` or a bare `Link` is refused. The URL in a string `href` is not: a schema says what

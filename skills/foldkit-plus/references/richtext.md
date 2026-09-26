@@ -166,7 +166,11 @@ textBefore, index, key, modifiers)` — the keys a menu owns, using `foldkit-pri
 `RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as in
 any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots` (`root`,
 `list`, `item`), one `data-entry` item per match with `role="menuitem"`, `aria-current` on
-the highlighted one, and the entry's own Message on click.
+the highlighted one, and the entry's own Message on click. `linkEditor<Message>()` is the link
+editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`root`, `input`,
+`apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
+`RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
+nor a link at the caret) and `ClearedMark` from inside a link, and keeps no state.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,

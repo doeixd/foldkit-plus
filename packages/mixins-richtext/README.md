@@ -15,8 +15,9 @@ lit.
 ## Status
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
-versions. The first slice is the mark toolbar; the rest of the design's editor chrome (floating toolbar,
-link popover, block handle, placeholder, status) arrives when a view needs it.
+versions. The mark toolbar, the slash menu, and the link editor are built; the rest of the
+design's editor chrome (floating toolbar, block handle, placeholder, status) arrives when a
+view needs it.
 
 ## The mark toolbar
 
@@ -128,6 +129,47 @@ Each item carries `data-entry` (its id), `role="menuitem"`, `aria-current="true"
 highlighted one, and its own entry's Message on click. Outside a query the view draws an
 empty list, so the application places it only when `slashMenu` says there is a menu — and
 Enter is not the view's: the editor's `update` resolves it (§123).
+
+## The link editor
+
+An address field with two buttons: link the selection, or change the link around the caret,
+and remove that link. It keeps no state. The link it edits is a read of the document
+(`RichText.linkAt`), the address being typed is the application's, and what it sends is the
+editor's `AppliedMark` or `ClearedMark` passed through `wrap`, so the editor Bundle applies
+either as one transition and one undo step.
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { linkEditor } from 'foldkit-mixins-richtext'
+
+// Opening the editor: start the draft from the link the selection is in, if any.
+const linkDraft = RichText.linkAt(model.document, model.editor.selection)?.href ?? ''
+
+// In a view:
+linkEditor<Message>()(
+  {
+    document: model.document,
+    selection: model.editor.selection,
+    draft: model.linkDraft,
+    drafted: href => DraftedLink({ href }),
+    wrap: edited,
+  },
+  h,
+)
+```
+
+What it sends is `RichText.safeUrl(draft)`, so the address is cleaned and a `javascript:` or
+`data:` one is never sent. Applying needs such an address and something to link: a range of
+text, or a caret inside a link. Otherwise the apply button is disabled and Enter in the field
+falls through. The remove button is drawn only inside a link. Where the editor appears, and
+when it opens or closes, is the application's, as the slash menu's is.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the editor's wrapper, `role="group"` |
+| `input` | TextInput | the address field, `data-link="address"` |
+| `apply` | Interactive | the apply button, `data-link="apply"`, labelled Link or Update |
+| `remove` | Interactive | the remove button, `data-link="remove"`, inside a link only |
 
 ## Checks
 
