@@ -155,6 +155,11 @@ the edit loses followed by what parsing refused. Nothing is committed until the 
 puts `closed.document` in its Model, so it can warn first. `SourceSession` is a schema, so the
 session fits in a Model as it is.
 
+`closed.style` is how the edited draft spelled its constructs, over the style the session
+opened with. Keep it beside the document and pass it to the next `openSource(document,
+style)`, and a writer who typed `_hello_` and `* item` sees them spelled that way when they
+come back to source mode, rather than in the canonical `*hello*` and `- item`.
+
 ## Limits
 
 - **A table's header.** GFM's header is the first row, so that row is printed as the header

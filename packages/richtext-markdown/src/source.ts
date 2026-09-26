@@ -14,6 +14,7 @@ import type * as RichText from 'foldkit-richtext'
 import { MarkdownDiagnostic } from './diagnostic.js'
 import { parse, type ParseOptions } from './parse.js'
 import { print } from './print.js'
+import { MarkdownStyle } from './style.js'
 
 export const SourceSession = Schema.Struct({
   /** What `print` wrote when the session opened: the draft of a session nobody edited. */
@@ -22,13 +23,27 @@ export const SourceSession = Schema.Struct({
   draft: Schema.String,
   /** What the Markdown could not show, which an edited draft no longer carries. */
   unprintable: Schema.Array(MarkdownDiagnostic),
+  /** The spellings the draft was printed with (§138). */
+  style: MarkdownStyle,
 })
 export type SourceSession = typeof SourceSession.Type
 
-/** Opens a session on a document: its Markdown, as both what was printed and the draft. */
-export const openSource = (document: RichText.Document): SourceSession => {
-  const printed = print(document)
-  return { printed: printed.markdown, draft: printed.markdown, unprintable: printed.diagnostics }
+/**
+ * Opens a session on a document: its Markdown, as both what was printed and the draft,
+ * spelled as `style` says — the one the last session closed with, so a writer's `_hello_`
+ * comes back as they wrote it.
+ */
+export const openSource = (
+  document: RichText.Document,
+  style: MarkdownStyle = {},
+): SourceSession => {
+  const printed = print(document, { style })
+  return {
+    printed: printed.markdown,
+    draft: printed.markdown,
+    unprintable: printed.diagnostics,
+    style,
+  }
 }
 
 export interface ClosedSource {
@@ -38,6 +53,11 @@ export interface ClosedSource {
   readonly changed: boolean
   /** What the document loses by the edit: the unprintable, then what parsing reported. */
   readonly diagnostics: ReadonlyArray<MarkdownDiagnostic>
+  /**
+   * The spellings to open the next session with: what the edited draft used, over what the
+   * session opened with, so a construct the draft no longer contains keeps its spelling.
+   */
+  readonly style: MarkdownStyle
 }
 
 /**
@@ -49,11 +69,14 @@ export const closeSource = (
   document: RichText.Document,
   options: ParseOptions,
 ): ClosedSource => {
-  if (session.draft === session.printed) return { document, changed: false, diagnostics: [] }
+  if (session.draft === session.printed) {
+    return { document, changed: false, diagnostics: [], style: session.style }
+  }
   const parsed = parse(session.draft, options)
   return {
     document: parsed.document,
     changed: true,
     diagnostics: [...session.unprintable, ...parsed.diagnostics],
+    style: { ...session.style, ...parsed.style },
   }
 }

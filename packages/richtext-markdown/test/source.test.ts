@@ -43,7 +43,7 @@ describe('a Markdown source session', () => {
   it('gives back the caller’s document itself when the draft was not edited', () => {
     const original = document()
     const closed = closeSource(openSource(original), original, minted())
-    expect(closed).toEqual({ document: original, changed: false, diagnostics: [] })
+    expect(closed).toEqual({ document: original, changed: false, diagnostics: [], style: {} })
     expect(closed.document).toBe(original)
   })
 
@@ -82,5 +82,22 @@ describe('a Markdown source session', () => {
   it('is a value a Model can hold: it decodes as the schema says', () => {
     const session = openSource(document())
     expect(Schema.decodeUnknownSync(SourceSession)(session)).toEqual(session)
+  })
+
+  it('keeps the writer’s spelling from one session to the next', () => {
+    const original = document()
+    const first = closeSource(
+      { ...openSource(original), draft: '# Title\n\n_marked_ and\n\n* a\n' },
+      original,
+      minted(),
+    )
+    expect(first.style).toEqual({ emphasis: '_', bullet: '*' })
+    // Reopening with that style prints the document as it was written, not canonically.
+    const again = openSource(first.document, first.style)
+    expect(again.draft).toBe('# Title\n\n_marked_ and\n\n* a\n')
+    // Closing it unedited keeps the style; editing keeps what the new text no longer spells.
+    expect(closeSource(again, first.document, minted()).style).toEqual(first.style)
+    const edited = closeSource({ ...again, draft: '__bold__\n' }, first.document, minted())
+    expect(edited.style).toEqual({ emphasis: '_', bullet: '*', strong: '__' })
   })
 })

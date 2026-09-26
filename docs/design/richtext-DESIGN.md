@@ -11,7 +11,7 @@ mark toolbar, the block style picker, the slash menu, link editing, and the plac
 (§119, §123, §132, §133, §134), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
-(§136, §137); §9's round-trip hints are not.
+(§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
 Still to do: the rest of milestone 6's chrome, then the rest of source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
@@ -7572,5 +7572,10 @@ Decided here:
 - **Never document content.** `MarkdownStyle` is a schema of its own, kept by the caller beside
   the document, as §9 says: interpreter state, not semantics.
 
-Not yet: headings (ATX or setext), per-node spellings, and the source session keeping the
-style across visits, which is next.
+The source session carries it across visits: `openSource(document, style)` prints with it
+and records it, and `closeSource` returns the style to keep — the edited draft's spellings over
+the session's, so a construct the new text no longer contains keeps its old spelling, and an
+unedited session hands back the one it opened with. The application keeps it beside the
+document.
+
+Not yet: headings (ATX or setext), and per-node spellings.

@@ -288,7 +288,9 @@ or a list (`WrapBlock`), and a fence such as `` ```ts `` converts it to a `CodeB
 the Markdown itself: `openSource(document)` gives `{ printed, draft, unprintable }` (a
 `SourceSession` schema the Model holds), and `closeSource(session, document, { mint })` returns
 the caller's document untouched when the draft was not edited, or the parsed draft with the
-diagnostics of what the edit loses.
+diagnostics of what the edit loses. `parse` also returns a `MarkdownStyle` (which spelling each
+construct took), `print(document, { style })` reuses it where it keeps the meaning, and a
+session's `closeSource(...).style` is what to pass to the next `openSource(document, style)`.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable
