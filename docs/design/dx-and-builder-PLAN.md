@@ -905,6 +905,13 @@ selection through a scroll, and the hover box follows the pointer.
 **Tests.** Unit for the landing rules. Browser for a drag from a tile to
 between two Headings.
 
+> **Done, 2026-09-26,** without typed item data (2c): the tiles already carry
+> `data-block`, which is what `PointerDrag` reads. It gained `targets: {
+> attribute, within }` so a drag from the palette lands on the canvas's
+> nodes; the Behavior is the Palette part's, not the root's, since a
+> whole-assembly Mixin would redraw every part. A new node's place is tried
+> as an insert of its starting props under an id the page does not hold.
+
 ### 5d. Clipboard and Patterns (M)
 
 - **Commands** in the table: Copy, Cut, Paste, and Paste after/inside by the

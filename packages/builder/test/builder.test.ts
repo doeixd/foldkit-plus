@@ -9,7 +9,7 @@ import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
-import { Builder, Layers, Message, Model, inputOf } from 'foldkit-builder'
+import { Builder, Layers, Message, Model, inputOf, type DropZone } from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
 import {
   ColorMessage,
@@ -427,9 +427,11 @@ describe('dragging a node', () => {
     }),
   )
   const document = page.page.present
+  /** Where the node `dragged`, dragged over `target` in `zone`, would go. */
+  const drop = (document: Document, dragged: NodeId, target: NodeId, zone: DropZone) =>
+    PageBuilder.dropAt(document, { _tag: 'Existing', id: dragged }, target, zone)
 
   it('drops before, after or inside a node, counting places without the node dragged', () => {
-    const drop = PageBuilder.dropAt
     expect(drop(document, id('h1'), id('h2'), 'after')).toEqual(
       Option.some(Composition.region(id('s1'), 'body', 2)),
     )
@@ -443,7 +445,6 @@ describe('dragging a node', () => {
   })
 
   it('drops inside a node that takes nothing as after it, and nowhere the page refuses', () => {
-    const drop = PageBuilder.dropAt
     expect(drop(document, id('h1'), id('h2'), 'inside')).toEqual(
       Option.some(Composition.region(id('s1'), 'body', 2)),
     )
@@ -454,12 +455,12 @@ describe('dragging a node', () => {
   })
 
   it('selects what it drags, and moves it on the drop as one undoable, announced edit', () => {
-    const started = send(page, Message.DragStarted({ id: id('h1') }))
+    const started = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } }))
     expect(started.selected).toEqual(Option.some(id('h1')))
     const over = send(started, Message.DraggedOver({ id: id('g'), zone: 'inside' }))
     expect(over.drag).toEqual(
       Option.some({
-        id: id('h1'),
+        source: { _tag: 'Existing', id: id('h1') },
         over: Option.some({ id: id('g'), zone: 'inside' }),
         at: Option.some(Composition.region(id('g'), 'items', 0)),
       }),
@@ -475,13 +476,13 @@ describe('dragging a node', () => {
 
   it('moves nothing on a drop the page refuses, or a cancel, and says so', () => {
     const refused = send(
-      send(page, Message.DragStarted({ id: id('s2') })),
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('s2') } })),
       Message.DraggedOver({ id: id('g'), zone: 'inside' }),
     )
     expect(Option.flatMap(refused.drag, drag => drag.at)).toEqual(Option.none())
     // Over a Heading, which takes nothing inside, the drop is marked where it lands.
     const beside = send(
-      send(page, Message.DragStarted({ id: id('h1') })),
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } })),
       Message.DraggedOver({ id: id('h2'), zone: 'inside' }),
     )
     expect(Option.flatMap(beside.drag, drag => drag.over)).toEqual(
@@ -497,11 +498,73 @@ describe('dragging a node', () => {
     expect(cancelled.announcer.pending?.message).toBe('Not moved')
   })
 
+  it('lands a new Block from the palette as an insert would, and never where the page refuses it', () => {
+    const heading = { _tag: 'New', block: 'Heading' } as const
+    // Nothing is taken out first: before h2 is its place, the third of three.
+    expect(PageBuilder.dropAt(document, heading, id('h2'), 'before')).toEqual(
+      Option.some(Composition.region(id('s1'), 'body', 2)),
+    )
+    expect(PageBuilder.dropAt(document, heading, id('g'), 'inside')).toEqual(
+      Option.some(Composition.region(id('g'), 'items', 0)),
+    )
+    // A Section fits nowhere inside a Group, nor after it among a Section's Flow.
+    const section = { _tag: 'New', block: 'Section' } as const
+    expect(PageBuilder.dropAt(document, section, id('g'), 'inside')).toEqual(Option.none())
+    expect(PageBuilder.dropAt(document, section, id('s2'), 'after')).toEqual(
+      Option.some(Composition.root(2)),
+    )
+    // Tried with an id the page does not hold, whatever its nodes are called.
+    const withDragged = Composition.Document.make({
+      ...document,
+      roots: [...document.roots, id('dragged')],
+      nodes: {
+        ...document.nodes,
+        [id('dragged')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    })
+    expect(PageBuilder.dropAt(withDragged, heading, id('h2'), 'before')).toEqual(
+      Option.some(Composition.region(id('s1'), 'body', 2)),
+    )
+  })
+
+  it('adds a new Block where it is dropped, selected, and starts no drag of one with no starting props', () => {
+    const selected = send(page, Message.Selected({ id: id('h1') }))
+    const started = send(
+      selected,
+      Message.DragStarted({ source: { _tag: 'New', block: 'Heading' } }),
+    )
+    // What was selected stays so until the new node is there.
+    expect(started.selected).toEqual(Option.some(id('h1')))
+    const over = send(started, Message.DraggedOver({ id: id('h2'), zone: 'after' }))
+    const dropped = send(over, Message.DragDropped())
+    const body = required(dropped.page.present.nodes[id('s1')]?.regions['body'], 'a body')
+    expect(body).toHaveLength(4)
+    const added = required(body[3], 'the new heading')
+    expect(dropped.page.present.nodes[added]).toEqual({
+      block: 'Heading',
+      props: { text: 'New heading' },
+      regions: {},
+    })
+    expect(dropped.selected).toEqual(Option.some(added))
+    expect(dropped.drag).toEqual(Option.none())
+    // Buttons have no starting props, so the palette does not offer them to drag.
+    expect(
+      send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Button' } })).drag,
+    ).toEqual(Option.none())
+  })
+
+  it('says a new Block dragged away and let go was not added', () => {
+    const started = send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Heading' } }))
+    const cancelled = send(started, Message.DragCancelled())
+    expect(cancelled.announcer.pending?.message).toBe('Not added')
+    expect(cancelled.page).toBe(page.page)
+  })
+
   it('counts a drop onto a node’s own place as no move, and drops where the page is now', () => {
     // h1 is first; before g is where it already is.
-    expect(PageBuilder.dropAt(document, id('h1'), id('g'), 'before')).toEqual(Option.none())
+    expect(drop(document, id('h1'), id('g'), 'before')).toEqual(Option.none())
     const over = send(
-      send(page, Message.DragStarted({ id: id('h2') })),
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h2') } })),
       Message.DraggedOver({ id: id('h1'), zone: 'before' }),
     )
     expect(Option.flatMap(over.drag, drag => drag.at)).toEqual(
@@ -523,11 +586,13 @@ describe('dragging a node', () => {
   })
 
   it('ignores a drag of no node, drag news with no drag, and settles with none', () => {
-    expect(send(page, Message.DragStarted({ id: id('gone') })).drag).toEqual(Option.none())
+    expect(
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('gone') } })).drag,
+    ).toEqual(Option.none())
     expect(send(page, Message.DraggedOff())).toBe(page)
     expect(send(page, Message.DragDropped())).toBe(page)
     expect(send(page, Message.DragCancelled())).toBe(page)
-    const dragging = send(page, Message.DragStarted({ id: id('h1') }))
+    const dragging = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } }))
     expect(PageBuilder.settle(dragging).drag).toEqual(Option.none())
     expect(PageBuilder.replace(dragging, document).drag).toEqual(Option.none())
   })

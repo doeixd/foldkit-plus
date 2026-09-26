@@ -54,9 +54,16 @@ const announcerArgs: LiveAnnounce.Args = { debounceMs: 150, clearAfterMs: 5000 }
 export const DropZone = Schema.Literals(['before', 'inside', 'after'])
 export type DropZone = typeof DropZone.Type
 
-/** A drag under way: the node dragged, what it is over, and where it would go. */
+/** What a drag carries: a node on the page, or a new node of a Block, from the palette. */
+export const DragSource = Schema.Union([
+  Schema.TaggedStruct('Existing', { id: NodeId }),
+  Schema.TaggedStruct('New', { block: Schema.String }),
+])
+export type DragSource = typeof DragSource.Type
+
+/** A drag under way: what is dragged, what it is over, and where it would go. */
 export const Drag = Schema.Struct({
-  id: NodeId,
+  source: DragSource,
   /** The node it is over and the zone of it; none while it is over nothing. */
   over: Schema.OptionFromNullOr(Schema.Struct({ id: NodeId, zone: DropZone })),
   /**
@@ -162,7 +169,7 @@ export const Message = defineMessageUnion({
   PanelChosen: { panel: Panel },
   ViewportChosen: { viewport: Viewport },
   /** A pointer drag of a node began: it is selected, and nothing moves until the drop. */
-  DragStarted: { id: NodeId },
+  DragStarted: { source: DragSource },
   /** The dragged node is over another, in a zone of it. */
   DraggedOver: { id: NodeId, zone: DropZone },
   /** The dragged node is over nothing. */
@@ -273,24 +280,33 @@ const regionTaking = (catalog: Catalog, holder: string, block: string): Option.O
 }
 
 /**
- * Where a node dragged over `target`, in `zone`, lands: before or after it
+ * What is dragged, as `landing` weighs it: its Block, the node it is if it is
+ * on the page already, and the Operation that would put it at a place.
+ */
+interface Dragged {
+  readonly block: string
+  readonly id: Option.Option<NodeId>
+  readonly to: (at: Position) => Operation
+}
+
+/**
+ * Where something dragged over `target`, in `zone`, lands: before or after it
  * among its siblings, or last in the first of its Regions that accepts it,
  * with the zone it landed in. `inside` a node that takes it nowhere lands
- * after it. None when the page would refuse the move, such as into the
- * dragged node itself.
+ * after it. None when the page would refuse it there, such as a node into
+ * itself: each place is tried, a move for a node and an insert for a new one.
  */
 const landing = (
   catalog: Catalog,
   document: Document,
-  dragged: NodeId,
+  dragged: Dragged,
   target: NodeId,
   zone: DropZone,
 ): Option.Option<{ readonly at: Position; readonly zone: DropZone }> => {
   const place = Composition.index(document).get(target)
-  const node = document.nodes[dragged]
-  if (dragged === target || place === undefined || node === undefined) return Option.none()
+  if (Option.contains(dragged.id, target) || place === undefined) return Option.none()
   // A move takes the node out before putting it back, so places count without it.
-  const without = (ids: ReadonlyArray<NodeId>) => ids.filter(id => id !== dragged)
+  const without = (ids: ReadonlyArray<NodeId>) => ids.filter(id => !Option.contains(dragged.id, id))
   const beside = (offset: 0 | 1): Option.Option<Position> => {
     const siblings =
       place.parent === undefined
@@ -306,12 +322,14 @@ const landing = (
   const inside = (): Option.Option<Position> => {
     const holder = document.nodes[target]
     if (holder === undefined) return Option.none()
-    return Option.map(regionTaking(catalog, holder.block, node.block), regionName =>
+    return Option.map(regionTaking(catalog, holder.block, dragged.block), regionName =>
       Composition.region(target, regionName, without(holder.regions[regionName] ?? []).length),
     )
   }
   // Where the dragged node is now, counted the same way: a drop there moves nothing.
-  const current = Composition.index(document).get(dragged)
+  const current = Option.flatMap(dragged.id, id =>
+    Option.fromUndefinedOr(Composition.index(document).get(id)),
+  ).pipe(Option.getOrUndefined)
   const stays = (at: Position) =>
     current !== undefined &&
     at.index === current.index &&
@@ -335,7 +353,7 @@ const landing = (
     const at = candidate.at.value
     // Onto its own place is not a move, and no later candidate is meant instead.
     if (stays(at)) return Option.none()
-    if (Result.isSuccess(Composition.apply(catalog, document, Composition.Op.move(dragged, at))))
+    if (Result.isSuccess(Composition.apply(catalog, document, dragged.to(at))))
       return Option.some({ at, zone: candidate.zone })
   }
   return Option.none()
@@ -587,6 +605,42 @@ export const Builder = {
       }
     }
 
+    /** A Block's starting props, encoded as the Document stores them; none for a Block with none. */
+    const startingProps = (name: string): Option.Option<Readonly<Record<string, Schema.Json>>> => {
+      // Read as any Block: the starting props were checked against theirs in `make`.
+      const block: AnyBlock | undefined = Catalog.block(catalog, name)
+      // A Block with no starting props has nothing to encode, and is none too.
+      if (block === undefined) return Option.none()
+      return Result.getSuccess(Result.flatMap(Block.encode(block, starters[name]), storedProps))
+    }
+
+    /** What a drag carries, as `landing` weighs it; none for a node gone or a Block not offered. */
+    const draggedOf = (document: Document, source: DragSource): Option.Option<Dragged> => {
+      if (source._tag === 'Existing') {
+        const node = document.nodes[source.id]
+        return node === undefined
+          ? Option.none()
+          : Option.some({
+              block: node.block,
+              id: Option.some(source.id),
+              to: at => Composition.Op.move(source.id, at),
+            })
+      }
+      // Tried with an id no node on this page has; the drop asks for a real one.
+      let unused = 'dragged'
+      while (document.nodes[NodeId.make(unused)] !== undefined) unused = `${unused}-`
+      const trial = NodeId.make(unused)
+      return Option.map(startingProps(source.block), props => ({
+        block: source.block,
+        id: Option.none(),
+        to: at => Composition.Op.insert({ id: trial, block: source.block, props, at }),
+      }))
+    }
+
+    /** What is said when a drag ends with nothing done. */
+    const unmoved = (source: DragSource): string =>
+      source._tag === 'Existing' ? 'Not moved' : 'Not added'
+
     /** Asks for `count` new ids; the request goes through once they arrive. */
     const mint = (count: number, request: typeof Request.Type): Commands => [
       {
@@ -837,14 +891,8 @@ export const Builder = {
         case 'Minted': {
           const { request, ids } = message
           if (request._tag === 'Insert') {
-            // Read as any Block: the starting props were checked against theirs in `make`.
-            const block: AnyBlock | undefined = Catalog.block(catalog, request.block)
-            // The starting props, encoded as the Document stores them: JSON, by key.
-            const encoded =
-              block === undefined
-                ? undefined
-                : Result.flatMap(Block.encode(block, starters[request.block]), storedProps)
-            if (ids[0] === undefined || encoded === undefined || Result.isFailure(encoded))
+            const props = startingProps(request.block)
+            if (ids[0] === undefined || Option.isNone(props))
               return refuse(model, {
                 code: 'composition:invalid-props',
                 message: `"${request.block}"'s starting props do not encode`,
@@ -854,7 +902,7 @@ export const Builder = {
               Composition.Op.insert({
                 id: ids[0],
                 block: request.block,
-                props: encoded.success,
+                props: props.value,
                 at: request.at,
               }),
             )
@@ -894,19 +942,30 @@ export const Builder = {
           }
         }
         case 'DragStarted':
-          return documentOf(model).nodes[message.id] === undefined
+          // A node gone, or a Block with nothing to start from, starts no drag.
+          return Option.isNone(draggedOf(documentOf(model), message.source))
             ? { model }
             : {
                 model: {
                   ...model,
-                  drag: Option.some({ id: message.id, over: Option.none(), at: Option.none() }),
-                  selected: Option.some(message.id),
+                  drag: Option.some({
+                    source: message.source,
+                    over: Option.none(),
+                    at: Option.none(),
+                  }),
+                  // A node dragged is the one worked on; a new one is selected once it is added.
+                  selected:
+                    message.source._tag === 'Existing'
+                      ? Option.some(message.source.id)
+                      : model.selected,
                 },
               }
         case 'DraggedOver': {
           if (Option.isNone(model.drag)) return { model }
           const drag = model.drag.value
-          const landed = landing(catalog, documentOf(model), drag.id, message.id, message.zone)
+          const landed = Option.flatMap(draggedOf(documentOf(model), drag.source), dragged =>
+            landing(catalog, documentOf(model), dragged, message.id, message.zone),
+          )
           return {
             model: {
               ...model,
@@ -940,21 +999,30 @@ export const Builder = {
               }
         case 'DragDropped': {
           if (Option.isNone(model.drag)) return { model }
-          const { id, over } = model.drag.value
+          const { source, over } = model.drag.value
           const ended = { ...model, drag: Option.none() }
           // Worked out again: the page may have changed since the pointer got here.
           const landed = Option.flatMap(over, target =>
-            landing(catalog, documentOf(model), id, target.id, target.zone),
+            Option.flatMap(draggedOf(documentOf(model), source), dragged =>
+              landing(catalog, documentOf(model), dragged, target.id, target.zone),
+            ),
           )
           return Option.match(landed, {
-            onNone: () => ({ model: ended, commands: announce('Not moved') }),
-            onSome: ({ at }) => applyOp(ended, Composition.Op.move(id, at)),
+            onNone: () => ({ model: ended, commands: announce(unmoved(source)) }),
+            onSome: ({ at }) =>
+              source._tag === 'Existing'
+                ? applyOp(ended, Composition.Op.move(source.id, at))
+                : // A new node needs an id: the same request a press on the palette makes.
+                  { model: ended, commands: mint(1, { _tag: 'Insert', block: source.block, at }) },
           })
         }
         case 'DragCancelled':
           return Option.isNone(model.drag)
             ? { model }
-            : { model: { ...model, drag: Option.none() }, commands: announce('Not moved') }
+            : {
+                model: { ...model, drag: Option.none() },
+                commands: announce(unmoved(model.drag.value.source)),
+              }
         case 'PreviewChosen':
           return {
             model: { ...model, preview: { ...model.preview, [message.key]: message.value } },
@@ -1277,9 +1345,14 @@ export const Builder = {
       placeFor: (document: Document, selected: Option.Option<NodeId>, block: Blocks['name']) =>
         placeFor(catalog, document, selected, block),
       moveBy,
-      /** Where a node dragged over `target`, in `zone`, would go; none where it may not. */
-      dropAt: (document: Document, dragged: NodeId, target: NodeId, zone: DropZone) =>
-        Option.map(landing(catalog, document, dragged, target, zone), ({ at }) => at),
+      /** Where what is dragged over `target`, in `zone`, would go; none where it may not. */
+      dropAt: (document: Document, dragged: DragSource, target: NodeId, zone: DropZone) =>
+        Option.map(
+          Option.flatMap(draggedOf(document, dragged), each =>
+            landing(catalog, document, each, target, zone),
+          ),
+          ({ at }) => at,
+        ),
       replace,
       settle,
       /** The editor's commands: what a key, a node's action or the toolbar runs. */

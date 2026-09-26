@@ -217,17 +217,19 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   `DuplicateAsked({ id, at })`, `Minted` (from its own Command),
   `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
   `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
-  `DragStarted({ id })`, `DraggedOver({ id, zone })`, `DraggedOff()`,
+  `DragStarted({ source })` (`{ _tag: 'Existing', id }`, or `{ _tag: 'New', block }` from the
+  palette), `DraggedOver({ id, zone })`, `DraggedOff()`,
   `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
   (`dropAt`; inside a node that takes nothing is after it, and `over`'s zone
   says so), none where the page refuses or onto the node's own place; a drop
-  is one undoable move, its place worked out again when it happens.
+  is one undoable move, or for a new Block an insert with a minted id, its place worked out
+  again when it happens.
 - Ids are minted in a Command; an edit and its undo step change together;
   a new node is selected; a refusal is kept in `refused` until the next edit.
 - As a form key: a change of the Document is an edit (autosaved by CMS), a
   selection is not; fill replaces the page and starts undo over.
 - Helpers, each answering with an `Option`: `PageBuilder.placeFor(doc, selected, block)`,
-  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.dropAt(doc, dragged, target, zone)`;
+  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.dropAt(doc, source, target, zone)`;
   and `PageBuilder.replace`, `PageBuilder.settle`.
 - Places `TreeNavigation` (`Layers`, open by default) and `LiveAnnounce`
   (`Announcer`) in its Model; layers focus selects the node. Shortcuts:

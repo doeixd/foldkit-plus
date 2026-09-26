@@ -196,6 +196,40 @@ it('draws the selection’s box over the selected node, and keeps it there throu
   })
 })
 
+// A tile dragged from the palette lands where it is dropped (dx-and-builder-PLAN.md, 5c).
+it('adds a Block dragged from the palette where it is dropped, between two Headings', async () => {
+  unmount = mount(stylesheet)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const tile = document.querySelector<HTMLElement>('[aria-label="Add Heading"]')
+  const page = canvas()
+  const headings = () =>
+    Array.from(page?.querySelectorAll<HTMLElement>('h2') ?? [], heading => heading.textContent)
+  const target = page?.querySelectorAll<HTMLElement>('h2')[2]
+  if (tile === null || page === null || target === undefined) throw new Error('no tile or page')
+  const centre = (element: HTMLElement, down = 0.5) => {
+    const box = element.getBoundingClientRect()
+    return { clientX: box.left + box.width / 2, clientY: box.top + box.height * down }
+  }
+  const at = (element: EventTarget, type: string, where: { clientX: number; clientY: number }) =>
+    element.dispatchEvent(
+      new PointerEvent(type, { bubbles: true, button: 0, buttons: 1, isPrimary: true, ...where }),
+    )
+  at(tile, 'pointerdown', centre(tile))
+  // Past the threshold, then over the last third of the third Heading: after it.
+  at(document, 'pointermove', { clientX: centre(tile).clientX + 20, clientY: centre(tile).clientY })
+  at(document, 'pointermove', centre(target, 0.9))
+  at(target, 'pointerup', centre(target, 0.9))
+  await vi.waitFor(() =>
+    expect(headings().slice(0, 5)).toEqual([
+      'Heading 0',
+      'Heading 1',
+      'Heading 2',
+      'New heading',
+      'Heading 3',
+    ]),
+  )
+})
+
 /** The middle of some timings, rounded to a millisecond. */
 const median = (times: ReadonlyArray<number>): number =>
   Math.round([...times].sort((left, right) => left - right)[Math.floor(times.length / 2)] ?? NaN)

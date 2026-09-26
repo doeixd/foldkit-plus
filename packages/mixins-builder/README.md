@@ -89,6 +89,7 @@ Five Behaviors are attached, each from `foldkit-primitives`:
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
 | `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
 | `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
+| `palette` | `PointerDrag`, onto the canvas | A Block's tile dragged onto the page lands the same way and adds a new node of it there; a press without a drag adds it where its title says. |
 
 The shortcuts are on the layers panel and the canvas, not the whole editor,
 so Delete in a text box edits the text. The canvas is focusable, so a press on

@@ -75,7 +75,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
-| `DragStarted({ id })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
+| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
 | `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
 | `Inspected({ id, message })` | a Message of the selected node's settings form: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
@@ -279,20 +279,29 @@ nothing in the page and is not an edit.
 ## Dragging
 
 A pointer drag is four Messages, the facts `foldkit-primitives`' `PointerDrag`
-reports:
+reports. What is dragged is its `source`: a node on the page,
+`{ _tag: 'Existing', id }`, or a new node of a Block, `{ _tag: 'New', block }`,
+dragged from the palette.
 
-- **`DragStarted({ id })`** selects the node and puts the drag in the Model's
-  `drag`, an `Option`, with `over` and `at` both none. Nothing moves yet.
+- **`DragStarted({ source })`** puts the drag in the Model's `drag`, an
+  `Option`, with `over` and `at` both none, and selects a node it drags. Nothing
+  changes on the page yet. A node not on the page, or a Block with no starting
+  props, starts no drag.
 - **`DraggedOver({ id, zone })`** says which node the pointer is over and in
   which zone of it, `before`, `inside` or `after`; **`DraggedOff()`** that it is
   over none. The Builder works out where a drop would land, `drag.at`: before
   or after that node among its siblings, or last in the first of its Regions
   that accepts the dragged Block. Inside a node that takes nothing is after it,
-  and `drag.over`'s zone says so. Where the page would refuse the move, such as
-  into the node itself, `at` is none.
-- **`DragDropped()`** applies the move to `drag.at` as one edit, undone and
-  announced like a key's; with no `at`, nothing moves and "Not moved" is
-  announced. **`DragCancelled()`** ends the drag the same way.
+  and `drag.over`'s zone says so. Each place is tried as the edit a drop would
+  make (a move for a node, an insert of the Block's starting props for a new
+  one), and where the page would refuse it, such as a node into itself, `at`
+  is none, so a mark never promises a drop the page refuses.
+- **`DragDropped()`** works the place out again, since the page may have
+  changed, and moves a node there as one edit, undone and announced like a
+  key's; a new node is asked for as a press on the palette asks, so it gets an
+  id, is added there, and is selected. With no place, nothing changes and "Not
+  moved", or "Not added", is announced. **`DragCancelled()`** ends the drag the
+  same way.
 
 A drawing marks `drag.over` only while `drag.at` is set, so the mark is where
 the node will go. The keyboard's way to move a node is `keyCommand`.
@@ -308,7 +317,7 @@ Each helper that may have no answer returns an `Option`, as the Model's
   selection, else last among the roots; none where the Block cannot go.
 - `PageBuilder.moveBy(document, id, delta)` is the Operation that moves a node
   among its siblings; none at an end.
-- `PageBuilder.dropAt(document, dragged, target, zone)` is where a drag over
+- `PageBuilder.dropAt(document, source, target, zone)` is where a drag over
   `target` would put `dragged`; none where the page refuses it.
 - `PageBuilder.keyCommand(model, key, modifiers)` is the Message a shortcut
   sends; none for a key it does not handle, which is what Foldkit's

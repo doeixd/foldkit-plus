@@ -536,7 +536,7 @@ describe('the drawn Builder', () => {
       'the heading',
     )
     const banner = some(page.selected, 'the banner')
-    const dragging = send(page, Message.DragStarted({ id: heading }))
+    const dragging = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: heading } }))
     const over = send(dragging, Message.DraggedOver({ id: banner, zone: 'after' }))
     const root = draw(over)
     const rows = Inert.byRole(root, 'treeitem')

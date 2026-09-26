@@ -23,6 +23,7 @@ import {
   type ContextValue,
   type BuilderCommand,
   type CommandKey,
+  type DragSource,
   type DropZone,
   type InspectedForm,
   type Inspecting,
@@ -232,21 +233,31 @@ export const ROW_DROP_ATTRIBUTE = 'builder-drop'
 export const ROW_DRAGGING_ATTRIBUTE = 'builder-dragging'
 
 /** The Builder's Message for what a drag reports. */
-const dragMessage = (fact: PointerDrag.DragFact): Message => {
-  switch (fact._tag) {
-    case 'DragStarted':
-      return Message.DragStarted({ id: NodeId.make(fact.id) })
-    case 'DraggedOver':
-      // The DOM's fact says "over nothing" with `null`; the Builder has a Message for it.
-      return fact.over === null
-        ? Message.DraggedOff()
-        : Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
-    case 'DragDropped':
-      return Message.DragDropped()
-    case 'DragCancelled':
-      return Message.DragCancelled()
+/**
+ * A drag's facts as the Builder's Messages; `source` says what the dragged
+ * element is: a node's own id, or a palette tile's Block.
+ */
+const dragMessage =
+  (source: (id: string) => DragSource) =>
+  (fact: PointerDrag.DragFact): Message => {
+    switch (fact._tag) {
+      case 'DragStarted':
+        return Message.DragStarted({ source: source(fact.id) })
+      case 'DraggedOver':
+        // The DOM's fact says "over nothing" with `null`; the Builder has a Message for it.
+        return fact.over === null
+          ? Message.DraggedOff()
+          : Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
+      case 'DragDropped':
+        return Message.DragDropped()
+      case 'DragCancelled':
+        return Message.DragCancelled()
+    }
   }
-}
+/** A row or a node dragged: a node on the page. */
+const nodeDrag = dragMessage(id => ({ _tag: 'Existing', id: NodeId.make(id) }))
+/** A palette tile dragged: a new node of its Block. */
+const tileDrag = dragMessage(block => ({ _tag: 'New', block }))
 
 /** The DOM id a layer row carries, so keyboard focus can find it. */
 export const layerId = (builder: { readonly name: string }, id: string): string =>
@@ -1010,43 +1021,62 @@ export const BuilderView = {
       { name: 'KeepSelectionInView' },
     )
 
-    const Palette = Parts.part('Palette', { reads: ['page', 'selected'] }, (input, slots, h) => {
-      const document = builder.document(input)
-      return h.nav(
-        slots.palette.attrs([h.AriaLabel('Add a block')]),
-        groups.map(([group, names]) =>
-          h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(group)]), [
-            ...(groups.length > 1 ? [h.h3(slots.paletteHeading.attrs(), [group])] : []),
-            ...names.map(name => {
-              const at = builder.placeFor(document, input.selected, name)
-              const label = labelOf(name)
-              return h.button(
-                slots.paletteItem.attrs([
-                  h.Type('button'),
-                  h.DataAttribute('block', name),
-                  h.AriaLabel(`Add ${label}`),
-                  h.Title(whereItGoes(document, input.selected, at)),
-                  h.Disabled(Option.isNone(at)),
-                  ...Option.match(at, {
-                    onNone: () => [],
-                    onSome: position => [
-                      h.OnClick(Message.InsertAsked({ block: name, at: position })),
-                    ],
-                  }),
-                ]),
-                [
-                  h.span(slots.paletteLabel.attrs(), [label]),
-                  ...Option.match(described.get(name)?.description ?? Option.none(), {
-                    onNone: () => [],
-                    onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
-                  }),
-                ],
-              )
-            }),
-          ]),
-        ),
-      )
-    })
+    // The canvas, found by its id, so a tile dragged from the palette can land on its nodes.
+    const canvasId = `${builder.name}-canvas`
+
+    const Palette = Parts.part(
+      'Palette',
+      {
+        reads: ['page', 'selected'],
+        behaviors: [
+          // A tile dragged onto the page adds its Block where it is dropped; a press adds it
+          // where the palette's button says.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'palette',
+            attribute: 'data-block',
+            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: `#${canvasId}` },
+            toMessage: tileDrag,
+          }),
+        ],
+      },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        return h.nav(
+          slots.palette.attrs([h.AriaLabel('Add a block')]),
+          groups.map(([group, names]) =>
+            h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(group)]), [
+              ...(groups.length > 1 ? [h.h3(slots.paletteHeading.attrs(), [group])] : []),
+              ...names.map(name => {
+                const at = builder.placeFor(document, input.selected, name)
+                const label = labelOf(name)
+                return h.button(
+                  slots.paletteItem.attrs([
+                    h.Type('button'),
+                    h.DataAttribute('block', name),
+                    h.AriaLabel(`Add ${label}`),
+                    h.Title(whereItGoes(document, input.selected, at)),
+                    h.Disabled(Option.isNone(at)),
+                    ...Option.match(at, {
+                      onNone: () => [],
+                      onSome: position => [
+                        h.OnClick(Message.InsertAsked({ block: name, at: position })),
+                      ],
+                    }),
+                  ]),
+                  [
+                    h.span(slots.paletteLabel.attrs(), [label]),
+                    ...Option.match(described.get(name)?.description ?? Option.none(), {
+                      onNone: () => [],
+                      onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
+                    }),
+                  ],
+                )
+              }),
+            ]),
+          ),
+        )
+      },
+    )
 
     /**
      * One layer row, from what it shows alone. Its arguments are compared by
@@ -1154,7 +1184,7 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'tree',
             attribute: `data-${ROW_ATTRIBUTE}`,
-            toMessage: dragMessage,
+            toMessage: nodeDrag,
           }),
           Shortcuts,
           KeepSelectionInView,
@@ -1164,7 +1194,9 @@ export const BuilderView = {
         const document = builder.document(input)
         const { selected } = input
         const drop = dropOf(input.drag)
-        const dragged = Option.map(input.drag, drag => drag.id)
+        const dragged = Option.flatMap(input.drag, drag =>
+          drag.source._tag === 'Existing' ? Option.some(drag.source.id) : Option.none(),
+        )
         const shown = TreeNavigation.shown(rowsOf(document), input.layers, layersArgs)
         const tree = h.ul(
           slots.tree.attrs([h.Role('tree'), h.AriaLabel('Layers')]),
@@ -1365,7 +1397,7 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
-            toMessage: dragMessage,
+            toMessage: nodeDrag,
           }),
           Shortcuts,
           KeepSelectionInView,
@@ -1378,42 +1410,50 @@ export const BuilderView = {
         const selectedBlock = Option.flatMap(input.selected, id =>
           Option.fromUndefinedOr(document.nodes[id]?.block),
         )
-        return h.div(slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page'), h.Tabindex(0)]), [
-          h.div(
-            slots.frame.attrs([
-              h.DataAttribute('viewport', input.viewport),
-              // The width is the frame's own; the rule that reads it is `FrameDefaults`.
-              h.Style({ '--fk-frame-width': viewportWidths[input.viewport] }),
-            ]),
-            [
-              ...(document.roots.length === 0
-                ? [
-                    h.p(slots.empty.attrs(), [
-                      'This page is empty. Add a block to begin: the palette offers what can go here.',
-                    ]),
-                  ]
-                : []),
-              ...Renderer.render(builder.renderer, document, inertHtml, {
-                mode: 'edit',
-                selected: Option.getOrUndefined(input.selected),
-                hovered: Option.getOrUndefined(input.hovered),
-                drop: Option.getOrUndefined(dropOf(input.drag)),
-                context: input.preview,
-                data: input.data,
+        return h.div(
+          slots.canvas.attrs([
+            h.Id(canvasId),
+            h.Role('region'),
+            h.AriaLabel('Page'),
+            h.Tabindex(0),
+          ]),
+          [
+            h.div(
+              slots.frame.attrs([
+                h.DataAttribute('viewport', input.viewport),
+                // The width is the frame's own; the rule that reads it is `FrameDefaults`.
+                h.Style({ '--fk-frame-width': viewportWidths[input.viewport] }),
+              ]),
+              [
+                ...(document.roots.length === 0
+                  ? [
+                      h.p(slots.empty.attrs(), [
+                        'This page is empty. Add a block to begin: the palette offers what can go here.',
+                      ]),
+                    ]
+                  : []),
+                ...Renderer.render(builder.renderer, document, inertHtml, {
+                  mode: 'edit',
+                  selected: Option.getOrUndefined(input.selected),
+                  hovered: Option.getOrUndefined(input.hovered),
+                  drop: Option.getOrUndefined(dropOf(input.drag)),
+                  context: input.preview,
+                  data: input.data,
+                }),
+              ],
+            ),
+            // Drawn over the page, placed from where the marked nodes are measured to be;
+            // hidden while none is. They only show: they take no pointer.
+            h.div(slots.hoverBox.attrs([h.AriaHidden(true)]), []),
+            h.div(
+              slots.selectionBox.attrs([h.AriaHidden(true)]),
+              Option.match(selectedBlock, {
+                onNone: () => [],
+                onSome: name => [h.span(slots.selectionLabel.attrs(), [labelOf(name)])],
               }),
-            ],
-          ),
-          // Drawn over the page, placed from where the marked nodes are measured to be;
-          // hidden while none is. They only show: they take no pointer.
-          h.div(slots.hoverBox.attrs([h.AriaHidden(true)]), []),
-          h.div(
-            slots.selectionBox.attrs([h.AriaHidden(true)]),
-            Option.match(selectedBlock, {
-              onNone: () => [],
-              onSome: name => [h.span(slots.selectionLabel.attrs(), [labelOf(name)])],
-            }),
-          ),
-        ])
+            ),
+          ],
+        )
       },
     )
 
