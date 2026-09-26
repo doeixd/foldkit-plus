@@ -772,11 +772,17 @@ const SettingsForm = Form.make(`${block.name}Settings`, Settings, {
 >
 > The inspector's Content is the form, drawn by `FormView`, styled through
 > `settings: { field, form }`. `foldkit-mixins-form` gained `words.none` and
-> shows a chosen value its choices lack as `? value`. **Not yet:** looks,
-> conditions and actions as groups of the same form (still the Builder's own
-> controls), and a control with Subscriptions (`Input.bundle`'s color picker),
-> which a form run as functions cannot start. Acceptance: "abc" in a number
-> and an undo while focused are tested; the color picker is not.
+> shows a chosen value its choices lack as `? value`.
+>
+> **Action inputs done, 2026-09-26,** as forms of their own, one per Block,
+> event and action, so `valueField`, the second control system, is gone.
+> **Decided against:** looks and conditions as form groups. Each is a choice
+> from a fixed list that the Builder's controls already draw through its
+> Slots; a form would add a mapping to `setAppearance` and `setWhen` and
+> draw nothing better. **Not yet:** a control with Subscriptions
+> (`Input.bundle`'s color picker), which a form run as functions cannot
+> start. Acceptance: "abc" in a number and an undo while focused are tested;
+> the color picker is not.
 
 **Spike first (S).** A Form over one Block's `Settings`, filled from a node,
 with one change mapped to `setProp`. It decides:

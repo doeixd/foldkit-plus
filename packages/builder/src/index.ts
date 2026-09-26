@@ -30,7 +30,7 @@ import {
 } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
-import { controls, settingsOf, type Settings } from './settings.js'
+import { controls, inputOf, settingsOf, type Settings } from './settings.js'
 import { LiveAnnounce, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History, HistoryModel } from 'foldkit-primitives/state'
 import * as Command from 'foldkit/command'
@@ -98,25 +98,41 @@ export const Model = Schema.Struct({
    */
   preview: Schema.Record(Schema.String, ContextValue),
   /**
-   * What the inspector's fields hold for the node they show, as its settings
-   * form's Model encoded to JSON: text that does not decode yet stays here,
-   * not in the page. None until a field is changed, and after the selection
-   * moves; the form is then filled from the node. Stored only when some, so a
-   * Builder saved before there was one still reads.
+   * What the inspector's fields hold for the node they show: each form's Model
+   * encoded to JSON, by the form's key (`props`, or `on:<event>:<action>`), so
+   * text that does not decode yet stays here, not in the page. None until a
+   * field is changed, and after the selection moves; a form it does not hold is
+   * filled from the node. Stored only when some, so a Builder saved before
+   * there was one still reads.
    */
-  inspector: Schema.OptionFromOptionalNullOr(Schema.Struct({ id: NodeId, form: Schema.Json })),
+  inspector: Schema.OptionFromOptionalNullOr(
+    Schema.Struct({ id: NodeId, forms: Schema.Record(Schema.String, Schema.Json) }),
+  ),
 })
 export type Model = typeof Model.Type
 
-/** The selected node as the inspector edits it: its Block, the Block's settings form, and that form's Model. */
-export interface Inspecting {
-  readonly id: NodeId
-  readonly block: AnyBlock
+/** One form the inspector draws for the selected node, and its Model. */
+export interface InspectedForm {
+  /** Which it is, as `Inspected` names it: `props`, or `on:<event>:<action>`. */
+  readonly key: string
   readonly settings: Settings
   readonly model: Settings['form']['initial']
 }
 
-export { controlOf, settingsOf, spaced, type Settings } from './settings.js'
+/** The selected node as the inspector edits it: its Block and its forms. */
+export interface Inspecting {
+  readonly id: NodeId
+  readonly block: AnyBlock
+  /** Its props. */
+  readonly props: InspectedForm
+  /**
+   * The input of the action each event runs, by event: none for an event that
+   * runs nothing, or an action the Catalog lacks.
+   */
+  readonly on: Readonly<Record<string, InspectedForm>>
+}
+
+export { controlOf, inputOf, settingsOf, spaced, type Settings } from './settings.js'
 
 /** An edit that creates nodes and waits for their new ids. */
 const Request = Schema.Union([
@@ -159,10 +175,11 @@ export const Message = defineMessageUnion({
   /** The author previews the page with one context key unset. */
   PreviewCleared: { key: Schema.String },
   /**
-   * A Message of a node's settings form, encoded to JSON. One for a node no
-   * longer selected, such as a form's Command answering late, is ignored.
+   * A Message of one of a node's forms (`Inspecting`), encoded to JSON. One for
+   * a node no longer selected, or a form it no longer draws, such as a form's
+   * Command answering late, is ignored.
    */
-  Inspected: { id: NodeId, message: Schema.Json },
+  Inspected: { id: NodeId, form: Schema.String, message: Schema.Json },
 })
 export type Message = typeof Message.Type
 
@@ -542,6 +559,54 @@ export const Builder = {
      * holds for that node, else one filled from its props. None when nothing
      * is selected or its Block is not in the Catalog.
      */
+    /** A stored value that is a record of JSON, as props and an action's input are; else empty. */
+    const recordOf = (value: unknown): Readonly<Record<string, Schema.Json>> =>
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? (value as Readonly<Record<string, Schema.Json>>)
+        : {}
+
+    /**
+     * A node's forms, each with the stored values it fills from and the
+     * Operations that write its changed values back.
+     */
+    const formsOf = (id: NodeId, node: Document['nodes'][NodeId], block: AnyBlock) => {
+      const props = {
+        key: 'props',
+        settings: settingsOf(block),
+        stored: recordOf(node.props),
+        write: (changed: Readonly<Record<string, Schema.Json>>): ReadonlyArray<Operation> =>
+          Object.entries(changed).map(([key, value]) => Composition.Op.setProp(id, key, value)),
+      }
+      const refs = recordOf(node.actions)
+      const on = block.events.flatMap(event => {
+        const ref = recordOf(refs[event])
+        const action = catalog.actions.find(each => each.name === ref['action'])
+        if (action === undefined) return []
+        const input = recordOf(ref['input'])
+        return [
+          {
+            event,
+            key: `on:${event}:${action.name}`,
+            settings: inputOf(block, event, action),
+            stored: input,
+            // The action's input is one value: the changed keys over what it held.
+            write: (changed: Readonly<Record<string, Schema.Json>>): ReadonlyArray<Operation> => [
+              Composition.Op.setAction(id, event, {
+                action: action.name,
+                input: { ...input, ...changed },
+              }),
+            ],
+          },
+        ]
+      })
+      return { props, on }
+    }
+
+    /**
+     * The selected node's forms and their Models: the Model the inspector
+     * holds for each, else one filled from the node. None when nothing is
+     * selected or its Block is not in the Catalog.
+     */
     const inspecting = (
       model: Pick<Model, 'page' | 'selected' | 'inspector'>,
     ): Option.Option<Inspecting> =>
@@ -550,103 +615,143 @@ export const Builder = {
         const block: AnyBlock | undefined =
           node === undefined ? undefined : Catalog.block(catalog, node.block)
         if (node === undefined || block === undefined) return Option.none()
-        const settings = settingsOf(block)
-        const held = Option.flatMap(
+        const held: Readonly<Record<string, Schema.Json>> = Option.match(
           Option.filter(model.inspector, inspector => inspector.id === id),
-          inspector => settings.decode(inspector.form),
+          { onNone: () => ({}), onSome: inspector => inspector.forms },
         )
+        const drawn = (form: {
+          readonly key: string
+          readonly settings: Settings
+          readonly stored: Readonly<Record<string, Schema.Json>>
+        }): InspectedForm => ({
+          key: form.key,
+          settings: form.settings,
+          model: Option.getOrElse(
+            Option.flatMap(Option.fromUndefinedOr(held[form.key]), form.settings.decode),
+            () => form.settings.fill(form.settings.form.initial, form.stored),
+          ),
+        })
+        const { props, on } = formsOf(id, node, block)
         return Option.some({
           id,
           block,
-          settings,
-          model: Option.getOrElse(held, () => settings.fill(settings.form.initial, node.props)),
+          props: drawn(props),
+          on: Object.fromEntries(on.map(form => [form.event, drawn(form)])),
         })
       })
 
     /**
-     * A settings form Message: the form takes it, and each prop whose value it
-     * changed, and that the node does not already hold, is set, one Operation
-     * each. A field that does not decode sets nothing and shows its error.
+     * A Message of one of the selected node's forms: the form takes it, and
+     * each value it changed, and that the node does not already hold, is
+     * written back: a prop by one `setProp` each, an action's input by one
+     * `setAction`. A field that does not decode writes nothing and shows its error.
      */
     const inspect = (
       model: Model,
-      message: { readonly id: NodeId; readonly message: Schema.Json },
-    ): { readonly model: Model; readonly commands?: Commands } =>
-      Option.match(
-        Option.filter(inspecting(model), target => target.id === message.id),
-        {
-          onNone: () => ({ model }),
-          onSome: ({ id, settings, model: form }) =>
-            Option.match(settings.decodeMessage(message.message), {
-              onNone: () => ({ model }),
-              onSome: formMessage => {
-                const next = settings.form.bundle.update(form, formMessage, undefined)
-                const props = documentOf(model).nodes[id]?.props ?? {}
-                // Stored props are JSON, so their text tells two apart.
-                const text = (value: unknown) => JSON.stringify(value)
-                const before: Readonly<Record<string, unknown>> = settings.form.partial(form)
-                // Only what this Message changed: a field left alone is never written
-                // back, even where its draft does not give back the stored value exactly.
-                const ops = Object.entries(settings.form.partial(next.model)).flatMap(
-                  ([key, value]) =>
-                    Object.hasOwn(before, key) && text(before[key]) === text(value)
-                      ? []
-                      : Option.match(settings.stored(key, value), {
-                          onNone: () => [],
-                          onSome: stored =>
-                            text(stored) === text(props[key])
-                              ? []
-                              : [Composition.Op.setProp(id, key, stored)],
-                        }),
-                )
-                let result: { readonly model: Model; readonly commands?: Commands } = {
-                  model: {
-                    ...model,
-                    inspector: Option.some({ id, form: settings.encode(next.model) }),
-                  },
-                }
-                const commands: Array<CommandOf<Message>> = [
-                  ...Command.mapMessages(next.commands, sent =>
-                    Message.Inspected({ id, message: settings.encodeMessage(sent) }),
-                  ),
-                ]
-                for (const op of ops) {
-                  result = applyOp(result.model, op)
-                  commands.push(...(result.commands ?? []))
-                }
-                return { model: result.model, commands }
-              },
-            }),
+      message: { readonly id: NodeId; readonly form: string; readonly message: Schema.Json },
+    ): { readonly model: Model; readonly commands?: Commands } => {
+      const target = Option.filter(inspecting(model), each => each.id === message.id)
+      const node = documentOf(model).nodes[message.id]
+      if (Option.isNone(target) || node === undefined) return { model }
+      const { id, block, props, on } = target.value
+      const forms = formsOf(id, node, block)
+      const known = [
+        { ...forms.props, model: props.model },
+        ...forms.on.flatMap(form => {
+          const drawn = on[form.event]
+          return drawn === undefined ? [] : [{ ...form, model: drawn.model }]
+        }),
+      ].find(form => form.key === message.form)
+      if (known === undefined) return { model }
+      const { settings, stored, write } = known
+      return Option.match(settings.decodeMessage(message.message), {
+        onNone: () => ({ model }),
+        onSome: formMessage => {
+          const next = settings.form.bundle.update(known.model, formMessage, undefined)
+          // Stored values are JSON, so their text tells two apart.
+          const text = (value: unknown) => JSON.stringify(value)
+          const before: Readonly<Record<string, unknown>> = settings.form.partial(known.model)
+          // Only what this Message changed: a field left alone is never written
+          // back, even where its draft does not give back the stored value exactly.
+          const changed = Object.fromEntries(
+            Object.entries(settings.form.partial(next.model)).flatMap(([key, value]) =>
+              Object.hasOwn(before, key) && text(before[key]) === text(value)
+                ? []
+                : Option.match(settings.stored(key, value), {
+                    onNone: () => [],
+                    onSome: json => (text(json) === text(stored[key]) ? [] : [[key, json]]),
+                  }),
+            ),
+          )
+          const held = Option.match(model.inspector, {
+            onNone: () => ({}),
+            onSome: inspector => (inspector.id === id ? inspector.forms : {}),
+          })
+          let result: { readonly model: Model; readonly commands?: Commands } = {
+            model: {
+              ...model,
+              inspector: Option.some({
+                id,
+                forms: { ...held, [known.key]: settings.encode(next.model) },
+              }),
+            },
+          }
+          const commands: Array<CommandOf<Message>> = [
+            ...Command.mapMessages(next.commands, sent =>
+              Message.Inspected({ id, form: known.key, message: settings.encodeMessage(sent) }),
+            ),
+          ]
+          if (Object.keys(changed).length > 0)
+            for (const op of write(changed)) {
+              result = applyOp(result.model, op)
+              commands.push(...(result.commands ?? []))
+            }
+          return { model: result.model, commands }
         },
-      )
+      })
+    }
 
     /**
      * The inspector after a transition not its own: dropped when the selection
-     * moved; refilled from the node when the page changed by another way (an
-     * undo, the canvas, an agent), except in a field the author is typing into
-     * that does not decode, which keeps its text.
+     * moved; when the page changed by another way (an undo, the canvas, an
+     * agent), each form it holds is refilled from the node, except a field the
+     * author is typing into that does not decode, and a form the node no
+     * longer draws is let go.
      */
     const reconciled = (before: Model, after: Model): Model => {
       if (Option.isNone(after.inspector)) return after
-      const { id } = after.inspector.value
+      const { id, forms: held } = after.inspector.value
       if (!Option.contains(after.selected, id)) return { ...after, inspector: Option.none() }
       if (documentOf(after) === documentOf(before)) return after
-      return Option.match(inspecting(after), {
-        onNone: () => ({ ...after, inspector: Option.none() }),
-        onSome: ({ settings, model: form }) => ({
-          ...after,
-          inspector: Option.some({
-            id,
-            form: settings.encode(
-              settings.fill(
-                form,
-                documentOf(after).nodes[id]?.props ?? {},
-                key => settings.form.field(form, key)._tag === 'Invalid',
+      const node = documentOf(after).nodes[id]
+      const block: AnyBlock | undefined =
+        node === undefined ? undefined : Catalog.block(catalog, node.block)
+      if (node === undefined || block === undefined) return { ...after, inspector: Option.none() }
+      const { props, on } = formsOf(id, node, block)
+      const refilled = [props, ...on].flatMap(form =>
+        Option.match(Option.flatMap(Option.fromUndefinedOr(held[form.key]), form.settings.decode), {
+          onNone: () => [],
+          onSome: model => [
+            [
+              form.key,
+              form.settings.encode(
+                form.settings.fill(
+                  model,
+                  form.stored,
+                  key => form.settings.form.field(model, key)._tag === 'Invalid',
+                ),
               ),
-            ),
-          }),
+            ] as const,
+          ],
         }),
-      })
+      )
+      return {
+        ...after,
+        inspector:
+          refilled.length === 0
+            ? Option.none()
+            : Option.some({ id, forms: Object.fromEntries(refilled) }),
+      }
     }
 
     const own = (

@@ -1,11 +1,12 @@
 /**
- * A Block's settings as a `foldkit-form` form: the inspector edits a node
- * through it. The Document owns the settings; the form holds only what a
- * field shows, including text that does not decode yet (a number typed as
- * "1."), and each change that decodes becomes one Operation.
+ * A node's values as `foldkit-form` forms: a Block's props, and the input of
+ * each action an event runs. The inspector edits a node through them. The
+ * Document owns the values; a form holds only what a field shows, including
+ * text that does not decode yet (a number typed as "1."), and each change
+ * that decodes becomes one Operation.
  */
 import { Option, Result, Schema } from 'effect'
-import { fieldsOf, type AnyBlock } from 'foldkit-composition'
+import { fieldsOf, type AnyBlock, type CatalogAction } from 'foldkit-composition'
 import { Entity, Words } from 'foldkit-entity'
 import { Form, Input, type Control } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
@@ -40,13 +41,19 @@ const wordsOf = (key: string, schema: Schema.Top) => {
   return { label: Option.getOrElse(title, () => spaced(key)), description }
 }
 
-const make = (block: AnyBlock) => {
-  const fields = fieldsOf(block.Props)
-  // A prop is edited as the Document stores it, so a control fits it or not there:
+/** A form over `fields`, named `name`, with the controls `hints` asks for. */
+const make = (
+  name: string,
+  fields: Readonly<Record<string, Schema.Top>>,
+  hints: Readonly<Record<string, Control>>,
+) => {
+  const resolve = (key: string, schema: Schema.Top): Control | undefined =>
+    hints[key] ?? Input.resolve(Entity.unmapped, schema)
+  // A value is edited as the Document stores it, so a control fits it or not there:
   // an `Option` of an id is a picker or text; a struct, or a list that is not a
   // relation, fits none and is shown, not edited.
   const editable = Object.entries(fields).filter(
-    ([key, schema]) => controlOf(block, key, Schema.toEncoded(schema)) !== undefined,
+    ([key, schema]) => resolve(key, Schema.toEncoded(schema)) !== undefined,
   )
   // Checked against the whole Schema, so what it says (a brand, a length, a check
   // past a transformation, which the encoded side drops) is said at the field.
@@ -79,10 +86,8 @@ const make = (block: AnyBlock) => {
       return [key, Form.label(label, Option.getOrUndefined(description))]
     }),
   )
-  const entity = Entity.define(`${block.name}Settings`, Props).pipe(Entity.annotateMembers(labels))
-  const form = Form.make(`${block.name}Settings`, Entity.input(entity, Props), {
-    inputs: controlsKey.get(block.metadata)[0] ?? {},
-  })
+  const entity = Entity.define(name, Props).pipe(Entity.annotateMembers(labels))
+  const form = Form.make(name, Entity.input(entity, Props), { inputs: hints })
   const encodeModel = Schema.encodeSync(form.bundle.Model)
   const decodeModel = Schema.decodeUnknownResult(form.bundle.Model)
   const encodeMessage = Schema.encodeSync(form.bundle.Message)
@@ -130,17 +135,39 @@ const make = (block: AnyBlock) => {
   }
 }
 
-/** A Block's settings form and the codecs the Builder holds it with. */
+/** A form over a node's values and the codecs the Builder holds it with. */
 export type Settings = ReturnType<typeof make>
 
 const made = new WeakMap<AnyBlock, Settings>()
 
-/** A Block's settings, made at the first use and kept: one form per Block. */
+/** A Block's props as a form, made at the first use and kept: one per Block. */
 export const settingsOf = (block: AnyBlock): Settings => {
   const known = made.get(block)
   if (known !== undefined) return known
-  const settings = make(block)
+  const settings = make(
+    `${block.name}Settings`,
+    fieldsOf(block.Props),
+    controlsKey.get(block.metadata)[0] ?? {},
+  )
   made.set(block, settings)
+  return settings
+}
+
+const inputs = new WeakMap<CatalogAction, Map<string, Settings>>()
+
+/**
+ * The input an event of a Block runs an action with, as a form, made at the
+ * first use and kept. One per Block, event and action, so two events of one
+ * node that run the same action draw their fields under ids of their own.
+ */
+export const inputOf = (block: AnyBlock, event: string, action: CatalogAction): Settings => {
+  const name = `${block.name}-${event}-${action.name}`
+  const known = inputs.get(action) ?? new Map<string, Settings>()
+  inputs.set(action, known)
+  const held = known.get(name)
+  if (held !== undefined) return held
+  const settings = make(name, fieldsOf(action.input), {})
+  known.set(name, settings)
   return settings
 }
 

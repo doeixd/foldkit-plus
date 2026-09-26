@@ -236,7 +236,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
         press: { action: 'subscribe', input: { list: 'news', note: '' } },
       }),
     )
-    pick('[aria-label="Properties"] select[id$="-on-press-list"]', 'offers')
+    pick('[aria-label="Properties"] select[id="Banner-press-subscribe-list"]', 'offers')
     await vi.waitFor(() =>
       expect(actions()).toEqual({
         press: { action: 'subscribe', input: { list: 'offers', note: '' } },

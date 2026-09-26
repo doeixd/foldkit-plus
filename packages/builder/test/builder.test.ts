@@ -516,6 +516,107 @@ describe('previewing the page', () => {
   })
 })
 
+describe('the inspector, a form over each action an event runs', () => {
+  const s = NodeId.make('s')
+  const stat = NodeId.make('stat')
+  const props = {
+    value: 3,
+    caption: 'posts',
+    frame: { width: 2 },
+    rank: '1',
+    note: '',
+    source: null,
+  }
+  const running = { action: 'subscribe', input: { list: 'news', times: 1, note: 'hi' } }
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [s],
+      nodes: {
+        [s]: { block: 'Section', props: {}, regions: { body: [stat] } },
+        [stat]: { block: 'Stat', props, actions: { press: running }, regions: {} },
+      },
+    }),
+  )
+  const selected = send(page, Message.Selected({ id: stat }))
+  const inspected = (model: Model) => some(PageBuilder.inspecting(model), 'a node inspected')
+  const press = (model: Model) => required(inspected(model).on['press'], 'the press input')
+  /** Types `value` into `key` of the press's input. */
+  const type = (model: Model, key: string, value: string): Model => {
+    const { key: form, settings } = press(model)
+    return send(
+      model,
+      Message.Inspected({
+        id: stat,
+        form,
+        message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
+      }),
+    )
+  }
+  const field = (model: Model, key: string) => {
+    const { settings, model: form } = press(model)
+    return settings.form.field(form, key)
+  }
+  const actions = (model: Model) => model.page.present.nodes[stat]?.actions
+
+  it('draws a form for the input of each event that runs an action, and none for one that does not', () => {
+    const { on } = inspected(selected)
+    expect(Object.keys(on)).toEqual(['press'])
+    expect(
+      press(selected).settings.form.controls.map(each => [each.key, each.control.kind]),
+    ).toEqual([
+      ['list', 'Select'],
+      ['times', 'Number'],
+      ['note', 'Text'],
+    ])
+    expect(field(selected, 'note').value).toBe('hi')
+  })
+
+  it('sets the action again with the changed input over the rest', () => {
+    const typed = type(selected, 'times', '4')
+    expect(actions(typed)).toEqual({
+      press: { action: 'subscribe', input: { list: 'news', times: 4, note: 'hi' } },
+    })
+    expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
+  })
+
+  it('sets nothing from an input field that does not decode, and says why at the field', () => {
+    const typed = type(selected, 'times', 'many')
+    expect(typed.page).toBe(selected.page)
+    expect(field(typed, 'times')).toEqual({
+      _tag: 'Invalid',
+      value: 'many',
+      errors: ['Enter a number'],
+    })
+  })
+
+  it('names each event’s form for its event, so two that run one action draw apart', () => {
+    const { settings } = press(selected)
+    const both = send(
+      selected,
+      Message.Applied({ op: Composition.Op.setAction(stat, 'hold', running) }),
+    )
+    const hold = required(inspected(both).on['hold'], 'the hold input')
+    expect([settings.form.bundle.name, hold.settings.form.bundle.name]).toEqual([
+      'Stat-press-subscribe',
+      'Stat-hold-subscribe',
+    ])
+  })
+
+  it('refills an input field when the action changes another way, and forgets one it no longer runs', () => {
+    const typed = type(selected, 'note', 'there')
+    expect(field(send(typed, Message.Undid()), 'note').value).toBe('hi')
+    const stopped = send(
+      typed,
+      Message.Applied({ op: Composition.Op.setAction(stat, 'press', null) }),
+    )
+    expect(inspected(stopped).on).toEqual({})
+    // It held only that form, so it holds nothing now.
+    expect(stopped.inspector).toEqual(Option.none())
+  })
+})
+
 describe('the inspector, a form over the selected node', () => {
   // A Section holding a Stat and a Heading, the Stat selected.
   const s = NodeId.make('s')
@@ -545,7 +646,11 @@ describe('the inspector, a form over the selected node', () => {
     }),
   )
   const selected = send(page, Message.Selected({ id: stat }))
-  const inspecting = (model: Model) => some(PageBuilder.inspecting(model), 'a node inspected')
+  /** The selected node's id and its props form. */
+  const inspecting = (model: Model) => {
+    const { id, props } = some(PageBuilder.inspecting(model), 'a node inspected')
+    return { id, ...props }
+  }
   /** Types `value` into the selected node's `key` field. */
   const type = (model: Model, key: string, value: string): Model => {
     const { id, settings } = inspecting(model)
@@ -553,6 +658,7 @@ describe('the inspector, a form over the selected node', () => {
       model,
       Message.Inspected({
         id,
+        form: 'props',
         message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
       }),
     )
@@ -693,6 +799,7 @@ describe('the inspector, a form over the selected node', () => {
     const { settings } = inspecting(selected)
     const late = Message.Inspected({
       id: heading,
+      form: 'props',
       message: settings.encodeMessage(settings.form.Message.Changed({ key: 'value', value: '9' })),
     })
     expect(send(selected, late)).toEqual(selected)

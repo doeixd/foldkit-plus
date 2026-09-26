@@ -34,7 +34,20 @@ export const Stat = Block.define('Stat', {
     }),
   }),
   provides: [Content.Flow],
+  events: ['press', 'hold'],
 }).pipe(Block.annotate(Builder.controls({ caption: Input.multiline() })))
+/** What an event may run: subscribe to a list, some times over, with a note. */
+export const Subscribe = {
+  name: 'subscribe',
+  description: 'Subscribe to a list',
+  input: Schema.Struct({
+    list: Schema.Literals(['news', 'offers']),
+    times: Schema.Number,
+    note: Schema.String,
+  }),
+  toMessage: (input: { readonly list: string; readonly times: number; readonly note: string }) =>
+    input,
+}
 /** Flow that holds Flow: a node can be moved into it from beside it. */
 export const Group = Block.define('Group', {
   Props: Schema.Struct({}),
@@ -48,6 +61,7 @@ export const Section = Block.define('Section', {
 })
 export const Site = Catalog.make({
   blocks: [Heading, Button, Group, Section, Stat],
+  actions: [Subscribe],
   roots: [Content.Section],
 })
 

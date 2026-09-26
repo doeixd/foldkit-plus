@@ -332,10 +332,16 @@ the node's `when`.
 Last, under Interactions, each event the Block names says what it runs:
 `On press` is a `select`
 of the Catalog's actions, blank for nothing, and under it the chosen action's
-input, one field each, drawn as a prop would be. Choosing an action starts its
-input from empty values (the first choice of a select); a start the action's
-Schema still refuses is refused and shown in the alert. Each change is one
-`setAction`, and choosing nothing removes it.
+input as a form of its own, drawn and styled as the props are; its ids are
+`<Block>-<event>-<action>-<key>`. Choosing an action starts its input from
+empty values (the first choice of a select); a start the action's Schema still
+refuses is refused and shown in the alert. Each change to the input is one
+`setAction` with the changed keys over the rest, and choosing nothing removes
+it.
+
+The looks and the conditions stay the Builder's own controls, drawn through
+`BuilderSlots`: each is a choice from a fixed list, which a form would draw no
+better.
 
 ## Previewing a context
 

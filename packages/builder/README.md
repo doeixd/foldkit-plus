@@ -94,14 +94,16 @@ const PageForm = Form.make('PageForm', PageInput, {
 ## The inspector is a form
 
 Each Block's props are edited through a `foldkit-form` form made from its props
-Schema, once per Block, at the first use. The form edits a prop as the
-Document stores it, so a prop drawn as an `Option` is chosen as an id or
-nothing, and checks each value against the prop's whole Schema. The node owns
-its props; the form only holds what its fields show:
+Schema, once per Block, at the first use, and the input of the action each of
+its events runs through one more, once per Block, event and action. A form
+edits a value as the Document stores it, so a prop drawn as an `Option` is
+chosen as an id or nothing, and checks each value against its whole Schema.
+The node owns its values; a form only holds what its fields show:
 
 ```text
 node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key
-   a key the Message changed that decodes, and the node lacks ─► setProp
+   a key the Message changed that decodes, and the node lacks ─► setProp,
+                                              or setAction with the input's other keys
    a key that does not decode ─► its error, no edit
 ```
 
@@ -114,10 +116,11 @@ node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the 
 - **A node changed another way** (an undo, the canvas, an agent) refills every
   field but one holding text that does not decode. Moving the selection drops
   what was held; the next node's fields fill from its props.
-- `PageBuilder.inspecting(model)` is the selected node's form and its Model,
-  for a view to draw; `Inspected({ id, message: settings.encodeMessage(message) })`
-  is what a view sends, and one for a node no longer selected is ignored. The
-  form's Model is held as JSON, so a saved Builder still is.
+- `PageBuilder.inspecting(model)` is the selected node's forms and their
+  Models, for a view to draw: `props`, and `on` by event. A view sends
+  `Inspected({ id, form: form.key, message: form.settings.encodeMessage(message) })`;
+  one for a node no longer selected, or a form it no longer draws, is ignored.
+  Each form's Model is held as JSON, so a saved Builder still is.
 - A prop is labelled with its Schema's `title`, else its key spaced
   (`maxItems` is "Max items"). A Block asks for a control where the Schema
   does not say, with `Block.annotate(Builder.controls({ body: Input.multiline() }))`;
