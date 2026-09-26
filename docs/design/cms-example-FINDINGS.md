@@ -259,7 +259,10 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     `Schema.resolveAnnotations(schema)?.title`, which under Effect 4 is the
     last check's annotations (F20), so a prop written
     `Schema.String.annotate({ title }).check(…)` is labelled by its key.
-    *Proposed:* one shared `Words.of(schema)` (plan, area 4a). Status: open.
+    **Fixed** (plan area 4a): `Words.of(schema)` in `foldkit-entity` reads a
+    title and description the way the form did, and the form, Crud's columns
+    and the inspector all use it; the inspector's test fixture and Crud's now
+    put a title before a check.
 
 27. **An outline button on a colored band draws its text in the family's ink.**
     Found checking area 2c: the Hero's second action, an outline Button, has

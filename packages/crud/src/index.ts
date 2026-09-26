@@ -13,6 +13,7 @@ import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
   SelectionPageTypeId,
+  Words,
   type AnyEntity,
   type EntityInput,
   type EntityMember,
@@ -150,13 +151,11 @@ export interface Choice {
  */
 export type ListColumn<Key extends string = string> = DisplayColumn<Key>
 
-const columnLabel = (key: string, member: EntityMember): string => {
-  const title =
-    member._tag === 'Relation'
-      ? undefined
-      : Schema.resolveAnnotations(member.schema as Schema.Top)?.title
-  return typeof title === 'string' ? title : (Form.labelOf(member) ?? key)
-}
+const columnLabel = (key: string, member: EntityMember): string =>
+  Option.getOrElse(
+    member._tag === 'Relation' ? Option.none() : Words.of(member.schema as Schema.Top).title,
+    () => Form.labelOf(member) ?? key,
+  )
 
 type AnySelection = Selection<string, unknown, Schema.Constraint>
 

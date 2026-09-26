@@ -273,6 +273,11 @@ version changed; `pnpm` skips versions already in the registry.
   `Data.fetch` and the fold's `fetch` are removed. `Remote.query` and
   `Remote.queryMessage` still run one page by hand. The store gains `grown`
   and the `WindowGrown` Message.
+- **`foldkit-entity`: `Words.of(schema)`,** a schema's `title` and
+  `description` as `Option`s, including a title given before a check (which
+  Effect 4 resolves past). `foldkit-form`, `foldkit-crud`'s column labels and
+  `foldkit-mixins-builder`'s inspector read words through it; the inspector and
+  Crud no longer lose such a title.
 - **`foldkit-remote-drizzle`: `drizzleWrites` and `returning.row`.**
   `drizzleWrites` is the provided database's `insert`, `update` and `delete`,
   typed by each table's columns, so a handler writes without casting

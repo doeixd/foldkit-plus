@@ -41,7 +41,8 @@ export const Subscribe = {
 /** A Block whose props ask for their controls: a title, a multiline hint, a hidden prop. Not offered. */
 export const Quote = Block.define('Quote', {
   Props: Schema.Struct({
-    text: Schema.String.annotate({ title: 'Quotation' }),
+    // A title before a check, which Effect 4 resolves past (F26 in the CMS findings).
+    text: Schema.String.annotate({ title: 'Quotation' }).check(Schema.isMinLength(1)),
     source: Schema.String,
     ref: Schema.String,
   }),

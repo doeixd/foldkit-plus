@@ -10,7 +10,14 @@
  */
 import { Duration, Effect, Option, Pipeable, Result, Schema } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
-import type { AnyEntity, EntityInput, InputMember, NestedInput } from 'foldkit-entity'
+import {
+  Words,
+  type AnyEntity,
+  type EntityInput,
+  type InputMember,
+  type NestedInput,
+  type SchemaWords,
+} from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { type Command, mapMessages } from 'foldkit/command'
 import * as FieldValidation from 'foldkit/fieldValidation'
@@ -432,20 +439,6 @@ const isBlank = (control: Control, draft: Draft): boolean =>
   isEmpty(draft) ||
   (control.parse !== undefined && typeof draft === 'string' && draft.trim() === '')
 
-/**
- * A schema's words. With checks, Effect resolves to the last check's
- * annotations, which carry what the check expects and no `title`: a title given
- * before the check is on the schema's own annotations, and still names the key.
- */
-const annotationsOf = (schema: Schema.Top): { title?: unknown; description?: unknown } => {
-  const resolved = Schema.resolveAnnotations(schema) ?? {}
-  const own = schema.ast.annotations ?? {}
-  return {
-    title: resolved.title ?? own['title'],
-    description: resolved.description ?? own['description'],
-  }
-}
-
 /** The schema's `title`, else `Form.label` metadata on the member, else the key. */
 const wordsOf = (
   key: string,
@@ -455,16 +448,20 @@ const wordsOf = (
   const own =
     member._tag === 'Unmapped' ? undefined : member._tag === 'Field' ? member : member.relation
   const [labelled] = own === undefined ? [] : labelKey.get(own.metadata)
-  const annotated = [schema, ...(member._tag === 'Field' ? [member.schema as Schema.Top] : [])].map(
-    annotationsOf,
+  const words = [schema, ...(member._tag === 'Field' ? [member.schema as Schema.Top] : [])].map(
+    Words.of,
   )
-  const title = annotated.map(entry => entry.title).find(value => typeof value === 'string')
-  const description = annotated
-    .map(entry => entry.description)
-    .find(value => typeof value === 'string')
+  const first = (pick: (entry: SchemaWords) => Option.Option<string>) =>
+    Option.firstSomeOf(words.map(pick))
   return {
-    label: (title as string | undefined) ?? labelled?.label ?? key,
-    description: (description as string | undefined) ?? labelled?.description,
+    label: Option.getOrElse(
+      first(entry => entry.title),
+      () => labelled?.label ?? key,
+    ),
+    description: Option.getOrElse(
+      first(entry => entry.description),
+      () => labelled?.description,
+    ),
   }
 }
 

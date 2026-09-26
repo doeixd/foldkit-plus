@@ -26,7 +26,7 @@ import {
   type Position,
 } from 'foldkit-composition'
 import { NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
-import { Entity } from 'foldkit-entity'
+import { Entity, Words } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { Behavior, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
@@ -248,10 +248,8 @@ const controlFor = (block: AnyBlock, key: string, schema: Schema.Top): Control |
   controlsKey.get(block.metadata)[0]?.[key] ?? Input.resolve(Entity.unmapped, schema)
 
 /** A prop's label: its Schema's `title`, else its key. */
-const labelFor = (key: string, schema: Schema.Top): string => {
-  const title = Schema.resolveAnnotations(schema)?.title
-  return typeof title === 'string' ? title : key
-}
+const labelFor = (key: string, schema: Schema.Top): string =>
+  Option.getOrElse(Words.of(schema).title, () => key)
 
 /**
  * What the drawn Builder is given beside its Model, by the page's parent: the

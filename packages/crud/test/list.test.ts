@@ -13,7 +13,11 @@ const Author = Entity.define(
 )
 const Post = Entity.define(
   'Post',
-  Schema.Struct({ id: Schema.String, title: Schema.String.annotate({ title: 'Title' }) }),
+  // A title before a check, which Effect 4 resolves past.
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String.annotate({ title: 'Title' }).check(Schema.isMinLength(1)),
+  }),
 )
 const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
 const Labelled = Blog.Post.pipe(Entity.annotateMembers({ author: Form.label('Written by') }))
