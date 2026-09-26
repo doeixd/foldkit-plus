@@ -318,7 +318,8 @@ set for its name (append, replace props, no-op on the same value) while
 Kit's marks work by name or value: `InsertText`'s stored marks and `ToggleMark`'s
 mark each take a bare name or a `{ name, props }` value. `SetMark` replaces a mark's
 props over a range (a link's `href`) and `ClearMark` removes one by name; at a caret both act
-on the mark's extent, which `markExtent(document, position, name)` reads. `validate` reports
+on the mark's extent, which `markExtent(document, position, name)` reads (`linkAt(document,
+selection)` reads it for `Link`: the `href` and range a link editor opens on). `validate` reports
 `UnknownMark` for an
 undeclared name and `InvalidProps` for props its schema refuses, including a mark
 that declares props but carries none. `resolveInsertion` honors the policy, with

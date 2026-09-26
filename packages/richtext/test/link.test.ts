@@ -166,3 +166,40 @@ describe('clearing a mark', () => {
     expect(run(caret('c', 3), { type: 'ToggleMark', mark: 'Link' }).document).toEqual(document())
   })
 })
+
+describe('the link a selection starts in', () => {
+  it('reads the href and extent of the link around a caret', () => {
+    expect(RichText.linkAt(document(), caret('c', 1))).toEqual({
+      href: '/a',
+      selection: range(at('b', 0), { node: id('c'), offset: 4, affinity: 'before' }),
+    })
+  })
+
+  it('reads a range from its start, whichever way it was made', () => {
+    expect(RichText.linkAt(document(), range(at('d', 2), at('f', 1)))?.href).toBe('/b')
+    expect(RichText.linkAt(document(), range(at('f', 1), at('d', 2)))?.href).toBe('/b')
+    expect(RichText.linkAt(document(), range(at('a', 1), at('f', 1)))).toBeUndefined()
+  })
+
+  it('is nothing for a node selection, no selection, or text outside a link', () => {
+    expect(RichText.linkAt(document(), { type: 'Node', node: id('p') })).toBeUndefined()
+    expect(RichText.linkAt(document(), null)).toBeUndefined()
+    expect(RichText.linkAt(document(), caret('d', 1))).toBeUndefined()
+  })
+
+  it('reads an href that is not a string as empty, so the link can still be removed', () => {
+    const broken = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 't', text: 'x', marks: [{ name: 'Link', props: { href: 4 } }] },
+          ],
+        },
+      ],
+    })
+    expect(RichText.linkAt(broken, caret('t', 0))?.href).toBe('')
+  })
+})

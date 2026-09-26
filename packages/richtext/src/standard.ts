@@ -17,7 +17,8 @@
  * inline content, and the model has no inline atoms yet (§116, deferred).
  */
 import { Schema } from 'effect'
-import { blockContent, textContent } from './document.js'
+import { markExtent } from './command.js'
+import { blockContent, rangeStart, textContent, type Document, type Selection } from './document.js'
 import { atom, block, blocksOf, node, type NodeDefinition } from './kit.js'
 import { Bold, Code, Italic, mark, markProps, type MarkDef } from './marks.js'
 import { rendering, type Rendering } from './rendering.js'
@@ -38,6 +39,27 @@ export const Link = mark('Link', {
   Props: Schema.Struct({ href: Schema.String }),
   expand: 'none',
 })
+
+/** The link a selection starts in: its `href`, and the range of runs it spans. */
+export interface LinkAt {
+  /** The stored `href`, or `''` when the stored one is not a string. */
+  readonly href: string
+  readonly selection: Extract<Selection, { readonly type: 'Range' }>
+}
+
+/**
+ * The link a selection starts in, which is what a link editor opens on: at a caret, the
+ * link around it; over a range, the link its start is in. Undefined outside a link, and for
+ * a node selection, which covers blocks rather than text.
+ */
+export const linkAt = (document: Document, selection: Selection | null): LinkAt | undefined => {
+  if (selection?.type !== 'Range') return undefined
+  const start = rangeStart(document, selection)
+  const extent = start === undefined ? undefined : markExtent(document, start, Link.name)
+  if (extent === undefined) return undefined
+  const href = markProps(extent.mark)?.href
+  return { href: typeof href === 'string' ? href : '', selection: extent.selection }
+}
 
 /** Every mark the standard vocabulary names, in menu order. */
 export const standardMarks: ReadonlyArray<MarkDef> = [Bold, Italic, Code, Strikethrough, Link]

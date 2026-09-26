@@ -212,7 +212,9 @@ and `ClearMark` takes a mark off by name. At a caret both act on the mark's exte
 around it, so an editor changes or removes the link the caret sits in without selecting
 it first; outside a mark they do nothing. `markExtent(document, position, name)` is that
 extent as a read: the mark, and the range of adjacent runs carrying it with the same
-props, which is what a link editor shows before it sends either command.
+props, which is what a link editor shows before it sends either command. `linkAt(document,
+selection)` is the standard vocabulary's reading of it for `Link`: the `href` and extent of
+the link a selection starts in, or undefined outside one.
 
 `marksInRange(document, selection)` is the read beside them, for a toolbar's active
 button: the marks every run the selection covers carries. A caret reports its run's
