@@ -305,6 +305,15 @@ export const compareRunPlaces = (left: RunPlace, right: RunPlace): number => {
   return left.index - right.index
 }
 
+/** A position's place in document order: its run's place, then its offset in that run. */
+export interface PositionPlace extends RunPlace {
+  readonly offset: number
+}
+
+/** Document order over position places: the run first, then the offset within it. */
+export const comparePositionPlaces = (left: PositionPlace, right: PositionPlace): number =>
+  compareRunPlaces(left, right) || left.offset - right.offset
+
 /** The block a path addresses, or undefined when the path does not resolve. */
 export const blockAtPath = (document: Document, path: BlockPath): Block | undefined => {
   let blocks: ReadonlyArray<Block> = document.children
@@ -358,6 +367,26 @@ export const textBefore = (document: Document, position: Position): string => {
     .map(earlier => earlier.text)
     .join('')
   return lead + found.run.text.slice(0, Math.max(0, position.offset))
+}
+
+/**
+ * Whichever end of a range comes first in the document, whatever direction it was made in,
+ * or `undefined` when either end does not resolve. What replaces a range starts here, so a
+ * read of the text before an edit reads from this end rather than the anchor.
+ */
+export const rangeStart = (
+  document: Document,
+  range: Extract<Selection, { readonly type: 'Range' }>,
+): Position | undefined => {
+  const anchor = locateRun(document, range.anchor.node)
+  const focus = locateRun(document, range.focus.node)
+  if (anchor === undefined || focus === undefined) return undefined
+  return comparePositionPlaces(
+    { ...anchor, offset: range.anchor.offset },
+    { ...focus, offset: range.focus.offset },
+  ) <= 0
+    ? range.anchor
+    : range.focus
 }
 
 /**

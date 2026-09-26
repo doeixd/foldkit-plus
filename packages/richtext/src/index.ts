@@ -18,6 +18,7 @@ export {
   textBefore,
   textRangeBefore,
   positionInBlock,
+  rangeStart,
   Text,
   Paragraph,
   Heading,

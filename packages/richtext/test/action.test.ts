@@ -98,6 +98,43 @@ describe('the range before a caret', () => {
   })
 })
 
+describe('the start of a range', () => {
+  const range = (anchor: readonly [string, number], focus: readonly [string, number]) => ({
+    type: 'Range' as const,
+    anchor: { node: id(anchor[0]), offset: anchor[1], affinity: 'before' as const },
+    focus: { node: id(focus[0]), offset: focus[1], affinity: 'before' as const },
+  })
+
+  it('is the end that comes first, across blocks, runs, and offsets in one run', () => {
+    // Each pair is written backwards, so the focus is the start every time.
+    for (const [anchor, focus] of [
+      [
+        ['c', 1],
+        ['a', 1],
+      ],
+      [
+        ['b', 0],
+        ['a', 1],
+      ],
+      [
+        ['a', 2],
+        ['a', 1],
+      ],
+    ] as const) {
+      expect(RichText.rangeStart(document(), range(anchor, focus))).toEqual(
+        range(anchor, focus).focus,
+      )
+      expect(RichText.rangeStart(document(), range(focus, anchor))).toEqual(
+        range(focus, anchor).anchor,
+      )
+    }
+  })
+
+  it('is nothing when an end does not resolve', () => {
+    expect(RichText.rangeStart(document(), range(['nope', 0], ['a', 1]))).toBeUndefined()
+  })
+})
+
 describe('a composed action', () => {
   it('runs a single command exactly as `run` does', () => {
     const start = state(caret('a', 2))
