@@ -7209,9 +7209,15 @@ at 1, as the parser writes it.
 
 Not decided here, and not needed until they are:
 
-- **Joining a neighbour.** A list marker typed right after a list starts a second list beside
-  it. The printer writes two lists, and a Markdown parser reads them back as one. Markdown's own reading would add an item to
-  the list above; that is a merge of containers, which is its own command.
+- **Joining a neighbour.** A list marker typed right after a list started a second list beside
+  it, which the printer wrote as two lists and a Markdown parser read back as one. Built since:
+  given a vocabulary, a wrap whose outer container is declared to hold its next container as an
+  item (`List` holds `ListItem`) joins a previous sibling of the same kind and equal props,
+  inserting only the inner chain as its last item. A quote holds blocks, not items, so two
+  quotes stay two, as Markdown keeps them apart across a blank line. Props compare exactly,
+  so `3. ` under a list numbered from one starts a new list where Markdown would continue it;
+  and a list *below* is not joined, since that would be the merge of two existing containers,
+  its own command.
 - **The fence** turned out to need a *replace*, not a wrap or a retype: see below.
 - **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
   block back out. Built since: see *The lift* below.
@@ -7305,3 +7311,52 @@ The new item copies the old one's props, which makes Enter in a checked `TaskIte
 checked one. The core does not know what `checked` means, and a prop reset per kind is a Kit
 declaration nobody has needed yet.
 
+
+---
+
+# 132. Editing a link
+
+§11 lists a link popover among the editor UX still missing. Before any popover, the core had
+no way to express what one does: `ToggleMark` keys on the name, so over a link it only removes
+it, and with a caret — where a popover opens — it does nothing at all.
+
+Two commands and a read, built:
+
+```text
+markExtent(document, position, name)   the mark on the caret's run, and the adjacent runs of its
+                                       block carrying the same mark with the same props
+SetMark { mark }                       exactly this mark on every covered run, replacing the
+                                       props of a same-named one (AddMark is already a set)
+ClearMark { mark: name }               the mark off every covered run, whatever its props
+```
+
+At a caret, `SetMark` and `ClearMark` act on `markExtent`, and outside a mark they do nothing,
+as a collapsed toggle does. That is what makes "change this link" one Message from a popover
+opened at the caret, instead of a selection change followed by an edit. A toggle at a caret is
+unchanged: it still has nothing to cover, because what a caret *carries* is the application's
+stored marks, not a run's.
+
+The extent stops at a run whose mark of that name has other props, so two neighbouring links
+stay two, and at the block's edge. It needs no new operation: the extent's ends are run edges,
+so no run is split, and the caret keeps its node.
+
+The editor carries them as `AppliedMark { mark }` and `ClearedMark { mark }`, which the Bundle
+maps to the two commands like any other editing Message, so each is one transition and one
+undo step. The view is `linkEditor` in `foldkit-mixins-richtext`, a SlotView like the toolbar
+and the slash menu: it reads `linkAt` (`markExtent` for `Link`, from a selection's start), the
+application owns the typed address and where the editor appears, and it sends
+`safeUrl(draft)`, so a refused address is never sent (apply is disabled and Enter falls
+through). Floating it over the selection is the application's placement, as the slash menu's
+is.
+
+An added mark's props are checked against its definition (`MarkRegistry.accepts`), so
+`{ href: 4 }` or a bare `Link` is refused. The URL in a string `href` is not: a schema says what
+shape a prop has, not which schemes are safe, so that policy belongs where the link is drawn.
+
+Checking that turned up a gap older than this section: `safeUrl` ran only at import, and
+`standardRendering` wrote any stored `href` or `src` into its attribute. A document decoded
+from storage, arriving through sync, or edited by `SetMark` never passes an importer, so a
+`javascript:` link drawn from one was live. The standard rendering now applies the policy
+too and leaves a refused URL out: an `<a>` with no `href`, an `<img>` with no `src`. The
+document still holds the value, since refusing it there would need every mark's props to
+carry a policy; what is drawn is what an attacker needs.

@@ -148,8 +148,8 @@ history chord; `toMessage` turns each into a Message:
 
 ```ts
 const Message = defineMessageUnion({
-  Typed, Backspace, DeletedForward, Entered, ToggledMark, RetypedBlock,
-  WrappedBlock, ConvertedBlock, LiftedBlock, Selected, Pasted, Undone, Redone, Patched,
+  Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
+  RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, Selected, Pasted, Undone, Redone, Patched,
 })
 ```
 
@@ -160,7 +160,10 @@ vocabulary has no shape for them yet, and silently losing the marks would be
 worse. `RetypedBlock` is the same kind of Message and never arrives from
 `toMessage`: no browser event means "make this block a heading", so an application
 sends it itself. `WrappedBlock` (`{ containers }`), `ConvertedBlock` (`{ to }`), and
-`LiftedBlock` are the same for the core's `WrapBlock`, `ConvertBlock`, and `LiftBlock`. `attachEditor(host, content, emit, { rendering?, decorate? })` attaches the translation to a host
+`LiftedBlock` are the same for the core's `WrapBlock`, `ConvertBlock`, and `LiftBlock`, and
+`AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark`
+(`{ mark }`, a name) for `SetMark` and `ClearMark`: what a link editor sends, which at a
+caret changes or removes the whole link the caret is in. `attachEditor(host, content, emit, { rendering?, decorate? })` attaches the translation to a host
 element and reports each Message; `events({ content })` wraps the same thing in a
 `Mount.defineStream`, so a view renders a host element whose mount produces these
 Messages and releases the subtree when the element goes. `patchEditor(hostId,
@@ -274,7 +277,7 @@ derived from application state, such as a search query, is not placed this way. 
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /
-`typed` / `pressed` / `toggled` / `retyped` / `wrapped` / `converted` / `lifted` /
+`typed` / `pressed` / `toggled` / `applied` / `cleared` / `retyped` / `wrapped` / `converted` / `lifted` /
 `selected` / `undone` / `redone` / `patched` build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.

@@ -1,4 +1,3 @@
-import { Schema } from 'effect'
 import {
   blockContent,
   eachBlock,
@@ -6,12 +5,10 @@ import {
   type Block,
   type ContentMode,
   type Document,
-  type NodeBlock,
   type NodeId,
   type PropsSchema,
-  type RunMark,
 } from './document.js'
-import { markName, markProps, type MarkDef } from './marks.js'
+import { markName, markProps, propsFailure, type MarkDef } from './marks.js'
 
 /** Whether a kind's runs may carry formatting marks; `all` unless declared otherwise. */
 export type MarksPolicy = 'all' | 'none'
@@ -230,23 +227,6 @@ const childKindDiagnostics = (
     }))
 }
 
-/**
- * Whether a node's props decode against its declared schema, and why not. The
- * diagnostic is deliberately stable: a schema's own message can name internals
- * an API boundary should not leak, so only the verdict travels.
- */
-export const propsFailure = (props: PropsSchema | undefined, value: unknown): boolean => {
-  if (props === undefined) return false
-  try {
-    // Strict, like the persisted-content boundary: a field the schema does not
-    // declare is a failure, not something silently kept beside the props.
-    Schema.decodeUnknownSync(props, { onExcessProperty: 'error' })(value)
-    return false
-  } catch {
-    return true
-  }
-}
-
 /** Structural summary of a Kit, for tooling and tests. */
 export const inspectKit = (definition: Kit) => ({
   blocks: definition.nodes.filter(node => node.kind === 'block').length,
@@ -270,21 +250,6 @@ export interface NodeRegistry {
 export const nodeRegistry = (definitions: ReadonlyArray<NodeDefinition>): NodeRegistry => {
   const byName = new Map(definitions.map(definition => [definition.name, definition]))
   return Object.freeze({ definitionFor: (kind: string) => byName.get(kind) })
-}
-
-/**
- * Whether a mark's props decode against its declared schema, and why not. The
- * same stability rule as node props: only the verdict travels, not a schema's
- * message. A mark that declares props must carry them.
- */
-const markPropsFailure = (definition: MarkDef, mark: RunMark): boolean => {
-  if (definition.Props === undefined) return false
-  try {
-    Schema.decodeUnknownSync(definition.Props, { onExcessProperty: 'error' })(markProps(mark))
-    return false
-  } catch {
-    return true
-  }
 }
 
 /**
@@ -366,7 +331,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
             detail: name,
             message: `The Kit does not declare mark "${name}"`,
           })
-        } else if (markPropsFailure(declaredMark, mark)) {
+        } else if (propsFailure(declaredMark.Props, markProps(mark))) {
           diagnostics.push({
             code: 'InvalidProps',
             node: run.id,

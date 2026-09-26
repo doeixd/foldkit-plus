@@ -62,6 +62,8 @@ export {
   type CommandIds,
   type RunOptions,
   marksInRange,
+  markExtent,
+  type MarkExtent,
   run,
   runAction,
 } from './command.js'
@@ -131,7 +133,15 @@ export {
   inspectKit,
   validate,
 } from './kit.js'
-export { Strikethrough, Link, standardMarks, standardNodes, standardRendering } from './standard.js'
+export {
+  Strikethrough,
+  Link,
+  linkAt,
+  type LinkAt,
+  standardMarks,
+  standardNodes,
+  standardRendering,
+} from './standard.js'
 export {
   type Migration,
   type MigrationApplied,

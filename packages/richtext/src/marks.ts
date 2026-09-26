@@ -68,6 +68,23 @@ export const Code: MarkDef = mark('Code', { expand: 'none' })
 export const shippedMarks: ReadonlyArray<MarkDef> = [Bold, Italic, Code]
 
 /**
+ * Whether props fail to decode against a node's or a mark's declared schema. The
+ * diagnostic is deliberately stable: a schema's own message can name internals
+ * an API boundary should not leak, so only the verdict travels.
+ */
+export const propsFailure = (props: PropsSchema | undefined, value: unknown): boolean => {
+  if (props === undefined) return false
+  try {
+    // Strict, like the persisted-content boundary: a field the schema does not
+    // declare is a failure, not something silently kept beside the props.
+    Schema.decodeUnknownSync(props, { onExcessProperty: 'error' })(value)
+    return false
+  } catch {
+    return true
+  }
+}
+
+/**
  * The expansion policy of a set of definitions, and which names it declares. A
  * mark the registry does not declare expands both ways: preservation never
  * retargets it away. Declared names are what an edit may add.
@@ -75,13 +92,19 @@ export const shippedMarks: ReadonlyArray<MarkDef> = [Bold, Italic, Code]
 export interface MarkRegistry {
   readonly expansionOf: (name: string) => MarkExpansion
   readonly declares: (name: string) => boolean
+  /** Whether an edit may add this mark: its name is declared and its props decode. */
+  readonly accepts: (mark: RunMark) => boolean
 }
 
 export const markRegistry = (definitions: ReadonlyArray<MarkDef>): MarkRegistry => {
-  const byName = new Map(definitions.map(definition => [definition.name, definition.expand]))
+  const byName = new Map(definitions.map(definition => [definition.name, definition]))
   return {
-    expansionOf: name => byName.get(name) ?? 'both',
+    expansionOf: name => byName.get(name)?.expand ?? 'both',
     declares: name => byName.has(name),
+    accepts: mark => {
+      const definition = byName.get(markName(mark))
+      return definition !== undefined && !propsFailure(definition.Props, markProps(mark))
+    },
   }
 }
 

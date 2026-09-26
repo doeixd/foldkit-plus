@@ -354,7 +354,6 @@ describe('the wired editing loop', () => {
 
   it('repairs the subtree when a composition is cancelled', () => {
     const { attachment, intents } = setup()
-    const root = attachment.current().root
     attachment.current().root.dispatchEvent(composition('compositionstart'))
     // A cancelled IME (Escape, a lost focus) leaves text the document never had.
     attachment.current().elements.get(id('a'))!.append(document.createTextNode('にほ'))

@@ -17,10 +17,12 @@
  * inline content, and the model has no inline atoms yet (§116, deferred).
  */
 import { Schema } from 'effect'
-import { blockContent, textContent } from './document.js'
+import { markExtent } from './command.js'
+import { blockContent, rangeStart, textContent, type Document, type Selection } from './document.js'
 import { atom, block, blocksOf, node, type NodeDefinition } from './kit.js'
 import { Bold, Code, Italic, mark, markProps, type MarkDef } from './marks.js'
 import { rendering, type Rendering } from './rendering.js'
+import { safeUrl } from './url.js'
 
 /**
  * A struck-through span. It expands `after`, so typing at its edge continues it, as
@@ -37,6 +39,27 @@ export const Link = mark('Link', {
   Props: Schema.Struct({ href: Schema.String }),
   expand: 'none',
 })
+
+/** The link a selection starts in: its `href`, and the range of runs it spans. */
+export interface LinkAt {
+  /** The stored `href`, or `''` when the stored one is not a string. */
+  readonly href: string
+  readonly selection: Extract<Selection, { readonly type: 'Range' }>
+}
+
+/**
+ * The link a selection starts in, which is what a link editor opens on: at a caret, the
+ * link around it; over a range, the link its start is in. Undefined outside a link, and for
+ * a node selection, which covers blocks rather than text.
+ */
+export const linkAt = (document: Document, selection: Selection | null): LinkAt | undefined => {
+  if (selection?.type !== 'Range') return undefined
+  const start = rangeStart(document, selection)
+  const extent = start === undefined ? undefined : markExtent(document, start, Link.name)
+  if (extent === undefined) return undefined
+  const href = markProps(extent.mark)?.href
+  return { href: typeof href === 'string' ? href : '', selection: extent.selection }
+}
 
 /** Every mark the standard vocabulary names, in menu order. */
 export const standardMarks: ReadonlyArray<MarkDef> = [Bold, Italic, Code, Strikethrough, Link]
@@ -85,6 +108,16 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
 ]
 
 /**
+ * A URL attribute, or none when the value fails the URL policy. Import already applies the
+ * policy, but a document also arrives decoded, synchronized, or edited through `SetMark`,
+ * and this is where a `javascript:` href would become live.
+ */
+const urlAttribute = (name: string, value: unknown): Readonly<Record<string, string>> => {
+  const safe = typeof value === 'string' ? safeUrl(value) : undefined
+  return safe === undefined ? {} : { [name]: safe }
+}
+
+/**
  * How the standard vocabulary renders (§121): the element each kind is, with the props
  * that belong in attributes read from the block, so a `Link` is an `<a href>`, an `Image`
  * carries its source, and a `List` is an `<ol>` or a `<ul>`. The shipped marks already
@@ -98,7 +131,7 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
 export const standardRendering: Rendering = rendering({
   marks: {
     Strikethrough: { tag: 's', attributes: {} },
-    Link: mark => ({ tag: 'a', attributes: { href: String(markProps(mark)?.href ?? '') } }),
+    Link: mark => ({ tag: 'a', attributes: urlAttribute('href', markProps(mark)?.href) }),
   },
   nodes: {
     Quote: { tag: 'blockquote', attributes: {} },
@@ -123,7 +156,7 @@ export const standardRendering: Rendering = rendering({
     Image: block => ({
       tag: 'img',
       attributes: {
-        src: String(block.props.src ?? ''),
+        ...urlAttribute('src', block.props.src),
         alt: String(block.props.alt ?? ''),
       },
     }),

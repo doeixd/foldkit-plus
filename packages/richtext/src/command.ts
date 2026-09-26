@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Equal, Schema } from 'effect'
 import {
   NodeId,
   blockAtPath,
@@ -12,7 +12,6 @@ import {
   type BlockPath,
   type Document,
   type EditorState,
-  type Mark,
   type MarkValue,
   type Position,
   type RunMark,
@@ -23,11 +22,12 @@ import { withFreshIds, type Slice } from './clipboard.js'
 import {
   markName,
   resolveInsertion,
+  propsFailure,
   sameMark,
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
-import { blockKind, propsFailure, type NodeRegistry } from './kit.js'
+import { blockKind, type NodeRegistry } from './kit.js'
 import {
   Edit,
   apply,
@@ -54,6 +54,14 @@ export type Command =
   | { readonly type: 'DeleteForward' }
   | { readonly type: 'SplitBlock' }
   | { readonly type: 'ToggleMark'; readonly mark: string | MarkValue }
+  /**
+   * Puts exactly this mark on every run the selection covers, replacing a same-named mark
+   * whose props differ: how a link gets a new `href`. A caret acts on the extent of the
+   * mark around it (`markExtent`), and does nothing outside one.
+   */
+  | { readonly type: 'SetMark'; readonly mark: string | MarkValue }
+  /** Takes the named mark off every run the selection covers; a caret, off its extent. */
+  | { readonly type: 'ClearMark'; readonly mark: string }
   | { readonly type: 'SetSelection'; readonly selection: Selection | null }
   | { readonly type: 'Paste'; readonly slice: Slice }
   /** Retypes the block the selection starts in: a paragraph, or a heading. */
@@ -61,7 +69,8 @@ export type Command =
   /**
    * Wraps the block the selection starts in, in new containers listed outermost first: a
    * `Quote`, or a `List` holding a `ListItem`. The block keeps its identity and its runs,
-   * so the caret stays where it was.
+   * so the caret stays where it was. Given a vocabulary, a list wrap right after a list of the
+   * same kind and props adds the block to it as a new item.
    */
   | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
   /**
@@ -153,6 +162,16 @@ const refusesProps = (nodes: NodeRegistry | undefined, container: Container): bo
     declared !== undefined &&
     declared.kind !== 'block' &&
     propsFailure(declared.props, container.props ?? {})
+  )
+}
+
+/** Whether the vocabulary names `itemKind` among the kinds `listKind` holds, as `List` names `ListItem`. */
+const holdsItem = (nodes: NodeRegistry, listKind: string, itemKind: string): boolean => {
+  const declared = nodes.definitionFor(listKind)
+  return (
+    declared?.kind === 'node' &&
+    typeof declared.children !== 'string' &&
+    declared.children.of.includes(itemKind)
   )
 }
 
@@ -318,6 +337,43 @@ export const marksInRange = (
     return caret === undefined ? new Set() : sharedMarks([caret.marks])
   }
   return sharedMarks(covered(document, bounds.start, bounds.end).map(span => span.run.marks))
+}
+
+/** A mark around a caret, and the range of runs it spans. */
+export interface MarkExtent {
+  readonly mark: RunMark
+  readonly selection: Extract<Selection, { readonly type: 'Range' }>
+}
+
+/**
+ * The named mark on the run a position is in, and the adjacent runs of its block carrying
+ * the same mark with the same props: the whole link a caret sits in, which is what a link
+ * editor shows and what `SetMark` and `ClearMark` act on at a caret. Undefined when that
+ * run does not carry the mark. A read, like `marksInRange`.
+ */
+export const markExtent = (
+  document: Document,
+  position: Position,
+  name: string,
+): MarkExtent | undefined => {
+  const found = locateRun(document, position.node)
+  const mark = found?.run.marks.find(held => markName(held) === name)
+  if (found === undefined || mark === undefined) return undefined
+  const runs = blockAtPath(document, found.path)!.children
+  const carries = (index: number) => runs[index]?.marks.some(held => sameMark(held, mark)) === true
+  let first = found.index
+  while (carries(first - 1)) first--
+  let last = found.index
+  while (carries(last + 1)) last++
+  const end = runs[last]!
+  return {
+    mark,
+    selection: {
+      type: 'Range',
+      anchor: { node: runs[first]!.id, offset: 0, affinity: 'after' },
+      focus: { node: end.id, offset: end.text.length, affinity: 'before' },
+    },
+  }
 }
 
 /** The last run in a block's subtree, or undefined when it holds none. */
@@ -502,14 +558,11 @@ const itemAround = (
   const container = blockAtPath(document, containerPath)
   const list = blockAtPath(document, containerPath.slice(0, -1))
   if (container?.type !== 'Node' || list?.type !== 'Node') return undefined
-  const declaredList = nodes.definitionFor(list.kind)
   const declaredItem = nodes.definitionFor(container.kind)
-  const holdsItems =
-    declaredList?.kind === 'node' &&
-    typeof declaredList.children !== 'string' &&
-    declaredList.children.of.includes(container.kind)
   const isolating = declaredItem?.kind === 'node' && declaredItem.isolating === true
-  return holdsItems && !isolating ? { container, containerPath, list } : undefined
+  return holdsItem(nodes, list.kind, container.kind) && !isolating
+    ? { container, containerPath, list }
+    : undefined
 }
 
 /**
@@ -624,10 +677,28 @@ const runBlockCommand = (
           kindAccepts(options.nodes, container.kind, kinds[at + 1]!),
       )
     if (!allowed) return failure('UnexpectedChild')
-    const containerIds = command.containers.map(() => NodeId.make(ids.mint()))
+    // A list wrap right after a list of the same kind and props adds an item to it, as
+    // Markdown reads the two; a second list beside the first would print as one.
+    const siblings =
+      parent === undefined
+        ? state.document.children
+        : parent.type === 'Node'
+          ? (parent.blocks ?? [])
+          : []
+    const before = siblings[index - 1]
+    const item = command.containers[1]
+    const joins =
+      options.nodes !== undefined &&
+      item !== undefined &&
+      holdsItem(options.nodes, outer.kind, item.kind) &&
+      before?.type === 'Node' &&
+      before.kind === outer.kind &&
+      Equal.equals(before.props, outer.props ?? {})
+    const created = joins ? command.containers.slice(1) : command.containers
+    const containerIds = created.map(() => NodeId.make(ids.mint()))
     // Built from the inside out, so each container holds the next and the innermost is
     // empty until the block moves into it.
-    const chain = command.containers.reduceRight<Block | undefined>(
+    const chain = created.reduceRight<Block | undefined>(
       (inner, container, at) => ({
         type: 'Node',
         kind: container.kind,
@@ -639,7 +710,9 @@ const runBlockCommand = (
       undefined,
     )!
     return apply(state, [
-      Edit.insertBlock(chain, index, parent?.id),
+      joins
+        ? Edit.insertBlock(chain, before.blocks?.length ?? 0, before.id)
+        : Edit.insertBlock(chain, index, parent?.id),
       Edit.moveBlock(block.id, 0, containerIds[containerIds.length - 1]!),
     ])
   }
@@ -719,7 +792,7 @@ export const run = (
     const marks: Array<RunMark> = []
     if (stored !== undefined) {
       for (const mark of stored) {
-        if (!declared.declares(markName(mark))) return failure('InvalidInput')
+        if (!declared.accepts(mark)) return failure('InvalidInput')
         marks.push(mark)
       }
       // A mark-free kind refuses the format however it arrives, so inserting text
@@ -863,17 +936,29 @@ export const run = (
     ])
   }
 
-  if (command.type === 'ToggleMark') {
-    if (isCollapsed(selection)) return apply(state, [])
-    const span = ordered(state.document, selection)
+  if (command.type === 'ToggleMark' || command.type === 'SetMark' || command.type === 'ClearMark') {
+    const mark = command.mark
+    const name = markName(mark)
+    let span = ordered(state.document, selection)
+    if (isCollapsed(selection)) {
+      // A toggle at a caret has nothing to cover; setting or clearing one acts on the mark
+      // the caret is in, so a link can be edited without selecting it first.
+      const extent =
+        command.type === 'ToggleMark'
+          ? undefined
+          : markExtent(state.document, selection.anchor, name)
+      if (extent === undefined) return apply(state, [])
+      span = ordered(state.document, extent.selection)
+    }
     if (span === undefined) return failure('InvalidSelection')
     const spans = covered(state.document, span.start, span.end)
     if (spans.length === 0) return apply(state, [])
     // A toggle keys on the name: the mark is present on every covered run, or
     // it is absent everywhere. Props are the mark's own business.
-    const mark = command.mark
-    const name = markName(mark)
-    const adding = !spans.every(entry => entry.run.marks.some(held => markName(held) === name))
+    const adding =
+      command.type === 'SetMark' ||
+      (command.type === 'ToggleMark' &&
+        !spans.every(entry => entry.run.marks.some(held => markName(held) === name)))
     const operations: Array<Operation> = []
     const targets: Array<NodeId> = []
     for (const [index, entry] of spans.entries()) {
@@ -891,9 +976,9 @@ export const run = (
       targets.push(target)
     }
     if (adding) {
-      // Adding needs the vocabulary to declare the mark; removing a preserved
-      // one by name is always allowed.
-      if (!declared.declares(name)) return failure('InvalidInput')
+      // Adding needs the vocabulary to declare the mark and accept its props; removing a
+      // preserved one by name is always allowed.
+      if (!declared.accepts(mark)) return failure('InvalidInput')
       if (spans.some(entry => forbidsMarks(state.document, entry.run.path, options.nodes))) {
         return failure('ForbiddenMark')
       }

@@ -116,6 +116,10 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'SplitBlock' }
     case 'ToggledMark':
       return { type: 'ToggleMark', mark: message.mark }
+    case 'AppliedMark':
+      return { type: 'SetMark', mark: message.mark }
+    case 'ClearedMark':
+      return { type: 'ClearMark', mark: message.mark }
     case 'RetypedBlock':
       return { type: 'RetypeBlock', to: message.block }
     case 'WrappedBlock':
@@ -226,12 +230,13 @@ export const Editor = Bundle.make({
       model.selection?.type === 'Range' &&
       model.selection.anchor.node === model.selection.focus.node &&
       model.selection.anchor.offset === model.selection.focus.offset
-    // The caret never carries a mark the vocabulary cannot type, so an unknown
-    // one is refused here rather than at the first keystroke after it.
+    // The caret never carries a mark the vocabulary cannot type — an unknown one, or one
+    // like Link whose props a bare name lacks — so it is refused here rather than at the
+    // first keystroke after it.
     if (
       message._tag === 'ToggledMark' &&
       collapsed &&
-      !(vocabulary.marks ?? RichText.shippedRegistry).declares(message.mark)
+      !(vocabulary.marks ?? RichText.shippedRegistry).accepts(message.mark)
     ) {
       return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
     }
@@ -406,6 +411,9 @@ export const typed = (text: string): ParentMessage => edited(Message.Typed({ tex
 export const pressed = (tag: 'Backspace' | 'DeletedForward' | 'Entered'): ParentMessage =>
   edited(Message[tag]())
 export const toggled = (mark: string): ParentMessage => edited(Message.ToggledMark({ mark }))
+export const applied = (mark: RichText.RunMark): ParentMessage =>
+  edited(Message.AppliedMark({ mark }))
+export const cleared = (mark: string): ParentMessage => edited(Message.ClearedMark({ mark }))
 export const retyped = (block: RichText.TextBlock): ParentMessage =>
   edited(Message.RetypedBlock({ block }))
 export const wrapped = (containers: ReadonlyArray<RichText.Container>): ParentMessage =>

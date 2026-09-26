@@ -115,7 +115,8 @@ vocabulary's `blockquote`, `pre`, `hr`, `img`, `table`/`tr`/`td`/`th`, `s`/`del`
 `data-unknown` round-trip, other elements are unwrapped or dropped with a diagnostic,
 and `script`/`style`/`iframe` are dropped with their content. Only a fixed few
 attributes are read — a link's `href`, an image's `src`/`alt`, a fence's language — and
-each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it),
+each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it, and
+`standardRendering` applies it again to what it draws),
 which refuses a scheme outside http/https/mailto/tel after
 removing control characters and leaves a relative URL alone; `style` and `onclick` are
 never read. The adapter's `mount(ownerDocument, content, renderer?, decorations?)` builds an owned
@@ -165,16 +166,22 @@ textBefore, index, key, modifiers)` — the keys a menu owns, using `foldkit-pri
 `RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as in
 any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots` (`root`,
 `list`, `item`), one `data-entry` item per match with `role="menuitem"`, `aria-current` on
-the highlighted one, and the entry's own Message on click.
+the highlighted one, and the entry's own Message on click. `linkEditor<Message>()` is the link
+editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`root`, `input`,
+`apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
+`RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
+nor a link at the caret) and `ClearedMark` from inside a link, and keeps no state.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
-vocabulary (`Typed`, `Entered`, `ToggledMark`, `RetypedBlock`, `Selected`, `Pasted`,
+vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,
+`Selected`, `Pasted`,
 `Undone`, `Redone`, `Patched`), `toMessage`, the `events` mount a view renders as its
 host element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, and `lifted()`
-for the wrap, convert, and lift commands. `foldkit-richtext-dom/editor-bundle` is the editor as a
+for the wrap, convert, and lift commands, and `applied(mark)` and `cleared(name)` for
+`SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`,
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
@@ -226,7 +233,8 @@ clock. `RetypeBlock` changes the type of the block the selection starts in — a
 paragraph, or a heading at a level — and keeps that block's runs, so identities and
 the caret survive; a node block is refused, because its content is its Kit's contract.
 `WrapBlock` moves that block into new containers listed outermost first (`[{ kind: 'List',
-props }, { kind: 'ListItem' }]`), keeping its identity and the caret. `ConvertBlock` replaces
+props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
+wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces
 a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
 new identities and moving the selection onto them. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
@@ -309,9 +317,13 @@ either with `markName`/`markProps`, and compare with `sameMark`/`sameMarkSet`.
 mark expands across a boundary (`expansionOf`). Props are part of a mark's
 identity: normalization does not merge runs whose props differ, and `AddMark` is a
 set for its name (append, replace props, no-op on the same value) while
-`RemoveMark` keys on the name alone. Declared names are what `run` may add, so a
+`RemoveMark` keys on the name alone. Declared marks whose props decode
+(`MarkRegistry.accepts`) are what `run` may add, so a
 Kit's marks work by name or value: `InsertText`'s stored marks and `ToggleMark`'s
-mark each take a bare name or a `{ name, props }` value. `validate` reports
+mark each take a bare name or a `{ name, props }` value. `SetMark` replaces a mark's
+props over a range (a link's `href`) and `ClearMark` removes one by name; at a caret both act
+on the mark's extent, which `markExtent(document, position, name)` reads (`linkAt(document,
+selection)` reads it for `Link`: the `href` and range a link editor opens on). `validate` reports
 `UnknownMark` for an
 undeclared name and `InvalidProps` for props its schema refuses, including a mark
 that declares props but carries none. `resolveInsertion` honors the policy, with

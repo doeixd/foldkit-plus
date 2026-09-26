@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
   application,
+  applied,
+  cleared,
   converted,
   editorAt,
   lifted,
@@ -340,6 +342,18 @@ describe('stored marks', () => {
     expect(after).toEqual(before)
     expect(after.document).toBe(before.document)
   })
+
+  it('refuses a declared mark whose props a bare name lacks, at the toggle itself', () => {
+    editorAt('link-toggle-editor', {
+      vocabulary: { marks: RichText.markRegistry(RichText.standardMarks) },
+    })
+    const before = start(caret('a', 1))
+    const placed: Model = { ...before, editor: { ...before.editor, hostId: 'link-toggle-editor' } }
+    // Stored, it would refuse every keystroke after it; refused, nothing is stored.
+    expect(step(placed, toggled('Link'))).toEqual(placed)
+    // Control: a declared mark with no props is stored, so the placement is in effect.
+    expect(step(placed, toggled('Strikethrough')).editor.storedMarks).toEqual(['Strikethrough'])
+  })
 })
 
 describe('Enter in a live slash query (§123)', () => {
@@ -442,6 +456,42 @@ describe('the block Messages an application sends', () => {
     // `q`'s run is bold and no vocabulary is placed, so the marks are carried over.
     const code = step(start(caret('b', 1)), converted({ kind: 'CodeBlock' }))
     expect(code.document.children[1]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
+  })
+})
+
+describe('editing a link from a caret inside it', () => {
+  it('changes the href and then removes the link, each one undoable step', () => {
+    editorAt('linking-editor', {
+      vocabulary: { marks: RichText.markRegistry(RichText.standardMarks) },
+    })
+    const link = (href: string) => ({ name: 'Link', props: { href } })
+    const initial = application.initial({
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [
+              { type: 'Text', id: 'a', text: 'see ', marks: [] },
+              { type: 'Text', id: 'l', text: 'docs', marks: [link('/a')] },
+            ],
+          },
+        ],
+      }),
+    }).model
+    const model: Model = {
+      ...initial,
+      editor: { ...initial.editor, hostId: 'linking-editor', selection: caret('l', 2) },
+    }
+    const marksOf = (at: Model) => at.document.children[0]!.children.map(run => run.marks)
+
+    const relinked = step(model, applied(link('/z')))
+    expect(marksOf(relinked)).toEqual([[], [link('/z')]])
+    const unlinked = step(relinked, cleared('Link'))
+    expect(unlinked.document.children[0]!.children.map(run => run.text)).toEqual(['see docs'])
+    expect(marksOf(unlinked)).toEqual([[]])
+    expect(RichText.inspectHistory(unlinked.editor.history).past).toBe(2)
   })
 })
 
