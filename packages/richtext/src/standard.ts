@@ -80,7 +80,8 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     Props: Schema.Struct({ header: Schema.optional(Schema.Boolean) }),
     children: blocksOf('TableCell'),
   }),
-  node('TableCell', { children: blockContent }),
+  // A cell's content stays in the cell: Backspace at its start lifts nothing out of it.
+  node('TableCell', { children: blockContent, isolating: true }),
 ]
 
 /**

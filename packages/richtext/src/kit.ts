@@ -56,6 +56,11 @@ export type NodeDefinition =
       readonly marks: MarksPolicy
       /** Validates a `Node` block's `props` at this boundary, not in the codec. */
       readonly props?: PropsSchema | undefined
+      /**
+       * A boundary a lift never crosses: a table cell's content stays in the cell, where a
+       * quote's or a list item's would be lifted out.
+       */
+      readonly isolating?: boolean | undefined
     }
 
 /**
@@ -73,6 +78,7 @@ export interface NodeDefinitionOf<
   readonly children: Children
   readonly marks: MarksPolicy
   readonly props: Props
+  readonly isolating: boolean
 }
 
 /** Declares a block node kind: a top-level node containing text runs. */
@@ -109,6 +115,8 @@ export const node = <
     readonly Props?: Props
     readonly children?: Children
     readonly marks?: MarksPolicy
+    /** A boundary a lift never crosses, as a table cell is. */
+    readonly isolating?: boolean
   } = {},
 ): NodeDefinitionOf<Name, Props, Children> => ({
   name,
@@ -116,6 +124,7 @@ export const node = <
   children: (options.children ?? textContent) as Children,
   marks: options.marks ?? 'all',
   props: options.Props as Props,
+  isolating: options.isolating ?? false,
 })
 
 /**

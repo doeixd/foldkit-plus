@@ -7214,8 +7214,7 @@ Not decided here, and not needed until they are:
   the list above; that is a merge of containers, which is its own command.
 - **The fence** turned out to need a *replace*, not a wrap or a retype: see below.
 - **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
-  block back out. That is the inverse move and the same two operations, but it changes what
-  `DeleteBackward` does, so it is a decision about Backspace rather than about this command.
+  block back out. Built since: see *The lift* below.
 
 ## The replace, for the fence
 
@@ -7246,4 +7245,41 @@ node block's content stays its Kit's.
 
 The rule completes a fence — three or more backticks or tildes, then an optional language —
 with a space, since Enter splits a block and a rule sees only what is typed.
+
+## The lift
+
+`LiftBlock` moves the block the selection starts in out of its container, one step at a time:
+
+```text
+first child   MoveNode(block, before the container)   + DeleteNode(container) if now empty
+last child    MoveNode(block, after the container)
+middle child  InsertNode(empty copy of the container, after it)
+              + MoveNode(each later sibling, into the copy)
+              + MoveNode(block, between the two)
+```
+
+With a vocabulary, steps repeat while the new parent's declaration does not hold the block's
+kind: a paragraph lifted out of a `ListItem` lands in a `List`, which holds only items, so it
+leaves the list too. Without a vocabulary nothing says so, and one step is taken. Each step is
+computed against the document the steps before it produced, applied with no normalization,
+because a split or a deletion moves the indices the next step reads.
+
+Two things the plan did not foresee:
+
+- **Isolation.** A table has the list's shape (`TableRow` holds only `TableCell`s), so the
+  repeat would have walked a cell's paragraph out of the cell, the row, and the table,
+  splitting it. A Kit node can now be declared `isolating`, and a lift never leaves one; the
+  standard `TableCell` is. This is ProseMirror's concept under its name.
+- **A MoveNode bug.** Moving a block out to before the container it left lost the removal:
+  the insert shifted the container, and folding the working copies wrote the source list to
+  the container's old index. The block was in two places. The fix folds the removal in and
+  finds the destination again before inserting, which also covers a destination whose path
+  the removal shifts.
+
+Backspace uses the lift only where it did nothing before: at the start of a container's first
+block, which has no sibling to join. It does so only with a vocabulary, the one thing that
+knows a list item must leave the list and a table cell must not be left. Without one, in a
+table cell, and forwards, the edge still does nothing.
+
+Still not decided: Enter on an empty list item, which many editors also read as a lift.
 

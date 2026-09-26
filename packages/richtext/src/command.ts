@@ -70,6 +70,12 @@ export type Command =
    * and its runs get new ones and the selection moves onto them at the same offsets.
    */
   | { readonly type: 'ConvertBlock'; readonly to: Container }
+  /**
+   * Lifts the block the selection starts in out of its container, the inverse of a wrap:
+   * repeated while the new parent's declaration refuses it, so a list item's paragraph leaves
+   * both the item and the list. The block keeps its identity, and the caret with it.
+   */
+  | { readonly type: 'LiftBlock' }
 
 /** A container a block is wrapped in: a node kind, and the props it starts with. */
 export interface Container {
@@ -412,6 +418,67 @@ const graphemeDeletion = (
   return { operations, caret: backward ? graphemeStart : caret }
 }
 
+/**
+ * The operations that lift a block out of its container, or `undefined` when it is at the
+ * top level with nothing to leave. One step moves it into the container's parent: before
+ * the container when it was first, after it when it was last, and between the two halves
+ * of a split container when it was in the middle. A container it leaves empty is deleted.
+ * Steps repeat while the vocabulary says the new parent does not hold the block's kind;
+ * without a vocabulary, one step is taken. A container the vocabulary declares isolating is
+ * never left, so a lift that would start by leaving one lifts nothing.
+ *
+ * Each step is computed against the document the steps before it produced, applied with no
+ * normalization, because a split or a deletion moves the indices the next step reads.
+ */
+const liftOperations = (
+  document: Document,
+  node: NodeId,
+  ids: CommandIds,
+  nodes: NodeRegistry | undefined,
+): ReadonlyArray<Operation> | undefined => {
+  const operations: Array<Operation> = []
+  let current = document
+  for (;;) {
+    const found = locateBlock(current, node)
+    if (found === undefined || found.path.length === 1) break
+    const containerPath = found.path.slice(0, -1)
+    const container = blockAtPath(current, containerPath)
+    if (container?.type !== 'Node' || container.blocks === undefined) break
+    const declared = nodes?.definitionFor(container.kind)
+    if (declared?.kind === 'node' && declared.isolating === true) break
+    const parentPath = containerPath.slice(0, -1)
+    const parent = parentPath.length === 0 ? undefined : blockAtPath(current, parentPath)
+    const at = containerPath[containerPath.length - 1]!
+    const index = found.path[found.path.length - 1]!
+    const siblings = container.blocks
+    const step: Array<Operation> = []
+    if (index === 0) {
+      step.push(Edit.moveBlock(node, at, parent?.id))
+      if (siblings.length === 1) step.push(Edit.deleteBlock(container.id))
+    } else if (index === siblings.length - 1) {
+      step.push(Edit.moveBlock(node, at + 1, parent?.id))
+    } else {
+      // The blocks after it go into a second container of the same kind, so the list or
+      // quote continues on the far side of the lifted block.
+      const rest = NodeId.make(ids.mint())
+      step.push(
+        Edit.insertBlock({ ...container, id: rest, children: [], blocks: [] }, at + 1, parent?.id),
+        ...siblings
+          .slice(index + 1)
+          .map((sibling, offset) => Edit.moveBlock(sibling.id, offset, rest)),
+        Edit.moveBlock(node, at + 1, parent?.id),
+      )
+    }
+    const stepped = apply({ document: current, selection: null }, step, [])
+    // Each step is built from the document it applies to, so a refusal is a bug here.
+    if (!stepped.ok) throw new Error(`liftOperations: a lift step was refused (${stepped.error})`)
+    operations.push(...step)
+    current = stepped.state.document
+    if (parent === undefined || kindAccepts(nodes, blockKind(parent), blockKind(found.block))) break
+  }
+  return operations.length === 0 ? undefined : operations
+}
+
 /** The block a block-level command acts on, and where it stands. */
 interface StartingBlock {
   readonly block: Block
@@ -447,15 +514,22 @@ const startingBlock = (
   }
 }
 
-/** Retype, wrap, and convert: each reshapes the starting block where it stands. */
+/** Retype, wrap, convert, and lift: each reshapes the starting block where it stands. */
 const runBlockCommand = (
   state: EditorState,
-  command: Extract<Command, { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' }>,
+  command: Extract<
+    Command,
+    { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'LiftBlock' }
+  >,
   { block, path, parentPath, parent, selection }: StartingBlock,
   ids: CommandIds,
   options: RunOptions,
 ): TransactionResult => {
   const index = path[path.length - 1]!
+  if (command.type === 'LiftBlock') {
+    const lifted = liftOperations(state.document, block.id, ids, options.nodes)
+    return lifted === undefined ? failure('InvalidInput') : apply(state, lifted)
+  }
   if (command.type === 'RetypeBlock') {
     // A retype keeps the block where it is, so the parent's constraint decides whether
     // the new kind belongs there.
@@ -635,7 +709,8 @@ export const run = (
   if (
     command.type === 'RetypeBlock' ||
     command.type === 'WrapBlock' ||
-    command.type === 'ConvertBlock'
+    command.type === 'ConvertBlock' ||
+    command.type === 'LiftBlock'
   ) {
     const target = startingBlock(state.document, selection)
     return 'error' in target
@@ -666,7 +741,17 @@ export const run = (
     const siblings = containerBlocks(state.document, containerPath)
     const index = at.path[at.path.length - 1]!
     const neighborBlock = siblings[backward ? index - 1 : index + 1]
-    if (neighborBlock === undefined) return apply(state, [])
+    if (neighborBlock === undefined) {
+      // Backspace at the start of a container's first block has nothing to join with, so
+      // it lifts the block out, undoing what `> ` or `- ` did. Only with a vocabulary: it
+      // is what says a list item's paragraph must leave the list too, and a table cell must
+      // not be left at all. Otherwise, and forward, the edge stays a no-op.
+      const lifted =
+        backward && containerPath.length > 0 && options.nodes !== undefined
+          ? liftOperations(state.document, siblings[index]!.id, ids, options.nodes)
+          : undefined
+      return apply(state, lifted ?? [])
+    }
     const survivor = backward ? neighborBlock : siblings[index]!
     const removed = backward ? siblings[index]! : neighborBlock
     // The caret lands at the junction: the end of what the survivor already had,
