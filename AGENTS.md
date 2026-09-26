@@ -668,6 +668,14 @@ of its own named a form field "fits the Catalog". Read words with
   container on unmount made a `FoldkitComponent` that never called `dispose`
   look identical to one that did. Assert on something only a live runtime does,
   such as a Subscription finalizer running.
+- **A memo test needs a second change.** A per-item memo learns which Slots an
+  item used on its first draw, so the first change after mounting always
+  misses. A nested-item test passed with the guard deleted until a second
+  move was added. Assert after two transitions, not one.
+- **A lazy slot compares its function too.** Passing an arrow made inline to
+  `createLazy` never hits, since the function is new every render; so does an
+  array rebuilt per render (`flatMap`) among its arguments. Pass a function
+  defined once, and values that keep their identity.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
