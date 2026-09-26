@@ -262,6 +262,21 @@ version changed; `pnpm` skips versions already in the registry.
   `text['on-accent']`, the same value as `accent['on-fill']`, is removed.
   Prose's `mark` drew its text in the on-fill color over the accent's tint; it
   uses `ink`.
+- **`foldkit-remote`: a query read shows at most its window, and "load more"
+  grows the window.** Remote keeps one connection per query and input, so a
+  read of `first: 3` now shows three rows even when a `first: 50` read of the
+  same query loaded more, with `hasNext` set when it cut any. Two windows of one
+  connection are one query, for the wider; a window wider than what the
+  connection holds fetches only the rows it lacks (before, it was never
+  fetched). `Data.more(model, projection)` returns the Model with the read's
+  window one page larger, an `Option`; `Data.next`, `Data.previous`,
+  `Data.fetch` and the fold's `fetch` are removed. `Remote.query` and
+  `Remote.queryMessage` still run one page by hand. The store gains `grown`
+  and the `WindowGrown` Message.
+- **`foldkit-crud`: `list.more(model)` is the Model showing one page more,** an
+  `Option`, instead of a Command.
+- **`foldkit-composition`: `QueryBlock.reads` no longer cuts rows itself;**
+  Remote does.
 - **`foldkit-mixins-ui`: `outline` and `ghost` buttons read `--fk-ink` first,**
   so on a band that sets `--fk-ink: currentColor` their text is the band's
   color instead of the tone's ink, which does not read there.

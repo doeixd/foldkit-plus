@@ -193,7 +193,7 @@ export const update = PostEditor.after(
       case 'ClosedEditor':
         return EditForm.helpers.close()(model)
       case 'RequestedMorePosts': {
-        return { model, commands: Option.toArray(Posts.more(model)) }
+        return { model: Option.getOrElse(Posts.more(model), () => model), commands: [] }
       }
       // A failed read is not asked for again on its own; this is the asking.
       // The button leaves the page once the refresh starts, so focus goes to

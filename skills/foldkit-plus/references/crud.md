@@ -107,7 +107,7 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 - `Authors.columns`: the selected members in order, each with `key`, `member`,
   and a `label` (schema `title`, else `Form.label`, else the key).
 - `AuthorList.page(model)`: `RemoteData<Page<Row>>`, rows typed by the Selection.
-- `AuthorList.more(model)`: the Command for the next page, an `Option` (`Option.toArray` it into commands).
+- `AuthorList.more(model)`: "load more", the Model showing one page more, an `Option` (none: all shown); return it from `update` and the read entry fetches.
 - `AuthorList.refresh(model)` (and a placed detail's `refresh`): the Model with
   it asked for again. Failed reads are not retried automatically; this is the
   retry.

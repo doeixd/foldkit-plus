@@ -24,7 +24,7 @@ import type {
 } from 'foldkit-remote'
 import { Metadata } from 'foldkit-metadata'
 import { Projection } from 'foldkit-surface'
-import { Block, isRecord, type AnyBlock } from '../block.js'
+import { Block, type AnyBlock } from '../block.js'
 import { dataOf, type PageReads } from '../surface/index.js'
 import { Catalog } from '../catalog.js'
 import type { Content } from '../content.js'
@@ -56,20 +56,6 @@ export type QueryBlock<
 }
 
 const initial: RemoteData<Page<never>> = { _tag: 'Initial' }
-
-/**
- * A read cut to the Block's own `first`. Remote keys a connection by its query
- * and input, not its window, so another read of the same list (a picker's, a
- * wider Block's) may have loaded more rows than this Block asked for.
- */
-const windowed = (value: unknown, first: number): unknown => {
-  if (!isRecord(value) || (value['_tag'] !== 'Ready' && value['_tag'] !== 'Refreshing'))
-    return value
-  const page = value['value']
-  if (!isRecord(page) || !Array.isArray(page['items']) || page['items'].length <= first)
-    return value
-  return { ...value, value: { ...page, items: page['items'].slice(0, first), hasNext: true } }
-}
 
 /** Something a Remote domain can read a query with: what `Remote.make` returns has it. */
 export interface QueryReader<AppModel> {
@@ -172,12 +158,11 @@ export const QueryBlock = {
       const props = Block.decode(block, node.props)
       if (props._tag === 'Failure') continue
       const first = read.first?.(props.success)
-      const query = data.query(read.query, read.input(props.success), {
+      // Remote cuts the read to this `first`, whatever else loaded the list.
+      entries[id] = data.query(read.query, read.input(props.success), {
         select: read.select,
         ...(first === undefined ? {} : { first }),
       })
-      entries[id] =
-        first === undefined ? query : { ...query, read: root => windowed(query.read(root), first) }
     }
     return Object.keys(entries).length === 0
       ? Option.none()

@@ -270,14 +270,14 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   // A query is a Projection too: the connection read as a page of the selected
   // items. The prefetch runs the query, then one read for whatever the page's
-  // items still lack (nothing here: p1 is already known), and `Data.next` is
-  // the following page, or nothing at the end.
+  // items still lack (nothing here: p1 is already known), and `Data.more` is
+  // the Model with one page more, or nothing when every row is shown.
   const queried = await Effect.runPromise(
     Data.prefetch(loaded, projects).pipe(Effect.provide(FakeClient)),
   )
   lines.push(
     `query page: ${describePage(projects.read(queried))}; next page: ${
-      Data.next(queried, projects) === undefined ? 'none' : 'available'
+      Option.isNone(Data.more(queried, projects)) ? 'none' : 'available'
     }`,
   )
   const inspection = Data.inspect(queried)

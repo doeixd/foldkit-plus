@@ -6,7 +6,7 @@
  * would send. It runs a `Query.define` body with the reference interpreter, so
  * a query means here what the conformance suite says it means.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Mutation, Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
@@ -100,13 +100,8 @@ describe('RemoteServer.memory', () => {
       value: { items: [{ name: 'Apollo' }], hasNext: true, hasPrevious: false },
     })
 
-    const next = Data.next(model, first)!
-    const paged = Data.reduce(
-      model,
-      await Effect.runPromise(Data.fetch(next).effect.pipe(Effect.provide(backend.layer))),
-    )
-    // The next page brings refs; its rows are read as they would be on screen.
-    const more = await load(backend, first, paged)
+    // One more row shown: the next page is fetched and its rows read, as on screen.
+    const more = await load(backend, first, Option.getOrThrow(Data.more(model, first)))
     expect(first.read(more)).toMatchObject({
       _tag: 'Ready',
       value: { items: [{ name: 'Apollo' }, { name: 'Borealis' }], hasNext: false },
@@ -124,26 +119,20 @@ describe('RemoteServer.memory', () => {
       })),
     }
     const backend = RemoteServer.memory({ domain: Data, rows: many })
-    const fetch = async (model: Model, ref: Parameters<typeof Data.fetch>[0]) =>
-      Data.reduce(
-        model,
-        await Effect.runPromise(Data.fetch(ref).effect.pipe(Effect.provide(backend.layer))),
-      )
-    const walk = async (
-      projection: typeof forward,
-      step: (model: Model) => Parameters<typeof Data.fetch>[0] | undefined,
-    ) => {
+    /** Loads more until there is no more: five rows, two at a time, is three loads. */
+    const walk = async (projection: typeof forward) => {
       let model = await load(backend, projection)
-      for (let ref = step(model); ref !== undefined; ref = step(model)) {
-        model = await load(backend, projection, await fetch(model, ref))
+      for (let loads = 1; loads < 3; loads += 1) {
+        model = await load(backend, projection, Option.getOrThrow(Data.more(model, projection)))
       }
+      expect(Option.isNone(Data.more(model, projection))).toBe(true)
       return model
     }
     const forward = Data.query(ByStatus, { status: 'active' }, { select: summary, first: 2 })
     const backward = Data.query(ByStatus, { status: 'active' }, { select: summary, last: 2 })
 
-    const ahead = await walk(forward, model => Data.next(model, forward))
-    const behind = await walk(backward, model => Data.previous(model, backward))
+    const ahead = await walk(forward)
+    const behind = await walk(backward)
 
     for (const [model, projection] of [
       [ahead, forward],
@@ -165,24 +154,21 @@ describe('RemoteServer.memory', () => {
     const backend = RemoteServer.memory({ domain: Data, rows })
     const first = Data.query(ByStatus, { status: 'active' }, { select: summary, first: 1 })
     const model = await load(backend, first)
-    const next = Data.next(model, first)!
+    const grown = Option.getOrThrow(Data.more(model, first))
 
     // Apollo, the row the page ended on, is archived: it leaves the results but
     // keeps its place in the order, so the next page is still Borealis.
     backend.write('Project', 'p2', { status: 'archived' })
-    const after = await Effect.runPromise(
-      Data.fetch(next).effect.pipe(Effect.provide(backend.layer)),
-    )
-    expect(after).toMatchObject({
-      _tag: 'ConnectionMerged',
-      page: { edges: [{ ref: { id: 'p1' } }] },
-    })
+    const after = await load(backend, first, grown)
+    expect(
+      after.remote.connections[first.ref.identity]!.segments[0]!.edges.map(edge => edge.ref.id),
+    ).toEqual(['p2', 'p1'])
 
     backend.remove('Project', 'p2')
-    const gone = await Effect.runPromise(
-      Data.fetch(next).effect.pipe(Effect.provide(backend.layer)),
+    const gone = await Effect.runPromiseExit(
+      Data.prefetch(grown, first).pipe(Effect.provide(backend.layer)),
     )
-    expect(gone).toMatchObject({ _tag: 'QueryFailed' })
+    expect(gone._tag).toBe('Failure')
   })
 
   it('reads a row whose id arrived as a number', async () => {
@@ -202,11 +188,9 @@ describe('RemoteServer.memory', () => {
     const backend = RemoteServer.memory({ domain: Data, rows })
     const none = Query.first(0)(ByStatus.ref({ status: 'active' }))
 
-    const message = await Effect.runPromise(
-      Data.fetch(none).effect.pipe(Effect.provide(backend.layer)),
-    )
+    const page = await Effect.runPromise(Remote.query(none).pipe(Effect.provide(backend.layer)))
 
-    expect(message).toMatchObject({
+    expect(Remote.queryMessage(none, page)).toMatchObject({
       _tag: 'ConnectionMerged',
       page: { edges: [], start: { _tag: 'Terminal' }, end: { _tag: 'Unknown' } },
     })
@@ -216,11 +200,11 @@ describe('RemoteServer.memory', () => {
     const backend = RemoteServer.memory({ domain: Data, rows })
     const both = Query.first(1)(Query.last(1)(ByStatus.ref({ status: 'active' })))
 
-    const message = await Effect.runPromise(
-      Data.fetch(both).effect.pipe(Effect.provide(backend.layer)),
+    const answer = await Effect.runPromiseExit(
+      Remote.query(both).pipe(Effect.provide(backend.layer)),
     )
 
-    expect(message).toMatchObject({ _tag: 'QueryFailed' })
+    expect(answer._tag).toBe('Failure')
   })
 
   it('shows a mutation’s write on the next read', async () => {

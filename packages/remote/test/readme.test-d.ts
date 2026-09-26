@@ -120,10 +120,8 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
       )
       return { model: started, commands: [command] }
     }
-    case 'ClickedMore': {
-      const next = Data.next(model, projects)
-      return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
-    }
+    case 'ClickedMore':
+      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
   }
 }
 

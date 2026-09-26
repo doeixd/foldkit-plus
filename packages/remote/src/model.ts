@@ -67,6 +67,12 @@ export interface RemoteModel {
   readonly entities: EntityStore
   /** Normalized ordered connections, keyed by connection identity. */
   readonly connections: Readonly<Record<string, Connection>>
+  /**
+   * How many rows `Data.more` has grown a read's window to, by
+   * `windowGrowthKey`. A read shows at most its window, so this is what "load
+   * more" changes; it lives here because a list holds no state of its own.
+   */
+  readonly grown: Readonly<Record<string, number>>
   /** Optimistic entity layers and connection overlays over the base store. */
   readonly optimistic: OptimisticState
   /** Live cursor and boundary state, keyed by the subscription's stream key. */
@@ -168,6 +174,7 @@ export const forgetRemote = (model: RemoteModel): RemoteModel => {
 export const initialRemoteModel: RemoteModel = {
   entities: emptyStore,
   connections: {},
+  grown: {},
   optimistic: emptyOptimistic,
   live: {},
   mutations: emptyMutationState,
@@ -185,6 +192,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
   Schema.Struct({
     entities: runtimeSchema,
     connections: Schema.Record(Schema.String, runtimeSchema),
+    grown: Schema.Record(Schema.String, Schema.Number),
     optimistic: runtimeSchema,
     live: Schema.Record(Schema.String, runtimeSchema),
     mutations: runtimeSchema,
@@ -275,6 +283,8 @@ export type RemoteMessage =
       readonly optimistic: ReadonlyArray<OptimisticOperation>
     }
   | { readonly _tag: 'OverlayLifted'; readonly id: string }
+  /** `Data.more`: a read's window, by `windowGrowthKey`, now shows `size` rows. */
+  | { readonly _tag: 'WindowGrown'; readonly window: string; readonly size: number }
   | {
       readonly _tag: 'LiveReceived'
       readonly stream: string
@@ -345,6 +355,7 @@ export const remoteMessageCases = {
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
   OverlayLifted: { id: Schema.String },
+  WindowGrown: { window: Schema.String, size: Schema.Number },
   LiveReceived: {
     stream: Schema.String,
     event: Schema.Unknown,
@@ -392,6 +403,10 @@ export const remoteMessageSchema = Schema.Union(
 
 /** An overlay's layer, named apart from every request's: a request id is the application's to choose too. */
 const overlayLayer = (id: string): string => `overlay:${id}`
+
+/** The key a grown window is kept under: its connection and the window first asked for. */
+export const windowGrowthKey = (identity: string, window: string): string =>
+  `${identity}\u0000${window}`
 
 /**
  * Whether only overlays show this entity: the server has told the store
@@ -662,6 +677,12 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return {
         ...model,
         ...retained,
+        // A window grows a connection that is kept; a dropped one starts over.
+        grown: Object.fromEntries(
+          Object.entries(model.grown).filter(([key]) =>
+            Object.hasOwn(retained.connections, key.slice(0, key.lastIndexOf('\u0000'))),
+          ),
+        ),
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, reached),
         loading: prunedLoading(model.loading, message.roots, reached),
@@ -785,6 +806,8 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
           message.optimistic,
         ),
       }
+    case 'WindowGrown':
+      return { ...model, grown: { ...model.grown, [message.window]: message.size } }
     case 'OverlayLifted': {
       const optimistic = settleFailure(model.optimistic, overlayLayer(message.id))
       return optimistic.layers.length === model.optimistic.layers.length &&

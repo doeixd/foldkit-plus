@@ -57,7 +57,7 @@ domain with `Remote.make({ model: App.model.remote, entities, … })`. The bound
 `Data` is the application API: a Surface reads through `Data.get`,
 `Data.live`, and `Data.query`; `Data.subscriptions` fetches, subscribes, and
 retains for the active Surfaces; `update` starts mutations with `Data.mutate`,
-pages with `Data.next`/`Data.fetch`, and reduces Remote's Messages with
+loads more with `Data.more`, and reduces Remote's Messages with
 `Data.reduce`. Each compiles to a kernel function of the same name, documented
 as the package's [Advanced](../packages/remote/README.md#advanced-the-kernel)
 section.
@@ -138,10 +138,10 @@ select: ProjectSummary, first: 25 })` reads the connection as a `Page` of the
 selected items, and carries the connection next to its requirements. The read
 entry plans it like a field: a connection the Model does not hold (or holds
 stale) is a query to run, and once its page is known, the page's items are
-requirements like any other, read under `select`. `Data.next(model, projection)`
-is the following page's `QueryRef` from the loaded boundary, and
-`Data.fetch(ref)` the Command that merges it; the same projection then reads
-every loaded page.
+requirements like any other, read under `select`. A read shows at most its
+window, whatever else loaded the connection. `Data.more(model, projection)` grows
+that window by a page, and the read entry fetches the rows the connection
+lacks.
 
 What a field the store already holds means is a `RemotePolicy` on `observe` and
 `prefetch`: `cacheFirst` (default) fetches only what is missing,

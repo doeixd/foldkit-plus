@@ -126,8 +126,7 @@ export interface DomainLike<Root> {
   }
   get(selection: any, id: string): Projection<Root, RemoteData<any>>
   query(query: any, input: any, options: any): Projection<Root, RemoteData<Page<any>>>
-  next(model: Root, projection: any): { readonly query: string } | undefined
-  fetch(ref: any): Command<RemoteMessage, never, RemoteClient>
+  more(model: Root, projection: any): Option.Option<Root>
   refresh(model: Root, target: any): Root
   mutation(model: Root, requestId: string): MutationStatus
   /** `Data.active`: a read of the domain as an active Surface of its application. */
@@ -411,14 +410,12 @@ export const Crud = {
 
           page,
 
-          /** The Command that loads the next page onto this one; none when there is none. */
-          more: (root: Root): Option.Option<Command<RemoteMessage, never, RemoteClient>> =>
-            Option.map(
-              Option.flatMap(projectionOf(root), projection =>
-                Option.fromUndefinedOr(data.next(root, projection)),
-              ),
-              data.fetch,
-            ),
+          /**
+           * "Load more": the Model with the list showing one page more, for the
+           * read entry to fetch; none when it shows every row there is.
+           */
+          more: (root: Root): Option.Option<Root> =>
+            Option.flatMap(projectionOf(root), projection => data.more(root, projection)),
 
           /**
            * Asks for the list again: `Data.refresh` over its page and rows, for a

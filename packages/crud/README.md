@@ -120,9 +120,10 @@ What each call does:
   connection, fetched on its own.
 - **`AuthorList.page(model)`** reads Remote's store: a `RemoteData` of the page,
   with `items` typed by the Selection, `hasNext` and `hasPrevious`.
-- **`AuthorList.more(model)`** is the Command that loads the next page onto
-  this one, an `Option`: none when there is none. Return
-  `Option.toArray(AuthorList.more(model))` as `update`'s commands.
+- **`AuthorList.more(model)`** is "load more": the Model with the list showing
+  one page more, an `Option`, none when it already shows every row. Return it
+  from `update` (`Option.getOrElse(AuthorList.more(model), () => model)`); the
+  read entry fetches the rows it lacks.
 - **`AuthorList.refresh(model)`** is the Model with the list asked for again. A
   failed read is not retried on its own, so this is what a retry button's
   Message returns.

@@ -157,6 +157,17 @@ window it asked for, and a write must say everything it changed.
 - `QueryBlock.reads`' `windowed` (`263839a`) is deleted; it patched one consumer.
   Its test moves to Remote.
 - Crud's "load more" keeps working: it grows its window explicitly.
+- *As built:* `Data.more(model, projection)` grows a read's window by a page
+  and is kept in Remote's store (`grown`, by query, input and first window), so
+  a list still holds no state; retention forgets it with the connection. The
+  read entry plans one query per connection and direction, for the widest
+  window, and when a connection holds fewer rows than a window asks for, asks
+  only for the rows after its end cursor (or before its start). `Data.next`,
+  `Data.previous` and `Data.fetch`, which paged onto a connection every read
+  then showed, are removed; `Remote.query` and `Remote.queryMessage` remain for
+  running one page by hand. Found on the way: a wider window asked for after a
+  narrower one had loaded the connection was never fetched, so a picker's
+  `first: 50` after a Block's `first: 3` showed three rows.
 
 ### 3b. `Data.active(name, projectionOf)`
 

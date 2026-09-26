@@ -219,7 +219,10 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     the picker's read of the same list (`first: 50`) filled the connection, and
     the Block's `first: 3` read got every row it held. **Fixed** in
     `QueryBlock.reads`: each node's read is cut to its own `first`, with
-    `hasNext` set when rows were cut. `remote.test.ts` reads a wider window of
+    `hasNext` set when rows were cut. Then **fixed in Remote** (plan area 3a):
+    every query read shows at most its window, and `QueryBlock.reads`' own
+    cut is gone. The reverse also held and is fixed: a wider window asked for
+    after a narrower one had loaded the connection was never fetched. `remote.test.ts` reads a wider window of
     the same query first and asserts the Block still gets its two; it fails
     without the fix.
 

@@ -48,6 +48,7 @@ const allTags: ReadonlyArray<RemoteMessageTag> = [
   'MutationFailed',
   'OverlayShown',
   'OverlayLifted',
+  'WindowGrown',
   'LiveReceived',
   'GapCleared',
   'ConnectionMerged',

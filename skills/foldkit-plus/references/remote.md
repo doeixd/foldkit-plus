@@ -97,7 +97,7 @@ const App = Surface.application({ Model, Message, initial: { projectId: Option.n
 
 const Data = Remote.make({ model: App.model.remote, entities: [User, Project] })
 const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
-// `foldData(model, message)` reduces; `foldData.fetch`, `.mutate`, `.subscriptions` yield
+// `foldData(model, message)` reduces; `foldData.mutate` and `.subscriptions` yield
 // the wrapper with the lift recorded. Shorter, for an update that only reduces:
 // spread `...Remote.messages` and `if (Remote.reduces(message)) return { model: Data.reduce(model, message) }`.
 
@@ -185,10 +185,10 @@ case 'ClickedRename': {
     { optimistic: [Remote.patch(Project, message.id, { name: message.name })] })
   return { model: started, commands: [command] } // command yields MutationSucceeded/MutationFailed
 }
-case 'ClickedMore': {
-  const next = Data.next(model, projects) // QueryRef | undefined (also Data.previous)
-  return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
-}
+case 'ClickedMore': // grows the read's window by a page; the read entry fetches the rest
+  return { model: Option.getOrElse(Data.more(model, projects), () => model) }
+// A query read shows at most its window (`first` from the start, `last` from the end),
+// whatever else loaded the connection; a wider window fetches only the rows it lacks.
 case 'ClickedRefresh': {
   if (Option.isNone(model.projectId)) return { model }
   // Mark-only, no I/O: fields read Refreshing, a NotFound is forgotten (reads Loading, asked for again),

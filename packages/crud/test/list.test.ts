@@ -123,11 +123,8 @@ describe('Crud.list', () => {
 
   it('loads the next page onto the first, and has none to load after the last', async () => {
     const first = await load({ ...initial, search: 'a' })
-    const more = Option.getOrThrow(AuthorList.more(first))
-
-    const merged = Data.reduce(first, await run(more.effect))
-    // The new rows are referenced but not read yet; the read entry fetches them.
-    const second = await load(merged)
+    // One page more is asked of the Model; the read entry fetches it.
+    const second = await load(Option.getOrThrow(AuthorList.more(first)))
     expect(shown(second)).toEqual(['Ada', 'Alan', 'Annie'])
     expect(Option.isNone(AuthorList.more(second))).toBe(true)
   })
