@@ -1,3 +1,4 @@
+import type { Schema } from 'effect'
 import {
   NodeId,
   blockAtPath,
@@ -6,6 +7,7 @@ import {
   locateBlock,
   locateRun,
   pathKey,
+  textContent,
   type Block,
   type BlockPath,
   type Document,
@@ -25,7 +27,7 @@ import {
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
-import { blockKind, type NodeRegistry } from './kit.js'
+import { blockKind, propsFailure, type NodeRegistry } from './kit.js'
 import {
   Edit,
   apply,
@@ -56,6 +58,24 @@ export type Command =
   | { readonly type: 'Paste'; readonly slice: Slice }
   /** Retypes the block the selection starts in: a paragraph, or a heading. */
   | { readonly type: 'RetypeBlock'; readonly to: TextBlock }
+  /**
+   * Wraps the block the selection starts in, in new containers listed outermost first: a
+   * `Quote`, or a `List` holding a `ListItem`. The block keeps its identity and its runs,
+   * so the caret stays where it was.
+   */
+  | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
+  /**
+   * Replaces the text block the selection starts in with a node kind that holds text, such
+   * as a `CodeBlock`, carrying its text and marks. Identities are never reused, so the block
+   * and its runs get new ones and the selection moves onto them at the same offsets.
+   */
+  | { readonly type: 'ConvertBlock'; readonly to: Container }
+
+/** A container a block is wrapped in: a node kind, and the props it starts with. */
+export interface Container {
+  readonly kind: string
+  readonly props?: Schema.JsonObject | undefined
+}
 
 /** Caller-owned identity source. Live edits mint; replay applies transactions. */
 export interface CommandIds {
@@ -83,7 +103,11 @@ const forbidsMarks = (
   if (nodes === undefined) return false
   const block = blockAtPath(document, path)
   if (block === undefined || block.type === 'Unknown') return false
-  const declared = nodes.definitionFor(blockKind(block))
+  return kindForbidsMarks(nodes, blockKind(block))
+}
+
+const kindForbidsMarks = (nodes: NodeRegistry, kind: string): boolean => {
+  const declared = nodes.definitionFor(kind)
   return declared?.kind === 'node' && declared.marks === 'none'
 }
 
@@ -99,12 +123,42 @@ const acceptsChild = (
   kind: string,
   nodes: NodeRegistry | undefined,
 ): boolean => {
-  if (nodes === undefined) return true
   const parent = blockAtPath(document, path)
-  if (parent === undefined) return true
-  const declared = nodes.definitionFor(blockKind(parent))
+  return parent === undefined || kindAccepts(nodes, blockKind(parent), kind)
+}
+
+/** Whether a kind's declaration lets it hold another as a nested block; undeclared is open. */
+const kindAccepts = (
+  nodes: NodeRegistry | undefined,
+  parentKind: string,
+  childKind: string,
+): boolean => {
+  if (nodes === undefined) return true
+  const declared = nodes.definitionFor(parentKind)
   if (declared?.kind !== 'node' || typeof declared.children === 'string') return true
-  return declared.children.of.includes(kind)
+  return declared.children.of.includes(childKind)
+}
+
+/** Whether the vocabulary declares props for a new node that these do not decode as. */
+const refusesProps = (nodes: NodeRegistry | undefined, container: Container): boolean => {
+  const declared = nodes?.definitionFor(container.kind)
+  return (
+    declared !== undefined &&
+    declared.kind !== 'block' &&
+    propsFailure(declared.props, container.props ?? {})
+  )
+}
+
+/**
+ * Whether a kind can be a new container. Unlike an existing parent, a kind a wrap creates
+ * must be declared as holding nested blocks when there is a vocabulary: wrapping in an
+ * undeclared kind, or a text kind such as `CodeBlock`, would make content `validate`
+ * refuses.
+ */
+const holdsBlocks = (nodes: NodeRegistry | undefined, kind: string): boolean => {
+  if (nodes === undefined) return true
+  const declared = nodes.definitionFor(kind)
+  return declared?.kind === 'node' && declared.children !== textContent
 }
 
 type Failure =
@@ -358,6 +412,134 @@ const graphemeDeletion = (
   return { operations, caret: backward ? graphemeStart : caret }
 }
 
+/** The block a block-level command acts on, and where it stands. */
+interface StartingBlock {
+  readonly block: Block
+  readonly path: BlockPath
+  readonly parentPath: BlockPath
+  /** The containing block, or none at the document's top level. */
+  readonly parent: Block | undefined
+  /** The selection it was found from, which a command that renames runs has to move. */
+  readonly selection: Extract<Selection, { readonly type: 'Range' }>
+}
+
+/**
+ * A block-level intent acts on the block the selection starts in: the caret's own block,
+ * or the first block of a range. Acting on every block a range covers would be a surprise,
+ * and a menu or a marker is typed at a caret anyway.
+ */
+const startingBlock = (
+  document: Document,
+  selection: Extract<Selection, { readonly type: 'Range' }>,
+): StartingBlock | { readonly error: Failure } => {
+  const start = isCollapsed(selection) ? selection.anchor : ordered(document, selection)?.start
+  if (start === undefined) return { error: 'InvalidSelection' }
+  const at = locate(document, start.node)
+  const block = at === undefined ? undefined : blockAtPath(document, at.path)
+  if (at === undefined || block === undefined) return { error: 'MissingText' }
+  const parentPath = at.path.slice(0, -1)
+  return {
+    block,
+    path: at.path,
+    parentPath,
+    parent: parentPath.length === 0 ? undefined : blockAtPath(document, parentPath),
+    selection,
+  }
+}
+
+/** Retype, wrap, and convert: each reshapes the starting block where it stands. */
+const runBlockCommand = (
+  state: EditorState,
+  command: Extract<Command, { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' }>,
+  { block, path, parentPath, parent, selection }: StartingBlock,
+  ids: CommandIds,
+  options: RunOptions,
+): TransactionResult => {
+  const index = path[path.length - 1]!
+  if (command.type === 'RetypeBlock') {
+    // A retype keeps the block where it is, so the parent's constraint decides whether
+    // the new kind belongs there.
+    if (!acceptsChild(state.document, parentPath, command.to.type, options.nodes)) {
+      return failure('UnexpectedChild')
+    }
+    return apply(state, [Edit.retypeBlock(block.id, command.to)])
+  }
+
+  if (command.type === 'WrapBlock') {
+    const [outer] = command.containers
+    if (outer === undefined) return failure('InvalidInput')
+    if (command.containers.some(container => refusesProps(options.nodes, container))) {
+      return failure('InvalidInput')
+    }
+    const kinds = [...command.containers.map(container => container.kind), blockKind(block)]
+    const allowed =
+      acceptsChild(state.document, parentPath, outer.kind, options.nodes) &&
+      command.containers.every(
+        (container, at) =>
+          holdsBlocks(options.nodes, container.kind) &&
+          kindAccepts(options.nodes, container.kind, kinds[at + 1]!),
+      )
+    if (!allowed) return failure('UnexpectedChild')
+    const containerIds = command.containers.map(() => NodeId.make(ids.mint()))
+    // Built from the inside out, so each container holds the next and the innermost is
+    // empty until the block moves into it.
+    const chain = command.containers.reduceRight<Block | undefined>(
+      (inner, container, at) => ({
+        type: 'Node',
+        kind: container.kind,
+        id: containerIds[at]!,
+        props: container.props ?? {},
+        children: [],
+        blocks: inner === undefined ? [] : [inner],
+      }),
+      undefined,
+    )!
+    return apply(state, [
+      Edit.insertBlock(chain, index, parent?.id),
+      Edit.moveBlock(block.id, 0, containerIds[containerIds.length - 1]!),
+    ])
+  }
+
+  // A node kind's content is its Kit's contract, so only a paragraph or heading converts.
+  if (block.type !== 'Paragraph' && block.type !== 'Heading') return failure('InvalidInput')
+  const kind = command.to.kind
+  if (refusesProps(options.nodes, command.to)) return failure('InvalidInput')
+  const declared = options.nodes?.definitionFor(kind)
+  const holdsText =
+    options.nodes === undefined || (declared?.kind === 'node' && declared.children === textContent)
+  if (!holdsText || !acceptsChild(state.document, parentPath, kind, options.nodes)) {
+    return failure('UnexpectedChild')
+  }
+  if (
+    options.nodes !== undefined &&
+    kindForbidsMarks(options.nodes, kind) &&
+    block.children.some(run => run.marks.length > 0)
+  ) {
+    return failure('ForbiddenMark')
+  }
+  const renamed = new Map(block.children.map(run => [run.id, NodeId.make(ids.mint())]))
+  const converted: Block = {
+    type: 'Node',
+    kind,
+    id: NodeId.make(ids.mint()),
+    props: command.to.props ?? {},
+    children: block.children.map(run => ({ ...run, id: renamed.get(run.id)! })),
+  }
+  const moved = (position: Position): Position => {
+    const node = renamed.get(position.node)
+    return node === undefined ? position : { ...position, node }
+  }
+  return apply(state, [
+    Edit.deleteBlock(block.id),
+    Edit.insertBlock(converted, index, parent?.id),
+    Edit.setSelection({
+      type: 'Range',
+      anchor: moved(selection.anchor),
+      focus: moved(selection.focus),
+    }),
+  ])
+}
+
 /**
  * Resolves one intent into a transaction and applies it atomically. Commands
  * describe intent; the returned `positionMap` and `ChangeSet` describe the
@@ -450,26 +632,15 @@ export const run = (
     return apply(state, operations)
   }
 
-  if (command.type === 'RetypeBlock') {
-    // A block-level intent acts on the block the selection starts in: the caret's
-    // own block, or the first block of a range. Retyping every block a range covers
-    // would be a surprise, and a menu opens at a caret anyway.
-    const start = isCollapsed(selection)
-      ? selection.anchor
-      : ordered(state.document, selection)?.start
-    if (start === undefined) return failure('InvalidSelection')
-    const at = locate(state.document, start.node)
-    if (at === undefined) return failure('MissingText')
-    // A retype keeps the block where it is, so the parent's constraint decides
-    // whether the new kind belongs there.
-    const parentPath = at.path.slice(0, -1)
-    if (
-      parentPath.length > 0 &&
-      !acceptsChild(state.document, parentPath, command.to.type, options.nodes)
-    ) {
-      return failure('UnexpectedChild')
-    }
-    return apply(state, [Edit.retypeBlock(at.blockId, command.to)])
+  if (
+    command.type === 'RetypeBlock' ||
+    command.type === 'WrapBlock' ||
+    command.type === 'ConvertBlock'
+  ) {
+    const target = startingBlock(state.document, selection)
+    return 'error' in target
+      ? failure(target.error)
+      : runBlockCommand(state, command, target, ids, options)
   }
 
   if (command.type === 'DeleteBackward' || command.type === 'DeleteForward') {

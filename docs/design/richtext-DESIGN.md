@@ -5917,6 +5917,10 @@ without turning normalization into a bag of UX behavior.
 > `RetypeBlock`); and the editor applies the rules placed for its host, so it carries no
 > syntax. The markers that need a block wrapped or replaced — `> `, `- `, `1. `, a fence —
 > wait on a command §21 does not have; §128 records both.
+>
+> **Built (2026-09-26), as §131:** `WrapBlock`, with the `> `, `- `, and `1. ` rules on it,
+> and `ConvertBlock`, with the fence rule on it. Every block marker this list names is now a
+> rule.
 
 ---
 
@@ -7051,6 +7055,9 @@ and no rule claims them. The inline shortcuts (`**foo**` as the closing run is t
 same story from the other side: they need the text *after* the caret too, which the contract
 deliberately does not read.
 
+> **Since built (§131):** the wrap and the replace. `> `, `- `, `1. `, and the fence are
+> rules now.
+
 ---
 
 # 129. The editable adapter's decoration overlay
@@ -7161,3 +7168,73 @@ hand-rolled.
 > exact on JSON and total on anything else: it never throws, and an unterminated string ends
 > at the line break. A key is `syntax-property`, told from a string value by the colon after
 > it. The Shiki adapter remains; the editable overlay is built (§129).
+
+---
+
+# 131. Wrapping a block
+
+§128 left `> `, `- `, and `1. ` as text because no command put a block inside a new container.
+The question it named — what a caret inside a block does when the block becomes a child of a
+new one — has a simple answer once the wrap is a *move*: nothing. The block keeps its identity
+and its runs, so a position on one of its runs is still a position.
+
+```text
+WrapBlock { containers: [outermost, …, innermost] }
+  = InsertNode(chain of empty containers, at the block's index, in the block's parent)
+  + MoveNode(block, into the innermost container, at 0)
+```
+
+Both operations already existed (§21), so history, replay, and the change set needed nothing
+new. The block acted on is `RetypeBlock`'s: the caret's, or the first a range covers.
+
+Constraints are checked before anything is built, against the vocabulary when one is given:
+the parent must accept the outermost container, each container the next, and the innermost
+the block. A container is held to more than an existing parent is: it must be *declared* as
+holding nested blocks. An existing parent the vocabulary does not know is left alone, because
+refusing to edit inside it would strand its content; a new container in an undeclared kind, or
+in a text kind such as `CodeBlock`, would be content the vocabulary itself refuses.
+
+The Markdown rules on it: `> ` wraps in a `Quote`; `- `, `* `, and `+ ` in a `List` holding a
+`ListItem`; `1. ` or `1) ` in an ordered list, whose `start` is the number typed and is left out
+at 1, as the parser writes it.
+
+Not decided here, and not needed until they are:
+
+- **Joining a neighbour.** A list marker typed right after a list starts a second list beside
+  it. The printer writes two lists, and a Markdown parser reads them back as one. Markdown's own reading would add an item to
+  the list above; that is a merge of containers, which is its own command.
+- **The fence** turned out to need a *replace*, not a wrap or a retype: see below.
+- **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
+  block back out. That is the inverse move and the same two operations, but it changes what
+  `DeleteBackward` does, so it is a decision about Backspace rather than about this command.
+
+## The replace, for the fence
+
+A `CodeBlock` holds text under its own marks policy, and the `RetypeBlock` *operation*
+deliberately refuses node kinds: a node's content is its Kit's contract. So turning a paragraph
+into a code block is a replace, composed like the wrap from operations that exist:
+
+```text
+ConvertBlock { to: { kind, props } }
+  = DeleteNode(block)
+  + InsertNode(node of that kind, carrying the block's text and marks, where the block stood)
+  + SetSelection(the old selection, moved onto the new runs at the same offsets)
+```
+
+One thing is different from the wrap. Carrying the runs over under their old identities was
+the first attempt, and `apply` refused it (`InvalidInput`): an identity is never reused, even
+one deleted earlier in the same transaction. So the block and its runs get new identities from
+`mint`. The caret survives because the command moves it, not because the identities did, and
+anything else holding the old run identities (a decoration, a remote cursor) has to find the
+new ones. Widening the `RetypeBlock` operation to node kinds would have kept them, at the cost
+of the rule that an operation never rewrites a node's content; a fence is rare enough, and
+typed at the start of an empty block often enough, that the replace is the smaller price.
+
+Given a vocabulary, the kind must be declared to hold text and its parent must accept it
+(`UnexpectedChild`), and a kind whose marks policy is `none` refuses a block that carries marks
+(`ForbiddenMark`) rather than dropping them silently. Only a paragraph or heading converts; a
+node block's content stays its Kit's.
+
+The rule completes a fence — three or more backticks or tildes, then an optional language —
+with a space, since Enter splits a block and a rule sees only what is typed.
+

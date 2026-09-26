@@ -70,7 +70,8 @@ way, because a document cannot say whether it is an atom or a run holder with no
 Kit is what `run` may add marks from; `apply` still takes no Kit, and `run` refuses an edit
 a constraint forbids when the caller gives it the vocabulary (`nodes: RichText.nodeRegistry(
 kit.nodes)` — `ForbiddenMark` for a mark added inside a mark-free kind, `UnexpectedChild`
-for a `RetypeBlock` or `Paste` that a constrained parent excludes) — while a document that
+for a `RetypeBlock`, `WrapBlock`, or `Paste` that a constrained parent excludes, and for a
+wrap in a kind not declared to hold blocks) — while a document that
 carries such a violation anyway is reported by validation rather than by the operation.
 Removing a mark is always allowed. Parsing stays with the caller, and
 `foldkit-richtext-dom`'s parser maps `<ul>`/`<ol>`/`<li>` to a `List`/`ListItem` the Kit
@@ -214,11 +215,15 @@ The harness adapter carries slices over the clipboard
 paste as slice → HTML → text.
 
 `run(state, command, ids)` resolves editor intent (typing, backward/forward
-delete, split block, toggle mark over a range, set selection, paste, retype block)
+delete, split block, toggle mark over a range, set selection, paste, retype block, wrap block)
 into a transaction and applies it; identity comes from the caller's `mint`, never a
 clock. `RetypeBlock` changes the type of the block the selection starts in — a
 paragraph, or a heading at a level — and keeps that block's runs, so identities and
 the caret survive; a node block is refused, because its content is its Kit's contract.
+`WrapBlock` moves that block into new containers listed outermost first (`[{ kind: 'List',
+props }, { kind: 'ListItem' }]`), keeping its identity and the caret. `ConvertBlock` replaces
+a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
+new identities and moving the selection onto them.
 `InsertText` takes an optional `marks`: with it the inserted span carries
 exactly that set, without it the boundary rule decides and the text inherits the
 run it joins; an unknown mark is refused. That keeps stored marks in the
@@ -247,10 +252,10 @@ the same `safeUrl` policy HTML import uses (refused ones are reported as `Unsafe
 The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
-`###### ` retype a block as the space is typed — where the editor applies the rules its
-placement names (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself.
-A marker needing the block wrapped or replaced is not a rule yet, because no command does
-that.
+`###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
+or a list (`WrapBlock`), and a fence such as `` ```ts `` converts it to a `CodeBlock`
+(`ConvertBlock`) — where the editor applies the rules its placement names
+(`editorAt(hostId, { inputRules })`), so it carries no Markdown itself.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable

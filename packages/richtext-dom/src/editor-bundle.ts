@@ -249,22 +249,34 @@ export const Editor = Bundle.make({
       menu === undefined || menu.highlighted === undefined || model.selection?.type !== 'Range'
         ? undefined
         : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
-    const result = RichText.runAction(
-      state,
-      // What is typed can be a block marker (§124 §4): the rules are the placement's own,
-      // so the editor carries none of any syntax's vocabulary itself.
+    const runAction = (action: RichText.Action) =>
+      RichText.runAction(
+        state,
+        action,
+        { mint: () => `e${nextId++}` },
+        { marks: vocabulary.marks, nodes: vocabulary.nodes },
+      )
+    // What is typed can be a block marker (§124 §4): the rules are the placement's own, so
+    // the editor carries none of any syntax's vocabulary itself.
+    const ruled =
+      queryRange === undefined && message._tag === 'Typed'
+        ? RichText.applyInputRules(inputRulesFor(model.hostId), {
+            textBefore: textBeforeOf(model),
+            text: message.text,
+            insertion: command,
+          })
+        : undefined
+    const attempt = runAction(
       queryRange !== undefined
         ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
-        : message._tag === 'Typed'
-          ? RichText.applyInputRules(inputRulesFor(model.hostId), {
-              textBefore: textBeforeOf(model),
-              text: message.text,
-              insertion: command,
-            })
-          : [command],
-      { mint: () => `e${nextId++}` },
-      { marks: vocabulary.marks, nodes: vocabulary.nodes },
+        : (ruled ?? [command]),
     )
+    // A rule the vocabulary refuses — a fence typed into bold text, say — leaves the marker
+    // as the text it is, rather than refusing the keystroke along with it. The refused
+    // attempt's identities are given back first.
+    const fallback = !attempt.ok && ruled !== undefined
+    if (fallback) nextId = model.nextId
+    const result = fallback ? runAction([command]) : attempt
     if (!result.ok) {
       // A refused command changes nothing, so it does not burn identities.
       return { model, outMessage: { _tag: 'Rejected', error: result.error } }

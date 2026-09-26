@@ -261,7 +261,9 @@ its record: the child's `update` passes those registries to `RichText.runAction`
 edit a declaration forbids is refused here, not only reported by `validate` (§125).
 `placeInputRules` / `inputRulesFor` are a third record of the same kind: the rules the
 editor applies to what is typed, so a marker can turn into a block change as it is completed
-(§128) while the editor carries no syntax of any format. `placeDecorations` /
+(§128) while the editor carries no syntax of any format. A rule whose commands the
+vocabulary refuses does not cost the keystroke: the editor inserts what was typed on its own,
+so the marker stays as text. `placeDecorations` /
 `decorationsFor` are the fourth: `decorate(document) => DecorationSet`, which the mount and
 every patch draw over the document (§129) — code highlighting from
 `RichText.codeDecorations`, say. It sees the document and nothing else, so a highlight
