@@ -528,7 +528,11 @@ describe('the inspector, a form over the selected node', () => {
       roots: [s],
       nodes: {
         [s]: { block: 'Section', props: {}, regions: { body: [stat, heading] } },
-        [stat]: { block: 'Stat', props: { value: 3, caption: 'posts' }, regions: {} },
+        [stat]: {
+          block: 'Stat',
+          props: { value: 3, caption: 'posts', frame: { width: 2 } },
+          regions: {},
+        },
         [heading]: { block: 'Heading', props: { text: 'Hello' }, regions: {} },
       },
     }),
@@ -553,6 +557,10 @@ describe('the inspector, a form over the selected node', () => {
   const props = (model: Model, id: NodeId) => model.page.present.nodes[id]?.props
 
   it('fills its fields from the node, labelled, with the controls the Block asks for', () => {
+    // A prop no control fits is shown as stored, not edited.
+    expect(inspecting(selected).settings.shown(props(selected, stat) ?? {})).toEqual([
+      ['frame', { width: 2 }],
+    ])
     const { settings } = inspecting(selected)
     expect(settings.form.controls.map(each => [each.key, each.control.kind, each.label])).toEqual([
       ['value', 'Number', 'Value'],
@@ -573,9 +581,13 @@ describe('the inspector, a form over the selected node', () => {
 
   it('sets a prop from a field that decodes, typing a word as one undo step', () => {
     const typed = type(type(selected, 'caption', 'po'), 'caption', 'people')
-    expect(props(typed, stat)).toEqual({ value: 3, caption: 'people' })
+    expect(props(typed, stat)).toEqual({ value: 3, caption: 'people', frame: { width: 2 } })
     expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
-    expect(props(type(selected, 'value', '12'), stat)).toEqual({ value: 12, caption: 'posts' })
+    expect(props(type(selected, 'value', '12'), stat)).toEqual({
+      value: 12,
+      caption: 'posts',
+      frame: { width: 2 },
+    })
   })
 
   it('sets nothing from a field that does not decode, and says why at the field', () => {
@@ -597,6 +609,32 @@ describe('the inspector, a form over the selected node', () => {
     const undoneHeld = send(held, Message.Undid())
     expect(field(undoneHeld, 'caption').value).toBe('posts')
     expect(field(undoneHeld, 'value').value).toBe('abc')
+  })
+
+  it('shows a stored prop that no longer decodes, with its error, and fills the rest', () => {
+    // Stored before the Block's Schema changed, say: the page no longer holds it that way.
+    const stored = PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [s],
+        nodes: {
+          [s]: { block: 'Section', props: {}, regions: { body: [stat] } },
+          [stat]: {
+            block: 'Stat',
+            props: { value: 'many', caption: 'posts', frame: { width: 2 } },
+            regions: {},
+          },
+        },
+      }),
+    )
+    const shown = send(stored, Message.Selected({ id: stat }))
+    expect(field(shown, 'value')).toEqual({
+      _tag: 'Invalid',
+      value: 'many',
+      errors: ['Enter a number'],
+    })
+    expect(field(shown, 'caption').value).toBe('posts')
   })
 
   it('reads a Builder saved before it held anything, and saves what it holds', () => {

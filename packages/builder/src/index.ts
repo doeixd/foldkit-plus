@@ -534,13 +534,6 @@ export const Builder = {
       },
     ]
 
-    /** A node's settings form, filled from its props; empty where they no longer decode. */
-    const filled = (settings: Settings, props: unknown) =>
-      Option.match(settings.props(props), {
-        onSome: decoded => settings.form.fill(settings.form.initial, decoded).model,
-        onNone: () => settings.form.initial,
-      })
-
     /**
      * The selected node's settings form and its Model: the one the inspector
      * holds for that node, else one filled from its props. None when nothing
@@ -563,7 +556,7 @@ export const Builder = {
           id,
           block,
           settings,
-          model: Option.getOrElse(held, () => filled(settings, node.props)),
+          model: Option.getOrElse(held, () => settings.fill(settings.form.initial, node.props)),
         })
       })
 
@@ -627,24 +620,19 @@ export const Builder = {
       if (documentOf(after) === documentOf(before)) return after
       return Option.match(inspecting(after), {
         onNone: () => ({ ...after, inspector: Option.none() }),
-        onSome: ({ settings, model: form }) =>
-          Option.match(settings.props(documentOf(after).nodes[id]?.props), {
-            onNone: () => after,
-            onSome: decoded => {
-              const refilled = Object.fromEntries(
-                Object.entries(decoded).filter(
-                  ([key]) => settings.form.field(form, key)._tag !== 'Invalid',
-                ),
-              )
-              return {
-                ...after,
-                inspector: Option.some({
-                  id,
-                  form: settings.encode(settings.form.fill(form, refilled).model),
-                }),
-              }
-            },
+        onSome: ({ settings, model: form }) => ({
+          ...after,
+          inspector: Option.some({
+            id,
+            form: settings.encode(
+              settings.fill(
+                form,
+                documentOf(after).nodes[id]?.props ?? {},
+                key => settings.form.field(form, key)._tag === 'Invalid',
+              ),
+            ),
           }),
+        }),
       })
     }
 

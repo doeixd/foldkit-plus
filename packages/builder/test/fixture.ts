@@ -14,13 +14,14 @@ export const Button = Block.define('Button', {
   provides: [Content.Flow, Content.Interactive],
 })
 /**
- * A number and its caption, for the inspector: a number typed as text, and a
- * caption drawn as a multiline field. Not offered.
+ * A number and its caption, for the inspector: a number typed as text, a
+ * caption drawn as a multiline field, and a frame no control fits. Not offered.
  */
 export const Stat = Block.define('Stat', {
   Props: Schema.Struct({
     value: Schema.Number,
     caption: Schema.String.annotate({ title: 'What it counts' }),
+    frame: Schema.Struct({ width: Schema.Number }),
   }),
   provides: [Content.Flow],
 }).pipe(Block.annotate(Builder.controls({ caption: Input.multiline() })))
