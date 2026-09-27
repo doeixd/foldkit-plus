@@ -711,6 +711,12 @@ of its own named a form field "fits the Catalog". Read words with
   longer restored the text, a commit made an empty undo step, and a second
   ask restarted the session. For state held across transitions, test each
   transition that can land in the middle.
+- **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
+  and a `keydown` sent to an element leave focus where it was, so a jsdom test
+  of the Builder kept focus in the layers through a crumb click and a key on
+  the canvas, and a focus-following Mount "broke" it. Focus what a user would
+  press, and test a focus claim in a browser with `userEvent`: four focus
+  bugs (Enter, Delete, a disabled button, a narrow panel) passed every test.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
