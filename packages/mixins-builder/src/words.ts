@@ -17,16 +17,16 @@ export interface BuilderWords {
   readonly layersPanel: string
   readonly settingsPanel: string
 
-  /** The palette, a tile ("Add Hero"), and its groups: Blocks given none, and the patterns. */
+  /** The palette, a tile (`'Add {label}'`), and its groups: Blocks given none, and the patterns. */
   readonly palette: string
   readonly addBlock: string
   readonly ungrouped: string
   readonly patterns: string
-  /** Where a tile adds its Block, on its title. */
+  /** Where a tile adds its Block, on its title; `{label}` is the node it goes after or inside. */
   readonly addsToEnd: string
   readonly addsAfter: string
   readonly addsInside: string
-  /** Why a tile adds nothing: nothing selected holds it, or the selected cannot. */
+  /** Why a tile adds nothing: nothing selected holds it, or the selected (`{label}`) cannot. */
   readonly selectAHolder: string
   readonly cannotGoAt: string
 
@@ -47,14 +47,14 @@ export interface BuilderWords {
   readonly style: string
   readonly visibility: string
   readonly interactions: string
-  /** A look: no choice, its field at a breakpoint, and a breakpoint that changes nothing. */
+  /** A look: no choice, its field at a breakpoint (`{label}`, `{breakpoint}`), and a breakpoint that changes nothing. */
   readonly lookDefault: string
   readonly lookAt: string
   readonly lookUnchanged: string
-  /** A condition over a context key, and the choice that is no condition. */
+  /** A condition over a context key (`{key}`), and the choice that is no condition. */
   readonly shownWhen: string
   readonly always: string
-  /** What an event runs, and the choice that runs nothing. */
+  /** What an event runs (`{event}`), and the choice that runs nothing. */
   readonly onEvent: string
   readonly runsNothing: string
   /** An action input's blank choice. */

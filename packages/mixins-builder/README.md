@@ -426,6 +426,9 @@ BuilderView.inputs({
 })
 ```
 
+Keep the words in one value made once, not built in the view: each part that
+draws words is drawn again when the object it is given is another one.
+
 Words are text: a word that takes a value names it as a blank (`'Add {label}'`),
 so a translation puts it where its language does. They are not functions,
 because they are a view input, and Foldkit throws on a function nested in
