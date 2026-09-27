@@ -11,7 +11,15 @@ import { Builder, Message, type Model } from 'foldkit-builder'
 import { Attributes, A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
-import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
+import {
+  BuilderSlots,
+  BuilderView,
+  layerId,
+  rowsOf,
+  viewportWidths,
+  builderWords,
+  keysOf,
+} from 'foldkit-mixins-builder'
 import {
   Heading,
   PageBuilder,
@@ -891,5 +899,17 @@ describe('its Behaviors', () => {
       [false, false],
       [false, false],
     ])
+  })
+})
+
+describe('keysOf', () => {
+  it('names a key by the words given, and a key they lack by its own name', () => {
+    const words = { ...builderWords, keyNames: { Delete: 'Entf' } }
+    expect(keysOf({ key: 'Delete' }, 'other', words)).toBe('Entf')
+    expect(keysOf({ key: 'Enter', mod: true }, 'other', { ...words, ctrlKey: 'Strg' })).toBe(
+      'Strg+Enter',
+    )
+    // A key is text an application chose: `Object`'s own names are no words.
+    expect(keysOf({ key: 'constructor' }, 'other', words)).toBe('constructor')
   })
 })

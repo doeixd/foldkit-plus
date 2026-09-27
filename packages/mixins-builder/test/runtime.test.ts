@@ -392,3 +392,49 @@ it('draws a color picker a prop asks for, and takes what it chooses', async () =
     handle.dispose()
   }
 })
+
+it('draws in the words its view inputs give it, through a submodel as an application places it', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const crashes: Array<string> = []
+  const spy = vi
+    .spyOn(console, 'error')
+    .mockImplementation((...args) => crashes.push(args.map(String).join(' ')))
+  const container = document.createElement('div')
+  container.id = 'worded'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      placements.complete({
+        Model,
+        container,
+        init: () => placements.initial({}),
+        update: placements.update(),
+        view: (model: Model, h: HtmlBuilder<Message>) =>
+          h.main(
+            [],
+            [
+              Editor.view(
+                model,
+                h,
+                BuilderView.inputs({
+                  words: { palette: 'Bloque nuevo', addBlock: 'Añadir {label}' },
+                }),
+              ),
+            ],
+          ),
+        subscriptions: placements.subscriptions(),
+      }),
+    ),
+  )
+  try {
+    await vi.waitFor(() => expect(buttonNamed('Añadir Section')).toBeDefined())
+    expect(document.querySelector('[aria-label="Bloque nuevo"]')).not.toBeNull()
+    expect(crashes).toEqual([])
+  } finally {
+    handle.dispose()
+    spy.mockRestore()
+  }
+})

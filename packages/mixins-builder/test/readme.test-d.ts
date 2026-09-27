@@ -131,7 +131,7 @@ Block.words({ icon: 'quote' })
 // The editor's words
 {
   const inputs = BuilderView.inputs({
-    words: { palette: 'Bloque nuevo', addBlock: label => `Añadir ${label}` },
+    words: { palette: 'Bloque nuevo', addBlock: 'Añadir {label}' },
   })
   void inputs
 }

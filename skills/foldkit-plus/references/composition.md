@@ -323,9 +323,9 @@ const PageForm = Form.make('PageForm', PageInput, {
   `keyCommand`, the node's actions, the toolbar (`toolbar`/`toolbarAction` Slots, `data-action`)
   and the shortcut list are drawn; change it with `Builder.make(..., { commands: built => ... })`.
   `BuilderView.inputs({ platform: 'mac' })` writes keys as ⌘D. `BuilderView.inputs({ words })`
-  puts the editor in another language: `Partial<BuilderWords>` over `builderWords`, a word that
-  takes a value being a function (`addBlock: label => ...`); Block and command labels are the
-  Catalog's and the command table's. The Builder's own words (announcements, command labels, its
+  puts the editor in another language: `Partial<BuilderWords>` over `builderWords`, text with
+  blanks (`addBlock: 'Añadir {label}'`), never functions, which a view input may not nest; Block
+  and command labels are the Catalog's and the command table's. The Builder's own words (announcements, command labels, its
   refusals): `Builder.make(name, { words: Partial<EditWords> })` over `editWords`; `refusal`
   words `apply`'s refusals.
 - Canvas overlay: `selectionBox` (with `selectionLabel`, the Block's label) and `hoverBox` Slots

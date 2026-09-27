@@ -482,6 +482,15 @@ languages. Apply it to `foldkit-mixins-builder` first, then bring
 test per package renders with every word replaced by a marker and asserts no
 English literal is left in the view (a checked claim, not a hope).
 
+> **Correction, 2026-09-26: words are text with blanks, not functions.** A
+> view's words are a view input, and `h.submodel` throws on a function nested
+> in one, so the drawn Builder, placed as the CMS places it, would not draw at
+> all; a runtime test through a submodel now pins that. `foldkit-form`'s
+> `fillWords` already documents this, and `foldkit-form`, `-mixins-form` and
+> `-mixins-crud` already used text with blanks (`'Add {label}'`), which carries
+> word order as well as a function does, and lets one object hold several
+> packages' words. That is the one convention.
+>
 > **`foldkit-mixins-builder` done, 2026-09-26.** `BuilderWords` and
 > `builderWords`, given as `BuilderViewInputs.words`, in `words.ts`. The test
 > draws the editor in five states, with a Builder whose Block has no group,

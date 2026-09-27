@@ -70,7 +70,7 @@ import {
 import type { KeyboardModifiers } from 'foldkit/html'
 import { createLazy, inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
-import { builderWords, wordsOf, type BuilderWords } from './words.js'
+import { builderWords, say, wordsOf, type BuilderWords } from './words.js'
 
 export { builderWords, type BuilderWords } from './words.js'
 
@@ -409,10 +409,15 @@ const keyNames: Readonly<Record<string, string>> = {
 export const keysOf = (
   key: CommandKey,
   platform: Platform = 'other',
-  words: Pick<BuilderWords, 'keyName' | 'ctrlKey' | 'altKey' | 'shiftKey'> = builderWords,
+  words: Pick<BuilderWords, 'keyNames' | 'ctrlKey' | 'altKey' | 'shiftKey'> = builderWords,
 ): string => {
-  const name =
-    keyNames[key.key] ?? (key.key.length === 1 ? key.key.toUpperCase() : words.keyName(key.key))
+  // A key is the caller's text: each table is read for an own entry only, never `Object`'s.
+  const own = (table: Readonly<Record<string, string>>) =>
+    Object.hasOwn(table, key.key) ? Option.fromUndefinedOr(table[key.key]) : Option.none()
+  const name = Option.getOrElse(
+    Option.orElse(own(keyNames), () => own(words.keyNames)),
+    () => (key.key.length === 1 ? key.key.toUpperCase() : key.key),
+  )
   const held = (
     words: { mod: string; alt: string; shift: string },
     order: ReadonlyArray<'mod' | 'alt' | 'shift'>,
@@ -879,7 +884,7 @@ export const BuilderView = {
           const fieldId = `${builder.name}-${id}-appearance-${axis}${point === 'base' ? '' : `-${point}`}`
           return h.div(slots.field.attrs(), [
             h.label(slots.label.attrs([h.For(fieldId)]), [
-              point === 'base' ? label : w.lookAt(label, point),
+              point === 'base' ? label : say(w.lookAt, { label, breakpoint: point }),
             ]),
             h.select(
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
@@ -913,7 +918,7 @@ export const BuilderView = {
       const conditions = Object.entries(fieldsOf(builder.catalog.context)).map(([key, schema]) =>
         contextField(slots, h, {
           id: `${builder.name}-${id}-when-${key}`,
-          label: w.shownWhen(key),
+          label: say(w.shownWhen, { key }),
           schema,
           current: eqOf(key),
           blank: w.always,
@@ -941,7 +946,7 @@ export const BuilderView = {
           })
         const pickId = `${builder.name}-${id}-on-${event}`
         const pick = h.div(slots.field.attrs(), [
-          h.label(slots.label.attrs([h.For(pickId)]), [w.onEvent(event)]),
+          h.label(slots.label.attrs([h.For(pickId)]), [say(w.onEvent, { event })]),
           h.select(
             slots.control.attrs([
               h.Id(pickId),
@@ -1022,7 +1027,7 @@ export const BuilderView = {
         h.Title(
           key === undefined
             ? command.label
-            : w.withKeys(command.label, keysOf(key, input.platform, w)),
+            : say(w.withKeys, { label: command.label, keys: keysOf(key, input.platform, w) }),
         ),
       ])
     }
@@ -1043,7 +1048,7 @@ export const BuilderView = {
         onNone: () =>
           Option.match(selected, {
             onNone: () => w.selectAHolder,
-            onSome: id => w.cannotGoAt(labelAt(document, id)),
+            onSome: id => say(w.cannotGoAt, { label: labelAt(document, id) }),
           }),
         onSome: position => {
           if (position._tag === 'Root') {
@@ -1051,13 +1056,13 @@ export const BuilderView = {
             const before = document.roots[position.index - 1]
             return position.index === document.roots.length || before === undefined
               ? w.addsToEnd
-              : w.addsAfter(labelAt(document, before))
+              : say(w.addsAfter, { label: labelAt(document, before) })
           }
           const before =
             document.nodes[position.parent]?.regions[position.region]?.[position.index - 1]
           return Option.contains(selected, position.parent) || before === undefined
-            ? w.addsInside(labelAt(document, position.parent))
-            : w.addsAfter(labelAt(document, before))
+            ? say(w.addsInside, { label: labelAt(document, position.parent) })
+            : say(w.addsAfter, { label: labelAt(document, before) })
         },
       })
     // A drop is marked only where it would land: `at` is none where the page refuses it.
@@ -1168,7 +1173,7 @@ export const BuilderView = {
             slots.paletteItem.attrs([
               h.Type('button'),
               h.DataAttribute(...item.data),
-              h.AriaLabel(w.addBlock(item.label)),
+              h.AriaLabel(say(w.addBlock, { label: item.label })),
               h.Title(whereItGoes(document, input.selected, item.at, w)),
               h.Disabled(Option.isNone(item.at)),
               ...Option.match(item.at, {

@@ -402,15 +402,17 @@ list's headings, is one of `BuilderWords`, English by default
 
 ```ts
 BuilderView.inputs({
-  words: { palette: 'Bloque nuevo', addBlock: label => `Añadir ${label}` },
+  words: { palette: 'Bloque nuevo', addBlock: 'Añadir {label}' },
 })
 ```
 
-A word that takes a value is a function, since word order differs between
-languages. The Catalog's words (a Block's label and description, its group)
-and the command table's labels are the application's already, and are not
-among them; so are key names, but for the named keys (Enter, Delete), which
-`keyName` words. A test draws the editor with every word replaced by a marker
+Words are text: a word that takes a value names it as a blank (`'Add {label}'`),
+so a translation puts it where its language does. They are not functions,
+because they are a view input, and Foldkit throws on a function nested in
+one; being text, one object can hold a form's words and these. The Catalog's
+words (a Block's label and description, its group) and the command table's
+labels are the application's already, and are not among them; so are key
+names, but for the named keys (Enter, Delete), which `keyNames` words. A test draws the editor with every word replaced by a marker
 and finds nothing else of its own left.
 
 ## Previewing a context

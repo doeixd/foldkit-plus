@@ -15,24 +15,20 @@ import { expect, it } from 'vitest'
 import { BuilderView, type BuilderWords } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView, answer, isTimer } from './fixture.js'
 
-const mark =
-  (key: string) =>
-  (...values: ReadonlyArray<string>) =>
-    `«${key}:${values.join('|')}»`
 const markers: BuilderWords = {
   panels: '«panels»',
   addPanel: '«addPanel»',
   layersPanel: '«layersPanel»',
   settingsPanel: '«settingsPanel»',
   palette: '«palette»',
-  addBlock: mark('addBlock'),
+  addBlock: '«addBlock:{label}»',
   ungrouped: '«ungrouped»',
   patterns: '«patterns»',
   addsToEnd: '«addsToEnd»',
-  addsAfter: mark('addsAfter'),
-  addsInside: mark('addsInside'),
+  addsAfter: '«addsAfter:{label}»',
+  addsInside: '«addsInside:{label}»',
   selectAHolder: '«selectAHolder»',
-  cannotGoAt: mark('cannotGoAt'),
+  cannotGoAt: '«cannotGoAt:{label}»',
   layers: '«layers»',
   properties: '«properties»',
   selectedBlock: '«selectedBlock»',
@@ -46,15 +42,15 @@ const markers: BuilderWords = {
   visibility: '«visibility»',
   interactions: '«interactions»',
   lookDefault: '«lookDefault»',
-  lookAt: mark('lookAt'),
+  lookAt: '«lookAt:{label}|{breakpoint}»',
   lookUnchanged: '«lookUnchanged»',
-  shownWhen: mark('shownWhen'),
+  shownWhen: '«shownWhen:{key}»',
   always: '«always»',
-  onEvent: mark('onEvent'),
+  onEvent: '«onEvent:{event}»',
   runsNothing: '«runsNothing»',
   none: '«none»',
-  withKeys: mark('withKeys'),
-  keyName: mark('keyName'),
+  withKeys: '«withKeys:{label}|{keys}»',
+  keyNames: { Enter: '«keyNames»', Escape: '«keyNames»', Delete: '«keyNames»' },
   ctrlKey: '«ctrlKey»',
   altKey: '«altKey»',
   shiftKey: '«shiftKey»',
