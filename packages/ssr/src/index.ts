@@ -43,7 +43,7 @@ import {
 } from './context.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, builder, view } from './resumable.js'
 import {
-  EncodedBindings,
+  readBindings,
   decodeBindings,
   listen,
   type DecodedBinding,
@@ -308,6 +308,8 @@ interface EnvelopeOptions {
   readonly route?: string | undefined
   readonly match?: RouteMatch | undefined
   readonly bindings?: ReadonlyArray<EncodedBinding> | undefined
+  /** Every event the page's markers name, so the browser listens without scanning for them. */
+  readonly events?: ReadonlyArray<string> | undefined
 }
 
 /**
@@ -336,6 +338,9 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
     ...(options.bindings === undefined || options.bindings.length === 0
       ? {}
       : { bindings: options.bindings }),
+    ...(options.events === undefined || options.events.length === 0
+      ? {}
+      : { events: options.events }),
   })
   return `<script type="application/json" ${RESUME_ATTRIBUTE}>${body}</script>`
 }
@@ -1003,6 +1008,12 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
           : { route: match === 'path' ? pathKey(routeOf(options.url)) : routeOf(options.url) }),
         match,
         bindings: encoded.success,
+        events: [
+          ...new Set([
+            ...servedBindings.map(binding => binding.event),
+            ...unnamed.map(handler => handler.event),
+          ]),
+        ].sort(),
       }),
       unnamed,
     }
@@ -1315,7 +1326,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     boot()
     return
   }
-  const decoded = bindings(plan, document, root, model)
+  const decoded = bindingsAndEvents(plan, document, root, model)
   if (Result.isFailure(decoded)) {
     console.error(`[foldkit-ssr] the page cannot resume: ${decoded.failure.message}`)
     adopt(program({ model: plan.baseline }), { buildId: '' })
@@ -1345,7 +1356,10 @@ const HANDOVER: unknown = Object.freeze({ _tag: 'foldkit-ssr/Handover' })
  */
 const deferBoot = (
   root: HTMLElement,
-  decoded: ReadonlyArray<DecodedBinding>,
+  decoded: {
+    readonly bindings: ReadonlyArray<DecodedBinding>
+    readonly events: ReadonlyArray<string> | undefined
+  },
   start: Start,
   runtime: {
     readonly boot: (entries: Readonly<Record<string, unknown>>) => void
@@ -1359,7 +1373,8 @@ const deferBoot = (
   // runtime until its first render commits, then `live`.
   let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
   const stop = listen(root, {
-    bindings: decoded,
+    bindings: decoded.bindings,
+    ...(decoded.events === undefined ? {} : { events: decoded.events }),
     onAnswer: ({ event, messages, unnamed }) => {
       // An answer the markers could not complete is left to the live page.
       if (unnamed !== undefined) {
@@ -1646,12 +1661,32 @@ const bindings = <Model, Fields extends Schema.Struct.Fields>(
   page: ParentNode,
   root: Element,
   model: Model,
-): Result.Result<ReadonlyArray<DecodedBinding>, ResumeRefused> => {
+): Result.Result<ReadonlyArray<DecodedBinding>, ResumeRefused> =>
+  Result.map(bindingsAndEvents(plan, page, root, model), read => read.bindings)
+
+const EnvelopeEvents = Schema.optional(Schema.Array(Schema.String))
+
+/**
+ * `bindings`, and the events the envelope says the markers name, if it says:
+ * a page from before the envelope listed them leaves `listen` to find them.
+ */
+const bindingsAndEvents = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  page: ParentNode,
+  root: Element,
+  model: Model,
+): Result.Result<
+  {
+    readonly bindings: ReadonlyArray<DecodedBinding>
+    readonly events: ReadonlyArray<string> | undefined
+  },
+  ResumeRefused
+> => {
   const parsed = readEnvelope(page)
   if (Result.isFailure(parsed)) return Result.fail(parsed.failure)
-  const read = Schema.decodeUnknownResult(EncodedBindings)(parsed.success.bindings ?? [])
+  const read = readBindings(parsed.success.bindings ?? [])
   if (Result.isFailure(read)) {
-    return refuse('Invalid', `the page's bindings are malformed: ${read.failure.message}`)
+    return refuse('Invalid', `the page's bindings are malformed: ${read.failure}`)
   }
   const encoded = read.success
   if (encoded.length > 0 && plan.surfaces.length === 0) {
@@ -1660,10 +1695,14 @@ const bindings = <Model, Fields extends Schema.Struct.Fields>(
       'the page has bindings and the plan declares no surfaces to allow them',
     )
   }
+  const events = Schema.decodeUnknownResult(EnvelopeEvents)(parsed.success.events)
+  if (Result.isFailure(events)) {
+    return refuse('Invalid', `the page's events are malformed: ${events.failure.message}`)
+  }
   const decoded = decodeBindings(plan.Message, encoded, root, allowedTags(plan, model))
   return Result.isFailure(decoded)
     ? refuse('Invalid', decoded.failure)
-    : Result.succeed(decoded.success)
+    : Result.succeed({ bindings: decoded.success, events: events.success })
 }
 
 /** The resumable track: bindings the server's markup names, so a page can answer before it boots. */

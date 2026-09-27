@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A to F, and G (G1 to G5) done. Next: G6, one manifest entry per keyed placement, which G4's measurement calls for. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A to F, and G (G1 to G5) done, and G6's time half. Next: a decision on G6's size half. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -1023,6 +1023,45 @@ that can fail, or, for G4, a recorded measurement.
   marker once, shared by `Resume.bindings` and `Resume.listen`, may be the
   cheaper first change. Its acceptance is G4's table rerun under the
   thresholds at a thousand rows, with G2's sequences still green.
+  - **Time: done.** Split at a thousand rows (jsdom, medians):
+    `Resume.bindings` was 19 ms, of which the marker scan was 9, parsing the
+    envelope 2.5, the Schema decode of the list 2, and of the 3,000 Messages
+    3; `Resume.listen` was 17 ms, nearly all its own scan for the events
+    `*` markers name. So the scans dominated, as suspected. Measured in
+    Chromium (`pnpm bench:manifest:browser`, added for this, since jsdom's
+    DOM is several times slower) the picture differed: 16 ms decoding and 6
+    listening, with the list's Schema decode alone taking 6 ms there. Two
+    changes:
+    - The envelope lists every event the markers name, `*`-only ones
+      included, and `SSR.hydrate` passes it to `Resume.listen` as `events`,
+      which then scans nothing. A page whose envelope has no list, one
+      from before it, is scanned as before.
+    - The list is checked by hand (`readBindings`), refusing the same
+      malformed shapes, rather than through a Schema; each Message inside
+      is still decoded through the application's.
+
+    At a thousand rows, decoding and listening now take **12.0 ms in
+    Chromium** (from 21.9) and about 16.5 ms in jsdom (from 36), whose own
+    marker scan is 9 of it. Chromium's is the number a page lives with, so
+    the time threshold is met. The marker scan in `Resume.bindings` stays:
+    it is what refuses a page whose markers name no binding. Tests:
+    `envelopeEvents.test.ts`, `deferredEvents.test.ts`, the events case in
+    `listen.test.ts`, and a malformed case per check `readBindings` makes;
+    each has a mutation that fails it.
+  - **Size: open, and not met by an encoding alone.** The gzipped bindings
+    are 21% of the gzipped page. The 3,000 ids alone gzip to 1.6 KB, so the
+    entries' 8.5 KB is mostly structure, but the encodings measured without
+    knowing which bindings share a value do not reach a tenth: a template
+    per shape with its values in rows is 7.4 KB, in columns per template
+    4.8 KB (12%), and with the values interned 8.0 to 9.2 KB. Only one that
+    knows each row's three bindings share its id reaches 2.1 KB (5%): that
+    is the design's fix, which needs the rows to be a keyed placement, and
+    this bench's are not. The page is also unusually bare, three bindings on
+    a row with almost no markup, which inflates the ratio. What to do next
+    is a choice: build the design's fix for keyed placements, which leaves
+    a list like this bench's where it is; adopt the per-template columns,
+    a protocol change for a partial gain; or close the size risk with these
+    numbers.
 
 - **G5. Stop depending on when `hydrate` commits.** Deferred boot assumes the
   first render, listeners included, lands inside the event that boots the

@@ -215,6 +215,12 @@ version changed; `pnpm` skips versions already in the registry.
   to boot, `SSR.entry` and `SSR.generate` warn about each once per process.
 - **`foldkit-ssr`: `pnpm bench:manifest`** measures the resume manifest's size
   and decode time at 10, 100 and 1,000 rows; the SSR plan records the table.
+  `pnpm bench:manifest:browser` times the same page in Chromium.
+- **`foldkit-ssr`: the envelope lists the events its markers name,** and
+  `Resume.listen` takes them as `events`, so a deferred page no longer reads
+  every element's attributes to find them. The page's list of bindings is
+  checked by hand rather than through a Schema. At a thousand rows, decoding
+  and listening take 12 ms in Chromium, down from 22.
 
 ### Changed
 
