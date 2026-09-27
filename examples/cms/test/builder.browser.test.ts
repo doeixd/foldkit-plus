@@ -429,8 +429,13 @@ it('keeps focus on a command button that its own press leaves with nothing to do
   unmount = mount(stylesheet, 2)
   await vi.waitFor(() => expect(canvas()).not.toBeNull())
   const undo = () => document.querySelector<HTMLElement>('[data-action="undo"]')
-  // One edit, from the layers: then Undo has one step to take back.
-  document.querySelector<HTMLElement>('[data-builder-row="h1"]')?.focus()
+  // One edit, from the layers: then Undo has one step to take back. The row is
+  // drawn after the canvas, so it is waited for before the key goes to it.
+  const row = () => document.querySelector<HTMLElement>('[data-builder-row="h1"]')
+  await vi.waitFor(() => {
+    row()?.focus()
+    expect(document.activeElement).toBe(row())
+  })
   await userEvent.keyboard('{Delete}')
   await vi.waitFor(() => expect(undo()?.getAttribute('aria-disabled')).toBeNull())
   const button = undo()
