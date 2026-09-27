@@ -474,6 +474,10 @@ const patternRoot = (
     Option.fromUndefinedOr(op.ids[pattern.tree.root]),
   )
 
+/** A Block's label, the Catalog's word; one the Catalog lacks by its stored name. */
+const blockLabel = (catalog: Catalog, block: string): string =>
+  Catalog.block(catalog, block)?.words.label ?? block
+
 /** What an applied edit says to assistive technology; none for a prop change. */
 const describeEdit = (
   catalog: Catalog,
@@ -482,11 +486,10 @@ const describeEdit = (
   after: Document,
   op: Operation,
 ): Option.Option<string> => {
-  // A node by its Block's label, the Catalog's word; one it lacks by its stored name.
   const labelOf = (document: Document, id: NodeId): string =>
     Option.match(Option.fromUndefinedOr(document.nodes[id]), {
       onNone: () => id,
-      onSome: node => Catalog.block(catalog, node.block)?.words.label ?? node.block,
+      onSome: node => blockLabel(catalog, node.block),
     })
   const where = (id: NodeId): string => {
     const place = Composition.index(after).get(id)
@@ -747,10 +750,6 @@ export const Builder = {
           editing => editing.id === named.id && editing.key === named.key,
         ),
       )
-
-    /** A Block's label, the Catalog's word; one it lacks by its name. */
-    const blockLabel = (block: string): string =>
-      Catalog.block(catalog, block)?.words.label ?? block
 
     /** What is said when a drag ends with nothing done. */
     const unmoved = (source: DragSource): string =>
@@ -1014,12 +1013,15 @@ export const Builder = {
           const tree = Composition.takeTree(documentOf(model), message.id)
           const copied = { ...model, clipboard: Option.some(tree) }
           if (message._tag === 'CopyAsked')
-            return { model: copied, commands: copy(tree, words.copied(blockLabel(node.block))) }
+            return {
+              model: copied,
+              commands: copy(tree, words.copied(blockLabel(catalog, node.block))),
+            }
           const cut = applyOp(copied, Composition.Op.remove(message.id))
           // A node its Region cannot do without is not cut: nothing is copied either.
           return cut.model.page === model.page
             ? { ...cut, model: { ...cut.model, clipboard: model.clipboard } }
-            : { model: cut.model, commands: copy(tree, words.cut(blockLabel(node.block))) }
+            : { model: cut.model, commands: copy(tree, words.cut(blockLabel(catalog, node.block))) }
         }
         case 'PasteAsked':
           return {
