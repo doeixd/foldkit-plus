@@ -317,6 +317,7 @@ describe('the drawn Builder', () => {
       'Ctrl+Z',
       'Ctrl+Shift+Z',
       'Ctrl+V',
+      'Enter',
       'Escape',
     ])
     expect(Inert.all(root).some(node => Inert.value(node, 'aria-label') === 'Selected block')).toBe(
@@ -343,6 +344,7 @@ describe('the drawn Builder', () => {
       '⌘Z',
       '⇧⌘Z',
       '⌘V',
+      'Enter',
       'Escape',
     ])
     expect(

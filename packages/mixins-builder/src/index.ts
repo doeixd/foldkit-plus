@@ -39,7 +39,12 @@ import {
   type Document,
   type Position,
 } from 'foldkit-composition'
-import { MARK_ATTRIBUTE, NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
+import {
+  FIELD_ATTRIBUTE,
+  MARK_ATTRIBUTE,
+  NODE_ATTRIBUTE,
+  Renderer,
+} from 'foldkit-composition/foldkit'
 import { Entity } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
 import {
@@ -53,7 +58,13 @@ import {
 } from 'foldkit-mixins'
 import { FormView, type FormViewInputs, type Renderers } from 'foldkit-mixins-form'
 import { KeepInView, Measure, measured } from 'foldkit-primitives/dom'
-import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
+import {
+  EditableText,
+  LiveAnnounce,
+  PointerDrag,
+  Targets,
+  TreeNavigation,
+} from 'foldkit-primitives/interaction'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { createLazy, inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
@@ -203,7 +214,7 @@ export interface BuilderLike {
     model: Pick<Model, 'page' | 'selected' | 'inspector'>,
   ) => Option.Option<Inspecting>
   readonly keyCommand: (
-    model: Pick<Model, 'page' | 'selected'>,
+    model: Pick<Model, 'page' | 'selected' | 'editing'>,
     key: string,
     modifiers: KeyboardModifiers,
   ) => Option.Option<Message>
@@ -929,7 +940,7 @@ export const BuilderView = {
       input,
       h,
     }: {
-      readonly input: Pick<BuilderInput, 'page' | 'selected'>
+      readonly input: Pick<BuilderInput, 'page' | 'selected' | 'editing'>
       readonly h: HtmlBuilder<Message>
     }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyCommand(input, key, modifiers))]
 
@@ -1006,7 +1017,7 @@ export const BuilderView = {
 
     // The shortcuts, on the layers and on the canvas; each part draws one of the two.
     const Shortcuts = Behavior.forSlots(BuilderSlots)<
-      Pick<BuilderInput, 'page' | 'selected'>,
+      Pick<BuilderInput, 'page' | 'selected' | 'editing'>,
       Message
     >(
       {
@@ -1209,7 +1220,7 @@ export const BuilderView = {
     const LayersPart = Parts.part(
       'Layers',
       {
-        reads: ['page', 'selected', 'layers', 'drag'],
+        reads: ['page', 'selected', 'layers', 'drag', 'editing'],
         behaviors: [
           TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<
             Pick<BuilderInput, 'page' | 'selected' | 'layers' | 'drag'>,
@@ -1416,7 +1427,7 @@ export const BuilderView = {
     const Canvas = Parts.part(
       'Canvas',
       {
-        reads: ['page', 'selected', 'hovered', 'drag', 'viewport', 'preview', 'data'],
+        reads: ['page', 'selected', 'hovered', 'drag', 'viewport', 'preview', 'data', 'editing'],
         behaviors: [
           Targets.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
@@ -1438,6 +1449,23 @@ export const BuilderView = {
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             toMessage: nodeDrag,
+          }),
+          // Text on the page, edited where it is: the Builder checks which field each names.
+          EditableText.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'canvas',
+            attribute: `data-${FIELD_ATTRIBUTE}`,
+            toMessage: fact => {
+              switch (fact._tag) {
+                case 'EditAsked':
+                  return Message.EditingAsked({ field: fact.field })
+                case 'TextEdited':
+                  return Message.FieldTyped({ field: fact.field, text: fact.text })
+                case 'TextCommitted':
+                  return Message.EditingCommitted({ field: fact.field, text: fact.text })
+                case 'TextCancelled':
+                  return Message.EditingCancelled({ field: fact.field })
+              }
+            },
           }),
           Shortcuts,
           KeepSelectionInView,
@@ -1479,6 +1507,7 @@ export const BuilderView = {
                   drop: Option.getOrUndefined(dropOf(input.drag)),
                   context: input.preview,
                   data: input.data,
+                  editing: Option.getOrUndefined(input.editing),
                 }),
               ],
             ),
