@@ -32,9 +32,11 @@ export type SlotBuilder<Message, Slots = unknown> = {
   /**
    * One item's drawing, drawn again only when a value in `args` changed by
    * identity or what the Mixins gave the Slots it used for this item changed
-   * in value. `draw` must read nothing but its arguments, so pass a function
-   * defined once, not a closure made per render. Keyed by `item.id`, else its
-   * index.
+   * in value (a static Style by identity). `draw` must read nothing but its
+   * arguments, so pass a function defined once, not a closure made per
+   * render. Keyed by `item.id`, else its index, and remembered per `draw`:
+   * two views drawing one key with one `draw` share its memo, and miss it
+   * whenever what they give it differs.
    */
   readonly lazy: <const Args extends Readonly<Record<string, unknown>>>(
     item: SlotItem,
@@ -117,9 +119,10 @@ const buildersOver = <Slots, Message>(
                   // As `attrs` reads it: a `Mixin<never>` only ever gives message-free data.
                   const contribution = mixin.contributions[slot] as
                     SlotContribution<Message> | undefined
-                  return contribution !== undefined && isDynamic(contribution)
-                    ? [contribution({ input, h, item })]
-                    : []
+                  // A static one as it is: two views apart only by a Style draw rows apart.
+                  return contribution === undefined
+                    ? []
+                    : [isDynamic(contribution) ? contribution({ input, h, item }) : contribution]
                 }),
               ),
             ),
@@ -225,29 +228,37 @@ const drawItem = <Slots, Message, Args extends Readonly<Record<string, unknown>>
   }
   const memo = itemMemoOf(draw)
   const key = item.id ?? item.index
-  const run = (): Html => {
+  // What an item used and was given is kept only under a runtime frame, where a
+  // memo can use it: a server drawing page after page keeps nothing.
+  const run = (kept: boolean): Html => {
     started++
     using = new Set()
     try {
       const html = draw(context.builders, context.h, args)
-      memo.used.set(key, [...using])
+      if (kept) memo.used.set(key, [...using])
       return html
     } finally {
       using = undefined
     }
   }
   const used = memo.used.get(key) ?? [context.first]
-  if (used.includes(NESTED)) return run()
+  if (used.includes(NESTED)) return run(true)
   const now = context.given(used.filter(slot => slot !== NESTED))
   const before = memo.given.get(key)
   // The same data keeps the value last compared, so the memo sees it unchanged.
   const given = before !== undefined && sameData(before, now) ? before : now
-  memo.given.set(key, given)
-  pending = run
+  pending = () => run(true)
   try {
     // The record is new every render; its keys and values are what stay the same.
     const compared = [draw, given, ...Object.keys(args), ...Object.values(args)]
-    return memoizedOr(() => memo.lazy(key, runPending, compared), run)
+    return memoizedOr(
+      () => {
+        const html = memo.lazy(key, runPending, compared)
+        memo.given.set(key, given)
+        return html
+      },
+      () => run(false),
+    )
   } finally {
     pending = undefined
   }

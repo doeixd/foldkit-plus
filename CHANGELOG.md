@@ -375,6 +375,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins`, per-item memo (`slots.x.lazy`):** a static Style's
+  contribution is compared too, so two views apart only by a Style no longer
+  reuse each other's rows (a theme switch kept the old theme's rows); and an
+  item drawn with no runtime frame (a test, a server) keeps no bookkeeping.
+
 - **`foldkit-builder`, text edited in place:** Escape puts the text back even
   where another edit came between, a commit writes nothing the page already
   holds, a second ask for the field being edited begins nothing, and an undo

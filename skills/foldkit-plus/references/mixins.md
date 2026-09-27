@@ -47,7 +47,8 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   … draw(Part) …)` is a SlotView; a part may be drawn in more than one place. A whole-view Mixin
   that reads input makes parts redraw every time.
   Per item: `slots.row.lazy(item, drawRow, { ...args })` with `drawRow(slots, h, args)` defined once;
-  an item redraws when an arg changes or what Mixins give its Slots changes.
+  an item redraws when an arg changes or what Mixins give its Slots changes (a static Style by
+  identity). The memo is one per `drawRow`, shared by every view drawing it.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
 - `protected: { events, attributes, style }` forbids attachments from supplying those.
 - **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style

@@ -591,7 +591,8 @@ const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
 ```
 
 An item is drawn again only when one of its arguments changed by identity, or
-when a Mixin gave the Slots it used something different for it. A Behavior
+when a Mixin gave the Slots it used something different for it (a static Style
+by identity, so two views apart only by a Style draw their rows apart). A Behavior
 that works out a roving tab stop from the whole list redraws the row the stop
 left and the row it reached, and no other. `drawRow` reads only its arguments,
 so define it once, not per render. A Mixin that gives an item a handler made per
@@ -599,7 +600,9 @@ render, and an item drawing that holds another, are drawn every time: correct,
 not cached.
 Items are remembered by key for the life of the page, as Foldkit's keyed memo
 is, so key by something bounded (a node id), not by something that keeps
-changing (a search's results).
+changing (a search's results). The memo is one per drawing function: two views
+drawing the same key with one `drawRow` share it, and each misses whenever
+what it gives the row differs from the other's. Drawn inert, nothing is kept.
 
 ## With `foldkit-surface`
 

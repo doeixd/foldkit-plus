@@ -371,3 +371,59 @@ it('draws a row again only when its values or what a Behavior gave it changed', 
     handle.dispose()
   }
 })
+
+// Two views of one assembly, told apart only by a static Style on their rows.
+const ToneModel = Schema.Struct({ dark: Schema.Boolean })
+type ToneModel = typeof ToneModel.Type
+const ToneMessage = defineMessageUnion({ Toggled: {} })
+type ToneMessage = typeof ToneMessage.Type
+const drawToneRow = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, ToneMessage>,
+  h: HtmlBuilder<ToneMessage>,
+  { text }: { readonly text: string },
+) => h.li(slots.row.attrs([h.Key(text)], { index: 0, id: text }), [text])
+const ToneParts = SlotView.parts(ListSlots)<ToneModel, ToneMessage>()
+const ToneRows = ToneParts.part('ToneRows', { reads: [] }, (_input, slots, h) =>
+  h.ul(slots.root.attrs(), [slots.row.lazy({ index: 0, id: 'a' }, drawToneRow, { text: 'a' })]),
+)
+const Toned = ToneParts.assemble((_input, _slots, h, draw) =>
+  h.div(
+    [],
+    [h.button([h.Id('toggle'), h.OnClick(ToneMessage.Toggled())], ['Toggle']), draw(ToneRows)],
+  ),
+)
+const Light = Toned.pipe(Style.attach(Style.forSlots(ListSlots)({ row: Style.class('light') })))
+const Dark = Toned.pipe(Style.attach(Style.forSlots(ListSlots)({ row: Style.class('dark') })))
+
+it('draws a row again for a view whose static Style differs', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'toned'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: ToneModel,
+      container,
+      init: () => ({ model: { dark: false } }),
+      update: (model: ToneModel) => ({ model: { dark: !model.dark } }),
+      view: (model: ToneModel, h: HtmlBuilder<ToneMessage>) =>
+        model.dark ? Dark(model, h) : Light(model, h),
+    }),
+  )
+  const row = () => document.querySelector('li')?.className
+  const toggle = () =>
+    document.querySelector('#toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  try {
+    await vi.waitFor(() => expect(row()).toBe('light'))
+    // Twice each way, so a miss that follows a first draw cannot pass for it.
+    for (const tone of ['dark', 'light', 'dark', 'light']) {
+      toggle()
+      await vi.waitFor(() => expect(row()).toBe(tone))
+    }
+  } finally {
+    handle.dispose()
+  }
+})
