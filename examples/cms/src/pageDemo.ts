@@ -36,6 +36,7 @@ import {
 import { PageAgent } from './pageAgent.js'
 import { PageForm, Pages } from './pageDomain.js'
 import { openServer, type Principal } from './server.js'
+import { memorySqlite } from './sqlite-node.js'
 import { PageBuilder, PageEditing, Site, SiteRenderer } from './site.js'
 
 /**
@@ -78,7 +79,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   const say = (line: string) => lines.push(line)
 
   let now = new Date('2026-03-01T09:00:00.000Z')
-  const backend = openServer(() => now)
+  const backend = openServer(() => now, memorySqlite())
 
   const chair = (principal: Principal) => {
     const handlers = RemoteServer.handlers(backend.server, principal)

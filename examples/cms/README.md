@@ -49,6 +49,21 @@ pnpm --filter foldkit-example-cms dev   # the same application, in a browser
 Both use an in-memory `node:sqlite` database, so there is no service to start,
 and a restart is a fresh start. `test/demo.test.ts` pins the transcript.
 
+### As a static site
+
+```bash
+pnpm --filter foldkit-example-cms build:sandbox   # to examples/cms/dist
+```
+
+The same application with the same server, run in the page on SQLite compiled
+to WebAssembly (`sql.js`, in [browser.ts](src/browser.ts)), so it needs no
+backend and deploys as static files. Each visitor has a sandbox of their own,
+kept in the browser's storage, so a change of chair, which reloads the page,
+keeps what was written; `?reset` in the address starts afresh. Nothing is
+shared between visitors, so nothing a visitor writes is public. The server is
+[server.ts](src/server.ts) given a different database; [endpoint.ts](src/endpoint.ts)
+answers a request for both hosts.
+
 ## What the run shows
 
 | In the transcript | What it is |

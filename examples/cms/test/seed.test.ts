@@ -6,10 +6,11 @@ import { Schema } from 'effect'
 import { Composition, NodeId } from 'foldkit-composition'
 import { describe, expect, it } from 'vitest'
 import { openServer } from '../src/server.js'
+import { memorySqlite } from '../src/sqlite-node.js'
 
 describe('the seed', () => {
   it('publishes each item through the CMS, and points the home page at its posts', async () => {
-    const backend = openServer(() => new Date('2026-03-01T09:00:00.000Z'))
+    const backend = openServer(() => new Date('2026-03-01T09:00:00.000Z'), memorySqlite())
     await backend.seed()
     expect(
       backend.rows(

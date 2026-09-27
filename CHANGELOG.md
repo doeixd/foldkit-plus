@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **CMS example as a static site:** `pnpm --filter foldkit-example-cms
+  build:sandbox` builds the studio and the public site with the same server
+  running in the page, on SQLite compiled to WebAssembly (`sql.js`), so it
+  deploys with no backend. Each visitor's sandbox is kept in the browser's
+  storage; `?reset` starts afresh. The server takes its database
+  (`openServer(clock, sqlite)`), and one endpoint module answers requests for
+  both the HTTP server and the page.
+
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the
   region, so `over: null` with `region: true` is its empty space.

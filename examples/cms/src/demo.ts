@@ -24,13 +24,14 @@ import {
 } from './app.js'
 import { PostForm, Posts } from './domain.js'
 import { openServer, type Principal } from './server.js'
+import { memorySqlite } from './sqlite-node.js'
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []
   const say = (line: string) => lines.push(line)
 
   let now = new Date('2026-03-01T09:00:00.000Z')
-  const backend = openServer(() => now)
+  const backend = openServer(() => now, memorySqlite())
 
   /** One chair: a principal, a Remote client that asks as them, and a Model of their own. */
   const chair = (principal: Principal) => {

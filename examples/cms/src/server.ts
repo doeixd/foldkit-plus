@@ -1,11 +1,11 @@
 /**
  * The server: the same Entities bound to SQLite tables, the application's own
  * publish handlers, and the CMS around them. The clock is passed in, so the demo
- * can move it.
+ * can move it, and so is the database: Node's own SQLite for the scripted run and
+ * `pnpm dev` (`sqlite-node.ts`), SQLite compiled to WebAssembly for the published
+ * demo, which runs this server in the page (`sqlite-browser.ts`).
  */
-import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
 import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from 'foldkit-cms-drizzle'
@@ -21,6 +21,15 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from './domain.js'
 import { Page, PageId, PageInput, Pages } from './pageDomain.js'
 import { seed } from './seed.js'
+
+/** A SQLite database the server runs on, and whether it is new, so needs its tables. */
+export interface Sqlite {
+  readonly fresh: boolean
+  readonly exec: (statements: string) => void
+  readonly all: (query: string) => ReadonlyArray<Readonly<Record<string, unknown>>>
+  /** The Drizzle database over it, for `databaseLayer`. */
+  readonly drizzle: unknown
+}
 
 /** Who is asking. A visitor is nobody. */
 export type Principal = { readonly name: string; readonly role: 'author' | 'editor' } | null
@@ -64,21 +73,28 @@ const write = (run: (database: DrizzleWrites) => PromiseLike<unknown>) =>
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
-export const openServer = (clock: () => Date) => {
-  const sqlite = new DatabaseSync(':memory:')
-  sqlite.exec(`
-    ${sqliteSchema}
-    create table posts (
-      id text primary key, title text not null, slug text not null unique,
-      excerpt text not null, cover text not null, body text not null, published_at text
-    );
-    create table pages (
-      id text primary key, title text not null, slug text not null unique,
-      document text not null, published_at text
-    );
-  `)
-  let made = 0
-  let madePages = 0
+export const openServer = (clock: () => Date, sqlite: Sqlite) => {
+  if (sqlite.fresh)
+    sqlite.exec(`
+      ${sqliteSchema}
+      create table posts (
+        id text primary key, title text not null, slug text not null unique,
+        excerpt text not null, cover text not null, body text not null, published_at text
+      );
+      create table pages (
+        id text primary key, title text not null, slug text not null unique,
+        document text not null, published_at text
+      );
+    `)
+  // Ids go on from the highest held, so a database kept from an earlier visit mints none twice.
+  const highest = (table: string, prefix: string) =>
+    Number(
+      sqlite.all(
+        `select coalesce(max(cast(substr(id, ${prefix.length + 1}) as integer)), 0) as n from ${table}`,
+      )[0]?.['n'] ?? 0,
+    )
+  let made = highest('posts', 'post-')
+  let madePages = highest('pages', 'page-')
 
   const cms = CmsServer.make<Principal>({
     tables: sqliteTables(),
@@ -163,7 +179,7 @@ export const openServer = (clock: () => Date) => {
     mutations: [...cms.mutations],
   })
 
-  const database = databaseLayer(drizzle({ client: sqlite }))
+  const database = databaseLayer(sqlite.drizzle)
   return {
     server,
     cms,
@@ -175,7 +191,6 @@ export const openServer = (clock: () => Date) => {
           Effect.provide(database),
         ),
       ),
-    rows: (query: string) =>
-      sqlite.prepare(query).all() as ReadonlyArray<Readonly<Record<string, unknown>>>,
+    rows: sqlite.all,
   }
 }

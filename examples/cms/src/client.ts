@@ -14,7 +14,7 @@ import * as Site from './siteApp.js'
 import { view as siteView } from './siteView.js'
 import { view as pagesView } from './pagesView.js'
 import { stylesheet } from './sheet.js'
-import { chairOf, httpClient } from './transport.js'
+import { chairOf, httpSend, remoteClient } from './transport.js'
 import { view as postsView } from './view.js'
 
 // Compiled once, at module load, from the same Style values the views attach.
@@ -24,11 +24,16 @@ document.head.append(styles)
 
 const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')
-// Vite proxies `/remote` to the server, so the browser talks to one origin.
+// Vite proxies `/remote` to the server, so the browser talks to one origin; the
+// published demo, built in the `sandbox` mode, runs the server in the page instead.
+const send =
+  import.meta.env.MODE === 'sandbox'
+    ? await (await import('./browser.js')).openSandbox()
+    : httpSend('/remote')
 const path = window.location.pathname
 // The site is read as a visitor unless the address says otherwise; the studio as a writer.
 const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visitor' : 'wren')
-const remote = Remote.clientLayer(httpClient('/remote', chair))
+const remote = Remote.clientLayer(remoteClient(send, chair))
 
 if (path.startsWith('/site'))
   Runtime.run(
