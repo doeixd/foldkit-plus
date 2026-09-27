@@ -208,7 +208,15 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
         const rejected: string[] = []
         const acknowledged: string[] = []
         for (const input of pending) {
-          const operation = TodoSync.codec.normalizeOperation(input)
+          // An operation that does not decode fails the same way on every retry, so it is
+          // rejected, not left to fail the exchange and be resent forever.
+          let operation: ReturnType<typeof TodoSync.codec.normalizeOperation>
+          try {
+            operation = TodoSync.codec.normalizeOperation(input)
+          } catch {
+            rejected.push(input.opId)
+            continue
+          }
           if (!principal.canWrite) {
             rejected.push(operation.opId)
             continue

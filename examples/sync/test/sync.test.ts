@@ -154,6 +154,21 @@ describe('the journal adapter', () => {
     }
   })
 
+  it('rejects an operation that does not decode, and commits the rest of the exchange', async () => {
+    const malformed = {
+      ...operation('a', 1),
+      // @ts-expect-error a client that does not speak the schema: an id that is not a string
+      message: { _tag: 'CreatedTodo', id: 5, title: 'x' } as Message,
+    }
+    // Retrying would fail the same way, so it is rejected rather than failing the exchange.
+    await expect(
+      server
+        .transport(principal)
+        .exchange(Sequence.make(0), [malformed, operation('a', 2, created('b'))]),
+    ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: ['a:2'] })
+    expect(server.snapshot('todos').model).toEqual({ todos: [{ id: 'b', title: 'b' }] })
+  })
+
   it('sends a checkpoint only below the compaction floor', async () => {
     server.append(operation('seed', 1, created('a')), principal)
     server.append(operation('seed', 2, created('b')), principal)

@@ -234,7 +234,9 @@ const server = Effect.gen(function* () {
 - Durable does **not** speak the sync exchange. Your server wires
   `Sync.transport.serve(socket, { exchange })` to a handler that appends pending
   ops, collects `acknowledged`/`rejected`, reads after the cursor, and returns a
-  checkpoint on `CompactedCursorError`. See `examples/sync/src/journal.ts`.
+  checkpoint on `CompactedCursorError`. Reject an op that does not decode rather
+  than throwing: a thrown exchange is retried with the same outbox, forever. See
+  `examples/sync/src/journal.ts`.
 
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for
 ephemeral state ("who is viewing"), never a durable Message.
