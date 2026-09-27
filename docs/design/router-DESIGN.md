@@ -5780,6 +5780,8 @@ breadcrumbs
 
 without becoming a router state machine.
 
+Scroll restoration turned out to need more than transition data: see §33.5.
+
 ---
 
 # 14. Navigation supersession remains a data-runtime concern
@@ -6729,3 +6731,167 @@ The most important conceptual change from the earlier design is that **Site is n
 Site is one producer of SurfaceSources. Composition is another. CMS can alter what Composition produces through Remote overlays. Bundles own stateful islands. Remote interprets their data requirements. SSR interprets their resumability requirements.
 
 That feels much more like the architecture Foldkit Plus has already been converging toward than “an Affe router ported to Foldkit.”
+
+---
+
+# 33. What the CMS example taught (2026-09-27)
+
+`examples/cms` is the first application here with navigation a reader would
+notice: a studio of two applications (posts at `/`, pages at `/pages`) and a
+public site at `/site`, each its own document, with addresses that open entries,
+and a published demo people use on phones. Making its addresses, scroll and
+loading states behave tested this design against a real case. This section says
+what held, what it needs, and how §31's sequence changes. The code it cites is
+in the repository; nothing here is a plan that was not tried.
+
+## 33.1 What holds up
+
+- **Navigation stays Foldkit-native (§13).** Every behaviour came down to
+  `update` and a Subscription: the Model is authoritative, a Subscription writes
+  the address, `UrlChanged` reads it back. Opening an entry, Back, Forward, a
+  reload and a shared link needed no router runtime.
+- **Guards are not authorization (§25).** In the demo the address's `?as=`
+  picks which chair is signed in. What that chair may read and do is decided
+  by `RemoteServer`'s policy, not by which screens the application shows: in
+  `demo.ts` a writer who asks to publish anyway is refused ("This author may
+  not publish this entry").
+
+## 33.2 Two kinds of URL state share one Message
+
+The address holds two kinds of state, and they reach it differently:
+
+| State | Owner | Written by | Read back by |
+| --- | --- | --- | --- |
+| A search, a tab, a filter | the application's top-level field | a `foldkit-mirror` URL mirror | the mirror, on `UrlChanged` |
+| The open entry; the Builder's selection, panel and preview width; the editor's preview | a child: the editor bundle, the Builder | the application's Subscription | the application, which asks the child through its own Messages |
+
+A mirror installs fields; it cannot run a transition. Opening an entry saves
+what was typed in the one being left, and a Builder's panel is the Builder's
+to change, so both are routing, not mirroring.
+
+The two kinds share `UrlChanged`, and that exposed a real bug:
+`foldkit-bundle`'s assembly routed each Message to the first item that
+answered, and a URL mirror answers every `UrlChanged`. An application with a
+URL mirror never saw its own URL Message, so it could not route beside one,
+and of two URL mirrors only the first read the URL. The fix settles
+[wiring-DESIGN.md](./wiring-DESIGN.md)'s open question: a shared tag is
+observed, not claimed. Every wiring sharing it folds it in list order, and
+the application's `update` sees it after them, over the slices they already
+installed.
+
+For Site this means a node's params come in both kinds. A param that is a
+plain field can be a mirror key; a param that asks an owner for something is
+an intent (33.3).
+
+## 33.3 Needs: an intent that waits for its owner
+
+Both studio applications hand-wrote the same mechanism. The address asks
+something of a child that has no Model yet: the Builder does not exist until
+its page loads, and the editor's preview is reset when the post arrives, so a
+preview asked for during the load is lost. So:
+
+- `linked` (pages) and `previewAsked` (posts) hold the ask in the Model;
+- a `follow` step applies it once the owner is ready, through the owner's own
+  Messages, and then lets it go, so the address follows the owner again;
+- `follow` runs outside the editor's `after`, because `after`'s `sync` is what
+  installs a loaded value; inside it, the owner still looks unready;
+- the address Subscription writes the pending ask while it waits, or a reload
+  during the load loses it.
+
+That is four rules two applications had to find. The last is the easiest to
+miss.
+
+Site should own it: a target (§15) is `{ route, intents }`, where an intent is
+a request to an owner with a readiness predicate and an apply step. Prefetch
+(§16) then satisfies the data half of a target while its intents wait for the
+Models the data makes.
+
+## 33.4 Needs: one declaration of history intent
+
+Which changes add a history step, and which replace the current one, is
+declared per key for a mirror (`history: 'push' | 'replace'`). The routed half
+spells it in code instead: `writeAddress(params, entry)` pushes when the
+entry's key changes and replaces otherwise. One rule has two spellings. A Site
+node should declare it once: moving to another node, or another entry, is a
+step; a param within a node replaces, unless it declares otherwise.
+
+## 33.5 Needs: scroll is a navigation primitive, not transition data
+
+§13 lists scroll restoration among the things `Site.transition` could power.
+The example shows pure transition data is not enough, for three reasons found
+the slow way:
+
+1. **The offset has to be taken when the reader acts.** Foldkit draws the next
+   screen before the Navigate Command pushes the address. By the time the URL
+   changes, the window is already clamped to the new, shorter page, so a
+   `navigate` or `popstate` listener records the wrong offset. The example
+   records at the reader's click or key (capture phase), and at the start of
+   Back and Forward, which begin in the browser before anything is drawn.
+2. **A restore has to hold its place while the screen settles.** A restore
+   made when the entry changes is undone by the loading state drawn right
+   after it. The example holds the target on each frame for a moment, and
+   stops at once when the reader scrolls, touches or types.
+3. **Entries need a key that survives a reload.** Foldkit writes `{}` as every
+   entry's history state, so it cannot key one. The Navigation API's
+   `currentEntry.key` survives a reload and a full navigation. Offsets are
+   kept in `sessionStorage`, so Back into another document restores too.
+
+`examples/cms/src/scroll.ts` does this in about 130 lines, with a browser test
+that a mutation of each rule fails. It belongs in `foldkit-primitives` as a
+Subscription or Mount, or upstream in Foldkit's navigation. `Site.transition`
+can add what only topology knows: which container scrolls, such as a nested
+layout's panel rather than the window.
+
+## 33.6 Needs: pending UI that does not flash, and never guesses
+
+Loading states between screens looked broken in two ways:
+
+- **A flash.** A "Loading…" drawn for one frame reads as a glitch.
+- **A wrong fact.** An existing entry drew a "New" badge before its state was
+  read, and a list said "Nothing yet." before it had been asked. `Initial` and
+  `Loading` mean "unknown", not "empty" or "new".
+
+The example's answer is a convention: a busy line carries `aria-busy`
+(`foldkit-mixins-crud`'s status line now does), and a style shows it only after
+a short delay, holding its space from the start. It belongs in
+`foldkit-mixins` as a named Style. The better answer is to have no wait at all:
+the demo's waits are a few hundred milliseconds, mostly the in-page sandbox
+opening, and prefetching a Site target (§16) before navigation would remove
+the rest.
+
+## 33.7 Document boundaries: Vite and SSR
+
+Posts, pages and the site are three applications, so moving between them is a
+full document load. That load painted white with a line of text, because the
+page's foundations (reset, tokens, theme) were a stylesheet the script wrote.
+A small Vite plugin in `examples/cms/vite.config.ts` now compiles `sheet.ts` in
+Node at build and dev time and writes it into the HTML. The first paint has
+the theme's background, and Chrome's paint holding keeps the old page until
+the new one draws content. Three needs follow:
+
+- **A target must know its document.** Within one application `Site.href` is
+  enough; across applications a link must be a full load. The example's
+  `UrlRequested` loads every internal link because it cannot tell which
+  application serves it. Site nodes should say which application, and so which
+  document, serves them. `Site.navigate` then chooses between a Navigate
+  Command and a load.
+- **Foundations in the HTML is SSR for CSS alone.** It belongs in
+  `foldkit-mixins` as a Vite plugin that writes `Style.stylesheet` into the
+  page, and in `foldkit-ssr`'s head for a server-rendered page.
+- **One blank frame remains.** With SSR the first paint could carry the data
+  as well. Otherwise a studio could be one application with lazily loaded
+  sections, which needs per-route code splitting.
+
+## 33.8 How §31's sequence changes
+
+Before step 5 (`foldkit-site`), two steps that the example has already shown
+are needed:
+
+- **4a.** Move scroll keeping (33.5) and the delayed busy reveal (33.6) into
+  packages, with the example as their first user.
+- **4b.** Give the routing package's first cut targets with intents (33.3) and
+  one history declaration (33.4). Both studio applications need them now, and
+  nested layouts do not depend on them.
+
+Step 7's prefetch then has a measured reason: every loading state the demo
+still shows is a wait prefetch removes.

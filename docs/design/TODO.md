@@ -105,8 +105,9 @@ Each item says how it would attach; none is started.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Deviations
 - [ ] Decide whether Wiring lives in `foldkit-surface` or its own package.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
-- [ ] Decide where URL semantics belong when routing and Mirror share a URL
-  Message, with a spike on a routed example.
+- [x] Decide where URL semantics belong when routing and Mirror share a URL
+  Message, with a spike on a routed example. Decided by the CMS example: a
+  shared tag reaches every wiring sharing it, then the application.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
 - [ ] Decide whether `Sync.mount` takes the whole assembly.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
@@ -116,6 +117,36 @@ Each item says how it would attach; none is started.
   applications ask for it. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] `withResources`, `Link.key` and HashMap storage, which W5 left out.
   [bundle-DX-PLAN.md](./bundle-DX-PLAN.md) Outcome
+
+## Routing and navigation
+
+What building the CMS example's addresses, scroll and loading states showed is
+missing. [router-DESIGN.md](./router-DESIGN.md) §33 has the reasoning; §31 is
+the larger plan it amends.
+
+- [ ] **Targets with intents.** An address that asks something of an owner with
+  no Model yet (a Builder before its page loads) is held until the owner is
+  ready, then applied through its Messages. Both CMS applications hand-wrote
+  it (`linked`, `previewAsked`). §33.3
+- [ ] **One declaration of history intent** for routed params, as a mirror has
+  per key: a step when the node or entry changes, a replace otherwise. §33.4
+- [ ] **Scroll keeping as a primitive,** from `examples/cms/src/scroll.ts`: the
+  offset taken when the reader acts, a restore that holds while the screen
+  settles, entries keyed by the Navigation API. `foldkit-primitives`, or
+  upstream in Foldkit's navigation. §33.5
+- [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
+  only once a wait is noticeable, their space held. And a review of every
+  package view for facts drawn before they are read (`Initial` is unknown,
+  not empty). §33.6
+- [ ] **Foundations in the HTML as a `foldkit-mixins` Vite plugin,** from
+  `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7
+- [ ] **Targets that know their document,** so a link to another application
+  is a full load and one within it is a Navigate Command. §33.7
+- [ ] **Prefetch a target's data before navigating,** which removes the waits
+  the demo still shows between screens. §16, §33.6
+- [ ] **The studio's one blank frame between sections:** SSR the first paint,
+  or one application with lazily loaded sections. §33.7
+- [ ] `foldkit-site` itself, and the rest of §31's sequence.
 
 ## Mixins and styling
 
