@@ -650,6 +650,17 @@ const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Region): H
   }
 }
 
+/**
+ * Whether the view call in progress is the server rendering a page, rather than the browser: true
+ * through both of `render`'s passes, false while the browser resumes and outside any render. For a
+ * view that sends markup it will adopt in the browser rather than draw there, such as
+ * `foldkit-richtext-dom`'s editor host, whose placement takes this as `serverRendered`.
+ */
+const serving = (): boolean => {
+  const mode = current()?.mode
+  return mode === 'collect' || mode === 'replay'
+}
+
 /** Each static region's markup in the page, read before hydration touches it. */
 const snapshotsOf = (root: Element): ReadonlyMap<string, string> =>
   new Map(
@@ -1570,6 +1581,7 @@ export const SSR = {
   hydrate,
   inspect,
   static: staticRegion,
+  serving,
   generate,
   entry,
   handle,
