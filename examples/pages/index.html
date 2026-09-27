@@ -33,6 +33,9 @@
       [data-task='checked']::before { content: '☑'; }
       [data-task='checked'] { color: #59636e; text-decoration: line-through; }
       [data-placeholder]::before { content: attr(data-placeholder); color: #8c959f; }
+      /* Someone else's caret: after the character drawn, or before it at a run's start. */
+      [data-decoration='peer'] { box-shadow: 2px 0 0 #e8590c; }
+      [data-decoration='peer-before'] { box-shadow: -2px 0 0 #e8590c; }
       .markdown { margin-top: 32px; color: #59636e; }
       .markdown pre { background: #f6f7f8; padding: 12px; border-radius: 6px; }
     </style>

@@ -276,6 +276,53 @@ describe('two people on one page', () => {
     expect(document.querySelector('#page-body h1, #page-body h2')).toBeNull()
   })
 
+  it('draws where someone else is, and keeps it by their characters as the text changes', async () => {
+    const aliceReplica = await open('alice')
+    replicas.push(aliceReplica)
+    const tab = await aliceOnPage(aliceReplica)
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'Hello' }) }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('Hello'))
+    const page = tab.model().open!
+    const body = pageOf(tab.model(), page)!.body
+    const run = Replicated.project(body).children[0]!.children[0]!.id
+    // Bob's caret is after 'He', as his presence reports it.
+    tab.dispatch(
+      Message.GotPeers({
+        peers: [
+          { id: 'bob', name: 'Bob', page, selection: Replicated.anchor(body, caretAt(run, 2)) },
+        ],
+      }),
+    )
+    const caret = () => document.querySelector('#page-body [data-decoration="peer"]')?.textContent
+    await vi.waitFor(() => expect(caret()).toBe('e'))
+    // Alice types before it; Bob's caret stays after the same 'e'.
+    const start = Replicated.project(pageOf(tab.model(), page)!.body).children[0]!.children[0]!.id
+    tab.dispatch(
+      Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(start, 0) }) }),
+    )
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: '>' }) }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('>Hello'))
+    expect(caret()).toBe('e')
+    // A peer on another page draws nothing here, though its anchors would resolve here.
+    const now = pageOf(tab.model(), page)!.body
+    tab.dispatch(
+      Message.GotPeers({
+        peers: [
+          {
+            id: 'bob',
+            name: 'Bob',
+            page: 'elsewhere',
+            selection: Replicated.anchor(
+              now,
+              caretAt(Replicated.project(now).children[0]!.children[0]!.id, 2),
+            ),
+          },
+        ],
+      }),
+    )
+    await vi.waitFor(() => expect(caret()).toBeUndefined())
+  })
+
   it('ticks a task, on the page and on the server', async () => {
     const aliceReplica = await open('alice')
     replicas.push(aliceReplica)

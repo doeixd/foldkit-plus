@@ -39,6 +39,12 @@ export interface TransportShape {
    * it: `Replica.start` exchanges on each. A wake-up, not data.
    */
   readonly changes?: Stream.Stream<void> | undefined
+  /**
+   * The connection itself, for another protocol to share, such as presence: a send goes to
+   * the socket open now and is dropped while none is, and messages from every socket the
+   * transport opens arrive here. It is the transport's to close.
+   */
+  readonly socket?: SocketLike | undefined
 }
 
 /**
@@ -241,6 +247,18 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
         readonly resume: (effect: Effect.Effect<unknown, TransportError>) => void
       }
       const notices = yield* PubSub.sliding<void>(1)
+      const listeners = new Set<(data: string) => void>()
+      const shared: SocketLike = {
+        send: data => {
+          if (ready) socket?.send(data)
+        },
+        close: () => {},
+        onMessage: listener => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+        onClose: () => () => {},
+      }
       const queued: Array<Entry> = []
       const inFlight = new Map<string, Entry>()
       let socket: SocketLike | undefined
@@ -295,6 +313,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               flush()
             })
             const offMessage = next.onMessage(data => {
+              for (const listener of [...listeners]) listener(data)
               let reply: ExchangeReply | NotifyFrame
               try {
                 reply = JSON.parse(data) as ExchangeReply | NotifyFrame
@@ -357,6 +376,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
 
       return Transport.of({
         changes: Stream.fromPubSub(notices),
+        socket: shared,
         exchange: (cursor, pending) =>
           Effect.callback<unknown, TransportError>(resume => {
             if (disposed) {

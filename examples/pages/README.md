@@ -42,6 +42,12 @@ typed into a block someone else deleted goes with the block. A deleted page goes
 trash rather than away: edits that arrive for it still apply, so someone who typed into it
 offline has not lost the text, and restoring the page from the sidebar brings it back.
 
+Presence shares the sync connection. Each tab announces its open page and its anchored
+caret, and draws the others' carets on the page it shows through the editor's `overlay`.
+They are resolved against the page as it is now, so each caret keeps to the characters it
+was held by while anyone types. Nothing of presence is journaled; a tab that goes quiet
+drops out after 30 seconds.
+
 Undo takes back this tab's own edits and leaves everyone else's. Each edit is recorded, in the
 tab's Model, as the ops that reverse it (`Replicated.invert`); a run of typing is one step.
 Undo applies those ops as a new edit, which travels and converges like any other, and records

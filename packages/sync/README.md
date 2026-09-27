@@ -816,6 +816,13 @@ next week.
 they enter the registry; a peer that stops refreshing is removed. Changes are
 available both as a callback subscription and as a Stream.
 
+Presence can share the socket transport's connection. `transport.socket` is a
+stable handle to it: a send goes to the socket that is open now and is dropped
+while none is, and messages from every socket the transport opens arrive
+through it. So `Sync.presence.socketChannel(transport.socket)` survives
+reconnects without being bound again. After a reconnect the server has
+forgotten the peer's value, so announce it again within the time to live.
+
 Presence can travel through:
 
 ```text
@@ -1045,7 +1052,8 @@ declared projection; treat any other write as a bug.
 - There is no operational transform / collaborative text algorithm.
 - Binding the socket transport and presence server to a platform WebSocket
   server remains application/platform glue. The sync example demonstrates a
-  `ws` transport binding; presence over that server is not wired there today.
+  `ws` transport binding. `examples/pages` serves presence over the same socket,
+  and shows remote carets.
 - Application schema migration remains application policy. Sync versions and
   validates its own persisted/wire envelope.
 

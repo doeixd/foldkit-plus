@@ -3,7 +3,13 @@ import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
-import { Editor, patchTo, placeEditor, type EditorView } from 'foldkit-richtext-dom/editor-bundle'
+import {
+  Editor,
+  overlay,
+  patchTo,
+  placeEditor,
+  type EditorView,
+} from 'foldkit-richtext-dom/editor-bundle'
 import { markdownInputRules } from 'foldkit-richtext-markdown'
 import { Sync } from 'foldkit-sync'
 
@@ -29,6 +35,19 @@ export type Page = typeof Page.Type
 /** What every replica holds and the server orders: the pages. */
 export const Shared = Schema.Struct({ pages: Schema.Array(Page) })
 export type Shared = typeof Shared.Type
+
+/**
+ * Where someone else is, as their tab announces it through presence: a name, the page they
+ * have open, and their caret, held by the characters around it as this tab's own is.
+ */
+export const PeerPresence = Schema.Struct({
+  name: Schema.String,
+  page: Schema.NullOr(Schema.String),
+  selection: Schema.NullOr(Replicated.AnchoredSelection),
+})
+export type PeerPresence = typeof PeerPresence.Type
+export const Peer = Schema.Struct({ id: Schema.String, ...PeerPresence.fields })
+export type Peer = typeof Peer.Type
 
 /** One of this tab's edits, as the ops that take it back. */
 const UndoStep = Schema.Struct({ page: Schema.String, ops: Schema.Array(Replicated.ReplicatedOp) })
@@ -61,6 +80,8 @@ export const Model = Schema.Struct({
   redo: Schema.Array(UndoStep),
   /** What the last step was, so a run of typing is one step. */
   undoGroup: Schema.NullOr(Schema.String),
+  /** The other people presence reports, local to the tab and never shared. */
+  peers: Schema.Array(Peer),
 })
 export type Model = typeof Model.Type
 
@@ -76,6 +97,7 @@ export const Message = defineMessageUnion({
   OpenedPage: { id: Schema.String },
   GotEditor: { message: EditorMessage },
   ToggledTask: {},
+  GotPeers: { peers: Schema.Array(Peer) },
 })
 export type Message = typeof Message.Type
 type Return = Update.Return<Model, Message>
@@ -112,6 +134,7 @@ export const initialModel = (session: string): Model => ({
   undo: [],
   redo: [],
   undoGroup: null,
+  peers: [],
 })
 
 /** A page opened: the caret and what the editor carried for the last one start afresh. */
@@ -144,6 +167,39 @@ export const editorViewOf = (model: Model, page: Page): EditorView => ({
   menuIndex: model.menuIndex,
   hostId,
 })
+
+/**
+ * Where the others on the open page are, drawn over it. A caret has no width, so it is drawn
+ * over the character before it, or at a run's start the one after. Their anchors are resolved
+ * against `body`, so they follow the characters they were held by.
+ */
+const peerCarets = (
+  model: Model,
+  page: string,
+  body: RichText.Replicated.ReplicatedState,
+): RichText.DecorationSet =>
+  model.peers.flatMap(peer => {
+    if (peer.page !== page || peer.selection === null) return []
+    const resolved = Replicated.resolve(body, peer.selection)
+    if (resolved?.type !== 'Range') return []
+    const at = resolved.focus
+    const [from, to] = at.offset > 0 ? [at.offset - 1, at.offset] : [0, 1]
+    return [
+      {
+        from: { ...at, offset: from },
+        to: { ...at, offset: to },
+        kind: at.offset > 0 ? 'peer' : 'peer-before',
+        data: { name: peer.name },
+      },
+    ]
+  })
+
+/** The Command that draws the others' carets over the open page, as `body` now is. */
+const carets = (
+  model: Model,
+  page: string,
+  body: RichText.Replicated.ReplicatedState,
+): Update.Commands<Message>[number] => toApp(overlay(hostId, peerCarets(model, page, body)))
 
 const toApp = (command: {
   readonly name: string
@@ -181,6 +237,7 @@ const applyEdit = (
           selection: Replicated.resolve(body, model.selection),
         }),
       ),
+      carets(model, page.id, body),
       Sync.fact(fact),
     ],
   }
@@ -294,7 +351,16 @@ export const update = (model: Model, message: Message): Return =>
         commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
       }
     },
-    OpenedPage: ({ id }) => ({ model: opened(model, id) }),
+    OpenedPage: ({ id }) => {
+      const page = pageOf(model, id)
+      const next = opened(model, id)
+      return { model: next, commands: page === undefined ? [] : [carets(next, id, page.body)] }
+    },
+    GotPeers: ({ peers }) => {
+      const next = { ...model, peers }
+      const page = pageOf(next, next.open)
+      return { model: next, commands: page === undefined ? [] : [carets(next, page.id, page.body)] }
+    },
     GotEditor: ({ message: incoming }) => {
       const page = pageOf(model, model.open)
       if (page === undefined) return { model }
@@ -357,6 +423,7 @@ export const reinstalled = (next: Model, previous: Model): Return => {
           selection: Replicated.resolve(after.body, next.selection),
         }),
       ),
+      carets(next, after.id, after.body),
     ],
   }
 }

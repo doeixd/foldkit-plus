@@ -112,7 +112,9 @@ const program = Effect.gen(function* () {
   `statusChanges`, `committed`, and `close`. Transports: `Sync.transport.socket`
   (reconnecting), `.loopback`, `.fromPromise(client)`, and
   `.serve(socket, { exchange, changes? })` for the server, where `changes`
-  subscribes to commits and sends a notice that wakes the client's `start`.
+  subscribes to commits and sends a notice that wakes the client's `start`. The
+  socket transport's `transport.socket` shares its connection, across reconnects,
+  with `Sync.presence.socketChannel`.
 - `Sync.indexedDb(name, factory?)` is the only built-in storage (pass
   `fake-indexeddb` in Node). Its submit writes only the new operation, through
   the optional `Storage.append`. A test `Storage` needs just three members:

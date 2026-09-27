@@ -154,6 +154,92 @@ describe('the socket transport', () => {
     expect(sockets).toBe(2)
   })
 
+  it('shares its connection, across a reconnect, with another protocol', async () => {
+    const servers: Array<SocketLike> = []
+    const clients: Array<SocketLike> = []
+    const makeSocket = (): SocketLike => {
+      const { client, server } = socketPair()
+      const closes = new Set<() => void>()
+      servers.push(server)
+      const closing: SocketLike = {
+        ...client,
+        close: () => {
+          for (const listener of [...closes]) listener()
+        },
+        onClose: listener => {
+          closes.add(listener)
+          return () => closes.delete(listener)
+        },
+      }
+      clients.push(closing)
+      return closing
+    }
+    const program = Effect.gen(function* () {
+      const transport = yield* Effect.service(Transport)
+      const socket = transport.socket!
+      const heard: Array<string> = []
+      socket.onMessage(data => heard.push(data))
+      const received: Array<string> = []
+      while (servers.length < 1) yield* Effect.sleep('1 millis')
+      servers[0]!.onMessage(data => received.push(data))
+      socket.send('one')
+      servers[0]!.send('from the first')
+      clients[0]!.close()
+      while (servers.length < 2) yield* Effect.sleep('1 millis')
+      servers[1]!.onMessage(data => received.push(`second: ${data}`))
+      socket.send('two')
+      servers[1]!.send('from the second')
+      return { heard, received }
+    })
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        program.pipe(
+          Effect.provide(layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis' })),
+        ),
+      ),
+    )
+    expect(result).toEqual({
+      heard: ['from the first', 'from the second'],
+      received: ['one', 'second: two'],
+    })
+  })
+
+  it('drops a shared send while its socket is still connecting, as a WebSocket would throw', async () => {
+    let open: (() => void) | undefined
+    const sent: Array<string> = []
+    const connecting: SocketLike = {
+      send: data => {
+        if (open !== undefined) throw new Error('InvalidStateError: still connecting')
+        sent.push(data)
+      },
+      close: () => {},
+      onOpen: listener => {
+        open = listener
+        return () => {}
+      },
+      onMessage: () => () => {},
+      onClose: () => () => {},
+    }
+    const program = Effect.gen(function* () {
+      const transport = yield* Effect.service(Transport)
+      while (open === undefined) yield* Effect.sleep('1 millis')
+      transport.socket!.send('early')
+      const opened = open
+      open = undefined
+      opened()
+      transport.socket!.send('late')
+      return sent
+    })
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        program.pipe(
+          Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => connecting })),
+        ),
+      ),
+    )
+    expect(result).toEqual(['late'])
+  })
+
   it('fails the exchange when the reply carries an error', async () => {
     const { client, server } = socketPair()
     server.onMessage(data => {
