@@ -124,4 +124,9 @@ application.
   task; and a placement's input and click under a lazy bundle still loading,
   with a closure's press between them. A form posted with scripts off
   answers with the Model a browser submit reaches, compared through the
-  plan's state, for a form at the root and for one inside a placement.
+  plan's state, for a form at the root and for one inside a placement. With
+  `hydrate` held to a later task, the click that boots the page counts once
+  and a click before the first render is not lost, and a closure's event
+  still reaches the live page. Resumability depends on neither the manifest's
+  size nor its speed: `bench/manifest.ts` measures both, and the plan records
+  the table.

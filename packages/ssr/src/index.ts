@@ -11,7 +11,7 @@
  * Rendering and hydrating stay Foldkit's own: this package adds only the
  * handover.
  */
-import { Cause, Effect, Exit, Option, Result, Schema, type Layer } from 'effect'
+import { Cause, Effect, Exit, Option, Result, Schema, Stream, type Layer } from 'effect'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
@@ -26,6 +26,7 @@ import {
 } from 'foldkit/experimental/server'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
+import * as Render from 'foldkit/render'
 import {
   Metadata,
   type ActiveSurface,
@@ -1283,7 +1284,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   // any event it answers is ordered after them. Replayed through the runtime
   // instead, they would reach its queue after an event dispatched in the same
   // task as the boot, and a burst of typing would end on its first character.
-  const boot = (answered: ReadonlyArray<unknown> = []) => {
+  const boot = (answered: ReadonlyArray<unknown> = [], committed?: Committed) => {
     let current = model
     const started = [...commands]
     for (const message of answered) {
@@ -1298,6 +1299,14 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
       makeApplication({
         ...withContext(startingFrom(config, { model: current, commands: started }), resuming),
         container: root,
+        ...(committed === undefined
+          ? {}
+          : {
+              subscriptions: {
+                ...config.subscriptions,
+                'foldkit-ssr.committed': committedEntry(committed),
+              },
+            }),
       } as never),
       { buildId: options.buildId },
     )
@@ -1316,6 +1325,34 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   deferBoot(root, decoded.success, plan.start, boot, pending)
 }
 
+/** What the page hands the runtime once its first render has committed. */
+interface Committed {
+  /** The Messages the page answered after the boot began and before that render. */
+  readonly late: () => ReadonlyArray<unknown>
+  /** Stops the page's own listening and sends on what only the live page can answer. */
+  readonly done: () => void
+}
+
+/**
+ * A Subscription entry that waits for the runtime's first render to commit,
+ * through Foldkit's public `Render.afterCommit`, then dispatches the late
+ * Messages through the runtime's queue, and only then hands the rest to the
+ * live page, so they arrive in that order.
+ */
+const committedEntry = (committed: Committed) => ({
+  dependenciesSchema: Schema.Null,
+  modelToDependencies: () => null,
+  dependenciesToStream: () =>
+    Stream.unwrap(
+      Effect.map(Render.afterCommit, () =>
+        Stream.concat(
+          Stream.fromIterable(committed.late()),
+          Stream.drain(Stream.fromEffect(Effect.sync(committed.done))),
+        ),
+      ),
+    ),
+})
+
 /**
  * Lets the page answer from its bindings until something asks for the
  * runtime, then boots it from the answers.
@@ -1329,27 +1366,33 @@ const deferBoot = (
   root: HTMLElement,
   decoded: ReadonlyArray<DecodedBinding>,
   start: Start,
-  boot: (answered: ReadonlyArray<unknown>) => void,
+  boot: (answered: ReadonlyArray<unknown>, committed: Committed) => void,
   pending: ReadonlyArray<Loadable>,
 ): void => {
+  // Answered before the boot began: folded into the Model it starts from.
   const queue: Array<unknown> = []
-  // Events only the live page can answer, met while the bodies were loading.
+  // Answered after the boot began and before its first render: dispatched
+  // once that render has committed.
+  const late: Array<unknown> = []
+  // Events only the live page can answer, met before it was listening.
   const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
-  let booted = false
-  // Foldkit's hydrate runs its first render before returning: it adopts the
-  // page and attaches its listeners. So the event that boots the page, still
-  // in dispatch, reaches the live page afterwards, unless a bundle's bodies
-  // are still on their way; then the page gets the event again once booted.
+  // `waiting` for an interaction or idle, `loading` bodies, `starting` the
+  // runtime until its first render commits, then `live`.
+  let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
   const stop = listen(root, {
     bindings: decoded,
     onAnswer: ({ event, messages, unnamed }) => {
       // An answer the markers could not complete is left to the live page.
       if (unnamed !== undefined) {
-        // Kept for a boot still waiting on bodies, and sent again to where it
-        // first went, so every live handler on its path answers it. One that
-        // just committed has stopped listening and reads this no more.
         startNow()
-        if (event.target instanceof Element) unanswered.push({ event, element: event.target })
+        // Foldkit's hydrate today renders its first frame before returning, so
+        // an event that boots the page reaches the live page in the rest of its
+        // own dispatch, and the page stops listening before this line. Until
+        // the live page listens, the event is kept and sent again to where it
+        // first went, so every live handler on its path answers it.
+        if (phase !== 'live' && event.target instanceof Element) {
+          unanswered.push({ event, element: event.target })
+        }
         return
       }
       // Nothing answered it: it goes on to the page, a plain link to the
@@ -1360,22 +1403,32 @@ const deferBoot = (
       }
       // Queued before the boot it may start, which folds the queue in. The
       // live page must not answer this one as well.
-      queue.push(...messages)
+      if (phase === 'starting') late.push(...messages)
+      else queue.push(...messages)
       event.stopPropagation()
       startNow()
     },
   })
-  const commit = () => {
-    boot(queue.splice(0))
+  const done = () => {
+    if (phase === 'live') return
+    phase = 'live'
     stop()
     for (const { event, element } of unanswered.splice(0)) {
       const Ctor = event.constructor as new (type: string, init: Event) => Event
       element.dispatchEvent(new Ctor(event.type, event))
     }
   }
+  const commit = () => {
+    phase = 'starting'
+    boot(queue.splice(0), { late: () => late.splice(0), done })
+    // Foldkit strips the root's stamp just before its first patch. When that
+    // has already happened the live page is listening, and the page hands
+    // over now; otherwise the runtime's committed entry hands over later.
+    if (!root.hasAttribute(FOLDKIT_APP_ATTRIBUTE)) done()
+  }
   const startNow = () => {
-    if (booted) return
-    booted = true
+    if (phase !== 'waiting') return
+    phase = 'loading'
     if (pending.length === 0) {
       commit()
       return

@@ -526,10 +526,13 @@ not at all.
   fail the day Foldkit changes.
   [foldkit#1449](https://github.com/foldkit/foldkit/issues/1449) asks whether
   Foldkit would support this directly.
-- **A resumable page leans on three Foldkit behaviours,** each pinned by a test
-  here and two by Foldkit's own: the first patch removes attributes the
-  browser's view does not assert, a control's value is re-asserted to the
-  Model's, and `Runtime.hydrate` renders its first frame before it returns.
+- **A resumable page leans on two Foldkit behaviours,** each pinned by a test
+  here and by Foldkit's own: the first patch removes attributes the browser's
+  view does not assert, and a control's value is re-asserted to the Model's.
+  It does not depend on `Runtime.hydrate` rendering its first frame before
+  it returns, which Foldkit does today without promising it: until that
+  frame commits (`Render.afterCommit`), the page keeps answering from its
+  markers and sends the live page what only it can answer.
 - **Development is not production.** Under Vite's dev server, Foldkit's model
   preservation restores the previous Model after a reload and skips adoption.
 - **A closure handler makes its event wait for boot.** `SSR.render`'s result

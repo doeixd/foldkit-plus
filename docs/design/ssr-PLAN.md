@@ -752,7 +752,8 @@ this plan's next track, in its order, and it is the source for their detail:
     so the live page does not count it twice, and an answer that met a `*`
     queues nothing and lets the event through. A test with a bubbling button
     fails if either half goes. This leans on the render being synchronous,
-    which `deferredUnnamedOnly.test.ts` pins.
+    which `deferredUnnamedOnly.test.ts` pins. *Since G5 it does not:* the
+    page keeps listening until the first render commits.
   - **Every Subscription entry counts as active.** Foldkit starts each
     entry's stream at boot whatever its dependencies, so no Model can make one
     inactive; only a Managed Resource has a Model-dependent activation
@@ -1026,6 +1027,22 @@ that can fail, or, for G4, a recorded measurement.
   an unanswered event then if the boot did not commit in time. Test: a boot
   whose first render is held past the event still counts a queued click once
   and still reaches the live page with a closure's event.
+  - **Done** (`lateCommitClick.test.ts`, `lateCommitUnnamed.test.ts`, which
+    mock `foldkit/runtime` so `hydrate` starts in a later task). G2 had
+    already removed the replay Subscription, so this step keeps the page's
+    own listeners attached until the first render commits, instead of
+    removing them as soon as the runtime starts. When `hydrate` returns with
+    the root's stamp gone, the first patch has run and the page hands over at
+    once, as before. Otherwise a `foldkit-ssr.committed` Subscription entry
+    yields `Render.afterCommit`. Until then, named answers are queued, and
+    unnamed events, the booting one included, are kept. After it, the entry
+    dispatches the queued Messages through the runtime and only then sends
+    the kept events to the live page. Both tests fail on the code before
+    this step: the click before the first render is lost, and so is the
+    closure's event. Removing either the queue or the re-dispatch fails one of
+    them; handing over as soon as the runtime starts fails both; and
+    handing over only through the entry fails a Phase C test, because the
+    live page would then answer events that the markers had already stopped.
 
 Order: G1, then G2, then G3, which reuses G2's harness. G4 and G5 can run at
 any point; G5 comes before any upstream proposal, per
