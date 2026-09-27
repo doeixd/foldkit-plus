@@ -45,7 +45,10 @@ version changed; `pnpm` skips versions already in the registry.
   is noticeable, an entry being read shows no "New" badge, and the pages list
   no longer says "Nothing yet." before it is read. A new screen starts at the
   top and Back, Forward or a reload return where it was. A chair's avatar is
-  centred in its touch target on a phone.
+  centred in its touch target on a phone. The page builder shows its panel
+  tabs at every width it stacks at: an editor between 52rem and 64rem wide
+  (a 1280px window's) stacked every panel above the page with no tabs, so a
+  new page seemed to open without one.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

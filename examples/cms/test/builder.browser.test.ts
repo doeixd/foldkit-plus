@@ -405,6 +405,17 @@ it.skipIf(import.meta.env.VITE_MEASURE === undefined)(
   60_000,
 )
 
+it('shows its tabs at every width it stacks at, so the page is never pushed below every panel', async () => {
+  // Wider than a phone's editor, narrower than a desktop's: a 1280px window's.
+  unmount = mount(stylesheet, 3, longPage(3), '900px')
+  const tabs = () => document.querySelector<HTMLElement>('[aria-label="Panels"]')
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  expect(tabs()?.checkVisibility()).toBe(true)
+  // One panel above the page, so the page starts within a window's height.
+  const top = canvas()?.getBoundingClientRect().top ?? Infinity
+  expect(top - (tabs()?.getBoundingClientRect().top ?? 0)).toBeLessThan(700)
+})
+
 it('keeps focus in the layers through a duplicate and a delete, on the row they leave current', async () => {
   unmount = mount(stylesheet, 3)
   await vi.waitFor(() => expect(canvas()).not.toBeNull())

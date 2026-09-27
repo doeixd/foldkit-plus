@@ -1180,6 +1180,14 @@ export const InspectorFormStyle = Style.forSlots(FormSlots)(
   { name: 'InspectorFormStyle', layer: app },
 )
 
+/**
+ * The Builder's own width below which it stacks and shows one panel at a time,
+ * chosen by tabs (`BuilderView.narrow`). One width for both: stacked without
+ * the tabs, every panel stood above the page and pushed it out of view.
+ */
+export const narrowWidth = '64rem'
+const narrowBuilder = `builder (max-width: ${narrowWidth})`
+
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
   {
     // Laid out by the editor's own width (`builder`), so a narrow editor stacks in a wide window.
@@ -1195,7 +1203,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         minHeight: '34rem',
         position: 'relative',
       }),
-      Style.container('builder (max-width: 64rem)', {
+      Style.container(narrowBuilder, {
         gridTemplateAreas: 'none',
         gridTemplateColumns: 'minmax(0, 1fr)',
         gridTemplateRows: 'none',
@@ -1213,11 +1221,11 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       }),
       // Narrow, the panel a tab shows sits under the tabs, before the page: the
       // inspector too, which is drawn after the page.
-      Style.container('builder (max-width: 64rem)', { gridArea: 'auto', order: '1' }),
+      Style.container(narrowBuilder, { gridArea: 'auto', order: '1' }),
     ),
     bar: Style.compose(
       Style.self({ alignItems: 'center', display: 'flex', gap: t.space.md, gridArea: 'bar' }),
-      Style.container('builder (max-width: 64rem)', {
+      Style.container(narrowBuilder, {
         flexWrap: 'wrap',
         gridArea: 'auto',
         order: '3',
@@ -1226,11 +1234,11 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
     // The alert lies over the top of the page, in the same cell.
     stage: Style.compose(
       Style.self({ display: 'grid', gridArea: 'stage', minHeight: '0' }),
-      Style.container('builder (max-width: 64rem)', { gridArea: 'auto', order: '4' }),
+      Style.container(narrowBuilder, { gridArea: 'auto', order: '4' }),
     ),
     end: Style.compose(
       Style.self({ display: 'flex', flexDirection: 'column', gridArea: 'end', minHeight: '0' }),
-      Style.container('builder (max-width: 64rem)', { gridArea: 'auto', order: '2' }),
+      Style.container(narrowBuilder, { gridArea: 'auto', order: '2' }),
     ),
     palette: Style.compose(
       builderPanel,
@@ -1238,7 +1246,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
       Style.self({ flexShrink: '0', maxHeight: '26rem' }),
       // On a phone the page comes into view under it; the tiles scroll within.
-      Style.container('builder (max-width: 64rem)', { maxHeight: '40vh' }),
+      Style.container(narrowBuilder, { maxHeight: '40vh' }),
     ),
     paletteGroup: Style.self({
       display: 'grid',
@@ -1287,7 +1295,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       builderPanel,
       panelName('Layers'),
       Style.self({ flex: '1', minHeight: '0' }),
-      Style.container('builder (max-width: 64rem)', { maxHeight: '40vh' }),
+      Style.container(narrowBuilder, { maxHeight: '40vh' }),
     ),
     tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
     row: Style.compose(
@@ -1359,7 +1367,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       builderPanel,
       L.in('layouts', Layout.stack({ gap: t.space.md })),
       Style.self({ flex: '1', minHeight: '0', padding: t.space.md }),
-      Style.container('builder (max-width: 64rem)', { maxHeight: '50vh' }),
+      Style.container(narrowBuilder, { maxHeight: '50vh' }),
     ),
     inspectorHead: L.in('layouts', Layout.stack({ gap: '0.3rem' })),
     inspectorTitle: Style.self({
@@ -1576,7 +1584,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         padding: t.space.lg,
       }),
       Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
-      Style.container('builder (max-width: 64rem)', { minHeight: '30rem' }),
+      Style.container(narrowBuilder, { minHeight: '30rem' }),
       Style.container('builder (max-width: 30rem)', { padding: t.space.xs }),
       Style.nest('[data-composition-drop="before"] > *', { boxShadow: `0 -3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="after"] > *', { boxShadow: `0 3px 0 ${selection}` }),

@@ -24,7 +24,14 @@ import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Post, PostById, PostId, PostPreview, RecentPosts } from './domain.js'
-import { BuilderStyle, InspectorFieldStyle, InspectorFormStyle, SiteSlots, t } from './style.js'
+import {
+  BuilderStyle,
+  InspectorFieldStyle,
+  InspectorFormStyle,
+  narrowWidth,
+  SiteSlots,
+  t,
+} from './style.js'
 
 /** The looks' base rules sit in `components`, below the application's own. */
 const components = Layers.standard.layer('components')
@@ -908,8 +915,4 @@ export const PageEditing = BuilderView.define(PageBuilder, {
     // The CMS's own control kinds, as its entry forms draw them.
     renderers: Cms.controlRenderers,
   },
-}).pipe(
-  Style.attach(BuilderStyle),
-  // Below this width of its own, one panel at a time, chosen by tabs.
-  Style.attach(BuilderView.narrow('52rem')),
-)
+}).pipe(Style.attach(BuilderStyle), Style.attach(BuilderView.narrow(narrowWidth)))
