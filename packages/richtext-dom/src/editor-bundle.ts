@@ -71,6 +71,12 @@ export const EditorView = Schema.Struct({
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
   menuIndex: Schema.Number,
   hostId: Schema.String,
+  /**
+   * How many documents an editor holding its own was given from outside (`fill`, `Reset`). The
+   * host is keyed by it, so each such document is mounted afresh: the host's Mount reads its
+   * document once. Absent for an editor whose parent holds the document.
+   */
+  loaded: Schema.optionalKey(Schema.Number),
 })
 export type EditorView = typeof EditorView.Type
 
@@ -183,6 +189,7 @@ export const editorView = Submodel.defineView<EditorView, Message>((model, h) =>
   Host.withMessage(h)(
     [
       h.Id(model.hostId),
+      ...(model.loaded === undefined ? [] : [h.Key(`${model.hostId}-${model.loaded}`)]),
       // A custom element is inline until styled, and the editor inside it is a block.
       h.Style({ display: 'block' }),
       h.OnMount(events({ content: model.document })),

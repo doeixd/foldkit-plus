@@ -83,6 +83,11 @@
     "foldkit-bundle": "workspace:^",
     "foldkit-form": "workspace:^"
   },
+  "peerDependenciesMeta": {
+    "foldkit-form": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",

@@ -44,7 +44,7 @@ export const EditorInput = Bundle.make({
   Model: EditorView,
   Message,
   args: Schema.Struct({ hostId: Schema.String }),
-  init: args => ({ model: { ...Editor.init(args).model, document: blank() } }),
+  init: args => ({ model: { ...Editor.init(args).model, document: blank(), loaded: 0 } }),
   update: (model, message, args) => {
     const { model: next, outMessage, commands } = Editor.update(model, message, args)
     // An edit and an undo carry the state to commit; a refusal changes nothing to keep.
@@ -81,7 +81,10 @@ export const richTextInput = (hostId: string, placement: EditorPlacement = {}) =
       selection: null,
       history: RichText.emptyHistory,
       storedMarks: null,
+      loaded: (model.loaded ?? 0) + 1,
     }),
+    // The count goes on, or a reset of an editor never filled would key the host it has.
+    reset: (model, initial) => ({ ...initial, loaded: (model.loaded ?? 0) + 1 }),
     // A stored draft shown again keeps its caret, format, and history (§12); only the slash
     // menu's highlight belongs to the moment it was typed in.
     settled: model => ({ ...model, menuIndex: 0 }),
