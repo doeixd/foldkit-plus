@@ -1307,6 +1307,11 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   }
 }
 
+// Where a restarted stream resumes, not a reason to restart it: every applied
+// event advances the cursor, and a restart per event would close and reopen
+// the server stream each time.
+const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () => true))
+
 /** The live entry: subscribes to `requirementsOf(model)` from the Model's resume cursor. */
 const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
@@ -1325,7 +1330,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
 > => ({
   dependenciesSchema: Schema.Struct({
     requirements: Schema.Array(ReadRequest),
-    cursor: Schema.Number,
+    cursor: resumeCursor,
     floor: Schema.Number,
   }),
   modelToDependencies: model => {
