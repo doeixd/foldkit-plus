@@ -328,7 +328,14 @@ it cannot be). `parse` also returns a `MarkdownStyle` (which spelling each
 construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id), `print(document, { style })` reuses it where it keeps the meaning, and a
 session's `closeSource(...).style` is what to pass to the next `openSource(document, { style })`.
 
-Mobile keyboards, real-browser verification, and collaboration remain unfinished; the form
+`RichText.Replicated` is the pure core of collaborative editing: a state where every character
+has an identity, `project(state)` to the `Document` the editor edits, `translate(state, result,
+key)` to restate a command's result as ops that name characters and blocks, `applyOps(state,
+ops)` (total, deterministic: replicas applying the same ops in server order converge), and
+`anchor`/`resolve` for a selection that survives others' edits. `key` is unique per call,
+minted in a Command. Wiring it to `foldkit-sync` is not built yet.
+
+Mobile keyboards, real-browser verification, and collaboration's Sync wiring remain unfinished; the form
 control (`foldkit-richtext-dom/input`), drag and drop, and the editable adapter's decorations
 are built. Nested children are done: a node block may carry nested `blocks`,
 which decode, round-trip, count, and survive an unknown kind, and commands reach

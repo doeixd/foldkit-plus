@@ -71,7 +71,8 @@ looks up that same ID there, without an ownership or authorization guarantee.
 `at` validates offset shape and affinity, but cannot prove the node exists, is
 text, or is long enough. `apply` checks those conditions against the current
 document. A Position remains a resolved offset and must still be mapped through
-edits; a Node reference does not turn it into a collaborative anchor. `read`
+edits; a Node reference does not turn it into a collaborative anchor (see
+[Shared documents](#shared-documents) for one that is). `read`
 performs a linear lookup, intended for application reads rather than bulk editing.
 
 ## Building operations
@@ -741,6 +742,70 @@ always allowed, so a preserved document that already carries one has a way back.
 diagnostic blocks publishing or shows a placeholder. The Kit does not drive parsing
 or `apply`.
 
+## Shared documents
+
+Several replicas can edit one document when the edits are ordered by a server, as
+`foldkit-sync` and `foldkit-durable` order any durable Message. The difficulty is only that
+an edit written as "insert at offset 12 of run `t`" means something else once another
+replica's edit lands first. `RichText.Replicated` gives every character an identity that
+outlives the edits around it, and restates each edit in those terms:
+
+```text
+shared state --project--> Document --command--> result --translate--> ops
+     ^                                                                  |
+     +------------------------------ applyOps --------------------------+
+```
+
+The editor, its commands and its renderers keep working on a plain `Document`. The state
+holds the blocks, every character ever typed (deleted ones stay, as tombstones, because a
+later op may be anchored on them), and the marks on each:
+
+```ts
+import * as RichText from 'foldkit-richtext'
+
+const { Replicated } = RichText
+const seed = RichText.decodeDocument({
+  version: 1,
+  children: [
+    { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'hello', marks: [] }] },
+  ],
+})
+
+let shared = Replicated.fromDocument(seed, 'doc:seed')
+const shown = Replicated.project(shared)
+const caret = { node: shown.children[0]!.children[0]!.id, offset: 5, affinity: 'after' as const }
+const result = RichText.run(
+  { document: shown, selection: { type: 'Range', anchor: caret, focus: caret } },
+  { type: 'InsertText', text: '!' },
+  { mint: () => crypto.randomUUID() },
+)
+if (result.ok) {
+  const { ops, selection } = Replicated.translate(shared, result, 'edit:1')
+  shared = Replicated.applyOps(shared, ops)
+  const next = { document: Replicated.project(shared), selection: Replicated.resolve(shared, selection) }
+}
+```
+
+- `fromDocument(document, key)` and `translate(state, result, key)` mint new identities under
+  `key`, which has to be unique to that call among everything the state will see, such as a
+  random id minted in a Command. The ids the command minted itself are replaced, so its
+  `mint` needs no care.
+- `translate` is pure and reads nothing but its arguments. The `ops` are what travels: every
+  replica applies the same ops in the server's order and projects the same document.
+- `applyOps` never throws. An op that no longer fits changes nothing: a block already
+  deleted, an id already taken, a move into the block's own subtree. Text typed into a block
+  another replica deleted is gone with it. An insert anchored on a character whose own
+  insert the server refused lands at the end of the block it was typed in.
+- A selection travels as anchors (`translate`'s `selection`, or `anchor(state, selection)`),
+  and `resolve` places it again after other replicas' ops: after the same character, or the
+  nearest one before it still shown.
+- Two replicas' concurrent inserts at one place both survive, the later-committed first.
+  A mark covers the characters it named, so text another replica typed inside the range
+  before the mark arrived stays unmarked.
+
+Run identities in the projection are the first character's, so they are stable while
+text is added after them; block identities are stable for a block's whole life.
+
 ## Current semantics
 
 - Documents contain paragraphs and headings (levels 1–6), each containing text
@@ -862,8 +927,8 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Nested children and collaboration are still
-pending. Retain rejected source content for
+decoding untrusted payloads. `Replicated` is the pure core of collaboration;
+wiring it to `foldkit-sync` is still pending. Retain rejected source content for
 recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.

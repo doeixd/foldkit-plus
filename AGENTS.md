@@ -444,6 +444,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.
   Run a scratch probe against the installed version before relying on semantics
   inferred from a name.
+- **`Schema.Record` drops a key its key schema refuses.** Decoding `{ constructor: … }`
+  against `Schema.Record(Id, Entry)` returned `{}`, with no error, unless the call passes
+  `onExcessProperty: 'error'`. That keeps a bad key out, and also loses its value silently.
 - **Run the probe from the package, not the repo root.** A scratch probe run
   from the root resolves a different, v3-era `effect` than the pinned rc the
   package actually compiles against, so it answers a question about the wrong

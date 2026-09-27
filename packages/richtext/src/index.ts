@@ -182,3 +182,4 @@ export {
   type CollapseStep,
   type TransactionResult,
 } from './transaction.js'
+export * as Replicated from './replicated.js'
