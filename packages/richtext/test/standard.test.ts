@@ -2,6 +2,7 @@
  * The standard vocabulary (§124 §2, §125): the kinds and marks a document uses to mean
  * what Markdown and HTML also mean, and the constraints that make them more than names.
  */
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 
@@ -273,5 +274,114 @@ describe('how the standard vocabulary renders', () => {
     expect(RichText.documentToHtml(table, RichText.standardRendering)).toBe(
       '<table><tbody><tr><td><p>a</p></td><td><p>b</p></td></tr></tbody></table>',
     )
+  })
+})
+
+describe('commands that place a kind keep it where it may stand (§149)', () => {
+  const nodes = RichText.nodeRegistry(RichText.standardNodes)
+  const at = (node: string, offset: number) =>
+    ({ node: RichText.NodeId.make(node), offset, affinity: 'after' }) as const
+  const caretIn = (node: string, offset = 1): RichText.Selection => ({
+    type: 'Range',
+    anchor: at(node, offset),
+    focus: at(node, offset),
+  })
+  let n = 0
+  const ids = { mint: () => `new-${++n}` }
+  const run = (
+    blocks: ReadonlyArray<unknown>,
+    selection: RichText.Selection,
+    command: RichText.Command,
+    options: RichText.RunOptions = { nodes },
+  ) => RichText.run({ document: doc(blocks), selection }, command, ids, options)
+  const refusal = (result: ReturnType<typeof run>) => (result.ok ? 'ok' : result.error)
+  const item = (kind: string, id: string) =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        container(kind, id, kind === 'TaskItem' ? { checked: false } : {}, [paragraph(`${id}-p`)]),
+      ],
+    }).children
+
+  it.each<[string, ReadonlyArray<RichText.Container>, string]>([
+    ['a list item alone at the top level', [{ kind: 'ListItem' }], 'UnexpectedChild'],
+    [
+      'a task item straight in a quote',
+      [{ kind: 'Quote' }, { kind: 'TaskItem', props: { checked: false } }],
+      'UnexpectedChild',
+    ],
+    ['a list and its item', [{ kind: 'List' }, { kind: 'ListItem' }], 'ok'],
+  ])('wraps a block in %s only where each kind may stand', (_, containers, expected) => {
+    expect(refusal(run([paragraph('p')], caretIn('p-t'), { type: 'WrapBlock', containers }))).toBe(
+      expected,
+    )
+  })
+
+  it.each<[string, ReadonlyArray<unknown>, string, ReadonlyArray<RichText.Block>, string]>([
+    [
+      'a list item at the top level',
+      [paragraph('p')],
+      'p-t',
+      item('ListItem', 'i'),
+      'UnexpectedChild',
+    ],
+    [
+      'a list item into a list item',
+      [container('List', 'l', {}, [container('ListItem', 'li', {}, [paragraph('p')])])],
+      'p-t',
+      item('ListItem', 'i'),
+      'UnexpectedChild',
+    ],
+    [
+      'a list, which may stand anywhere',
+      [paragraph('p')],
+      'p-t',
+      RichText.decodeDocument({
+        version: 1,
+        children: [container('List', 'l', {}, [container('ListItem', 'i', {}, [paragraph('q')])])],
+      }).children,
+      'ok',
+    ],
+  ])('pastes %s only where it may stand', (_, blocks, run_, pasted, expected) => {
+    expect(
+      refusal(run(blocks, caretIn(run_), { type: 'Paste', slice: { version: 1, blocks: pasted } })),
+    ).toBe(expected)
+  })
+
+  it('starts a paragraph after a heading ended in a list item, as at the top level', () => {
+    const heading = {
+      type: 'Heading',
+      id: 'h',
+      level: 2,
+      children: [{ type: 'Text', id: 'h-t', text: 'Title', marks: [] }],
+    }
+    const result = run(
+      [container('List', 'l', {}, [container('ListItem', 'li', {}, [heading])])],
+      caretIn('h-t', 5),
+      { type: 'SplitBlock' },
+    )
+    if (!result.ok) throw new Error(result.error)
+    const list = result.state.document.children[0]
+    const items = list?.type === 'Node' ? (list.blocks ?? []) : []
+    expect(
+      items.map(each => (each.type === 'Node' ? each.blocks?.map(block => block.type) : [])),
+    ).toEqual([['Heading'], ['Paragraph']])
+  })
+
+  it('refuses an item split whose props the kind’s own schema refuses', () => {
+    const task = RichText.node('Task', {
+      Props: Schema.Struct({ checked: Schema.Boolean }),
+      children: RichText.blockContent,
+      // @ts-expect-error a split's props are the kind's own
+      splitProps: { checked: 'no' },
+    })
+    const tasks = RichText.node('Tasks', { children: RichText.blocksOf('Task') })
+    const result = run(
+      [container('Tasks', 'l', {}, [container('Task', 't', { checked: true }, [paragraph('p')])])],
+      caretIn('p-t'),
+      { type: 'SplitBlock' },
+      { nodes: RichText.nodeRegistry([...RichText.standardNodes, task, tasks]) },
+    )
+    expect(refusal(result)).toBe('InvalidInput')
   })
 })

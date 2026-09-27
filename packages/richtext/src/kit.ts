@@ -1,3 +1,4 @@
+import type { Schema } from 'effect'
 import {
   blockAtPath,
   blockContent,
@@ -129,7 +130,9 @@ export const node = <
      * Props a copy split off this node starts with, laid over the original's: Enter in a
      * checked task item starts an unchecked one.
      */
-    readonly splitProps?: NodeBlock['props']
+    readonly splitProps?: Props extends PropsSchema
+      ? Partial<Schema.Schema.Type<Props>>
+      : NodeBlock['props']
     /** The kinds this one may stand in; it then never stands at the top level (§149). */
     readonly within?: ReadonlyArray<string>
   } = {},

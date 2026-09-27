@@ -276,7 +276,8 @@ new identities and moving the selection onto them. `MoveBlock { node, to: { befo
 moves a block and its subtree beside another block, by identity rather than the selection (a
 block handle's moves); across containers, the vocabulary decides: the container must hold the
 kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by `validate` as
-`MisplacedNode`), it never leaves an `isolating` kind, and a container it empties is deleted;
+`MisplacedNode`, and refused by a wrap or a paste as by a move), it never leaves an `isolating`
+kind, and a container it empties is deleted;
 `moveTargets(document, node, nodes?)` lists where it may go. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes

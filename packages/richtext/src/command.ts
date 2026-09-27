@@ -703,6 +703,25 @@ const itemAround = (
 }
 
 /**
+ * Whether Enter in the block at `path`, over to `end`, leaves no heading text after the caret,
+ * so the new block is a paragraph: what follows a title is text. Mid-heading, both halves stay
+ * the heading they were. Over a range, what follows is what the removal leaves: the heading's
+ * own rest when the range ends inside it, or the next block's text, which was never the
+ * heading's, when it ends there.
+ */
+const endsHeading = (document: Document, path: BlockPath, end: Position): boolean => {
+  const block = blockAtPath(document, path)
+  const endAt = locate(document, end.node)
+  return (
+    block?.type === 'Heading' &&
+    endAt !== undefined &&
+    (pathKey(endAt.path) !== pathKey(path) ||
+      (end.offset >= endAt.text.length &&
+        block.children.slice(endAt.runIndex + 1).every(run => run.text.length === 0)))
+  )
+}
+
+/**
  * Enter inside a list item. An empty block that is the item's whole content leaves the list,
  * as Backspace does. Otherwise the block splits and the second half, with every block after
  * it in the item, becomes a new item of the same kind and props right after this one.
@@ -726,8 +745,14 @@ const splitItem = (
   const itemId = NodeId.make(ids.mint())
   const declared = nodes?.definitionFor(container.kind)
   const props = { ...container.props, ...(declared?.kind === 'node' ? declared.splitProps : {}) }
+  // The declaration's props are laid over the item's, so together they must still decode.
+  if (declared?.kind === 'node' && propsFailure(declared.props, props))
+    return failure('InvalidInput')
   return apply(state, [
     Edit.splitBlock(at.blockId, at.id, offset, blockId, textId),
+    ...(endsHeading(state.document, at.path, { node: at.id, offset, affinity: 'after' })
+      ? [Edit.retypeBlock(NodeId.make(blockId), { type: 'Paragraph' })]
+      : []),
     Edit.insertBlock(
       { ...container, id: itemId, props, children: [], blocks: [] },
       containerPath[containerPath.length - 1]! + 1,
@@ -859,12 +884,18 @@ const runBlockCommand = (
       return failure('InvalidInput')
     }
     const kinds = [...command.containers.map(container => container.kind), blockKind(block)]
+    const parentKind = parent === undefined ? undefined : blockKind(parent)
+    // Both sides of every link in the chain: what each container holds, and where each kind,
+    // the wrapped block's included, may stand (§149).
     const allowed =
       acceptsChild(state.document, parentPath, outer.kind, options.nodes) &&
       command.containers.every(
         (container, at) =>
           holdsBlocks(options.nodes, container.kind) &&
           kindAccepts(options.nodes, container.kind, kinds[at + 1]!),
+      ) &&
+      kinds.every((kind, at) =>
+        standsWithin(options.nodes?.definitionFor(kind), at === 0 ? parentKind : kinds[at - 1]),
       )
     if (!allowed) return failure('UnexpectedChild')
     // A list wrap right after a list of the same kind and props adds an item to it, as
@@ -1149,23 +1180,12 @@ export const run = (
     }
     const textId = ids.mint()
     const blockId = ids.mint()
-    // Enter at the end of a heading starts the body under it, not another heading: what
-    // follows a title is text. Mid-heading, both halves stay the heading they were. Over a
-    // range, what follows is what the removal leaves: the heading's own rest when the range
-    // ends inside it, or the next block's text, which was never the heading's, when it ends there.
-    const block = blockAtPath(state.document, at.path)
-    const end = span?.end ?? caret
-    const endAt = locate(state.document, end.node)
-    const endsHeading =
-      block?.type === 'Heading' &&
-      endAt !== undefined &&
-      (pathKey(endAt.path) !== pathKey(at.path) ||
-        (end.offset >= endAt.text.length &&
-          block.children.slice(endAt.runIndex + 1).every(run => run.text.length === 0)))
     return apply(state, [
       ...deletions,
       Edit.splitBlock(at.blockId, at.id, caret.offset, blockId, textId),
-      ...(endsHeading ? [Edit.retypeBlock(NodeId.make(blockId), { type: 'Paragraph' })] : []),
+      ...(endsHeading(state.document, at.path, span?.end ?? caret)
+        ? [Edit.retypeBlock(NodeId.make(blockId), { type: 'Paragraph' })]
+        : []),
       Edit.setSelection(caretAt({ node: NodeId.make(textId), offset: 0, affinity: 'after' })),
     ])
   }
@@ -1241,12 +1261,19 @@ export const run = (
     if (replacements === undefined) return failure('InvalidParent')
     const operations: Array<Operation> = [...replacements]
     const inserted = withFreshIds(command.slice, ids.mint).blocks
-    // The content lands in the caret's container, so that container's constraint
-    // decides which kinds it accepts (§125).
+    // The content lands in the caret's container, so that container's constraint decides
+    // which kinds it accepts (§125), and each kind's own says whether it may stand there (§149).
+    const holder =
+      containerPath.length === 0 ? undefined : blockAtPath(state.document, containerPath)
     if (
-      containerPath.length > 0 &&
       inserted.some(
-        piece => !acceptsChild(state.document, containerPath, blockKind(piece), options.nodes),
+        piece =>
+          (containerPath.length > 0 &&
+            !acceptsChild(state.document, containerPath, blockKind(piece), options.nodes)) ||
+          !standsWithin(
+            options.nodes?.definitionFor(blockKind(piece)),
+            holder === undefined ? undefined : blockKind(holder),
+          ),
       )
     ) {
       return failure('UnexpectedChild')

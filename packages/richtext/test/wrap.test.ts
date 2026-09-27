@@ -239,7 +239,7 @@ describe('joining the list above', () => {
     [
       'a quote, which holds blocks rather than items',
       's',
-      [{ kind: 'Quote' }, { kind: 'ListItem' }],
+      [{ kind: 'Quote' }, { kind: 'List' }, { kind: 'ListItem' }],
     ],
     ['a quote, wrapping in a quote alone', 's', [{ kind: 'Quote' }]],
     ['a table, which holds items of another kind', 'u', [{ kind: 'List' }, { kind: 'ListItem' }]],

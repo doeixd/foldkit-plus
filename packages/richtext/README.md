@@ -188,7 +188,8 @@ caret with it.
 `MoveBlock` moves a block, with everything it holds, before or after another block:
 `{ type: 'MoveBlock', node, to: { before: other } }` or `{ after: other }`. It addresses blocks
 by identity, not by the selection, so a block handle or a key sends it for the block it stands
-for; identities are kept, and so is the selection. `other` can be in any container the block may
+for; identities are kept, and so is the selection, except a node selection on a container the
+move empties and deletes, which moves to the moved block. `other` can be in any container the block may
 move into. With a vocabulary, that container has to hold the block's kind, and the kind has to
 stand in it by its `within` (otherwise `UnexpectedChild`). The move may not leave an
 `isolating` container such as a table cell, or go inside itself (`InvalidParent`). A container
@@ -215,7 +216,9 @@ item of the same kind and props right after; the caret lands at its start. Enter
 block that is the item's whole content leaves the list instead, as Backspace does. Over a range
 inside an item, the range is deleted first. The new item copies the old one's props, with the
 kind's `splitProps` laid over them when it declares some: the standard `TaskItem`'s
-`{ checked: false }` makes Enter in a done task start an open one. Without a vocabulary, in a quote, and in a table
+`{ checked: false }` makes Enter in a done task start an open one. Together they must still
+decode by the kind's `Props`, or the split is refused (`InvalidInput`), and a heading's rule
+holds inside an item too. Without a vocabulary, in a quote, and in a table
 cell, Enter splits only the block, as before.
 
 `InsertText` takes an optional `marks`. With it, the inserted text carries
@@ -695,7 +698,7 @@ by decoding, sync, or `SetMark` rather than import is drawn inert.
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
 those block kinds, `marks: 'none'` forbids marks on the kind's own runs, `isolating: true`
 makes the kind a boundary a lift never crosses, as a table cell is, `splitProps` names
-props an item split off one of this kind starts with, and `within` names the kinds it may stand
+props an item split off one of this kind starts with (typed from the kind's `Props`), and `within` names the kinds it may stand
 in, so a `ListItem` stands only in a `List` and never at the top level:
 
 ```ts
@@ -713,7 +716,7 @@ RichText.node('TaskItem', {
 `validate` reports those violations as `UnexpectedChild`, `ForbiddenMark`, and
 `MisplacedNode` (a kind outside what its `within` names), and checks
 an atom's props the same way it checks a node's. `run` refuses the edits that would create
-an unexpected child or a forbidden mark, and a `MoveBlock` that would misplace a kind, when it
+an unexpected child, a forbidden mark, or a misplaced kind (a move, a wrap, or a paste), when it
 is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
 counterpart of the `marks` option:
 
