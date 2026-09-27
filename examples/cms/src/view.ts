@@ -217,16 +217,14 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ),
           ]
         : []),
-      // Publishing submits the form, so its rules and checks decide.
-      ...(loaded && may('publish')
+      // Publishing submits the form, so its rules and checks decide. Drawn only when
+      // there is something to publish: the badge already says it is live, and an
+      // archived post is unarchived first, from the aside.
+      ...(loaded && may('publish') && !live && !stateIs(state, 'Archived')
         ? [
             h.button(
-              slots.primary.attrs([
-                h.Id('publish'),
-                h.Disabled(live || stateIs(state, 'Archived')),
-                h.OnClick(ask(Editor.Message.PublishAsked())),
-              ]),
-              live ? [icon(h, 'check'), 'Published'] : ['Publish'],
+              slots.primary.attrs([h.Id('publish'), h.OnClick(ask(Editor.Message.PublishAsked()))]),
+              ['Publish'],
             ),
           ]
         : []),
@@ -286,7 +284,37 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           ...(Option.isNone(state) || may('publish')
             ? []
             : [h.p(slots.muted.attrs(), ['An editor publishes it when it is ready.'])]),
-          ...(may('schedule')
+          // Put away, it is brought back before anything else: say how, rather than
+          // offer a publish that would be refused.
+          ...(stateIs(state, 'Archived')
+            ? [h.p(slots.muted.attrs(), ['Archived. Unarchive it, below, to publish it again.'])]
+            : []),
+          // When it goes live, in words: the input alone did not say it was taken.
+          ...Option.match(
+            Option.flatMap(state, known => Option.fromNullOr(known.schedule)),
+            {
+              onNone: () => [],
+              onSome: ({ at: when, overdue, error }) => {
+                const time = new Date(when).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })
+                return [
+                  h.p(
+                    slots.status.attrs(error === null ? [] : [h.DataAttribute('tone', 'error')]),
+                    [
+                      error !== null
+                        ? `Was to go live ${time}: ${error}`
+                        : overdue
+                          ? `Due since ${time}; it goes live at the next check.`
+                          : `Goes live ${time}.`,
+                    ],
+                  ),
+                ]
+              },
+            },
+          ),
+          ...(may('schedule') && !stateIs(state, 'Archived')
             ? [
                 h.label(slots.muted.attrs([h.For('at')]), ['Publish later']),
                 h.div(slots.toolbar.attrs(), [

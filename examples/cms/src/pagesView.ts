@@ -111,16 +111,16 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ]),
           ],
         }),
-        // Publishing submits the form, so the page's own checks decide.
-        ...(loaded && PageEditor.may(model, 'publish')
+        // Publishing submits the form, so the page's own checks decide. Drawn only when
+        // there is something to publish: the badge already says it is live.
+        ...(loaded && PageEditor.may(model, 'publish') && !published && !stateIs(state, 'Archived')
           ? [
               h.button(
                 slots.primary.attrs([
                   h.Id('publish'),
-                  h.Disabled(published || stateIs(state, 'Archived')),
                   h.OnClick(Message.GotEditorMessage({ message: Editor.Message.PublishAsked() })),
                 ]),
-                published ? [icon(h, 'check'), 'Published'] : ['Publish'],
+                ['Publish'],
               ),
             ]
           : []),
