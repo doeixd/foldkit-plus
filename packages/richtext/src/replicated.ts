@@ -136,7 +136,17 @@ export const ReplicatedOp = Schema.Union([
     after: Schema.NullOr(CharRef),
     into: ReplicatedId,
   }),
-  Schema.Struct({ type: Schema.Literal('Join'), into: ReplicatedId, removed: ReplicatedId }),
+  Schema.Struct({
+    type: Schema.Literal('Join'),
+    into: ReplicatedId,
+    removed: ReplicatedId,
+    /**
+     * The last character of `into` when the op was made, or null when it had none: the
+     * removed block's text goes right after it, wherever it has gone since, so a join still
+     * lands where it was made after `into` is split or joined itself.
+     */
+    after: Schema.NullOr(CharRef),
+  }),
   Schema.Struct({ type: Schema.Literal('Retype'), id: ReplicatedId, to: TextBlock }),
   Schema.Struct({ type: Schema.Literal('SetProps'), id: ReplicatedId, props: Schema.JsonObject }),
 ])
@@ -205,7 +215,9 @@ const draft = (state: ReplicatedState) => {
     root,
     blocks: blocks as Record<ReplicatedId, Entry>,
   })
-  return { read, write, siblings, create, finish, all: () => Object.keys(blocks) }
+  // The record's keys are the ids its schema checked, so they are ReplicatedIds.
+  const all = (): ReadonlyArray<ReplicatedId> => Object.keys(blocks) as Array<ReplicatedId>
+  return { read, write, siblings, create, finish, all }
 }
 type Draft = ReturnType<typeof draft>
 
@@ -221,14 +233,14 @@ const taken = (work: Draft, id: string): boolean =>
 
 /** Where a character is: its block, and the span index and offset within that span. */
 interface Found {
-  readonly block: string
+  readonly block: ReplicatedId
   readonly span: number
   readonly within: number
 }
 
-const findChar = (work: Draft, ref: string, hint: string | undefined): Found | undefined => {
+const findChar = (work: Draft, ref: string, hint: ReplicatedId | undefined): Found | undefined => {
   const { id, index } = parseChar(ref)
-  const search = (block: string): Found | undefined => {
+  const search = (block: ReplicatedId): Found | undefined => {
     const spans = work.read(block)?.spans ?? []
     for (const [span, candidate] of spans.entries()) {
       if (
@@ -264,12 +276,12 @@ const cut = (spans: Array<Span>, span: number, within: number): void => {
 
 /** A place between characters: a block, and how many of its spans come before it. */
 interface Place {
-  readonly block: string
+  readonly block: ReplicatedId
   readonly index: number
 }
 
 /** The start of a block; a joined block's start is where its characters went. */
-const startOf = (work: Draft, block: string, seen = new Set<string>()): Place | undefined => {
+const startOf = (work: Draft, block: ReplicatedId, seen = new Set<string>()): Place | undefined => {
   const entry = work.read(block)
   if (entry === undefined || seen.has(block)) return undefined
   if (entry.joined === undefined) return { block, index: 0 }
@@ -280,7 +292,7 @@ const startOf = (work: Draft, block: string, seen = new Set<string>()): Place | 
 }
 
 /** The place right after a character, cutting its span so a boundary falls there. */
-const afterChar = (work: Draft, ref: string, hint: string | undefined): Place | undefined => {
+const afterChar = (work: Draft, ref: string, hint: ReplicatedId | undefined): Place | undefined => {
   const found = findChar(work, ref, hint)
   if (found === undefined) return undefined
   const spans = work.write(found.block)!.spans
@@ -322,6 +334,22 @@ const insertAfterSibling = (
   const at = after === null ? 0 : list.indexOf(after as ReplicatedId) + 1
   // A sibling that has left this container puts the block at the container's end.
   list.splice(after !== null && at === 0 ? list.length : at, 0, id)
+}
+
+/**
+ * The container a block's children are in now: a container joined into another passed its
+ * children on, so an op naming it means the one it was joined into. Undefined when gone.
+ */
+const liveContainer = (work: Draft, id: ReplicatedId): ReplicatedId | undefined => {
+  const seen = new Set<string>()
+  for (let at = id; !seen.has(at);) {
+    seen.add(at)
+    const entry = work.read(at)
+    if (entry === undefined) return undefined
+    if (entry.joined === undefined) return at
+    at = entry.joined.into
+  }
+  return undefined
 }
 
 const isWithin = (work: Draft, block: string, ancestor: string): boolean => {
@@ -373,12 +401,14 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       return
     case 'InsertBlock': {
       if (taken(work, op.id)) return
-      const list = work.siblings(op.parent)
+      const parent = op.parent === null ? null : liveContainer(work, op.parent)
+      if (parent === undefined) return
+      const list = work.siblings(parent)
       if (list === undefined) return
       insertAfterSibling(list, op.id, op.after)
       work.create(op.id, {
         shape: op.shape,
-        parent: op.parent,
+        parent,
         spans: [],
         children: [],
         deleted: false,
@@ -394,17 +424,14 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
     case 'MoveBlock': {
       const entry = work.read(op.id)
       if (entry === undefined) return
-      if (
-        op.parent !== null &&
-        (work.read(op.parent) === undefined || isWithin(work, op.parent, op.id))
-      )
-        return
-      const destination = work.siblings(op.parent)
+      const parent = op.parent === null ? null : liveContainer(work, op.parent)
+      if (parent === undefined || (parent !== null && isWithin(work, parent, op.id))) return
+      const destination = work.siblings(parent)
       if (destination === undefined) return
       const source = work.siblings(entry.parent)!
       source.splice(source.indexOf(op.id), 1)
       insertAfterSibling(destination, op.id, op.after)
-      work.write(op.id)!.parent = op.parent
+      work.write(op.id)!.parent = parent
       return
     }
     case 'Split': {
@@ -427,34 +454,49 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       return
     }
     case 'Join': {
-      const into = work.read(op.into)
       const removed = work.read(op.removed)
-      if (into === undefined || removed === undefined) return
-      if (removed.deleted || removed.joined !== undefined) return
-      if (isWithin(work, op.into, op.removed) || isWithin(work, op.removed, op.into)) return
-      const bothText = holdsText(into.shape) && holdsText(removed.shape)
-      const bothBlocks =
-        into.shape.type === 'Node' &&
-        into.shape.holds === 'blocks' &&
-        removed.shape.type === 'Node' &&
-        removed.shape.holds === 'blocks'
-      if (!bothText && !bothBlocks) return
-      const last = into.spans[into.spans.length - 1]
-      const target = work.write(op.into)!
-      const gone = work.write(op.removed)!
-      if (bothText) {
-        target.spans.push(...gone.spans)
+      if (removed === undefined || removed.deleted) return
+      if (holdsText(removed.shape)) {
+        // Right after the character `into` ended with, wherever a split or another join has
+        // taken it since.
+        const place =
+          op.after === null ? startOf(work, op.into) : afterChar(work, op.after, op.into)
+        if (place === undefined || place.block === op.removed) return
+        const target = work.read(place.block)!
+        // A block deleted rather than joined takes nothing: the text would vanish with it.
+        if (target.deleted || !holdsText(target.shape)) return
+        const before = target.spans[place.index - 1]
+        const gone = work.write(op.removed)!
+        work.write(place.block)!.spans.splice(place.index, 0, ...gone.spans)
         gone.spans = []
-      } else {
-        for (const child of gone.children) work.write(child)!.parent = op.into
-        target.children.push(...gone.children)
-        gone.children = []
+        gone.deleted = true
+        gone.joined = {
+          into: place.block,
+          after:
+            before === undefined
+              ? null
+              : charRef(before.id, before.offset + before.text.length - 1),
+        }
+        return
       }
+      const into = liveContainer(work, op.into)
+      if (into === undefined) return
+      const target = work.read(into)!
+      if (target.deleted) return
+      if (isWithin(work, into, op.removed) || isWithin(work, op.removed, into)) return
+      if (
+        target.shape.type !== 'Node' ||
+        target.shape.holds !== 'blocks' ||
+        removed.shape.type !== 'Node' ||
+        removed.shape.holds !== 'blocks'
+      )
+        return
+      const gone = work.write(op.removed)!
+      for (const child of gone.children) work.write(child)!.parent = into
+      work.write(into)!.children.push(...gone.children)
+      gone.children = []
       gone.deleted = true
-      gone.joined = {
-        into: op.into,
-        after: last === undefined ? null : charRef(last.id, last.offset + last.text.length - 1),
-      }
+      gone.joined = { into, after: null }
       return
     }
     case 'Retype': {
@@ -978,10 +1020,14 @@ const translateOne = (
       return
     }
     case 'JoinNode': {
+      const intoRuns = shadow.runs.get(operation.into)!
+      const lastRun = intoRuns.length - 1
       ops.push({
         type: 'Join',
         into: replicated(shadow, operation.into),
         removed: replicated(shadow, operation.removed),
+        after:
+          lastRun < 0 ? null : charBefore(intoRuns, lastRun, charsLength(intoRuns[lastRun]!.chars)),
       })
       shadow.runs.get(operation.into)!.push(...shadow.runs.get(operation.removed)!)
       shadow.runs.delete(operation.removed)
@@ -1113,9 +1159,17 @@ const resolvePosition = (
       : { node: first.id, offset: 0, affinity: position.affinity }
   }
   if (position.after === null) {
-    const work = draft(state)
-    const place = startOf(work, position.block)
-    return place === undefined || !visible(state, place.block) ? undefined : atStart(place.block)
+    const place = startOf(draft(state), position.block)
+    if (place === undefined || !visible(state, place.block)) return undefined
+    // A joined block starts after the text of the one it was joined into.
+    const before = lookup(state, place.block)?.spans[place.index - 1]
+    return before === undefined
+      ? atStart(place.block)
+      : resolvePosition(state, {
+          ...position,
+          block: place.block as ReplicatedId,
+          after: charRef(before.id, before.offset + before.text.length - 1),
+        })
   }
   const { id, index } = parseChar(position.after)
   // The block's visible characters in order; the anchor, or the last visible one before it.

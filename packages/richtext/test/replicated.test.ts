@@ -160,6 +160,14 @@ const keyAt = (state: RichText.Replicated.ReplicatedState, path: RichText.BlockP
   const run = RichText.blockAtPath(Replicated.project(state), path)!.children[0]!.id
   return run.slice(0, run.lastIndexOf('.'))
 }
+/** The last character of a block, in a state made by `fromDocument`. */
+const lastCharOf = (state: RichText.Replicated.ReplicatedState, path: RichText.BlockPath) => {
+  const runs = RichText.blockAtPath(Replicated.project(state), path)!.children
+  const last = runs[runs.length - 1]!
+  const dot = last.id.lastIndexOf('.')
+  const offset = Number(last.id.slice(dot + 1)) + last.text.length - 1
+  return Replicated.CharRef.make(`${last.id.slice(0, dot)}.${offset}`)
+}
 const charAt = (
   state: RichText.Replicated.ReplicatedState,
   path: RichText.BlockPath,
@@ -454,6 +462,59 @@ describe('concurrent edits in server order', () => {
   })
 })
 
+describe('concurrent joins', () => {
+  const three = () =>
+    Replicated.fromDocument(
+      decode([
+        paragraph('a', text('x', 'one')),
+        paragraph('b', text('y', 'two')),
+        paragraph('c', text('z', 'three')),
+      ]),
+      'three:0',
+    )
+  const both = () => {
+    const start = three()
+    return {
+      start,
+      a: { state: start, selection: null } as View,
+      b: { state: start, selection: null } as View,
+    }
+  }
+
+  it('keeps every text when two replicas each join a block into the one before it', () => {
+    const { start, a, b } = both()
+    a.selection = caretIn(a, 'two', 0)
+    const first = edit(a, { type: 'DeleteBackward' })
+    b.selection = caretIn(b, 'three', 0)
+    const second = edit(b, { type: 'DeleteBackward' })
+    expect(texts(Replicated.applyOps(Replicated.applyOps(start, first), second))).toEqual([
+      'onetwothree',
+    ])
+  })
+
+  it('puts a joined block after the text it followed, though the block it joined was split', () => {
+    const { start, a, b } = both()
+    a.selection = caretIn(a, 'one', 1)
+    const split = edit(a, { type: 'SplitBlock' })
+    b.selection = caretIn(b, 'two', 0)
+    const joined = edit(b, { type: 'DeleteBackward' })
+    expect(texts(Replicated.applyOps(Replicated.applyOps(start, split), joined))).toEqual([
+      'o',
+      'netwo',
+      'three',
+    ])
+  })
+
+  it('places a caret held at the start of a joined block where that block now begins', () => {
+    const { a } = both()
+    const caret = caretIn(a, 'two', 0)
+    a.selection = caretIn(a, 'two', 0)
+    edit(a, { type: 'DeleteBackward' })
+    const resolved = Replicated.resolve(a.state, caret)
+    expect(RichText.textBefore(Replicated.project(a.state), caretOf(resolved))).toBe('one')
+  })
+})
+
 describe('random concurrent sessions', () => {
   // Two replicas edit from one state without seeing each other; the server commits all of
   // one's ops, then the other's. Whatever that order does to the second's intent, the
@@ -642,28 +703,81 @@ describe('ops that no longer fit', () => {
       'a join of a deleted block',
       state => ({
         setup: [{ type: 'DeleteBlock', id: idAt(state, [4]) }],
-        op: { type: 'Join', into: idAt(state, [1]), removed: idAt(state, [4]) },
+        op: {
+          type: 'Join',
+          into: idAt(state, [1]),
+          removed: idAt(state, [4]),
+          after: lastCharOf(state, [1]),
+        },
+      }),
+    ],
+    [
+      'a join into a block deleted since',
+      state => ({
+        setup: [{ type: 'DeleteBlock', id: idAt(state, [1]) }],
+        op: {
+          type: 'Join',
+          into: idAt(state, [1]),
+          removed: idAt(state, [4]),
+          after: lastCharOf(state, [1]),
+        },
       }),
     ],
     [
       'a second join of one block',
       state => ({
-        setup: [{ type: 'Join', into: idAt(state, [1]), removed: idAt(state, [4]) }],
-        op: { type: 'Join', into: idAt(state, [0]), removed: idAt(state, [4]) },
+        setup: [
+          {
+            type: 'Join',
+            into: idAt(state, [1]),
+            removed: idAt(state, [4]),
+            after: lastCharOf(state, [1]),
+          },
+        ],
+        op: {
+          type: 'Join',
+          into: idAt(state, [0]),
+          removed: idAt(state, [4]),
+          after: lastCharOf(state, [0]),
+        },
+      }),
+    ],
+    [
+      'a join after a character of the block it removes',
+      state => ({
+        setup: [],
+        op: {
+          type: 'Join',
+          into: idAt(state, [1]),
+          removed: idAt(state, [4]),
+          after: lastCharOf(state, [4]),
+        },
+      }),
+    ],
+    [
+      'a join of a container into one deleted since',
+      state => ({
+        setup: [{ type: 'DeleteBlock', id: idAt(state, [3]) }],
+        op: { type: 'Join', into: idAt(state, [3]), removed: idAt(state, [2]), after: null },
       }),
     ],
     [
       'a join of a block with one it holds',
       state => ({
         setup: [],
-        op: { type: 'Join', into: idAt(state, [2, 0]), removed: idAt(state, [2]) },
+        op: { type: 'Join', into: idAt(state, [2, 0]), removed: idAt(state, [2]), after: null },
       }),
     ],
     [
       'a join of text with blocks',
       state => ({
         setup: [],
-        op: { type: 'Join', into: idAt(state, [1]), removed: idAt(state, [3]) },
+        op: {
+          type: 'Join',
+          into: idAt(state, [1]),
+          removed: idAt(state, [3]),
+          after: lastCharOf(state, [1]),
+        },
       }),
     ],
     [
@@ -696,6 +810,22 @@ describe('ops that no longer fit', () => {
     expect(Replicated.project(Replicated.applyOps(before, [op]))).toEqual(
       Replicated.project(before),
     )
+  })
+
+  it('puts a block inserted into a container joined since into the one it joined', () => {
+    const start = base()
+    const id = ReplicatedId.make('new:0')
+    const next = Replicated.applyOps(start, [
+      { type: 'Join', into: idAt(start, [3]), removed: idAt(start, [2]), after: null },
+      {
+        type: 'InsertBlock',
+        id,
+        shape: { type: 'Paragraph' },
+        parent: idAt(start, [2]),
+        after: null,
+      },
+    ])
+    expect(RichText.blockAtPath(Replicated.project(next), [2, 0])?.id).toBe(id)
   })
 
   it('puts a block whose sibling left its container at the container’s end', () => {
