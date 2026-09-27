@@ -69,8 +69,11 @@ const field = Style.compose(
   }),
   Style.pseudo(':focus-visible', {
     borderColor: t.accent.default,
-    outline: `3px solid color-mix(in oklch, ${t.accent.default} 25%, transparent)`,
+    outline: `2px solid ${t.accent.default}`,
+    outlineOffset: '1px',
   }),
+  // The browser's own grey is the same in both themes, and too faint on either.
+  Style.pseudo('::placeholder', { color: t.text.muted, opacity: '1' }),
   Style.nest('&[aria-invalid="true"]', { borderColor: t.error.default }),
 )
 
@@ -183,7 +186,7 @@ export const primaryButton = Style.compose(
     opacity: '0.45',
   }),
   Style.pseudo(':focus-visible', {
-    outline: `3px solid color-mix(in oklch, ${t.accent.default} 40%, transparent)`,
+    outline: `2px solid ${t.accent.default}`,
     outlineOffset: '2px',
   }),
 )
@@ -192,7 +195,7 @@ export const primaryButton = Style.compose(
 const stateBadge = (attribute: string) => {
   const tone = (state: string, family: 'success' | 'warning' | 'info' | 'error') =>
     Style.nest(`&[${attribute}="${state}"]`, {
-      background: t[family].subtle,
+      background: `color-mix(in oklch, ${t[family].default} 14%, ${t.surface.base})`,
       color: t[family].ink,
     })
   return Style.compose(
@@ -363,9 +366,10 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     avatar: Style.compose(
       Style.self({
         alignItems: 'center',
-        background: t.surface.overt,
+        background: t.surface.muted,
         borderRadius: t.radius.full,
-        color: t.surface.base,
+        boxShadow: `inset 0 0 0 1px ${t.outline.default}`,
+        color: t.text.default,
         display: 'inline-flex',
         fontSize: t.size.xs,
         fontWeight: t.weight.bold,
@@ -375,10 +379,12 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.nest('&[data-chair="wren"]', {
         background: t.accent.default,
+        boxShadow: 'none',
         color: t.accent['on-fill'],
       }),
       Style.nest('&[data-chair="edda"]', {
         background: t.tertiary.default,
+        boxShadow: 'none',
         color: t.tertiary['on-fill'],
       }),
     ),
@@ -392,6 +398,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         padding: `${t.space['2xl']} ${t.space.xl}`,
       }),
       Style.media(phone, { padding: `${t.space.lg} ${t.space.md}` }),
+      // A lone link or button in the column is as wide as its words, not the column.
+      Style.nest('> a', { alignSelf: 'flex-start' }),
     ),
     screenHead: L.in(
       'layouts',
@@ -549,7 +557,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         fontSize: t.size.sm,
         gap: t.space.xs,
       }),
-      Style.nest('> button', { marginInlineStart: 'auto' }),
+      Style.nest('> button', { flexShrink: '0', marginInlineStart: 'auto' }),
+      Style.nest('> :not(button)', { minWidth: '0' }),
     ),
     preview: Style.self({ paddingBlockEnd: t.space['2xl'] }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
@@ -1000,20 +1009,26 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         gridArea: 'start',
         minHeight: '0',
       }),
-      Style.container('builder (max-width: 64rem)', { gridArea: 'auto' }),
+      // Narrow, the panel a tab shows sits under the tabs, before the page: the
+      // inspector too, which is drawn after the page.
+      Style.container('builder (max-width: 64rem)', { gridArea: 'auto', order: '1' }),
     ),
     bar: Style.compose(
       Style.self({ alignItems: 'center', display: 'flex', gap: t.space.md, gridArea: 'bar' }),
-      Style.container('builder (max-width: 64rem)', { flexWrap: 'wrap', gridArea: 'auto' }),
+      Style.container('builder (max-width: 64rem)', {
+        flexWrap: 'wrap',
+        gridArea: 'auto',
+        order: '3',
+      }),
     ),
     // The alert lies over the top of the page, in the same cell.
     stage: Style.compose(
       Style.self({ display: 'grid', gridArea: 'stage', minHeight: '0' }),
-      Style.container('builder (max-width: 64rem)', { gridArea: 'auto' }),
+      Style.container('builder (max-width: 64rem)', { gridArea: 'auto', order: '4' }),
     ),
     end: Style.compose(
       Style.self({ display: 'flex', flexDirection: 'column', gridArea: 'end', minHeight: '0' }),
-      Style.container('builder (max-width: 64rem)', { gridArea: 'auto' }),
+      Style.container('builder (max-width: 64rem)', { gridArea: 'auto', order: '2' }),
     ),
     palette: Style.compose(
       builderPanel,
@@ -1021,7 +1036,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
       Style.self({ flexShrink: '0', maxHeight: '26rem' }),
       // On a phone the page comes into view under it; the tiles scroll within.
-      Style.container('builder (max-width: 40rem)', { maxHeight: '15rem' }),
+      Style.container('builder (max-width: 64rem)', { maxHeight: '40vh' }),
     ),
     paletteGroup: Style.self({
       display: 'grid',
@@ -1068,7 +1083,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       builderPanel,
       panelName('Layers'),
       Style.self({ flex: '1', minHeight: '0' }),
-      Style.container('builder (max-width: 40rem)', { maxHeight: '15rem' }),
+      Style.container('builder (max-width: 64rem)', { maxHeight: '40vh' }),
     ),
     tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
     row: Style.compose(
@@ -1138,6 +1153,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       builderPanel,
       L.in('layouts', Layout.stack({ gap: t.space.md })),
       Style.self({ flex: '1', minHeight: '0', padding: t.space.md }),
+      Style.container('builder (max-width: 64rem)', { maxHeight: '50vh' }),
     ),
     inspectorHead: L.in('layouts', Layout.stack({ gap: '0.3rem' })),
     inspectorTitle: Style.self({
@@ -1357,7 +1373,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
     // Drawn over the page by the Builder, where the selected and hovered nodes are.
     selectionBox: Style.self({
       outline: `2px solid ${selection}`,
-      outlineOffset: '3px',
+      // Clear of the block's own edge, so its text never touches the line.
+      outlineOffset: '4px',
       borderRadius: t.radius.sm,
     }),
     selectionLabel: Style.self({
@@ -1372,7 +1389,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       paddingInline: '0.45rem',
       whiteSpace: 'nowrap',
     }),
-    hoverBox: Style.self({ outline: `1px dashed ${selection}`, outlineOffset: '3px' }),
+    hoverBox: Style.self({ outline: `1px dashed ${selection}`, outlineOffset: '4px' }),
     frame: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({

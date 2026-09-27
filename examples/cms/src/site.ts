@@ -107,7 +107,11 @@ const HeroSlots = Slots.define({
   actions: part,
 })
 // On a band of its own color, headings and unfilled buttons take the band's color.
-const onBand = Style.vars({ '--fk-heading': 'currentColor', '--fk-ink': 'currentColor' })
+// On a colored band, headings and links take its text color, and so does a focus ring.
+const onBand = Style.compose(
+  Style.vars({ '--fk-heading': 'currentColor', '--fk-ink': 'currentColor' }),
+  Style.nest('& :focus-visible', { outlineColor: 'currentColor' }),
+)
 const HeroLook = Appearance.make(HeroSlots, {
   layer: components,
   recipe: Style.recipeFor(HeroSlots)({
@@ -143,8 +147,10 @@ const HeroLook = Appearance.make(HeroSlots, {
         accent: {
           root: Style.compose(
             Style.self({
-              background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 55%, ${t.tertiary.default}))`,
-              color: t.accent['on-fill'],
+              // Its own lightness, not the accent's: in the dark theme the accent is lightened
+              // for text on dark, which made this band a pastel glare under dark text.
+              background: 'linear-gradient(135deg, oklch(50% 0.17 262), oklch(46% 0.16 300))',
+              color: 'white',
             }),
             onBand,
           ),
