@@ -53,18 +53,24 @@ const previewIds = () => {
 }
 
 /**
- * What closing the session now would give: the editor's warnings and the preview's document,
- * from one parse. An edited session's result is kept per session value, so a render that did
- * not change the draft does not parse it again; a session is replaced on each keystroke, and
- * a dropped one is collected with its entry. An unedited one is not kept: closing it is
- * cheap, and it must give back the document the caller holds now.
+ * What closing the session now would give, as the view shows it: the warnings and the preview's
+ * document. An unedited draft gives back the caller's document and warns of nothing, which is
+ * `closeSource`'s rule, so it is answered without the parse `closeSource` spends placing the
+ * caret. An edited draft's answer is parsed once per draft and kept: the cache is keyed by the
+ * session's `unprintable` array, which stays the same object while the draft and caret are
+ * replaced, so moving the caret does not parse again, and a closed session's entry is collected
+ * with it.
  */
-const parsed = new WeakMap<SourceSession, ClosedSource>()
-const closedFor = (session: SourceSession, document: RichText.Document): ClosedSource => {
-  const kept = parsed.get(session)
-  if (kept !== undefined) return kept
+const parsed = new WeakMap<object, { readonly draft: string; readonly closed: ClosedSource }>()
+const closedFor = (
+  session: SourceSession,
+  document: RichText.Document,
+): Pick<ClosedSource, 'document' | 'diagnostics'> => {
+  if (session.draft === session.printed) return { document, diagnostics: [] }
+  const kept = parsed.get(session.unprintable)
+  if (kept?.draft === session.draft) return kept.closed
   const closed = closeSource(session, document, previewIds())
-  if (closed.changed) parsed.set(session, closed)
+  parsed.set(session.unprintable, { draft: session.draft, closed })
   return closed
 }
 
