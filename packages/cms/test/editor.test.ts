@@ -23,7 +23,11 @@ const Post = Entity.define(
   }),
 ).pipe(Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }))
 
-const PostInput = Schema.Struct({ title: Schema.String, slug: Schema.String })
+// A title is required, so the form can stop a publish on its own.
+const PostInput = Schema.Struct({
+  title: Schema.String.check(Schema.isMinLength(1)),
+  slug: Schema.String,
+})
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   inputs: { slug: Cms.slug('title') },
   debounce: 0,
@@ -275,5 +279,26 @@ describe('a form control backed by a Bundle', () => {
     expect(keys?.modelToDependencies(open)).toEqual({
       maybeDependencies: Option.some({ maybeDependencies: Option.some({ open: false }) }),
     })
+  })
+})
+
+describe('a publish the form stops', () => {
+  it('says so until the next edit, where the last save would have said "saved"', () => {
+    const { placed, root } = world(undefined)
+    const status = (editor: Root['editor']) => placed.status({ ...root, editor })
+    const blank = Editor.bundle.update(
+      root.editor,
+      PostForm.Message.Changed({ key: 'title', value: '' }),
+      undefined,
+    ).model
+    const asked = Editor.bundle.update(blank, Editor.Message.PublishAsked(), undefined)
+    expect(asked.outMessage).toBeUndefined()
+    expect(status(asked.model)).toBe('Incomplete')
+    const typed = Editor.bundle.update(
+      asked.model,
+      PostForm.Message.Changed({ key: 'title', value: 'Fixed' }),
+      undefined,
+    ).model
+    expect(status(typed)).toBe('Editing')
   })
 })

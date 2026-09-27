@@ -36,6 +36,7 @@ export const statusLine: Readonly<Record<EditorStatus, string>> = {
   Publishing: 'Publishing…',
   Published: 'Published.',
   PublishFailed: 'Not published',
+  Incomplete: 'Not published: fill in what is marked.',
   Scheduling: 'Scheduling…',
   Scheduled: 'Scheduled.',
   ScheduleFailed: 'Not scheduled',
@@ -43,9 +44,15 @@ export const statusLine: Readonly<Record<EditorStatus, string>> = {
 
 /** Whether a status is a failure, which the status line says in the error color. */
 export const failed = (status: EditorStatus): boolean =>
-  ['NotFound', 'LoadFailed', 'SaveFailed', 'PublishFailed', 'ScheduleFailed', 'Conflict'].includes(
-    status,
-  )
+  [
+    'NotFound',
+    'LoadFailed',
+    'SaveFailed',
+    'PublishFailed',
+    'ScheduleFailed',
+    'Conflict',
+    'Incomplete',
+  ].includes(status)
 
 /** Whether the entry's state is one of `tags`; an entry with no state yet is none of them. */
 export const stateIs = (state: Option.Option<State>, ...tags: ReadonlyArray<State['_tag']>) =>

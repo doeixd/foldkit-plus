@@ -165,6 +165,9 @@ PostEditor.storedEntry(model) // Option: the entry the server knows, none until 
   one second by default), and the edit that is still the last one when its rest
   ends saves the form as it stands, valid or not. There is no Save button to
   forget, and a validation error never costs an author their work.
+- **A publish the form's own checks stop is `Incomplete`**, not whatever the
+  last save said: nothing was sent, the failing fields say why, and the next
+  edit clears it.
 - **What counts as an edit is the form's answer, not a Message tag.** The editor
   asks `form.authoredChanged(before, after)`, so a blur, a refusal, or a repeated
   value starts no rest, while a control the editor has never heard of — a

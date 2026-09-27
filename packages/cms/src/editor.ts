@@ -64,6 +64,11 @@ export type EditorStatus =
   | 'Publishing'
   | 'Published'
   | 'PublishFailed'
+  /**
+   * A publish or a schedule the form's own checks stopped before anything was
+   * sent: the fields that fail say why. Until the next edit.
+   */
+  | 'Incomplete'
   | 'Scheduling'
   /** Promised for later. The entry's `state` says for when, and whether it happened. */
   | 'Scheduled'
@@ -86,6 +91,8 @@ export interface EditorModel<FormModel> {
   readonly saveWanted: boolean
   readonly publishId: string | null
   readonly publishWanted: boolean
+  /** Whether the last publish or schedule asked was stopped by the form's checks, and not edited since. */
+  readonly incomplete: boolean
   /** When the publish that is wanted, under way or last settled is a promise for later: for when. */
   readonly scheduleAt: string | null
   /** The discard or unpublish in progress or last settled. */
@@ -302,6 +309,7 @@ export const makeEditor =
       saveWanted: false,
       publishId: null,
       publishWanted: false,
+      incomplete: false,
       scheduleAt: null,
       otherId: null,
       previewing: false,
@@ -320,6 +328,7 @@ export const makeEditor =
       saveWanted: Schema.Boolean,
       publishId: Schema.NullOr(Schema.String),
       publishWanted: Schema.Boolean,
+      incomplete: Schema.Boolean,
       scheduleAt: Schema.NullOr(Schema.String),
       otherId: Schema.NullOr(Schema.String),
       previewing: Schema.Boolean,
@@ -393,8 +402,10 @@ export const makeEditor =
             ]
           : []),
       ]
-      const result = { model: { ...model, form: next.model, edits }, commands }
-      // A submit that went through is a publish: the form's rules and checks decided.
+      // A submit the form stopped is said until the next edit; one that went through is a publish.
+      const incomplete =
+        message._tag === 'Submitted' ? next.outMessage === undefined : model.incomplete && !edited
+      const result = { model: { ...model, form: next.model, edits, incomplete }, commands }
       return next.outMessage === undefined ? result : { ...result, outMessage: { _tag: 'Publish' } }
     }
 
@@ -1006,6 +1017,7 @@ export const makeEditor =
             const later = editor.scheduleAt !== null
             if (publish._tag === 'Pending') return later ? 'Scheduling' : 'Publishing'
             if (save._tag === 'Pending' || editor.settling === 'overwrite') return 'Saving'
+            if (editor.incomplete) return 'Incomplete'
             const conflicted = (status: MutationStatus) =>
               status._tag === 'Failed' && status.error.message.includes('CmsConflict')
             if (editor.edits > editor.savedEdit) return 'Editing'
