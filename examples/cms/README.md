@@ -192,8 +192,11 @@ says otherwise, so it shows only what is published.
     (`Selected`, `PanelChosen`, `ViewportChosen`, `PreviewShown`), and a
     Subscription writes what they show back (the Builder README's recipe).
     Neither has a Model until its entry has loaded, so what a link asks waits
-    in `linked` (pages) or `previewAsked` (posts) until then. A new entry joins
-    the address once its first save makes it.
+    in `linked` (pages) or `previewAsked` (posts) until then.
+  - Something new is `new=<id>` until its first save turns it into
+    `post=<id>` or `page=<id>`, in place. A reload of `new=<id>` opens the id
+    first, in case that save already landed, and begins it blank only if the
+    server does not have it (`openNamed` and `beginMissing` in `address.ts`).
 - **A connection is a list the server put in order**, so something newly made
   joins one only when the query is asked again. The worklist and the pages list
   do that for themselves (`listing` in `app.ts` and `pageApp.ts`).

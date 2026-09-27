@@ -61,7 +61,9 @@ version changed; `pnpm` skips versions already in the registry.
   how the demo is made (the CMS, the page builder, Composition, Form, Crud,
   Entity and Remote, and the styling), and a post's body can hold headings,
   lists and code. The site links to the demo's code on GitHub, and a
-  published sandbox kept from the earlier seed is replaced by this one.
+  published sandbox kept from the earlier seed is replaced by this one. A new
+  post or page is in the address (`new=<id>`) from the moment it is started,
+  so a reload comes back to it; its first save turns that into its own key.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

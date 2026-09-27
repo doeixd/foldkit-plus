@@ -129,3 +129,45 @@ it('opens a post previewed when its address says so, once the post has loaded', 
     .poll(() => document.querySelector('#preview')?.getAttribute('aria-pressed'))
     .toBe('true')
 })
+
+/** The posts, opened at `search` over the sandbox, answering at once. */
+const postsAt = async (search: string) => {
+  const { remote, release } = await held()
+  release()
+  let model = Posts.initial
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      Posts.placements.complete({
+        Model: Posts.Model,
+        container: container(),
+        init: () => Posts.init(urlOf(search)),
+        update: (current: Posts.Model, message: Posts.Message) => {
+          const next = Posts.update(current, message)
+          model = next.model
+          return next
+        },
+        view: (current: Posts.Model, h: HtmlBuilder<Posts.Message>) => postsView(current, h).body,
+        subscriptions: Posts.placements.subscriptions(),
+        resources: remote,
+      }),
+    ),
+  )
+  dispose = () => handle.dispose()
+  return () => model
+}
+
+it('comes back to something new on a reload, under the id its address names', async () => {
+  const model = await postsAt('as=edda&new=entry-never-saved')
+  await expect.poll(() => text('#editor [data-state]')).toBe('New')
+  expect(Posts.PostEditor.entry(model())).toEqual(Option.some('entry-never-saved'))
+  // Still new: the address goes on naming it `new` until its first save.
+  expect(Posts.PostEditor.storedEntry(model())).toEqual(Option.none())
+})
+
+it('opens what a first save already made, rather than beginning it again', async () => {
+  await postsAt('as=edda&new=entry-post-drafts')
+  await expect.poll(() => text('#editor [data-state]')).toBe('Published')
+  expect(document.querySelector<HTMLTextAreaElement>('#editor textarea')?.value).toBe(
+    'Saving is not publishing',
+  )
+})

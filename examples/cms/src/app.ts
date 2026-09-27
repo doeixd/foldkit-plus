@@ -20,7 +20,15 @@ import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import { Url, toString as urlToString } from 'foldkit/url'
-import { paramOf, writeAddress } from './address.js'
+import {
+  beginMissing,
+  entryIn,
+  entryOut,
+  openNamed,
+  paramOf,
+  writeAddress,
+  type EntryEditor,
+} from './address.js'
 import { EntryRow, Post, PostForm, PostId, PostPage, PostPreview, Posts } from './domain.js'
 import { FormStyle, WritingFieldStyle } from './style.js'
 
@@ -81,6 +89,11 @@ export const Model = Schema.Struct({
    * would be dropped when it arrives.
    */
   previewAsked: Schema.Option(Schema.Boolean),
+  /**
+   * A post an address names as new, until the server says whether its first
+   * save made it: opened by its id, and begun blank if it did not.
+   */
+  fresh: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -171,22 +184,17 @@ const listing = (model: Model): Model => {
   })
 }
 
-/**
- * `model` with the post an address names open, and none when it names none:
- * what was typed saved first. The one open already stays, and so does
- * something new, which is not in the address until it is saved.
- */
-const openAt = (model: Model, post: Option.Option<string>) => {
-  if (Equal.equals(post, PostEditor.storedEntry(model))) return { model, commands: [] }
-  const flushed = PostEditor.flush(model)
-  return {
-    model: Option.match(post, {
-      onNone: () => EditorSlot.helpers.close(),
-      onSome: entry => EditorSlot.helpers.open(entry),
-    })(flushed.model).model,
-    commands: flushed.commands ?? [],
-  }
-}
+/** The post editor, as the address opens and names what it holds. */
+const routed = {
+  entry: PostEditor.entry,
+  storedEntry: PostEditor.storedEntry,
+  missing: model => PostEditor.status(model) === 'NotFound',
+  loading: model => PostEditor.status(model) === 'Loading',
+  flush: PostEditor.flush,
+  open: entry => EditorSlot.helpers.open(entry),
+  create: entry => EditorSlot.helpers.create(entry),
+  close: () => EditorSlot.helpers.close(),
+} satisfies EntryEditor<Model, unknown>
 
 const placed = placements.update((model: Model, message: Message) => {
   // Leaving drops what is in the form, so what has not been saved is saved first:
@@ -211,11 +219,14 @@ const placed = placements.update((model: Model, message: Message) => {
     case 'ToggledArchive':
       return { model: modifyFields(model, { archived: archived => !archived }) }
     case 'UrlChanged': {
-      const { post, preview } = linkIn(message.url)
+      const { preview, ...named } = linkIn(message.url)
       // The worklist's narrowing is the mirror's to read; which post is open is routing.
       const narrowed = Narrowing.reduce(model, message.url)
-      const opened = openAt(narrowed, post)
-      return { ...opened, model: { ...opened.model, previewAsked: Option.some(preview) } }
+      const opened = openNamed(routed, narrowed, named, model.fresh)
+      return {
+        model: { ...opened.model, previewAsked: Option.some(preview), fresh: opened.fresh },
+        commands: opened.commands,
+      }
     }
     case 'UrlRequested':
       // Another address is another chair or another application: load it.
@@ -237,9 +248,9 @@ const placed = placements.update((model: Model, message: Message) => {
   }
 })
 
-/** The open post, and whether it is previewed, as an address names them. */
+/** The open post (saved, or new), and whether it is previewed, as an address names them. */
 export const linkIn = (url: Url) => ({
-  post: paramOf(url, 'post'),
+  ...entryIn(url, 'post'),
   preview: Option.isSome(paramOf(url, 'preview')),
 })
 
@@ -291,7 +302,13 @@ const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> 
   return { ...next, commands: [...(result.commands ?? []), ...(next.commands ?? [])] }
 }
 
-export const update = (model: Model, message: Message) => follow(stepped(model, message))
+/** A post the address named as new, begun blank once the server says it has none. */
+const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
+  const { model, fresh } = beginMissing(routed, result.model, result.model.fresh)
+  return { ...result, model: { ...model, fresh } }
+}
+
+export const update = (model: Model, message: Message) => follow(begun(stepped(model, message)))
 
 export const initial: Model = placements.initial({
   remote: Remote.initial,
@@ -299,6 +316,7 @@ export const initial: Model = placements.initial({
   search: '',
   archived: false,
   previewAsked: Option.none(),
+  fresh: Option.none(),
 }).model
 
 /**
@@ -322,26 +340,34 @@ export const init = (url: Url) => update(initial, Message.UrlChanged({ url }))
 /**
  * The open post and whether it is previewed, written into the address as they
  * change: opening or closing a post is a step Back returns from, a preview is
- * not. The worklist's narrowing is written by its mirror.
+ * not. Something new is `new=<id>` until its first save makes it `post=<id>`,
+ * and so is a post a reload is still finding. The worklist's narrowing is
+ * written by its mirror.
  */
 export const address = Subscription.make<Model, Message>()(entry => ({
   ...Narrowing.subscriptions,
   address: entry(
     {
       post: Schema.Option(Schema.String),
+      new: Schema.Option(Schema.String),
       preview: Schema.Option(Schema.String),
     },
     {
       modelToDependencies: model => ({
-        // Something new is not in the address until it is saved: a link would find nothing.
-        post: PostEditor.storedEntry(model),
+        ...Option.match(model.fresh, {
+          onNone: () => {
+            const { stored, fresh } = entryOut(routed, model)
+            return { post: stored, new: fresh }
+          },
+          onSome: fresh => ({ post: Option.none(), new: Option.some(fresh) }),
+        }),
         // A link still waiting for its post keeps what it asked there.
         preview: Option.getOrElse(model.previewAsked, () => PostEditor.previewing(model))
           ? Option.some('1')
           : Option.none(),
       }),
       dependenciesToStream: params =>
-        Stream.fromEffect(writeAddress(params, 'post')).pipe(Stream.drain),
+        Stream.fromEffect(writeAddress(params, ['post', 'new'])).pipe(Stream.drain),
     },
   ),
 }))

@@ -26,7 +26,15 @@ import { Post, PostById, RecentPosts } from './domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
 import { PageBuilder, Site } from './site.js'
 import { PageFieldStyle, PageFormStyle } from './style.js'
-import { paramOf, writeAddress } from './address.js'
+import {
+  beginMissing,
+  entryIn,
+  entryOut,
+  openNamed,
+  paramOf,
+  writeAddress,
+  type EntryEditor,
+} from './address.js'
 
 // A pause in typing saves, as the posts do: a save per keystroke encoded the page
 // and wrote the database each time. The scripted run gives its rest no wait.
@@ -59,6 +67,11 @@ export const Model = Schema.Struct({
    * Builder has no Model before then, and refuses an id its page lacks.
    */
   linked: Schema.Option(Linked),
+  /**
+   * A page an address names as new, until the server says whether its first
+   * save made it: opened by its id, and begun blank if it did not.
+   */
+  fresh: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -145,6 +158,18 @@ const newPage: Command<Message> = {
   effect: Effect.sync(() => Message.StartedPage({ entry: Cms.newEntryId() })),
 }
 
+/** The page editor, as the address opens and names what it holds. */
+const routed = {
+  entry: PageEditor.entry,
+  storedEntry: PageEditor.storedEntry,
+  missing: model => PageEditor.status(model) === 'NotFound',
+  loading: model => PageEditor.status(model) === 'Loading',
+  flush: PageEditor.flush,
+  open: entry => EditorSlot.helpers.open(entry),
+  create: entry => EditorSlot.helpers.create(entry),
+  close: () => EditorSlot.helpers.close(),
+} satisfies EntryEditor<Model, unknown>
+
 const placed = placements.update((model: Model, message: Message) => {
   // Leaving saves what the rest has not saved yet.
   const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
@@ -161,19 +186,12 @@ const placed = placements.update((model: Model, message: Message) => {
     case 'ClosedEditor':
       return leaving(EditorSlot.helpers.close())
     case 'UrlChanged': {
-      const { page, ...asked } = linkIn(message.url)
-      const waiting = Option.some(asked)
-      // The page the address names is opened, unless it is the one open already. A new
-      // page is not in the address until it is saved, so no page there leaves it open.
-      if (Equal.equals(page, PageEditor.storedEntry(model)))
-        return { model: { ...model, linked: waiting } }
-      const opened = leaving(
-        Option.match(page, {
-          onNone: () => EditorSlot.helpers.close(),
-          onSome: entry => EditorSlot.helpers.open(entry),
-        }),
-      )
-      return { ...opened, model: { ...opened.model, linked: waiting } }
+      const { stored, fresh, ...asked } = linkIn(message.url)
+      const opened = openNamed(routed, model, { stored, fresh }, model.fresh)
+      return {
+        model: { ...opened.model, linked: Option.some(asked), fresh: opened.fresh },
+        commands: opened.commands,
+      }
     }
     case 'UrlRequested':
       // Another address is another chair or another application: load it.
@@ -202,7 +220,7 @@ const stepped = PageEditor.after(placed)
  * `?page=<entry>&block=<node>&panel=layers&view=narrow`.
  */
 export const linkIn = (url: Url) => ({
-  page: paramOf(url, 'page'),
+  ...entryIn(url, 'page'),
   block: paramOf(url, 'block'),
   panel: Option.flatMap(paramOf(url, 'panel'), Schema.decodeUnknownOption(Panel)),
   viewport: Option.flatMap(paramOf(url, 'view'), Schema.decodeUnknownOption(Viewport)),
@@ -280,14 +298,21 @@ const refreshedAfterChange = (before: Model, after: Model): Model => {
   return Data.refresh(withRevisions, sitePages)
 }
 
+/** A page the address named as new, begun blank once the server says it has none. */
+const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
+  const { model, fresh } = beginMissing(routed, result.model, result.model.fresh)
+  return { ...result, model: { ...model, fresh } }
+}
+
 export const update = (model: Model, message: Message) => {
-  const next = follow(stepped(model, message))
+  const next = follow(begun(stepped(model, message)))
   return { ...next, model: listing(refreshedAfterChange(model, next.model)) }
 }
 
 export const initial: Model = placements.initial({
   remote: Remote.initial,
   linked: Option.none(),
+  fresh: Option.none(),
 }).model
 
 /**
@@ -300,18 +325,23 @@ export const address = Subscription.make<Model, Message>()(entry => ({
   address: entry(
     {
       page: Schema.Option(Schema.String),
+      new: Schema.Option(Schema.String),
       block: Schema.Option(Schema.String),
       panel: Schema.Option(Schema.String),
       view: Schema.Option(Schema.String),
     },
     {
       modelToDependencies: model => {
-        // A new page is not in the address until it is saved: a link to it would find nothing.
-        const page = PageEditor.storedEntry(model)
-        // The Builder's own, while a page is open and nothing waits for it.
-        const shown = Option.map(page, () => builderOf(model))
+        // Something new is `new=<id>` until its first save, as is a page a reload is still finding.
+        const { stored, fresh } = Option.match(model.fresh, {
+          onNone: () => entryOut(routed, model),
+          onSome: waiting => ({ stored: Option.none<string>(), fresh: Option.some(waiting) }),
+        })
+        // The Builder's own, while a page is open.
+        const shown = Option.map(PageEditor.entry(model), () => builderOf(model))
         return {
-          page,
+          page: stored,
+          new: fresh,
           block: Option.orElse(
             Option.flatMap(model.linked, ({ block }) => block),
             () => selectedOf(model),
@@ -334,7 +364,7 @@ export const address = Subscription.make<Model, Message>()(entry => ({
       },
       // Opening or closing a page is a step Back returns from; the rest is not.
       dependenciesToStream: params =>
-        Stream.fromEffect(writeAddress(params, 'page')).pipe(Stream.drain),
+        Stream.fromEffect(writeAddress(params, ['page', 'new'])).pipe(Stream.drain),
     },
   ),
 }))
