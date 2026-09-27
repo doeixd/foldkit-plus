@@ -560,6 +560,13 @@ const SiteRenderer = Renderer.make(Site, {
   matches wins; a view's `appearance` then holds the record. A variant is one
   value for every viewport: its pieces may be classes, which no media query
   can hold.
+- **Measure the page, not the window.** Breakpoints written
+  `Theme.inContainer(PAGE_CONTAINER, Theme.tokens.breakpoint)` are container
+  queries on the page (`PAGE_CONTAINER`, from `foldkit-composition/foldkit`),
+  and `cqi` units in a look are its width: an editor's narrow preview then
+  draws a look as a phone would, in a wide window. The Renderer draws no
+  container; the page's host is one (`containerType: 'inline-size',
+  containerName: PAGE_CONTAINER`), as the Builder's frame is.
 - **A layout Block is a Mixins layout.** Its look's base is the layout, and
   the layout's parameters are its axes:
 

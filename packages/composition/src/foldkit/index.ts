@@ -107,6 +107,13 @@ export const MARK_ATTRIBUTE = 'composition-mark'
 export const HIDDEN_ATTRIBUTE = 'composition-hidden'
 /** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */
 export const DROP_ATTRIBUTE = 'composition-drop'
+/**
+ * The container a page is drawn in: an editor's frame, and a published page's
+ * root, are `container: page / inline-size`, so a look's container queries
+ * (`Theme.inContainer(PAGE_CONTAINER, …)`) and `cqi` units measure the page,
+ * not the window. The Renderer draws no such element; the page's host does.
+ */
+export const PAGE_CONTAINER = 'page'
 /** In edit mode, on a text prop's element, naming its node and prop: see `fieldOf`. */
 export const FIELD_ATTRIBUTE = 'composition-field'
 

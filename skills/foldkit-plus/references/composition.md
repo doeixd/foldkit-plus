@@ -84,6 +84,9 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `data-composition-field` (`fieldOf(value)` gives `{ id, key }`), editable
   (`plaintext-only`, frozen at `initial`) while `render`'s option `editing: { id, key, initial }`
   names it. `Renderer.fields(renderer, doc, id)` lists the props a node draws as fields.
+  A page's host (the Builder's frame, a published page's root) is the container
+  `PAGE_CONTAINER`; responsive looks take `Theme.inContainer(PAGE_CONTAINER, Theme.tokens.breakpoint)`
+  so a narrow preview frame draws them as a phone would.
 - **Serve it:** `SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))`
   and leave the page out of the resume plan's state: the Document is not sent.
 - **URLs:** use `Url` for any `href` or `src` prop: http, https, mailto, tel and

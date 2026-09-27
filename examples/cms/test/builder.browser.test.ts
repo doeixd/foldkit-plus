@@ -52,8 +52,8 @@ const longPage = (count: number) => {
   })
 }
 
-/** Mounts the builder over a page of `count` Headings, with `css` as the page's only stylesheet. */
-const mount = (css: string, count = 40) => {
+/** Mounts the builder over `page` (by default `count` Headings), with `css` as the page's only stylesheet. */
+const mount = (css: string, count = 40, page = longPage(count)) => {
   const style = document.createElement('style')
   style.textContent = css
   document.head.appendChild(style)
@@ -65,8 +65,7 @@ const mount = (css: string, count = 40) => {
       placements.complete({
         Model,
         container,
-        init: () =>
-          placements.initial({ editor: PageBuilder.replace(PageBuilder.initial, longPage(count)) }),
+        init: () => placements.initial({ editor: PageBuilder.replace(PageBuilder.initial, page) }),
         update: placements.update(),
         view: (model: Model, h: HtmlBuilder<Message>) =>
           h.main([], [Editor.view(model, h, BuilderView.inputs())]),
@@ -272,6 +271,37 @@ it('edits a heading where it is: the caret kept through each redraw, Backspace a
   canvas()?.focus()
   await userEvent.keyboard('{Control>}z{/Control}')
   await vi.waitFor(() => expect(field()?.textContent).toBe('Heading 1'))
+})
+
+it('draws a look for the width of its frame, not of the window', async () => {
+  const hero = NodeId.make('hero')
+  unmount = mount(
+    stylesheet,
+    0,
+    Composition.Document.make({
+      format: 1,
+      roots: [hero],
+      nodes: {
+        [hero]: {
+          block: 'Hero',
+          props: { eyebrow: 'Hello', title: 'A hero', lead: 'Two lines apart' },
+          // Tight on a phone, roomy from `md` up: of the page's width.
+          appearance: { gap: { base: 'xs', md: 'xl' } },
+          regions: { actions: [] },
+        },
+      },
+    }),
+  )
+  const gap = () => {
+    const drawn = canvas()?.querySelector<HTMLElement>('header')
+    return drawn === null || drawn === undefined ? NaN : parseFloat(getComputedStyle(drawn).rowGap)
+  }
+  await vi.waitFor(() => expect(gap()).toBeGreaterThan(0))
+  const wide = gap()
+  document.querySelector<HTMLElement>('[data-viewport="narrow"][aria-pressed]')?.click()
+  // The window stays as wide as it was; only the frame is a phone's.
+  await vi.waitFor(() => expect(gap()).toBe(wide / 4))
+  expect(window.innerWidth).toBeGreaterThan(1000)
 })
 
 /** The middle of some timings, rounded to a millisecond. */

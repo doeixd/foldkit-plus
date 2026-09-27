@@ -12,13 +12,14 @@ import { Builder } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
 import { Block, Catalog, Content, Region, Url } from 'foldkit-composition'
 import { Appearance } from 'foldkit-composition/appearance'
-import { Renderer } from 'foldkit-composition/foldkit'
+import { PAGE_CONTAINER, Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
 import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Layout } from 'foldkit-mixins/layout'
+import { Theme } from 'foldkit-mixins/theme'
 import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -115,7 +116,8 @@ const HeroLook = Appearance.make(HeroSlots, {
         borderRadius: t.radius.xl,
         display: 'grid',
         gap: t.space.md,
-        padding: `clamp(2rem, 6vw, 5rem) clamp(1.25rem, 5vw, 4rem)`,
+        // Of the page's width, not the window's, so a narrow preview is drawn as a phone would.
+        padding: `clamp(2rem, 6cqi, 5rem) clamp(1.25rem, 5cqi, 4rem)`,
       }),
       eyebrow: Style.self({
         fontSize: t.size.sm,
@@ -126,7 +128,7 @@ const HeroLook = Appearance.make(HeroSlots, {
       }),
       title: Style.self({
         fontFamily: t.font.heading,
-        fontSize: 'clamp(2.2rem, 5vw, 3.6rem)',
+        fontSize: 'clamp(2.2rem, 5cqi, 3.6rem)',
         letterSpacing: '-0.02em',
         lineHeight: '1.05',
         margin: '0',
@@ -164,6 +166,14 @@ const HeroLook = Appearance.make(HeroSlots, {
     },
     defaults: { tone: 'accent', align: 'start' },
   }),
+  tokens: {
+    // Chosen per width of the page: a hero may sit tighter on a phone than on a desk.
+    gap: Appearance.token(t.space, {
+      slot: 'root',
+      property: 'gap',
+      breakpoints: Theme.inContainer(PAGE_CONTAINER, Theme.tokens.breakpoint),
+    }),
+  },
 })
 export const Hero = Block.define('Hero', {
   Props: Schema.Struct({

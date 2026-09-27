@@ -37,7 +37,8 @@ interface RecipeLike<Slots> {
  * `Appearance.token(t.space, { slot: 'root', property: 'gap' })`, where `t` is
  * `Theme.ref(theme)`. The names are the group's keys; a name is stored, its
  * `var(...)` is drawn. With `breakpoints` (such as `Theme.tokens.breakpoint`,
- * smallest first), a node may choose a name per breakpoint:
+ * smallest first, or the same measured on the page, `Theme.inContainer(PAGE_CONTAINER, …)`),
+ * a node may choose a name per breakpoint:
  * `{ base: 'sm', md: 'lg' }`.
  */
 export interface TokenAxis<Slots> {
@@ -210,7 +211,10 @@ export const Appearance = {
     at: {
       readonly slot: keyof Slots & string
       readonly property: keyof Declarations & string
-      /** Named media queries, smallest first, a choice may change at: `Theme.tokens.breakpoint`. */
+      /**
+       * Named breakpoints, smallest first, a choice may change at: media queries
+       * (`Theme.tokens.breakpoint`) or container queries (`Theme.inContainer`).
+       */
       readonly breakpoints?: Readonly<Record<string, string>>
     },
   ): TokenAxis<Slots> => ({ tokens, ...at }),

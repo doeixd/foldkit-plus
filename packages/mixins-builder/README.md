@@ -398,4 +398,6 @@ the page for that context: a node hidden there is still drawn, marked
 - The viewport frame sets a width: `--fk-frame-width` on the frame, read by
   the Builder's one default rule (in `components`, so any application style
   overrides it). It does not load the page in an iframe, so the page's media
-  queries see the editor's width.
+  queries see the editor's width. The frame is the page's container
+  (`PAGE_CONTAINER`), so a look written with container queries or `cqi` units
+  follows the frame: see `Theme.inContainer`.

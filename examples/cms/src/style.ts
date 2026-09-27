@@ -8,6 +8,7 @@
  * - `SiteSlots`: the public site's shell and its article.
  * - The mixins' own Slots: the form's fields, the worklist's table, the Builder.
  */
+import { PAGE_CONTAINER } from 'foldkit-composition/foldkit'
 import { Capability, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
 import { BuilderSlots } from 'foldkit-mixins-builder'
 import { ListSlots } from 'foldkit-mixins-crud'
@@ -1350,6 +1351,9 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
       L.in('layouts', Layout.stack({ gap: t.space['2xl'] })),
       centred('72rem'),
       Style.self({
+        // The page's container, as the builder's frame is: a look measures the page.
+        containerType: 'inline-size',
+        containerName: PAGE_CONTAINER,
         boxSizing: 'border-box',
         paddingBlock: `${t.space.xl} ${t.space['3xl']}`,
         paddingInline: t.space.lg,

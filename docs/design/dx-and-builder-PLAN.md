@@ -1021,6 +1021,17 @@ canvas edits text in place under the freezing rule, pointing here.
 **Tests.** Browser: a responsive look changes when the frame narrows to 375px
 while the window stays wide.
 
+> **Done, 2026-09-26, with the tokens left strings.** A theme token is a
+> string (`Theme.variables` and `Theme.ref` read every group), so a container
+> breakpoint is a whole at-rule, `'@container page (min-width: 48rem)'`,
+> written by `Theme.inContainer(name, breakpoints)`, rather than an object;
+> `Style.responsive` takes either form and a responsive look passes it
+> through. `PAGE_CONTAINER` is in `foldkit-composition/foldkit`, but the
+> Renderer draws no element for it: the page's host is the container (the
+> Builder's frame, the example's public `main`). The example's Hero measures
+> its padding and title in `cqi` and gains a responsive `gap`; a browser test
+> narrows the frame to 375px in a 1440px window and sees the gap follow.
+
 ### 5g. The narrow layout (S)
 
 - With parts (3d), the narrow layout is another assembly. At a container width

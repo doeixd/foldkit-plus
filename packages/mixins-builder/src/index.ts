@@ -43,6 +43,7 @@ import {
   FIELD_ATTRIBUTE,
   MARK_ATTRIBUTE,
   NODE_ATTRIBUTE,
+  PAGE_CONTAINER,
   Renderer,
 } from 'foldkit-composition/foldkit'
 import { Entity } from 'foldkit-entity'
@@ -171,7 +172,13 @@ const boxOver = (name: string) => {
 // placed over the page. Any application style overrides them.
 const FrameDefaults = Style.forSlots(BuilderSlots)(
   {
-    frame: Style.self({ maxWidth: 'var(--fk-frame-width)', marginInline: 'auto' }),
+    // The page's container, so a look measures the frame it is previewed in, not the window.
+    frame: Style.self({
+      maxWidth: 'var(--fk-frame-width)',
+      marginInline: 'auto',
+      containerType: 'inline-size',
+      containerName: PAGE_CONTAINER,
+    }),
     // What the boxes are placed in: the canvas, measured from its scroll box.
     canvas: Style.self({ position: 'relative' }),
     selectionBox: boxOver('selected'),
