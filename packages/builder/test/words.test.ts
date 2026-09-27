@@ -10,33 +10,29 @@ import { expect, it } from 'vitest'
 import { Builder, Message, type EditWords, type Model } from 'foldkit-builder'
 import { Button, Heading, Section, Site, answer, isTimer } from './fixture.js'
 
-const mark =
-  (key: string) =>
-  (...values: ReadonlyArray<string | number>) =>
-    `«${key}:${values.join('|')}»`
 const markers: EditWords = {
-  at: mark('at'),
+  at: '«at:{position}|{count}|{container}»',
   thePage: '«thePage»',
-  inRegion: mark('inRegion'),
-  moved: mark('moved'),
-  added: mark('added'),
-  duplicated: mark('duplicated'),
-  removed: mark('removed'),
+  inRegion: '«inRegion:{label}|{region}»',
+  moved: '«moved:{label}|{at}»',
+  added: '«added:{label}|{at}»',
+  duplicated: '«duplicated:{label}|{at}»',
+  removed: '«removed:{label}»',
   editedPage: '«editedPage»',
   undone: '«undone»',
   redone: '«redone»',
   notMoved: '«notMoved»',
   notAdded: '«notAdded»',
-  copied: mark('copied'),
-  cut: mark('cut'),
+  copied: '«copied:{label}»',
+  cut: '«cut:{label}»',
   nothingCopied: '«nothingCopied»',
   notAPage: '«notAPage»',
-  noStartingProps: mark('noStartingProps'),
-  startingPropsFail: mark('startingPropsFail'),
-  notANode: mark('notANode'),
-  unknownPattern: mark('unknownPattern'),
-  copyChanged: mark('copyChanged'),
-  refusal: refusal => `«refusal:${refusal.code}»`,
+  noStartingProps: '«noStartingProps:{block}»',
+  startingPropsFail: '«startingPropsFail:{block}»',
+  notANode: '«notANode:{id}»',
+  unknownPattern: '«unknownPattern:{name}»',
+  copyChanged: '«copyChanged:{id}»',
+  refusal: '«refusal:{code}»',
   moveUp: '«moveUp»',
   moveDown: '«moveDown»',
   moveOut: '«moveOut»',
@@ -130,6 +126,8 @@ it('says nothing of its own but through its words', () => {
   // Every word was said, so a literal beside one would have shown.
   const used = new Set(said.flatMap(text => [...text.matchAll(/«([a-zA-Z]+)/g)].map(m => m[1])))
   expect(Object.keys(markers).filter(key => !used.has(key))).toEqual([])
+  // `apply`'s refusal, worded with its code.
+  expect(said).toContain('«refusal:composition:cycle»')
   // A Block by its label, the Catalog's word.
   expect(said).toContain('«moved:Title|«at:3|3|«inRegion:Section|body»»»')
 })

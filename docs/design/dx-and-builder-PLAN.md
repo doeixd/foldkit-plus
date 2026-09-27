@@ -501,9 +501,12 @@ English literal is left in the view (a checked claim, not a hope).
 >
 > **`foldkit-builder` done too:** `EditWords`, given to `Builder.make`, for
 > its announcements, command labels and own refusals, with `refusal` over
-> `apply`'s; a Block is named by its label. Its test takes a Builder of
-> markers through every edit, drag, copy and refusal. `foldkit-crud`'s
-> `ViewWords` and the CMS's words are still to bring to the same shape.
+> `apply`'s; a Block is named by its label. Text with blanks as well: it is
+> no view input, but one convention lets one object hold every package's
+> words. Its test takes a Builder of
+> markers through every edit, drag, copy and refusal. `foldkit-mixins-crud`'s
+> `ViewWords` already kept the convention and now has the same check; the
+> CMS's words are still to bring to it.
 
 ### 3c. Views that redraw only when what they read changes (M)
 

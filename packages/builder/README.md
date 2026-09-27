@@ -178,9 +178,10 @@ Behaviors; `foldkit-mixins-builder` does.
   says it.
 - **What it says is its words.** `Builder.make(name, { words })` takes any of
   `EditWords` over the English ones (`editWords`): each announcement, each
-  command's label, and each refusal the Builder makes itself, a word that
-  takes a value being a function. A refusal `apply` makes is worded by
-  `refusal`, by default its own message; the Model's `refused` holds the
+  command's label, and each refusal the Builder makes itself. Words are text,
+  a value a blank in them (`'Moved {label}{at}'`), as a form's and a view's
+  are, so one object can hold them all. A refusal `apply` makes is worded by
+  `refusal`, with blanks `{code}` and `{message}`, by default its own message; the Model's `refused` holds the
   worded text, so the live region and a view's alert say the same.
 
 ## Text edited in place

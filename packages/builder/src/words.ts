@@ -1,41 +1,41 @@
-import type { Refusal } from 'foldkit-composition'
-
 /**
  * The Builder's own words: what it says to assistive technology of each edit,
- * its commands' labels, and the refusals it makes itself. A word that takes a
- * value is a function, since word order differs between languages. A Block is
+ * its commands' labels, and the refusals it makes itself. Words are text; a
+ * word that takes a value names it as a blank (`'Moved {label}{at}'`), as a
+ * form's and a view's words do, so one object can hold them all. A Block is
  * named by its label (`Block.words`), the Catalog's word.
  */
 export interface EditWords {
-  /** Where a node is after an edit, after its name: ", 2 of 3 in Section body". */
-  readonly at: (position: number, count: number, container: string) => string
-  /** The container of a root, and of a node in a Region. */
+  /** Where a node is after an edit, after its name: ", 2 of 3 in Section body". Blanks `{position}`, `{count}`, `{container}`. */
+  readonly at: string
+  /** The container of a root, and of a node in a Region: `{label}` and `{region}`. */
   readonly thePage: string
-  readonly inRegion: (label: string, region: string) => string
-  /** An edit, said: its node's label and where it is now. */
-  readonly moved: (label: string, at: string) => string
-  readonly added: (label: string, at: string) => string
-  readonly duplicated: (label: string, at: string) => string
-  readonly removed: (label: string) => string
+  readonly inRegion: string
+  /** An edit, said: its node's `{label}` and, but for a removal, where it is now, `{at}`. */
+  readonly moved: string
+  readonly added: string
+  readonly duplicated: string
+  readonly removed: string
   readonly editedPage: string
   readonly undone: string
   readonly redone: string
   /** A drag that ended with nothing done: a node, or a new one from the palette. */
   readonly notMoved: string
   readonly notAdded: string
-  readonly copied: (label: string) => string
-  readonly cut: (label: string) => string
+  /** A copy and a cut, said: `{label}`. */
+  readonly copied: string
+  readonly cut: string
 
-  /** The refusals the Builder makes itself. */
+  /** The refusals the Builder makes itself, with `{block}`, `{id}` or `{name}`. */
   readonly nothingCopied: string
   readonly notAPage: string
-  readonly noStartingProps: (block: string) => string
-  readonly startingPropsFail: (block: string) => string
-  readonly notANode: (id: string) => string
-  readonly unknownPattern: (name: string) => string
-  readonly copyChanged: (id: string) => string
-  /** A refusal `apply` made, by its code; by default its own message. */
-  readonly refusal: (refusal: Refusal) => string
+  readonly noStartingProps: string
+  readonly startingPropsFail: string
+  readonly notANode: string
+  readonly unknownPattern: string
+  readonly copyChanged: string
+  /** A refusal `apply` made: blanks `{code}` and `{message}`, by default its own message. */
+  readonly refusal: string
 
   /** The commands' labels. */
   readonly moveUp: string
@@ -54,29 +54,28 @@ export interface EditWords {
 }
 
 export const editWords: EditWords = Object.freeze({
-  at: (position: number, count: number, container: string) =>
-    `, ${position} of ${count} in ${container}`,
+  at: ', {position} of {count} in {container}',
   thePage: 'the page',
-  inRegion: (label: string, region: string) => `${label} ${region}`,
-  moved: (label: string, at: string) => `Moved ${label}${at}`,
-  added: (label: string, at: string) => `Added ${label}${at}`,
-  duplicated: (label: string, at: string) => `Duplicated ${label}${at}`,
-  removed: (label: string) => `Removed ${label}`,
+  inRegion: '{label} {region}',
+  moved: 'Moved {label}{at}',
+  added: 'Added {label}{at}',
+  duplicated: 'Duplicated {label}{at}',
+  removed: 'Removed {label}',
   editedPage: 'Edited the page',
   undone: 'Undone',
   redone: 'Redone',
   notMoved: 'Not moved',
   notAdded: 'Not added',
-  copied: (label: string) => `Copied ${label}`,
-  cut: (label: string) => `Cut ${label}`,
+  copied: 'Copied {label}',
+  cut: 'Cut {label}',
   nothingCopied: 'Nothing has been copied',
   notAPage: 'The clipboard holds no part of a page',
-  noStartingProps: (block: string) => `"${block}" has no starting props, so it cannot be inserted`,
-  startingPropsFail: (block: string) => `"${block}"'s starting props do not encode`,
-  notANode: (id: string) => `"${id}" is not a node`,
-  unknownPattern: (name: string) => `the Catalog has no pattern "${name}"`,
-  copyChanged: (id: string) => `"${id}" changed while its copy was being made; copy it again`,
-  refusal: (refusal: Refusal) => refusal.message,
+  noStartingProps: '"{block}" has no starting props, so it cannot be inserted',
+  startingPropsFail: '"{block}"\'s starting props do not encode',
+  notANode: '"{id}" is not a node',
+  unknownPattern: 'the Catalog has no pattern "{name}"',
+  copyChanged: '"{id}" changed while its copy was being made; copy it again',
+  refusal: '{message}',
   moveUp: 'Move up',
   moveDown: 'Move down',
   moveOut: 'Move out',

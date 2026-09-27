@@ -30,7 +30,7 @@ import {
   type Tree,
 } from 'foldkit-composition'
 import { Renderer, fieldName, fieldOf } from 'foldkit-composition/foldkit'
-import { Input } from 'foldkit-form'
+import { Input, fillWords } from 'foldkit-form'
 import { controls, inputOf, settingsOf, type Settings } from './settings.js'
 import { editWords, type EditWords } from './words.js'
 import { copyText, readText } from 'foldkit-primitives/dom'
@@ -501,25 +501,27 @@ const describeEdit = (
     const container =
       place.parent === undefined
         ? words.thePage
-        : words.inRegion(labelOf(after, place.parent), place.region ?? '')
-    return words.at(place.index + 1, siblings, container)
+        : fillWords(words.inRegion, {
+            label: labelOf(after, place.parent),
+            region: place.region ?? '',
+          })
+    return fillWords(words.at, { position: place.index + 1, count: siblings, container })
   }
-  const said = (id: NodeId) => [labelOf(after, id), where(id)] as const
+  const said = (template: string, id: NodeId) =>
+    fillWords(template, { label: labelOf(after, id), at: where(id) })
   switch (op._tag) {
     case 'Move':
-      return Option.some(words.moved(...said(op.id)))
+      return Option.some(said(words.moved, op.id))
     case 'Insert':
-      return Option.some(words.added(...said(op.id)))
+      return Option.some(said(words.added, op.id))
     case 'InsertTree':
-      return Option.some(words.added(...said(op.tree.root)))
+      return Option.some(said(words.added, op.tree.root))
     case 'Duplicate':
-      return Option.map(Option.fromUndefinedOr(op.ids[op.id]), copy =>
-        words.duplicated(...said(copy)),
-      )
+      return Option.map(Option.fromUndefinedOr(op.ids[op.id]), copy => said(words.duplicated, copy))
     case 'UsePattern':
-      return Option.map(patternRoot(catalog, op), root => words.added(...said(root)))
+      return Option.map(patternRoot(catalog, op), root => said(words.added, root))
     case 'Remove':
-      return Option.some(words.removed(labelOf(before, op.id)))
+      return Option.some(fillWords(words.removed, { label: labelOf(before, op.id) }))
     case 'Batch':
       return op.ops.length === 0 ? Option.none() : Option.some(words.editedPage)
     default:
@@ -682,7 +684,13 @@ export const Builder = {
     ): { readonly model: Model; readonly commands?: Commands } => {
       const result = Composition.apply(catalog, documentOf(model), op)
       if (Result.isFailure(result))
-        return refuse(model, { ...result.failure, message: words.refusal(result.failure) })
+        return refuse(model, {
+          ...result.failure,
+          message: fillWords(words.refusal, {
+            code: result.failure.code,
+            message: result.failure.message,
+          }),
+        })
       const { document, removed } = result.success
       const kept = Option.filter(model.selected, id => !removed.includes(id))
       return {
@@ -985,14 +993,14 @@ export const Builder = {
           return starters[message.block] === undefined
             ? refuse(model, {
                 code: 'composition:unknown-block',
-                message: words.noStartingProps(message.block),
+                message: fillWords(words.noStartingProps, { block: message.block }),
               })
             : { model, commands: mint(1, { _tag: 'Insert', block: message.block, at: message.at }) }
         case 'DuplicateAsked': {
           if (documentOf(model).nodes[message.id] === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
-              message: words.notANode(message.id),
+              message: fillWords(words.notANode, { id: message.id }),
             })
           const count = Object.keys(
             Composition.takeTree(documentOf(model), message.id).nodes,
@@ -1008,20 +1016,29 @@ export const Builder = {
           if (node === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
-              message: words.notANode(message.id),
+              message: fillWords(words.notANode, { id: message.id }),
             })
           const tree = Composition.takeTree(documentOf(model), message.id)
           const copied = { ...model, clipboard: Option.some(tree) }
           if (message._tag === 'CopyAsked')
             return {
               model: copied,
-              commands: copy(tree, words.copied(blockLabel(catalog, node.block))),
+              commands: copy(
+                tree,
+                fillWords(words.copied, { label: blockLabel(catalog, node.block) }),
+              ),
             }
           const cut = applyOp(copied, Composition.Op.remove(message.id))
           // A node its Region cannot do without is not cut: nothing is copied either.
           return cut.model.page === model.page
             ? { ...cut, model: { ...cut.model, clipboard: model.clipboard } }
-            : { model: cut.model, commands: copy(tree, words.cut(blockLabel(catalog, node.block))) }
+            : {
+                model: cut.model,
+                commands: copy(
+                  tree,
+                  fillWords(words.cut, { label: blockLabel(catalog, node.block) }),
+                ),
+              }
         }
         case 'PasteAsked':
           return {
@@ -1071,7 +1088,7 @@ export const Builder = {
             onNone: () =>
               refuse(model, {
                 code: 'composition:unknown-pattern',
-                message: words.unknownPattern(message.pattern),
+                message: fillWords(words.unknownPattern, { name: message.pattern }),
               }),
             onSome: pattern => ({
               model,
@@ -1141,7 +1158,7 @@ export const Builder = {
             if (ids[0] === undefined || Option.isNone(props))
               return refuse(model, {
                 code: 'composition:invalid-props',
-                message: words.startingPropsFail(request.block),
+                message: fillWords(words.startingPropsFail, { block: request.block }),
               })
             return applyOp(
               model,
@@ -1179,13 +1196,13 @@ export const Builder = {
           if (documentOf(model).nodes[request.id] === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
-              message: words.notANode(request.id),
+              message: fillWords(words.notANode, { id: request.id }),
             })
           const held = Object.keys(Composition.takeTree(documentOf(model), request.id).nodes)
           if (held.length !== ids.length)
             return refuse(model, {
               code: 'composition:malformed-tree',
-              message: words.copyChanged(request.id),
+              message: fillWords(words.copyChanged, { id: request.id }),
             })
           return applyOp(
             model,

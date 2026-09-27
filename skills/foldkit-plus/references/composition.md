@@ -326,8 +326,9 @@ const PageForm = Form.make('PageForm', PageInput, {
   puts the editor in another language: `Partial<BuilderWords>` over `builderWords`, text with
   blanks (`addBlock: 'Añadir {label}'`), never functions, which a view input may not nest; Block
   and command labels are the Catalog's and the command table's. The Builder's own words (announcements, command labels, its
-  refusals): `Builder.make(name, { words: Partial<EditWords> })` over `editWords`; `refusal`
-  words `apply`'s refusals.
+  refusals): `Builder.make(name, { words: Partial<EditWords> })` over `editWords`, text with
+  blanks too (`moved: 'Moved {label}{at}'`); `refusal` words `apply`'s refusals (`{code}`,
+  `{message}`).
 - Canvas overlay: `selectionBox` (with `selectionLabel`, the Block's label) and `hoverBox` Slots
   are drawn over the selected and hovered nodes, placed from `Measure` (`foldkit-primitives/dom`);
   style how they look, the Builder places them.
