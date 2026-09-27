@@ -422,6 +422,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         padding: `${t.space.md} ${t.space.lg}`,
       }),
       Style.nest('& p', { margin: '0' }),
+      Style.nest('& a', { color: t.accent.ink, fontWeight: t.weight.medium }),
     ),
     introSummary: Style.compose(
       Style.self({
@@ -474,7 +475,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       display: 'grid',
       gap: t.space['2xs'],
       margin: '0',
-      paddingInlineStart: '1.25rem',
+      paddingInlineStart: '1.5rem',
     }),
     screen: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
@@ -917,7 +918,16 @@ export const ListStyle = Style.forSlots(ListSlots)(
       Style.nest('&::after', { content: '""', inset: '0', position: 'absolute' }),
       Style.pseudo(':hover', { color: t.accent.ink }),
     ),
-    status: Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
+    // An empty list, or one still loading, as a block of its own rather than a stray line.
+    status: Style.self({
+      border: `1px dashed ${t.outline.default}`,
+      borderRadius: t.radius.lg,
+      color: t.text.muted,
+      fontSize: t.size.sm,
+      margin: `${t.space.md} 0 0`,
+      padding: `${t.space['2xl']} ${t.space.lg}`,
+      textAlign: 'center',
+    }),
     more: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
   },
   { name: 'ListStyle', layer: app },

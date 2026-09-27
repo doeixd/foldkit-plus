@@ -149,7 +149,9 @@ const HeroLook = Appearance.make(HeroSlots, {
             Style.self({
               // Its own lightness, not the accent's: in the dark theme the accent is lightened
               // for text on dark, which made this band a pastel glare under dark text.
-              background: 'linear-gradient(135deg, oklch(50% 0.17 262), oklch(46% 0.16 300))',
+              // A glow at its far corner, so the side without words is not a flat slab.
+              background:
+                'radial-gradient(circle at 88% 12%, oklch(100% 0 0 / 0.16), transparent 42%), linear-gradient(135deg, oklch(50% 0.17 262), oklch(46% 0.16 300))',
               color: 'white',
             }),
             onBand,
@@ -204,10 +206,7 @@ const SectionLook = Appearance.make(SectionSlots, {
   recipe: Style.recipeFor(SectionSlots)({
     base: {
       root: Style.self({ borderRadius: t.radius.xl, paddingBlock: t.space.xl }),
-      inner: Style.compose(
-        Layout.stack({ gap: t.space.lg }),
-        Style.self({ marginInline: 'auto', paddingInline: t.space.lg }),
-      ),
+      inner: Style.compose(Layout.stack({ gap: t.space.lg }), Style.self({ marginInline: 'auto' })),
       heading: Style.self({
         fontFamily: t.font.heading,
         fontSize: t.size['2xl'],
@@ -217,9 +216,17 @@ const SectionLook = Appearance.make(SectionSlots, {
     },
     variants: {
       tone: {
+        // A plain band's content lines up with the page's edges, as a hero's does;
+        // a colored one keeps it off its own.
         plain: {},
-        muted: { root: Style.self({ background: t.surface.muted }) },
-        accent: { root: Style.self({ background: t.accent.subtle }) },
+        muted: {
+          root: Style.self({ background: t.surface.muted }),
+          inner: Style.self({ paddingInline: t.space.lg }),
+        },
+        accent: {
+          root: Style.self({ background: t.accent.subtle }),
+          inner: Style.self({ paddingInline: t.space.lg }),
+        },
       },
       width: {
         narrow: { inner: Style.self({ maxWidth: '44rem' }) },
@@ -414,7 +421,10 @@ const CalloutLook = Appearance.make(CalloutSlots, {
         border: '1px solid',
         borderRadius: t.radius.lg,
         display: 'grid',
+        // As wide, and as large, as the text it sits among.
+        fontSize: t.size.md,
         gap: t.space['2xs'],
+        maxWidth: '68ch',
         padding: `${t.space.md} ${t.space.lg}`,
       }),
       title: Style.self({ fontWeight: t.weight.semibold, margin: '0' }),
@@ -648,10 +658,11 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
     base: {
       root: Style.compose(
         Layout.switcher({ threshold: '34rem', gap: '0' }),
+        // Lifted by a shadow, not boxed by a border: it often sits on a band of its own.
         Style.self({
           background: t.surface.base,
-          border: `1px solid ${t.outline.subtle}`,
           borderRadius: t.radius.xl,
+          boxShadow: '0 1px 2px rgb(0 0 0 / 5%), 0 10px 30px rgb(0 0 0 / 7%)',
           overflow: 'hidden',
         }),
       ),
