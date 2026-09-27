@@ -739,11 +739,11 @@ const waiting = <M>(h: HtmlBuilder<M>, what: string): Html =>
 
 /** The same views draw the public page, the preview, and the editor's canvas. */
 export const SiteRenderer = Renderer.make(Site, {
-  Hero: ({ props, regions, appearance, h }) => {
+  Hero: ({ props, regions, appearance, field, h }) => {
     const drawn = HeroLook.draw({ appearance, h })
     return h.header(drawn.root.attrs(), [
       ...(props.eyebrow === '' ? [] : [h.p(drawn.eyebrow.attrs(), [props.eyebrow])]),
-      h.h1(drawn.title.attrs(), [props.title]),
+      h.h1(drawn.title.attrs(), [field('title')]),
       ...(props.lead === '' ? [] : [h.p(drawn.lead.attrs(), [props.lead])]),
       ...(regions.actions.length === 0 ? [] : [h.div(drawn.actions.attrs(), [...regions.actions])]),
     ])
@@ -764,8 +764,8 @@ export const SiteRenderer = Renderer.make(Site, {
       h.div(drawn.right.attrs(), [...regions.right]),
     ])
   },
-  Heading: ({ props, appearance, h }) =>
-    h.h2(HeadingLook.draw({ appearance, h }).root.attrs(), [props.text]),
+  Heading: ({ appearance, field, h }) =>
+    h.h2(HeadingLook.draw({ appearance, h }).root.attrs(), [field('text')]),
   Text: ({ props, appearance, h }) =>
     h.div(
       TextLook.draw({ appearance, h }).root.attrs(),
@@ -778,23 +778,23 @@ export const SiteRenderer = Renderer.make(Site, {
       ...(props.caption === '' ? [] : [h.figcaption(drawn.caption.attrs(), [props.caption])]),
     ])
   },
-  Quote: ({ props, appearance, h }) => {
+  Quote: ({ props, appearance, field, h }) => {
     const drawn = QuoteLook.draw({ appearance, h })
     return h.blockquote(drawn.root.attrs(), [
-      h.p(drawn.text.attrs(), [props.text]),
+      h.p(drawn.text.attrs(), [field('text', { multiline: true })]),
       ...(props.cite === '' ? [] : [h.cite(drawn.cite.attrs(), [`— ${props.cite}`])]),
     ])
   },
-  Callout: ({ props, appearance, h }) => {
+  Callout: ({ props, appearance, field, h }) => {
     const drawn = CalloutLook.draw({ appearance, h })
     return h.aside(drawn.root.attrs([h.Role('note')]), [
       ...(props.title === '' ? [] : [h.p(drawn.title.attrs(), [props.title])]),
-      h.p(drawn.body.attrs(), [props.body]),
+      h.p(drawn.body.attrs(), [field('body', { multiline: true })]),
     ])
   },
   Divider: ({ appearance, h }) => h.hr(DividerLook.draw({ appearance, h }).root.attrs()),
-  Button: ({ props, appearance, h }) =>
-    h.a(ButtonLook.draw({ appearance, h }).button.attrs([h.Href(props.href)]), [props.label]),
+  Button: ({ props, appearance, field, h }) =>
+    h.a(ButtonLook.draw({ appearance, h }).button.attrs([h.Href(props.href)]), [field('label')]),
   PostList: ({ props, data, appearance, h }) => {
     const drawn = PostsLook.draw({ appearance, h })
     const rows = PostList.rows(data)

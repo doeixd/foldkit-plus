@@ -13,6 +13,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
+import { userEvent } from 'vitest/browser'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PageBuilder, PageEditing } from '../src/site.js'
 import { stylesheet } from '../src/sheet.js'
@@ -228,6 +229,49 @@ it('adds a Block dragged from the palette where it is dropped, between two Headi
       'Heading 3',
     ]),
   )
+})
+
+it('edits a heading where it is: the caret kept through each redraw, Backspace a letter, Escape back', async () => {
+  unmount = mount(stylesheet, 3)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const field = () =>
+    canvas()?.querySelector<HTMLElement>('[data-composition-node="h1"] [data-composition-field]')
+  const editable = () => field()?.getAttribute('contenteditable') === 'plaintext-only'
+  // What the page holds, as the inspector shows it.
+  const stored = () => document.querySelector<HTMLInputElement>('#HeadingSettings-text')?.value
+  const begin = async () => {
+    const shown = field()
+    if (shown === null || shown === undefined) throw new Error('no heading field')
+    await userEvent.dblClick(shown)
+    await vi.waitFor(() => expect(editable() && document.activeElement === field()).toBe(true))
+  }
+
+  await begin()
+  // Each key redraws the page with the new text; the characters land in order at the end.
+  await userEvent.keyboard(' again')
+  await vi.waitFor(() => expect(stored()).toBe('Heading 1 again'))
+  expect(field()?.innerText).toBe('Heading 1 again')
+  // A letter, not the block.
+  await userEvent.keyboard('{Backspace}')
+  await vi.waitFor(() => expect(stored()).toBe('Heading 1 agai'))
+  expect(field()).not.toBeNull()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(editable()).toBe(false))
+  expect(field()?.textContent).toBe('Heading 1 agai')
+
+  // Escape puts back what the field began with, on the page and in the DOM.
+  await begin()
+  await userEvent.keyboard('zz')
+  await vi.waitFor(() => expect(stored()).toBe('Heading 1 agaizz'))
+  await userEvent.keyboard('{Escape}')
+  await vi.waitFor(() => expect(editable()).toBe(false))
+  expect(field()?.textContent).toBe('Heading 1 agai')
+  expect(stored()).toBe('Heading 1 agai')
+
+  // The session committed is one undo step.
+  canvas()?.focus()
+  await userEvent.keyboard('{Control>}z{/Control}')
+  await vi.waitFor(() => expect(field()?.textContent).toBe('Heading 1'))
 })
 
 /** The middle of some timings, rounded to a millisecond. */

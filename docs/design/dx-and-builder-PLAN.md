@@ -992,6 +992,22 @@ letter, not the block.
 **Documentation.** `pagebuilder-DESIGN.md` §4 gets a dated note that the
 canvas edits text in place under the freezing rule, pointing here.
 
+> **Done, 2026-09-26, for plain text; rich text left.** `EditableText`
+> (`foldkit-primitives`) also asks for editing on a double-click
+> (`EditAsked`, since a canvas Renderer sends nothing) and focuses a field
+> when it becomes editable. The Renderer's `field(key)` takes only text
+> props (`TextKey`), names a field by node and prop as JSON, and keys the
+> editable span apart so the browser's element is replaced when editing
+> ends; `Renderer.fields` is how the Builder knows which props a node draws
+> as fields. `History` gained `close` and `revert` rather than a rule about
+> groups ending where they began, since a Document redone is never the same
+> object. `PointerDrag` stands aside in editable text; `Targets` needed
+> nothing, its click default being harmless there. **Not done:** a
+> rich-text prop through the Phase 7c-2 editor. A browser test in the CMS
+> example types into a heading through redraws, deletes a letter with
+> Backspace, cancels with Escape and undoes the session; each piece it
+> relies on was mutated and caught.
+
 ### 5f. Responsive looks as container queries (M)
 
 - The theme's breakpoints gain a container form:

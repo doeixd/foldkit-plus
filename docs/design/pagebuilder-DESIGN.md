@@ -153,7 +153,7 @@ whether a page is a rich-text document with layout nodes. It is not:
 | --- | --- | --- |
 | Address of an edit | a position: node, run, text offset | a node and a Region index |
 | Children | text runs, sometimes blocks | Blocks in named Regions |
-| Editing surface | a `contenteditable` subtree the browser mutates | a canvas the application renders; nothing is `contenteditable` |
+| Editing surface | a `contenteditable` subtree the browser mutates | a canvas the application renders; only the one text field being edited is `contenteditable` |
 | A unit of content | prose | a configured component |
 
 Forcing layout into text positions, or prose into Regions, makes each worse. So
@@ -173,6 +173,13 @@ runs `RichText.validate` on the body and reports its findings by path (§6). On
 the canvas, the selected Text node's body is edited by `foldkit-richtext-dom`'s
 editor Bundle, placed at the selection: one live editor at a time, committing a
 `setProp` when the selection leaves it (§13).
+
+> **2026-09-26: plain text is edited on the canvas in place.** A view draws a
+> text prop with `field(key)`; the one being edited is `contenteditable`,
+> frozen at the text it had when editing began, so no redraw rewrites the
+> element under the caret. That is the one exception to "nothing is
+> `contenteditable`", and it holds text, not a document. See
+> [`dx-and-builder-PLAN.md` §5e](./dx-and-builder-PLAN.md).
 
 What Composition adopts from rich text, because rich text paid for these lessons:
 
