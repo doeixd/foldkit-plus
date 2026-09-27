@@ -82,6 +82,11 @@ const RetypeBlockOperation = Schema.Struct({
   node: NodeId,
   to: TextBlock,
 })
+const SetPropsOperation = Schema.Struct({
+  type: Schema.Literal('SetProps'),
+  node: NodeId,
+  props: Schema.JsonObject,
+})
 const InsertNodeOperation = Schema.Struct({
   type: Schema.Literal('InsertNode'),
   block: Block,
@@ -110,6 +115,7 @@ export const Operation = Schema.Union([
   JoinNodeOperation,
   MoveNodeOperation,
   RetypeBlockOperation,
+  SetPropsOperation,
   InsertNodeOperation,
   DeleteNodeOperation,
   SplitRunOperation,
@@ -203,6 +209,13 @@ export const Edit = {
     to: TextBlock,
   ): Extract<Operation, { readonly type: 'RetypeBlock' }> =>
     RetypeBlockOperation.make({ type: 'RetypeBlock', node: targetId(node), to }),
+
+  /** Sets the named props of a node block; props it does not name keep their values. */
+  setProps: (
+    node: TextTarget,
+    props: Schema.JsonObject,
+  ): Extract<Operation, { readonly type: 'SetProps' }> =>
+    SetPropsOperation.make({ type: 'SetProps', node: targetId(node), props }),
 
   insertBlock: (
     block: Block,
@@ -765,6 +778,18 @@ export const apply = (
       )
       dirtyNodes.add(target.id)
       structureChanged = true
+      continue
+    }
+    if (operation.type === 'SetProps') {
+      const path = blockPaths.get(operation.node)
+      if (path === undefined) return { ok: false, error: 'MissingNode' }
+      const target = blockAt(path)
+      // Only an application node has props; a text block's shape is its type.
+      if (target?.type !== 'Node') return { ok: false, error: 'InvalidRange' }
+      const props = { ...target.props, ...operation.props }
+      if (Equal.equals(props, target.props)) continue
+      writeBlock(path, { ...target, props })
+      dirtyNodes.add(target.id)
       continue
     }
     if (operation.type === 'InsertNode') {

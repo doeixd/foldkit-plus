@@ -113,7 +113,7 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
-`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` names its
+`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` and `SetProps` name their
 blocks instead. Each emits a Transaction and applies it in one step; the returned `ChangeSet` and `positionMap`
 describe the effect, and `transactions` holds what was applied, in order. Nothing mints
 identity unless the caller's `mint` does, and replay applies transactions rather than
@@ -198,6 +198,11 @@ the move leaves empty is deleted with it, as a lift deletes one: an item moved o
 one-item list takes the list too. A block that is not there is `InvalidInput`, and moving a
 block beside itself changes nothing. `moveTargets(document, node, nodes?)` lists the blocks it
 may move beside, in document order, which is what a drag offers.
+
+`SetProps` sets props on a node block by identity and keeps the ones it does not name:
+`{ type: 'SetProps', node: item, props: { checked: true } }` ticks a task item. Given a
+vocabulary, the props that result must decode as the kind declares them, or the command is
+refused with `InvalidInput`, as it is for a block that is not a node.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
@@ -794,6 +799,9 @@ or `apply`.
 - `RetypeBlock` changes a text block's type — a paragraph, or a heading at a level —
   keeping its run values and identities. Same-shape sets are no-ops; a node block or
   preserved content is refused, because their content is not runs.
+- `SetProps` sets the props it names on a node block and keeps the others. Setting a
+  prop to the value it has is a no-op; a text block or preserved content is refused
+  (`InvalidRange`). Props cannot be deleted, only set.
 - `InsertNode` splices a caller-built block at an explicit index, or into a node
   block's nested blocks when `parent` is given; every carried identity must be
   fresh within the transaction. Positions need no mapping (they address runs, not

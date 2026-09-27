@@ -751,6 +751,10 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   `RunMark` imported for nothing, and seven more dead imports had built up in the
   richtext packages. After moving or deleting code, run
   `npx tsc -p packages/<name> --noEmit --noUnusedLocals` over the packages touched.
+- **Run vitest from the repository root.** Inside `packages/richtext`, `npx vitest run`
+  finds no config of its own, so a test importing `foldkit-richtext` read the built
+  `dist`: a fixed transform still failed its test, and a broken one would have passed.
+  The root `vitest.config.ts` is what maps package names to `src`.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.

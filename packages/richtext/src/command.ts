@@ -92,6 +92,12 @@ export type Command =
    * the selection with them. A container the move leaves empty is deleted.
    */
   | { readonly type: 'MoveBlock'; readonly node: NodeId; readonly to: Beside }
+  /**
+   * Sets the named props of a node block, such as a task item's `checked`, keeping the rest.
+   * It addresses the block by identity, as `MoveBlock` does, so a checkbox sends it for its
+   * own item. Given a vocabulary, the props that result must decode as the kind's.
+   */
+  | { readonly type: 'SetProps'; readonly node: NodeId; readonly props: Schema.JsonObject }
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
@@ -978,6 +984,19 @@ export const run = (
   const declared = options.marks ?? shippedRegistry
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
+  }
+  if (command.type === 'SetProps') {
+    const target = locateBlock(state.document, command.node)?.block
+    if (target?.type !== 'Node') return failure('InvalidInput')
+    if (
+      refusesProps(options.nodes, {
+        kind: target.kind,
+        props: { ...target.props, ...command.props },
+      })
+    ) {
+      return failure('InvalidInput')
+    }
+    return apply(state, [Edit.setProps(command.node, command.props)])
   }
   if (command.type === 'MoveBlock') {
     const moving = locateBlock(state.document, command.node)
