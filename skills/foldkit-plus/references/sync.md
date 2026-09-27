@@ -103,7 +103,8 @@ const program = Effect.gen(function* () {
 
 - `submit` validates, replays, assigns an `opId`, and persists to the outbox. It
   **sends nothing**. `replica.start` is the loop: one exchange, then one after
-  each submit. Transport errors land in `status.lastError` and it keeps going.
+  each submit. A failed exchange lands in `status.lastError` and is retried on
+  a backoff (0.5 s to 30 s), or at once on the next submit.
 - Also available: `changes` (a stream of status + shared), `snapshot`,
   `statusChanges`, `committed`, and `close`. Transports: `Sync.transport.socket`
   (reconnecting), `.loopback`, `.fromPromise(client)`, and

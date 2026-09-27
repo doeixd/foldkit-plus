@@ -373,8 +373,11 @@ const once = replica.synchronize.pipe(
 ```
 
 `replica.start` is the long-running convenience loop. It exchanges once, then
-wakes after every submit. Transport failures are recorded in
-`status.lastError`; the loop survives and retries on the next wake.
+wakes after every submit. A failed exchange, whether the wire failed or the
+response was refused, is recorded in `status.lastError` and announced on
+`statusChanges`; the loop survives and retries on a backoff from 0.5 s up to
+30 s, or at once on the next submit, so an outbox is delivered even if nobody
+types again.
 
 ```ts
 Effect.runFork(
@@ -747,9 +750,12 @@ Sync.transport.serve(...)
 Sync.transport.nativeSocket(...)
 ```
 
-The reconnecting socket transport uses bounded retries/queueing, exponential
-jittered backoff, and keeps request identities stable when resending queued or
-in-flight exchanges. A server rejection is protocol data; only a wire failure is
+The socket transport reconnects for as long as its layer lives, on an
+exponential, jittered backoff capped at `maxRetryDelay` (5 s by default), and
+keeps request identities stable when resending queued or in-flight exchanges.
+After `maxRetries` consecutive failed connections (5 by default) queued work
+fails and new exchanges fail fast rather than wait; the count resets once a
+socket opens. The queue is bounded by `maxQueue`. A server rejection is protocol data; only a wire failure is
 a `TransportError`.
 
 Transport is deliberately below reconciliation. A custom transport can carry

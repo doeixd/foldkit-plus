@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, Schedule, Schema } from 'effect'
+import { Context, Duration, Effect, Layer, Schema } from 'effect'
 import { sequence } from './ids.js'
 import type { Operation, TransportClient } from './sync.js'
 
@@ -142,10 +142,16 @@ export interface SocketOptions {
   readonly url: string
   /** Injectable for tests; defaults to the platform `WebSocket`. */
   readonly makeSocket?: ((url: string) => SocketLike) | undefined
-  /** Reconnect attempts after a close before queued work fails. Default 5. */
+  /**
+   * Consecutive failed connections after which queued work fails and new
+   * exchanges fail fast until a connection is healthy again. Reconnecting goes
+   * on regardless. Default 5.
+   */
   readonly maxRetries?: number | undefined
   /** Base delay of the exponential reconnect backoff. Default `50 millis`. */
   readonly retryBase?: Duration.Input | undefined
+  /** Longest wait between reconnect attempts. Default `5 seconds`. */
+  readonly maxRetryDelay?: Duration.Input | undefined
   /** Exchanges queued or in flight before new ones fail. Default 64. */
   readonly maxQueue?: number | undefined
 }
@@ -184,9 +190,12 @@ export const nativeSocket = (url: string): SocketLike => {
  * it closes, the transport reconnects on an exponential, jittered backoff and
  * re-sends every queued and in-flight frame with its original id, so a lost
  * reply is answered rather than dropped and a late reply cannot resolve a newer
- * frame. Once the retries are exhausted (or the layer closes) queued work fails
- * with a `TransportError`; a queue over `maxQueue` fails new exchanges with
- * backpressure. The socket is released when the layer's scope ends.
+ * frame. It never stops reconnecting: after `maxRetries` consecutive failures
+ * queued work fails with a `TransportError`, and exchanges fail fast while no
+ * socket is up, until a socket opens (or answers, for a socket without
+ * `onOpen`), which also resets the count. A queue over `maxQueue` fails new
+ * exchanges with backpressure. The socket is released when the layer's scope
+ * ends.
  */
 export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, TransportError> =>
   Layer.effect(
@@ -194,9 +203,12 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
     Effect.fn('Transport.layerSocket')(function* () {
       const makeSocket = options.makeSocket ?? nativeSocket
       const maxQueue = options.maxQueue ?? 64
-      const retry = Schedule.exponential(options.retryBase ?? '50 millis').pipe(
-        Schedule.jittered,
-        Schedule.upTo({ times: options.maxRetries ?? 5 }),
+      const maxRetries = options.maxRetries ?? 5
+      const retryBase = Duration.toMillis(
+        Duration.fromInputUnsafe(options.retryBase ?? '50 millis'),
+      )
+      const maxRetryDelay = Duration.toMillis(
+        Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'),
       )
 
       interface Entry {
@@ -211,10 +223,12 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
       let ready = false
       let nextId = 0
       let disposed = false
-      // Once the reconnect schedule is exhausted there is no fiber left to
-      // service the queue, so the transport is terminal until the layer is
-      // recreated; a later exchange fails with this rather than waiting forever.
-      let terminalError: TransportError | undefined
+      // Closes since a connection last proved healthy. Past `maxRetries` the
+      // transport is offline: nothing waits for a socket that may be minutes away.
+      let failures = 0
+      const healthy = (): void => {
+        failures = 0
+      }
 
       const send = (entry: Entry): void => {
         inFlight.set(entry.id, entry)
@@ -248,6 +262,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
             ready = next.onOpen === undefined
             const offOpen = next.onOpen?.(() => {
               ready = true
+              healthy()
               flush()
             })
             const offMessage = next.onMessage(data => {
@@ -259,6 +274,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               }
               const entry = inFlight.get(reply.id)
               if (entry === undefined) return
+              healthy()
               inFlight.delete(reply.id)
               entry.resume(
                 reply.error === undefined
@@ -282,16 +298,16 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
       })
 
       yield* Effect.forkScoped(
-        connect.pipe(
-          Effect.retry(retry),
-          Effect.catch(error =>
-            Effect.sync(() => {
-              if (disposed) return
-              terminalError = error
-              failAll(error.message)
-            }),
-          ),
-        ),
+        Effect.gen(function* () {
+          while (!disposed) {
+            yield* Effect.exit(connect)
+            if (disposed) return
+            failures += 1
+            if (failures > maxRetries) failAll('transport closed')
+            const backoff = Math.min(maxRetryDelay, retryBase * 2 ** Math.min(failures - 1, 30))
+            yield* Effect.sleep(backoff * (0.8 + Math.random() * 0.4))
+          }
+        }),
       )
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
@@ -310,8 +326,8 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               resume(Effect.fail(new TransportError({ message: 'transport closed' })))
               return
             }
-            if (terminalError !== undefined) {
-              resume(Effect.fail(terminalError))
+            if (failures > maxRetries && !ready) {
+              resume(Effect.fail(new TransportError({ message: 'transport closed' })))
               return
             }
             if (queued.length + inFlight.size >= maxQueue) {

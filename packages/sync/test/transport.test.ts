@@ -326,49 +326,157 @@ describe('the socket transport', () => {
     })
   })
 
-  it('fails a new exchange immediately once retries are exhausted', async () => {
-    const makeClosing = (): SocketLike => {
+  /**
+   * A server that can be taken down: while down, a socket closes without
+   * opening; while up, it opens and answers every frame. `withOpen: false` makes
+   * sockets that report no `onOpen`, which count as open from the start.
+   */
+  const flakyServer = (withOpen: boolean) => {
+    const state = { up: false, created: 0 }
+    const makeSocket = (): SocketLike => {
+      state.created += 1
       const closes = new Set<() => void>()
-      const fire = (): void => {
-        for (const listener of [...closes]) listener()
+      const messages = new Set<(data: string) => void>()
+      const up = state.up
+      if (!up) {
+        setTimeout(() => {
+          for (const listener of [...closes]) listener()
+        }, 0)
       }
       return {
-        send: fire,
-        close: fire,
-        onMessage: () => () => {},
+        send: data => {
+          if (!up) return
+          const frame = JSON.parse(data) as { id: string }
+          queueMicrotask(() => {
+            for (const listener of [...messages])
+              listener(JSON.stringify({ id: frame.id, result: { ok: true } }))
+          })
+        },
+        close: () => {
+          for (const listener of [...closes]) listener()
+        },
+        ...(withOpen
+          ? {
+              onOpen: (listener: () => void) => {
+                if (up) listener()
+                return () => {}
+              },
+            }
+          : {}),
+        onMessage: listener => {
+          messages.add(listener)
+          return () => messages.delete(listener)
+        },
         onClose: listener => {
           closes.add(listener)
           return () => closes.delete(listener)
         },
       }
     }
+    return { state, makeSocket }
+  }
 
+  it.each([
+    ['that open', true],
+    ['with no open event', false],
+  ])(
+    'fails fast while offline, and exchanges again once the server is back, for sockets %s',
+    async (_, withOpen) => {
+      const { state, makeSocket } = flakyServer(withOpen)
+      const program = Effect.gen(function* () {
+        const transport = yield* Effect.service(Transport)
+        const queued = yield* Effect.result(transport.exchange(0, []))
+        // Offline now: this fails at once rather than waiting on a socket.
+        const offline = yield* Effect.result(transport.exchange(1, []))
+        state.up = true
+        const created = state.created
+        // The reconnect loop is still running, and finds the server.
+        let back: unknown
+        while (back === undefined) {
+          yield* Effect.sleep('2 millis')
+          const attempt = yield* Effect.result(transport.exchange(2, []))
+          if (attempt._tag === 'Success') back = attempt.success
+        }
+        return { queued, offline, back, reconnected: state.created > created }
+      })
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          program.pipe(
+            Effect.provide(
+              layerSocket({
+                url: 'ws://test',
+                makeSocket,
+                retryBase: '1 millis',
+                maxRetryDelay: '2 millis',
+                maxRetries: 1,
+              }),
+            ),
+          ),
+        ),
+      )
+
+      expect(result).toMatchObject({
+        queued: { _tag: 'Failure', failure: { message: 'transport closed' } },
+        offline: { _tag: 'Failure', failure: { message: 'transport closed' } },
+        back: { ok: true },
+        reconnected: true,
+      })
+    },
+  )
+
+  it('counts only consecutive failures toward giving up queued work', async () => {
+    // Every socket answers one frame, then drops the connection on the next, so
+    // each exchange after the first costs one reconnect. With a budget of one
+    // retry, a lifetime count would give up on the second.
+    const makeSocket = (): SocketLike => {
+      const closes = new Set<() => void>()
+      const messages = new Set<(data: string) => void>()
+      let answered = false
+      return {
+        send: data => {
+          if (answered) {
+            for (const listener of [...closes]) listener()
+            return
+          }
+          answered = true
+          const frame = JSON.parse(data) as { id: string }
+          queueMicrotask(() => {
+            for (const listener of [...messages])
+              listener(JSON.stringify({ id: frame.id, result: { ok: true } }))
+          })
+        },
+        close: () => {},
+        onOpen: listener => {
+          listener()
+          return () => {}
+        },
+        onMessage: listener => {
+          messages.add(listener)
+          return () => messages.delete(listener)
+        },
+        onClose: listener => {
+          closes.add(listener)
+          return () => closes.delete(listener)
+        },
+      }
+    }
     const program = Effect.gen(function* () {
       const transport = yield* Effect.service(Transport)
-      const first = yield* Effect.result(transport.exchange(0, []))
-      // With the reconnect fiber gone, this must fail rather than queue forever.
-      const second = yield* Effect.result(transport.exchange(1, []))
-      return [first, second]
+      const results: Array<unknown> = []
+      for (let round = 0; round < 4; round++) results.push(yield* transport.exchange(round, []))
+      return results
     })
     const result = await Effect.runPromise(
       Effect.scoped(
         program.pipe(
           Effect.provide(
-            layerSocket({
-              url: 'ws://test',
-              makeSocket: makeClosing,
-              retryBase: '1 millis',
-              maxRetries: 0,
-            }),
+            layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis', maxRetries: 1 }),
           ),
         ),
       ),
     )
 
-    expect(result).toMatchObject([
-      { _tag: 'Failure', failure: { _tag: 'SyncTransportError', message: 'transport closed' } },
-      { _tag: 'Failure', failure: { _tag: 'SyncTransportError', message: 'transport closed' } },
-    ])
+    expect(result).toEqual([{ ok: true }, { ok: true }, { ok: true }, { ok: true }])
   })
 
   it('ignores a late reply and frees the slot of an interrupted exchange', async () => {

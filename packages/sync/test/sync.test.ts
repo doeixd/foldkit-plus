@@ -338,6 +338,8 @@ describe('the replica', () => {
       }),
     ).rejects.toThrow('Checkpoint is behind the replica')
     expect(cursor(replica)).toBe(1)
+    // A refused response is a failed exchange like any other, and the UI hears of it.
+    expect(Effect.runSync(replica.status).lastError).toBe('Checkpoint is behind the replica')
   })
 
   it('refuses a gap in the committed order', async () => {
@@ -842,6 +844,48 @@ describe('Replica.start', () => {
 
     expect(applied).toBe(1)
     expect(shared(replica)).toEqual({ todos: [{ id: 'a', title: 'a' }] })
+    await close(replica)
+  })
+
+  it('retries a failed exchange on its own, and announces the failure', async () => {
+    const replica = await open('a')
+    let calls = 0
+    const exchange = layerFromPromise({
+      exchange: async (cursor, pending) => {
+        calls += 1
+        if (calls <= 2) throw new Error('offline')
+        return {
+          operations: pending.map((operation, index) => ({
+            ...operation,
+            serverSequence: cursor + index + 1,
+            actorId: 'server',
+          })),
+          rejected: [],
+        }
+      },
+    })
+    await Effect.runPromise(replica.submit(created('a')))
+
+    const seen = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const statuses = yield* replica.statusChanges.pipe(
+            Stream.takeUntil(status => status.pending === 0),
+            Stream.runCollect,
+            Effect.forkScoped,
+          )
+          yield* Effect.yieldNow
+          // The submit's wake-up retries once at once; nothing is submitted after
+          // that, so only the backoff can deliver the outbox.
+          yield* Effect.forkScoped(replica.start.pipe(Effect.provide(exchange)))
+          return yield* Fiber.join(statuses)
+        }),
+      ),
+    )
+
+    expect(seen.map(status => status.lastError)).toContain('offline')
+    expect(seen.at(-1)).toMatchObject({ pending: 0, lastError: undefined })
+    expect(calls).toBe(3)
     await close(replica)
   })
 

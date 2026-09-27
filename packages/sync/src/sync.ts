@@ -61,6 +61,9 @@ const decodeCommitted = Schema.decodeUnknownSync(CommittedSchema, { onExcessProp
  * growing without limit on a log that is never checkpointed.
  */
 const COMMITTED_ID_WINDOW = 1024
+/** How long `start` waits after a failed exchange: doubling from the base, up to the cap, in ms. */
+const START_RETRY_BASE = 500
+const START_RETRY_MAX = 30_000
 
 /** Counters and a histogram an application can scrape. */
 export const syncMetrics = {
@@ -165,9 +168,10 @@ export interface Replica<Message, Shared> {
   readonly synchronize: Effect.Effect<void, ReplicaError | TransportError, Transport>
   /**
    * The exchange loop: exchanges once, then after every `submit`, until the
-   * replica closes or the fiber is interrupted. A transport failure is recorded
-   * in `status.lastError` and retried on the next wake, so the fiber never
-   * fails. Fork it with `Effect.forkScoped` and provide `Transport`.
+   * replica closes or the fiber is interrupted. A failed exchange is recorded
+   * in `status.lastError` and retried on a backoff (from 0.5 s, doubling up to
+   * 30 s), or at once on the next `submit`, so the fiber never fails. Fork it
+   * with `Effect.forkScoped` and provide `Transport`.
    */
   readonly start: Effect.Effect<void, never, Transport>
   readonly close: Effect.Effect<void>
@@ -537,18 +541,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             catch: cause =>
               new InvalidExchangeError({ message: 'Invalid sync exchange response', cause }),
           })
-        }).pipe(
-          Effect.tapError(error =>
-            Effect.gen(function* () {
-              yield* Effect.logWarning('sync exchange failed', {
-                documentId,
-                replicaId,
-                error: error.message,
-              })
-              yield* Ref.set(lastError, error.message)
-            }),
-          ),
-        )
+        })
         yield* SynchronizedRef.modifyEffect(stateRef, current =>
           Effect.gen(function* () {
             // A `close` during the exchange must not persist its result.
@@ -639,14 +632,40 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             [...response.rejected, ...previous].slice(0, 32),
           )
         yield* PubSub.publish(statusSignals, undefined)
-      })()
+      })().pipe(
+        // Any failed exchange, a refused response included, is what a UI shows,
+        // so it is recorded and announced rather than left for the next submit.
+        Effect.tapError(error =>
+          Effect.gen(function* () {
+            yield* Effect.logWarning('sync exchange failed', {
+              documentId,
+              replicaId,
+              error: error.message,
+            })
+            yield* Ref.set(lastError, error.message)
+            yield* PubSub.publish(statusSignals, undefined)
+          }),
+        ),
+      )
 
       const start: Effect.Effect<void, never, Transport> = Effect.gen(function* () {
-        yield* synchronize.pipe(Effect.catch(() => Effect.void))
+        let failures = 0
         while (!(yield* Ref.get(closed))) {
-          yield* Queue.take(wake)
+          const exit = yield* Effect.exit(synchronize)
           if (yield* Ref.get(closed)) return
-          yield* synchronize.pipe(Effect.catch(() => Effect.void))
+          if (exit._tag === 'Success') {
+            failures = 0
+            yield* Queue.take(wake)
+          } else {
+            // Retried on a backoff, or sooner on a submit: an outbox must not
+            // wait for the next keystroke to be delivered.
+            failures += 1
+            const backoff = Math.min(
+              START_RETRY_MAX,
+              START_RETRY_BASE * 2 ** Math.min(failures - 1, 16),
+            )
+            yield* Effect.raceFirst(Queue.take(wake), Effect.sleep(backoff))
+          }
         }
       })
 
