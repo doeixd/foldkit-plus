@@ -27,6 +27,14 @@ const contractFor = (App: ReturnType<typeof application>) =>
       Message.DeletedPage,
       Message.EditedPage,
     ]),
+    // A burst of typing or renaming the server has not seen yet goes as one operation.
+    coalesce: (last, next) => {
+      if (last._tag === 'RenamedPage' && next._tag === 'RenamedPage' && last.id === next.id)
+        return next
+      if (last._tag === 'EditedPage' && next._tag === 'EditedPage' && last.id === next.id)
+        return Message.EditedPage({ id: next.id, ops: [...last.ops, ...next.ops] })
+      return undefined
+    },
   })
 
 /** The contract the server and every replica share; the session plays no part in it. */

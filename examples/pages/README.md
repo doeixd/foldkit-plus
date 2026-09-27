@@ -82,8 +82,9 @@ and reach the other window once the server is back.
 - Deleted characters are kept as tombstones for good; nothing collects them yet.
 - Every edit costs work in proportion to all pages: the journal rewrites the whole snapshot
   on each append, and a new replica reads the whole history, with no paging or checkpoint.
-- Titles are last-writer-wins by the server's order, and each keystroke in a title is an
-  edit.
+- Titles are last-writer-wins by the server's order. Keystrokes the server has not seen
+  yet are merged into one edit, as typing in the body is (`coalesce` in
+  `src/contract.ts`).
 - An edit to a page another replica deleted is accepted and changes nothing.
 - The server takes a tab's name as its identity and does not check that an operation's
   replica is the tab that sent it; a real deployment authenticates the connection.

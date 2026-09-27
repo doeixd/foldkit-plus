@@ -6,6 +6,11 @@ export interface OutboxEntry {
   /** The replica's revision once this operation is in its outbox. */
   readonly revision: number
   readonly nextLocalSequence: number
+  /**
+   * The operation's local sequence. An entry with the sequence of one already in the
+   * outbox replaces it: a coalesced submit rewrites the last operation.
+   */
+  readonly localSequence: number
   /** The operation, encoded. */
   readonly operation: unknown
 }
@@ -13,8 +18,8 @@ export interface OutboxEntry {
 /** Persists a replica's state with compare-and-swap on its revision. */
 export interface Storage {
   /**
-   * The saved state, with every operation appended since added to its `pending`, and the
-   * last one's `revision` and `nextLocalSequence`.
+   * The saved state, with every operation appended since in its `pending` (replacing the
+   * one of the same local sequence), and the last one's `revision` and `nextLocalSequence`.
    */
   load: () => Effect.Effect<unknown, StorageError>
   /** Replaces the whole state, and with it every appended operation. */
@@ -123,20 +128,28 @@ export const indexedDb = Effect.fn('Storage.indexedDb')(function* (
           new Promise((resolve, reject) => {
             const transaction = database.transaction(['replica', 'outbox'], 'readonly')
             const state = transaction.objectStore('replica').get('state')
-            // In key order, which is revision order.
+            // In key order, which is local-sequence order.
             const appended = transaction.objectStore('outbox').getAll()
             transaction.oncomplete = () => {
-              const saved = state.result as { pending: ReadonlyArray<unknown> } | undefined
+              const saved = state.result as
+                { pending: ReadonlyArray<{ readonly localSequence?: unknown }> } | undefined
               const entries = appended.result as ReadonlyArray<OutboxEntry>
-              const last = entries[entries.length - 1]
+              // Only the last operation is ever rewritten, so the last row is the latest.
+              const latest = entries[entries.length - 1]
+              const replaced = new Set(entries.map(entry => entry.localSequence))
               resolve(
-                saved === undefined || last === undefined
+                saved === undefined || latest === undefined
                   ? saved
                   : {
                       ...saved,
-                      revision: last.revision,
-                      nextLocalSequence: last.nextLocalSequence,
-                      pending: [...saved.pending, ...entries.map(entry => entry.operation)],
+                      revision: latest.revision,
+                      nextLocalSequence: latest.nextLocalSequence,
+                      pending: [
+                        ...saved.pending.filter(
+                          operation => !replaced.has(operation.localSequence as number),
+                        ),
+                        ...entries.map(entry => entry.operation),
+                      ],
                     },
               )
             }
@@ -159,7 +172,7 @@ export const indexedDb = Effect.fn('Storage.indexedDb')(function* (
       Effect.tryPromise({
         try: () =>
           write(expectedRevision, (replica, outbox) => {
-            outbox.put(entry, entry.revision)
+            outbox.put(entry, entry.localSequence)
             replica.put(entry.revision, 'revision')
           }),
         catch: cause => storageError('Could not save the replica', cause),

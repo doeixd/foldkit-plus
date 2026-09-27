@@ -438,6 +438,29 @@ describe('the wired replica', () => {
     expect(exchanged.state).toMatchObject({ pending: [], cursor: 2 })
   })
 
+  it('rewrites a merged rename in place, wherever the unsent rename was stored', async () => {
+    const a = await open('a')
+    await a.submit(created('t'))
+    const rename = (title: string) => Message.RenamedTodo({ id: 't', title })
+    // Submitted while an exchange is out, so the exchange's save stores it in the state,
+    // unsent; the next rename merges into it with a row of its own.
+    await a.synchronize({
+      exchange: async (cursor, pending) => {
+        await a.submit(rename('one'))
+        return server.transport(principal).exchange(cursor, pending)
+      },
+    })
+    expect(await stored('a')).toMatchObject({ state: { pending: [{ opId: 'a:2' }] }, outbox: [] })
+    await a.submit(rename('two'))
+    // Merged again, into the row the last merge wrote: still one row.
+    await a.submit(rename('three'))
+    expect((await stored('a')).outbox).toHaveLength(1)
+    await a.close()
+
+    const reopened = await open('a')
+    expect(reopened.pending().map(op => [op.opId, op.message])).toEqual([['a:2', rename('three')]])
+  })
+
   it('opens a database written before the outbox existed, and appends to it', async () => {
     // A replica's state as version 1 wrote it: one record, with its revision inside.
     const first = await open('v1-source')

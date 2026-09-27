@@ -433,6 +433,23 @@ pending operations on top. A checkpoint behind the replica's current cursor is
 rejected with `CheckpointRegressionError` rather than silently moving history
 backwards.
 
+### Coalescing a burst
+
+Typing makes one durable Message per keystroke. A contract can merge them while
+the server has not seen them. `make({ ..., coalesce: (last, next) => merged })`
+is offered each submitted Message together with the last one in the outbox. If
+it returns a Message, that Message replaces the last operation under the last
+operation's id; if it returns `undefined`, the new Message gets an operation of
+its own. Replaying the merged Message must give the same result as replaying
+`last` then `next`.
+
+An operation is merged into only while no exchange has carried it. Once one has,
+even an exchange that failed, the server may already have committed it as it
+was. An operation loaded from storage is never merged into either. So there is
+no timer to tune: a burst typed while an exchange is out becomes one operation,
+and a single keystroke goes out as quickly as it did before. The local sequence
+still advances on every submit.
+
 ## Replica status and UI state
 
 The public replica surface deliberately exposes enough state for UI and recovery

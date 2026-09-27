@@ -185,6 +185,12 @@ export interface SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded> 
   readonly empty: Shared
   readonly durable: (message: Message) => boolean
   readonly replay: (shared: Shared, message: Message) => Shared
+  /**
+   * Optional. Merges a durable Message into the one submitted before it, while that one
+   * has not been sent: one operation instead of two, for a burst of typing. Replaying the
+   * result must equal replaying `last` then `next`. Undefined keeps them apart.
+   */
+  readonly coalesce?: ((last: Message, next: Message) => Message | undefined) | undefined
 }
 
 export interface Sync<Message, Shared> {
@@ -423,6 +429,9 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       const closed = yield* Ref.make(false)
       const lastError = yield* Ref.make<string | undefined>(undefined)
       const rejectedOps = yield* Ref.make<ReadonlyArray<OpId>>([])
+      // Operations submitted since opening that no exchange has carried yet. Only these may
+      // be coalesced: one that was sent may already be committed as it was.
+      const unsent = yield* Ref.make<ReadonlySet<string>>(new Set())
       // One pending wake-up is enough: the loop exchanges the whole outbox.
       const wake = yield* Queue.sliding<void>(1)
       const statusSignals = yield* PubSub.sliding<void>(1)
@@ -468,19 +477,29 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           Effect.gen(function* () {
             if (yield* Ref.get(closed))
               return yield* new ReplicaClosedError({ message: 'Replica is closed' })
+            const last = current.pending[current.pending.length - 1]
+            const merged =
+              last !== undefined &&
+              definition.coalesce !== undefined &&
+              (yield* Ref.get(unsent)).has(last.opId)
+                ? definition.coalesce(decodeMessage(last.message), message)
+                : undefined
+            // A merged Message takes the place of the last operation, under its identity.
             const operation = yield* Effect.try({
               try: () =>
                 operationFrom(
-                  {
-                    protocolVersion: PROTOCOL_VERSION,
-                    schemaVersion: SCHEMA_VERSION,
-                    documentId,
-                    replicaId,
-                    localSequence: current.nextLocalSequence,
-                    opId: `${replicaId}:${current.nextLocalSequence}`,
-                    baseCursor: current.cursor,
-                    message: encodeMessage(message),
-                  },
+                  merged === undefined
+                    ? {
+                        protocolVersion: PROTOCOL_VERSION,
+                        schemaVersion: SCHEMA_VERSION,
+                        documentId,
+                        replicaId,
+                        localSequence: current.nextLocalSequence,
+                        opId: `${replicaId}:${current.nextLocalSequence}`,
+                        baseCursor: current.cursor,
+                        message: encodeMessage(message),
+                      }
+                    : { ...last!, message: encodeMessage(merged) },
                   documentId,
                 ),
               catch: () => new InvalidOutboxError({ message: 'Invalid outbox' }),
@@ -509,11 +528,16 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             })
             // Validated and encoded by `persist`; decoding here would demand the
             // encoded side and break a transforming `shared` codec.
+            // The sequence moves on a merge too, so every submit is visible in it; a gap
+            // in local sequences is harmless.
             const next: ReplicaState<Shared> = {
               ...current,
               revision: current.revision + 1,
               nextLocalSequence: localSequence(current.nextLocalSequence + 1),
-              pending: [...current.pending, operation],
+              pending: [
+                ...(merged === undefined ? current.pending : current.pending.slice(0, -1)),
+                operation,
+              ],
             }
             // Only the new operation is written when the storage can append it.
             if (storage.append === undefined) yield* persist(next, current)
@@ -530,12 +554,14 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                 {
                   revision: next.revision,
                   nextLocalSequence: next.nextLocalSequence,
+                  localSequence: operation.localSequence,
                   operation: encoded,
                 },
                 current.revision,
               )
             }
             yield* Ref.set(projection, { state: next, shared: replayed })
+            yield* Ref.update(unsent, ids => new Set(ids).add(operation.opId))
             yield* Queue.offer(wake, undefined)
             return [undefined, next] as const
           }),
@@ -550,7 +576,15 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         const transport = yield* Transport
         if (yield* Ref.get(closed))
           return yield* new ReplicaClosedError({ message: 'Replica is closed' })
-        const sent = yield* SynchronizedRef.get(stateRef)
+        // Read under the lock, as a submit writes, so no submit can merge into an operation
+        // between its being read here and its being marked sent.
+        const sent = yield* SynchronizedRef.modifyEffect(stateRef, current =>
+          Ref.update(unsent, ids => {
+            const left = new Set(ids)
+            for (const operation of current.pending) left.delete(operation.opId)
+            return left
+          }).pipe(Effect.as([current, current] as const)),
+        )
         yield* Metric.update(syncMetrics.exchanges, 1)
         yield* Metric.update(syncMetrics.exchangePending, sent.pending.length)
         const response = yield* Effect.gen(function* () {

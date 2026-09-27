@@ -735,6 +735,76 @@ describe('the replica', () => {
   })
 })
 
+describe('coalescing', () => {
+  const renamed = (id: string, title: string): Message => ({ _tag: 'RenamedTodo', id, title })
+  const Coalescing = defineSync({
+    ...definition,
+    coalesce: (last, next) =>
+      last._tag === 'RenamedTodo' && next._tag === 'RenamedTodo' && last.id === next.id
+        ? next
+        : undefined,
+  })
+  const openCoalescing = (id: string, storage = memoryStorage()) =>
+    Effect.runPromise(Coalescing.openReplica(replicaId(id), storage))
+  const titles = (replica: Replica<Message, Shared>) =>
+    pending(replica).map(operation => [
+      operation.opId,
+      (operation.message as { title: string }).title,
+    ])
+
+  it('merges into the unsent operation before it, under that one’s identity', async () => {
+    const replica = await openCoalescing('a')
+    await submit(replica, created('t'))
+    await submit(replica, renamed('t', 'one'))
+    await submit(replica, renamed('t', 'two'))
+    await submit(replica, renamed('other', 'x'))
+    // The create and the first rename stand; the second rename took the first one's place,
+    // and a rename of something else is its own operation.
+    expect(titles(replica)).toEqual([
+      ['a:1', 't'],
+      ['a:2', 'two'],
+      ['a:4', 'x'],
+    ])
+    // The sequence still counts every submit.
+    expect(Effect.runSync(replica.snapshot).nextLocalSequence).toBe(5)
+    expect(shared(replica).todos).toEqual([{ id: 't', title: 'two' }])
+    await close(replica)
+  })
+
+  it('never merges into an operation an exchange carried, even one that failed', async () => {
+    const replica = await openCoalescing('a')
+    await submit(replica, renamed('t', 'one'))
+    await expect(
+      sync(replica, {
+        exchange: async () => {
+          throw new Error('offline')
+        },
+      }),
+    ).rejects.toThrow('offline')
+    // The server may have committed 'one' as it was, so it is not rewritten.
+    await submit(replica, renamed('t', 'two'))
+    expect(titles(replica)).toEqual([
+      ['a:1', 'one'],
+      ['a:2', 'two'],
+    ])
+    await close(replica)
+  })
+
+  it('never merges into an operation it found in storage, which may have been sent', async () => {
+    const storage = memoryStorage()
+    const first = await openCoalescing('a', storage)
+    await submit(first, renamed('t', 'one'))
+    await close(first)
+    const reopened = await openCoalescing('a', storage)
+    await submit(reopened, renamed('t', 'two'))
+    expect(titles(reopened)).toEqual([
+      ['a:1', 'one'],
+      ['a:2', 'two'],
+    ])
+    await close(reopened)
+  })
+})
+
 describe('a transforming shared codec', () => {
   const Counter = defineSync({
     documentId: documentId('counter'),

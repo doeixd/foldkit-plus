@@ -4,7 +4,7 @@
  * replica runs the same `update` without a DOM. Their edits meet in the server's order, and
  * Alice's open editor is patched to show Bob's, not mounted afresh.
  */
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
@@ -15,6 +15,7 @@ import { openJournal } from '../src/journal.js'
 import { view } from '../src/view.js'
 
 const { Replicated } = RichText
+const decodeMessage = Schema.decodeUnknownSync(Message)
 
 const memoryStorage = (): Storage => {
   let state: unknown
@@ -164,6 +165,23 @@ describe('two people on one page', () => {
     )
     return alice
   }
+
+  it('sends a burst of typing the server has not seen as one operation', async () => {
+    const aliceReplica = await open('alice')
+    replicas.push(aliceReplica)
+    const tab = await aliceOnPage(aliceReplica)
+    for (const text of ['H', 'i', '!'])
+      tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text }) }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('Hi!'))
+    // The page's creation, then one edit holding all three keystrokes.
+    await vi.waitFor(() =>
+      expect(
+        Effect.runSync(aliceReplica.pending).map(op => decodeMessage(op.message)._tag),
+      ).toEqual(['CreatedPage', 'EditedPage']),
+    )
+    await synchronize(aliceReplica, 'alice')
+    expect(textOf(journal.snapshot(), tab.model().open!)).toEqual(['Hi!'])
+  })
 
   it('ticks a task, on the page and on the server', async () => {
     const aliceReplica = await open('alice')

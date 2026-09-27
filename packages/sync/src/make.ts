@@ -108,6 +108,15 @@ interface BaseOptions<
   ) => Schema.Struct.Type<NoInfer<Fields>>
   /** Authorization the server journal applies before committing; see `AuthorizePolicy`. */
   readonly authorize?: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
+  /**
+   * Merges a durable Message into the one submitted before it while that one is unsent,
+   * so a burst of edits is one operation. Replaying the result must equal replaying
+   * `last` then `next`; undefined keeps them apart.
+   */
+  readonly coalesce?: (
+    last: MsgOf<NoInfer<Ms>>,
+    next: MsgOf<NoInfer<Ms>>,
+  ) => MsgOf<NoInfer<Ms>> | undefined
 }
 
 export interface MakeOptions<
@@ -383,6 +392,9 @@ const build = <
         return tag !== undefined && durableTags.has(tag)
       },
       replay,
+      // `durable` has already rejected anything outside the declared subset.
+      coalesce: options.coalesce as
+        ((last: Message, next: Message) => Message | undefined) | undefined,
     })
 
     const rules = options.authorize as
