@@ -7,9 +7,7 @@
 import { Schema } from 'effect'
 import type { Nodes, Root } from 'mdast'
 
-export const MarkdownStyle = Schema.Struct({
-  emphasis: Schema.optionalKey(Schema.Literals(['*', '_'])),
-  strong: Schema.optionalKey(Schema.Literals(['**', '__'])),
+const blockFields = {
   bullet: Schema.optionalKey(Schema.Literals(['-', '*', '+'])),
   /** What follows an ordered list's number. */
   delimiter: Schema.optionalKey(Schema.Literals(['.', ')'])),
@@ -19,6 +17,22 @@ export const MarkdownStyle = Schema.Struct({
   rule: Schema.optionalKey(Schema.Literals(['-', '*', '_'])),
   /** `#` before a heading, or a setext underline beneath one (levels 1 and 2 only). */
   heading: Schema.optionalKey(Schema.Literals(['atx', 'setext'])),
+}
+
+/** How one block was spelled: a list's marker, a heading's form, a fence, a rule (§146). */
+export const BlockSpelling = Schema.Struct(blockFields)
+export type BlockSpelling = typeof BlockSpelling.Type
+
+export const MarkdownStyle = Schema.Struct({
+  emphasis: Schema.optionalKey(Schema.Literals(['*', '_'])),
+  strong: Schema.optionalKey(Schema.Literals(['**', '__'])),
+  ...blockFields,
+  /**
+   * Each block's own spelling, by the id the parse gave it, over the construct's spelling
+   * above: two lists that used different bullets keep them. Ids that are no longer in the
+   * document are never read.
+   */
+  blocks: Schema.optionalKey(Schema.Record(Schema.String, BlockSpelling)),
 })
 export type MarkdownStyle = typeof MarkdownStyle.Type
 
@@ -31,6 +45,35 @@ export const canonicalStyle: Required<MarkdownStyle> = {
   fence: '`',
   rule: '-',
   heading: 'atx',
+  blocks: {},
+}
+
+/** The source from a node's start, which is where its spelling is. */
+const sourceAt = (markdown: string, node: Nodes): string =>
+  markdown.slice(node.position?.start.offset ?? 0)
+
+/**
+ * How one block node was spelled, read from the source at its start: a list begins at its
+ * first marker, a heading at `#` or its text, a fence and a rule at their characters. Undefined
+ * for a node with no spelling to keep, including an indented code block, which has no fence.
+ */
+export const blockSpelling = (markdown: string, node: Nodes): BlockSpelling | undefined => {
+  const source = sourceAt(markdown, node)
+  switch (node.type) {
+    case 'heading':
+      return { heading: source.startsWith('#') ? 'atx' : 'setext' }
+    case 'code':
+      return /^(```|~~~)/.test(source) ? { fence: source[0] as '`' | '~' } : undefined
+    case 'thematicBreak':
+      return /^[-*_]/.test(source) ? { rule: source[0] as '-' | '*' | '_' } : undefined
+    case 'list': {
+      if (/^[-*+]/.test(source)) return { bullet: source[0] as '-' | '*' | '+' }
+      const ordered = /^\d+([.)])/.exec(source)
+      return ordered === null ? undefined : { delimiter: ordered[1] as '.' | ')' }
+    }
+    default:
+      return undefined
+  }
 }
 
 /**
@@ -39,34 +82,20 @@ export const canonicalStyle: Required<MarkdownStyle> = {
  * earlier style keeps what the new text did not say.
  */
 export const styleOf = (markdown: string, root: Root): MarkdownStyle => {
-  const found: {
-    -readonly [Key in keyof MarkdownStyle]: MarkdownStyle[Key]
-  } = {}
-  const at = (node: Nodes): string => markdown.slice(node.position?.start.offset ?? 0)
+  let found: Omit<MarkdownStyle, 'blocks'> = {}
   const visit = (node: Nodes): void => {
-    const source = at(node)
+    const source = sourceAt(markdown, node)
     if (node.type === 'emphasis' && found.emphasis === undefined) {
-      if (source.startsWith('*') || source.startsWith('_')) found.emphasis = source[0] as '*' | '_'
+      if (source.startsWith('*') || source.startsWith('_')) {
+        found = { ...found, emphasis: source[0] as '*' | '_' }
+      }
     } else if (node.type === 'strong' && found.strong === undefined) {
       if (source.startsWith('**') || source.startsWith('__')) {
-        found.strong = source.slice(0, 2) as '**' | '__'
+        found = { ...found, strong: source.slice(0, 2) as '**' | '__' }
       }
-    } else if (node.type === 'listItem') {
-      // An item's source begins at its marker: a bullet, or a number and its delimiter.
-      if (found.bullet === undefined && /^[-*+]/.test(source)) {
-        found.bullet = source[0] as '-' | '*' | '+'
-      }
-      const ordered = /^\d+([.)])/.exec(source)
-      if (found.delimiter === undefined && ordered !== null) {
-        found.delimiter = ordered[1] as '.' | ')'
-      }
-    } else if (node.type === 'code' && found.fence === undefined) {
-      // An indented code block has no fence to learn from.
-      if (source.startsWith('```') || source.startsWith('~~~')) found.fence = source[0] as '`' | '~'
-    } else if (node.type === 'heading' && found.heading === undefined) {
-      found.heading = source.startsWith('#') ? 'atx' : 'setext'
-    } else if (node.type === 'thematicBreak' && found.rule === undefined) {
-      if (/^[-*_]/.test(source)) found.rule = source[0] as '-' | '*' | '_'
+    } else {
+      // A spelling holds only what it found, and what was found first wins.
+      found = { ...blockSpelling(markdown, node), ...found }
     }
     if ('children' in node) for (const child of node.children) visit(child as Nodes)
   }

@@ -191,9 +191,17 @@ const inlineLine = (block: RichText.Block, printing: Printing): string =>
 const quote = (lines: ReadonlyArray<string>): ReadonlyArray<string> =>
   lines.map(line => (line.length === 0 ? '>' : `> ${line}`))
 
+/** How a block is spelled: as the text it was read from spelled it, else as its construct is. */
+const spellingOf = (block: RichText.Block, printing: Printing): Required<MarkdownStyle> => ({
+  ...printing.style,
+  ...printing.style.blocks[block.id],
+})
+
 /** The character a list's markers repeat: its bullet, or what follows its numbers. */
-const markerOf = (block: RichText.NodeBlock, style: Required<MarkdownStyle>): string =>
-  block.props.ordered === true ? style.delimiter : style.bullet
+const markerOf = (block: RichText.NodeBlock, printing: Printing): string => {
+  const spelling = spellingOf(block, printing)
+  return block.props.ordered === true ? spelling.delimiter : spelling.bullet
+}
 
 /** The other spelling of a marker, for a list that must not read as the one before it. */
 const OTHER_MARKER: Readonly<Record<string, string>> = {
@@ -240,7 +248,7 @@ const code = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<stri
     .map(run => run.text)
     .join('')
     .replace(/\n$/, '')
-  const character = printing.style.fence
+  const character = spellingOf(block, printing).fence
   const fence = character.repeat(Math.max(3, longestRun(text, character) + 1))
   return [`${fence}${language}`, ...text.split('\n'), fence]
 }
@@ -304,7 +312,7 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
   if (block.type === 'Heading') {
     const text = inlineLine(block, printing)
     // Setext has an underline for levels 1 and 2 only; deeper headings stay ATX.
-    if (printing.style.heading === 'setext' && block.level <= 2) {
+    if (spellingOf(block, printing).heading === 'setext' && block.level <= 2) {
       return [protectLine(text), (block.level === 1 ? '=' : '-').repeat(Math.max(3, text.length))]
     }
     // A trailing `#` would be read as the heading's optional closing sequence.
@@ -312,7 +320,7 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
   }
   if (block.kind === 'Quote') return quote(renderBlocks(block.blocks ?? [], printing))
   if (block.kind === 'CodeBlock') return code(block, printing)
-  if (block.kind === 'ThematicBreak') return [printing.style.rule.repeat(3)]
+  if (block.kind === 'ThematicBreak') return [spellingOf(block, printing).rule.repeat(3)]
   if (block.kind === 'Image') return [image(block, printing)]
   if (block.kind === 'Table') return table(block, printing)
   // A kind with no syntax is reported, and its content is printed rather than lost.
@@ -333,7 +341,7 @@ const renderBlocks = (
   let listBefore: string | undefined
   for (const block of blocks) {
     const wanted =
-      block.type === 'Node' && block.kind === 'List' ? markerOf(block, printing.style) : undefined
+      block.type === 'Node' && block.kind === 'List' ? markerOf(block, printing) : undefined
     const marker = wanted !== undefined && wanted === listBefore ? OTHER_MARKER[wanted] : wanted
     const rendered =
       block.type === 'Node' && marker !== undefined

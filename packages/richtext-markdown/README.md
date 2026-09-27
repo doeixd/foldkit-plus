@@ -99,6 +99,12 @@ const parsed = parse('_hello_\n\n* item\n', { mint: () => `id-${++n}` })
 print(parsed.document, { style: parsed.style }).markdown // '_hello_\n\n* item\n'
 ```
 
+Blocks also keep their own spelling. `style.blocks` maps the id `parse` gave each list, heading,
+fence, and rule to how that one was written, so a text with a `-` list and a `*` list, or a
+setext title over `##` sections, prints back as it was. A block the text did not have, such as
+a list added in the rich editor, takes its construct's spelling. Emphasis stays per construct,
+because runs split and merge as they are edited and their ids do not last.
+
 A spelling that would change what the text means somewhere — `_` does not open emphasis inside
 a word — is not used: `print` reads its styled text back, and when that reads as a different
 document than the canonical text, the canonical text is what it returns.
@@ -156,7 +162,7 @@ puts `closed.document` in its Model, so it can warn first. `SourceSession` is a 
 session fits in a Model as it is.
 
 `closed.style` is how the edited draft spelled its constructs, over the style the session
-opened with. Keep it beside the document and pass it to the next `openSource(document,
+opened with; its `blocks` are the edited draft's alone, since the blocks it names are new. Keep it beside the document and pass it to the next `openSource(document,
 style)`, and a writer who typed `_hello_` and `* item` sees them spelled that way when they
 come back to source mode, rather than in the canonical `*hello*` and `- item`.
 

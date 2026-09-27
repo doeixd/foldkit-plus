@@ -91,13 +91,22 @@ describe('a Markdown source session', () => {
       original,
       minted(),
     )
-    expect(first.style).toEqual({ heading: 'atx', emphasis: '_', bullet: '*' })
+    const { blocks: firstBlocks, ...firstConstructs } = first.style
+    expect(firstConstructs).toEqual({ heading: 'atx', emphasis: '_', bullet: '*' })
+    expect(Object.values(firstBlocks ?? {})).toEqual([{ heading: 'atx' }, { bullet: '*' }])
     // Reopening with that style prints the document as it was written, not canonically.
     const again = openSource(first.document, first.style)
     expect(again.draft).toBe('# Title\n\n_marked_ and\n\n* a\n')
     // Closing it unedited keeps the style; editing keeps what the new text no longer spells.
     expect(closeSource(again, first.document, minted()).style).toEqual(first.style)
     const edited = closeSource({ ...again, draft: '__bold__\n' }, first.document, minted())
-    expect(edited.style).toEqual({ heading: 'atx', emphasis: '_', bullet: '*', strong: '__' })
+    // The per-block spellings are the new text's: the old ids are gone from the document.
+    expect(edited.style).toEqual({
+      heading: 'atx',
+      emphasis: '_',
+      bullet: '*',
+      strong: '__',
+      blocks: {},
+    })
   })
 })

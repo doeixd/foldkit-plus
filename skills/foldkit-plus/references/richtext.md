@@ -310,7 +310,7 @@ the Markdown itself: `openSource(document)` gives `{ printed, draft, unprintable
 `SourceSession` schema the Model holds), and `closeSource(session, document, { mint })` returns
 the caller's document untouched when the draft was not edited, or the parsed draft with the
 diagnostics of what the edit loses. `parse` also returns a `MarkdownStyle` (which spelling each
-construct took), `print(document, { style })` reuses it where it keeps the meaning, and a
+construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id), `print(document, { style })` reuses it where it keeps the meaning, and a
 session's `closeSource(...).style` is what to pass to the next `openSource(document, style)`.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and

@@ -11,7 +11,7 @@ import { gfm } from 'micromark-extension-gfm'
 import * as RichText from 'foldkit-richtext'
 import type { MarkdownDiagnostic } from './diagnostic.js'
 import { HEADING_LEVELS } from './levels.js'
-import { styleOf, type MarkdownStyle } from './style.js'
+import { blockSpelling, styleOf, type BlockSpelling, type MarkdownStyle } from './style.js'
 
 export interface ParseOptions {
   /** Identity for every block and run this mints; the codec refuses a repeat. */
@@ -23,6 +23,15 @@ export interface ParsedMarkdown {
   readonly diagnostics: ReadonlyArray<MarkdownDiagnostic>
   /** How the text spelled what it used, for `print` to spell it the same way (§138). */
   readonly style: MarkdownStyle
+}
+
+/** What one parse carries through its blocks. */
+interface Reading {
+  readonly markdown: string
+  readonly diagnostics: Array<MarkdownDiagnostic>
+  readonly mint: () => string
+  /** Each spelled block's spelling, by the id it was given (§146). */
+  readonly spellings: Map<string, BlockSpelling>
 }
 
 /** Props are what a `JsonObject` holds, so this is narrower than the codec's type. */
@@ -141,11 +150,7 @@ const paragraph = (children: ReadonlyArray<RichText.Text>, mint: () => string): 
 })
 
 /** A list holds items; an item that says it is checked is a `TaskItem`, which is a kind. */
-const listBlock = (
-  node: List,
-  diagnostics: Array<MarkdownDiagnostic>,
-  mint: () => string,
-): RichText.Block => {
+const listBlock = (node: List, reading: Reading): RichText.Block => {
   const props: Props =
     node.ordered === true
       ? node.start === null || node.start === undefined || node.start === 1
@@ -156,11 +161,11 @@ const listBlock = (
     container(
       item.checked === null || item.checked === undefined ? 'ListItem' : 'TaskItem',
       item.checked === null || item.checked === undefined ? {} : { checked: item.checked },
-      blocksFrom(item.children, diagnostics, mint),
-      mint,
+      blocksFrom(item.children, reading),
+      reading.mint,
     ),
   )
-  return container('List', props, items, mint)
+  return container('List', props, items, reading.mint)
 }
 
 /** A GFM table: a row per `tableRow`, a cell holding one paragraph of its inline content.
@@ -189,11 +194,8 @@ const tableBlock = (
 }
 
 /** One mdast block as one semantic block, or as a diagnostic where there is no shape. */
-const blockFrom = (
-  node: RootContent,
-  diagnostics: Array<MarkdownDiagnostic>,
-  mint: () => string,
-): ReadonlyArray<RichText.Block> => {
+const blockFrom = (node: RootContent, reading: Reading): ReadonlyArray<RichText.Block> => {
+  const { diagnostics, mint } = reading
   switch (node.type) {
     case 'paragraph': {
       // A paragraph holding only an image is the printer's own Image line; hoisting it
@@ -227,9 +229,9 @@ const blockFrom = (
         },
       ]
     case 'blockquote':
-      return [container('Quote', {}, blocksFrom(node.children, diagnostics, mint), mint)]
+      return [container('Quote', {}, blocksFrom(node.children, reading), mint)]
     case 'list':
-      return [listBlock(node, diagnostics, mint)]
+      return [listBlock(node, reading)]
     case 'code':
       return [
         holder(
@@ -258,11 +260,18 @@ const blockFrom = (
   }
 }
 
+/** Blocks in order, recording the spelling of each that has one under the id it was given. */
 const blocksFrom = (
   nodes: ReadonlyArray<RootContent>,
-  diagnostics: Array<MarkdownDiagnostic>,
-  mint: () => string,
-): ReadonlyArray<RichText.Block> => nodes.flatMap(node => blockFrom(node, diagnostics, mint))
+  reading: Reading,
+): ReadonlyArray<RichText.Block> =>
+  nodes.flatMap(node => {
+    const blocks = blockFrom(node, reading)
+    const spelling = blockSpelling(reading.markdown, node)
+    // A spelled node is a list, heading, fence, or rule, and each reads as exactly one block.
+    if (spelling !== undefined) reading.spellings.set(blocks[0]!.id, spelling)
+    return blocks
+  })
 
 /**
  * Reads Markdown into a document. `mint` supplies every identity, so a parse never
@@ -271,7 +280,12 @@ const blocksFrom = (
  * a document cannot — raw HTML, a footnote, a definition — is reported in `diagnostics`.
  */
 export const parse = (markdown: string, options: ParseOptions): ParsedMarkdown => {
-  const diagnostics: Array<MarkdownDiagnostic> = []
+  const reading: Reading = {
+    markdown,
+    diagnostics: [],
+    mint: options.mint,
+    spellings: new Map(),
+  }
   const tree = fromMarkdown(markdown, {
     extensions: [gfm()],
     mdastExtensions: [gfmFromMarkdown()],
@@ -279,9 +293,10 @@ export const parse = (markdown: string, options: ParseOptions): ParsedMarkdown =
   return {
     document: RichText.decodeDocument({
       version: 1,
-      children: blocksFrom(tree.children, diagnostics, options.mint),
+      children: blocksFrom(tree.children, reading),
     }),
-    diagnostics,
-    style: styleOf(markdown, tree),
+    diagnostics: reading.diagnostics,
+    // Always present, so a caller merging this over an older style drops the older ids.
+    style: { ...styleOf(markdown, tree), blocks: Object.fromEntries(reading.spellings) },
   }
 }

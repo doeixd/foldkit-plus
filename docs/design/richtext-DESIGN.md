@@ -7596,7 +7596,7 @@ the session's, so a construct the new text no longer contains keeps its old spel
 unedited session hands back the one it opened with. The application keeps it beside the
 document.
 
-Not yet: per-node spellings.
+Per-block spellings came next (§146).
 
 ---
 
@@ -7888,3 +7888,38 @@ round-trips it through `adopt` would hold the two equal.
 Not done: the route decision, the server renderer, the placeholder on adopted markup (drawn
 after mount, as for a fresh one, and not tested there), and a page-level test through
 `foldkit-ssr`.
+
+---
+
+# 146. Each block's own spelling
+
+§138 kept one spelling per construct and put per-node spellings aside, "a per-node map would
+need identities a re-parse does not keep". That is true across two parses, but not needed within
+one. `parse` mints each block's id at the moment it converts the mdast node that has the
+spelling, so it can record the spelling under that id. The map then holds for as long as the
+block keeps its id, and a rich edit keeps it: a list stays the same list while items are typed
+into it.
+
+```text
+style.blocks   { [block id]: { bullet | delimiter | fence | rule | heading } }
+print          the block's own spelling, over the construct's, over canonical
+```
+
+- **Blocks only.** Lists, headings, fences, and rules. A run's emphasis would be keyed by a run
+  id, and runs split and merge under ordinary typing, so it stays per construct.
+- **Always present after a parse.** `parse` returns `blocks`, empty or not, so
+  `closeSource`'s merge (`{ ...session.style, ...parsed.style }`) replaces the old map. The old
+  ids are gone from the document, and a caller whose `mint` repeats could otherwise meet them
+  again on unrelated blocks.
+- **A new block takes its construct's spelling.** A list added in rich mode has no entry, so it
+  prints as the text's first list did.
+- **Read where the construct is read.** `blockSpelling` reads one node's spelling from the
+  source at its start. `styleOf` takes the first of them per construct, so the two cannot
+  disagree about what a spelling is. A list is read at its own start, which is its first marker.
+
+Finding the per-block case uncovered a printer bug that no spelling had caused. Two adjacent
+lists of one kind printed with one marker, and CommonMark reads that as one list, so a round trip
+merged them. §138's check compares the styled output with the canonical one, which assumes the
+canonical text round-trips; here it did not. The printer now gives a list right after another of
+its kind the other marker (`-` then `*`, `.` then `)`), because a changed marker is what starts a
+new list.
