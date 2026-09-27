@@ -218,12 +218,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- **`foldkit-ssr`: Messages answered before boot are folded into the Model the
-  runtime starts from,** instead of replayed through a Subscription after its
+- **`foldkit-ssr`: Messages answered before boot reach `update` before any
+  other Message,** instead of being replayed through a Subscription after the
   first render. An event dispatched in the task that boots the page, such as
   the rest of a burst of typing, reached the runtime before the replay, so
-  the text ended on its first character. The `foldkit-ssr.replay` entry is
-  gone.
+  the text ended on its first character. The runtime still starts from the
+  resumed Model, so its first render is the served markup; its `update` is
+  wrapped to run the answered Messages ahead of the first one it processes.
+  The `foldkit-ssr.replay` entry is gone.
 - **`foldkit-ssr`: deferred boot no longer depends on `hydrate` rendering its
   first frame before it returns.** Until that frame commits the page keeps
   answering from its markers, and it then sends the live page the events only

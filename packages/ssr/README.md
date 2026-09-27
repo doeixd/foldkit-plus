@@ -327,7 +327,7 @@ code to start.
 server   each handler ──▶ its Message, encoded ──▶ a marker on the element + an entry in the envelope
 
 browser  event ──▶ the markers name its Messages ──▶ queued ──▶ the runtime boots
-                                                             ──▶ the queue replays through update
+                                                             ──▶ update runs the queue first
 ```
 
 It rests on the fact that a Foldkit handler is already a Message value.
@@ -387,11 +387,12 @@ const Post = SSR.plan(App, {
 })
 ```
 
-The event that boots the page is not lost and does not count twice. Messages
-answered before boot go through the same `update`, in order, before the
-runtime starts, and it starts from the Model they lead to, so the Model ends
-where an eager boot would have taken it, even for events dispatched in the
-task that boots it. The input typed into is adopted, not rebuilt.
+The event that boots the page is not lost and does not count twice. The
+runtime starts from the resumed Model, so its first render is the served
+markup and every node is adopted, the input typed into included. The Messages
+answered before boot then go through the same `update`, in order, ahead of
+anything the live page answers, even an event dispatched in the task that
+boots it, so the Model ends where an eager boot would have taken it.
 
 ### What a resumable page must declare
 

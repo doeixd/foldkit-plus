@@ -102,6 +102,12 @@ export const config = {
             [rh.Id('form'), rh.OnSubmit(Message.Submitted({ title: model.text }))],
             [rh.input([rh.Name('title'), rh.Value(model.text)])],
           ),
+          // Text and an element side by side: the first render must match the
+          // served markup, or Foldkit rebuilds the label's children, input and all.
+          rh.label(
+            [rh.Id('counted')],
+            [`${model.log.length} logged `, rh.input([rh.Id('beside')])],
+          ),
           // A function: the page cannot name it, so only the live page answers.
           rh.button([rh.Id('point'), rh.OnPointerDown(() => Option.some(Message.Pointed()))], []),
         ],

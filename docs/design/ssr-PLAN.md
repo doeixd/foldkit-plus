@@ -762,8 +762,8 @@ this plan's next track, in its order, and it is the source for their detail:
     program at boot, so the queued Messages go through Foldkit's own queue in
     order after its first render, with no second dispatch path. *Replaced in
     G2:* an event dispatched in the task that boots the page reached the
-    queue before the replay, so the boot now folds the queued Messages
-    through `update` and starts the runtime from the result.
+    queue before the replay, so the runtime's `update` is wrapped to run the
+    queued Messages ahead of the first Message it processes.
   - **Remote marks its entries deferrable itself**, with a symbol on each
     entry `Data.subscriptions` and the fold produce, and its part's
     `deferrable(key, entry)` reads it: the declaration travels with the
@@ -948,12 +948,17 @@ that can fail, or, for G4, a recorded measurement.
     and the replay Subscription delivered the queued `Typed` after them. Any
     event in the booting task could be reordered this way, for example a
     `focus` that the browser fires in the same task as the `mousedown` that
-    boots. The Subscription entry is gone: the boot folds the queued
-    Messages through `update` and starts the runtime from that Model, with
-    the Commands they return added to the plan's `boot` Commands. Nothing is
-    in flight when the first live event arrives. With the old replay the
-    typing and closure sequences fail, and each of the three planned
-    mutations fails at least one sequence.
+    boots. The Subscription entry is gone. The runtime still starts from the
+    resumed Model, and the `update` handed to it is wrapped: the first
+    Message it processes, whatever it is, runs the answered Messages
+    through `update` ahead of itself, their Commands with its own. A first
+    version instead folded the answered Messages into the Model the runtime
+    starts from; its first render then no longer matched the served markup,
+    and Foldkit rebuilt the children of any element whose text had changed,
+    an input beside the text included. `equivalenceAdoption.test.ts` pins
+    that the input survives. With the old replay the typing and closure
+    sequences fail, and each of the three planned mutations fails at least
+    one sequence.
 
 - **G3. Test Phase E the way the design states it.** The design's test is
   that a form posted without JavaScript "returns the page a browser click
@@ -1029,20 +1034,21 @@ that can fail, or, for G4, a recorded measurement.
   and still reaches the live page with a closure's event.
   - **Done** (`lateCommitClick.test.ts`, `lateCommitUnnamed.test.ts`, which
     mock `foldkit/runtime` so `hydrate` starts in a later task). G2 had
-    already removed the replay Subscription, so this step keeps the page's
-    own listeners attached until the first render commits, instead of
-    removing them as soon as the runtime starts. When `hydrate` returns with
-    the root's stamp gone, the first patch has run and the page hands over at
-    once, as before. Otherwise a `foldkit-ssr.committed` Subscription entry
-    yields `Render.afterCommit`. Until then, named answers are queued, and
-    unnamed events, the booting one included, are kept. After it, the entry
-    dispatches the queued Messages through the runtime and only then sends
-    the kept events to the live page. Both tests fail on the code before
-    this step: the click before the first render is lost, and so is the
-    closure's event. Removing either the queue or the re-dispatch fails one of
-    them; handing over as soon as the runtime starts fails both; and
-    handing over only through the entry fails a Phase C test, because the
-    live page would then answer events that the markers had already stopped.
+    already removed the replay Subscription, so this step keeps the page
+    listening until the first render has committed, instead of stopping as
+    soon as the runtime starts. When `hydrate` returns with the root's stamp
+    gone, the first patch has run and the page stops at once, as before.
+    Otherwise a `foldkit-ssr.handover` Subscription entry, which Foldkit
+    starts after its first render, yields `Render.afterCommit` while the root
+    is still stamped. It then stops the page, sends the kept events to the
+    live page, and emits one internal Message, so the runtime takes the
+    answered Messages even if nothing else asks it to. Both tests fail on the
+    code before this step: the click before the first render is lost, and so
+    is the closure's event. Dropping the re-dispatch fails the closure test;
+    stopping as soon as the runtime starts fails both; not stopping when
+    `hydrate` returns fails a Phase C test, because the kept booting event
+    would reach the live page twice; and dropping the internal Message fails
+    both late tests and most G2 sequences.
 
 Order: G1, then G2, then G3, which reuses G2's harness. G4 and G5 can run at
 any point; G5 comes before any upstream proposal, per
