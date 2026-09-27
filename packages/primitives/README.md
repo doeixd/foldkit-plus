@@ -749,7 +749,8 @@ Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
 
 `EditableText` is text typed into a marked descendant of a container while it
 is `contenteditable`, as one Mount on the container. The view decides which
-field is editable, and focuses it; the Mount reads what is typed:
+field is editable; the Mount focuses it when it becomes so, with the caret at
+its end, and reads what is typed:
 
 - **Text, never markup.** It reads `innerText`. A field is one line unless it
   carries `aria-multiline="true"`, and in one line a line break becomes a

@@ -215,3 +215,23 @@ it('asks for a field to be edited on a double-click, and not once it is editable
     await stop()
   }
 })
+
+it('focuses a field when it becomes editable, the caret at its end', async () => {
+  const { field, outside, facts, stop } = await mount('Hi', { editable: 'false' })
+  try {
+    outside.focus()
+    field.contentEditable = 'plaintext-only'
+    await vi.waitFor(() => expect(document.activeElement).toBe(field))
+    await userEvent.keyboard('!')
+    await vi.waitFor(() =>
+      expect(facts.slice(-1)).toEqual([TextEdited.make({ field: 'title', text: 'Hi!' })]),
+    )
+    // Once: a later change on the page does not take focus back from where it went.
+    outside.focus()
+    field.parentElement?.appendChild(document.createElement('i'))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(document.activeElement).toBe(outside)
+  } finally {
+    await stop()
+  }
+})

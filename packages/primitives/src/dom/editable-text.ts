@@ -1,9 +1,10 @@
 /**
  * Text typed into an editable descendant of an element, as a Mount: one set of
  * listeners on the container, like `Targets`. A field is a descendant marked
- * by an attribute whose value names it, while it is `contenteditable`; the
- * view decides which one is, and focuses it. A double-click on a marked field
- * that is not editable yet asks for it to be (`EditAsked`).
+ * by an attribute whose value names it, while it is `contenteditable`. The
+ * view decides which one is; the Mount focuses it when it becomes so, with the
+ * caret at its end. A double-click on a marked field that is not editable yet
+ * asks for it to be (`EditAsked`).
  *
  * It reads `innerText`, never `innerHTML`, so what arrives is text. A field is
  * one line unless it carries `aria-multiline="true"`: in one line, a line
@@ -220,11 +221,38 @@ export const EditableText = Mount.defineStream('EditableText', {
               },
             ],
           ]
+          /** Focuses a field that has become editable, the caret at its end, once. */
+          let claimed: Element | undefined
+          const claim = () => {
+            const field = element.querySelector(
+              `[${attribute}][contenteditable]:not([contenteditable="false"])`,
+            )
+            if (!(field instanceof HTMLElement) || field === claimed) return
+            claimed = field
+            // Chromium also focuses on the selection below; no standard says a browser must.
+            field.focus()
+            const caret = document.createRange()
+            caret.selectNodeContents(field)
+            caret.collapse(false)
+            const selection = window.getSelection()
+            selection?.removeAllRanges()
+            selection?.addRange(caret)
+          }
+          const becoming = new MutationObserver(claim)
+
           for (const [type, listener] of listeners) element.addEventListener(type, listener)
-          return listeners
+          becoming.observe(element, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            attributeFilter: ['contenteditable'],
+          })
+          claim()
+          return { listeners, becoming }
         }),
-        listeners =>
+        ({ listeners, becoming }) =>
           Effect.sync(() => {
+            becoming.disconnect()
             for (const [type, listener] of listeners) element.removeEventListener(type, listener)
           }),
       ),
