@@ -31,6 +31,16 @@ const siteLink = (path: string) => (reader === 'visitor' ? path : `${path}?as=${
 const status = (slots: Slots, h: HtmlBuilder<Message>, text: string): Html =>
   h.p(slots.status.attrs(), [text])
 
+/** A read with nothing to show: loading, failed, or, once read, missing, with a way home. */
+const nothing = (slots: Slots, h: HtmlBuilder<Message>, tag: string, missing: string): Html =>
+  tag === 'Ready'
+    ? h.p(slots.status.attrs(), [
+        missing,
+        ' ',
+        h.a([h.Href(siteLink('/site'))], ['Go to the home page']),
+      ])
+    : status(slots, h, pending(tag, missing))
+
 /** What a read says while it has nothing to show: not found once it is read. */
 const pending = (tag: string, missing: string) =>
   tag === 'Ready' ? missing : tag === 'Failed' ? 'This could not be read.' : 'Loading…'
@@ -45,7 +55,7 @@ const tagOf = <A extends { readonly _tag: string }>(
 const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   Option.match(pageDocument(model), {
     onNone: () => [
-      status(slots, h, pending(tagOf(pageRead(model), model), 'There is no page at this address.')),
+      nothing(slots, h, tagOf(pageRead(model), model), 'There is no page at this address.'),
     ],
     // The site's Blocks send nothing; their links are followed by the application's routing.
     onSome: document =>
@@ -55,9 +65,7 @@ const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
 const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   const first = Option.flatMap(postRead(model), read => firstOf(read.read(model)))
   if (Option.isNone(first))
-    return [
-      status(slots, h, pending(tagOf(postRead(model), model), 'There is no post at this address.')),
-    ]
+    return [nothing(slots, h, tagOf(postRead(model), model), 'There is no post at this address.')]
   const found = first.value
   return [
     article({
@@ -110,7 +118,8 @@ const titleOf = (model: Model): string => {
           Option.flatMap(pageRead(model), read => firstOf(read.read(model))),
           found => found.title,
         ),
-        () => 'Journal',
+        // Not a page (yet): the site's name alone, not "Journal · Journal".
+        () => '',
       )
   }
 }
@@ -137,9 +146,10 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
         ...sections.map(({ label, path, current }) =>
           h.a(slots.navLink.attrs([h.Href(siteLink(path)), ...current]), [label]),
         ),
-        ...(reader === 'visitor'
-          ? []
-          : [h.a(slots.studio.attrs([h.Href(`/?as=${reader}`)]), ['Open the studio'])]),
+        // A visitor too: the demo is a way through both, so there is always a way back.
+        h.a(slots.studio.attrs([h.Href(reader === 'visitor' ? '/' : `/?as=${reader}`)]), [
+          'Open the studio',
+        ]),
       ]),
     ]),
     h.main(
@@ -160,7 +170,7 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
   ])
 }).pipe(Style.attach(SiteStyle))
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: `${titleOf(model)} · Journal`,
-  body: Site(model, h),
-})
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+  const title = titleOf(model)
+  return { title: title === '' ? 'Journal' : `${title} · Journal`, body: Site(model, h) }
+}

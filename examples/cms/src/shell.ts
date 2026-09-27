@@ -132,11 +132,8 @@ export const shell = <M>(
       h.nav(slots.nav.attrs([h.AriaLabel('Sections')]), [
         link('posts', 'Posts', `/?as=${chair}`),
         link('pages', 'Pages', `/pages?as=${chair}`),
-        h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`)]), [
-          icon(h, 'site'),
-          'View site',
-          h.span(slots.navAside.attrs(), [icon(h, 'external', 14)]),
-        ]),
+        // In this tab, as the site links back here: no mark of a link that leaves.
+        h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`)]), [icon(h, 'site'), 'View site']),
       ]),
       h.nav(slots.account.attrs([h.AriaLabel('Who is looking')]), [
         h.p(slots.accountLabel.attrs(), ['Signed in as']),

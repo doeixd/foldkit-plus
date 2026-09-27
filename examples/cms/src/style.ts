@@ -87,8 +87,6 @@ export const AdminSlots = Slots.define({
   brandMark: part,
   nav: part,
   navLink: control,
-  /** Beside a link's words, at its end: an external mark, a role. */
-  navAside: part,
   account: part,
   accountLabel: part,
   whoLink: control,
@@ -313,13 +311,6 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
     ),
     navLink,
-    navAside: Style.self({
-      color: t.text.muted,
-      display: 'inline-flex',
-      fontSize: t.size.xs,
-      fontWeight: t.weight.normal,
-      marginInlineStart: 'auto',
-    }),
     account: Style.compose(
       Style.self({
         borderBlockStart: `1px solid ${t.outline.subtle}`,
@@ -1127,6 +1118,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         alignItems: 'center',
         borderRadius: t.radius.sm,
         cursor: 'pointer',
+        // A drag begun on a row moves the row, not a selection of every row's text.
+        userSelect: 'none',
         display: 'flex',
         fontSize: t.size.sm,
         gap: '0.35rem',
