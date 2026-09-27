@@ -99,13 +99,13 @@ export const actives = {
   ...PostEditor.actives,
   history: {
     name: 'History',
-    owner: Data.contract.owner ?? {},
+    owner: App.owner,
     messages: [],
     projectionOf: history,
   },
   page: {
     name: 'PostPage',
-    owner: Data.contract.owner ?? {},
+    owner: App.owner,
     messages: [],
     projectionOf: (model: Model) => {
       const id = PostEditor.pageId(model)

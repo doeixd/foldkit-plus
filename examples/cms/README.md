@@ -100,9 +100,9 @@ editor adds no CMS state.
 
 | In the transcript | What it is |
 | --- | --- |
-| `the body: "# Tending\n\nWater **early**"; caret at 5` | The writer typed `# Tending`, Enter, and a bold word. `# ` is a Markdown input rule that makes a heading; Enter after a heading starts a paragraph. The transcript prints the document as Markdown. |
+| `the body: "# Tending\n\nWater **early**"; caret at 5 in e2` | The writer typed `# Tending`, Enter, and a bold word; the caret is at the end of that word's run, `e2`. `# ` is a Markdown input rule that makes a heading; Enter after a heading starts a paragraph. The transcript prints the document as Markdown. |
 | `every edit is a draft: Saved; 22 saves, each SaveDraft` | Each change to the title, and each character typed into the body, is saved as a draft. |
-| `resumed from the Model: … caret at 5` | The saved draft holds the editor's Model: the document, and with it the caret, stored marks and undo history. |
+| `resumed from the Model: … caret at 5 in e2` | The saved draft holds the editor's Model: the document, and with it the caret, stored marks and undo history. |
 | `the writer's preview: <h1>Tending</h1>…; sent nothing` | The preview draws the form's document with the standard rendering. Nothing is sent. |
 | `a visitor at /articles/on-gardens: …` | A visitor gets the published row's document, drawn the same way. |
 | `revisions: 1, 2` / `restored as a draft … nothing was published by that` | Revisions and restore are the CMS's, for a document as for a string. |

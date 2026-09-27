@@ -1,5 +1,5 @@
 /**
- * An article's life in the CMS, its body a rich-text document (§12, §140): the post's story
+ * An article's life in the CMS, its body a rich-text document (§124 §12, §140): the post's story
  * again, with the editor as the body's form control. A writer types — a Markdown marker, a
  * bold word — and every edit is a draft; a reload resumes it with the caret where it was; a
  * preview and a visitor read the document through the standard rendering; an editor
@@ -129,7 +129,7 @@ const actives = {
   ...ArticleEditor.actives,
   page: {
     name: 'ArticlePage',
-    owner: Data.contract.owner ?? {},
+    owner: App.owner,
     messages: [],
     projectionOf: (model: Model) => {
       const id = ArticleEditor.pageId(model)
@@ -273,7 +273,9 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
       body: () => markdown(draft().document),
       caret: () => {
         const selection = draft().selection
-        return selection?.type === 'Range' ? `${selection.anchor.offset}` : 'none'
+        return selection?.type === 'Range'
+          ? `${selection.anchor.offset} in ${selection.anchor.node}`
+          : 'none'
       },
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => ArticleEditor.status(model),

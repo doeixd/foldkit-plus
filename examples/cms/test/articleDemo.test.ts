@@ -5,10 +5,10 @@ describe('foldkit-cms example, with a rich-text body', () => {
   it('takes an article from its first keystroke to a scheduled change, the body a document', async () => {
     expect(await runArticleDemo()).toEqual([
       '— a writer starts an article —',
-      'the body: "# Tending\\n\\nWater **early**"; caret at 5',
+      'the body: "# Tending\\n\\nWater **early**"; caret at 5 in e2',
       'every edit is a draft: Saved; 22 saves, each SaveDraft',
       '— a reload resumes the draft —',
-      'resumed from the Model: "# Tending\\n\\nWater **early**"; caret at 5',
+      'resumed from the Model: "# Tending\\n\\nWater **early**"; caret at 5 in e2',
       '— a preview draws the document, sending nothing —',
       "the writer's preview: <h1>Tending</h1><p>Water <strong>early</strong></p>; sent nothing",
       '— the editor publishes —',
