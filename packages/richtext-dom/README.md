@@ -107,8 +107,11 @@ What each part does, and does not do:
   is completed (§128), such as `foldkit-richtext-markdown`'s `markdownInputRules`. A rule the
   vocabulary refuses does not cost the keystroke: the text is inserted on its own.
 - **`decorate`**: `document => DecorationSet`, drawn over the document on the mount and every
-  patch (§129), code highlighting for one. It sees the document only, so a highlight derived
-  from application state, such as a search query, does not belong here.
+  patch (§129), code highlighting for one. It sees the document only. A highlight derived
+  from application state, such as a search query or other people's carets, goes through
+  the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
+  own and leaves the caret where it is. Its positions name the document shown, so set it
+  again when that changes.
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:

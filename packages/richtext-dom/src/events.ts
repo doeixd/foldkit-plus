@@ -213,6 +213,16 @@ export interface AttachOptions {
 /** What is drawn over a document, derived from it on every render (§129). */
 export type Decorate = (document: RichText.Document) => RichText.DecorationSet
 
+/** A change set that names nothing: what a redraw of the same document patches with. */
+const unchanged: RichText.ChangeSet = {
+  dirtyNodes: new Set(),
+  insertedNodes: new Set(),
+  removedNodes: new Set(),
+  textChanged: new Set(),
+  structureChanged: false,
+  selectionChanged: false,
+}
+
 export interface Attachment {
   /** The current subtree; replaced as patches are applied. */
   readonly current: () => EditorDom
@@ -221,6 +231,12 @@ export interface Attachment {
    * browser is composing, the latest state waits and is drawn when composition ends.
    */
   readonly sync: (state: RichText.EditorState, changeSet: RichText.ChangeSet) => void
+  /**
+   * Draws the decorations again over what is drawn, for when they changed and the document
+   * did not, and puts the browser's selection back where it was. Nothing while composing:
+   * the next state drawn brings them.
+   */
+  readonly redecorate: () => void
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
   readonly detach: () => void
@@ -414,6 +430,12 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   return {
     current: () => current,
     composing: () => composing,
+    redecorate: () => {
+      if (composing) return
+      const selection = readSelection(current)
+      redraw(patchInto(current, current.content, unchanged, options.decorate?.(current.content)))
+      restoreSelection(current, selection)
+    },
     sync: (state, changeSet) => {
       if (!composing) return draw(state, changeSet)
       deferred = {

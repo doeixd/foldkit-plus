@@ -15,12 +15,21 @@ import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
-import { drawnDocument, events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
+import {
+  drawnDocument,
+  events,
+  Message,
+  patchEditor,
+  redecorateEditor,
+  slashEntries,
+  slashMenu,
+} from './editor.js'
 import {
   decorationsFor,
   inputRulesFor,
   placeDecorations,
   placeInputRules,
+  placeOverlay,
   placePlaceholder,
   placeRendering,
   placeServerRendered,
@@ -324,6 +333,26 @@ export const patchTo = (
     ),
   }
 }
+
+/**
+ * Draws `decorations` over the editor at `hostId`, beside what its placement draws, until the
+ * next overlay replaces them: decorations an application derives from its own state, such as
+ * other people's carets, which a placement's `decorate` cannot see. Their positions name the
+ * document shown, so an application sets them again when that changes. The caret stays put.
+ */
+export const overlay = (
+  hostId: string,
+  decorations: RichText.DecorationSet,
+): Command.Command<Message> => ({
+  name: 'RichText.overlay',
+  effect: Effect.as(
+    Effect.sync(() => {
+      placeOverlay(hostId, decorations)
+      redecorateEditor(hostId)
+    }),
+    Message.Patched(),
+  ),
+})
 
 /**
  * The host element the editor mounts into, and whose id the patch Command finds (§118). It is a

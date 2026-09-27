@@ -376,6 +376,22 @@ describe('the wired editing loop', () => {
     attachment.detach()
   })
 
+  it('draws new decorations only once a composition ends', () => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    restoreSelection(dom, caretAt(['a', 2]))
+    let shown: RichText.DecorationSet = []
+    const attachment = attach(dom, { onIntent: () => {}, decorate: () => shown })
+    attachment.current().root.dispatchEvent(composition('compositionstart'))
+    attachment.current().elements.get(id('a'))!.append(document.createTextNode('にほ'))
+    shown = [{ from: at('a', 0), to: at('a', 1), kind: 'peer' }]
+    attachment.redecorate()
+    // The run the IME is writing into is not redrawn under it.
+    expect(toText(attachment.current())).toBe('abにほcd\nef')
+    expect(attachment.current().root.querySelector('[data-decoration]')).toBeNull()
+    attachment.detach()
+  })
+
   it('repairs the subtree when a composition is cancelled', () => {
     const { attachment, intents } = setup()
     attachment.current().root.dispatchEvent(composition('compositionstart'))

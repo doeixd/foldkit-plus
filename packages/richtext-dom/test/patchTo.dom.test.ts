@@ -11,7 +11,7 @@ import type * as Update from 'foldkit/update'
 import * as RichText from 'foldkit-richtext'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Message } from '../src/editor.js'
-import { EditorView, editorView, patchTo } from '../src/editor-bundle.js'
+import { EditorView, editorView, overlay, patchTo } from '../src/editor-bundle.js'
 
 const hostId = 'patched-body'
 const paragraphs = (...texts: ReadonlyArray<string>) =>
@@ -28,6 +28,8 @@ const App = defineMessageUnion({
   GotEditor: { message: Message },
   /** Another replica's text, with or without the patch that draws it. */
   Arrived: { text: Schema.String, patched: Schema.Boolean },
+  /** Someone else's caret, one character into the second paragraph. */
+  Peered: {},
 })
 type App = typeof App.Type
 const Model = Schema.Struct({ editor: EditorView })
@@ -45,8 +47,20 @@ const initial: Model = {
   },
 }
 
+const peer: RichText.Decoration = {
+  from: { node: RichText.NodeId.make('t1'), offset: 0, affinity: 'after' },
+  to: { node: RichText.NodeId.make('t1'), offset: 1, affinity: 'after' },
+  kind: 'peer',
+}
+
+const toApp = (command: { readonly name: string; readonly effect: Effect.Effect<Message> }) => ({
+  ...command,
+  effect: Effect.map(command.effect, inner => App.GotEditor({ message: inner })),
+})
+
 const update = (model: Model, message: App): Update.Return<Model, App> => {
   if (message._tag === 'GotEditor') return { model }
+  if (message._tag === 'Peered') return { model, commands: [toApp(overlay(hostId, [peer]))] }
   const document = paragraphs('one', message.text)
   return {
     model: { editor: { ...model.editor, document } },
@@ -72,6 +86,7 @@ const view = (model: Model, h: HtmlBuilder<App>) =>
       h.button([h.Id('patched'), h.OnClick(App.Arrived({ text: 'two!', patched: true }))], []),
       h.button([h.Id('replaced'), h.OnClick(App.Arrived({ text: 'other', patched: false }))], []),
       h.button([h.Id('same'), h.OnClick(App.Arrived({ text: 'two', patched: true }))], []),
+      h.button([h.Id('peered'), h.OnClick(App.Peered())], []),
     ],
   )
 
@@ -107,6 +122,42 @@ describe('a document replaced by the parent', () => {
       await new Promise(resolve => setTimeout(resolve, 20))
       expect(host()?.textContent).toBe('onetwo')
       expect(window.getSelection()!.anchorNode).toBe(text)
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('draws an overlay over the document without moving the caret', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.document.body.innerHTML = '<div id="patch-runtime"></div>'
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container: window.document.getElementById('patch-runtime')!,
+        init: () => ({ model: initial }),
+        update,
+        view,
+      }),
+    )
+    const host = () => window.document.getElementById(hostId)
+    try {
+      await vi.waitFor(() => expect(host()?.textContent).toBe('onetwo'))
+      const run = () => host()!.querySelector('[data-run="t1"]')!
+      // The caret is in the run the overlay redraws, two characters in.
+      window.getSelection()!.collapse(run().firstChild!, 2)
+      window.document.getElementById('peered')!.click()
+      await vi.waitFor(() =>
+        expect(run().querySelector('[data-decoration="peer"]')?.textContent).toBe('t'),
+      )
+      const selection = window.getSelection()!
+      expect(run().contains(selection.anchorNode)).toBe(true)
+      const before = window.document.createRange()
+      before.setStart(run(), 0)
+      before.setEnd(selection.anchorNode!, selection.anchorOffset)
+      expect(before.toString()).toBe('tw')
     } finally {
       handle.dispose()
     }

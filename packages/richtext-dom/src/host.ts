@@ -44,8 +44,23 @@ export const placeDecorations = (hostId: string, decorate: Decorate): void => {
   decorators.set(hostId, decorate)
 }
 
-/** What is drawn over a host's document, or nothing when none was placed. */
-export const decorationsFor = (hostId: string): Decorate => decorators.get(hostId) ?? (() => [])
+const overlays = new Map<string, RichText.DecorationSet>()
+
+/**
+ * Records decorations an application derives from its own state, such as other people's
+ * carets, to draw over a host's document beside what the placement draws.
+ */
+export const placeOverlay = (hostId: string, decorations: RichText.DecorationSet): void => {
+  overlays.set(hostId, decorations)
+}
+
+/**
+ * What is drawn over a host's document: the placement's decorations, then the overlay. Both
+ * are read on each draw, so an overlay set after the editor attached is drawn too.
+ */
+export const decorationsFor =
+  (hostId: string): Decorate =>
+  document => [...(decorators.get(hostId)?.(document) ?? []), ...(overlays.get(hostId) ?? [])]
 
 const serverRenders = new Map<string, () => boolean>()
 

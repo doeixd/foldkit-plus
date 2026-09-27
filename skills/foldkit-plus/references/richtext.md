@@ -212,7 +212,9 @@ browser event means "make this block a heading" — and `editor-bundle` exposes
 `SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
 (`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
-`::before`, and the textbox root with `aria-placeholder`),
+`::before`, and the textbox root with `aria-placeholder`; `decorate` sees the document only,
+and `overlay(hostId, decorations)` is the Command for decorations from application state,
+such as other people's carets),
 `application`/`update`, and the Messages a host dispatches (the host is a `<foldkit-richtext>`
 custom element; with `serverRendered: SSR.serving` the server sends the document's markup in it,
 and the browser's editor adopts it); every accepted edit returns

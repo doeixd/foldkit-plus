@@ -288,6 +288,14 @@ export const patchEditor = (
   return true
 }
 
+/** Draws the decorations of the editor at `hostId` again; false when none is attached there. */
+export const redecorateEditor = (hostId: string): boolean => {
+  const host = document.getElementById(hostId)
+  const attachment = host === null ? undefined : attachmentIn(host)
+  attachment?.redecorate()
+  return attachment !== undefined
+}
+
 /** The document the editor at `hostId` has drawn, or undefined when none is attached there. */
 export const drawnDocument = (hostId: string): RichText.Document | undefined => {
   const host = document.getElementById(hostId)

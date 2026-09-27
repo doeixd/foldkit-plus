@@ -26,7 +26,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { decorationsFor, placeholderFor, renderingFor } from '../src/host.js'
+import { decorationsFor, placeholderFor, placeOverlay, renderingFor } from '../src/host.js'
 import { Message } from '../src/editor.js'
 
 const id = RichText.NodeId.make
@@ -588,10 +588,24 @@ describe('decorations placed for the editor (§129)', () => {
   it('records what a placement draws over its document, and nothing when it names none', () => {
     const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'a')
     editorAt('decorating-editor', { decorate })
-    expect(decorationsFor('decorating-editor')).toBe(decorate)
+    expect(decorationsFor('decorating-editor')(document())).toEqual(decorate(document()))
     // Re-placing an id without one replaces what it had.
     editorAt('decorating-editor')
     expect(decorationsFor('decorating-editor')(document())).toEqual([])
+  })
+
+  it('draws an overlay the application sets after the placement’s own', () => {
+    const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'a')
+    editorAt('overlaid-editor', { decorate })
+    const peer: RichText.Decoration = {
+      from: { node: id('b'), offset: 0, affinity: 'after' },
+      to: { node: id('b'), offset: 1, affinity: 'after' },
+      kind: 'peer',
+    }
+    placeOverlay('overlaid-editor', [peer])
+    expect(decorationsFor('overlaid-editor')(document())).toEqual([...decorate(document()), peer])
+    placeOverlay('overlaid-editor', [])
+    expect(decorationsFor('overlaid-editor')(document())).toEqual(decorate(document()))
   })
 })
 
