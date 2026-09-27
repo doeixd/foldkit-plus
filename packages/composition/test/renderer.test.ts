@@ -4,7 +4,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Action, Projection, Surface } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Block, Catalog, Composition, Content, NodeId, isSafeUrl } from 'foldkit-composition'
+import {
+  Block,
+  Catalog,
+  Composition,
+  Content,
+  NodeId,
+  Region,
+  isSafeUrl,
+} from 'foldkit-composition'
 import { Renderer, fieldOf } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 import { ArticleKit, Columns, ColumnsLook, Site, SiteRenderer, body, homePage } from './site.js'
@@ -311,8 +319,15 @@ describe('text edited in place', () => {
     }),
     provides: [Content.Section],
   })
-  const Titles = Catalog.make({ blocks: [Title], roots: [Content.Section] })
+  const Stack = Block.define('Stack', {
+    Props: Schema.Struct({ name: Schema.String }),
+    regions: { items: Region.many({ accepts: [Content.Section] }) },
+    provides: [Content.Section],
+  })
+  const Titles = Catalog.make({ blocks: [Title, Stack], roots: [Content.Section] })
   const TitleRenderer = Renderer.make(Titles, {
+    // Draws its name as plain text, and what it holds draws fields of its own.
+    Stack: ({ props, regions, h }) => h.div([], [props.name, ...regions.items]),
     Title: ({ field, h }) =>
       h.header([], [h.h1([], [field('text', { label: 'Title' })]), h.p([], [field('tagLine')])]),
   })
@@ -376,8 +391,19 @@ describe('text edited in place', () => {
     expect(Inert.value(tagLine, 'aria-label')).toBe('Tag line')
   })
 
+  it('says which text props a node draws as fields, and not those of what it holds', () => {
+    const stacked = page(['s'], {
+      s: { block: 'Stack', props: { name: 'All' }, regions: { items: ['t'] } },
+      t: { block: 'Title', props: { text: 'Hello', tagLine: 'Hi', level: 1 }, regions: {} },
+    })
+    expect(Renderer.fields(TitleRenderer, stacked, id('t'))).toEqual(['text', 'tagLine'])
+    expect(Renderer.fields(TitleRenderer, stacked, id('s'))).toEqual([])
+    expect(Renderer.fields(TitleRenderer, stacked, id('gone'))).toEqual([])
+  })
+
   it('takes only a prop that is text', () => {
     Renderer.make(Titles, {
+      Stack: ({ h }) => h.div([], []),
       Title: ({ field, h }) =>
         h.h1(
           [],

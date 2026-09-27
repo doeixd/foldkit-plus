@@ -13,7 +13,7 @@
  * and a text prop a view draws with `field` is marked, so it can be edited in place.
  */
 import { Option, Result, Schema } from 'effect'
-import { createKeyedLazy, type Html, type HtmlBuilder } from 'foldkit/html'
+import { createKeyedLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Update from 'foldkit/update'
 import { Block, spaced, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
 import { Catalog } from '../catalog.js'
@@ -391,6 +391,35 @@ export const Renderer = {
     ): Renderer<Blocks, Message> => make<Message>(true)(catalog, entries),
   }),
   render,
+  /**
+   * The text props a node's view draws with `field`, in the order drawn: what
+   * an editor may edit in place. Empty for a node the page does not hold, or
+   * whose view draws none. It draws the node and what it holds, inert, to see.
+   */
+  fields: <Blocks extends AnyBlock, Message>(
+    renderer: Renderer<Blocks, Message>,
+    document: Document,
+    id: NodeId,
+  ): ReadonlyArray<string> => {
+    const marks = (html: Html | string): ReadonlyArray<string> => {
+      if (html === null || typeof html === 'string') return []
+      const name = html.data?.attrs?.[`data-${FIELD_ATTRIBUTE}`]
+      const own =
+        typeof name === 'string'
+          ? Option.match(fieldOf(name), {
+              onNone: () => [],
+              // What it holds draws fields of its own, which are not this node's.
+              onSome: field => (field.id === id ? [field.key] : []),
+            })
+          : []
+      return [...own, ...(html.children ?? []).flatMap(marks)]
+    }
+    // Drawn inert and only read for its marks, so a view's Messages are never sent.
+    const quiet = renderer as unknown as Renderer<AnyBlock, never>
+    return render(quiet, { format: 1, roots: [id], nodes: document.nodes }, inertHtml, {
+      mode: 'edit',
+    }).flatMap(marks)
+  },
 }
 
 /** Whether two stored JSON values are equal, whatever the order of their keys. */

@@ -446,7 +446,9 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   is keyed apart from the one drawn otherwise, so the element the browser
   changed is replaced when editing ends. The Renderer draws; reading what is
   typed is `EditableText` in `foldkit-primitives`, and what it changes is the
-  editor's `update`.
+  editor's `update`. `Renderer.fields(renderer, document, id)` says which text
+  props a node's view draws as fields, in order, by drawing it inert: what an
+  editor may offer to edit.
 - **The other options** are what the page is drawn for: `context`, which
   conditions read ([Conditions](#conditions)), and `data`, each node's read by
   id, which Query, Surface and stateful Blocks draw from. A page with all three

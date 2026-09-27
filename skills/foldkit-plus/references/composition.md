@@ -83,7 +83,7 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `field('text')` (text props only): the text for a visitor; in edit mode a span marked
   `data-composition-field` (`fieldOf(value)` gives `{ id, key }`), editable
   (`plaintext-only`, frozen at `initial`) while `render`'s option `editing: { id, key, initial }`
-  names it.
+  names it. `Renderer.fields(renderer, doc, id)` lists the props a node draws as fields.
 - **Serve it:** `SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))`
   and leave the page out of the resume plan's state: the Document is not sent.
 - **URLs:** use `Url` for any `href` or `src` prop: http, https, mailto, tel and
