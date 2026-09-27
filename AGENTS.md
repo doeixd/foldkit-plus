@@ -617,6 +617,10 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   printer's test asserted `\1. not a list` as the escape for an ordered marker; a
   backslash before a digit is no escape, so the parser kept it as text, and the test
   locked the bug in. A round trip through the real parser is what catches it.
+- **Scene does not model keys.** A handle keyed by its block still showed its old Mount as
+  mounted after the block changed, with or without `h.Key`, so a Scene test of keying passes
+  or fails for reasons unrelated to the key. Test remounting on the real runtime
+  (`Runtime.makeElement` + `embed`, as `packages/bundle/test/runtime.test.ts` does).
 - **A check against a reference is only as good as the reference.** `print` accepts a styled
   text when it parses like the canonical text, and the canonical text merged two adjacent lists
   into one, so the check trusted a wrong answer. Read the reference itself back too.
