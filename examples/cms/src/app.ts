@@ -4,7 +4,7 @@
  * through. The scripted run and the browser both drive this one `update`.
  * Nothing about how any of it is placed is CMS-specific.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Equal, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
@@ -82,7 +82,6 @@ export const Message = defineMessageUnion({
   StartedPost: { entry: Schema.String },
   ClosedEditor: {},
   TypedSchedule: { text: Schema.String },
-  AskedForHistory: {},
   Searched: { text: Schema.String },
   ToggledArchive: {},
   /** Nothing happened; something may have arrived. */
@@ -175,14 +174,6 @@ const placed = placements.update((model: Model, message: Message) => {
       return leaving(EditorSlot.helpers.close())
     case 'TypedSchedule':
       return { model: modifyFields(model, { scheduleAt: () => message.text }) }
-    case 'AskedForHistory': {
-      // A publish patches the new revision in; its place in the list is asked for.
-      const refreshed = Option.match(history(model), {
-        onNone: () => model,
-        onSome: projection => Data.refresh(model, projection),
-      })
-      return { model: Worklist.refresh(refreshed) }
-    }
     case 'Searched':
       return { model: modifyFields(model, { search: () => message.text }) }
     case 'ToggledArchive':
@@ -192,9 +183,31 @@ const placed = placements.update((model: Model, message: Message) => {
   }
 })
 
+/** The open entry's state as text, to tell a change of it; none while it is unknown. */
+const stateOf = (model: Model): Option.Option<string> =>
+  Option.map(PostEditor.state(model), state => JSON.stringify(state))
+
+/**
+ * The open entry's history and the worklist, asked for again once its state
+ * changed (a publish, a restore, an unpublish, an archive): a publish patches
+ * the entry, not the list of revisions, nor which of the lists it belongs in.
+ */
+const refreshedAfterChange = (before: Model, after: Model): Model => {
+  const changed =
+    Option.isSome(stateOf(before)) &&
+    Equal.equals(PostEditor.entry(before), PostEditor.entry(after)) &&
+    !Equal.equals(stateOf(before), stateOf(after))
+  if (!changed) return after
+  const withHistory = Option.match(history(after), {
+    onNone: () => after,
+    onSome: projection => Data.refresh(after, projection),
+  })
+  return Worklist.refresh(withHistory)
+}
+
 export const update = PostEditor.after((model: Model, message: Message) => {
   const next = placed(model, message)
-  return { ...next, model: listing(next.model) }
+  return { ...next, model: listing(refreshedAfterChange(model, next.model)) }
 })
 
 export const initial: Model = placements.initial({
