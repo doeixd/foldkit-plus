@@ -195,7 +195,7 @@ const Compact = BuilderView.assemble((_model, slots, h, draw) =>
 )
 ```
 
-The parts are `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
+The parts are `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
 `Viewports`, `Preview`, `Alert`, `Canvas` and `Live`. Each brings its own
 Behaviors: `Layers` its tree keyboard and dragging, `Canvas` the pointer, and
 both the shortcuts. A layout without `Layers` has no tree keyboard. Styles
@@ -205,6 +205,27 @@ Each part names the Model fields it reads and is drawn again only when one of
 them changed: a hover redraws the canvas and nothing else. A Style that reads
 the Model (`Style.whenInput`) attached to the whole view makes every part it
 reaches redraw on every change. It is still correct, just not cached.
+
+## A narrow editor
+
+Where the editor is narrow, it can show one of its three panels at a time:
+
+```ts
+const PageEditing = BuilderView.define(PageBuilder).pipe(
+  Style.attach(BuilderView.narrow('52rem')),
+)
+```
+
+- **The width is the editor's own, not the window's.** `narrow(width)` makes
+  the Builder's root the container `builder`, and below `width` of it the
+  `Panels` part's `role="tablist"` (Add, Layers, Settings) shows, and only the
+  panel the Builder's `panel` names. Wider, the tabs are hidden (the
+  Builder's default Style) and every panel shows.
+- **The Builder chooses the panel as it always has:** a tab sends
+  `PanelChosen`, and selecting a node chooses Settings. Each panel carries its
+  `id`, `data-panel` and `data-panel-shown`, and each tab `aria-controls` it.
+- **It is in the `app` layer**, so it outranks an application's own placing of
+  the panels; `narrow(width, { layer })` puts it elsewhere.
 
 ## As a form key
 

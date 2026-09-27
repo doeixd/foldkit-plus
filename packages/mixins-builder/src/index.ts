@@ -52,6 +52,7 @@ import {
   Behavior,
   Capability,
   Layers as StyleLayers,
+  type Placement,
   Slot,
   Slots,
   SlotView,
@@ -73,6 +74,13 @@ import * as Submodel from 'foldkit/submodel'
 /** The Builder's public customization contract: every element the editor draws. */
 export const BuilderSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  /**
+   * A `role="tablist"` of the three panels, Add, Layers and Settings, for a
+   * narrow layout that shows one at a time (`BuilderView.narrow`); hidden
+   * otherwise. One `panelTab` each, with `data-panel`.
+   */
+  panelTabs: Slot.make({ capability: Capability.Container }),
+  panelTab: Slot.make({ capability: Capability.Interactive }),
   /** The Blocks a page may gain, in groups, one button each. */
   palette: Slot.make({ capability: Capability.Container }),
   /** One group of the palette, and its heading, drawn when there is more than one. */
@@ -188,9 +196,18 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
       insetInlineStart: '0',
     }),
     hoverBox: boxOver('hovered'),
+    // Shown only by a narrow layout, which shows one panel at a time.
+    panelTabs: Style.self({ display: 'none' }),
   },
   { name: 'BuilderDefaults', layer: StyleLayers.standard.layer('components') },
 )
+
+/** The panels a narrow layout shows one at a time, by the Builder's `panel`, and their tabs' words. */
+const PANELS = [
+  ['insert', 'Add'],
+  ['layers', 'Layers'],
+  ['properties', 'Settings'],
+] as const
 
 /** The width each viewport draws the page at. */
 export const viewportWidths = { wide: '100%', medium: '768px', narrow: '375px' } as const
@@ -487,6 +504,8 @@ export type BuilderPart = SlotView.Part<typeof BuilderSlots, BuilderInput, Messa
 /** The drawn Builder's pieces, by what they show. */
 export interface BuilderParts {
   /** The Blocks a page may gain, each a button that inserts it. */
+  /** The panels' tabs, for a narrow layout: see `BuilderView.narrow`. */
+  readonly Panels: BuilderPart
   readonly Palette: BuilderPart
   /** The page's nodes as an ARIA tree, with the keyboard and dragging. */
   readonly Layers: BuilderPart
@@ -1051,11 +1070,55 @@ export const BuilderView = {
     // The canvas, found by its id, so a tile dragged from the palette can land on its nodes.
     const canvasId = `${builder.name}-canvas`
 
+    // Each panel's element: its id, for its tab to name, and whether its tab is chosen.
+    const panelId = (panel: string) => `${builder.name}-panel-${panel}`
+    const panelMarks = (
+      panel: (typeof PANELS)[number][0],
+      slot: 'palette' | 'layers' | 'inspector',
+    ) =>
+      Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, 'panel'>, Message>(
+        {
+          [slot]: Behavior.slot({
+            attributes: ({ input, h }) => [
+              h.Id(panelId(panel)),
+              h.DataAttribute('panel', panel),
+              h.DataAttribute('panel-shown', String(input.panel === panel)),
+            ],
+          }),
+          // Keyed by the panel's slot, which `forSlots` checks exists.
+        } as unknown as Behavior.BehaviorSpec<
+          typeof BuilderSlots,
+          Pick<BuilderInput, 'panel'>,
+          Message
+        >,
+        { name: `BuilderPanel-${panel}` },
+      )
+
+    const Panels = Parts.part('Panels', { reads: ['panel'] }, (input, slots, h) =>
+      h.div(
+        slots.panelTabs.attrs([h.Role('tablist'), h.AriaLabel('Panels')]),
+        PANELS.map(([panel, label]) =>
+          h.button(
+            slots.panelTab.attrs([
+              h.Type('button'),
+              h.Role('tab'),
+              h.AriaSelected(input.panel === panel),
+              h.AriaControls(panelId(panel)),
+              h.DataAttribute('panel', panel),
+              h.OnClick(Message.PanelChosen({ panel })),
+            ]),
+            [label],
+          ),
+        ),
+      ),
+    )
+
     const Palette = Parts.part(
       'Palette',
       {
-        reads: ['page', 'selected'],
+        reads: ['page', 'selected', 'panel'],
         behaviors: [
+          panelMarks('insert', 'palette'),
           // A tile dragged onto the page adds its Block where it is dropped; a press adds it
           // where the palette's button says.
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
@@ -1227,8 +1290,9 @@ export const BuilderView = {
     const LayersPart = Parts.part(
       'Layers',
       {
-        reads: ['page', 'selected', 'layers', 'drag', 'editing'],
+        reads: ['page', 'selected', 'layers', 'drag', 'editing', 'panel'],
         behaviors: [
+          panelMarks('layers', 'layers'),
           TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<
             Pick<BuilderInput, 'page' | 'selected' | 'layers' | 'drag'>,
             Message
@@ -1285,7 +1349,10 @@ export const BuilderView = {
 
     const Inspector = Parts.part(
       'Inspector',
-      { reads: ['page', 'selected', 'options', 'inspector', 'platform'] },
+      {
+        reads: ['page', 'selected', 'options', 'inspector', 'platform', 'panel'],
+        behaviors: [panelMarks('properties', 'inspector')],
+      },
       (input, slots, h) => {
         const actions = h.div(
           slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]),
@@ -1538,6 +1605,7 @@ export const BuilderView = {
     )
 
     return {
+      Panels,
       Palette,
       Layers: LayersPart,
       Inspector,
@@ -1561,6 +1629,34 @@ export const BuilderView = {
   ): BuilderSlotView =>
     Parts.assemble(render, { name: 'Builder' }).pipe(Style.attach(FrameDefaults)),
 
+  /**
+   * The narrow layout, below `width` of the Builder itself: the panels' tabs
+   * show, and only the panel the Builder's `panel` names; selecting a node
+   * chooses Settings. The Builder's root becomes the container `builder`.
+   * In the `app` layer by default, so it outranks an application's own
+   * placing of the panels; pass `layer` to put it elsewhere.
+   */
+  narrow: (width: string, options: { readonly layer?: Placement } = {}) => {
+    const narrower = `@container builder (max-width: ${width})`
+    const hidden = Style.at(
+      narrower,
+      Style.pseudo('[data-panel-shown="false"]', { display: 'none' }),
+    )
+    return Style.forSlots(BuilderSlots)(
+      {
+        root: Style.self({ containerType: 'inline-size', containerName: 'builder' }),
+        panelTabs: Style.at(narrower, Style.self({ display: 'flex' })),
+        palette: hidden,
+        layers: hidden,
+        inspector: hidden,
+      },
+      {
+        name: 'BuilderNarrow',
+        layer: options.layer ?? StyleLayers.standard.layer('app'),
+      },
+    )
+  },
+
   /** The Builder drawn with every part, in the default layout. */
   define: (
     builder: BuilderLike,
@@ -1572,6 +1668,7 @@ export const BuilderView = {
     const parts = BuilderView.parts(builder, options)
     return BuilderView.assemble((_input, slots, h, draw) =>
       h.div(slots.root.attrs(), [
+        draw(parts.Panels),
         draw(parts.Palette),
         draw(parts.Layers),
         draw(parts.Inspector),

@@ -328,9 +328,12 @@ const PageForm = Form.make('PageForm', PageInput, {
   style how they look, the Builder places them.
 - Your own layout: `const parts = BuilderView.parts(PageBuilder)`, then
   `BuilderView.assemble((model, slots, h, draw) => h.div(slots.root.attrs(), [draw(parts.Palette),
-  draw(parts.Canvas)]))`. Parts: `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
+  draw(parts.Canvas)]))`. Parts: `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
   `Viewports`, `Preview`, `Alert`, `Canvas`, `Live`; each brings its Behaviors and redraws only
   when the Model fields it reads change.
+- Narrow editor: `.pipe(Style.attach(BuilderView.narrow('52rem')))`: below that width of the
+  editor itself (container `builder`), a `role="tablist"` (Add, Layers, Settings) shows one panel
+  at a time, by the Builder's `panel` (`PanelChosen`; selecting a node chooses Settings).
 - With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's
   `preview` Model field, `PreviewChosen({ key, value })`, seeded by
   `Builder.make(..., { preview })`); the canvas draws for it, marking hidden

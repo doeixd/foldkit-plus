@@ -150,6 +150,25 @@ describe('the drawn Builder', () => {
     ).toEqual(['Text', 'Patterns'])
   })
 
+  it('names the panels a narrow layout shows one at a time, each tab naming its panel', () => {
+    const root = draw(send(page, Message.PanelChosen({ panel: 'layers' })))
+    const [tabs] = Inert.byRole(root, 'tablist')
+    const tab = Inert.byRole(tabs, 'tab')
+    expect(tab.map(Inert.text)).toEqual(['Add', 'Layers', 'Settings'])
+    expect(tab.map(each => Inert.value(each, 'aria-selected'))).toEqual(['false', 'true', 'false'])
+    const panels = Inert.all(root).filter(
+      node => Inert.value(node, 'data-panel-shown') !== undefined,
+    )
+    expect(panels.map(node => Inert.value(node, 'data-panel-shown'))).toEqual([
+      'false',
+      'true',
+      'false',
+    ])
+    expect(tab.map(each => Inert.value(each, 'aria-controls'))).toEqual(
+      panels.map(node => Inert.value(node, 'id')),
+    )
+  })
+
   it('draws the layers as a tree, the tab stop on the selected row', () => {
     const root = draw(page)
     const [tree] = Inert.byRole(root, 'tree')

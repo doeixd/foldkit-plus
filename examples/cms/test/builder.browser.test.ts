@@ -53,13 +53,17 @@ const longPage = (count: number) => {
 }
 
 /** Mounts the builder over `page` (by default `count` Headings), with `css` as the page's only stylesheet. */
-const mount = (css: string, count = 40, page = longPage(count)) => {
+const mount = (css: string, count = 40, page = longPage(count), width?: string) => {
   const style = document.createElement('style')
   style.textContent = css
   document.head.appendChild(style)
   const container = document.createElement('div')
   container.id = 'builder'
-  document.body.appendChild(container)
+  // The runtime draws in place of its container, so the width goes on what holds it.
+  const holder = document.createElement('div')
+  if (width !== undefined) holder.style.width = width
+  holder.appendChild(container)
+  document.body.appendChild(holder)
   const handle = Runtime.embed(
     Runtime.makeElement(
       placements.complete({
@@ -302,6 +306,35 @@ it('draws a look for the width of its frame, not of the window', async () => {
   // The window stays as wide as it was; only the frame is a phone's.
   await vi.waitFor(() => expect(gap()).toBe(wide / 4))
   expect(window.innerWidth).toBeGreaterThan(1000)
+})
+
+it('shows one panel at a time when the editor is narrow, chosen by tabs and by selecting', async () => {
+  const shown = (label: string) => {
+    // Rendered at all: a panel's name may be on an element inside it.
+    return document.querySelector(`[aria-label="${label}"]`)?.checkVisibility() === true
+  }
+  const tabs = () => document.querySelector<HTMLElement>('[role="tablist"]')
+  // Wide: every panel, and no tabs.
+  unmount = mount(stylesheet, 3)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  expect([shown('Add a block'), shown('Layers'), shown('Properties')]).toEqual([true, true, true])
+  expect(tabs()?.checkVisibility()).toBe(false)
+  unmount()
+  document.body.innerHTML = ''
+
+  // Narrow: the palette alone at first; a tab chooses another; a selection chooses Settings.
+  unmount = mount(stylesheet, 3, longPage(3), '600px')
+  await vi.waitFor(() => expect(tabs()?.checkVisibility()).toBe(true))
+  expect([shown('Add a block'), shown('Layers'), shown('Properties')]).toEqual([true, false, false])
+  document.querySelector<HTMLElement>('[role="tab"][data-panel="layers"]')?.click()
+  await vi.waitFor(() => expect(shown('Layers')).toBe(true))
+  expect(shown('Add a block')).toBe(false)
+  expect(
+    document.querySelector('[role="tab"][data-panel="layers"]')?.getAttribute('aria-selected'),
+  ).toBe('true')
+  canvas()?.querySelector<HTMLElement>('[data-composition-node="h1"] h2')?.click()
+  await vi.waitFor(() => expect(shown('Properties')).toBe(true))
+  expect(shown('Layers')).toBe(false)
 })
 
 /** The middle of some timings, rounded to a millisecond. */

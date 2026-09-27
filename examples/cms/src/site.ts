@@ -886,4 +886,8 @@ export const PageEditing = BuilderView.define(PageBuilder, {
     // The CMS's own control kinds, as its entry forms draw them.
     renderers: Cms.controlRenderers,
   },
-}).pipe(Style.attach(BuilderStyle))
+}).pipe(
+  Style.attach(BuilderStyle),
+  // Below this width of its own, one panel at a time, chosen by tabs.
+  Style.attach(BuilderView.narrow('52rem')),
+)

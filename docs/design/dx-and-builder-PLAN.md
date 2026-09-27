@@ -1040,6 +1040,16 @@ while the window stays wide.
 - Selecting a node switches to Settings, as it already sets `panel`.
 - If the example's narrow layout does not use it, `panel` is removed instead.
 
+> **Done, 2026-09-26, as one assembly and a Style.** Rather than a second
+> assembly chosen by measuring, `define` always draws a `Panels` part (a
+> `role="tablist"`, hidden by the Builder's defaults) and marks each panel
+> with `data-panel-shown`; `BuilderView.narrow(width)` is a Style whose
+> container queries on the Builder's root show the tabs and hide the other
+> panels below `width`. The width is the stylist's, the switch is CSS, and
+> nothing is measured. It needed `Style.at`, a selector under an at-rule.
+> The example uses it at 52rem, so `panel` stays. A browser test at 600px
+> sees one panel, a tab choose another, and a selection choose Settings.
+
 ---
 
 ## Phase 6: decisions deferred on purpose

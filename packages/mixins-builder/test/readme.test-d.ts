@@ -119,3 +119,11 @@ Block.words({ icon: 'quote' })
   })
   void BuilderView.define(PageBuilder).pipe(Style.attach(Boxes))
 }
+
+// A narrow editor
+{
+  const PageEditing = BuilderView.define(PageBuilder).pipe(
+    Style.attach(BuilderView.narrow('52rem')),
+  )
+  void PageEditing
+}
