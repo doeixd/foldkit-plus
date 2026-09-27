@@ -700,6 +700,11 @@ of its own named a form field "fits the Catalog". Read words with
   `createLazy` never hits, since the function is new every render; so does an
   array rebuilt per render (`flatMap`) among its arguments. Pass a function
   defined once, and values that keep their identity.
+- **A layout test that checks what shows passes a broken layout.** The
+  narrow editor's test asserted which panels were visible at 600px; the
+  example's grid still had three columns, collapsing only by the window, and
+  the panel it showed was squeezed to 50px. Assert geometry (a width, a
+  position) when the claim is about layout, and take a screenshot once.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
