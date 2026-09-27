@@ -375,6 +375,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-primitives`, `PointerDrag`:** `targets.within` is looked for
+  nearest first, under the container's closest ancestor holding a match,
+  not the first on the page, so the second of two editors dropped its tiles
+  onto the first's page. **`foldkit-mixins-builder`** finds its canvas by a
+  `data-builder-canvas` attribute rather than an id built from the Builder's
+  name, which a name with a space or a colon broke (no drop landed, or every
+  move threw).
+
 - **`foldkit-primitives`, `Measure`:** a change in the subtree is measured as
   its records arrive, so an editor's selection box moves in the frame the
   selection is drawn in rather than one after; and it measures again when an

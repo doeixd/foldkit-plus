@@ -807,7 +807,9 @@ A drag may also land somewhere other than among its own: with
 dragged is still one of the container's marked descendants (a palette's
 tiles), and `over` is an element marked by that attribute inside the one
 `within` selects (the page's nodes). Its own tiles, and a matching element
-outside that one, are then over nothing.
+outside that one, are then over nothing. `within` is looked for nearest
+first, under the container's closest ancestor that holds a match, so two
+editors on one page each drop onto their own page.
 
 `FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
 in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,

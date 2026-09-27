@@ -90,7 +90,9 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
      * Where a drag may land, when not on the element's own marked descendants:
      * the elements marked by `attribute` inside the one `within` selects, such
      * as a palette's Blocks dragged onto a page. A drop's `over` is then one of
-     * those; what is dragged is still one of the element's own.
+     * those; what is dragged is still one of the element's own. `within` is
+     * looked for nearest first, under the element's closest ancestor that holds
+     * a match, so two editors on one page each drop onto their own.
      */
     targets: Schema.optionalKey(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
   },
@@ -101,9 +103,17 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           const owner = element.ownerDocument
           // What a drop lands on: the element's own marked descendants, or those of `targets`.
           const landsOn = targets?.attribute ?? attribute
+          // Looked for at each move, so a redraw that replaced it is followed.
+          const regionOf = (within: string): Element | null => {
+            for (let at = element.parentElement; at !== null; at = at.parentElement) {
+              const found = at.querySelector(within)
+              if (found !== null) return found
+            }
+            return null
+          }
           const find = (from: EventTarget | null): Element | null => {
             if (!(from instanceof Element)) return null
-            const region = targets === undefined ? element : owner.querySelector(targets.within)
+            const region = targets === undefined ? element : regionOf(targets.within)
             const marked = from.closest(`[${landsOn}]`)
             return marked !== null && region !== null && region.contains(marked) ? marked : null
           }

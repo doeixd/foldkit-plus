@@ -1168,7 +1168,8 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'palette',
             attribute: 'data-block',
-            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: `#${canvasId}` },
+            // Its own canvas, found from the palette, whatever the Builder's name holds.
+            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
             toMessage: tileDrag,
           }),
         ],
@@ -1613,6 +1614,7 @@ export const BuilderView = {
         return h.div(
           slots.canvas.attrs([
             h.Id(canvasId),
+            h.DataAttribute('builder-canvas', ''),
             h.Role('region'),
             h.AriaLabel(wordsOf(input.words).canvas),
             h.Tabindex(0),
