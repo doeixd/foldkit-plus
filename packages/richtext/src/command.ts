@@ -1154,12 +1154,13 @@ export const run = (
     // range, what follows is what the removal leaves: the heading's own rest when the range
     // ends inside it, or the next block's text, which was never the heading's, when it ends there.
     const block = blockAtPath(state.document, at.path)
-    const endAt = locate(state.document, (span?.end ?? caret).node)
+    const end = span?.end ?? caret
+    const endAt = locate(state.document, end.node)
     const endsHeading =
       block?.type === 'Heading' &&
       endAt !== undefined &&
       (pathKey(endAt.path) !== pathKey(at.path) ||
-        ((span?.end ?? caret).offset >= endAt.text.length &&
+        (end.offset >= endAt.text.length &&
           block.children.slice(endAt.runIndex + 1).every(run => run.text.length === 0)))
     return apply(state, [
       ...deletions,
