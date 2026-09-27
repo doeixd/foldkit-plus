@@ -83,4 +83,12 @@ and reach the other window once the server is back.
   gives up after a few quick reconnects, so `src/browser.ts` makes a new connection when an
   exchange fails.
 - Deleted characters are kept as tombstones for good; nothing collects them yet.
-- Titles are last-writer-wins by the server's order, per keystroke.
+- Every edit costs work in proportion to all pages: the journal rewrites the whole snapshot
+  on each append, and a new replica reads the whole history, with no paging or checkpoint.
+- Titles are last-writer-wins by the server's order, and each keystroke in a title is an
+  edit.
+- An edit to a page another replica deleted is accepted and changes nothing.
+- The server takes a tab's name as its identity and does not check that an operation's
+  replica is the tab that sent it; a real deployment authenticates the connection.
+- Deleting `pages.sqlite` while tabs keep their IndexedDB leaves those replicas ahead of
+  the server, and their exchanges fail until the site's data is cleared too.

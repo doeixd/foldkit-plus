@@ -59,11 +59,13 @@ type Return = Update.Return<Model, Message>
 
 export const hostId = 'page-body'
 
+const nodes = RichText.nodeRegistry(RichText.standardNodes)
+
 placeEditor(hostId, {
   rendering: RichText.standardRendering,
   vocabulary: {
     marks: RichText.markRegistry(RichText.standardMarks),
-    nodes: RichText.nodeRegistry(RichText.standardNodes),
+    nodes,
   },
   inputRules: markdownInputRules,
   placeholder: 'Type / for blocks, or start writing…',
@@ -81,6 +83,15 @@ export const initialModel = (session: string): Model => ({
   open: null,
   session,
   minted: 0,
+  selection: null,
+  storedMarks: null,
+  menuIndex: 0,
+})
+
+/** A page opened: the caret and what the editor carried for the last one start afresh. */
+const opened = (model: Model, id: string): Model => ({
+  ...model,
+  open: id,
   selection: null,
   storedMarks: null,
   menuIndex: 0,
@@ -184,11 +195,11 @@ export const update = (model: Model, message: Message): Return =>
     AddedPage: ({ title }) => {
       const id = `${model.session}:${model.minted}`
       return {
-        model: { ...model, minted: model.minted + 1, open: id, selection: null },
+        model: { ...opened(model, id), minted: model.minted + 1 },
         commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
       }
     },
-    OpenedPage: ({ id }) => ({ model: { ...model, open: id, selection: null, storedMarks: null } }),
+    OpenedPage: ({ id }) => ({ model: opened(model, id) }),
     GotEditor: ({ message: incoming }) => {
       const page = pageOf(model, model.open)
       // Undo is a snapshot of this tab's document, which another replica's edits have moved
@@ -218,7 +229,7 @@ export const update = (model: Model, message: Message): Return =>
         { document: view.document, selection: view.selection },
         { type: 'SetProps', node: task.id, props: { checked: task.props.checked !== true } },
         { mint: () => 'unused' },
-        { nodes: RichText.nodeRegistry(RichText.standardNodes) },
+        { nodes },
       )
       if (!result.ok) return { model }
       return commit(model, page, result, view.document, [])

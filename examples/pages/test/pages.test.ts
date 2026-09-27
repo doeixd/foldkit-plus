@@ -232,4 +232,14 @@ describe('two people on one page', () => {
     ).resolves.toMatchObject({ rejected: ['alice:9'], acknowledged: [valid!.opId] })
     expect(journal.snapshot().pages.map(page => page.title)).toEqual(['Kept'])
   })
+
+  it('starts a page it opens without what the editor carried for the last', () => {
+    const carried = { ...initialModel('alice'), storedMarks: ['Bold'], menuIndex: 2 }
+    expect(update(carried, Message.OpenedPage({ id: 'other' })).model).toMatchObject({
+      open: 'other',
+      selection: null,
+      storedMarks: null,
+      menuIndex: 0,
+    })
+  })
 })
