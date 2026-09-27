@@ -1,6 +1,7 @@
 import { Equal, Schema } from 'effect'
 import { markName, sameMark } from './marks.js'
 import {
+  assertEditorState,
   Block,
   eachBlock,
   EditorState,
@@ -369,7 +370,6 @@ export type TransactionResult =
         | 'UnstableNormalization'
     }
 
-const decodeState = Schema.decodeUnknownSync(EditorState, { onExcessProperty: 'error' })
 const decodeTransaction = Schema.decodeUnknownSync(Transaction, { onExcessProperty: 'error' })
 const sameSelection = (left: Selection | null, right: Selection | null): boolean => {
   if (left === null || right === null) return left === right
@@ -395,6 +395,28 @@ const nestedOf = (block: Block): ReadonlyArray<Block> | undefined =>
 const pathKey = (path: BlockPath): string => path.join('.')
 const keyToPath = (key: string): BlockPath => (key === '' ? [] : key.split('.').map(Number))
 
+interface DocumentIndex {
+  readonly blockPaths: ReadonlyMap<NodeId, BlockPath>
+  readonly runPaths: ReadonlyMap<NodeId, { readonly path: BlockPath; readonly index: number }>
+}
+const indexes = new WeakMap<Document, DocumentIndex>()
+/** Where each block and run sits, built once per document: documents are immutable. */
+const indexDocument = (document: Document): DocumentIndex => {
+  const cached = indexes.get(document)
+  if (cached !== undefined) return cached
+  const blockPaths = new Map<NodeId, BlockPath>()
+  const runPaths = new Map<NodeId, { readonly path: BlockPath; readonly index: number }>()
+  eachBlock(document.children, (block, path) => {
+    blockPaths.set(block.id, path)
+    for (const [runIndex, run] of block.children.entries()) {
+      runPaths.set(run.id, { path, index: runIndex })
+    }
+  })
+  const index = { blockPaths, runPaths }
+  indexes.set(document, index)
+  return index
+}
+
 /**
  * Pure, atomic text transaction. Rejection returns no partially edited state.
  * `transforms` defaults to the registry's shipped rules; a Kit's transforms
@@ -406,29 +428,25 @@ export const apply = (
   transforms: ReadonlyArray<Transform> = defaultTransforms,
 ): TransactionResult => {
   try {
-    decodeState(state)
+    assertEditorState(state)
     decodeTransaction(transaction)
   } catch {
     return { ok: false, error: 'InvalidInput' }
   }
-  const indexDocument = (current: Document) => {
-    const blockPaths = new Map<NodeId, BlockPath>()
-    const runPaths = new Map<NodeId, { readonly path: BlockPath; readonly index: number }>()
-    eachBlock(current.children, (block, path) => {
-      blockPaths.set(block.id, path)
-      for (const [runIndex, run] of block.children.entries()) {
-        runPaths.set(run.id, { path, index: runIndex })
-      }
-    })
-    return { blockPaths, runPaths }
-  }
-  let { blockPaths, runPaths } = indexDocument(state.document)
+  const initial = indexDocument(state.document)
+  let { blockPaths, runPaths } = initial
   const reindex = () => {
     ;({ blockPaths, runPaths } = indexDocument(document))
   }
   // Identities stay reserved for the whole transaction so a reused id can never
-  // silently address two nodes across structural edits.
-  const usedIds = new Set<NodeId>([...runPaths.keys(), ...blockPaths.keys()])
+  // silently address two nodes across structural edits: the input's, and every one
+  // the transaction adds.
+  const added = new Set<NodeId>()
+  const usedIds = {
+    has: (id: NodeId): boolean =>
+      initial.runPaths.has(id) || initial.blockPaths.has(id) || added.has(id),
+    add: (id: NodeId): void => void added.add(id),
+  }
   let document: Document = state.document
   // Working copies: each touched container is copied once per transaction, so N
   // edits in one paragraph cost O(N) rather than N copies of the same array. A

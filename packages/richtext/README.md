@@ -452,6 +452,14 @@ scales linearly (5× the runs costs 5.3× the time, where it used to cost 8.2×)
 Differences under a few percent in the other rows are within this machine's
 run-to-run noise, not a claim either way.
 
+`apply` validates its input once per block, not once per call. Blocks and
+documents are immutable and an edit copies only the blocks it touches, so a
+block or document that has passed validation is remembered, and the document's
+index is built once per document. Typing into a 4,000-paragraph document
+spent about 10 ms of each `apply` decoding the whole document; it now validates
+the one block the last edit replaced. The input is still refused exactly as the
+`EditorState` schema refuses it.
+
 Two costs remain. A structural operation still rebuilds the document index, though
 a contiguous run of joins is now batched: deleting a range across B paragraphs
 emits B joins but `apply` consumes them as one structural edit, so the block array

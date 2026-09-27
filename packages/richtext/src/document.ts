@@ -544,11 +544,21 @@ export const Selection = Schema.Union([
 ])
 export type Selection = typeof Selection.Type
 
+const nodeIndexes = new WeakMap<Document, ReadonlyMap<NodeId, Block | Text>>()
+/** Every node of a document by identity, built once per document: documents are immutable. */
+const nodesOf = (document: Document): ReadonlyMap<NodeId, Block | Text> => {
+  const cached = nodeIndexes.get(document)
+  if (cached !== undefined) return cached
+  const nodes = new Map<NodeId, Block | Text>()
+  indexNodes(document.children, nodes)
+  nodeIndexes.set(document, nodes)
+  return nodes
+}
+
 /** Validates references without sorting range endpoints or changing direction. */
 export const selectionIsValid = (document: Document, selection: Selection | null): boolean => {
   if (selection === null) return true
-  const nodes = new Map<NodeId, Block | Text>()
-  indexNodes(document.children, nodes)
+  const nodes = nodesOf(document)
   if (selection.type === 'Node') return nodes.has(selection.node)
   return [selection.anchor, selection.focus].every(position => {
     const node = nodes.get(position.node)
@@ -570,6 +580,57 @@ export const EditorState = Schema.Struct({
   ),
 )
 export type EditorState = typeof EditorState.Type
+
+const decodeBlock = Schema.decodeUnknownSync(Block, { onExcessProperty: 'error' })
+const decodeSelection = Schema.decodeUnknownSync(Schema.NullOr(Selection), {
+  onExcessProperty: 'error',
+})
+/**
+ * Blocks and documents that have passed validation. They are immutable, and an edit copies
+ * only the blocks it touches, so a keystroke re-validates one block rather than the document.
+ */
+const validBlocks = new WeakSet<Block>()
+const validDocuments = new WeakSet<Document>()
+
+const hasOnlyKeys = (value: object, keys: ReadonlyArray<string>): boolean =>
+  Object.keys(value).every(key => keys.includes(key))
+
+/**
+ * Whether `input` decodes as an `EditorState`, with no excess properties, as
+ * `Schema.decodeUnknownSync(EditorState, { onExcessProperty: 'error' })` decides, but
+ * remembering each block and document that passed. Throws on invalid input.
+ */
+export const assertEditorState = (input: unknown): void => {
+  if (typeof input !== 'object' || input === null || !hasOnlyKeys(input, ['document', 'selection']))
+    throw new Error('Invalid editor state')
+  const { document, selection } = input as { document?: unknown; selection?: unknown }
+  if (typeof document !== 'object' || document === null) throw new Error('Invalid document')
+  if (!validDocuments.has(document as Document)) {
+    const { version, children } = document as { version?: unknown; children?: unknown }
+    if (
+      version !== 1 ||
+      !Array.isArray(children) ||
+      !hasOnlyKeys(document, ['version', 'children'])
+    )
+      throw new Error('Invalid document')
+    for (const block of children) {
+      if (typeof block === 'object' && block !== null && validBlocks.has(block)) continue
+      decodeBlock(block)
+      validBlocks.add(block)
+    }
+    const ids = new Set<NodeId>()
+    for (const block of children as ReadonlyArray<Block>) {
+      for (const id of subtreeIds(block)) {
+        if (ids.has(id)) throw new Error('Duplicate node identity')
+        ids.add(id)
+      }
+    }
+    validDocuments.add(document as Document)
+  }
+  decodeSelection(selection)
+  if (!selectionIsValid(document as Document, selection as Selection | null))
+    throw new Error('Unresolved selection')
+}
 
 /**
  * Counts semantic nodes and UTF-16 text units, and reports nesting depth. Depth

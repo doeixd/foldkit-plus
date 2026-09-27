@@ -29,6 +29,54 @@ const success = (result: RichText.TransactionResult) => {
   return result
 }
 
+describe('the state boundary', () => {
+  // Every case is built from blocks that already passed validation in `initial()`, so a
+  // check that trusted a remembered block where it should not would let the case through.
+  const valid = initial()
+  const [paragraph, heading] = valid.document.children as [RichText.Block, RichText.Block]
+  const insert: RichText.Transaction = [{ type: 'InsertText', at: position(1), text: 'x' }]
+  const cases: ReadonlyArray<readonly [string, unknown]> = [
+    ['an excess key on the state', { ...valid, extra: 1 }],
+    ['an excess key on the document', { ...valid, document: { ...valid.document, extra: 1 } }],
+    ['another version', { ...valid, document: { ...valid.document, version: 2 } }],
+    [
+      'children that are not a list',
+      { ...valid, document: { version: 1, children: new Set([paragraph, heading]) } },
+    ],
+    [
+      'a remembered block twice',
+      { ...valid, document: { version: 1, children: [paragraph, heading, paragraph] } },
+    ],
+    [
+      'a block with an excess key',
+      { ...valid, document: { version: 1, children: [{ ...paragraph, extra: 1 }, heading] } },
+    ],
+    [
+      'a selection on a node that is not there',
+      { ...valid, selection: { type: 'Node', node: 'x' } },
+    ],
+    [
+      'a selection with an excess key',
+      { ...valid, selection: { type: 'Node', node: id('p'), extra: 1 } },
+    ],
+  ]
+
+  it.each(cases)('refuses %s, every time', (_, state) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // @ts-expect-error a state the schema refuses
+      expect(RichText.apply(state, insert)).toEqual({ ok: false, error: 'InvalidInput' })
+    }
+  })
+
+  it('accepts a new document made of blocks it has seen', () => {
+    const reordered = {
+      ...valid,
+      document: { version: 1 as const, children: [heading, paragraph] },
+    }
+    expect(RichText.apply(reordered, insert).ok).toBe(true)
+  })
+})
+
 describe('text transactions', () => {
   it('applies sequential edits and maps backward selections in the same transition', () => {
     const state = initial()
