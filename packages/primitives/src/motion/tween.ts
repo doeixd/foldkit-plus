@@ -33,9 +33,10 @@ export const Tween = Bundle.make('Tween', {
   init: args => ({ model: { value: args.from, running: false } }),
   update: (model, message) =>
     TweenMessage.match(message, {
-      Started: () => ({ model: { ...model, running: true } }),
-      Stopped: () => ({ model: { ...model, running: false } }),
-      Ticked: ({ value }) => ({ model: { ...model, value } }),
+      Started: () => (model.running ? { model } : { model: { ...model, running: true } }),
+      Stopped: () => (model.running ? { model: { ...model, running: false } } : { model }),
+      // The first tick lands at the start, on the value the Model already holds.
+      Ticked: ({ value }) => (value === model.value ? { model } : { model: { ...model, value } }),
       Finished: ({ value }) => ({ model: { ...model, value, running: false } }),
     }),
   subscriptions: ({ from, to, ms }): Subscription.Subscriptions<TweenModel, TweenMessage> =>

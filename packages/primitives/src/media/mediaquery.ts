@@ -45,7 +45,8 @@ export const MediaQuery = Bundle.make('MediaQuery', {
   Message: MediaQueryMessage,
   args: Schema.Struct({ query: Schema.String }),
   init: () => ({ model: { matches: false } }),
-  update: (model, message) => ({ model: { matches: message.matches } }),
+  update: (model, message) =>
+    message.matches === model.matches ? { model } : { model: { matches: message.matches } },
   subscriptions: ({ query }): Subscription.Subscriptions<MediaQueryModel, MediaQueryMessage> =>
     Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
       changes: Subscription.persistent(matchMediaStream(query)),

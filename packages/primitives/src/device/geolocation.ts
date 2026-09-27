@@ -9,6 +9,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 export const Coordinates = Schema.Struct({
   latitude: Schema.Number,
@@ -103,11 +104,23 @@ export const Geolocation = Bundle.make<
     GeolocationMessage.match<
       Update.ReturnWithOutMessage<GeolocationModel, GeolocationMessage, never>
     >(message, {
-      Located: ({ latitude, longitude, accuracy }) => ({
-        model: { ...model, status: 'ready' as const, coords: { latitude, longitude, accuracy } },
-      }),
-      Denied: () => ({ model: { ...model, status: 'denied' as const } }),
-      Failed: ({ message }) => ({ model: { ...model, lastError: message } }),
+      // A watch repeats a fix that has not moved.
+      Located: ({ latitude, longitude, accuracy }) =>
+        model.status === 'ready' &&
+        model.coords !== null &&
+        model.coords.latitude === latitude &&
+        model.coords.longitude === longitude &&
+        model.coords.accuracy === accuracy
+          ? { model }
+          : {
+              model: {
+                ...model,
+                status: 'ready' as const,
+                coords: { latitude, longitude, accuracy },
+              },
+            },
+      Denied: () => ({ model: unlessSame(model, { ...model, status: 'denied' }) }),
+      Failed: ({ message }) => ({ model: unlessSame(model, { ...model, lastError: message }) }),
     }),
   subscriptions: (): Subscription.Subscriptions<GeolocationModel, GeolocationMessage> =>
     Subscription.make<GeolocationModel, GeolocationMessage>()(() => ({

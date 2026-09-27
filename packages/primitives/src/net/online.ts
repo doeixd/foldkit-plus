@@ -42,7 +42,8 @@ export const Online = Bundle.make('Online', {
           : true,
     },
   }),
-  update: (model, message) => ({ model: { online: message.online } }),
+  update: (model, message) =>
+    message.online === model.online ? { model } : { model: { online: message.online } },
   subscriptions: (): Subscription.Subscriptions<OnlineModel, OnlineMessage> =>
     Subscription.make<OnlineModel, OnlineMessage>()(() => ({
       changes: Subscription.persistent(presenceStream()),

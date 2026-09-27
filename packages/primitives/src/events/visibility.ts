@@ -35,7 +35,9 @@ export const Visibility = Bundle.make('Visibility', {
   Message: VisibilityMessage,
   // No document (SSR): assume visible; the stream corrects on subscribe.
   init: () => ({ model: { visible: isVisible() } }),
-  update: (model, message) => ({ model: { visible: message.visible } }),
+  // The stream opens with the state `init` already read.
+  update: (model, message) =>
+    message.visible === model.visible ? { model } : { model: { visible: message.visible } },
   subscriptions: (): Subscription.Subscriptions<VisibilityModel, VisibilityMessage> =>
     Subscription.make<VisibilityModel, VisibilityMessage>()(() => ({
       changes: Subscription.persistent(visibilityStream()),

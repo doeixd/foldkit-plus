@@ -362,6 +362,28 @@ describe('Bounds', () => {
     expect(values).toEqual([Measured.make(rect(0, 0, 10, 10)), Measured.make(rect(0, 5, 10, 10))])
   })
 
+  it('reports a rect only when it changed', async () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    const el = element()
+    stubRect(el, rect(0, 0, 10, 10))
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(Bounds().f(el, Mount.liveViewStateChanges), 2),
+        )
+        for (let i = 0; i < 100; i++) {
+          yield* Effect.yieldNow
+        }
+        window.dispatchEvent(new window.Event('scroll'))
+        window.dispatchEvent(new window.Event('resize'))
+        stubRect(el, rect(0, 5, 10, 10))
+        window.dispatchEvent(new window.Event('scroll'))
+        return yield* Fiber.join(fiber)
+      }),
+    )
+    expect(values).toEqual([Measured.make(rect(0, 0, 10, 10)), Measured.make(rect(0, 5, 10, 10))])
+  })
+
   it('catches container scrolls, which do not bubble', async () => {
     const outer = element()
     const inner = element()
