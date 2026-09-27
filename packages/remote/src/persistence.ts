@@ -265,7 +265,12 @@ const mergeStores = (
   current: EntityStore,
   snapshot: EntityStore,
   policy: MergePolicy,
-): EntityStore => (policy === 'replace' ? { ...current, ...snapshot } : { ...snapshot, ...current })
+): EntityStore =>
+  Object.keys(snapshot).length === 0
+    ? current
+    : policy === 'replace'
+      ? { ...current, ...snapshot }
+      : { ...snapshot, ...current }
 
 /** An empty snapshot: the cache as a fresh session has it. */
 const emptySnapshot: Snapshot = { entities: emptyStore, connections: {} }

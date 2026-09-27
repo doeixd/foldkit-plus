@@ -200,15 +200,17 @@ export const isFieldUnavailable = (store: EntityStore, key: EntityKey, field: st
 
 /** Records that the entity is known to be absent, so it is not refetched. */
 export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
-  replace(store, key, {
-    values: {},
-    present: new Set(),
-    stale: new Set(),
-    unavailable: new Set(),
-    tombstone: true,
-    updatedAt: 0,
-    windows: {},
-  })
+  isTombstone(store, key)
+    ? store
+    : replace(store, key, {
+        values: {},
+        present: new Set(),
+        stale: new Set(),
+        unavailable: new Set(),
+        tombstone: true,
+        updatedAt: 0,
+        windows: {},
+      })
 
 /** Forgets everything known about the entity, including a tombstone. */
 export const remove = (store: EntityStore, key: EntityKey): EntityStore => {

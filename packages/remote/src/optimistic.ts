@@ -103,10 +103,14 @@ export const beginOptimistic = (
     (operation): operation is NormalizedPatch => !isConnectionChange(operation),
   )
   const changes = operations.filter(isConnectionChange)
+  if (patches.length === 0 && changes.length === 0) return optimistic
   return {
     layers:
       patches.length === 0 ? optimistic.layers : [...optimistic.layers, { id: requestId, patches }],
-    overlays: [...optimistic.overlays, ...toOverlays(requestId, changes)],
+    overlays:
+      changes.length === 0
+        ? optimistic.overlays
+        : [...optimistic.overlays, ...toOverlays(requestId, changes)],
   }
 }
 
@@ -121,8 +125,9 @@ const confirm = (
   id: string,
   changes: ReadonlyArray<ConnectionChange>,
 ): OptimisticState => {
-  const confirmed = toOverlays(id, changes)
   const at = optimistic.overlays.findIndex(overlay => overlay.id === requestId)
+  if (at === -1 && changes.length === 0) return optimistic
+  const confirmed = toOverlays(id, changes)
   const others = optimistic.overlays.filter(overlay => overlay.id !== requestId)
   return {
     ...optimistic,
@@ -146,10 +151,10 @@ export const addLayer = (optimistic: OptimisticState, layer: EntityLayer): Optim
   layers: [...optimistic.layers, layer],
 })
 
-export const removeLayer = (optimistic: OptimisticState, id: string): OptimisticState => ({
-  ...optimistic,
-  layers: optimistic.layers.filter(layer => layer.id !== id),
-})
+export const removeLayer = (optimistic: OptimisticState, id: string): OptimisticState => {
+  const layers = optimistic.layers.filter(layer => layer.id !== id)
+  return layers.length === optimistic.layers.length ? optimistic : { ...optimistic, layers }
+}
 
 export const addOverlay = (
   optimistic: OptimisticState,
@@ -159,10 +164,10 @@ export const addOverlay = (
   overlays: [...optimistic.overlays, overlay],
 })
 
-export const removeOverlay = (optimistic: OptimisticState, id: string): OptimisticState => ({
-  ...optimistic,
-  overlays: optimistic.overlays.filter(overlay => overlay.id !== id),
-})
+export const removeOverlay = (optimistic: OptimisticState, id: string): OptimisticState => {
+  const overlays = optimistic.overlays.filter(overlay => overlay.id !== id)
+  return overlays.length === optimistic.overlays.length ? optimistic : { ...optimistic, overlays }
+}
 
 /** Base store with every layer applied in order. Later layers win. */
 export const visibleStore = (base: EntityStore, optimistic: OptimisticState): EntityStore =>
@@ -186,14 +191,17 @@ export const pruneOverlays = (
   connection: string,
   covered: ReadonlySet<string>,
   pending: ReadonlySet<string>,
-): OptimisticState => ({
-  ...optimistic,
-  overlays: optimistic.overlays.flatMap(overlay => {
+): OptimisticState => {
+  let changed = false
+  const overlays = optimistic.overlays.flatMap(overlay => {
     if (overlay.connection !== connection || pending.has(overlay.id)) return [overlay]
     const edges = overlay.edges.filter(edge => !covered.has(edge.key))
+    if (edges.length === overlay.edges.length) return [overlay]
+    changed = true
     return edges.length === 0 ? [] : [{ ...overlay, edges }]
-  }),
-})
+  })
+  return changed ? { ...optimistic, overlays } : optimistic
+}
 
 /** Everything a request owns: its layer and its overlays. */
 const release = (optimistic: OptimisticState, requestId: string): OptimisticState =>

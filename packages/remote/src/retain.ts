@@ -102,23 +102,30 @@ export const gc = (
 ): Retained => {
   const pending = state.mutations.pending
   const kept = reachable(state.entities, roots, state.connections, state.optimistic, pending)
-  const entities = Object.fromEntries(
-    Object.entries(state.entities).filter(([key]) => kept.has(key)),
-  )
+  const entities = keptOf(state.entities, key => kept.has(key))
   const keptConnections = new Set([
     ...roots.connections.map(root => root.identity),
     ...state.optimistic.overlays
       .filter(overlay => pending.has(overlay.id))
       .map(overlay => overlay.connection),
   ])
-  const connections = Object.fromEntries(
-    Object.entries(state.connections).filter(([identity]) => keptConnections.has(identity)),
+  const connections = keptOf(state.connections, identity => keptConnections.has(identity))
+  const overlays = state.optimistic.overlays.filter(
+    overlay => pending.has(overlay.id) || keptConnections.has(overlay.connection),
   )
-  const optimistic: OptimisticState = {
-    layers: state.optimistic.layers,
-    overlays: state.optimistic.overlays.filter(
-      overlay => pending.has(overlay.id) || keptConnections.has(overlay.connection),
-    ),
-  }
+  const optimistic: OptimisticState =
+    overlays.length === state.optimistic.overlays.length
+      ? state.optimistic
+      : { layers: state.optimistic.layers, overlays }
   return { entities, connections, optimistic }
+}
+
+/** The entries whose key is kept; `record` itself when that is all of them. */
+const keptOf = <T>(
+  record: Readonly<Record<string, T>>,
+  keep: (key: string) => boolean,
+): Readonly<Record<string, T>> => {
+  const entries = Object.entries(record)
+  const kept = entries.filter(([key]) => keep(key))
+  return kept.length === entries.length ? record : Object.fromEntries(kept)
 }

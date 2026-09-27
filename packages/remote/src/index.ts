@@ -2066,7 +2066,9 @@ const bindDomain = <
       live === undefined || live.policy !== undefined
         ? message
         : { ...live, policy: livePolicyFor(model, live.event) }
-    return store.set(model, updateRemote(store.get(model), resolved as RemoteMessage) as Store)
+    const remote = store.get(model)
+    const next = updateRemote(remote, resolved as RemoteMessage)
+    return next === remote ? model : store.set(model, next as Store)
   }
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
@@ -2511,16 +2513,8 @@ const bindDomain = <
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),
     forget: model => Remote.forget(bound, model),
-    overlay: (model, id, optimistic) =>
-      bound.store.set(
-        model,
-        updateRemote(bound.store.get(model), { _tag: 'OverlayShown', id, optimistic }) as Store,
-      ),
-    lift: (model, id) => {
-      const remote = bound.store.get(model)
-      const lifted = updateRemote(remote, { _tag: 'OverlayLifted', id })
-      return lifted === remote ? model : bound.store.set(model, lifted as Store)
-    },
+    overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
+    lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),
     fetch: ref => ({
       name: `Remote.query(${ref.query})`,
       args: { connection: ref.identity, window: ref.window },

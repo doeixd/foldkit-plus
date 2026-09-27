@@ -18,7 +18,6 @@ import {
   emptyLiveState,
   liveHasNext,
   liveHasPrevious,
-  shouldWake,
 } from '../src/live.js'
 import { addOverlay, emptyOptimistic, visibleItems } from '../src/optimistic.js'
 
@@ -70,12 +69,6 @@ describe('Live data', () => {
     })
     expect(gap.outcome).toBe('gap')
     expect(gap.state.cursor).toBe(1)
-  })
-
-  it('wakes only subscribers that select a changed field', () => {
-    expect(shouldWake(['status'], ['name'])).toBe(false)
-    expect(shouldWake(['status'], ['name', 'status'])).toBe(true)
-    expect(shouldWake([], ['name'])).toBe(false)
   })
 
   it('applies each insertion policy', () => {
