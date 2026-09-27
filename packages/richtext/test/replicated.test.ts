@@ -78,6 +78,7 @@ let edits = 0
 const edit = (
   view: View,
   command: RichText.Command,
+  options: Parameters<typeof Replicated.translate>[3] = {},
 ): ReadonlyArray<RichText.Replicated.ReplicatedOp> => {
   const document = Replicated.project(view.state)
   const result = RichText.run(
@@ -87,7 +88,7 @@ const edit = (
     { nodes },
   )
   if (!result.ok) throw new Error(`command refused: ${result.error}`)
-  const translated = Replicated.translate(view.state, result, `e${edits++}:r`)
+  const translated = Replicated.translate(view.state, result, `e${edits++}:r`, options)
   const next = Replicated.applyOps(view.state, translated.ops)
   expect(content(Replicated.project(next))).toEqual(content(result.state.document))
   view.state = next
@@ -188,7 +189,21 @@ const seeded = (seed: number) => {
 const randomEdit = (
   view: View,
   { next, pick }: ReturnType<typeof seeded>,
+  options: Parameters<typeof Replicated.translate>[3] = {},
 ): ReadonlyArray<RichText.Replicated.ReplicatedOp> | undefined => {
+  const attempt = (command: RichText.Command) => {
+    try {
+      return edit(view, command, options)
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('command refused')) return undefined
+      throw error
+    }
+  }
+  // Typing on where the last edit left the caret, as a person does, when the session is
+  // testing inserts that continue.
+  if (options.continues !== undefined && view.selection !== null && next() < 0.3) {
+    return attempt({ type: 'InsertText', text: pick(['x', 'yz', ' ']) })
+  }
   const filled = texts(view.state).filter(value => value.length > 0)
   if (filled.length === 0) return undefined
   const blocks: Array<RichText.Block> = []
@@ -242,12 +257,7 @@ const randomEdit = (
       },
     },
   ])
-  try {
-    return edit(view, command)
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith('command refused')) return undefined
-    throw error
-  }
+  return attempt(command)
 }
 
 describe('a replicated document', () => {
@@ -695,17 +705,35 @@ describe('random concurrent sessions', () => {
   // Two replicas edit from one state without seeing each other; the server commits all of
   // one's ops, then the other's. Whatever that order does to the second's intent, the
   // result has to be a valid document that both can go on editing.
+  // Each replica continues only the inserts it made, and the server receives each one's ops
+  // coalesced, which must show what that replica saw.
+  const replica = () => {
+    const minted = new Set<string>()
+    const ops: Array<RichText.Replicated.ReplicatedOp> = []
+    const options = { continues: (id: string) => minted.has(id) }
+    const record = (made: ReadonlyArray<RichText.Replicated.ReplicatedOp> | undefined) => {
+      for (const op of made ?? []) if (op.type === 'Insert') minted.add(op.id)
+      ops.push(...(made ?? []))
+    }
+    return { ops, options, record }
+  }
+
   it.each([3, 17, 43, 101])('merge into a document both can keep editing (seed %i)', seed => {
     const random = seeded(seed)
     const start = base()
     const a: View = { state: start, selection: null }
     const b: View = { state: start, selection: null }
-    const opsA: Array<RichText.Replicated.ReplicatedOp> = []
-    const opsB: Array<RichText.Replicated.ReplicatedOp> = []
+    const ofA = replica()
+    const ofB = replica()
     for (let step = 0; step < 25; step++) {
-      opsA.push(...(randomEdit(a, random) ?? []))
-      opsB.push(...(randomEdit(b, random) ?? []))
+      ofA.record(randomEdit(a, random, ofA.options))
+      ofB.record(randomEdit(b, random, ofB.options))
     }
+    const opsA = Replicated.coalesce(ofA.ops)
+    const opsB = Replicated.coalesce(ofB.ops)
+    expect(Replicated.project(Replicated.applyOps(start, opsA))).toEqual(
+      Replicated.project(a.state),
+    )
     const merged = Replicated.applyOps(Replicated.applyOps(start, opsA), opsB)
     const projected = Replicated.project(merged)
     expect(RichText.decodeDocument(projected)).toEqual(projected)
@@ -1151,5 +1179,154 @@ describe('identities', () => {
     expect(() =>
       Schema.decodeUnknownSync(Replicated.ReplicatedState, { onExcessProperty: 'error' })(stored),
     ).toThrow()
+  })
+})
+
+describe('continuing an insert', () => {
+  // Every edit here is this replica's own, minted under `e…`.
+  const mine = { continues: (id: string) => id.startsWith('e') }
+  /** A view with a caret at the end of the last paragraph of `base()`. */
+  const atEnd = (): View => {
+    const state = base()
+    const view: View = { state, selection: null }
+    view.selection = caretIn(view, 'last', 4)
+    return view
+  }
+  const type = (
+    view: View,
+    value: string,
+    options: Parameters<typeof Replicated.translate>[3] = mine,
+  ) => edit(view, { type: 'InsertText', text: value }, options)
+  type InsertOp = Extract<RichText.Replicated.ReplicatedOp, { type: 'Insert' }>
+  const inserts = (ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>) =>
+    ops.filter((op): op is InsertOp => op.type === 'Insert')
+
+  it('carries on its own last insert from the next index, and coalesces into one op', () => {
+    const view = atEnd()
+    const start = view.state
+    const first = type(view, 'ab')
+    const second = type(view, 'c')
+    const [a] = inserts(first)
+    const [c] = inserts(second)
+    expect(c).toMatchObject({ id: a!.id, from: 2, after: `${a!.id}.1`, text: 'c' })
+
+    const merged = Replicated.coalesce([...first, ...second])
+    expect(merged).toEqual([{ ...a, text: 'abc' }])
+    expect(Replicated.project(Replicated.applyOps(start, merged))).toEqual(
+      Replicated.project(view.state),
+    )
+  })
+
+  it.each([
+    ['nothing accepts it', {}],
+    ['it is not this replica’s', { continues: (id: string) => id.startsWith('other') }],
+  ])('starts a new insert when %s', (_, options) => {
+    const view = atEnd()
+    const [a] = inserts(type(view, 'ab', options))
+    const [c] = inserts(type(view, 'c', options))
+    expect(c!.id).not.toBe(a!.id)
+    expect(c).not.toHaveProperty('from')
+  })
+
+  it('starts a new insert for text typed inside its own, not at its end', () => {
+    const view = atEnd()
+    const [a] = inserts(type(view, 'abc'))
+    view.selection = caretIn(view, 'lastabc', 5)
+    const [b] = inserts(type(view, 'X'))
+    expect(b!.id).not.toBe(a!.id)
+    expect(texts(view.state).at(-1)).toBe('lastaXbc')
+  })
+
+  it('does not reuse the index of a character deleted from its end', () => {
+    const view = atEnd()
+    const [a] = inserts(type(view, 'abc'))
+    edit(view, { type: 'DeleteBackward' })
+    const [d] = inserts(type(view, 'd'))
+    // `a.2` is a tombstone now; continuing from `a.2` would claim it a second time.
+    expect(d!.id).not.toBe(a!.id)
+    expect(texts(view.state).at(-1)).toBe('lastabd')
+  })
+
+  it('continues an insert this edit made, when one edit types twice', () => {
+    const view = atEnd()
+    const document = Replicated.project(view.state)
+    const run = document.children.at(-1)!.children[0]!
+    const at = (offset: number) => ({ node: run.id, offset, affinity: 'after' as const })
+    const result = RichText.runAction(
+      { document, selection: { type: 'Range', anchor: at(4), focus: at(4) } },
+      [
+        { type: 'InsertText', text: 'ab' },
+        { type: 'InsertText', text: 'c' },
+      ],
+      counter(),
+    )
+    if (!result.ok) throw new Error(result.error)
+    const { ops } = Replicated.translate(view.state, result, 'e-twice:r', mine)
+    expect(Replicated.coalesce(ops)).toHaveLength(1)
+    expect(texts(Replicated.applyOps(view.state, ops)).at(-1)).toBe('lastabc')
+  })
+
+  it('continues an insert once per place, when one edit types at one place twice', () => {
+    const view = atEnd()
+    type(view, 'ab')
+    const document = Replicated.project(view.state)
+    const run = document.children.at(-1)!.children[0]!
+    const at = (offset: number) => ({ node: run.id, offset, affinity: 'after' as const })
+    const caret = (offset: number): RichText.Selection => ({
+      type: 'Range',
+      anchor: at(offset),
+      focus: at(offset),
+    })
+    // `c` continues the insert; `d` is typed after its `b` again, where `c` began.
+    const result = RichText.runAction(
+      { document, selection: caret(6) },
+      [
+        { type: 'InsertText', text: 'c' },
+        { type: 'SetSelection', selection: caret(6) },
+        { type: 'InsertText', text: 'd' },
+      ],
+      counter(),
+    )
+    if (!result.ok) throw new Error(result.error)
+    const { ops } = Replicated.translate(view.state, result, 'e-again:r', mine)
+    expect(texts(Replicated.applyOps(view.state, ops)).at(-1)).toBe('lastabdc')
+  })
+
+  it('refuses characters of an insert already in the state', () => {
+    const view = atEnd()
+    const [a] = inserts(type(view, 'ab'))
+    const again = { ...a!, text: 'XY', from: 1, after: Replicated.CharRef.make(`${a!.id}.0`) }
+    expect(texts(Replicated.applyOps(view.state, [again])).at(-1)).toBe('lastab')
+    expect(Replicated.invert(view.state, [again])).toEqual([])
+  })
+
+  it('undoes only the characters a continuation added', () => {
+    const view = atEnd()
+    type(view, 'ab')
+    const before = view.state
+    const continued = type(view, 'c')
+    const undo = Replicated.invert(before, continued)
+    expect(texts(Replicated.applyOps(view.state, undo)).at(-1)).toBe('lastab')
+  })
+
+  it.each<[string, (continued: InsertOp) => InsertOp]>([
+    ['another mark set', c => ({ ...c, marks: ['Bold'] })],
+    ['another block', c => ({ ...c, block: ReplicatedId.make('other:0') })],
+    ['another insert', c => ({ ...c, id: ReplicatedId.make('other:1') })],
+    ['a gap in its indexes', c => ({ ...c, from: 3 })],
+    ['another anchor', c => ({ ...c, after: Replicated.CharRef.make(`${c.id}.0`) })],
+  ])('keeps a continuation with %s apart', (_, change) => {
+    const view = atEnd()
+    const first = type(view, 'ab')
+    const [c] = inserts(type(view, 'c'))
+    expect(Replicated.coalesce([...first, change(c!)])).toHaveLength(2)
+  })
+
+  it('keeps inserts apart when another op stands between them', () => {
+    const view = atEnd()
+    const first = type(view, 'ab')
+    const [c] = inserts(type(view, 'c'))
+    const between = { type: 'Unmark', ranges: [], name: 'Bold' } as const
+    expect(Replicated.coalesce([...first, between, c!])).toHaveLength(3)
   })
 })

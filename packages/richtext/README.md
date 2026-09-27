@@ -832,6 +832,12 @@ if (result.ok) {
   `key`, which has to be unique to that call among everything the state will see, such as a
   random id minted in a Command. The ids the command minted itself are replaced, so its
   `mint` needs no care.
+- `translate(state, result, key, { continues })` carries text typed right after the last
+  character of an insert that `continues` accepts on that insert, from its next index,
+  rather than starting a new one. `coalesce(ops)` then folds a run of such inserts into one
+  op, so a burst of typing sent together is one `Insert`. Accept only inserts this replica
+  minted: two replicas continuing one insert at once claim the same characters, and the
+  later-committed loses its text.
 - `translate` is pure and reads nothing but its arguments. The `ops` are what travels: every
   replica applies the same ops in the server's order and projects the same document.
 - `applyOps` never throws. An op that no longer fits changes nothing: a block already

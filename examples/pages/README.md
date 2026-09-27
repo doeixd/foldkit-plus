@@ -96,7 +96,8 @@ and reach the other window once the server is back.
   checkpoint, because it never compacts.
 - Titles are last-writer-wins by the server's order. Keystrokes the server has not seen
   yet are merged into one edit, as typing in the body is (`coalesce` in
-  `src/contract.ts`).
+  `src/contract.ts`); typing that carries on the tab's own insert becomes one `Insert`
+  there.
 - The server takes a tab's name as its identity and does not check that an operation's
   replica is the tab that sent it; a real deployment authenticates the connection.
 - Deleting `pages.sqlite` while tabs keep their IndexedDB leaves those replicas ahead of

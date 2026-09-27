@@ -256,7 +256,10 @@ const commit = (
   commands: Update.Commands<Message>,
   group: string | null,
 ): Return => {
-  const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`)
+  // Only this tab's session mints under its prefix, so only this tab extends those inserts.
+  const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`, {
+    continues: id => id.startsWith(`${model.session}:`),
+  })
   // A caret move translates to no ops and mints nothing, so its key is not spent.
   if (translated.ops.length === 0) {
     return { model: { ...model, selection: translated.selection }, commands }

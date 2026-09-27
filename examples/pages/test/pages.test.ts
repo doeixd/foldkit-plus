@@ -170,12 +170,16 @@ describe('two people on one page', () => {
     for (const text of ['H', 'i', '!'])
       tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text }) }))
     await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('Hi!'))
-    // The page's creation, then one edit holding all three keystrokes.
+    // The page's creation, then one edit holding all three keystrokes as one insert.
     await vi.waitFor(() =>
       expect(
         Effect.runSync(aliceReplica.pending).map(op => decodeMessage(op.message)._tag),
       ).toEqual(['CreatedPage', 'EditedPage']),
     )
+    const edited = decodeMessage(Effect.runSync(aliceReplica.pending)[1]!.message)
+    expect(edited._tag === 'EditedPage' && edited.ops).toMatchObject([
+      { type: 'Insert', text: 'Hi!' },
+    ])
     await synchronize(aliceReplica, 'alice')
     expect(textOf(journal.snapshot(), tab.model().open!)).toEqual(['Hi!'])
   })

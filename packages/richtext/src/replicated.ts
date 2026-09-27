@@ -109,6 +109,11 @@ export const ReplicatedOp = Schema.Union([
     after: Schema.NullOr(CharRef),
     text: Schema.NonEmptyString,
     marks: Schema.Array(RunMark),
+    /**
+     * The index of its first character, when it continues an insert of the same id rather
+     * than starting one: `id.from` onwards. Absent means 0.
+     */
+    from: Schema.optionalKey(Index),
   }),
   Schema.Struct({ type: Schema.Literal('Delete'), ranges: Schema.Array(CharRange) }),
   Schema.Struct({ type: Schema.Literal('Mark'), ranges: Schema.Array(CharRange), mark: RunMark }),
@@ -338,6 +343,21 @@ const taken = (work: Draft, id: string): boolean =>
   work.read(id) !== undefined ||
   [...work.holding(id)].some(block => work.read(block)!.spans.some(span => span.id === id))
 
+/** Whether any of characters `from` up to `to` of an insert are already in the state. */
+const charsTaken = (
+  read: (block: string) => Entry | undefined,
+  holders: Iterable<ReplicatedId>,
+  id: string,
+  from: number,
+  to: number,
+): boolean =>
+  read(id) !== undefined ||
+  [...holders].some(block =>
+    read(block)!.spans.some(
+      span => span.id === id && span.offset < to && from < span.offset + span.text.length,
+    ),
+  )
+
 /** Where a character is: its block, and the span index and offset within that span. */
 interface Found {
   readonly block: ReplicatedId
@@ -497,7 +517,8 @@ const isWithin = (work: Draft, block: string, ancestor: string): boolean => {
 const applyOp = (work: Draft, op: ReplicatedOp): void => {
   switch (op.type) {
     case 'Insert': {
-      if (taken(work, op.id)) return
+      const from = op.from ?? 0
+      if (charsTaken(work.read, work.holding(op.id), op.id, from, from + op.text.length)) return
       // A lost anchor (its insert was rejected) falls back to the end of the block the
       // op was made in, so the text is kept close to where it was typed.
       const fallback = (): Place | undefined => {
@@ -512,7 +533,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       if (place === undefined) return
       work.write(place.block)!.spans.splice(place.index, 0, {
         id: op.id,
-        offset: 0,
+        offset: from,
         text: op.text,
         marks: op.marks,
         deleted: false,
@@ -711,6 +732,34 @@ export const applyOps = (
   return next
 }
 
+/**
+ * The same ops with each insert that continues the one right before it folded into that one:
+ * a run of typing `translate` carried on as one insert becomes one op again. For ops
+ * `translate` made, which never reuse a character, applying the result shows what applying
+ * `ops` does.
+ */
+export const coalesce = (ops: ReadonlyArray<ReplicatedOp>): ReadonlyArray<ReplicatedOp> => {
+  const out: Array<ReplicatedOp> = []
+  for (const op of ops) {
+    const last = out[out.length - 1]
+    if (op.type === 'Insert' && last?.type === 'Insert') {
+      const end = (last.from ?? 0) + last.text.length
+      if (
+        op.id === last.id &&
+        op.block === last.block &&
+        (op.from ?? 0) === end &&
+        op.after === charRef(last.id, end - 1) &&
+        sameMarkSet(op.marks, last.marks)
+      ) {
+        out[out.length - 1] = { ...last, text: last.text + op.text }
+        continue
+      }
+    }
+    out.push(op)
+  }
+  return out
+}
+
 // ---------------------------------------------------------------------------------------
 // Undoing
 // ---------------------------------------------------------------------------------------
@@ -747,11 +796,15 @@ const retypeTargetOf = (shape: BlockShape): RetypeTarget | undefined =>
 /** The ops that take back one op, made against the state it was applied to. */
 const invertOne = (state: ReplicatedState, op: ReplicatedOp): ReadonlyArray<ReplicatedOp> => {
   switch (op.type) {
-    case 'Insert':
-      // An insert whose id was taken changed nothing.
-      return holdersIn(holdersOf(state), op.id) !== undefined
+    case 'Insert': {
+      // An insert whose characters were taken changed nothing.
+      const from = op.from ?? 0
+      const to = from + op.text.length
+      const holders = holdersIn(holdersOf(state), op.id) ?? []
+      return charsTaken(id => lookup(state, id), holders, op.id, from, to)
         ? []
-        : [{ type: 'Delete', ranges: [{ id: op.id, from: 0, to: op.text.length }] }]
+        : [{ type: 'Delete', ranges: [{ id: op.id, from, to }] }]
+    }
     case 'Delete': {
       // Only what this op deleted: characters already gone before it stay gone.
       const ranges = coveredParts(state, op.ranges)
@@ -1260,13 +1313,47 @@ const charsAfter =
  * Throws if the transactions do not apply to the projection, which is a caller's bug. The
  * transactions are replayed with `apply`'s default transforms, as `RichText.run` applies
  * them; an edit normalized by other transforms does not translate.
+ *
+ * Text typed right after the last character of an insert `continues` accepts carries on that
+ * insert (`from` its next index) instead of starting one, so `coalesce` can fold a run of
+ * typing into one op. Accept only inserts this replica minted: two replicas continuing one
+ * insert at once would both claim its next characters, and the later would be dropped.
  */
 export const translate = (
   state: ReplicatedState,
   result: Pick<Extract<TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
   key: string,
+  options: { readonly continues?: (id: ReplicatedId) => boolean } = {},
 ): { readonly ops: ReadonlyArray<ReplicatedOp>; readonly selection: AnchoredSelection | null } => {
   const mint = minter(key)
+  const continues = options.continues ?? (() => false)
+  // How many characters each insert has, counting what this edit adds: an insert may be
+  // continued only from its end.
+  const lengths = new Map<string, number>()
+  const lengthOf = (id: string): number => {
+    const known = lengths.get(id)
+    if (known !== undefined) return known
+    let length = 0
+    for (const block of holdersIn(holdersOf(state), id) ?? []) {
+      for (const span of lookup(state, block)!.spans) {
+        if (span.id === id) length = Math.max(length, span.offset + span.text.length)
+      }
+    }
+    lengths.set(id, length)
+    return length
+  }
+  const next: NextInsert = (after, length) => {
+    if (after !== null) {
+      const { id, index } = parseChar(after)
+      if (continues(id as ReplicatedId) && lengthOf(id) === index + 1) {
+        lengths.set(id, index + 1 + length)
+        return { id: id as ReplicatedId, from: index + 1 }
+      }
+    }
+    const id = mint()
+    lengths.set(id, length)
+    return { id, from: 0 }
+  }
   const ops: Array<ReplicatedOp> = []
   const names = new Map<string, ReplicatedId>()
   const start = projection(state)
@@ -1283,7 +1370,7 @@ export const translate = (
     const applied = apply(current, transaction)
     if (!applied.ok) throw new Error(`translate: a transaction was refused (${applied.error})`)
     const shadow = shadowOf(current.document, chars, names)
-    for (const operation of transaction) translateOne(shadow, operation, ops, mint)
+    for (const operation of transaction) translateOne(shadow, operation, ops, mint, next)
     current = applied.state
     chars = charsAfter(shadow, chars)
   }
@@ -1365,11 +1452,18 @@ const addSubtree = (shadow: Shadow, block: Block, parent: string | null): void =
   }
 }
 
+/** The id and first index for new text after a character: a continued insert, or a new one. */
+type NextInsert = (
+  after: CharRef | null,
+  length: number,
+) => { readonly id: ReplicatedId; readonly from: number }
+
 const translateOne = (
   shadow: Shadow,
   operation: Operation,
   ops: Array<ReplicatedOp>,
   mint: () => ReplicatedId,
+  next: NextInsert,
 ): void => {
   switch (operation.type) {
     case 'SetSelection':
@@ -1377,18 +1471,20 @@ const translateOne = (
     case 'InsertText': {
       if (operation.text.length === 0) return
       const { block, runs, index, run } = locateRun(shadow, operation.at.node)
-      const id = mint()
+      const after = charBefore(runs, index, operation.at.offset)
+      const { id, from } = next(after, operation.text.length)
       ops.push({
         type: 'Insert',
         id,
         block: replicated(shadow, block),
-        after: charBefore(runs, index, operation.at.offset),
+        after,
         text: operation.text,
         marks: run.marks,
+        ...(from === 0 ? {} : { from }),
       })
       run.chars = concatChars(
         sliceChars(run.chars, 0, operation.at.offset),
-        [{ id, from: 0, to: operation.text.length }],
+        [{ id, from, to: from + operation.text.length }],
         sliceChars(run.chars, operation.at.offset, charsLength(run.chars)),
       )
       return

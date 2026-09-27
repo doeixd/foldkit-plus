@@ -7,6 +7,7 @@ import {
   type Replica,
   type Sync as SyncContract,
 } from 'foldkit-sync'
+import { Replicated } from 'foldkit-richtext'
 import { Message, Model, initialModel, reinstalled, update, type Shared } from './app.js'
 
 /**
@@ -33,7 +34,10 @@ const contractFor = (App: ReturnType<typeof application>) =>
       if (last._tag === 'RenamedPage' && next._tag === 'RenamedPage' && last.id === next.id)
         return next
       if (last._tag === 'EditedPage' && next._tag === 'EditedPage' && last.id === next.id)
-        return Message.EditedPage({ id: next.id, ops: [...last.ops, ...next.ops] })
+        return Message.EditedPage({
+          id: next.id,
+          ops: Replicated.coalesce([...last.ops, ...next.ops]),
+        })
       return undefined
     },
   })
