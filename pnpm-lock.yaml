@@ -1599,6 +1599,9 @@ importers:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
       effect:
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116

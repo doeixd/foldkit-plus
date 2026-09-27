@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-rc.116",
+    "@types/jsdom": "21.1.7",
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",
     "foldkit-bundle": "workspace:*",

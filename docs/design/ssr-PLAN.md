@@ -987,6 +987,36 @@ that can fail, or, for G4, a recorded measurement.
     tenth of the gzipped page, or decoding and listening take more than one
     frame, 16 ms. Acting then means the design's fix, planned as its own
     step. Otherwise the risk is closed with the numbers.
+  - **Done** (`bench/manifest.ts`, `pnpm bench:manifest`). Each row is a
+    keyed `li` with a click, an input whose hole the event fills, and a
+    focus. Measured 2026-09-27 with Node 22 and jsdom 26; times are medians of
+    ten runs after two warm-ups:
+
+    | rows | bindings | page (gz) | envelope (gz) | bindings (gz) | bindings / page, gz | decode | listen |
+    | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+    | 10 | 30 | 4.5 KB (0.8 KB) | 2.8 KB (0.4 KB) | 2.2 KB (0.2 KB) | 28.9% | 0.7 ms | 0.4 ms |
+    | 100 | 300 | 43.5 KB (4.5 KB) | 26.9 KB (1.7 KB) | 22.3 KB (1.0 KB) | 22.5% | 3.1 ms | 2.3 ms |
+    | 1000 | 3000 | 441.6 KB (40.4 KB) | 272.7 KB (15.2 KB) | 226.2 KB (8.5 KB) | 21.0% | 20.2 ms | 18.1 ms |
+
+    **Both thresholds are crossed** at a thousand rows: the gzipped bindings
+    are a fifth of the gzipped page, and decoding and listening together take
+    about 38 ms. Two things flatter the problem: each row here holds almost
+    no markup of its own, so a real page's ratio would be lower, and jsdom's
+    DOM is slower than a browser's. Neither closes the risk: even at 100
+    rows the ratio is over a tenth, and both costs grow linearly. So the fix
+    is planned as its own step, G6, below.
+
+- **G6. One manifest entry per keyed placement, not per row** (planned, not
+  started). The design's fix: when the rows are one view placed per key,
+  the manifest carries one entry per binding of that view with the key's
+  place left open, and each row's markers carry the key, so a thousand rows
+  cost one entry per binding rather than three thousand. Before building it,
+  split G4's times: how much of `decode` is the Schema decode of each entry
+  and how much the marker scan over every element, and how much of `listen`
+  is that scan again. If the scans dominate, one pass that reads each
+  marker once, shared by `Resume.bindings` and `Resume.listen`, may be the
+  cheaper first change. Its acceptance is G4's table rerun under the
+  thresholds at a thousand rows, with G2's sequences still green.
 
 - **G5. Stop depending on when `hydrate` commits.** Deferred boot assumes the
   first render, listeners included, lands inside the event that boots the
