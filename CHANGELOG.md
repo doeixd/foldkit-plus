@@ -57,9 +57,9 @@ version changed; `pnpm` skips versions already in the registry.
   new page seemed to open without one. The address keeps a post's preview and
   the Builder's panel and preview width, so a reload comes back to them, and
   the worklist's search and tab go through a `foldkit-mirror` URL mirror
-  (`?archive=true` where it was `?archive=1`). The blog's six posts explain
-  how the demo is made (the CMS, the page builder, Composition, Entity,
-  Remote and Crud, and the styling), and a post's body can hold headings,
+  (`?archive=true` where it was `?archive=1`). The blog's eight posts explain
+  how the demo is made (the CMS, the page builder, Composition, Form, Crud,
+  Entity and Remote, and the styling), and a post's body can hold headings,
   lists and code. The site links to the demo's code on GitHub, and a
   published sandbox kept from the earlier seed is replaced by this one.
 

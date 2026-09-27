@@ -17,7 +17,7 @@ const PREFIX = 'foldkit-cms-demo'
  * seed changes: a sandbox kept from an older edition is then let go, and
  * everyone starts from the new one rather than from what they kept.
  */
-export const SANDBOX_KEY = `${PREFIX}@2`
+export const SANDBOX_KEY = `${PREFIX}@3`
 
 /**
  * Bytes as base64, and back: by the browser's own where it has them (a big

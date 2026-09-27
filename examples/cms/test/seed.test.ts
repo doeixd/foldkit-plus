@@ -18,7 +18,7 @@ describe('the seed', () => {
       ),
     ).toEqual([
       ...Array.from({ length: 2 }, () => ({ type: 'pages', revision: 1, created_by: 'edda' })),
-      ...Array.from({ length: 6 }, () => ({ type: 'posts', revision: 1, created_by: 'edda' })),
+      ...Array.from({ length: 8 }, () => ({ type: 'posts', revision: 1, created_by: 'edda' })),
     ])
     expect(backend.rows('select count(*) as drafts from cms_drafts')).toEqual([{ drafts: 0 }])
     expect(
