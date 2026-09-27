@@ -651,6 +651,11 @@ of its own named a form field "fits the Catalog". Read words with
 - **Ask what else can run while you are suspended.** Moving bookkeeping after
   an await fixed a false-success bug and introduced double registration;
   overlapping passes had to be serialized.
+- **Foldkit draws the next screen before a Navigate Command runs.** A scroll
+  offset recorded on `navigate` or `popstate` was already clamped to the new,
+  shorter page, and a restore made when the entry changed was undone by the
+  loading state drawn after it. Record at the reader's action, and hold a
+  restore until the screen settles (`examples/cms/src/scroll.ts`).
 - **Subscribe before the action that can produce the event.** `update` can emit a
   completing Message synchronously, so a listener attached after the dispatch
   misses it and then waits for its timeout.
@@ -702,6 +707,12 @@ of its own named a form field "fits the Catalog". Read words with
   `createLazy` never hits, since the function is new every render; so does an
   array rebuilt per render (`flatMap`) among its arguments. Pass a function
   defined once, and values that keep their identity.
+- **One layout decision written twice drifts apart.** The page builder
+  stacked its panels below 64rem of its own width but showed the tabs that
+  choose one only below 52rem, so between the two (a 1280px window) every
+  panel stood above the page and New page looked broken. Name the width once
+  and pass it to every query that decides the same thing, and test at a width
+  between the old values.
 - **A layout test that checks what shows passes a broken layout.** The
   narrow editor's test asserted which panels were visible at 600px; the
   example's grid still had three columns, collapsing only by the window, and
@@ -719,6 +730,11 @@ of its own named a form field "fits the Catalog". Read words with
   the canvas, and a focus-following Mount "broke" it. Focus what a user would
   press, and test a focus claim in a browser with `userEvent`: four focus
   bugs (Enter, Delete, a disabled button, a narrow panel) passed every test.
+- **A routing test that checks who may claim proves nothing about delivery.**
+  `Bundle.assemble` allowed a shared tag and its tests stopped there; routing
+  took the first claimant, so a second URL mirror never read the URL and the
+  application never saw its own `UrlChanged`. Assert what each claimant and
+  the parent receive.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
