@@ -45,7 +45,11 @@ const content = RichText.decodeDocument({
 })
 
 /** An application holding one editor at `hostId`, told whether it is the server's render. */
-const page = (hostId: string, serving: { now: boolean } | undefined) => {
+const page = (
+  hostId: string,
+  serving: { now: boolean } | undefined,
+  document: RichText.Document = content,
+) => {
   const placed = editorAt(hostId, {
     rendering: RichText.standardRendering,
     // Drawn over the document on the server as in the browser, or adoption would refuse it.
@@ -61,7 +65,7 @@ const page = (hostId: string, serving: { now: boolean } | undefined) => {
   const application = Bundle.assemble<Model, ParentMessage>()([placed])
   return {
     Model,
-    init: () => application.initial({ document: content }),
+    init: () => application.initial({ document }),
     update: application.update(),
     view: (model: Model, h: HtmlBuilder<ParentMessage>) => ({
       title: 'Editor',
@@ -85,6 +89,9 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 20))
 
 it('adopts the markup the server sent, keeping its nodes', async () => {
   const serving = { now: true }
+  // A server renders many requests; an earlier one's document, an equal copy here, must not
+  // leave this one's host drawn differently from the browser's first render.
+  await serve(page('served-editor', serving, { ...content }))
   const config = page('served-editor', serving)
   await serve(config)
   const host = document.getElementById('served-editor')!
@@ -94,9 +101,10 @@ it('adopts the markup the server sent, keeping its nodes', async () => {
   expect(root?.getAttribute('contenteditable')).toBe('true')
 
   serving.now = false
+  // The browser decodes its own copy, as a separate process would.
   hydrate(
     makeApplication({
-      ...config,
+      ...page('served-editor', serving, { ...content }),
       container: document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`),
     }),
     { buildId: 'b' },

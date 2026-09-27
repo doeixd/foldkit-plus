@@ -220,9 +220,7 @@ What the form does with it:
   Subscriptions and Resources, keyed under the key (`ColorPicker@fields.color/…`),
   and `init` starts the control's init Commands.
 - **`fill`, `partial`, `settled`, submit and `Reset`** all go through `value`,
-  `fill`, `settled` and `reset`. `Reset` returns the Bundle's initial Model, or what
-  `reset(model, initial)` makes of it: a Bundle whose view mounts DOM that reads its args
-  once carries a counter forward there, so its view can key that DOM and draw it again.
+  `fill` and `settled`. `Reset` returns the Bundle's initial Model.
 - **Nothing entered** is `value` giving `undefined` or `null`, which a required
   key refuses as it would an empty text box.
 - **Types follow the control.** `model.fields.color.value` is the picker's

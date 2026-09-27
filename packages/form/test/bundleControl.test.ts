@@ -215,28 +215,6 @@ describe('a key edited by a control backed by a Bundle', () => {
     expect(tags.field(reset).value).toEqual({ tags: [], typing: '' })
   })
 
-  it('resets through the control’s reset, which sees the Model it held', () => {
-    // A control can carry something forward, as an editor carries the count its view keys by.
-    const Kept = Form.make('KeptForm', PostInput, {
-      inputs: {
-        tags: Input.bundle('Tags', {
-          bundle: QuietTagEditor,
-          value: model => (model.tags.length === 0 ? undefined : model.tags),
-          fill: (model, given) => ({ ...model, tags: given }),
-          reset: (model, initial) => ({ ...initial, typing: `was ${model.tags.join()}` }),
-        }),
-      },
-    })
-    const filled = Kept.fill(Kept.initial, { title: 'kept', tags: ['a', 'b'] }).model
-    const reset = Kept.bundle.update(filled, Kept.Message.Reset(), undefined).model
-    expect(Kept.control('tags').field(reset)).toEqual({
-      _tag: 'NotValidated',
-      value: { tags: [], typing: 'was a,b' },
-    })
-    // Every other key is the initial Model's, as without a reset.
-    expect(reset.fields.title).toEqual(Kept.initial.fields.title)
-  })
-
   it('drops a Message the Bundle does not take, and a draft sent as Changed', () => {
     const stray = update(
       PostForm.initial,

@@ -315,6 +315,12 @@ transition. `application` and `update` are the assembled parent, and `edited` /
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
 
+A document the parent puts in the Model any other way (an entry opened, a revision restored,
+a form's `fill` or `Reset`) gets a fresh host. The host's Mount reads its document once, so
+the view keys the host by the document it shows: each committed edit hands its key on to the
+next document, and a document that did not come from an edit here has none yet. The first
+document a host id shows is drawn without a key, as the server draws it.
+
 ## On a server-rendered page
 
 The editor's host is a custom element, `<foldkit-richtext>`, drawn `display: block` by an inline
@@ -362,9 +368,6 @@ reported by `authoredChanged` like any other.
   go. A blank document (`RichText.isBlank`) reads as no value, so a required key refuses it.
 - **Filling:** `fill` shows a given document with a history of its own and no selection, since
   the caret was in runs the given document does not have.
-- **Drawing what the form writes in:** the host's Mount reads its document once, so `fill` and
-  `Reset` each advance a count (`loaded`) the host is keyed by, and the given document is
-  mounted afresh on a new host.
 - **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
   and the history, and clears only the slash menu's highlight, which belongs to the moment it
   was typed in.
