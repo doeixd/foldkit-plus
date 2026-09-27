@@ -38,7 +38,9 @@ patches the open editor from what it showed to what the page now projects to, wi
 caret placed again by the characters it was held by.
 
 When both people type at one place, both texts survive, the later-committed first. Text
-typed into a block someone else deleted goes with the block.
+typed into a block someone else deleted goes with the block. A deleted page goes to the
+trash rather than away: edits that arrive for it still apply, so someone who typed into it
+offline has not lost the text, and restoring the page from the sidebar brings it back.
 
 ## Run it
 
@@ -85,7 +87,6 @@ and reach the other window once the server is back.
 - Titles are last-writer-wins by the server's order. Keystrokes the server has not seen
   yet are merged into one edit, as typing in the body is (`coalesce` in
   `src/contract.ts`).
-- An edit to a page another replica deleted is accepted and changes nothing.
 - The server takes a tab's name as its identity and does not check that an operation's
   replica is the tab that sent it; a real deployment authenticates the connection.
 - Deleting `pages.sqlite` while tabs keep their IndexedDB leaves those replicas ahead of

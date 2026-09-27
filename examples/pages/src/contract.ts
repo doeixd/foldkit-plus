@@ -25,6 +25,7 @@ const contractFor = (App: ReturnType<typeof application>) =>
       Message.CreatedPage,
       Message.RenamedPage,
       Message.DeletedPage,
+      Message.RestoredPage,
       Message.EditedPage,
     ]),
     // A burst of typing or renaming the server has not seen yet goes as one operation.

@@ -17,6 +17,12 @@ export const Page = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
   body: Replicated.ReplicatedState,
+  /**
+   * In the trash: hidden, but still edited by what arrives for it, so an edit made offline
+   * to a page someone else deleted is kept, and restoring the page shows it. Optional, so
+   * pages stored before the trash existed still decode.
+   */
+  trashed: Schema.optionalKey(Schema.Boolean),
 })
 export type Page = typeof Page.Type
 
@@ -47,6 +53,7 @@ export const Message = defineMessageUnion({
   CreatedPage: { id: Schema.String, title: Schema.String, key: Schema.String },
   RenamedPage: { id: Schema.String, title: Schema.String },
   DeletedPage: { id: Schema.String },
+  RestoredPage: { id: Schema.String },
   EditedPage: { id: Schema.String, ops: Schema.Array(Replicated.ReplicatedOp) },
   // Local: what this tab asked for.
   AddedPage: { title: Schema.String },
@@ -97,8 +104,9 @@ const opened = (model: Model, id: string): Model => ({
   menuIndex: 0,
 })
 
-const pageOf = (model: Model, id: string | null): Page | undefined =>
-  id === null ? undefined : model.pages.find(page => page.id === id)
+/** The page with this id, unless it is in the trash. */
+export const pageOf = (model: Model, id: string | null): Page | undefined =>
+  id === null ? undefined : model.pages.find(page => page.id === id && page.trashed !== true)
 
 const withPage = (model: Model, id: string, change: (page: Page) => Page): Model => ({
   ...model,
@@ -186,8 +194,12 @@ export const update = (model: Model, message: Message): Return =>
           },
     }),
     RenamedPage: ({ id, title }) => ({ model: withPage(model, id, page => ({ ...page, title })) }),
+    // Durable, so it changes the pages only: a tab showing the page finds it gone.
     DeletedPage: ({ id }) => ({
-      model: { ...model, pages: model.pages.filter(page => page.id !== id) },
+      model: withPage(model, id, page => ({ ...page, trashed: true })),
+    }),
+    RestoredPage: ({ id }) => ({
+      model: withPage(model, id, ({ trashed: _, ...page }) => page),
     }),
     EditedPage: ({ id, ops }) => ({
       model: withPage(model, id, page => ({ ...page, body: Replicated.applyOps(page.body, ops) })),

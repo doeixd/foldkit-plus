@@ -226,6 +226,35 @@ describe('two people on one page', () => {
     await vi.waitFor(() => expect(document.getElementById('page-body')).toBeNull())
   })
 
+  it('keeps typing into a page someone else deleted, for a restore to bring back', async () => {
+    const aliceReplica = await open('alice')
+    const bobReplica = await open('bob')
+    replicas.push(aliceReplica, bobReplica)
+    const tab = await aliceOnPage(aliceReplica)
+    const page = tab.model().open!
+    await synchronize(aliceReplica, 'alice')
+    await synchronize(bobReplica, 'bob')
+    // Alice types while Bob deletes the page; Bob's delete reaches the server first.
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'kept' }) }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('kept'))
+    await bobEdits(
+      bobReplica,
+      { ...initialModel('bob'), pages: Effect.runSync(bobReplica.shared).pages },
+      Message.DeletedPage({ id: page }),
+    )
+    await synchronize(bobReplica, 'bob')
+    await synchronize(aliceReplica, 'alice')
+    await vi.waitFor(() => expect(document.getElementById('page-body')).toBeNull())
+    expect(journal.snapshot().pages[0]).toMatchObject({ id: page, trashed: true })
+    expect(textOf(journal.snapshot(), page)).toEqual(['kept'])
+
+    tab.dispatch(Message.RestoredPage({ id: page }))
+    tab.dispatch(Message.OpenedPage({ id: page }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('kept'))
+    await synchronize(aliceReplica, 'alice')
+    expect(journal.snapshot().pages[0]?.trashed).toBeUndefined()
+  })
+
   it('rejects an operation that does not decode, and commits the rest of the exchange', async () => {
     const replica = await open('alice')
     replicas.push(replica)

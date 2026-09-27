@@ -3,7 +3,7 @@ import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { editorView } from 'foldkit-richtext-dom/editor-bundle'
 import { print } from 'foldkit-richtext-markdown'
 import * as RichText from 'foldkit-richtext'
-import { editorViewOf, Message, type Model } from './app.js'
+import { editorViewOf, Message, pageOf, type Model } from './app.js'
 
 const { Replicated } = RichText
 
@@ -14,7 +14,8 @@ const tool = (h: HtmlBuilder<Message>, label: string, message: EditorMessage) =>
   h.button([h.Class('tool'), h.OnClick(editorMessage(message))], [label])
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
-  const open = model.pages.find(page => page.id === model.open)
+  const open = pageOf(model, model.open)
+  const trash = model.pages.filter(page => page.trashed === true)
   return {
     title: open === undefined ? 'Pages' : `${open.title} · Pages`,
     body: h.div(
@@ -25,22 +26,52 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           [
             h.ul(
               [h.Class('page-list')],
-              model.pages.map(page =>
-                h.li(
-                  [h.Class(page.id === model.open ? 'page open' : 'page')],
-                  [
-                    h.button(
-                      [h.Class('page-link'), h.OnClick(Message.OpenedPage({ id: page.id }))],
-                      [page.title === '' ? 'Untitled' : page.title],
-                    ),
-                  ],
+              model.pages
+                .filter(page => page.trashed !== true)
+                .map(page =>
+                  h.li(
+                    [h.Class(page.id === model.open ? 'page open' : 'page')],
+                    [
+                      h.button(
+                        [h.Class('page-link'), h.OnClick(Message.OpenedPage({ id: page.id }))],
+                        [page.title === '' ? 'Untitled' : page.title],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ),
             h.button(
               [h.Id('new-page'), h.OnClick(Message.AddedPage({ title: 'Untitled' }))],
               ['+ New page'],
             ),
+            ...(trash.length === 0
+              ? []
+              : [
+                  h.details(
+                    [h.Class('trash')],
+                    [
+                      h.summary([], [`Trash (${trash.length})`]),
+                      h.ul(
+                        [],
+                        trash.map(page =>
+                          h.li(
+                            [],
+                            [
+                              page.title === '' ? 'Untitled' : page.title,
+                              h.button(
+                                [
+                                  h.Class('restore'),
+                                  h.OnClick(Message.RestoredPage({ id: page.id })),
+                                ],
+                                ['Restore'],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ]),
           ],
         ),
         open === undefined
