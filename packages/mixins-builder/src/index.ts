@@ -1009,7 +1009,10 @@ export const BuilderView = {
       readonly h: HtmlBuilder<Message>
     }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyCommand(input, key, modifiers))]
 
-    /** A button, disabled where there is nothing to send. */
+    /**
+     * A button, disabled where there is nothing to send: by `aria-disabled`, so
+     * it keeps focus when what it did (the last undo) leaves it nothing to do.
+     */
     const button = (
       h: HtmlBuilder<Message>,
       slot: SlotView.SlotBuilder<Message>,
@@ -1020,8 +1023,10 @@ export const BuilderView = {
       h.button(
         slot.attrs([
           h.Type('button'),
-          h.Disabled(Option.isNone(message)),
-          ...Option.match(message, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }),
+          ...Option.match(message, {
+            onNone: () => [h.AriaDisabled(true)],
+            onSome: sent => [h.OnClick(sent)],
+          }),
           ...extra,
         ]),
         [label],
@@ -1191,9 +1196,9 @@ export const BuilderView = {
               h.DataAttribute(...item.data),
               h.AriaLabel(say(w.addBlock, { label: item.label })),
               h.Title(whereItGoes(document, input.selected, item.at, w)),
-              h.Disabled(Option.isNone(item.at)),
+              // As a command's button: it keeps focus when its place fills up.
               ...Option.match(item.at, {
-                onNone: () => [],
+                onNone: () => [h.AriaDisabled(true)],
                 onSome: position => [h.OnClick(item.asked(position))],
               }),
             ]),

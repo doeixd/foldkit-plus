@@ -384,6 +384,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-builder`:** the palette's tiles and the command buttons
+  are disabled by `aria-disabled` rather than `disabled`, so Undo pressed on
+  the last step, or a tile whose place fills, keeps focus instead of dropping
+  it to `<body>`. Style `[aria-disabled="true"]`; the CMS example does.
+
 - **`foldkit-primitives`, `EditableText`:** when Enter or Escape ends an edit
   and the view then removes the field or makes it no longer editable, focus
   comes back to the container instead of falling to `<body>`, where the next

@@ -158,10 +158,13 @@ export const primaryButton = Style.compose(
     textDecoration: 'none',
     whiteSpace: 'nowrap',
   }),
-  Style.pseudo(':hover:not(:disabled)', {
+  Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
     background: `color-mix(in oklch, ${t.text.overt} 85%, ${t.surface.base})`,
   }),
-  Style.pseudo(':disabled', { cursor: 'not-allowed', opacity: '0.45' }),
+  Style.pseudo(':is(:disabled, [aria-disabled="true"])', {
+    cursor: 'not-allowed',
+    opacity: '0.45',
+  }),
   Style.pseudo(':focus-visible', {
     outline: `3px solid color-mix(in oklch, ${t.accent.default} 40%, transparent)`,
     outlineOffset: '2px',
@@ -818,8 +821,11 @@ const iconButton = Style.compose(
     width: '2rem',
   }),
   glyph('1rem'),
-  Style.pseudo(':hover:not(:disabled)', { background: t.surface.muted, color: t.text.overt }),
-  Style.pseudo(':disabled', { cursor: 'default', opacity: '0.35' }),
+  Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
+    background: t.surface.muted,
+    color: t.text.overt,
+  }),
+  Style.pseudo(':is(:disabled, [aria-disabled="true"])', { cursor: 'default', opacity: '0.35' }),
   Style.pseudo(':focus-visible', {
     outline: `2px solid ${t.accent.default}`,
     outlineOffset: '1px',
@@ -948,12 +954,15 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         transition: 'background 120ms ease, border-color 120ms ease',
       }),
       glyph('1.15rem'),
-      Style.pseudo(':hover:not(:disabled)', {
+      Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
         background: t.accent.subtle,
         borderColor: t.accent.default,
         color: t.accent.ink,
       }),
-      Style.pseudo(':disabled', { cursor: 'not-allowed', opacity: '0.4' }),
+      Style.pseudo(':is(:disabled, [aria-disabled="true"])', {
+        cursor: 'not-allowed',
+        opacity: '0.4',
+      }),
     ),
     paletteLabel: Style.self({
       fontSize: '0.7rem',
@@ -1067,7 +1076,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         cut: 'scissors',
         delete: 'trash',
       }),
-      Style.nest('&[data-action="delete"]:hover:not(:disabled)', {
+      Style.nest('&[data-action="delete"]:hover:not(:disabled, [aria-disabled="true"])', {
         background: t.error.subtle,
         color: t.error.ink,
       }),
@@ -1109,7 +1118,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         fontWeight: t.weight.medium,
         padding: '0.35rem 0.4rem',
       }),
-      Style.pseudo(':hover:not(:disabled)', { color: t.text.overt }),
+      Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', { color: t.text.overt }),
       Style.nest('&[aria-pressed="true"]', {
         background: t.surface.base,
         boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',

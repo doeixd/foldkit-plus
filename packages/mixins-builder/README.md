@@ -61,7 +61,10 @@ Place `Drawn` as you would any Bundle. Its view draws:
 - a **palette**: one button per Block with starting props, named
   "Add <label>" and grouped, each titled with where it would go ("Adds it
   inside the Section") or disabled, saying why, where the selection leaves no
-  place for it; the Catalog's patterns follow in a group of their own,
+  place for it (by `aria-disabled`, as every button of the editor is, so a
+  button stays focusable when its own press leaves it nothing to do; style
+  `[aria-disabled="true"]`, not `:disabled`); the Catalog's patterns follow
+  in a group of their own,
   "Patterns", each placed where its root's Block would go;
 - the **layers**: a `role="tree"` of the page's nodes, one `treeitem` row each,
   with a roving tab stop on the selected row; a row shows its Block's label and

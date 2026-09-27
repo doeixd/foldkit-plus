@@ -413,3 +413,18 @@ it('keeps focus in the layers through a duplicate and a delete, on the row they 
   await vi.waitFor(() => expect(focusedRow()).toBe('h2'))
   expect(row(copy ?? '')).toBeNull()
 })
+
+it('keeps focus on a command button that its own press leaves with nothing to do', async () => {
+  unmount = mount(stylesheet, 2)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const undo = () => document.querySelector<HTMLElement>('[data-action="undo"]')
+  // One edit, from the layers: then Undo has one step to take back.
+  document.querySelector<HTMLElement>('[data-builder-row="h1"]')?.focus()
+  await userEvent.keyboard('{Delete}')
+  await vi.waitFor(() => expect(undo()?.getAttribute('aria-disabled')).toBeNull())
+  const button = undo()
+  if (button === null) throw new Error('no Undo button')
+  await userEvent.click(button)
+  await vi.waitFor(() => expect(undo()?.getAttribute('aria-disabled')).toBe('true'))
+  expect(document.activeElement).toBe(button)
+})

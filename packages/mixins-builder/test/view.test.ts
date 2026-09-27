@@ -90,7 +90,8 @@ describe('the drawn Builder', () => {
         Inert.value(item, 'aria-label'),
         Inert.text(item),
         Inert.value(item, 'title'),
-        Inert.value(item, 'disabled'),
+        // Disabled by `aria-disabled`, so a button that empties itself keeps focus.
+        Inert.value(item, 'aria-disabled') === 'true',
       ]),
     ).toEqual([
       ['Add Section', 'SectionA band of the page', 'Adds it to the end of the page', false],
@@ -731,11 +732,11 @@ describe('the drawn Builder', () => {
 
   it('offers the selected node’s actions as the shortcuts would send them', () => {
     const root = draw(page)
-    expect(Inert.value(buttonNamed(root, 'Move up'), 'disabled')).toBe(false)
+    expect(Inert.value(buttonNamed(root, 'Move up'), 'aria-disabled') === 'true').toBe(false)
     expect(Inert.value(buttonNamed(root, 'Duplicate'), 'title')).toBe('Duplicate (Ctrl+D)')
-    expect(Inert.value(buttonNamed(root, 'Move down'), 'disabled')).toBe(true)
-    expect(Inert.value(buttonNamed(root, 'Undo'), 'disabled')).toBe(false)
-    expect(Inert.value(buttonNamed(root, 'Redo'), 'disabled')).toBe(true)
+    expect(Inert.value(buttonNamed(root, 'Move down'), 'aria-disabled') === 'true').toBe(true)
+    expect(Inert.value(buttonNamed(root, 'Undo'), 'aria-disabled') === 'true').toBe(false)
+    expect(Inert.value(buttonNamed(root, 'Redo'), 'aria-disabled') === 'true').toBe(true)
   })
 })
 
