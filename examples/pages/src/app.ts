@@ -117,13 +117,14 @@ const toApp = (command: {
 /**
  * Commits an edit the editor made on the open page's projection: restates it as ops, draws
  * what they project to, and hands the ops on as the durable fact, applied in this same
- * transition. `shown` is the document the editor has drawn, which the patch starts from.
+ * transition. `keyed` is the document the editor's host is now keyed by: the editor's own
+ * result after an edit through it, which `patchTo` hands on to the projection.
  */
 const commit = (
   model: Model,
   page: Page,
   edit: Pick<Extract<RichText.TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
-  shown: RichText.Document,
+  keyed: RichText.Document,
   commands: Update.Commands<Message>,
 ): Return => {
   const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`)
@@ -139,9 +140,11 @@ const commit = (
   return {
     model: next,
     commands: [
-      ...commands,
+      // The editor's own patch would draw its placeholder ids, only for this one to replace
+      // them; this one patches from whatever is drawn, so it is the only one needed.
+      ...commands.filter(command => command.name !== 'RichText.patch'),
       toApp(
-        patchTo(hostId, shown, {
+        patchTo(hostId, keyed, {
           document: Replicated.project(body),
           selection: Replicated.resolve(body, translated.selection),
         }),
