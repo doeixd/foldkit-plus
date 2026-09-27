@@ -285,7 +285,9 @@ const carryKey = (hostId: string, from: RichText.Document, to: RichText.Document
  * The host is found by the document the view renders, so `previous` is the object it
  * rendered and `next.document` the object it will render; building the Command hands the
  * host on from one to the other, so build it only to return it. The patch itself starts
- * from whatever the editor has drawn, and `next.selection` becomes the browser selection.
+ * from whatever the editor has drawn, and `next.selection` becomes the browser selection;
+ * a replacement that changes nothing drawn leaves the DOM alone, selection included, as an
+ * exchange that only confirms edits already shown does.
  */
 export const patchTo = (
   hostId: string,
@@ -298,7 +300,12 @@ export const patchTo = (
     effect: Effect.as(
       Effect.sync(() => {
         const drawn = drawnDocument(hostId) ?? previous
-        patchEditor(hostId, next, replaceChangeSet(drawn, next.document))
+        const changeSet = replaceChangeSet(drawn, next.document)
+        const unchanged =
+          !changeSet.structureChanged &&
+          changeSet.dirtyNodes.size === 0 &&
+          changeSet.removedNodes.size === 0
+        if (!unchanged) patchEditor(hostId, next, changeSet)
       }),
       Message.Patched(),
     ),

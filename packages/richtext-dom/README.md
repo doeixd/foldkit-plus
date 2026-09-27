@@ -152,7 +152,8 @@ same transition that puts it in the Model. It hands the host's key on from `prev
 patches the editor from whatever it has drawn to `next`, so the host and every run the change
 did not touch keep their elements. `next.selection` becomes the browser selection, so pass
 the caret carried across the change (`Replicated.resolve` of an anchored one), or the caret
-is lost. `replaceChangeSet(previous, next)` is the patch, in a transaction's terms: the runs
+is lost. A replacement that changes nothing drawn, as an exchange that only confirms edits
+already shown does, leaves the DOM and its selection alone. `replaceChangeSet(previous, next)` is the patch, in a transaction's terms: the runs
 whose text or marks differ and the blocks holding them, blocks whose own fields changed, the
 nodes that came and went, and whether any block moved. An `Edited` OutMessage also carries
 the `transactions` the edit applied, which is what `RichText.Replicated.translate` reads.

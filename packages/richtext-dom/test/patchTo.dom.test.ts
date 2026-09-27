@@ -71,6 +71,7 @@ const view = (model: Model, h: HtmlBuilder<App>) =>
       }),
       h.button([h.Id('patched'), h.OnClick(App.Arrived({ text: 'two!', patched: true }))], []),
       h.button([h.Id('replaced'), h.OnClick(App.Arrived({ text: 'other', patched: false }))], []),
+      h.button([h.Id('same'), h.OnClick(App.Arrived({ text: 'two', patched: true }))], []),
     ],
   )
 
@@ -78,6 +79,37 @@ describe('a document replaced by the parent', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     window.document.body.innerHTML = ''
+  })
+
+  it('leaves the DOM and its selection alone when the replacement changes nothing drawn', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.document.body.innerHTML = '<div id="patch-runtime"></div>'
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container: window.document.getElementById('patch-runtime')!,
+        init: () => ({ model: initial }),
+        update,
+        view,
+      }),
+    )
+    const host = () => window.document.getElementById(hostId)
+    try {
+      await vi.waitFor(() => expect(host()?.textContent).toBe('onetwo'))
+      const text = host()!.querySelector('[data-run="t1"]')!.firstChild!
+      window.getSelection()!.collapse(text, 2)
+      // An equal document arrives, as an exchange that only confirms an edit brings; the
+      // patch it would send carries no selection, which would clear the caret.
+      window.document.getElementById('same')!.click()
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(host()?.textContent).toBe('onetwo')
+      expect(window.getSelection()!.anchorNode).toBe(text)
+    } finally {
+      handle.dispose()
+    }
   })
 
   it('is patched into the host it has with patchTo, and mounted afresh without it', async () => {
