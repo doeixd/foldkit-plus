@@ -94,6 +94,23 @@ describe('the SetProps command', () => {
     expect(propsOf(setProps('t', { checked: true }), [0, 0])).toEqual({ checked: true })
   })
 
+  it('changes props that already failed the kind, which it could not otherwise repair', () => {
+    // A key an older version wrote cannot be deleted; refusing every change would lock it.
+    const legacy = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Node', kind: 'Image', id: 'i', props: { src: '/a.png', legacy: 1 }, children: [] },
+      ],
+    })
+    const result = RichText.run(
+      { document: legacy, selection: null },
+      { type: 'SetProps', node: id('i'), props: { alt: 'a' } },
+      { mint: () => 'unused' },
+      { nodes: standard },
+    )
+    expect(propsOf(result, [0])).toEqual({ src: '/a.png', legacy: 1, alt: 'a' })
+  })
+
   it.each([
     ['props the kind does not declare that way', 't', { checked: 'yes' }],
     ['a prop the kind does not declare', 't', { due: 'today' }],

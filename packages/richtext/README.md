@@ -115,8 +115,10 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
 `WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` and `SetProps` name their
-blocks instead. Each emits a Transaction and applies it in one step; the returned `ChangeSet` and `positionMap`
-describe the effect, and `transactions` holds what was applied, in order. Nothing mints
+blocks instead. Each resolves to transactions applied as one step, usually one (Enter over
+a range in a list item is two: the delete, then the split); the returned `ChangeSet` and
+`positionMap` describe the effect, and `transactions` holds what was applied, in order, an
+empty one for a command that changed nothing. Nothing mints
 identity unless the caller's `mint` does, and replay applies transactions rather than
 commands: folding `apply` over `transactions` from the starting state gives the same result.
 
@@ -202,8 +204,9 @@ may move beside, in document order, which is what a drag offers.
 
 `SetProps` sets props on a node block by identity and keeps the ones it does not name:
 `{ type: 'SetProps', node: item, props: { checked: true } }` ticks a task item. Given a
-vocabulary, the props that result must decode as the kind declares them, or the command is
-refused with `InvalidInput`, as it is for a block that is not a node.
+vocabulary, props that decode as the kind declares them must still decode after, or the
+command is refused with `InvalidInput`, as it is for a block that is not a node. Props that
+already fail (a key an older version wrote, which cannot be deleted) can still be changed.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a

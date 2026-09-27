@@ -284,7 +284,7 @@ kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by 
 kind, and a container it empties is deleted;
 `moveTargets(document, node, nodes?)` lists where it may go. `SetProps { node, props }` sets
 the named props of a node block by identity and keeps the rest (a task item's `checked`); with a
-vocabulary, the result must decode as the kind's props. `LiftBlock` is the inverse of a wrap, and
+vocabulary, props that decode as the kind's must still decode after. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
 it to a paragraph; Enter in a list item starts a new item

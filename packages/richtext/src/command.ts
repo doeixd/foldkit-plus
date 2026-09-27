@@ -95,7 +95,7 @@ export type Command =
   /**
    * Sets the named props of a node block, such as a task item's `checked`, keeping the rest.
    * It addresses the block by identity, as `MoveBlock` does, so a checkbox sends it for its
-   * own item. Given a vocabulary, the props that result must decode as the kind's.
+   * own item. Given a vocabulary, props that decode as the kind's must still decode after.
    */
   | { readonly type: 'SetProps'; readonly node: NodeId; readonly props: Schema.JsonObject }
 
@@ -988,12 +988,12 @@ export const run = (
   if (command.type === 'SetProps') {
     const target = locateBlock(state.document, command.node)?.block
     if (target?.type !== 'Node') return failure('InvalidInput')
-    if (
-      refusesProps(options.nodes, {
-        kind: target.kind,
-        props: { ...target.props, ...command.props },
-      })
-    ) {
+    // Refused only when it makes valid props invalid: props already outside the kind's
+    // schema (a key from an older version, say) cannot be deleted, so refusing every change
+    // to them would leave the block uneditable.
+    const refuses = (props: Schema.JsonObject) =>
+      refusesProps(options.nodes, { kind: target.kind, props })
+    if (refuses({ ...target.props, ...command.props }) && !refuses(target.props)) {
       return failure('InvalidInput')
     }
     return apply(state, [Edit.setProps(command.node, command.props)])
