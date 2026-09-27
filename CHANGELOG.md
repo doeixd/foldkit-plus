@@ -252,6 +252,16 @@ version changed; `pnpm` skips versions already in the registry.
   row offsets per keys array and heights record. `MediaStream`'s `Started`
   while live no longer stays at `requesting`, and `Presence`'s `Hide` while
   hidden no longer shows the content for the hide duration.
+- **`foldkit-remote`: a Message that changes nothing returns the Model it
+  was given,** so `Data.reduce` and the wiring keep the application's root on a
+  duplicate live event, a repeated `ReadStarted`, an empty `Hydrated`, or a
+  retention pass that collects nothing. An entity or list row whose data is
+  equal after a refetch or live patch reads as the same object, so a keyed
+  row's lazy view does not re-run. The live entry no longer closes and reopens
+  its stream on every event, and a pending request no longer rebuilds the
+  visible store on each overlay change. A list read now shows a live insert
+  or an optimistic connection change that wrote no entity; it used to keep
+  the list from before it. The unused `shouldWake` export is removed.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

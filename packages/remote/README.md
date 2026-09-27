@@ -1539,8 +1539,12 @@ requirements for the concrete target.
 options.
 
 `Remote.storeOf` is the visible store after pending optimistic layers. Reads are
-memoized per visible store (and connection where applicable), so equal reads of
-one Model state assemble/decode once and return one value.
+memoized per visible store (and, for a list, its connection and overlays), so
+equal reads of one Model state assemble/decode once and return one value. Across
+Model states, an entity or row whose data is equal is the same object: a refetch
+or live patch that changed nothing a row shows hands the view the value it
+already rendered, so a keyed row's lazy view does not re-run. A Message that
+changes nothing returns the Model it was given.
 
 `Remote.prefetch(bound, model, projection, options?)` runs the same plans
 imperatively and reduces their results into a new Model.

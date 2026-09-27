@@ -7,6 +7,7 @@
  * new store.
  */
 import { Option } from 'effect'
+import { sameData } from './data.js'
 import { RELATION_ALIAS } from './relation.js'
 
 export type EntityKey = string
@@ -79,7 +80,14 @@ const written = (
         if (held.startsWith(`${field}${RELATION_ALIAS}`) && !(held in values)) stale.add(held)
   }
   return {
-    values: { ...previous.values, ...values },
+    // Equal data keeps the object it was, so what is derived from it by
+    // identity (a read's decoded row) survives a refetch that changed nothing.
+    values: Object.keys(values).every(
+      field =>
+        Object.hasOwn(previous.values, field) && sameData(previous.values[field], values[field]),
+    )
+      ? previous.values
+      : { ...previous.values, ...values },
     present,
     stale,
     unavailable,

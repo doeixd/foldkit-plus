@@ -100,6 +100,7 @@ import {
   unavailableOf,
   type Page,
 } from './selection.js'
+import { sameData } from './data.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
 import {
   QueryRequest,
@@ -748,6 +749,40 @@ const unavailableFailure = (
           message: `The server answered without ${field}, and will not answer with it: the field is not available to this client.`,
         },
       }
+}
+
+/**
+ * A row's decoded value, kept while the data it was assembled from is the same,
+ * so a refetch or live patch that brought equal data hands a view the object it
+ * already rendered. Keyed on the row's own values object, which the store keeps
+ * across equal writes; a relation's targets are covered by comparing what was
+ * assembled.
+ */
+const decodedRows = new WeakMap<
+  object,
+  {
+    readonly decode: (values: unknown) => Result.Result<unknown, Schema.SchemaError>
+    readonly rows: WeakMap<object, { readonly values: unknown; readonly decoded: unknown }>
+  }
+>()
+
+const decodeRow = <Value>(
+  schema: Schema.Codec<Value, unknown, never, never>,
+  source: object,
+  values: unknown,
+): Result.Result<Value, Schema.SchemaError> => {
+  let bySchema = decodedRows.get(schema)
+  if (bySchema === undefined) {
+    bySchema = { decode: Schema.decodeUnknownResult(schema), rows: new WeakMap() }
+    decodedRows.set(schema, bySchema)
+  }
+  const cached = bySchema.rows.get(source)
+  if (cached !== undefined && sameData(cached.values, values)) {
+    return cached.decoded as Result.Result<Value, Schema.SchemaError>
+  }
+  const decoded = bySchema.decode(values)
+  bySchema.rows.set(source, { values, decoded })
+  return decoded as Result.Result<Value, Schema.SchemaError>
 }
 
 interface ReadScope {
@@ -1575,7 +1610,7 @@ export const Remote = {
             if (isTombstone(store, key)) return { _tag: 'NotFound' }
             const assembled = assemble(store, key, relation)
             if (assembled === undefined) return unavailableFailure(store, key, relation)
-            const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
+            const decoded = decodeRow(selection.schema, store[key]!.values, assembled.values)
             return Result.isFailure(decoded)
               ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
               : assembled.refreshing
@@ -2261,7 +2296,7 @@ const bindDomain = <
               const key = entityKey(edge.ref.entity, edge.ref.id)
               const assembled = assemble(visible, key, relation)
               if (assembled === undefined) return unavailableFailure(visible, key, relation)
-              const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
+              const decoded = decodeRow(select.schema, visible[key]!.values, assembled.values)
               if (Result.isFailure(decoded)) {
                 return {
                   _tag: 'Failed',
@@ -2492,7 +2527,7 @@ const bindDomain = <
           assembledAll = false
           continue
         }
-        const decoded = Schema.decodeUnknownResult(over.selection.schema)(assembled.values)
+        const decoded = decodeRow(over.selection.schema, visible[key]!.values, assembled.values)
         if (Result.isFailure(decoded)) {
           assembledAll = false
           continue
