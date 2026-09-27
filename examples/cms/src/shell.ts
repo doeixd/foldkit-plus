@@ -81,6 +81,22 @@ export const statusLine: Readonly<Record<EditorStatus, string>> = {
   ScheduleFailed: 'Not scheduled',
 }
 
+/**
+ * The bar's status line: what the editor last did with the draft, unless the
+ * entry itself says more. A status comes from the last save or publish, so
+ * after an archive or an unpublish it would still say "Published." or
+ * "Scheduled."; and something new that nothing was typed into is not
+ * "Up to date", it is empty.
+ */
+export const statusText = (status: EditorStatus, state: Option.Option<State>): string => {
+  if (['Opened', 'Saved', 'Published', 'Scheduled'].includes(status)) {
+    if (stateIs(state, 'Archived')) return 'Archived.'
+    if (stateIs(state, 'Unpublished')) return 'Not on the site.'
+    if (Option.isNone(state)) return ''
+  }
+  return statusLine[status]
+}
+
 /** Whether a status is a failure, which the status line says in the error color. */
 export const failed = (status: EditorStatus): boolean =>
   [

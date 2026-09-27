@@ -39,6 +39,7 @@ import {
   shell,
   stateIs,
   statusLine,
+  statusText,
   type RevisionRow,
 } from './shell.js'
 import { article, postHref } from './site.js'
@@ -179,7 +180,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
       ]),
       [
-        statusLine[status],
+        statusText(status, state),
         Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
       ],
     ),

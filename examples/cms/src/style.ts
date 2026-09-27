@@ -1148,6 +1148,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
     paletteHeading: Style.compose(smallCaps, Style.self({ gridColumn: '1 / -1' })),
     paletteItem: Style.compose(
       blockIcons,
+      // A pattern's tile: any pattern, since the Catalog may hold more than one.
+      Style.nest('&[data-pattern]', { '--icon': iconUrl('pattern') }),
       Style.self({
         alignItems: 'center',
         background: t.surface.subtle,
