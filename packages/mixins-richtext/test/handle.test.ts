@@ -11,6 +11,7 @@ import { attachEditor } from 'foldkit-richtext-dom/editor'
 import { releaseMount } from 'foldkit-richtext-dom/host'
 import { describe, expect, it, vi } from 'vitest'
 import { dragMount } from '../src/handle.js'
+import { SlotView } from 'foldkit-mixins'
 import { blockHandle } from '../src/index.js'
 
 const Message = defineMessageUnion({
@@ -96,13 +97,36 @@ describe('the block handle', () => {
       Scene.given<Model>({ node: 'b', sent: '' }),
       grip('b'),
       Scene.expect(sent).toHaveText('dropped'),
-      // Dragged by the pointer only; the keyboard has up and down.
-      Scene.expect(Scene.selector('[data-handle="grip"]')).toHaveAttr('tabindex', '-1'),
       Scene.click(up),
       Scene.expect(sent).toHaveText(moved('b', { before: 'a' })),
       Scene.click(down),
       Scene.expect(sent).toHaveText(moved('b', { after: 'l' })),
     )
+  })
+
+  it('keeps the grip out of the tab order, since the keyboard has up and down', () => {
+    interface Node {
+      readonly data?: {
+        readonly attrs?: Record<string, unknown>
+        readonly props?: Record<string, unknown>
+      }
+      readonly children?: ReadonlyArray<Node>
+    }
+    const find = (node: Node): Node | undefined =>
+      node.data?.attrs?.['data-handle'] === 'grip'
+        ? node
+        : (node.children ?? []).map(find).find(found => found !== undefined)
+    const drawn = blockHandle<Message>()(
+      {
+        document,
+        hostId: 'host',
+        node: RichText.NodeId.make('b'),
+        wrap: () => Message.Sent({ editor: '' }),
+      },
+      SlotView.inertBuilder(),
+    ) as unknown as Node
+    // Foldkit sets `Tabindex` as the `tabIndex` property.
+    expect(find(drawn)?.data?.props?.['tabIndex']).toBe(-1)
   })
 
   it('moves an item among its own container’s items', () => {
