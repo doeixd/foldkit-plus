@@ -254,6 +254,16 @@ encoded operation
  Committed
 ```
 
+The snapshot is the expensive part of an append when the document is large.
+The journal keeps each document's current state in memory, so an append decodes
+the stored snapshot only when the row's cursor shows that another connection
+committed since. `snapshotEvery: n` writes the snapshot once every `n` commits
+instead of after each. `load` then replays the few operations committed since
+the snapshot, and `compact` writes a lagging snapshot before it removes any
+payload that snapshot has not folded in. The default is 1. The in-memory state
+assumes that a document reset through another connection is not taken back to
+the same cursor while this journal is open.
+
 The exact authority remains application-defined:
 
 - `reduce` says what the operation means for document state;
@@ -353,8 +363,9 @@ snapshot.
 
 For one journal database and its authoritative writer:
 
-- **Atomic append:** a new operation, its resulting snapshot, and the new cursor
-  commit together.
+- **Atomic append:** a new operation, its resulting state, and the new cursor
+  commit together. With `snapshotEvery` above 1, the state is the last stored
+  snapshot plus the operations since it.
 - **Stable, gap-free order:** every committed operation has one authoritative
   sequence.
 - **Idempotent operation identity:** a retained `opId` cannot be applied twice;

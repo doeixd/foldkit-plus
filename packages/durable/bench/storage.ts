@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Effect, Exit, Scope } from 'effect'
+import { Effect, Exit, Schema, Scope } from 'effect'
 import { actorId, documentId, makeJournal, opId, sequence } from '../src/index.js'
 
 interface Operation {
@@ -63,4 +63,49 @@ console.log(
 )
 
 Effect.runSync(Scope.close(scope, Exit.void))
+
+// A document-sized snapshot through a real Schema codec: what an append costs when
+// the snapshot is a page of content rather than a counter.
+const Item = Schema.Struct({ id: Schema.String, title: Schema.String })
+const Document = Schema.Struct({ items: Schema.Array(Item) })
+const Edit = Schema.Struct({ opId: Schema.String, at: Schema.Number, title: Schema.String })
+const items = 2_000
+const edits = 500
+const appendEdits = (snapshotEvery: number): number => {
+  const documentScope = Effect.runSync(Scope.make())
+  const documents = Effect.runSync(
+    makeJournal<typeof Edit.Type, typeof Document.Type, Principal>({
+      file: join(directory, `document-${snapshotEvery}.sqlite`),
+      operation: Edit,
+      snapshot: Document,
+      empty: () => ({
+        items: Array.from({ length: items }, (_, index) => ({ id: `i${index}`, title: 'item' })),
+      }),
+      reduce: (state, edit) => ({
+        items: state.items.map((item, index) =>
+          index === edit.at ? { ...item, title: edit.title } : item,
+        ),
+      }),
+      opId: operation => opId(operation.opId),
+      actorId: value => actorId(value.actorId),
+      snapshotEvery,
+    }).pipe(Effect.provideService(Scope.Scope, documentScope)),
+  )
+  const started = performance.now()
+  for (let index = 1; index <= edits; index += 1)
+    Effect.runSync(
+      documents.append(
+        documentId('page'),
+        { opId: `edit:${index}`, at: index % items, title: `edited ${index}` },
+        principal,
+      ),
+    )
+  const elapsed = performance.now() - started
+  Effect.runSync(Scope.close(documentScope, Exit.void))
+  return elapsed / edits
+}
+for (const every of [1, 50])
+  console.log(
+    `append to a ${items}-item snapshot, written every ${every}: ${appendEdits(every).toFixed(2)} ms/op over ${edits} edits`,
+  )
 rmSync(directory, { recursive: true, force: true })

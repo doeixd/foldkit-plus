@@ -84,7 +84,10 @@ const docB = documentId('b')
 const missing = documentId('missing')
 
 type Hooks = Partial<
-  Pick<JournalOptions<Operation, Snapshot, Principal>, 'validate' | 'authorize' | 'reduce'>
+  Pick<
+    JournalOptions<Operation, Snapshot, Principal>,
+    'validate' | 'authorize' | 'reduce' | 'snapshotEvery'
+  >
 >
 
 const base = {
@@ -121,6 +124,185 @@ const appendCommitted = <Operation>(result: AppendResult<Operation>): Committed<
   if (result._tag !== 'Committed') throw new Error('Expected a committed operation')
   return result.committed
 }
+
+describe('the stored snapshot', () => {
+  /** Runs `body` against a journal file in a fresh directory, then removes it. */
+  const inFile = async (body: (path: string) => Promise<void>) => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-snapshot-'))
+    try {
+      await body(join(directory, 'journal.sqlite'))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
+  /** The stored row, read with SQLite itself. */
+  const row = (path: string) => {
+    const database = new DatabaseSync(path)
+    try {
+      return database
+        .prepare('SELECT cursor, snapshot, snapshot_cursor FROM documents WHERE key = ?')
+        .get('todos')
+    } finally {
+      database.close()
+    }
+  }
+  // Order matters to these, so replaying an operation twice or skipping one shows.
+  const edits = [add(1, 'a'), add(2, 'b'), remove(3, 'a'), add(4, 'a'), add(5, 'c')]
+  const after = { snapshot: { ids: ['b', 'a', 'c'] }, cursor: 5 }
+
+  it('writes it every so many commits, and replays the rest on load', () =>
+    inFile(async path => {
+      await withJournal(
+        function* (journal) {
+          for (const edit of edits) yield* journal.append(todos, edit, principal)
+          expect(yield* journal.load(todos)).toEqual(after)
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+      expect(row(path)).toMatchObject({
+        cursor: 5,
+        snapshot_cursor: 3,
+        snapshot: JSON.stringify({ ids: ['b'] }),
+      })
+      // A journal that never saw these commits rebuilds the state from the stored rows.
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.load(todos)).toEqual(after)
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+    }))
+
+  it('writes a lagging snapshot before compacting what it has not folded in', () =>
+    inFile(async path => {
+      await withJournal(
+        function* (journal) {
+          for (const edit of edits) yield* journal.append(todos, edit, principal)
+          yield* journal.compact(todos, sequence(5))
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+      expect(row(path)).toMatchObject({ snapshot_cursor: 5 })
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.load(todos)).toEqual(after)
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+    }))
+
+  it('sees a commit made through another connection', () =>
+    inFile(async path => {
+      const open = Effect.gen(function* () {
+        return yield* makeJournal<Operation, Snapshot, Principal>({ file: path, ...base })
+      })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            yield* first.append(todos, add(1, 'a'), principal)
+            yield* second.append(todos, remove(2, 'a'), principal)
+            // The first journal's remembered state is behind the file: its next commit
+            // must build on the second's, not on what it remembers.
+            yield* first.append(todos, add(3, 'b'), principal)
+            expect(yield* first.load(todos)).toEqual({ snapshot: { ids: ['b'] }, cursor: 3 })
+          }),
+        ),
+      )
+    }))
+
+  it('forgets a batch that did not commit', () =>
+    withJournal(
+      function* (journal) {
+        yield* journal.append(todos, add(1, 'a'), principal)
+        const refused = yield* Effect.result(
+          journal.appendAll(todos, [add(2, 'b'), add(3, 'refused')], principal),
+        )
+        expect(refused).toMatchObject({ _tag: 'Failure' })
+        yield* journal.append(todos, add(4, 'c'), principal)
+        expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['a', 'c'] }, cursor: 2 })
+      },
+      { authorize: ({ operation }) => operation.id !== 'refused' },
+    ))
+
+  it('notices a snapshot another connection wrote at the same cursor', () =>
+    inFile(async path => {
+      const open = makeJournal<Operation, Snapshot, Principal>({
+        file: path,
+        ...base,
+        snapshotEvery: 3,
+      })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            for (const edit of edits) yield* first.append(todos, edit, principal)
+            // The second writes the snapshot at 5 to compact; the first still remembers
+            // it at 3, which would have its next commit write another at once.
+            yield* second.compact(todos, sequence(5))
+            yield* first.append(todos, add(6, 'd'), principal)
+          }),
+        ),
+      )
+      expect(row(path)).toMatchObject({ cursor: 6, snapshot_cursor: 5 })
+    }))
+
+  it('forgets a document it reset, though another connection takes it to the same cursor', () =>
+    inFile(async path => {
+      const open = makeJournal<Operation, Snapshot, Principal>({ file: path, ...base })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            yield* first.append(todos, add(1, 'a'), principal)
+            yield* first.reset(todos)
+            yield* second.append(todos, add(1, 'b'), principal)
+            expect(yield* first.load(todos)).toEqual({ snapshot: { ids: ['b'] }, cursor: 1 })
+          }),
+        ),
+      )
+    }))
+
+  it('takes a snapshot written before it could lag as current, and replays nothing onto it', () =>
+    inFile(async path => {
+      // Version 3's layout, whose snapshot was always written at the cursor.
+      const legacy = new DatabaseSync(path)
+      legacy.exec(`
+        CREATE TABLE documents (
+          key TEXT PRIMARY KEY, cursor INTEGER NOT NULL, snapshot TEXT NOT NULL,
+          compact_before INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE operations (
+          key TEXT NOT NULL, op_id TEXT NOT NULL, sequence INTEGER NOT NULL,
+          actor_id TEXT NOT NULL, input TEXT, payload_hash TEXT,
+          PRIMARY KEY (key, op_id), UNIQUE (key, sequence)
+        );
+        CREATE TABLE effects (
+          key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
+        );
+        INSERT INTO operations (key, op_id, sequence, actor_id, input)
+          VALUES ('todos', 'a:1', 1, 'owner', '{"opId":"a:1","kind":"add","id":"a"}');
+        INSERT INTO documents (key, cursor, snapshot) VALUES ('todos', 1, '{"ids":["a"]}');
+        PRAGMA user_version = 3;
+      `)
+      legacy.close()
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['a'] }, cursor: 1 })
+        },
+        // Not idempotent, so an operation replayed onto a snapshot that already has it shows.
+        { reduce: (state, op) => ({ ids: [...state.ids, op.id] }) },
+        path,
+      )
+    }))
+})
 
 describe('a durable journal', () => {
   it('orders appends and reads them after a cursor', () =>
@@ -477,7 +659,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 3 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 })
         // The payload identity is recomputed canonically, so a later retransmission
         // with a different key order still proves its payload.
         expect(
@@ -523,7 +705,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 3 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 })
       } finally {
         migrated.close()
       }
@@ -550,7 +732,7 @@ describe('a durable journal', () => {
         CREATE TABLE effects (
           key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
         );
-        PRAGMA user_version = 4;
+        PRAGMA user_version = 5;
       `)
       newer.close()
 
@@ -561,12 +743,12 @@ describe('a durable journal', () => {
       )
       expect(result).toMatchObject({
         _tag: 'Failure',
-        failure: { _tag: 'UnsupportedJournalVersionError', found: 4, supported: 3 },
+        failure: { _tag: 'UnsupportedJournalVersionError', found: 5, supported: 4 },
       })
 
       const after = new DatabaseSync(path)
       try {
-        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 })
+        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 })
       } finally {
         after.close()
       }

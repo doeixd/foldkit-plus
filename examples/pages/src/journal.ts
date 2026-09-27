@@ -22,6 +22,9 @@ export const openJournal = (file = ':memory:') => {
     Journal.make<Operation, Shared, { readonly actorId: string }>({
       ...PagesSync.journalContract(),
       file,
+      // A page is large and an edit small: the pages are written once every 50 edits,
+      // and a load replays the edits since.
+      snapshotEvery: 50,
       opId: operation => OpId.make(operation.opId),
       actorId: principal => ActorId.make(principal.actorId),
     }).pipe(Effect.provideService(Scope.Scope, scope)),

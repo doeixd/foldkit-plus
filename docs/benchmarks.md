@@ -60,6 +60,16 @@ size again. Recorded on the same Windows/Node 22 machine:
 | after compacting all payloads | unchanged (520,192 bytes) |
 | heap / rss | 36 MB / 158 MB |
 
+A second scenario appends 500 edits to a 2,000-item snapshot through a real Schema
+codec (Linux, Node 22, in this repository's container; these numbers came from
+different hardware than the table above, so compare within the scenario):
+
+| | ms/op |
+| --- | --- |
+| before the in-memory snapshot (decode + encode per append) | 2.99 |
+| snapshot kept in memory, written every commit | 1.95 |
+| snapshot kept in memory, written every 50 commits (`snapshotEvery: 50`) | 0.91 |
+
 Compaction drops payloads but does not shrink the file: identity rows remain and
 SQLite keeps freed pages, so storage tracks the number of operations, not the
 payload bytes compacted away. That matches the [retention policy](../packages/durable/README.md#retention) —

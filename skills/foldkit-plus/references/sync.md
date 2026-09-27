@@ -234,6 +234,8 @@ const server = Effect.gen(function* () {
   resent `opId` is never applied twice. The same `opId` with a different
   payload fails with `IdentityConflictError`, and a refusal with
   `OperationRejectedError`.
+- `snapshotEvery: n` writes the snapshot every `n` commits rather than each (the
+  journal keeps it in memory; `load` replays the few since).
 - Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `subscribe` (a wake-up signal; catch up
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
