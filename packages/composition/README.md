@@ -338,6 +338,10 @@ const result = Composition.apply(
   `Composition.rekey(tree, ids)` renames every id in it, which is how a paste
   is inserted twice without a collision. A reference to a node the tree does
   not hold is kept as it is, for `apply` to refuse by name.
+  `Composition.treeRefusal(catalog, tree)` checks a tree alone, by its own ids,
+  before it is rekeyed: what a paste should say is wrong with it.
+- **Any text is an id,** `constructor` and `__proto__` included: `apply` reads
+  and writes nodes by own key only.
 
 ## Patterns
 
@@ -438,7 +442,9 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   `data-composition-drop` says where a drop lands. A node whose `when` fails is
   drawn anyway, marked `data-composition-hidden`.
 - **Text edited in place.** A view draws a text prop with `field(key)`, which
-  takes only a prop whose type is text. For a visitor it is the text. In edit
+  takes only a prop whose type is exactly `string`: one of a few names
+  (`'plain' | 'accent'`), a branded string or one that may be absent is no
+  field, since typing could not keep it valid. For a visitor it is the text. In edit
   mode it is a span marked `data-composition-field`, whose value names the node
   and the prop as JSON (`fieldOf(value)` reads it back). While the option
   `editing` (an `Option` of `{ id, key, initial }`) names it, the span is
@@ -451,7 +457,8 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   typed is `EditableText` in `foldkit-primitives`, and what it changes is the
   editor's `update`. `Renderer.fields(renderer, document, id)` says which text
   props a node's view draws as fields, in order, by drawing it inert: what an
-  editor may offer to edit.
+  editor may offer to edit. It draws with no data and no context, so a view
+  that draws a field only once its data has arrived lists none.
 - **The other options** are what the page is drawn for: `context`, which
   conditions read ([Conditions](#conditions)), and `data`, each node's read by
   id, which Query, Surface and stateful Blocks draw from. A page with all three

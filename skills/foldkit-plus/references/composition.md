@@ -63,7 +63,8 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   taken out. `Composition.Operation` is their Schema.
 - **New ids:** `Composition.newIds(n)` is an Effect: run it in a Command and put
   the ids in the Operation; `apply` never mints one. Copy and paste:
-  `Composition.rekey(Composition.takeTree(doc, id), ids)`.
+  `Composition.rekey(Composition.takeTree(doc, id), ids)`; check a tree from outside first with
+  `Composition.treeRefusal(Site, tree)` (an `Option` of a refusal, by the tree's own ids).
 - **Patterns:** `Catalog.make({ ..., patterns: [{ name, label?, description?, tree: { root,
   nodes } }] })`, the tree as a Document stores it, checked there (throws on a bad one);
   insert one with `Op.usePattern({ pattern, ids: { [its id]: newId, ... }, at })`

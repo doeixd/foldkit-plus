@@ -25,9 +25,17 @@ import { statefulNodes } from '../stateful.js'
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
 export type Mode = 'view' | 'edit'
 
-/** The props of `Props` that are text, which `field` draws. */
+/**
+ * The props of `Props` that are any text, which `field` draws: a prop that is
+ * exactly `string`. One of a few names (`'plain' | 'accent'`), a branded
+ * string or one that may be absent is no field: typing could not keep it valid.
+ */
 export type TextKey<Props> = {
-  readonly [K in keyof Props]-?: Props[K] extends string ? K : never
+  readonly [K in keyof Props]-?: [Props[K]] extends [string]
+    ? string extends Props[K]
+      ? K
+      : never
+    : never
 }[keyof Props] &
   string
 
@@ -440,8 +448,10 @@ export const Renderer = {
           : []
       return [...own, ...(html.children ?? []).flatMap(marks)]
     }
-    // Drawn inert and only read for its marks, so a view's Messages are never sent.
-    const quiet = renderer as unknown as Renderer<AnyBlock, never>
+    // Drawn inert and only read for its marks, so a view's Messages are never sent. A copy,
+    // since the memo is kept per Renderer: this drawing, with no page's marks or data, must
+    // never take the place of the page's own in it.
+    const quiet = { ...renderer } as unknown as Renderer<AnyBlock, never>
     return render(quiet, { format: 1, roots: [id], nodes: document.nodes }, inertHtml, {
       mode: 'edit',
     }).flatMap(marks)

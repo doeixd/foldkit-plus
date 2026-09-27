@@ -318,6 +318,7 @@ describe('text edited in place', () => {
       tagLine: Schema.String,
       level: Schema.Number,
       note: Schema.optional(Schema.String),
+      mood: Schema.Literals(['calm', 'loud']),
     }),
     provides: [Content.Section],
   })
@@ -334,8 +335,16 @@ describe('text edited in place', () => {
       h.header([], [h.h1([], [field('text', { label: 'Title' })]), h.p([], [field('tagLine')])]),
   })
   const titles = page(['t', 'u'], {
-    t: { block: 'Title', props: { text: 'Hello there', tagLine: 'Hi', level: 1 }, regions: {} },
-    u: { block: 'Title', props: { text: 'Other', tagLine: 'Also', level: 1 }, regions: {} },
+    t: {
+      block: 'Title',
+      props: { text: 'Hello there', tagLine: 'Hi', level: 1, mood: 'calm' },
+      regions: {},
+    },
+    u: {
+      block: 'Title',
+      props: { text: 'Other', tagLine: 'Also', level: 1, mood: 'calm' },
+      regions: {},
+    },
   })
   const fields = (roots: ReadonlyArray<Html>) =>
     roots.flatMap(root =>
@@ -396,7 +405,11 @@ describe('text edited in place', () => {
   it('says which text props a node draws as fields, and not those of what it holds', () => {
     const stacked = page(['s'], {
       s: { block: 'Stack', props: { name: 'All' }, regions: { items: ['t'] } },
-      t: { block: 'Title', props: { text: 'Hello', tagLine: 'Hi', level: 1 }, regions: {} },
+      t: {
+        block: 'Title',
+        props: { text: 'Hello', tagLine: 'Hi', level: 1, mood: 'calm' },
+        regions: {},
+      },
     })
     expect(Renderer.fields(TitleRenderer, stacked, id('t'))).toEqual(['text', 'tagLine'])
     expect(Renderer.fields(TitleRenderer, stacked, id('s'))).toEqual([])
@@ -416,6 +429,8 @@ describe('text edited in place', () => {
             field('note'),
             // @ts-expect-error: no such prop
             field('title'),
+            // @ts-expect-error: one of a few names is no free text
+            field('mood'),
           ],
         ),
     })

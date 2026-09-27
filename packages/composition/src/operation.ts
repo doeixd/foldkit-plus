@@ -420,13 +420,16 @@ const drop = (draft: Draft, ids: ReadonlyArray<NodeId>): void => {
  */
 const checkTree = (catalog: Catalog, draft: Draft, tree: Tree): ReadonlyArray<NodeId> => {
   const ids = Object.keys(tree.nodes) as unknown as ReadonlyArray<NodeId>
-  if (tree.nodes[tree.root] === undefined)
+  // A tree's ids are anyone's text: a node is an own entry, never `Object`'s `toString`.
+  const nodeAt = (id: NodeId): Node | undefined =>
+    Object.hasOwn(tree.nodes, id) ? tree.nodes[id] : undefined
+  if (nodeAt(tree.root) === undefined)
     refuse('composition:malformed-tree', `the tree's root "${tree.root}" is not one of its nodes`)
   const reached = new Set<NodeId>()
   const visit = (id: NodeId): void => {
     if (reached.has(id)) refuse('composition:malformed-tree', `the tree reaches "${id}" twice`)
     const node =
-      tree.nodes[id] ??
+      nodeAt(id) ??
       refuse('composition:malformed-tree', `the tree names "${id}", which it does not hold`)
     reached.add(id)
     for (const children of Object.values(node.regions)) for (const child of children) visit(child)
@@ -438,7 +441,7 @@ const checkTree = (catalog: Catalog, draft: Draft, tree: Tree): ReadonlyArray<No
     if (draft.nodes[id] !== undefined) refuse('composition:id-taken', `"${id}" is already a node`)
   }
   for (const id of ids) {
-    const node = tree.nodes[id]!
+    const node = nodeAt(id)!
     const block = blockOf(catalog, node, id)
     checkProps(catalog, id, node)
     for (const name of Object.keys(node.regions))
@@ -455,7 +458,7 @@ const checkTree = (catalog: Catalog, draft: Draft, tree: Tree): ReadonlyArray<No
           `"${id}"'s ${name} holds ${children.length}, and takes ${bounds(region)}`,
         )
       for (const child of children) {
-        const childBlock = blockOf(catalog, tree.nodes[child]!, child)
+        const childBlock = blockOf(catalog, nodeAt(child)!, child)
         if (!accepts(region.accepts, childBlock.provides))
           refuse(
             'composition:region-rejects',
@@ -524,7 +527,8 @@ export const rekey = (tree: Tree, ids: Readonly<Record<NodeId, NodeId>>): Tree =
 const start = (document: Document): Draft => ({
   base: document,
   roots: document.roots,
-  nodes: { ...document.nodes },
+  // No prototype: an id such as `constructor` is looked up, and `__proto__` written, as any other.
+  nodes: Object.assign(Object.create(null) as Draft['nodes'], document.nodes),
   changed: new Set(),
   removed: new Set(),
   places: undefined,

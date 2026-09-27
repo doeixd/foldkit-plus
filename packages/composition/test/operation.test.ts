@@ -454,6 +454,55 @@ describe('patterns', () => {
   })
 })
 
+describe('ids that are names Object has', () => {
+  it('refuses a tree naming one it lacks, rather than reading Object’s', () => {
+    const tree = { root: id('toString'), nodes: {} }
+    expect(refused(start, Op.insertTree({ tree, at: root(1) })).code).toBe(
+      'composition:malformed-tree',
+    )
+    const withChild = {
+      root: id('s2'),
+      nodes: {
+        [id('s2')]: { block: 'Section', props: {}, regions: { body: [id('constructor')] } },
+      },
+    }
+    expect(refused(start, Op.insertTree({ tree: withChild, at: root(1) })).code).toBe(
+      'composition:malformed-tree',
+    )
+  })
+
+  it('takes constructor and __proto__ as ids as any other', () => {
+    const heading = (text: string) => ({ text, level: 1 as const })
+    const made = applied(
+      start,
+      Op.insert({
+        id: id('constructor'),
+        block: 'Heading',
+        props: heading('C'),
+        at: region(id('s'), 'body', 0),
+      }),
+    )
+    const proto = applied(
+      made.document,
+      Op.insert({
+        id: id('__proto__'),
+        block: 'Heading',
+        props: heading('P'),
+        at: region(id('s'), 'body', 0),
+      }),
+    )
+    expect(Object.hasOwn(proto.document.nodes, '__proto__')).toBe(true)
+    expect(proto.document.nodes[id('__proto__')]?.props).toEqual(heading('P'))
+    expect(body(proto.document)).toEqual([
+      id('__proto__'),
+      id('constructor'),
+      id('a'),
+      id('b'),
+      id('c'),
+    ])
+  })
+})
+
 describe('props and the reserved fields', () => {
   it('sets a prop, checked against the Block', () => {
     const result = applied(start, Op.setProp(id('a'), 'text', 'Hello'))

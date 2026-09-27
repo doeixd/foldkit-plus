@@ -23,16 +23,17 @@ const Heading = Block.define('Heading', {
 })
 const Site = Catalog.make({ blocks: [Section, Heading], roots: [Content.Section] })
 
-// How often each node's view ran, by the node's text or Block.
+// How often each node's view ran for the page, by the node's text or Block; the
+// edit-mode drawings `Renderer.fields` makes are not counted.
 const drawn: Array<string> = []
 const SiteRenderer = Renderer.make(Site, {
-  Section: ({ regions, h }) => {
-    drawn.push('Section')
+  Section: ({ regions, mode, h }) => {
+    if (mode === 'view') drawn.push('Section')
     return h.section([], [...regions.body])
   },
-  Heading: ({ props, h }) => {
-    drawn.push(props.text)
-    return h.h2([], [props.text])
+  Heading: ({ props, mode, field, h }) => {
+    if (mode === 'view') drawn.push(props.text)
+    return h.h2([], [field('text')])
   },
 })
 
@@ -61,81 +62,93 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-it('redraws only the nodes an edit reached, and none for a change elsewhere', async () => {
-  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-    setTimeout(() => callback(performance.now()), 0),
-  )
-  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-  const container = document.createElement('div')
-  container.id = 'memo'
-  document.body.appendChild(container)
-  const handle = Runtime.embed(
-    Runtime.makeElement({
-      Model,
-      container,
-      init: () => ({ model: { page, count: 0 } }),
-      update: (model: Model, message: Message) => {
-        switch (message._tag) {
-          case 'Counted':
-            return { model: { ...model, count: model.count + 1 } }
-          case 'Swapped': {
-            const moved = Composition.apply(
-              Site,
-              model.page,
-              Composition.Op.move(id('b'), Composition.region(id('s'), 'body', 0)),
-            )
-            if (Result.isFailure(moved)) throw new Error('the move is valid')
-            return { model: { ...model, page: moved.success.document } }
+// A view that asks which fields a node draws, as an editor's key does, leaves the page's memo alone.
+it.each([
+  ['alone', false],
+  ['beside Renderer.fields', true],
+])(
+  'redraws only the nodes an edit reached, and none for a change elsewhere (%s)',
+  async (_, asks) => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    const container = document.createElement('div')
+    container.id = 'memo'
+    document.body.appendChild(container)
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container,
+        init: () => ({ model: { page, count: 0 } }),
+        update: (model: Model, message: Message) => {
+          switch (message._tag) {
+            case 'Counted':
+              return { model: { ...model, count: model.count + 1 } }
+            case 'Swapped': {
+              const moved = Composition.apply(
+                Site,
+                model.page,
+                Composition.Op.move(id('b'), Composition.region(id('s'), 'body', 0)),
+              )
+              if (Result.isFailure(moved)) throw new Error('the move is valid')
+              return { model: { ...model, page: moved.success.document } }
+            }
+            case 'Retitled': {
+              const edited = Composition.apply(
+                Site,
+                model.page,
+                Composition.Op.setProp(id(message.id), 'text', message.text),
+              )
+              if (Result.isFailure(edited)) throw new Error('the edit is valid')
+              return { model: { ...model, page: edited.success.document } }
+            }
           }
-          case 'Retitled': {
-            const edited = Composition.apply(
-              Site,
-              model.page,
-              Composition.Op.setProp(id(message.id), 'text', message.text),
-            )
-            if (Result.isFailure(edited)) throw new Error('the edit is valid')
-            return { model: { ...model, page: edited.success.document } }
-          }
-        }
-      },
-      view: (model: Model, h: HtmlBuilder<Message>) =>
-        h.main(
-          [],
-          [
-            h.button([h.Id('count'), h.OnClick(Message.Counted())], [String(model.count)]),
-            h.button(
-              [h.Id('retitle'), h.OnClick(Message.Retitled({ id: 'b', text: 'Changed' }))],
-              ['Retitle'],
-            ),
-            h.button([h.Id('swap'), h.OnClick(Message.Swapped())], ['Swap']),
-            ...Renderer.render(SiteRenderer, model.page, h),
-          ],
-        ),
-    }),
-  )
-  const press = (button: string) => document.querySelector<HTMLButtonElement>(`#${button}`)?.click()
-  // The runtime draws in place of the container, so the page is read from the document.
-  const text = () => Array.from(document.querySelectorAll('h2'), node => node.textContent)
-  try {
-    await vi.waitFor(() => expect(text()).toEqual(['First', 'Second']))
-    drawn.length = 0
+        },
+        view: (model: Model, h: HtmlBuilder<Message>) =>
+          h.main(
+            [],
+            [
+              h.button([h.Id('count'), h.OnClick(Message.Counted())], [String(model.count)]),
+              h.button(
+                [h.Id('retitle'), h.OnClick(Message.Retitled({ id: 'b', text: 'Changed' }))],
+                ['Retitle'],
+              ),
+              h.button([h.Id('swap'), h.OnClick(Message.Swapped())], ['Swap']),
+              h.span(
+                [h.Id('fields')],
+                asks ? Renderer.fields(SiteRenderer, model.page, id('a')) : [],
+              ),
+              ...Renderer.render(SiteRenderer, model.page, h),
+            ],
+          ),
+      }),
+    )
+    const press = (button: string) =>
+      document.querySelector<HTMLButtonElement>(`#${button}`)?.click()
+    // The runtime draws in place of the container, so the page is read from the document.
+    const text = () => Array.from(document.querySelectorAll('h2'), node => node.textContent)
+    try {
+      await vi.waitFor(() => expect(text()).toEqual(['First', 'Second']))
+      drawn.length = 0
 
-    press('count')
-    await vi.waitFor(() => expect(document.querySelector('#count')?.textContent).toBe('1'))
-    expect(drawn).toEqual([])
+      press('count')
+      await vi.waitFor(() => expect(document.querySelector('#count')?.textContent).toBe('1'))
+      expect(drawn).toEqual([])
 
-    press('retitle')
-    await vi.waitFor(() => expect(text()).toEqual(['First', 'Changed']))
-    // The Heading edited, and the Section holding it; not its sibling.
-    expect(drawn).toEqual(['Changed', 'Section'])
+      press('retitle')
+      await vi.waitFor(() => expect(text()).toEqual(['First', 'Changed']))
+      // The Heading edited, and the Section holding it; not its sibling.
+      expect(drawn).toEqual(['Changed', 'Section'])
 
-    // A node moved among its siblings keeps its drawing and moves with it:
-    // keyed by node, not matched by position.
-    drawn.length = 0
-    press('swap')
-    await vi.waitFor(() => expect(text()).toEqual(['Changed', 'First']))
-    expect(drawn).toEqual(['Section'])
-  } finally {
-    handle.dispose()
-  }
-})
+      // A node moved among its siblings keeps its drawing and moves with it:
+      // keyed by node, not matched by position.
+      drawn.length = 0
+      press('swap')
+      await vi.waitFor(() => expect(text()).toEqual(['Changed', 'First']))
+      expect(drawn).toEqual(['Section'])
+    } finally {
+      handle.dispose()
+    }
+  },
+)
