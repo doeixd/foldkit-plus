@@ -4,8 +4,8 @@
  * each to spread beside `foldkit-mixins-form`'s and `foldkit-mixins-crud`'s.
  * There is no CMS view package: a kind and its renderer are all a view needs.
  */
-import { Display } from 'foldkit-crud'
-import { Input, type Control, type ControlChange, type Draft } from 'foldkit-form'
+import { Display, type DisplayWords } from 'foldkit-crud'
+import { Input, fillWords, type Control, type ControlChange, type Draft } from 'foldkit-form'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import type { State } from './lifecycle.js'
 
@@ -39,6 +39,8 @@ export interface StateWords {
   readonly Archived?: string
   readonly scheduled?: string
   readonly overdue?: string
+  /** A state with what its schedule adds: `{state}` and `{schedule}`. */
+  readonly withSchedule?: string
 }
 const stateWords: Required<StateWords> = {
   New: 'New',
@@ -48,6 +50,7 @@ const stateWords: Required<StateWords> = {
   Archived: 'Archived',
   scheduled: 'scheduled',
   overdue: 'overdue',
+  withSchedule: '{state}, {schedule}',
 }
 
 const isState = (value: unknown): value is State =>
@@ -63,7 +66,9 @@ const StateDisplay = Display.kind<{ readonly words?: StateWords | undefined }>('
     if (!isState(value)) return String(value)
     const words = { ...stateWords, ...data.words }
     const schedule = scheduleOf(value)
-    return schedule === undefined ? words[value._tag] : `${words[value._tag]}, ${words[schedule]}`
+    return schedule === undefined
+      ? words[value._tag]
+      : fillWords(words.withSchedule, { state: words[value._tag], schedule: words[schedule] })
   },
 })
 
@@ -118,9 +123,12 @@ export interface ControlContext<Message> {
 
 /** What `foldkit-mixins-crud` gives a display's renderer, as far as these read it. */
 export interface DisplayContext<Message> {
-  readonly display: { readonly kind: string; readonly text: (value: unknown, words: any) => string }
+  readonly display: {
+    readonly kind: string
+    readonly text: (value: unknown, words: DisplayWords) => string
+  }
   readonly value: unknown
-  readonly words: unknown
+  readonly words: DisplayWords
   readonly h: HtmlBuilder<Message>
   readonly badge: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
 }

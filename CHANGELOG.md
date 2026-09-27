@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-cms`: `Cms.Display.State`'s words include `withSchedule`**
+  (`'{state}, {schedule}'`), where a state and its schedule were joined by a
+  comma no application could word. A display renderer's context types its
+  words as `DisplayWords`, where it had `any`.
+
 - **`foldkit-builder`: its words.** `Builder.make(name, { words })` takes any of
   `EditWords` over `editWords`: what it announces of each edit, its commands'
   labels, and the refusals it makes itself, as text with blanks

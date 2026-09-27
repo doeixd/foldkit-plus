@@ -1,7 +1,7 @@
 # Plan: developer experience, view architecture, and the page builder
 
 **Status:** phases 0 to 5 done, 2026-09-26, but for what each section's
-dated note leaves: the CMS screen and `ListView` in regions (3d), the CMS's words (3b), an
+dated note leaves: the CMS screen and `ListView` in regions (3d), an
 `Environment` (3a), an application's own commands (5a), hover as a Message
 (5b), and rich text edited in place (5e). Phase 6 is still to decide.
 Proposed, 2026-09-26. Addresses every item in
@@ -505,8 +505,9 @@ English literal is left in the view (a checked claim, not a hope).
 > no view input, but one convention lets one object hold every package's
 > words. Its test takes a Builder of
 > markers through every edit, drag, copy and refusal. `foldkit-mixins-crud`'s
-> `ViewWords` already kept the convention and now has the same check; the
-> CMS's words are still to bring to it.
+> `ViewWords` already kept the convention and now has the same check, and
+> so did the CMS's state words, but for a comma joining a state to its
+> schedule, now the word `withSchedule`.
 
 ### 3c. Views that redraw only when what they read changes (M)
 

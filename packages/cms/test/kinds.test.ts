@@ -122,10 +122,14 @@ describe('Cms.Display.State', () => {
 
   it('takes the application’s words', () => {
     const worded = Cms.Display.State.of({
-      words: { Changed: 'Unpublished changes', overdue: 'late' },
+      words: {
+        Changed: 'Unpublished changes',
+        overdue: 'late',
+        withSchedule: '{state} ({schedule})',
+      },
     })
     expect(Display.show(worded, state('Changed', { at, overdue: true, error: null }))).toBe(
-      'Unpublished changes, late',
+      'Unpublished changes (late)',
     )
   })
 })
