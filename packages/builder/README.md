@@ -151,6 +151,10 @@ The Builder places two `foldkit-primitives/interaction` bundles in its Model:
 Behaviors; `foldkit-mixins-builder` does.
 
 - **Moving keyboard focus in the layers selects the node** it lands on.
+- **A removed node leaves the layers' keys nearby:** with nothing selected,
+  `layers.current` moves to the node after it, else the one before, else the
+  nearest holder left, rather than falling back to the first row. With focus
+  in the layers, the Behavior follows it there, which selects that node.
 - **`PageBuilder.commands`** is the editor's commands, one table: each has an
   `id`, a `label`, its `keys`, where a drawn Builder offers it (`placement`:
   the node's actions, the toolbar, or by key only), and `run(model)`, the

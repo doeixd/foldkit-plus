@@ -415,6 +415,26 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(stray.selected).toEqual(model.selected)
   })
 
+  it('keeps the layers’ keys where a removed node was: after it, else before, else its holder', () => {
+    const { model, first } = twoSections()
+    const [one, two] = body(model, first)
+    const removed = (from: Model, id: NodeId | undefined) =>
+      press(send(from, Message.Selected({ id: required(id, 'a heading') })), 'Delete')
+    // The first of two: the one after it.
+    expect(removed(model, one).layers.current).toBe(two)
+    // The last of three: the one just before it.
+    const three = insert(
+      send(model, Message.Selected({ id: required(two, 'a heading') })),
+      'Heading',
+    )
+    expect(removed(three, body(three, first)[2]).layers.current).toBe(two)
+    // The last: the one before it; then the only one left: its Section.
+    const lastGone = removed(model, two)
+    expect(lastGone.layers.current).toBe(one)
+    expect(removed(lastGone, one).layers.current).toBe(first)
+    expect(removed(lastGone, one).selected).toEqual(Option.none())
+  })
+
   it('starts the layers’ keys from a selection made anywhere else', () => {
     const { model, first } = twoSections()
     const selected = send(model, Message.Selected({ id: first }))

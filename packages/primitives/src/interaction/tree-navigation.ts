@@ -19,6 +19,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, Capability, type SlotItem } from 'foldkit-mixins'
+import { FollowTabStop } from '../dom/follow-tab-stop.js'
 import { idSelector } from './roving-tabindex.js'
 
 export const Model = Schema.Struct({
@@ -248,6 +249,8 @@ export const behavior =
       {
         [options.container]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          // Focus in the tree stays on its stop when an edit elsewhere moves or removes it.
+          mount: () => FollowTabStop(),
           attributes: ({
             input,
             h,

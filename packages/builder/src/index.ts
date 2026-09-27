@@ -1433,6 +1433,33 @@ export const Builder = {
       Option.isSome(model.editing) && !Option.contains(model.selected, model.editing.value.id)
         ? { ...model, editing: Option.none() }
         : model
+    /**
+     * The layers' keys, once the node they were on is removed and nothing is
+     * selected, start from where it was: its next sibling left, else the one
+     * before, else the nearest holder left; not the first row.
+     */
+    const keptCurrent = <R extends { readonly model: Model }>(before: Model, next: R): R => {
+      const { current } = next.model.layers
+      const after = documentOf(next.model)
+      if (current === null || Composition.index(after).has(NodeId.make(current))) return next
+      const was = documentOf(before)
+      const place = Composition.index(was).get(NodeId.make(current))
+      if (place === undefined) return next
+      const left = (id: NodeId) => Composition.index(after).has(id)
+      const siblings =
+        place.parent === undefined
+          ? was.roots
+          : (was.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+      const beside = [
+        ...siblings.slice(place.index + 1),
+        ...siblings.slice(0, place.index).reverse(),
+      ].find(left)
+      let holder = place.parent
+      while (holder !== undefined && !left(holder))
+        holder = Composition.index(was).get(holder)?.parent
+      const kept = beside ?? holder ?? null
+      return { ...next, model: { ...next.model, layers: { ...next.model.layers, current: kept } } }
+    }
     const update = (model: Model, message: Message) => {
       const moved = assembled(model, message)
       const next = {
@@ -1450,7 +1477,7 @@ export const Builder = {
       }
       // A selection made elsewhere (an insert, the canvas, a row click) is where
       // the layers' keys start from, with the rows above it open so it shows.
-      if (Option.isNone(next.model.selected)) return next
+      if (Option.isNone(next.model.selected)) return keptCurrent(model, next)
       const selected = next.model.selected.value
       if (selected === next.model.layers.current) return next
       const places = Composition.index(documentOf(next.model))

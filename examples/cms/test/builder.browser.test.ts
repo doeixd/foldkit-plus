@@ -393,3 +393,23 @@ it.skipIf(import.meta.env.VITE_MEASURE === undefined)(
   },
   60_000,
 )
+
+it('keeps focus in the layers through a duplicate and a delete, on the row they leave current', async () => {
+  unmount = mount(stylesheet, 3)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const row = (id: string) => document.querySelector<HTMLElement>(`[data-builder-row="${id}"]`)
+  const focusedRow = () => document.activeElement?.getAttribute('data-builder-row')
+  await vi.waitFor(() => expect(row('h1')).not.toBeNull())
+  row('h1')?.focus()
+  await vi.waitFor(() => expect(row('h1')?.getAttribute('aria-selected')).toBe('true'))
+  // A duplicate selects the copy, and focus goes to its row.
+  await userEvent.keyboard('{Control>}d{/Control}')
+  await vi.waitFor(() => expect(focusedRow()).not.toBe('h1'))
+  const copy = focusedRow()
+  expect(copy).toBeDefined()
+  expect(document.activeElement?.getAttribute('aria-selected')).toBe('true')
+  // Deleting it leaves focus on the row after it, not on the page.
+  await userEvent.keyboard('{Delete}')
+  await vi.waitFor(() => expect(focusedRow()).toBe('h2'))
+  expect(row(copy ?? '')).toBeNull()
+})

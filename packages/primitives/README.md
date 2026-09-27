@@ -659,7 +659,10 @@ closed are one bundle with a different arg. The Behavior writes each showing
 row's `id` (through `domId`, by default the row's own), `role="treeitem"`,
 `aria-level`, `aria-posinset`, `aria-setsize`, `aria-expanded` on a branch,
 `aria-disabled`, a roving `tabindex` and `OnFocus`; the container's keys move
-focus by id, or open and close the current row in place. The level is also the
+focus by id, or open and close the current row in place. Focus in the tree
+follows its stop when a transition it did not see moves it or removes the
+focused row (the `FollowTabStop` Mount, in `foldkit-primitives/dom`, which
+never takes focus from outside the container). The level is also the
 custom property `--fk-tree-level`, 1 at the top, so one rule indents any depth:
 `padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 

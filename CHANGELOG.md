@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives`, `FollowTabStop`:** a Mount keeping focus inside a
+  container of roving tab stops on its stop, when a transition it did not see
+  moves the stop or removes the focused descendant. `TreeNavigation`'s
+  Behavior attaches it, so the Builder's layers keep focus through a
+  duplicate, a paste or a delete made by key, where focus stayed on the old
+  row or fell to `<body>`. **`foldkit-builder`** moves `layers.current` off a
+  removed node to the one after it, else before it, else its holder, rather
+  than leaving it for the first row.
+
 - **`foldkit-cms`: `Cms.Display.State`'s words include `withSchedule`**
   (`'{state}, {schedule}'`), where a state and its schedule were joined by a
   comma no application could word. A display renderer's context types its

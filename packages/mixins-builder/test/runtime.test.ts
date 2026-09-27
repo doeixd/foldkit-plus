@@ -39,8 +39,11 @@ const rows = () => Array.from(document.querySelectorAll('[role="treeitem"]'))
 /** The row of the one node of a Block. */
 const rowNamed = (block: string) => rows().find(row => row.getAttribute('data-block') === block)
 const selectedRow = () => rows().find(row => row.getAttribute('aria-selected') === 'true')
-const key = (target: Element | undefined, name: string, init: KeyboardEventInit = {}) =>
-  target?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, ...init }))
+/** A key pressed on `target`, focused first, as a key reaches only what has focus. */
+const key = (target: Element | undefined, name: string, init: KeyboardEventInit = {}) => {
+  if (target instanceof HTMLElement) target.focus()
+  return target?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, ...init }))
+}
 const canvasText = () =>
   Array.from(document.querySelectorAll('[aria-label="Page"] h2, [aria-label="Page"] .banner')).map(
     element => element.textContent,
@@ -121,9 +124,14 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
       Array.from(document.querySelectorAll('[aria-label="Where the selection is"] button')).find(
         button => button.textContent === name,
       )
-    crumb('Section')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // A press on a button focuses it, as a real one does.
+    const press = (button: Element | undefined) => {
+      if (button instanceof HTMLElement) button.focus()
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    }
+    press(crumb('Section'))
     await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))
-    crumb('Page')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    press(crumb('Page'))
     await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(selectedRow()).toBeDefined())
