@@ -435,6 +435,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
   `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
 
+- **A no-op must return the Model it was given.** Foldkit renders only when the root Model
+  changes identity, and `Update.foldChild` writes the child back unconditionally, so a
+  `{ ...model }` equal copy (or a placement that re-wrote an unchanged child) rendered the
+  whole page: every `pointerdown` did so through DismissLayer. Test with `toBe(model)`.
+
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
