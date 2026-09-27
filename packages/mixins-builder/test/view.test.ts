@@ -177,6 +177,30 @@ describe('the drawn Builder', () => {
     )
   })
 
+  it('places each panel in its region, so a layout is four regions, not ten panels', () => {
+    const root = Inert.draw(PageView, page)
+    const within = (region: string) =>
+      Inert.bySlot(root, region).flatMap(node =>
+        Inert.all(node).flatMap(inner =>
+          [
+            'palette',
+            'layers',
+            'toolbar',
+            'crumbs',
+            'viewports',
+            'alert',
+            'canvas',
+            'inspector',
+          ].filter(slot => Inert.bySlot(inner, slot)[0] === inner),
+        ),
+      )
+    expect(within('start')).toEqual(['palette', 'layers'])
+    expect(within('bar')).toEqual(['toolbar', 'crumbs', 'viewports'])
+    expect(within('stage')).toEqual(['canvas'])
+    expect(within('end')).toEqual(['inspector'])
+    expect(Inert.bySlot(root, 'regions')).toHaveLength(1)
+  })
+
   it('draws the layers as a tree, the tab stop on the selected row', () => {
     const root = draw(page)
     const [tree] = Inert.byRole(root, 'tree')

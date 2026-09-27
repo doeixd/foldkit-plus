@@ -76,7 +76,21 @@ export { builderWords, type BuilderWords } from './words.js'
 
 /** The Builder's public customization contract: every element the editor draws. */
 export const BuilderSlots = Slots.define({
+  /** The editor: the container `builder`, so a Style may follow the editor's own width. */
   root: Slot.make({ capability: Capability.Container }),
+  /**
+   * The default layout's four regions, and what holds them, which a stylist
+   * lays out rather than each panel: `start` holds the palette and the layers,
+   * `bar` the toolbar, the crumbs, the viewports and the preview, `stage` the
+   * alert and the canvas, and `end` the inspector. Inside `root`, so their
+   * layout may change with `@container builder (…)`. A layout of your own
+   * draws none of them.
+   */
+  regions: Slot.make({ capability: Capability.Container }),
+  start: Slot.make({ capability: Capability.Container }),
+  bar: Slot.make({ capability: Capability.Container }),
+  stage: Slot.make({ capability: Capability.Container }),
+  end: Slot.make({ capability: Capability.Container }),
   /**
    * A `role="tablist"` of the three panels, Add, Layers and Settings, for a
    * narrow layout that shows one at a time (`BuilderView.narrow`); hidden
@@ -199,6 +213,8 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
       insetInlineStart: '0',
     }),
     hoverBox: boxOver('hovered'),
+    // A container, so what it holds may be laid out by the editor's width, not the window's.
+    root: Style.self({ containerType: 'inline-size', containerName: 'builder' }),
     // Shown only by a narrow layout, which shows one panel at a time.
     panelTabs: Style.self({ display: 'none' }),
   },
@@ -1669,9 +1685,9 @@ export const BuilderView = {
     Parts.assemble(render, { name: 'Builder' }).pipe(Style.attach(FrameDefaults)),
 
   /**
-   * The narrow layout, below `width` of the Builder itself: the panels' tabs
-   * show, and only the panel the Builder's `panel` names; selecting a node
-   * chooses Settings. The Builder's root becomes the container `builder`.
+   * The narrow layout, below `width` of the Builder itself (its root is the
+   * container `builder`): the panels' tabs show, and only the panel the
+   * Builder's `panel` names; selecting a node chooses Settings.
    * In the `app` layer by default, so it outranks an application's own
    * placing of the panels; pass `layer` to put it elsewhere.
    */
@@ -1683,7 +1699,6 @@ export const BuilderView = {
     )
     return Style.forSlots(BuilderSlots)(
       {
-        root: Style.self({ containerType: 'inline-size', containerName: 'builder' }),
         panelTabs: Style.at(narrower, Style.self({ display: 'flex' })),
         palette: hidden,
         layers: hidden,
@@ -1705,18 +1720,21 @@ export const BuilderView = {
     } = {},
   ): BuilderSlotView => {
     const parts = BuilderView.parts(builder, options)
+    // Four regions, so a new panel lands in one without moving the layout around it.
     return BuilderView.assemble((_input, slots, h, draw) =>
       h.div(slots.root.attrs(), [
         draw(parts.Panels),
-        draw(parts.Palette),
-        draw(parts.Layers),
-        draw(parts.Inspector),
-        draw(parts.Toolbar),
-        draw(parts.Crumbs),
-        draw(parts.Viewports),
-        draw(parts.Preview),
-        draw(parts.Alert),
-        draw(parts.Canvas),
+        h.div(slots.regions.attrs(), [
+          h.div(slots.start.attrs(), [draw(parts.Palette), draw(parts.Layers)]),
+          h.div(slots.bar.attrs(), [
+            draw(parts.Toolbar),
+            draw(parts.Crumbs),
+            draw(parts.Viewports),
+            draw(parts.Preview),
+          ]),
+          h.div(slots.stage.attrs(), [draw(parts.Alert), draw(parts.Canvas)]),
+          h.div(slots.end.attrs(), [draw(parts.Inspector)]),
+        ]),
         draw(parts.Live),
       ]),
     )

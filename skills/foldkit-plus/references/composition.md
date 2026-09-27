@@ -337,6 +337,9 @@ const PageForm = Form.make('PageForm', PageInput, {
   draw(parts.Canvas)]))`. Parts: `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
   `Viewports`, `Preview`, `Alert`, `Canvas`, `Live`; each brings its Behaviors and redraws only
   when the Model fields it reads change.
+- `define`'s layout: `root` (the container `builder`) > `panelTabs`, `regions` > `start` (palette,
+  layers), `bar` (toolbar, crumbs, viewports, preview), `stage` (alert, canvas), `end`
+  (inspector), then `live`. Lay out `regions`, by `@container builder (…)` for the editor's width.
 - Narrow editor: `.pipe(Style.attach(BuilderView.narrow('52rem')))`: below that width of the
   editor itself (container `builder`), a `role="tablist"` (Add, Layers, Settings) shows one panel
   at a time, by the Builder's `panel` (`PanelChosen`; selecting a node chooses Settings).

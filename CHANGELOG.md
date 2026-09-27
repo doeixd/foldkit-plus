@@ -370,6 +370,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-builder`: the default layout is four regions.** `define`
+  draws `regions` holding `start` (palette, layers), `bar` (toolbar, crumbs,
+  viewports, preview), `stage` (alert, canvas) and `end` (inspector), where it
+  drew ten sibling panels; `root` is always the container `builder`, so a
+  Style may follow the editor's own width. A Style that placed each panel on
+  the root's grid places the regions instead.
+
 - **`foldkit-composition/foldkit`: absence is an `Option`.** `RenderContext.on(event)`
   returns an `Option` of the Message, and `Renderer.render`'s edit options
   `selected`, `hovered`, `drop` and `editing` take `Option`s, as an editor's

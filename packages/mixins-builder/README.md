@@ -126,6 +126,27 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 )
 ```
 
+`define` draws the panels in four regions, so a layout places four things,
+and a new panel lands in its region without moving the rest:
+
+```text
+root                 the container `builder`
+├── panelTabs        a narrow editor's tabs (see below)
+├── regions
+│   ├── start        palette, layers
+│   ├── bar          toolbar, crumbs, viewports, preview
+│   ├── stage        alert, canvas
+│   └── end          inspector
+└── live
+```
+
+`root` is a container (`container: builder / inline-size`, the Builder's
+default Style), so the regions may be laid out by the editor's own width,
+`@container builder (max-width: 64rem)`, rather than the window's: an editor
+in a narrow column stacks in a wide window. The example lays `regions` out as
+a grid of `start`, `bar` over `stage`, and `end`. A layout of your own
+(`assemble`) draws none of these.
+
 A node's props are drawn by its Block's settings form, a `foldkit-mixins-form`
 view the Builder makes. Give its Styles to `define` (or `parts`), and they are
 attached to every Block's settings form:
@@ -216,9 +237,8 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 )
 ```
 
-- **The width is the editor's own, not the window's.** `narrow(width)` makes
-  the Builder's root the container `builder`, and below `width` of it the
-  `Panels` part's `role="tablist"` (Add, Layers, Settings) shows, and only the
+- **The width is the editor's own, not the window's.** Below `width` of the
+  container `builder`, the Builder's root, the `Panels` part's `role="tablist"` (Add, Layers, Settings) shows, and only the
   panel the Builder's `panel` names. Wider, the tabs are hidden (the
   Builder's default Style) and every panel shows.
 - **The Builder chooses the panel as it always has:** a tab sends

@@ -326,6 +326,8 @@ it('shows one panel at a time when the editor is narrow, chosen by tabs and by s
   unmount = mount(stylesheet, 3, longPage(3), '600px')
   await vi.waitFor(() => expect(tabs()?.checkVisibility()).toBe(true))
   expect([shown('Add a block'), shown('Layers'), shown('Properties')]).toEqual([true, false, false])
+  // Stacked by the editor's own width, not the window's: the page takes the editor's width.
+  expect(canvas()?.getBoundingClientRect().width).toBeGreaterThan(500)
   document.querySelector<HTMLElement>('[role="tab"][data-panel="layers"]')?.click()
   await vi.waitFor(() => expect(shown('Layers')).toBe(true))
   expect(shown('Add a block')).toBe(false)

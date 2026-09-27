@@ -1,7 +1,7 @@
 # Plan: developer experience, view architecture, and the page builder
 
 **Status:** phases 0 to 5 done, 2026-09-26, but for what each section's
-dated note leaves: B9's regions as Slots (3d), words (3b), an
+dated note leaves: the CMS screen and `ListView` in regions (3d), the CMS's words (3b), an
 `Environment` (3a), an application's own commands (5a), hover as a Message
 (5b), and rich text edited in place (5e). Phase 6 is still to decide.
 Proposed, 2026-09-26. Addresses every item in
@@ -690,6 +690,15 @@ current `Behavior.attach`, or need a new `Parts.behavior`.
 (`selected`, `drop`, and `editing` from Phase 5e). `RenderContext.on` returns
 `Option<Message>`.
 
+> **B9 done, 2026-09-26.** `define` draws `regions` > `start`, `bar`,
+> `stage`, `end`, the panels inside, and `root` is always the container
+> `builder`. That fixed what 5g had left wrong: the example's grid, on the
+> root, could only collapse by the window, so a narrow editor in a wide window
+> showed tabs over three squeezed columns, which the 5g test, checking only
+> which panels show, passed. The grid is on `regions` now, collapsed by
+> `@container builder`, and the test checks the canvas takes the editor's
+> width. The CMS editor screen and `ListView` are still to follow.
+>
 > **B10 done, 2026-09-26.** `selected`, `hovered`, `drop` and `editing` are
 > `Option`s, and `on` returns one; the drawn Builder passes its Model's as they
 > are.

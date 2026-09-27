@@ -875,30 +875,55 @@ export const InspectorFormStyle = Style.forSlots(FormSlots)(
 
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
   {
-    root: Style.compose(
+    // Laid out by the editor's own width (`builder`), so a narrow editor stacks in a wide window.
+    regions: Style.compose(
       Style.self({
         columnGap: t.space.md,
         display: 'grid',
-        gridTemplateColumns: '15.5rem auto minmax(0, 1fr) auto 19rem',
-        // The bar, the rest of the palette's height, then what is left for the layers.
-        gridTemplateRows: 'auto auto minmax(0, 1fr)',
+        // The palette and the layers, the page under its bar, then the inspector.
+        gridTemplateAreas: '"start bar end" "start stage end"',
+        gridTemplateColumns: '15.5rem minmax(0, 1fr) 19rem',
+        gridTemplateRows: 'auto minmax(0, 1fr)',
         height: 'calc(100vh - 12.75rem)',
         minHeight: '34rem',
         position: 'relative',
       }),
-      Style.media('(max-width: 64rem)', {
+      Style.container('builder (max-width: 64rem)', {
+        gridTemplateAreas: 'none',
         gridTemplateColumns: 'minmax(0, 1fr)',
         gridTemplateRows: 'none',
         height: 'auto',
         rowGap: t.space.sm,
       }),
     ),
+    start: Style.compose(
+      Style.self({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.sm,
+        gridArea: 'start',
+        minHeight: '0',
+      }),
+      Style.container('builder (max-width: 64rem)', { gridArea: 'auto' }),
+    ),
+    bar: Style.compose(
+      Style.self({ alignItems: 'center', display: 'flex', gap: t.space.md, gridArea: 'bar' }),
+      Style.container('builder (max-width: 64rem)', { flexWrap: 'wrap', gridArea: 'auto' }),
+    ),
+    // The alert lies over the top of the page, in the same cell.
+    stage: Style.compose(
+      Style.self({ display: 'grid', gridArea: 'stage', minHeight: '0' }),
+      Style.container('builder (max-width: 64rem)', { gridArea: 'auto' }),
+    ),
+    end: Style.compose(
+      Style.self({ display: 'flex', flexDirection: 'column', gridArea: 'end', minHeight: '0' }),
+      Style.container('builder (max-width: 64rem)', { gridArea: 'auto' }),
+    ),
     palette: Style.compose(
       builderPanel,
       panelName('Add a block'),
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      Style.self({ gridColumn: '1', gridRow: '1 / 3', maxHeight: '26rem' }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+      Style.self({ flexShrink: '0', maxHeight: '26rem' }),
     ),
     paletteGroup: Style.self({
       display: 'grid',
@@ -941,8 +966,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
     layers: Style.compose(
       builderPanel,
       panelName('Layers'),
-      Style.self({ gridColumn: '1', gridRow: '3', marginBlockStart: t.space.sm }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+      Style.self({ flex: '1', minHeight: '0' }),
     ),
     tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
     row: Style.compose(
@@ -1011,8 +1035,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
     inspector: Style.compose(
       builderPanel,
       L.in('layouts', Layout.stack({ gap: t.space.md })),
-      Style.self({ gridColumn: '5', gridRow: '1 / -1', padding: t.space.md }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+      Style.self({ flex: '1', minHeight: '0', padding: t.space.md }),
     ),
     inspectorHead: L.in('layouts', Layout.stack({ gap: '0.3rem' })),
     inspectorTitle: Style.self({
@@ -1040,6 +1063,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         'move-out': 'outdent',
         'move-in': 'indent',
         duplicate: 'copy',
+        copy: 'clipboard',
+        cut: 'scissors',
         delete: 'trash',
       }),
       Style.nest('&[data-action="delete"]:hover:not(:disabled)', {
@@ -1111,24 +1136,19 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       whiteSpace: 'nowrap',
     }),
     shortcutWhat: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
-    toolbar: Style.compose(
-      Style.self({ display: 'flex', gap: '2px', gridColumn: '2', gridRow: '1' }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
-    ),
+    toolbar: Style.self({ display: 'flex', gap: '2px' }),
     toolbarAction: Style.compose(
       iconButton,
-      iconsBy('data-action', { undo: 'undo', redo: 'redo' }),
+      iconsBy('data-action', { undo: 'undo', redo: 'redo', paste: 'paste' }),
     ),
     crumbs: Style.compose(
       Style.self({
         alignItems: 'center',
         display: 'flex',
-        gridColumn: '3',
-        gridRow: '1',
+        flex: '1',
         minWidth: '0',
         overflow: 'hidden',
       }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
     crumb: Style.compose(
       Style.self({
@@ -1156,11 +1176,35 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         borderRadius: t.radius.md,
         display: 'flex',
         gap: '2px',
-        gridColumn: '4',
-        gridRow: '1',
         padding: '2px',
       }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    // The narrow editor's tabs, a segmented control like the viewports. Their `display`
+    // is the Builder's: hidden while the editor is wide.
+    panelTabs: Style.self({
+      background: t.surface.muted,
+      borderRadius: t.radius.md,
+      gap: '2px',
+      padding: '2px',
+    }),
+    panelTab: Style.compose(
+      Style.self({
+        background: 'transparent',
+        border: '0',
+        borderRadius: t.radius.sm,
+        color: t.text.muted,
+        cursor: 'pointer',
+        flex: '1',
+        font: 'inherit',
+        fontSize: t.size.sm,
+        padding: '0.4rem 0.75rem',
+      }),
+      Style.nest('&[aria-selected="true"]', {
+        background: t.surface.base,
+        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
+        color: t.text.overt,
+        fontWeight: t.weight.semibold,
+      }),
     ),
     viewport: Style.compose(
       iconButton,
@@ -1181,13 +1225,11 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         // Over the top of the page, as a notice: it comes and goes without moving the page.
         alignSelf: 'start',
         boxShadow: '0 4px 12px rgb(0 0 0 / 12%)',
-        gridColumn: '2 / 5',
-        gridRow: '2',
+        gridArea: '1 / 1',
         margin: `${t.space.md} ${t.space.lg} 0`,
         padding: `${t.space.xs} ${t.space.sm}`,
         zIndex: '1',
       }),
-      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
     canvas: Style.compose(
       Style.self({
@@ -1195,19 +1237,14 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         border: `1px solid ${t.outline.subtle}`,
         borderRadius: t.radius.lg,
         boxSizing: 'border-box',
-        gridColumn: '2 / 5',
-        gridRow: '2 / 4',
+        gridArea: '1 / 1',
         marginBlockStart: t.space.sm,
         minHeight: '0',
         overflow: 'auto',
         padding: t.space.lg,
       }),
       Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
-      Style.media('(max-width: 64rem)', {
-        gridColumn: 'auto',
-        gridRow: 'auto',
-        minHeight: '30rem',
-      }),
+      Style.container('builder (max-width: 64rem)', { minHeight: '30rem' }),
       Style.nest('[data-composition-drop="before"] > *', { boxShadow: `0 -3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="after"] > *', { boxShadow: `0 3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="inside"] > *', {
