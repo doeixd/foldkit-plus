@@ -13,6 +13,22 @@ import type { Send } from './transport.js'
 
 const KEY = 'foldkit-cms-demo'
 
+/**
+ * Bytes as base64, and back: by the browser's own where it has them (a big
+ * database took 50 ms a save through `String.fromCharCode` and `btoa`), else so.
+ */
+const toText = (bytes: Uint8Array): string => {
+  if ('toBase64' in bytes && typeof bytes.toBase64 === 'function') return String(bytes.toBase64())
+  let text = ''
+  for (let at = 0; at < bytes.length; at += 0x8000)
+    text += String.fromCharCode(...bytes.subarray(at, at + 0x8000))
+  return btoa(text)
+}
+const fromText = (text: string): Uint8Array =>
+  'fromBase64' in Uint8Array && typeof Uint8Array.fromBase64 === 'function'
+    ? new Uint8Array(Uint8Array.fromBase64(text))
+    : Uint8Array.from(atob(text), char => char.charCodeAt(0))
+
 /** The database last kept; none where there is none, or storage is refused. */
 const kept = (): Uint8Array | undefined => {
   try {
@@ -25,7 +41,7 @@ const kept = (): Uint8Array | undefined => {
       return undefined
     }
     const text = localStorage.getItem(KEY)
-    return text === null ? undefined : Uint8Array.from(atob(text), char => char.charCodeAt(0))
+    return text === null ? undefined : fromText(text)
   } catch {
     return undefined
   }
@@ -34,11 +50,7 @@ const kept = (): Uint8Array | undefined => {
 /** Keeps the database; a sandbox that cannot be kept still works until the page closes. */
 const keep = (database: Database) => {
   try {
-    const bytes = database.export()
-    let text = ''
-    for (let at = 0; at < bytes.length; at += 0x8000)
-      text += String.fromCharCode(...bytes.subarray(at, at + 0x8000))
-    localStorage.setItem(KEY, btoa(text))
+    localStorage.setItem(KEY, toText(database.export()))
   } catch {
     // Storage full or refused: the sandbox lives as long as the page.
   }
@@ -78,9 +90,26 @@ export const openSandbox = async (): Promise<Send> => {
     await backend.seed()
     keep(database)
   }
+  // Kept a moment after the last change, not after each: saves come in runs while
+  // someone types. Kept at once when the page is left, so a change of chair keeps all.
+  let pending: ReturnType<typeof setTimeout> | undefined
+  const flush = () => {
+    if (pending === undefined) return
+    clearTimeout(pending)
+    pending = undefined
+    keep(database)
+  }
+  const keepSoon = () => {
+    clearTimeout(pending)
+    pending = setTimeout(flush, 500)
+  }
+  window.addEventListener('pagehide', flush)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush()
+  })
   setInterval(() => {
     void publishDue(backend).then(said => {
-      if (said.length > 0) keep(database)
+      if (said.length > 0) keepSoon()
     })
   }, 5000)
   return async (chair, body) => {
@@ -88,7 +117,7 @@ export const openSandbox = async (): Promise<Send> => {
     const answered = await answer(backend, chair, parsed)
     // Reads change nothing; a mutation, and the drafts a save writes, are kept.
     if (answered.ok && typeof parsed === 'object' && parsed !== null && 'operation' in parsed)
-      if (parsed.operation === 'mutate') keep(database)
+      if (parsed.operation === 'mutate') keepSoon()
     return answered
   }
 }

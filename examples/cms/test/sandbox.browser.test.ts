@@ -38,3 +38,21 @@ it('starts afresh from something kept that is no sandbox, rather than failing to
   expect(localStorage.getItem(KEY)).not.toBe(btoa('these bytes are no SQLite database at all'))
   expect((await send('visitor', '{}')).ok).toBe(false)
 })
+
+it('keeps a change a moment after it, or at once when the page is left', async () => {
+  localStorage.removeItem(KEY)
+  const send = await openSandbox()
+  const seeded = localStorage.getItem(KEY)
+  const archived = await send(
+    'edda',
+    JSON.stringify({
+      operation: 'mutate',
+      payload: { requestId: 'r1', mutation: 'CmsArchive', input: { entry: 'entry-page-home' } },
+    }),
+  )
+  expect(archived.ok).toBe(true)
+  // Not yet: saves come in runs while someone types.
+  expect(localStorage.getItem(KEY)).toBe(seeded)
+  window.dispatchEvent(new Event('pagehide'))
+  expect(localStorage.getItem(KEY)).not.toBe(seeded)
+})
