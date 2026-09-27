@@ -31,6 +31,7 @@ const markers: EditWords = {
   startingPropsFail: '«startingPropsFail:{block}»',
   notANode: '«notANode:{id}»',
   unknownPattern: '«unknownPattern:{name}»',
+  noPlace: '«noPlace:{label}»',
   copyChanged: '«copyChanged:{id}»',
   refusal: '«refusal:{code}»',
   moveUp: '«moveUp»',
@@ -120,6 +121,12 @@ it('says nothing of its own but through its words', () => {
   steps.reduce(send, page)
   // Nothing copied, from a Builder that holds no copy.
   send(Worded.initial, Message.ClipboardRead({ text: Option.none() }))
+  // A Heading copied onto an empty page, which has no place for one.
+  const heading = {
+    format: 'foldkit-composition',
+    tree: { root: 'h', nodes: { h: { block: 'Heading', props: { text: 'H' }, regions: {} } } },
+  }
+  send(Worded.initial, Message.ClipboardRead({ text: Option.some(JSON.stringify(heading)) }))
   said.push(...Worded.commands.map(command => command.label))
 
   expect(said.filter(text => !text.includes('«'))).toEqual([])

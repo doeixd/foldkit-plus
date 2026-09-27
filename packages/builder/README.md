@@ -157,14 +157,16 @@ Behaviors; `foldkit-mixins-builder` does.
   Message it sends now, or none while it has nothing to do. A view draws the
   node's actions, the toolbar, their titles and the list of shortcuts from it,
   and `PageBuilder.keyCommand(model, key, modifiers)` is derived from it: the
-  first command one of whose keys is pressed. The built table:
+  first command one of whose keys is pressed and which has something to do,
+  so a command added on a built one's key runs where that one has none. The
+  built table:
 
   | Keys | What they do to the selected node |
   | --- | --- |
   | Alt+Up, Alt+Down | move it among its siblings |
   | Alt+Left | move it out of its parent, to just after it |
   | Alt+Right | move it into the node above it, last in the first Region that takes it |
-  | Mod+D | duplicate it, just after it |
+  | Mod+D | duplicate it, just after it, where its Region has room |
   | Mod+C, Mod+X | copy it; cut it |
   | Delete, Backspace | remove it |
   | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
@@ -249,9 +251,11 @@ pastes in another.
   `refused` says why. Text that is not part of a page, or no copy at all, is
   `builder:nothing-to-paste`; the rest are `apply`'s own codes.
 - **It goes where a new node of its root's Block would** (`placeFor`): inside
-  the selection when it fits there, else after it, else last among the roots.
-  Where it can go nowhere, it is tried last on the page, and refused there
-  with the reason.
+  the selection when it fits there, else after it, else last among the roots,
+  or, for a Block that is no root, last in the last Region with room that
+  takes it, so a node cut and pasted with nothing selected comes back. Where
+  it can go nowhere, it is refused before ids are minted, as
+  `builder:no-place`, with the Block's label.
 
 The announcer debounces and clears on Effect's clock through Commands named
 `LiveAnnounce.read` and `LiveAnnounce.clear`. A runtime runs them beside
@@ -399,7 +403,8 @@ Each helper that may have no answer returns an `Option`, as the Model's
 
 - `PageBuilder.placeFor(document, selected, block)` is where the palette puts a
   new node: inside the selection when a Region there accepts it, else after the
-  selection, else last among the roots; none where the Block cannot go.
+  selection, else last among the roots, or last in the last Region on the page
+  with room that accepts it; none where the Block can go nowhere.
 - `PageBuilder.patternAt(document, selected, pattern)` is the same for a
   pattern, by its root's Block; none for a pattern the Catalog lacks. Its use
   is one `usePattern` edit, undone as one.

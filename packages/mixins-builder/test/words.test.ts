@@ -143,6 +143,18 @@ it('draws no word of its own but through its words', () => {
     send(page, Message.Selected({ id: id('b') })),
     send(page, Message.Selected({ id: id('lost') })),
     send(page, Message.Selected({ id: id('f') })),
+    // A page with no Region at all: a Heading has no place.
+    send(
+      PageBuilder.replace(
+        PageBuilder.initial,
+        Composition.Document.make({
+          format: 1,
+          roots: [id('lost')],
+          nodes: { [id('lost')]: { block: 'Carousel', props: {}, regions: {} } },
+        }),
+      ),
+      Message.Selected({ id: id('lost') }),
+    ),
   ]
   const drawn: Array<string> = states.flatMap(model =>
     shown(PageView({ ...model, words: markers }, h)),

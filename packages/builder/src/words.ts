@@ -39,6 +39,8 @@ export interface EditWords {
   readonly copyChanged: string
   /** A pattern the Catalog lacks: `{name}`. */
   readonly unknownPattern: string
+  /** A paste the page has no place for: its root's Block, `{label}`. */
+  readonly noPlace: string
   /** A refusal `apply` made: blanks `{code}` and `{message}`, by default its own message. */
   readonly refusal: string
 
@@ -79,6 +81,7 @@ export const editWords: EditWords = Object.freeze({
   startingPropsFail: '"{block}"\'s starting props do not encode',
   notANode: '"{id}" is not a node',
   unknownPattern: 'the Catalog has no pattern "{name}"',
+  noPlace: 'There is no place on this page for a {label}',
   copyChanged: '"{id}" changed while its copy was being made; copy it again',
   refusal: '{message}',
   moveUp: 'Move up',

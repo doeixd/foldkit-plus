@@ -391,6 +391,16 @@ version changed; `pnpm` skips versions already in the registry.
   the keys its Schema names; and a held form Message with a key its variant
   lacks is not decoded. `Settings` gains `keys`.
 
+- **`foldkit-builder`, placing and commands:** `placeFor` puts a Block that
+  is no root, with nothing near the selection to take it, last in the last
+  Region on the page with room that accepts it, so a node cut and pasted
+  back comes back rather than being refused with a minted id; a paste with
+  no place at all is refused before ids are minted, as `builder:no-place`
+  (a new word, `noPlace`). Duplicate is not offered where its Region is
+  full. `keyCommand` tries each command a key names in turn, so a command an
+  application adds on a built one's key runs where that one has nothing to
+  do.
+
 - **`foldkit-composition`:** `field(key)` takes only a prop that is exactly
   `string`; a list of names (`'plain' | 'accent'`) is no longer a field. An
   id that is one of `Object`'s own names (`toString`, `constructor`,

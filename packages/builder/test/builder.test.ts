@@ -384,6 +384,26 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(Rebound.keyCommand(selected, 'Backspace', ctrl)).toEqual(
       Option.some(Message.Applied({ op: Composition.Op.remove(second) })),
     )
+    // A later command on the same key runs where the first has nothing to do.
+    const Closing = Builder.make('Closing', {
+      catalog: Site,
+      renderer: SiteRenderer,
+      starters: { Section: {} },
+      commands: built => [
+        ...built,
+        {
+          id: 'close-panel',
+          label: 'Close panel',
+          keys: [{ key: 'Escape' }],
+          placement: ['keyboard'],
+          run: () => Option.some(Message.PanelChosen({ panel: 'insert' })),
+        },
+      ],
+    })
+    expect(Closing.keyCommand(Closing.initial, 'Escape', plain)).toEqual(
+      Option.some(Message.PanelChosen({ panel: 'insert' })),
+    )
+    expect(Closing.keyCommand(selected, 'Escape', plain)).toEqual(Option.some(Message.Deselected()))
   })
 
   it('selects the node the layers’ keyboard focus moves to', () => {
@@ -750,6 +770,57 @@ describe('copy, cut and paste', () => {
     expect(kept.page).toBe(page.page)
     expect(kept.clipboard).toBe(copied.clipboard)
     expect(some(kept.refused, 'a refusal').code).toBe('composition:region-cardinality')
+  })
+
+  it('pastes a cut node back with nothing selected, last where the page takes it', () => {
+    // The cut leaves nothing selected; a Heading is no root, so it goes last in a body.
+    const cut = send(
+      send(page, Message.Selected({ id: id('h1') })),
+      Message.CutAsked({ id: id('h1') }),
+    )
+    expect(cut.selected).toEqual(Option.none())
+    const pasted = send(cut, Message.PasteAsked())
+    expect(pasted.refused).toEqual(Option.none())
+    const body = required(pasted.page.present.nodes[id('s2')]?.regions['body'], 'a body')
+    expect(pasted.page.present.nodes[required(body[0], 'the pasted Heading')]?.props).toEqual({
+      text: 'One',
+    })
+  })
+
+  it('refuses a paste the page has no place for before it mints an id', () => {
+    const result = step(
+      PageBuilder.initial,
+      Message.ClipboardRead({
+        text: Option.some(
+          clip({
+            root: 'x',
+            nodes: { x: { block: 'Heading', props: { text: 'A' }, regions: {} } },
+          }),
+        ),
+      }),
+    )
+    // The refusal is said, and nothing is minted.
+    expect((result.commands ?? []).map(command => command.name)).toEqual(['PageBuilder.announce'])
+    expect(some(result.model.refused, 'a refusal')).toEqual({
+      code: 'builder:no-place',
+      message: 'There is no place on this page for a Heading',
+    })
+  })
+
+  it('offers no duplicate where the Region holds all it may', () => {
+    const inTitle = send(page, Message.Selected({ id: id('t') }))
+    expect(PageBuilder.commands.find(each => each.id === 'duplicate')?.run(inTitle)).toEqual(
+      Option.none(),
+    )
+    const inBody = send(page, Message.Selected({ id: id('h1') }))
+    expect(
+      Option.isSome(
+        required(
+          PageBuilder.commands.find(each => each.id === 'duplicate'),
+          'duplicate',
+        ).run(inBody),
+      ),
+    ).toBe(true)
   })
 
   it('runs copy, cut and paste from their keys', () => {

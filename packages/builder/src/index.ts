@@ -264,7 +264,11 @@ export type Starters<Blocks extends AnyBlock> = {
   readonly [B in Blocks as B['name']]?: PropsOf<B>
 }
 
-/** Where a new node of `block` goes, given what is selected: inside it, after it, or last. */
+/**
+ * Where a new node of `block` goes, given what is selected: inside it, after
+ * it, or last, among the roots or, for a Block that is no root, in the last
+ * Region on the page with room that accepts it. None where it fits nowhere.
+ */
 const placeFor = (
   catalog: Catalog,
   document: Document,
@@ -275,15 +279,21 @@ const placeFor = (
   if (block === undefined) return Option.none()
   const fits = (accepted: ReadonlyArray<unknown>) =>
     block.provides.some(content => accepted.includes(content))
-  if (Option.isSome(selected)) {
-    const node = document.nodes[selected.value]
+  /** Last in the first of a node's Regions with room that accepts the Block. */
+  const inside = (id: NodeId): Option.Option<Position> => {
+    const node = document.nodes[id]
     const owner = node === undefined ? undefined : Catalog.block(catalog, node.block)
     if (node !== undefined && owner !== undefined)
       for (const [name, region] of Object.entries(owner.regions)) {
         const children = node.regions[name] ?? []
         if (fits(region.accepts) && children.length < region.max)
-          return Option.some(Composition.region(selected.value, name, children.length))
+          return Option.some(Composition.region(id, name, children.length))
       }
+    return Option.none()
+  }
+  if (Option.isSome(selected)) {
+    const within = inside(selected.value)
+    if (Option.isSome(within)) return within
   }
   const place = Option.isSome(selected)
     ? Composition.index(document).get(selected.value)
@@ -296,12 +306,33 @@ const placeFor = (
     if (region !== undefined && fits(region.accepts) && siblings.length < region.max)
       return Option.some(Composition.region(place.parent, place.region, place.index + 1))
   }
-  if (!fits(catalog.roots)) return Option.none()
-  return Option.some(
-    Composition.root(
-      place !== undefined && place.parent === undefined ? place.index + 1 : document.roots.length,
-    ),
-  )
+  if (fits(catalog.roots))
+    return Option.some(
+      Composition.root(
+        place !== undefined && place.parent === undefined ? place.index + 1 : document.roots.length,
+      ),
+    )
+  // Nodes in page order, last first, so the place found is the last one on the page.
+  const order: Array<NodeId> = []
+  const visit = (id: NodeId): void => {
+    order.push(id)
+    for (const ids of Object.values(document.nodes[id]?.regions ?? {})) ids.forEach(visit)
+  }
+  document.roots.forEach(visit)
+  for (const id of order.reverse()) {
+    const last = inside(id)
+    if (Option.isSome(last)) return last
+  }
+  return Option.none()
+}
+
+/** Whether a place has room for one more node: a root always, a Region below its most. */
+const hasRoom = (catalog: Catalog, document: Document, at: Position): boolean => {
+  if (at._tag === 'Root') return true
+  const holder = document.nodes[at.parent]
+  const region =
+    holder === undefined ? undefined : Catalog.block(catalog, holder.block)?.regions[at.region]
+  return region !== undefined && (holder?.regions[at.region] ?? []).length < region.max
 }
 
 /** The Operation that moves a node `delta` places among its siblings; none at an end. */
@@ -677,7 +708,12 @@ export const Builder = {
     const refuse = (
       model: Model,
       // An Operation `apply` refused, or a paste of nothing: no Operation at all.
-      refusal: Refusal | { readonly code: 'builder:nothing-to-paste'; readonly message: string },
+      refusal:
+        | Refusal
+        | {
+            readonly code: 'builder:nothing-to-paste' | 'builder:no-place'
+            readonly message: string
+          },
     ): { readonly model: Model; readonly commands: Commands } => ({
       model: { ...model, refused: Option.some(refusal) },
       commands: announce(refusal.message, 'assertive'),
@@ -1120,14 +1156,15 @@ export const Builder = {
                 message: wrong.value.message,
               }),
             })
-          const root = tree.value.nodes[tree.value.root]
-          // Where it fits by the selection; else last, where `apply` says why it does not.
-          const at = Option.getOrElse(
-            Option.flatMap(Option.fromUndefinedOr(root), node =>
-              placeFor(catalog, documentOf(model), model.selected, node.block),
-            ),
-            () => Composition.root(documentOf(model).roots.length),
-          )
+          // `treeRefusal` found the root and its Block, so only a full page leaves no place.
+          const block = tree.value.nodes[tree.value.root]?.block ?? ''
+          const place = placeFor(catalog, documentOf(model), model.selected, block)
+          if (Option.isNone(place))
+            return refuse(model, {
+              code: 'builder:no-place',
+              message: fillWords(words.noPlace, { label: blockLabel(catalog, block) }),
+            })
+          const at = place.value
           return {
             model,
             commands: mint(Object.keys(tree.value.nodes).length, {
@@ -1622,8 +1659,12 @@ export const Builder = {
         label: words.duplicate,
         keys: [{ key: 'd', mod: true }],
         placement: ['node'],
+        // Offered only where its Region has room for the copy.
         run: onSelected((document, selected) =>
-          Option.map(after(document, selected), at => Message.DuplicateAsked({ id: selected, at })),
+          Option.map(
+            Option.filter(after(document, selected), at => hasRoom(catalog, document, at)),
+            at => Message.DuplicateAsked({ id: selected, at }),
+          ),
         ),
       },
       {
@@ -1708,8 +1749,12 @@ export const Builder = {
       modifiers: KeyboardModifiers,
     ): Option.Option<Message> => {
       if (Option.isSome(model.editing)) return Option.none()
-      const command = commands.find(each => each.keys.some(spec => pressed(spec, key, modifiers)))
-      return command === undefined ? Option.none() : command.run(model)
+      for (const command of commands) {
+        if (!command.keys.some(spec => pressed(spec, key, modifiers))) continue
+        const sent = command.run(model)
+        if (Option.isSome(sent)) return sent
+      }
+      return Option.none()
     }
 
     /** The form control that places this Builder as a key, drawn by `drawn`. */

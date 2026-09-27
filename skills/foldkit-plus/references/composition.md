@@ -246,7 +246,8 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   a new node is selected; a refusal is kept in `refused` until the next edit.
 - As a form key: a change of the Document is an edit (autosaved by CMS), a
   selection is not; fill replaces the page and starts undo over.
-- Helpers, each answering with an `Option`: `PageBuilder.placeFor(doc, selected, block)`,
+- Helpers, each answering with an `Option`: `PageBuilder.placeFor(doc, selected, block)`
+  (in or after the selection, else last among the roots or in the page's last Region that takes it),
   `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.dropAt(doc, source, target, zone)`;
   and `PageBuilder.replace`, `PageBuilder.settle`.
 - Places `TreeNavigation` (`Layers`, open by default) and `LiveAnnounce`
