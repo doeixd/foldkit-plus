@@ -155,6 +155,27 @@ describe('RovingTabindex behavior', () => {
     )
   })
 
+  it('describes the items once per input, not once per item', () => {
+    let described = 0
+    const counted = behavior(Roving, args)(ToolbarSlots)<ToolbarInput, Message>({
+      container: 'root',
+      item: 'tool',
+      items: input => {
+        described += 1
+        return describeTools(input.tools)
+      },
+    })
+    const render = (at: ToolbarInput) => {
+      const b = SlotView.buildersFor(ToolbarSlots, [counted.mixin], { input: at, h })
+      b.root.attrs()
+      for (const index of [0, 1, 2]) b.tool.attrs([], items.slotItem(index))
+    }
+    render(input)
+    expect(described).toBe(1)
+    render({ ...input })
+    expect(described).toBe(2)
+  })
+
   it('gives the first enabled item the tab stop before anything is current', () => {
     const b = builders({ ...input, toolbarFocus: { current: null } })
     expect(Attributes.find(b.tool.attrs([], items.slotItem(0)), 'Tabindex')?.value).toBe(0)

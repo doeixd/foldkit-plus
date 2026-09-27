@@ -6,6 +6,7 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
+import { sameIds } from '../internal.js'
 
 export const SelectionSetModel = Schema.Struct({ selected: Schema.Array(Schema.String) })
 export type SelectionSetModel = typeof SelectionSetModel.Type
@@ -21,9 +22,6 @@ export type SelectionSetMessage = typeof SelectionSetMessage.Type
 
 const without = (selected: ReadonlyArray<string>, id: string): ReadonlyArray<string> =>
   selected.filter(other => other !== id)
-
-const sameIds = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
-  a.length === b.length && a.every((id, index) => id === b[index])
 
 /** Whether the id is currently selected. */
 export const isSelected = (model: SelectionSetModel, id: string): boolean =>

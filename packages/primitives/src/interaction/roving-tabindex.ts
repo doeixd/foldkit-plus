@@ -11,6 +11,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
 import type { Declared } from 'foldkit-bundle'
+import { perInput } from '../internal.js'
 
 export const Orientation = Schema.Literals(['vertical', 'horizontal', 'both'])
 export type Orientation = typeof Orientation.Type
@@ -42,7 +43,9 @@ export const bundle = Bundle.make('RovingTabindex', {
   Message,
   args: Args,
   init: () => ({ model: { current: null } }),
-  update: (_model, message) => ({ model: { current: message.id } }),
+  // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
+  update: (model, message) =>
+    model.current === message.id ? { model } : { model: { current: message.id } },
 })
 
 export type Direction = 'ltr' | 'rtl'
@@ -164,6 +167,7 @@ export const behavior =
     const wrap = (id: string): ParentMessage =>
       declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
     const slice = (input: Input): Model => input[declared.field]
+    const itemsOf = perInput(options.items)
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
@@ -175,7 +179,7 @@ export const behavior =
             readonly input: Input
             readonly h: HtmlBuilder<ParentMessage>
           }) => {
-            const items = options.items(input)
+            const items = itemsOf(input)
             const current = slice(input).current
             const from = current === null ? -1 : items.indexOf(current)
             const direction = options.direction?.(input) ?? 'ltr'
@@ -216,14 +220,7 @@ export const behavior =
             readonly item?: SlotItem
           }) => {
             if (item === undefined) return []
-            return itemAttributes(
-              h,
-              options.items(input),
-              slice(input).current,
-              item,
-              args.virtual,
-              wrap,
-            )
+            return itemAttributes(h, itemsOf(input), slice(input).current, item, args.virtual, wrap)
           },
         }),
         // Keyed by values the caller chose; `forSlots` checks both keys exist.

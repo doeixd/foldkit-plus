@@ -20,6 +20,7 @@ import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, Capability, type SlotItem } from 'foldkit-mixins'
 import { idSelector } from './roving-tabindex.js'
+import { perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
   /** The current row's id, or `null` before any row has been focused. */
@@ -64,8 +65,11 @@ export const bundle = Bundle.make('TreeNavigation', {
   init: () => ({ model: { current: null, toggled: [] } }),
   update: (model, message, args) => {
     switch (message._tag) {
+      // Moving focus by key dispatches `Focused`, and the row's `OnFocus` reports it again.
       case 'Focused':
-        return { model: { ...model, current: message.id } }
+        return model.current === message.id
+          ? { model }
+          : { model: { ...model, current: message.id } }
       case 'Opened':
         return { model: setOpen(model, args, message.id, true) }
       case 'Closed':
@@ -228,21 +232,16 @@ export const behavior =
     const domId = options.domId ?? ((id: string) => id)
     // Every row's attributes read the same rows: work them out once per input,
     // or a tree of n rows costs n times its whole.
-    const prepared = new WeakMap<Input, Prepared>()
-    const prepare = (input: Input): Prepared => {
-      const known = prepared.get(input)
-      if (known !== undefined) return known
+    const prepare = perInput((input: Input): Prepared => {
       const model = slice(input)
       const rows = shown(options.rows(input), model, args)
-      const made: Prepared = {
+      return {
         model,
         rows,
         byId: new Map(rows.map(row => [row.id, row])),
         stop: tabStop(rows, model.current),
       }
-      prepared.set(input, made)
-      return made
-    }
+    })
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({

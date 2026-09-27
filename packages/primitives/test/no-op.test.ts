@@ -4,6 +4,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  DismissLayer,
+  GridNavigation,
+  ListNavigation,
+  RovingTabindex,
+  Selection,
+  TreeNavigation,
+  Typeahead,
+} from '../src/interaction/index.js'
+import {
   Breakpoints,
   BreakpointsMessage,
   MediaQuery,
@@ -53,6 +62,17 @@ const list = {
   paddingStart: 0,
   paddingEnd: 0,
 }
+
+const listNav = {
+  orientation: 'vertical' as const,
+  loop: false,
+  virtual: false,
+  timeoutMs: 500,
+  page: 5,
+}
+const picked = { selected: ['b', 'c'], anchor: 'b' }
+const multiple = { mode: 'multiple' as const, allowEmpty: true }
+const layers = [{ id: 'menu', outside: true, escape: true }]
 
 describe('a Message that changes nothing keeps the Model', () => {
   it.each([
@@ -191,6 +211,107 @@ describe('a Message that changes nothing keeps the Model', () => {
     [
       'Virtual Prune that drops nothing',
       keeps(list, m => Virtual.update(m, VirtualMessage.Prune({ keys: ['a', 'b'] }), list)),
+    ],
+    [
+      'RovingTabindex Focused on the current item',
+      keeps({ current: 'a' }, m =>
+        RovingTabindex.bundle.update(m, RovingTabindex.Message.Focused({ id: 'a' }), {
+          orientation: 'horizontal',
+          loop: false,
+          virtual: false,
+        }),
+      ),
+    ],
+    [
+      'GridNavigation Focused on the current cell',
+      keeps({ current: 'a' }, m =>
+        GridNavigation.bundle.update(m, GridNavigation.Message.Focused({ id: 'a' }), {
+          columns: 2,
+          wrap: false,
+          virtual: false,
+        }),
+      ),
+    ],
+    [
+      'TreeNavigation Focused on the current row',
+      keeps({ current: 'a', toggled: [] }, m =>
+        TreeNavigation.bundle.update(m, TreeNavigation.Message.Focused({ id: 'a' }), {
+          openByDefault: false,
+        }),
+      ),
+    ],
+    [
+      'ListNavigation Focused on the current item',
+      keeps({ current: 'a', query: '', generation: 0 }, m =>
+        ListNavigation.bundle.update(m, ListNavigation.Message.Focused({ id: 'a' }), listNav),
+      ),
+    ],
+    [
+      'ListNavigation Cleared with no query',
+      keeps({ current: 'a', query: '', generation: 0 }, m =>
+        ListNavigation.bundle.update(m, ListNavigation.Message.Cleared(), listNav),
+      ),
+    ],
+    [
+      'Typeahead Cleared with no query',
+      keeps({ query: '', generation: 3 }, m =>
+        Typeahead.bundle.update(m, Typeahead.Message.Cleared(), { timeoutMs: 500 }),
+      ),
+    ],
+    [
+      'Typeahead Expired with no query',
+      keeps({ query: '', generation: 3 }, m =>
+        Typeahead.bundle.update(m, Typeahead.Message.Expired({ generation: 3 }), {
+          timeoutMs: 500,
+        }),
+      ),
+    ],
+    [
+      'Selection Ranged over what is selected already',
+      keeps(picked, m =>
+        Selection.bundle.update(
+          m,
+          Selection.Message.Ranged({ id: 'c', order: ['a', 'b', 'c', 'd'] }),
+          multiple,
+        ),
+      ),
+    ],
+    [
+      'Selection Replaced with the same ids',
+      keeps(picked, m =>
+        Selection.bundle.update(m, Selection.Message.Replaced({ ids: ['b', 'c'] }), multiple),
+      ),
+    ],
+    [
+      'Selection Cleared when empty',
+      keeps({ selected: [], anchor: 'b' }, m =>
+        Selection.bundle.update(m, Selection.Message.Cleared(), multiple),
+      ),
+    ],
+    [
+      'DismissLayer PressedAt with the layers held',
+      keeps({ layers }, m =>
+        DismissLayer.bundle.update(
+          m,
+          DismissLayer.Message.PressedAt({
+            layers: [{ id: 'menu', outside: true, escape: true }],
+            inside: ['menu'],
+          }),
+          undefined,
+        ),
+      ),
+    ],
+    [
+      'DismissLayer PressedEscape with the layers held',
+      keeps({ layers }, m =>
+        DismissLayer.bundle.update(
+          m,
+          DismissLayer.Message.PressedEscape({
+            layers: [{ id: 'menu', outside: true, escape: true }],
+          }),
+          undefined,
+        ),
+      ),
     ],
   ])('%s', (_, check) => check())
 })
