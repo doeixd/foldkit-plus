@@ -1,4 +1,5 @@
 import {
+  blockAtPath,
   blockContent,
   eachBlock,
   textContent,
@@ -61,6 +62,11 @@ export type NodeDefinition =
       readonly isolating?: boolean | undefined
       /** Props a copy split off this node starts with, over the original's (§135). */
       readonly splitProps?: NodeBlock['props'] | undefined
+      /**
+       * The kinds this one may stand in (§149); absent, any that holds it. A kind that names
+       * them never stands at the top level, as a `ListItem` stands only in a `List`.
+       */
+      readonly within?: ReadonlyArray<string> | undefined
     }
 
 /**
@@ -80,6 +86,7 @@ export interface NodeDefinitionOf<
   readonly props: Props
   readonly isolating: boolean
   readonly splitProps: NodeBlock['props'] | undefined
+  readonly within: ReadonlyArray<string> | undefined
 }
 
 /** Declares a block node kind: a top-level node containing text runs. */
@@ -123,6 +130,8 @@ export const node = <
      * checked task item starts an unchecked one.
      */
     readonly splitProps?: NodeBlock['props']
+    /** The kinds this one may stand in; it then never stands at the top level (§149). */
+    readonly within?: ReadonlyArray<string>
   } = {},
 ): NodeDefinitionOf<Name, Props, Children> => ({
   name,
@@ -132,6 +141,7 @@ export const node = <
   props: options.Props as Props,
   isolating: options.isolating ?? false,
   splitProps: options.splitProps,
+  within: options.within,
 })
 
 /**
@@ -158,6 +168,7 @@ export interface Diagnostic {
     | 'InvalidProps'
     | 'MismatchedDefinition'
     | 'UnexpectedChild'
+    | 'MisplacedNode'
     | 'ForbiddenMark'
   readonly message: string
   readonly node?: NodeId
@@ -237,6 +248,18 @@ const childKindDiagnostics = (
     }))
 }
 
+/**
+ * Whether a kind may stand in a parent of `parentKind`, or at the top level when that is
+ * undefined: anywhere, unless its declaration names where (§149).
+ */
+export const standsWithin = (
+  declared: NodeDefinition | undefined,
+  parentKind: string | undefined,
+): boolean =>
+  declared?.kind !== 'node' ||
+  declared.within === undefined ||
+  (parentKind !== undefined && declared.within.includes(parentKind))
+
 /** Structural summary of a Kit, for tooling and tests. */
 export const inspectKit = (definition: Kit) => ({
   blocks: definition.nodes.filter(node => node.kind === 'block').length,
@@ -275,7 +298,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
   const byName = new Map(definition.nodes.map(node => [node.name, node]))
   const declaredMarks = new Map(definition.marks.map(mark => [mark.name, mark]))
   const diagnostics: Array<Diagnostic> = []
-  eachBlock(document.children, block => {
+  eachBlock(document.children, (block, path) => {
     if (block.type === 'Unknown') {
       diagnostics.push({
         code: 'UnknownNode',
@@ -317,6 +340,16 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
           })
         }
         diagnostics.push(...childKindDiagnostics(declared, block))
+        const parent = path.length > 1 ? blockAtPath(document, path.slice(0, -1)) : undefined
+        const parentKind = parent === undefined ? undefined : blockKind(parent)
+        if (!standsWithin(declared, parentKind)) {
+          diagnostics.push({
+            code: 'MisplacedNode',
+            node: block.id,
+            detail: kind,
+            message: `"${kind}" cannot stand ${parentKind === undefined ? 'at the top level' : `in "${parentKind}"`}`,
+          })
+        }
       }
     }
     // A kind declared mark-free has no formatting to carry, so any mark it does is

@@ -69,6 +69,7 @@ export {
   type MarkExtent,
   textBlockAt,
   blocksAt,
+  moveTargets,
   coversText,
   run,
   runAction,

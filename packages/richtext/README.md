@@ -185,13 +185,17 @@ never leaves a container declared `isolating`, such as the standard `TableCell`,
 with nothing to leave is refused with `InvalidInput`. The block keeps its identity, and the
 caret with it.
 
-`MoveBlock` moves a block, with everything it holds, before or after a sibling:
+`MoveBlock` moves a block, with everything it holds, before or after another block:
 `{ type: 'MoveBlock', node, to: { before: other } }` or `{ after: other }`. It addresses blocks
 by identity, not by the selection, so a block handle or a key sends it for the block it stands
-for; identities are kept, and so is the selection. The sibling must share the block's container
-(otherwise `InvalidParent`), because nothing yet declares which kinds may stand at the top level
-or whether a list may be left empty. A block that is not there is `InvalidInput`, and moving a
-block beside itself changes nothing.
+for; identities are kept, and so is the selection. `other` can be in any container the block may
+move into. With a vocabulary, that container has to hold the block's kind, and the kind has to
+stand in it by its `within` (otherwise `UnexpectedChild`). The move may not leave an
+`isolating` container such as a table cell, or go inside itself (`InvalidParent`). A container
+the move leaves empty is deleted with it, as a lift deletes one: an item moved out of a
+one-item list takes the list too. A block that is not there is `InvalidInput`, and moving a
+block beside itself changes nothing. `moveTargets(document, node, nodes?)` lists the blocks it
+may move beside, in document order, which is what a drag offers.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
@@ -687,8 +691,9 @@ by decoding, sync, or `SetMark` rather than import is drawn inert.
 
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
 those block kinds, `marks: 'none'` forbids marks on the kind's own runs, `isolating: true`
-makes the kind a boundary a lift never crosses, as a table cell is, and `splitProps` names
-props an item split off one of this kind starts with:
+makes the kind a boundary a lift never crosses, as a table cell is, `splitProps` names
+props an item split off one of this kind starts with, and `within` names the kinds it may stand
+in, so a `ListItem` stands only in a `List` and never at the top level:
 
 ```ts
 RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
@@ -698,10 +703,12 @@ RichText.node('TaskItem', {
   Props: Schema.Struct({ checked: Schema.Boolean }),
   children: RichText.blockContent,
   splitProps: { checked: false },
+  within: ['List'],
 })
 ```
 
-`validate` reports those violations as `UnexpectedChild` and `ForbiddenMark`, and checks
+`validate` reports those violations as `UnexpectedChild`, `ForbiddenMark`, and
+`MisplacedNode` (a kind outside what its `within` names), and checks
 an atom's props the same way it checks a node's. `run` refuses the edits that would create
 them when it is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
 counterpart of the `marks` option:

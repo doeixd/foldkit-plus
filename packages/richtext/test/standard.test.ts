@@ -85,6 +85,35 @@ describe('the standard vocabulary', () => {
     ])
   })
 
+  it.each([
+    [
+      'a list item at the top level',
+      [container('ListItem', 'i', {}, [paragraph('p')])],
+      'at the top level',
+    ],
+    [
+      'a task item in a quote',
+      [
+        container('Quote', 'q', {}, [
+          container('TaskItem', 'i', { checked: false }, [paragraph('p')]),
+        ]),
+      ],
+      'in "Quote"',
+    ],
+    [
+      'a table cell straight in a table',
+      [container('Table', 't', {}, [container('TableCell', 'i', {}, [paragraph('p')])])],
+      'in "Table"',
+    ],
+  ])('reports %s, which stands only where its kind says', (_, blocks, where) => {
+    const diagnostics = RichText.validate(doc(blocks), kit).filter(
+      diagnostic => diagnostic.code === 'MisplacedNode',
+    )
+    expect(diagnostics.map(diagnostic => [diagnostic.node, diagnostic.message])).toEqual([
+      ['i', expect.stringContaining(where)],
+    ])
+  })
+
   it('reports formatting inside a code block, even a declared mark', () => {
     const marked = doc([
       {

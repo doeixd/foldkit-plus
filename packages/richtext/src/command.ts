@@ -27,7 +27,7 @@ import {
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
-import { blockKind, type NodeRegistry } from './kit.js'
+import { blockKind, standsWithin, type NodeRegistry } from './kit.js'
 import {
   Edit,
   apply,
@@ -86,9 +86,10 @@ export type Command =
    */
   | { readonly type: 'LiftBlock' }
   /**
-   * Moves a block, and everything it holds, beside a sibling: before or after another block
-   * in the same container. It addresses blocks rather than the selection, so a handle or a
-   * key can move the block it stands for; identities are kept, and the selection with them.
+   * Moves a block, and everything it holds, before or after another block, in its own container
+   * or another one the vocabulary lets it stand in (§149). It addresses blocks rather than the
+   * selection, so a handle or a key can move the block it stands for; identities are kept, and
+   * the selection with them. A container the move leaves empty is deleted.
    */
   | { readonly type: 'MoveBlock'; readonly node: NodeId; readonly to: Beside }
 
@@ -415,6 +416,82 @@ export const textBlockAt = (
   if (block?.type === 'Paragraph') return { type: 'Paragraph' }
   if (block?.type === 'Heading') return { type: 'Heading', level: block.level }
   return undefined
+}
+
+/**
+ * Why block `moving` may not move into the container at `container` (§149), or undefined when
+ * it may. Within its own container it always may. Elsewhere, the container must hold its kind,
+ * the kind must stand in the container's kind (a `ListItem` only in a `List`), it may not leave
+ * a container declared isolating, and it may not go inside itself.
+ */
+const moveFailure = (
+  document: Document,
+  moving: { readonly path: BlockPath; readonly block: Block },
+  container: BlockPath,
+  nodes: NodeRegistry | undefined,
+): Failure | undefined => {
+  if (moving.path.every((index, depth) => container[depth] === index)) return 'InvalidParent'
+  const source = moving.path.slice(0, -1)
+  if (pathKey(source) === pathKey(container)) return undefined
+  const kind = blockKind(moving.block)
+  const parent = container.length === 0 ? undefined : blockAtPath(document, container)
+  if (
+    !acceptsChild(document, container, kind, nodes) ||
+    !standsWithin(nodes?.definitionFor(kind), parent === undefined ? undefined : blockKind(parent))
+  ) {
+    return 'UnexpectedChild'
+  }
+  for (let depth = source.length; depth > 0; depth--) {
+    const holder = source.slice(0, depth)
+    const inside = holder.every((index, at) => container[at] === index)
+    if (!inside && isIsolating(document, holder, nodes)) return 'InvalidParent'
+  }
+  return undefined
+}
+
+const isIsolating = (document: Document, path: BlockPath, nodes: NodeRegistry | undefined) => {
+  const block = blockAtPath(document, path)
+  const declared = block === undefined ? undefined : nodes?.definitionFor(blockKind(block))
+  return declared?.kind === 'node' && declared.isolating === true
+}
+
+/**
+ * The outermost container a block leaving `source` empties, walking up while each held nothing
+ * else: a list whose only item's only block moved out goes with it. Never the container it lands
+ * in, or one holding that. An isolating one is never reached, since a move may not leave it.
+ */
+const emptiedBy = (
+  document: Document,
+  source: BlockPath,
+  container: BlockPath,
+): NodeId | undefined => {
+  let emptied: NodeId | undefined
+  for (let path = source; path.length > 0; path = path.slice(0, -1)) {
+    const block = blockAtPath(document, path)
+    const holdsTarget = path.every((index, depth) => container[depth] === index)
+    if (block?.type !== 'Node' || (block.blocks?.length ?? 0) > 1 || holdsTarget) break
+    emptied = block.id
+  }
+  return emptied
+}
+
+/**
+ * The blocks `node` may move beside, in document order (§149): the blocks of every container it
+ * may move into, which is what a drag offers. Empty when the document does not hold it.
+ */
+export const moveTargets = (
+  document: Document,
+  node: NodeId,
+  nodes?: NodeRegistry | undefined,
+): ReadonlyArray<NodeId> => {
+  const moving = locateBlock(document, node)
+  if (moving === undefined) return []
+  const targets: Array<NodeId> = []
+  eachBlock(document.children, (block, path) => {
+    if (moveFailure(document, moving, path.slice(0, -1), nodes) === undefined)
+      targets.push(block.id)
+  })
+  return targets
 }
 
 /** Where a selection starts: its first run's block, or the block a node selection names. */
@@ -877,16 +954,21 @@ export const run = (
       'before' in command.to ? command.to.before : command.to.after,
     )
     if (moving === undefined || beside === undefined) return failure('InvalidInput')
-    const container = moving.path.slice(0, -1)
-    // Another container would need rules nothing declares yet: which kinds may stand at the
-    // top level, and whether a list may be left empty.
-    if (pathKey(beside.path.slice(0, -1)) !== pathKey(container)) return failure('InvalidParent')
+    const container = beside.path.slice(0, -1)
+    const refused = moveFailure(state.document, moving, container, options.nodes)
+    if (refused !== undefined) return failure(refused)
+    const source = moving.path.slice(0, -1)
+    const within = pathKey(source) === pathKey(container)
     const from = moving.path[moving.path.length - 1]!
     const place = beside.path[beside.path.length - 1]! + ('after' in command.to ? 1 : 0)
     // The operation's index is after the block leaves, which shifts every later sibling up.
-    const to = from < place ? place - 1 : place
+    const to = within && from < place ? place - 1 : place
     const parent = container.length === 0 ? undefined : blockAtPath(state.document, container)?.id
-    return apply(state, [Edit.moveBlock(command.node, to, parent)])
+    const emptied = emptiedBy(state.document, source, container)
+    return apply(state, [
+      Edit.moveBlock(command.node, to, parent),
+      ...(emptied === undefined ? [] : [Edit.deleteBlock(emptied)]),
+    ])
   }
   const selection = state.selection
   if (selection === null || selection.type === 'Node') return failure('InvalidSelection')
