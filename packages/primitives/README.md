@@ -752,8 +752,10 @@ Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
 
 `EditableText` is text typed into a marked descendant of a container while it
 is `contenteditable`, as one Mount on the container. The view decides which
-field is editable; the Mount focuses it when it becomes so, with the caret at
-its end, and reads what is typed:
+field is editable; the Mount focuses it as it becomes so (made editable, or
+drawn editable), with the caret at its end, and at no other time: a field
+editable all along, or another going away, moves no focus. It reads what is
+typed:
 
 - **Text, never markup.** It reads `innerText`. A field is one line unless it
   carries `aria-multiline="true"`, and in one line a line break becomes a
@@ -764,9 +766,10 @@ its end, and reads what is typed:
   composed text arrives once.
 - **`TextCommitted { field, text }`** on Enter (Shift+Enter breaks a line in a
   multiline field) or on leaving the field; **`TextCancelled { field, initial }`**
-  on Escape, which also puts the text the field had when it was focused back
-  in the DOM. A view that stopped redrawing the field while it was edited would
-  not. An edit ends once: the blur after Enter commits nothing more.
+  on Escape, which also puts the text the field had when the edit began (on
+  focus, or on the first keystroke after an edit ended) back in the DOM, the
+  caret at its end. A view that stopped redrawing the field while it was edited
+  would not. An edit ends once: the blur after Enter commits nothing more.
 - **`EditAsked { field }`** on a double-click over a marked field that is not
   editable yet: the view's cue to make it so.
 

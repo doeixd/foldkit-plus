@@ -161,6 +161,12 @@ describe('grouped steps, and the steps as functions', () => {
     expect(History.revert(typed, 'h')).toBe(typed)
     // A step closed is no longer the group's to take back.
     expect(History.revert(History.close(typed), 'g').present).toBe('bxy')
+    // With nothing kept there is nothing to take back, and the group still ends.
+    const unkept = ['b', 'c'].reduce(
+      (model, value) => History.push(model, value, { capacity: 0, group: 'g' }),
+      History.start('a'),
+    )
+    expect(History.revert(unkept, 'g')).toEqual({ past: [], present: 'c', future: [], group: null })
   })
 
   it('groups through the placed bundle too', () => {

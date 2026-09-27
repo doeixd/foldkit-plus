@@ -2,9 +2,10 @@
  * Text typed into an editable descendant of an element, as a Mount: one set of
  * listeners on the container, like `Targets`. A field is a descendant marked
  * by an attribute whose value names it, while it is `contenteditable`. The
- * view decides which one is; the Mount focuses it when it becomes so, with the
- * caret at its end. A double-click on a marked field that is not editable yet
- * asks for it to be (`EditAsked`).
+ * view decides which one is; the Mount focuses it as it becomes so (made
+ * editable, or drawn editable), with the caret at its end, and at no other
+ * time. A double-click on a marked field that is not editable yet asks for it
+ * to be (`EditAsked`).
  *
  * It reads `innerText`, never `innerHTML`, so what arrives is text. A field is
  * one line unless it carries `aria-multiline="true"`: in one line, a line
@@ -58,6 +59,18 @@ const multiline = (element: HTMLElement) => element.getAttribute('aria-multiline
 export const textOf = (element: HTMLElement): string => {
   const text = element.innerText.replace(/\r\n?/g, '\n').replace(/\n$/, '')
   return multiline(element) ? text : text.replace(/\n+/g, ' ')
+}
+
+/** Puts the caret at the end of a field, which focuses it too. */
+const caretAtEnd = (field: HTMLElement) => {
+  // Chromium also focuses on the selection below; no standard says a browser must.
+  field.focus()
+  const caret = document.createRange()
+  caret.selectNodeContents(field)
+  caret.collapse(false)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(caret)
 }
 
 /** Whether a key press belongs to an input method still composing, not to the field. */
@@ -136,6 +149,8 @@ export const EditableText = Mount.defineStream('EditableText', {
             if (edit.ended) return
             edit.ended = true
             field.innerText = edit.initial
+            // Writing the text moved the caret to its start; typing on goes after it.
+            caretAtEnd(field)
             Queue.offerUnsafe(
               queue,
               TextCancelled.make({ field: edit.name, initial: edit.initial }),
@@ -158,6 +173,8 @@ export const EditableText = Mount.defineStream('EditableText', {
             [
               'focusin',
               event => {
+                // A composition that never ended, in a field left, holds no other field silent.
+                composingText = false
                 const field = fieldOf(event.target)
                 if (field !== undefined) begin(field)
               },
@@ -216,29 +233,27 @@ export const EditableText = Mount.defineStream('EditableText', {
                 if (field === undefined || field.contentEditable === 'plaintext-only') return
                 const pasted = (event as ClipboardEvent).clipboardData?.getData('text/plain') ?? ''
                 event.preventDefault()
+                // `insertText` fires no `beforeinput`: begun here, a paste after Enter is an edit.
+                begin(field)
                 // As typing is, so the browser's undo takes it back; `textOf` makes one line of it.
                 document.execCommand('insertText', false, pasted)
               },
             ],
           ]
-          /** Focuses a field that has become editable, the caret at its end, once. */
-          let claimed: Element | undefined
-          const claim = () => {
-            const field = element.querySelector(
-              `[${attribute}][contenteditable]:not([contenteditable="false"])`,
-            )
-            if (!(field instanceof HTMLElement) || field === claimed) return
-            claimed = field
-            // Chromium also focuses on the selection below; no standard says a browser must.
-            field.focus()
-            const caret = document.createRange()
-            caret.selectNodeContents(field)
-            caret.collapse(false)
-            const selection = window.getSelection()
-            selection?.removeAllRanges()
-            selection?.addRange(caret)
-          }
-          const becoming = new MutationObserver(claim)
+          // Focuses a field as it becomes editable, and only then: made so, or drawn so.
+          // A field editable all along, or another going away, moves no focus.
+          const editable = `[${attribute}][contenteditable]:not([contenteditable="false"])`
+          const becoming = new MutationObserver(records => {
+            for (const record of records) {
+              const changed =
+                record.type === 'attributes' ? [record.target] : Array.from(record.addedNodes)
+              for (const node of changed) {
+                if (!(node instanceof HTMLElement)) continue
+                const field = node.matches(editable) ? node : node.querySelector(editable)
+                if (field instanceof HTMLElement) return caretAtEnd(field)
+              }
+            }
+          })
 
           for (const [type, listener] of listeners) element.addEventListener(type, listener)
           becoming.observe(element, {
@@ -247,7 +262,6 @@ export const EditableText = Mount.defineStream('EditableText', {
             attributes: true,
             attributeFilter: ['contenteditable'],
           })
-          claim()
           return { listeners, becoming }
         }),
         ({ listeners, becoming }) =>

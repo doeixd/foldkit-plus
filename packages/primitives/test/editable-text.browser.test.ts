@@ -235,3 +235,122 @@ it('focuses a field when it becomes editable, the caret at its end', async () =>
     await stop()
   }
 })
+
+it('focuses a field made editable again after an edit ended', async () => {
+  const { field, outside, facts, stop } = await mount('Hi', { editable: 'false' })
+  try {
+    field.contentEditable = 'plaintext-only'
+    await vi.waitFor(() => expect(document.activeElement).toBe(field))
+    await userEvent.keyboard('{Enter}')
+    field.contentEditable = 'false'
+    outside.focus()
+    // Edited a second time: focused again, the caret at its end.
+    field.contentEditable = 'plaintext-only'
+    await vi.waitFor(() => expect(document.activeElement).toBe(field))
+    await userEvent.keyboard('!')
+    await vi.waitFor(() =>
+      expect(facts.slice(-1)).toEqual([TextEdited.make({ field: 'title', text: 'Hi!' })]),
+    )
+  } finally {
+    await stop()
+  }
+})
+
+it('takes focus only as a field becomes editable, never for one editable all along', async () => {
+  const container = document.createElement('div')
+  const field = (name: string) => {
+    const each = document.createElement('span')
+    each.setAttribute('data-field', name)
+    each.contentEditable = 'plaintext-only'
+    each.textContent = name
+    return each
+  }
+  const [a, b] = [field('a'), field('b')]
+  container.append(a, b)
+  const input = document.createElement('input')
+  document.body.append(container, input)
+  input.focus()
+  const fiber = Effect.runFork(
+    Stream.runDrain(EditableText({ attribute: 'data-field' }).f(container, liveViewStateChanges)),
+  )
+  try {
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // Mounting took nothing, and one field going away gives focus to no other.
+    expect(document.activeElement).toBe(input)
+    a.remove()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(document.activeElement).toBe(input)
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})
+
+it('hears another field after a composition that never ended', async () => {
+  const container = document.createElement('div')
+  const field = (name: string) => {
+    const each = document.createElement('span')
+    each.setAttribute('data-field', name)
+    each.contentEditable = 'plaintext-only'
+    each.textContent = name
+    return each
+  }
+  const [a, b] = [field('a'), field('b')]
+  container.append(a, b)
+  document.body.append(container)
+  const facts: Array<TextFact> = []
+  const fiber = Effect.runFork(
+    Stream.runForEach(
+      EditableText({ attribute: 'data-field' }).f(container, liveViewStateChanges),
+      fact => Effect.sync(() => facts.push(fact)),
+    ),
+  )
+  try {
+    await new Promise(resolve => setTimeout(resolve, 20))
+    a.focus()
+    a.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    a.remove()
+    b.focus()
+    const caret = document.createRange()
+    caret.selectNodeContents(b)
+    caret.collapse(false)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(caret)
+    await userEvent.keyboard('x')
+    await vi.waitFor(() =>
+      expect(facts.slice(-1)).toEqual([TextEdited.make({ field: 'b', text: 'bx' })]),
+    )
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})
+
+it('reports a paste after Enter, where the browser pastes no text itself', async () => {
+  const { field, facts, stop } = await mount('a', { editable: 'true' })
+  try {
+    await userEvent.keyboard('{Enter}')
+    const data = new DataTransfer()
+    data.setData('text/plain', 'PP')
+    field.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }),
+    )
+    await vi.waitFor(() =>
+      expect(facts.slice(-1)).toEqual([TextEdited.make({ field: 'title', text: 'aPP' })]),
+    )
+  } finally {
+    await stop()
+  }
+})
+
+it('leaves the caret at the end after Escape, so typing on goes after the text', async () => {
+  const { facts, stop } = await mount('a')
+  try {
+    await userEvent.keyboard('1')
+    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('2')
+    await vi.waitFor(() =>
+      expect(facts.slice(-1)).toEqual([TextEdited.make({ field: 'title', text: 'a2' })]),
+    )
+  } finally {
+    await stop()
+  }
+})
