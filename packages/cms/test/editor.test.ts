@@ -359,3 +359,56 @@ describe('a publish that waits for a check', () => {
     }
   })
 })
+
+describe('a saved draft', () => {
+  it('stores the form settled, as it is shown again: nothing in flight', () => {
+    const CheckedForm = Form.make('SavedForm', Entity.input(Post, PostInput), {
+      checks: { slug: () => Effect.never },
+      debounce: 0,
+    })
+    const Saving = Cms.editor('SavingEditor', {
+      content: Cms.content('saving', { ...Posts, form: CheckedForm }),
+      rest: 0,
+    })
+    type SavingRoot = { readonly editor: ReturnType<typeof Saving.bundle.init>['model'] }
+    const sent: Array<{ readonly model: unknown }> = []
+    const data = {
+      get: () => ({ read: () => ({ _tag: 'NotFound' as const }) }),
+      mutation: (): MutationStatus => ({ _tag: 'Unknown' }),
+      mutate: (model: SavingRoot, _mutation: unknown, input: { readonly model: unknown }) => {
+        sent.push(input)
+        return { model, requestId: 'r1', command: { name: 'save', args: {}, effect: Effect.never } }
+      },
+      refresh: (model: SavingRoot) => model,
+      overlay: (model: SavingRoot) => model,
+      lift: (model: SavingRoot) => model,
+      active: (name: string, projectionOf: unknown) => ({
+        name,
+        owner: {},
+        messages: [],
+        projectionOf,
+      }),
+    }
+    const slice = {
+      get: (root: SavingRoot) => root.editor,
+      set: (root: SavingRoot, editor: SavingRoot['editor']) => ({ ...root, editor }),
+    }
+    const placed = Saving.at<SavingRoot>({ data: data as never, model: slice as never })
+    const opened = {
+      ...Saving.bundle.init(undefined).model,
+      mode: 'new' as const,
+      entry: 'e3',
+      filled: true,
+    }
+    // The address is being looked up, and never answers: in flight when it is saved.
+    const typed = Saving.bundle.update(
+      opened,
+      CheckedForm.Message.Changed({ key: 'slug', value: 'looking' }),
+      undefined,
+    ).model
+    expect(CheckedForm.field(typed.form, 'slug')._tag).toBe('Validating')
+    placed.onOut({ _tag: 'Save' })({ editor: typed })
+    const stored = Schema.decodeUnknownSync(CheckedForm.bundle.Model)(sent[0]?.model)
+    expect(CheckedForm.field(stored, 'slug')).toEqual({ _tag: 'NotValidated', value: 'looking' })
+  })
+})

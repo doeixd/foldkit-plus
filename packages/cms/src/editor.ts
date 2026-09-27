@@ -657,7 +657,9 @@ export const makeEditor =
             type: content.name,
             label: label === '' ? (config.untitled ?? 'Untitled') : label,
             values,
-            model: encodeModel(editor.form),
+            // Settled, as it is shown again: nothing in flight is stored, such as a Builder's
+            // undo history, which made a big page's draft too large to save.
+            model: encodeModel(form.settled(editor.form)),
             form: formTag,
             basedOn,
           })

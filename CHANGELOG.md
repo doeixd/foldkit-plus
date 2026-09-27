@@ -405,6 +405,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-cms`, drafts:** a draft stores the form's Model settled, as it is
+  shown again, so nothing in flight is saved; a Builder's undo history was,
+  up to 200 copies of the page, and a page of about 150 blocks could no
+  longer be saved ("This draft is too large to save").
+
 - **`foldkit-mixins-builder`, words:** `selectAHolder` is `nothingHoldsIt`, and
   says what it now means: with nothing selected a tile goes anywhere that can
   hold it, so a disabled one has nowhere yet. The empty page says to begin
