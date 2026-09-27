@@ -32,14 +32,6 @@ const fromText = (text: string): Uint8Array =>
 /** The database last kept; none where there is none, or storage is refused. */
 const kept = (): Uint8Array | undefined => {
   try {
-    const url = new URL(window.location.href)
-    // Not read, so a fresh sandbox is seeded and kept over it. Once: a reload after
-    // it keeps what was written since.
-    if (url.searchParams.has('reset')) {
-      url.searchParams.delete('reset')
-      window.history.replaceState(window.history.state, '', url)
-      return undefined
-    }
     const text = localStorage.getItem(KEY)
     return text === null ? undefined : fromText(text)
   } catch {
@@ -69,10 +61,13 @@ const sqliteOver = (database: Database, fresh: boolean): Sqlite => ({
   drizzle: drizzle(database),
 })
 
-/** Opens the sandbox, seeded the first time, and the `Send` the page's Remote client uses. */
-export const openSandbox = async (): Promise<Send> => {
+/**
+ * Opens the sandbox, seeded the first time or when asked for `fresh` (what was
+ * kept is then stored over), and the `Send` the page's Remote client uses.
+ */
+export const openSandbox = async (options: { readonly fresh: boolean }): Promise<Send> => {
   const SQL = await initSqlJs({ locateFile: () => wasm })
-  const bytes = kept()
+  const bytes = options.fresh ? undefined : kept()
   // What was kept, where it opens as the sandbox's own: anything else starts afresh.
   const restored = ((): Database | undefined => {
     if (bytes === undefined) return undefined

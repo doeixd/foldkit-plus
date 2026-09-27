@@ -14,8 +14,21 @@ import * as Site from './siteApp.js'
 import { view as siteView } from './siteView.js'
 import { view as pagesView } from './pagesView.js'
 import { stylesheet } from './sheet.js'
-import { chairOf, httpSend, remoteClient } from './transport.js'
+import { chairOf, httpSend, remoteClient, type Send } from './transport.js'
 import { view as postsView } from './view.js'
+
+/**
+ * Whether the address asks for a fresh sandbox (`?reset`): read, and taken out of
+ * the address before the application reads it, so a reload after keeps what was
+ * written since.
+ */
+const startsAfresh = (): boolean => {
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has('reset')) return false
+  url.searchParams.delete('reset')
+  window.history.replaceState(window.history.state, '', url)
+  return true
+}
 
 // Compiled once, at module load, from the same Style values the views attach.
 const styles = document.createElement('style')
@@ -26,9 +39,15 @@ const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')
 // Vite proxies `/remote` to the server, so the browser talks to one origin; the
 // published demo, built in the `sandbox` mode, runs the server in the page instead.
-const send =
+// The page is drawn while that starts, and what it asks waits for it.
+const send: Send =
   import.meta.env.MODE === 'sandbox'
-    ? await (await import('./browser.js')).openSandbox()
+    ? (() => {
+        const sandbox = import('./browser.js').then(({ openSandbox }) =>
+          openSandbox({ fresh: startsAfresh() }),
+        )
+        return async (asking, body) => (await sandbox)(asking, body)
+      })()
     : httpSend('/remote')
 const path = window.location.pathname
 // The site is read as a visitor unless the address says otherwise; the studio as a writer.

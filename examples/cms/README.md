@@ -62,7 +62,10 @@ kept in the browser's storage, so a change of chair, which reloads the page,
 keeps what was written; `?reset` in the address starts afresh. Nothing is
 shared between visitors, so nothing a visitor writes is public. The server is
 [server.ts](src/server.ts) given a different database; [endpoint.ts](src/endpoint.ts)
-answers a request for both hosts.
+answers a request for both hosts. The page is drawn while the sandbox starts,
+the sandbox's code and its wasm are fetched with the page, and
+[public/_headers](public/_headers) has Cloudflare Pages keep what is under
+`/assets` for a year, since its names change with its content.
 
 ## What the run shows
 

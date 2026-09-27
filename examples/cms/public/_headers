@@ -1,0 +1,8 @@
+# Cloudflare Pages: what `build:sandbox` makes under /assets is named by its
+# content, so it never changes under the same name and is kept for a year.
+# Pages sends `max-age=0, must-revalidate` otherwise, and a return visit asked
+# again for every file in three rounds.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/images/*
+  Cache-Control: public, max-age=86400
