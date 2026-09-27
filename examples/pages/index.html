@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pages</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root { font-family: system-ui, sans-serif; color: #1f2328; background: #fff; }
+      body { margin: 0; }
+      #pages, .pages { height: 100vh; }
+      .pages { display: grid; grid-template-columns: 240px 1fr; }
+      .sidebar { background: #f6f7f8; border-right: 1px solid #e3e5e8; padding: 16px 8px; }
+      .page-list { list-style: none; margin: 0 0 12px; padding: 0; }
+      .page-link, #new-page { width: 100%; text-align: left; border: 0; background: none;
+        padding: 6px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
+      .page.open .page-link { background: #e3e5e8; font-weight: 600; }
+      .page-link:hover, #new-page:hover { background: #eceef0; }
+      #new-page { color: #59636e; }
+      main { padding: 48px 72px; overflow: auto; }
+      .empty { color: #59636e; }
+      .title { font-size: 2.25rem; font-weight: 700; border: 0; outline: 0; width: 100%;
+        margin-bottom: 12px; }
+      .toolbar { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+      .tool { border: 1px solid #e3e5e8; background: #fff; border-radius: 6px; padding: 4px 10px;
+        font: inherit; font-size: 0.875rem; cursor: pointer; }
+      .tool:hover { background: #f6f7f8; }
+      .danger { color: #cf222e; margin-left: auto; }
+      foldkit-richtext [contenteditable] { outline: 0; min-height: 40vh; line-height: 1.6; }
+      [data-task] { list-style: none; display: flex; gap: 8px; align-items: baseline; }
+      [data-task] > p { margin: 0.25em 0; }
+      [data-task]::before { content: '☐'; }
+      [data-task='checked']::before { content: '☑'; }
+      [data-task='checked'] { color: #59636e; text-decoration: line-through; }
+      [data-placeholder]::before { content: attr(data-placeholder); color: #8c959f; }
+      .markdown { margin-top: 32px; color: #59636e; }
+      .markdown pre { background: #f6f7f8; padding: 12px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <div id="pages"></div>
+    <script type="module" src="/src/browser.ts"></script>
+  </body>
+</html>

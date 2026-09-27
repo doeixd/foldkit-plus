@@ -1,0 +1,33 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "foldkit-durable": ["../../packages/durable/src/index.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
+      "foldkit-richtext-dom/editor": ["../../packages/richtext-dom/src/editor.ts"],
+      "foldkit-richtext-dom/editor-bundle": ["../../packages/richtext-dom/src/editor-bundle.ts"],
+      "foldkit-richtext-markdown": ["../../packages/richtext-markdown/src/index.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-sync": ["../../packages/sync/src/index.ts"],
+      "foldkit-bundle": ["../../packages/bundle/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    { "path": "../../packages/durable/tsconfig.build.json" },
+    { "path": "../../packages/metadata/tsconfig.build.json" },
+    { "path": "../../packages/richtext/tsconfig.build.json" },
+    { "path": "../../packages/richtext-dom/tsconfig.build.json" },
+    { "path": "../../packages/richtext-markdown/tsconfig.build.json" },
+    { "path": "../../packages/surface/tsconfig.build.json" },
+    { "path": "../../packages/sync/tsconfig.build.json" },
+    { "path": "../../packages/bundle/tsconfig.build.json" }
+  ]
+}
