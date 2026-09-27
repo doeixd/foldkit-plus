@@ -617,6 +617,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   printer's test asserted `\1. not a list` as the escape for an ordered marker; a
   backslash before a digit is no escape, so the parser kept it as text, and the test
   locked the bug in. A round trip through the real parser is what catches it.
+- **Server markup has to be what a parser builds from it.** The standard rendering put a table's
+  rows straight in `<table>`; a parser inserts a `tbody`, and Foldkit refuses to serialize a view
+  whose parse differs, so no server-rendered page with a table worked. Tests that built DOM with
+  `createElement` could not see it. Test markup by rendering it to a string (`renderToString`)
+  and parsing it back.
 - **Scene does not model keys.** A handle keyed by its block still showed its old Mount as
   mounted after the block changed, with or without `h.Key`, so a Scene test of keying passes
   or fails for reasons unrelated to the key. Test remounting on the real runtime
