@@ -182,3 +182,25 @@ export const equivalence = async (
   await play(run.actions, pace)
   return { eager, resumed }
 }
+
+/**
+ * The Model a page resumes from after posting `fields` to `SSR.handle`, as a
+ * browser with scripts off posts a form: the answer's envelope, decoded as the
+ * browser would decode it.
+ */
+export const posted = async (
+  config: AnyConfig,
+  plan: ResumePlan<any, any>,
+  fields: Readonly<Record<string, string>>,
+): Promise<unknown> => {
+  const request = new Request('https://example.test/', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields),
+  })
+  const { envelope } = await Effect.runPromise(SSR.handle(request, config, plan, { buildId: 'b' }))
+  const page = new DOMParser().parseFromString(`<body>${envelope}</body>`, 'text/html')
+  const model = SSR.resume(plan, page)
+  if (Result.isFailure(model)) throw new Error(`posted: ${model.failure.message}`)
+  return model.success
+}

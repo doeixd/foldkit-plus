@@ -122,4 +122,6 @@ application.
   a bubbling click and a stopped one; a submit, typing and a submit; key
   presses with modifiers; a closure among named events sent in the booting
   task; and a placement's input and click under a lazy bundle still loading,
-  with a closure's press between them.
+  with a closure's press between them. A form posted with scripts off
+  answers with the Model a browser submit reaches, compared through the
+  plan's state, for a form at the root and for one inside a placement.

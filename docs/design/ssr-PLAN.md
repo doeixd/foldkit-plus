@@ -965,6 +965,12 @@ that can fail, or, for G4, a recorded measurement.
   - The same comparison for a form inside a placement, which covers the
     depth field the review added.
   - Mutations: drop the field override; skip the plan's `boot` in the fold.
+  - **Done** (`fallbackEquivalence.test.ts`, `fallbackEquivalencePlaced.test.ts`,
+    and the harness's `posted`). The placed form is compared by typing into
+    the placement's text input, which the form's field mirrors, since the
+    form's own input has no handler for the browser to answer. Dropping the
+    override fails both tests; skipping `boot` fails the root one, since only
+    its plan boots.
 
 - **G4. Measure the manifest before optimising it.** The design's risk section
   asks for a measurement at a thousand rows before anything is done about
