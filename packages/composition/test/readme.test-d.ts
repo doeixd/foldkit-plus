@@ -152,7 +152,7 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
 // Drawing a page
 {
   const SiteRenderer = Renderer.make(Site, {
-    Heading: ({ props, h }) => h.h2([], [props.text]),
+    Heading: ({ field, h }) => h.h2([], [field('text')]),
     Section: ({ props, regions, h }) =>
       h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
   })

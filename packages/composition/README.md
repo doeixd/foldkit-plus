@@ -408,7 +408,8 @@ props and its Regions' drawn children to `Html`:
 import { Renderer } from 'foldkit-composition/foldkit'
 
 const SiteRenderer = Renderer.make(Site, {
-  Heading: ({ props, h }) => h.h2([], [props.text]),
+  // `field` draws a text prop: the text for a visitor, editable in place for an author.
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
   Section: ({ props, regions, h }) =>
     h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
 })
@@ -433,6 +434,19 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   `selected` or `hovered` (a node that is both is `selected`), and
   `data-composition-drop` says where a drop lands. A node whose `when` fails is
   drawn anyway, marked `data-composition-hidden`.
+- **Text edited in place.** A view draws a text prop with `field(key)`, which
+  takes only a prop whose type is text. For a visitor it is the text. In edit
+  mode it is a span marked `data-composition-field`, whose value names the node
+  and the prop as JSON (`fieldOf(value)` reads it back). While the option
+  `editing: { id, key, initial }` names it, the span is
+  `contenteditable="plaintext-only"`, a `textbox` named by `label` (default: the
+  prop's name spaced), multiline when asked, and it shows `initial`, the text
+  when editing began, however the page has changed since. That freezing is what
+  keeps a redraw from rewriting the element under the author's caret; the span
+  is keyed apart from the one drawn otherwise, so the element the browser
+  changed is replaced when editing ends. The Renderer draws; reading what is
+  typed is `EditableText` in `foldkit-primitives`, and what it changes is the
+  editor's `update`.
 - **The other options** are what the page is drawn for: `context`, which
   conditions read ([Conditions](#conditions)), and `data`, each node's read by
   id, which Query, Surface and stateful Blocks draw from. A page with all three
@@ -445,7 +459,7 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
 - **A node is drawn again only when what it reads changed.** Inside a
   runtime-driven render, each node's drawing is memoized with Foldkit's
   `createKeyedLazy` on its node object, its drawn children, its read, whether
-  it shows, and its marks. `apply` shares every node it does not change, so an
+  it shows, its marks, and the field being edited in it. `apply` shares every node it does not change, so an
   edit redraws the node it touched and the nodes holding it, and a change
   elsewhere in the Model redraws none. Each node is keyed by its id (the edit
   wrapper, or in view mode the Block's own root, unless it set a key), so a

@@ -7,22 +7,40 @@
  * given, so the same Renderer draws a page in the browser and inside a
  * `foldkit-ssr` static region on the server.
  *
- * Production and the editor's canvas use the same Renderer. Edit mode adds one
- * thing: each node is wrapped in a `display: contents` element that carries
- * `data-composition-node`, so an editor can find the node under the pointer.
+ * Production and the editor's canvas use the same Renderer. Edit mode adds two
+ * things: each node is wrapped in a `display: contents` element that carries
+ * `data-composition-node`, so an editor can find the node under the pointer,
+ * and a text prop a view draws with `field` is marked, so it can be edited in place.
  */
-import { Result } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { createKeyedLazy, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Update from 'foldkit/update'
-import { Block, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
+import { Block, spaced, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
 import { Catalog } from '../catalog.js'
 import { messageOf } from '../action.js'
 import { holds } from '../condition.js'
-import type { Document, Node, NodeId } from '../document.js'
+import { NodeId, type Document, type Node } from '../document.js'
 import { statefulNodes } from '../stateful.js'
 
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
 export type Mode = 'view' | 'edit'
+
+/** The props of `Props` that are text, which `field` draws. */
+export type TextKey<Props> = {
+  readonly [K in keyof Props]-?: Props[K] extends string ? K : never
+}[keyof Props] &
+  string
+
+/**
+ * The text prop an editor is editing in place, and its text when editing
+ * began: the field is drawn with that text until editing ends, so a redraw
+ * while the author types never rewrites the element under the caret.
+ */
+export interface Editing {
+  readonly id: NodeId
+  readonly key: string
+  readonly initial: string
+}
 
 /** What a Block's view is drawn from. */
 export interface RenderContext<B extends AnyBlock, Message> {
@@ -49,6 +67,17 @@ export interface RenderContext<B extends AnyBlock, Message> {
    * `undefined` when there is none. A Query Block reads it with `rows(data)`.
    */
   readonly data: unknown
+  /**
+   * A text prop, drawn so an editor can edit it in place: in view mode the text
+   * alone; in edit mode a span marked `data-composition-field`, which is
+   * `contenteditable` while the render option `editing` names it. `label` is
+   * its accessible name while it is edited, by default the prop's name spaced;
+   * `multiline` lets it break lines.
+   */
+  readonly field: (
+    key: TextKey<PropsOf<B>>,
+    options?: { readonly label?: string; readonly multiline?: boolean },
+  ) => Html | string
 }
 
 /** One view per Block of the Catalog, by name: a Block without one is a type error. */
@@ -78,6 +107,20 @@ export const MARK_ATTRIBUTE = 'composition-mark'
 export const HIDDEN_ATTRIBUTE = 'composition-hidden'
 /** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */
 export const DROP_ATTRIBUTE = 'composition-drop'
+/** In edit mode, on a text prop's element, naming its node and prop: see `fieldOf`. */
+export const FIELD_ATTRIBUTE = 'composition-field'
+
+const FieldName = Schema.fromJsonString(Schema.Tuple([NodeId, Schema.String]))
+/** The value `FIELD_ATTRIBUTE` holds for a node's prop: JSON, so no id is split on a separator. */
+const fieldName = (id: NodeId, key: string): string => Schema.encodeSync(FieldName)([id, key])
+/** The node and prop a field's attribute names; none for a value that names none. */
+export const fieldOf = (
+  name: string,
+): Option.Option<{ readonly id: NodeId; readonly key: string }> =>
+  Option.map(Result.getSuccess(Schema.decodeUnknownResult(FieldName)(name)), ([id, key]) => ({
+    id,
+    key,
+  }))
 
 const make =
   <Message>(dispatches: boolean) =>
@@ -121,6 +164,7 @@ type DrawArgs = [
   data: unknown,
   mark: 'selected' | 'hovered' | undefined,
   drop: 'before' | 'inside' | 'after' | undefined,
+  editing: Editing | undefined,
   ...children: ReadonlyArray<Html>,
 ]
 
@@ -131,7 +175,7 @@ type DrawArgs = [
  * the nodes it touched and those holding them.
  */
 const drawNode = (
-  ...[renderer, h, mode, id, node, shown, data, mark, drop, ...children]: DrawArgs
+  ...[renderer, h, mode, id, node, shown, data, mark, drop, editing, ...children]: DrawArgs
 ): Html => {
   const block = Catalog.block(renderer.catalog, node.block)
   if (block === undefined)
@@ -173,6 +217,26 @@ const drawNode = (
           ? // `forMessages` checked the Catalog's actions end in this Renderer's Messages.
             messageOf(renderer.catalog.actions, block, node.actions, event)
           : undefined,
+      field: (key, fieldOptions = {}) => {
+        // `TextKey` keeps `key` to the props that are text.
+        const text = (props.success as Readonly<Record<string, string>>)[key] ?? ''
+        if (mode === 'view') return text
+        if (editing?.key !== key)
+          return h.span([h.DataAttribute(FIELD_ATTRIBUTE, fieldName(id, key))], [text])
+        // Keyed apart from the span drawn otherwise, so beginning and ending an edit
+        // replace the element the browser changed, rather than patching its text.
+        return h.span(
+          [
+            h.Key(`${FIELD_ATTRIBUTE}:editing`),
+            h.DataAttribute(FIELD_ATTRIBUTE, fieldName(id, key)),
+            h.Attribute('contenteditable', 'plaintext-only'),
+            h.Role('textbox'),
+            h.AriaLabel(fieldOptions.label ?? spaced(key)),
+            ...(fieldOptions.multiline === true ? [h.Attribute('aria-multiline', 'true')] : []),
+          ],
+          [editing.initial],
+        )
+      },
     })
   } catch (error) {
     // One node's view failing, such as a look whose choice a Behavior also owns,
@@ -244,6 +308,8 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
     /** In edit mode, the node a drop is aimed at, and where. */
     readonly drop?:
       { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | undefined
+    /** In edit mode, the text prop being edited in place: see `field`. */
+    readonly editing?: Editing | undefined
   } = {},
 ): ReadonlyArray<Html> => {
   // For a Renderer that sends nothing, `Into` is the application's Message, and
@@ -291,6 +357,8 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
       options.data?.[id],
       options.selected === id ? 'selected' : options.hovered === id ? 'hovered' : undefined,
       options.drop?.id === id ? options.drop.zone : undefined,
+      // The one object the options hold, so a memoized node is drawn again only when it changes.
+      options.editing?.id === id ? options.editing : undefined,
       ...children,
     ]
     if (memoize) {

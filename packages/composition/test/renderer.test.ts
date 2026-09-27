@@ -1,11 +1,11 @@
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { inertHtml, type Html } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Action, Projection, Surface } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Block, Catalog, Composition, Content, NodeId, isSafeUrl } from 'foldkit-composition'
-import { Renderer } from 'foldkit-composition/foldkit'
+import { Renderer, fieldOf } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 import { ArticleKit, Columns, ColumnsLook, Site, SiteRenderer, body, homePage } from './site.js'
 import { Inert } from 'foldkit-mixins/testing'
@@ -298,6 +298,99 @@ describe('drawing a Document', () => {
     })
     expectTypeOf(renderer.entries.Press).parameter(0).toHaveProperty('h')
     expectTypeOf(renderer).toExtend<Renderer<typeof Press, typeof Message.Type>>()
+  })
+})
+
+describe('text edited in place', () => {
+  const Title = Block.define('Title', {
+    Props: Schema.Struct({
+      text: Schema.String,
+      tagLine: Schema.String,
+      level: Schema.Number,
+      note: Schema.optional(Schema.String),
+    }),
+    provides: [Content.Section],
+  })
+  const Titles = Catalog.make({ blocks: [Title], roots: [Content.Section] })
+  const TitleRenderer = Renderer.make(Titles, {
+    Title: ({ field, h }) =>
+      h.header([], [h.h1([], [field('text', { label: 'Title' })]), h.p([], [field('tagLine')])]),
+  })
+  const titles = page(['t', 'u'], {
+    t: { block: 'Title', props: { text: 'Hello there', tagLine: 'Hi', level: 1 }, regions: {} },
+    u: { block: 'Title', props: { text: 'Other', tagLine: 'Also', level: 1 }, regions: {} },
+  })
+  const fields = (roots: ReadonlyArray<Html>) =>
+    roots.flatMap(root =>
+      Inert.all(root).filter(node => Inert.value(node, 'data-composition-field') !== undefined),
+    )
+
+  it('draws a field as its text for a visitor, and marked by node and prop for an editor', () => {
+    const [viewed] = Renderer.render(TitleRenderer, titles, inertHtml)
+    expect(Inert.text(viewed)).toBe('Hello thereHi')
+    expect(
+      Inert.all(viewed)
+        .filter(node => node.sel !== undefined)
+        .map(node => node.sel),
+    ).toEqual(['header', 'h1', 'p'])
+    const [marked] = fields(Renderer.render(TitleRenderer, titles, inertHtml, { mode: 'edit' }))
+    expect(Inert.text(marked)).toBe('Hello there')
+    expect(Inert.value(marked, 'contenteditable')).toBeUndefined()
+    const name = String(Inert.value(marked, 'data-composition-field'))
+    expect(fieldOf(name)).toEqual(Option.some({ id: id('t'), key: 'text' }))
+    // An id with the separator a naive name would split on is still one id.
+    expect(fieldOf(JSON.stringify(['a:b', 'text']))).toEqual(
+      Option.some({ id: id('a:b'), key: 'text' }),
+    )
+    expect(fieldOf('t:text')).toEqual(Option.none())
+    expect(fieldOf(JSON.stringify(['', 'text']))).toEqual(Option.none())
+  })
+
+  it('draws the field being edited editable, with the text it had when editing began', () => {
+    const editing = { id: id('t'), key: 'text', initial: 'Hello' }
+    // The node's other field, and the other node's same field, are drawn as they were.
+    const [edited, sibling, other] = fields(
+      Renderer.render(TitleRenderer, titles, inertHtml, { mode: 'edit', editing }),
+    )
+    expect(Inert.value(sibling, 'contenteditable')).toBeUndefined()
+    // Frozen: the page holds more by now, and the browser shows what was typed.
+    expect(Inert.text(edited)).toBe('Hello')
+    expect(Inert.value(edited, 'contenteditable')).toBe('plaintext-only')
+    expect(Inert.value(edited, 'role')).toBe('textbox')
+    expect(Inert.value(edited, 'aria-label')).toBe('Title')
+    // Keyed apart, so the browser's element is replaced when editing begins and ends.
+    expect(edited?.key).toBeDefined()
+    expect(other?.key).toBeUndefined()
+    expect(Inert.value(other, 'contenteditable')).toBeUndefined()
+    // A visitor's page ignores it.
+    const visited = Renderer.render(TitleRenderer, titles, inertHtml, { editing })
+    expect(Inert.text(visited[0])).toBe('Hello thereHi')
+    expect(fields(visited)).toEqual([])
+    // A field given no label is named by its prop, spaced.
+    const [, tagLine] = fields(
+      Renderer.render(TitleRenderer, titles, inertHtml, {
+        mode: 'edit',
+        editing: { id: id('t'), key: 'tagLine', initial: 'Hi' },
+      }),
+    )
+    expect(Inert.value(tagLine, 'aria-label')).toBe('Tag line')
+  })
+
+  it('takes only a prop that is text', () => {
+    Renderer.make(Titles, {
+      Title: ({ field, h }) =>
+        h.h1(
+          [],
+          [
+            // @ts-expect-error: a number is no text
+            field('level'),
+            // @ts-expect-error: text that may be absent is no field
+            field('note'),
+            // @ts-expect-error: no such prop
+            field('title'),
+          ],
+        ),
+    })
   })
 })
 

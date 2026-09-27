@@ -79,7 +79,11 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `Renderer.make(Site, { Block: ({ props, regions, h, id, mode }) => Html, ... })`
   (every Block needs a view), `Renderer.render(renderer, doc, h, { mode })` gives
   one `Html` per root. `Renderer.forMessages<M>().make` for views that dispatch.
-  Edit mode wraps each node with `data-composition-node`.
+  Edit mode wraps each node with `data-composition-node`. Draw a text prop with
+  `field('text')` (text props only): the text for a visitor; in edit mode a span marked
+  `data-composition-field` (`fieldOf(value)` gives `{ id, key }`), editable
+  (`plaintext-only`, frozen at `initial`) while `render`'s option `editing: { id, key, initial }`
+  names it.
 - **Serve it:** `SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))`
   and leave the page out of the resume plan's state: the Document is not sent.
 - **URLs:** use `Url` for any `href` or `src` prop: http, https, mailto, tel and
