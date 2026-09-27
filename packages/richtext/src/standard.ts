@@ -164,7 +164,7 @@ export const standardRendering: Rendering = rendering({
         alt: String(block.props.alt ?? ''),
       },
     }),
-    Table: { tag: 'table', attributes: {} },
+    Table: { tag: 'table', attributes: {}, inner: 'tbody' },
     // A row says it is the header; its cells do not have to be told apart by their parent.
     TableRow: block =>
       block.props.header === true

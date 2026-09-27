@@ -182,7 +182,7 @@ describe('how the standard vocabulary renders', () => {
     expect(render('Quote')).toEqual({ tag: 'blockquote', attributes: {} })
     expect(render('ListItem')).toEqual({ tag: 'li', attributes: {} })
     expect(render('ThematicBreak')).toEqual({ tag: 'hr', attributes: {} })
-    expect(render('Table')).toEqual({ tag: 'table', attributes: {} })
+    expect(render('Table')).toEqual({ tag: 'table', attributes: {}, inner: 'tbody' })
     expect(render('TableRow')).toEqual({ tag: 'tr', attributes: {} })
     expect(render('TableRow', { header: true })).toEqual({
       tag: 'tr',
@@ -231,6 +231,47 @@ describe('how the standard vocabulary renders', () => {
     ])
     expect(RichText.documentToHtml(built, RichText.standardRendering)).toBe(
       '<ol start="2"><li><p>x</p></li></ol><img src="/a.png" alt="a"><hr>',
+    )
+  })
+
+  it('puts a table’s rows in a tbody, as an HTML parser would', () => {
+    const table = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Table',
+          id: 't',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TableRow',
+              id: 'r',
+              props: {},
+              children: [],
+              blocks: ['a', 'b'].map(cell => ({
+                type: 'Node',
+                kind: 'TableCell',
+                id: cell,
+                props: {},
+                children: [],
+                blocks: [
+                  {
+                    type: 'Paragraph',
+                    id: `${cell}-p`,
+                    children: [{ type: 'Text', id: `${cell}-t`, text: cell, marks: [] }],
+                  },
+                ],
+              })),
+            },
+          ],
+        },
+      ],
+    } as never)
+    expect(RichText.documentToHtml(table, RichText.standardRendering)).toBe(
+      '<table><tbody><tr><td><p>a</p></td><td><p>b</p></td></tr></tbody></table>',
     )
   })
 })

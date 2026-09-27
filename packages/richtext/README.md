@@ -685,7 +685,9 @@ is the shipped three plus `Strikethrough` and `Link`. `standardRendering` gives 
 its element — a `List` an `ol` or `ul`, an `Image` an `img` with its `src`, a `TaskItem` its
 `data-task` — and `renderingOver(base, extra)` builds a registry over another, so an
 application adds its own kinds beside the standard ones. A `TableRow` that is the header
-renders `data-header`. A link's `href` and an image's `src` pass `safeUrl` again as they are
+renders `data-header`, and a `Table`'s rows go in a `tbody` (the entry's `inner`), because an
+HTML parser inserts one around bare rows, and markup sent from a server has to parse to the tree
+that was rendered. A link's `href` and an image's `src` pass `safeUrl` again as they are
 rendered, and one it refuses is left out, so a `javascript:` URL that reached the document
 by decoding, sync, or `SetMark` rather than import is drawn inert.
 
