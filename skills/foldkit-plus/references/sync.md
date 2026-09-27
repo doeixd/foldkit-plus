@@ -29,7 +29,9 @@ is dropped and the rest replay on top. Pending ops replay many times, so a
 durable Message must be **deterministic and state-only**. If its `update`
 returns a Command or writes outside the shared projection, `submit` fails with
 `ReplayError` and writes nothing. Pattern: a local intent Message runs a Command
-(IDs, clock, provider), which dispatches a durable *fact* Message.
+(IDs, clock, provider), which dispatches a durable *fact* Message. When the fact
+needs only the Model (an id from a local counter), return `Sync.fact(message)`:
+the mount applies it in the intent's own transition, before any later Message.
 
 ## Minimal contract
 

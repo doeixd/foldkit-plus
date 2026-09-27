@@ -13,7 +13,7 @@
 import { indexedDb } from './indexedDb.js'
 import { lwwRegister, openLwwClock } from './lww.js'
 import { forApplication } from './make.js'
-import { mount } from './mount.js'
+import { fact, mount } from './mount.js'
 import {
   createPresence,
   createPresenceHub,
@@ -48,6 +48,8 @@ export const Sync = {
   define: defineSync,
   /** Runs a Foldkit application over an open replica with one reducer. */
   mount,
+  /** A Command whose Message the mount applies within the transition that returned it. */
+  fact,
   /** Counters and a histogram an application can scrape. */
   metrics: syncMetrics,
   /** The only storage adapter: one IndexedDB database per document/replica. */
@@ -90,6 +92,7 @@ export const Sync = {
 
 export { indexedDb, type Storage } from './indexedDb.js'
 export {
+  fact,
   mount,
   type CommittedView,
   type MountOptions,

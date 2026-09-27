@@ -7,6 +7,7 @@ import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   documentId,
+  fact,
   forApplication,
   layerFromPromise,
   localSequence,
@@ -35,6 +36,9 @@ const Message = defineMessageUnion({
   RenamedTodo: { id: Schema.String, title: Schema.String },
   SelectedTodo: { id: Schema.String },
   RequestedRename: { id: Schema.String, title: Schema.String },
+  // A local intent whose fact needs an id only the current Model can mint.
+  AddedTodo: { title: Schema.String },
+  AddedAndSelected: { title: Schema.String },
 })
 type Message = typeof Message.Type
 const initial: Model = { todos: [], selectedTodoId: null, lastError: null }
@@ -54,6 +58,19 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
     RequestedRename: ({ id, title }) => ({
       model,
       commands: [{ name: 'rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
+    }),
+    AddedTodo: ({ title }) => ({
+      model,
+      commands: [fact(Message.CreatedTodo({ id: `t${model.todos.length}`, title }))],
+    }),
+    // Two facts in order, the second a local one, around an ordinary Command.
+    AddedAndSelected: ({ title }) => ({
+      model,
+      commands: [
+        fact(Message.CreatedTodo({ id: `t${model.todos.length}`, title })),
+        { name: 'noop', effect: Effect.succeed(Message.SelectedTodo({ id: 'noop' })) },
+        fact(Message.SelectedTodo({ id: `t${model.todos.length}` })),
+      ],
     }),
   })
 
@@ -199,6 +216,35 @@ describe('Sync.mount', () => {
     app.dispatch(Message.RequestedRename({ id: 'a', title: 'Oat milk' }))
     await vi.waitFor(() => expect(text()).toContain('Oat milk'))
     await vi.waitFor(() => expect(pending(replica)).toHaveLength(2))
+  })
+
+  it('applies a fact within the transition that returned it, before the next Message', async () => {
+    const app = await open()
+    // Dispatched back to back, so an ordinary Command's Message would reach update only
+    // after both: each intent would see no todos and mint the same id.
+    app.dispatch(Message.AddedTodo({ title: 'Milk' }))
+    app.dispatch(Message.AddedTodo({ title: 'Eggs' }))
+    await vi.waitFor(() => expect(app.model().todos).toHaveLength(2))
+    expect(app.model().todos.map(todo => todo.id)).toEqual(['t0', 't1'])
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(2))
+    expect(pending(replica).map(operation => operation.message)).toEqual([
+      { _tag: 'CreatedTodo', id: 't0', title: 'Milk' },
+      { _tag: 'CreatedTodo', id: 't1', title: 'Eggs' },
+    ])
+  })
+
+  it('applies several facts in order, persisting only the durable ones', async () => {
+    const app = await open()
+    const seen: string[] = []
+    const stop = app.observe(message => seen.push(message._tag))
+    app.dispatch(Message.AddedAndSelected({ title: 'Milk' }))
+    await vi.waitFor(() => expect(app.model().selectedTodoId).toBe('noop'))
+    // Each fact applies to the Model the one before it left, and the ordinary Command's
+    // Message comes after both.
+    expect(app.model().todos).toEqual([{ id: 't0', title: 'Milk' }])
+    expect(seen).toEqual(['AddedAndSelected', 'CreatedTodo', 'SelectedTodo', 'SelectedTodo'])
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+    stop()
   })
 
   it('reverts a durable edit whose persist fails and reports the failure', async () => {

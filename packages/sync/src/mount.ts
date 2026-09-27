@@ -35,6 +35,27 @@ type Private =
   | { readonly _tag: typeof NAVIGATE; readonly request: UrlRequest }
   | { readonly _tag: typeof NAVIGATED }
 
+const FACT = Symbol.for('foldkit-sync/fact')
+
+/**
+ * A Command that dispatches `message` as the next transition, which under `Sync.mount`
+ * means within this one: the mount applies it straight after the `update` that returned
+ * it, and persists it if it is durable, before any other Message is processed. This is
+ * how a local intent turns into a durable fact that needs something only the intent's
+ * transition knows, such as an id minted from local state, without a later Message
+ * seeing the Model before the fact. Elsewhere, or once a parent has mapped the Command,
+ * it is an ordinary Command that yields `message`.
+ */
+export const fact = <Message>(
+  message: Message,
+): { readonly name: string; readonly effect: Effect.Effect<Message> } =>
+  Object.assign({ name: 'foldkit-sync/fact', effect: Effect.succeed(message) }, { [FACT]: message })
+
+const factOf = (command: unknown): { readonly message: unknown } | undefined =>
+  typeof command === 'object' && command !== null && FACT in command
+    ? { message: (command as { readonly [FACT]: unknown })[FACT] }
+    : undefined
+
 /**
  * The URL as part of the application: `onUrlChange` names the Message the
  * runtime sends for the current URL at start and on every navigation (so a
@@ -257,49 +278,71 @@ export const mount = <
       }
       case NAVIGATED:
         return { model }
-      default: {
-        notifyEach(messageListeners, message as Message)
-        const result = app.update(model, message as Message) as Update.Return<
-          Model,
-          RuntimeMessage,
-          Resources
-        >
-        if (!durable.has(message._tag)) return result
-        const edit: LocalEdit<Message> = { message: message as Message, started: undefined }
-        edits.push(edit)
-        const previous = tail
-        let settle!: () => void
-        const done = new Promise<void>(resolve => {
-          settle = resolve
-        })
-        tail = done
-        const release = (): void => {
-          const index = edits.indexOf(edit)
-          if (index !== -1) edits.splice(index, 1)
-          inFlight.delete(done)
-          settle()
-        }
-        const persist = {
-          name: 'foldkit-sync/persist',
-          effect: Effect.gen(function* () {
-            // Tracked so `dispose` can wait instead of interrupting a persist.
-            inFlight.add(done)
-            // One submit at a time, in dispatch order, so `started` is the
-            // sequence this edit takes if its submit succeeds.
-            yield* Effect.promise(() => previous)
-            edit.started = (yield* replica.snapshot).nextLocalSequence
-            const outcome = yield* Effect.result(replica.submit(edit.message))
-            return outcome._tag === 'Success'
-              ? ({ _tag: PERSISTED } as RuntimeMessage)
-              : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
-          }).pipe(
-            // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
-            Effect.ensuring(Effect.sync(release)),
-          ),
-        }
-        return { model: result.model, commands: [...(result.commands ?? []), persist] }
-      }
+      default:
+        return applyFacts(step(model, message as Message & Tagged))
     }
+  }
+
+  /** The application's transition for one of its Messages, with the persist a durable one needs. */
+  const step = (
+    model: Model,
+    message: Message & Tagged,
+  ): Update.Return<Model, RuntimeMessage, Resources> => {
+    notifyEach(messageListeners, message)
+    const result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
+    if (!durable.has(message._tag)) return result
+    const edit: LocalEdit<Message> = { message, started: undefined }
+    edits.push(edit)
+    const previous = tail
+    let settle!: () => void
+    const done = new Promise<void>(resolve => {
+      settle = resolve
+    })
+    tail = done
+    const release = (): void => {
+      const index = edits.indexOf(edit)
+      if (index !== -1) edits.splice(index, 1)
+      inFlight.delete(done)
+      settle()
+    }
+    const persist = {
+      name: 'foldkit-sync/persist',
+      effect: Effect.gen(function* () {
+        // Tracked so `dispose` can wait instead of interrupting a persist.
+        inFlight.add(done)
+        // One submit at a time, in dispatch order, so `started` is the
+        // sequence this edit takes if its submit succeeds.
+        yield* Effect.promise(() => previous)
+        edit.started = (yield* replica.snapshot).nextLocalSequence
+        const outcome = yield* Effect.result(replica.submit(edit.message))
+        return outcome._tag === 'Success'
+          ? ({ _tag: PERSISTED } as RuntimeMessage)
+          : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
+      }).pipe(
+        // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
+        Effect.ensuring(Effect.sync(release)),
+      ),
+    }
+    return { model: result.model, commands: [...(result.commands ?? []), persist] }
+  }
+
+  /** Applies the facts a transition returned, in order, each as the transition after it. */
+  const applyFacts = (
+    result: Update.Return<Model, RuntimeMessage, Resources>,
+  ): Update.Return<Model, RuntimeMessage, Resources> => {
+    let model = result.model
+    const kept: Array<Update.Commands<RuntimeMessage, Resources>[number]> = []
+    for (const command of result.commands ?? []) {
+      const found = factOf(command)
+      if (found === undefined) {
+        kept.push(command)
+        continue
+      }
+      const next = applyFacts(step(model, found.message as Message & Tagged))
+      model = next.model
+      kept.push(...(next.commands ?? []))
+    }
+    return { model, commands: kept }
   }
 
   const ports = {

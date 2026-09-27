@@ -269,6 +269,15 @@ replica. If an application genuinely needs different replay semantics, `make`
 accepts a custom `replay`, but that custom replay does not get the derived
 guardrails.
 
+When the work between intent and fact needs nothing but the Model — an id minted
+from a local counter, say — return the fact as `Sync.fact(message)` instead of an
+ordinary Command. `Sync.mount` applies it straight after the intent's `update`,
+in the same transition, and persists it if it is durable. An ordinary Command's
+Message arrives later, so a second intent dispatched in the meantime would read
+the Model from before the fact and could mint the same id. Outside `mount`, or
+once a parent has mapped it, `Sync.fact` is an ordinary Command that yields the
+Message.
+
 ## Running a replica
 
 The low-level runtime is a `Replica`. It owns the local outbox, committed shared
