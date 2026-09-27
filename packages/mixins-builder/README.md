@@ -394,6 +394,25 @@ The looks and the conditions stay the Builder's own controls, drawn through
 `BuilderSlots`: each is a choice from a fixed list, which a form would draw no
 better.
 
+## The editor's words
+
+Every word the editor shows of its own, from "Add a block" to the shortcut
+list's headings, is one of `BuilderWords`, English by default
+(`builderWords`). Give any of them as a view input:
+
+```ts
+BuilderView.inputs({
+  words: { palette: 'Bloque nuevo', addBlock: label => `Añadir ${label}` },
+})
+```
+
+A word that takes a value is a function, since word order differs between
+languages. The Catalog's words (a Block's label and description, its group)
+and the command table's labels are the application's already, and are not
+among them; so are key names, but for the named keys (Enter, Delete), which
+`keyName` words. A test draws the editor with every word replaced by a marker
+and finds nothing else of its own left.
+
 ## Previewing a context
 
 With a Catalog `context`, a `role="group"` labelled "Preview as" (the

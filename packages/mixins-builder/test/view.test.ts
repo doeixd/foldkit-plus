@@ -294,7 +294,7 @@ describe('the drawn Builder', () => {
     const space = Inert.all(controls[5]).filter(node => node.sel === 'option')
     // A value is named by the look's label for it, else spaced.
     expect(space.map(option => [Inert.value(option, 'value'), Inert.text(option)])).toEqual([
-      ['', 'default'],
+      ['', 'Default'],
       ['s', 'Small'],
       ['m', 'M'],
     ])

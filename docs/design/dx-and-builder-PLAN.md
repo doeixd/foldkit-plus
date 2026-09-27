@@ -482,6 +482,16 @@ languages. Apply it to `foldkit-mixins-builder` first, then bring
 test per package renders with every word replaced by a marker and asserts no
 English literal is left in the view (a checked claim, not a hope).
 
+> **`foldkit-mixins-builder` done, 2026-09-26.** `BuilderWords` and
+> `builderWords`, given as `BuilderViewInputs.words`, in `words.ts`. The test
+> draws the editor in five states, with a Builder whose Block has no group,
+> and asserts both that every word is drawn somewhere (so a literal left
+> beside one would show) and that what is left is exactly the application's
+> data. Writing it found a dead word: nothing places a new root before the
+> others, so "Adds it to the top of the page" is gone. The Builder's own
+> announcements and refusals (`foldkit-builder`), `foldkit-crud`'s
+> `ViewWords` and the CMS's words are still to bring to the same shape.
+
 ### 3c. Views that redraw only when what they read changes (M)
 
 **Decision.** A view boundary declares what it reads, and **is given only

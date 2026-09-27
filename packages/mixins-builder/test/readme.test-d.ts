@@ -127,3 +127,11 @@ Block.words({ icon: 'quote' })
   )
   void PageEditing
 }
+
+// The editor's words
+{
+  const inputs = BuilderView.inputs({
+    words: { palette: 'Bloque nuevo', addBlock: label => `Añadir ${label}` },
+  })
+  void inputs
+}

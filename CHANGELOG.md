@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-builder`: the editor's words.** Every word the drawn
+  Builder shows of its own is one of `BuilderWords` (English defaults in
+  `builderWords`), given as the view input `words`; a word that takes a value
+  is a function. `keysOf` takes them, for the named keys and Ctrl, Alt and
+  Shift. A look's blank choice now reads "Default", as its buttons do.
+
 - **`foldkit-mixins`: parts, each drawn again only when what it reads
   changed.** `SlotView.parts(Slots)<Input, Message>()` makes parts that name
   the input keys they read and are given only those; `assemble` places them.
