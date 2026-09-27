@@ -61,9 +61,13 @@ skipped, because its payload is opaque.
 | `Table`, `TableRow`, `TableCell` | a GFM pipe table, the first row as its header (`TableRow.header`) |
 | `Bold`, `Italic`, `Code`, `Strikethrough`, `Link` | `**`, `*`, backticks, `~~`, `[label](href)`, with the link outermost |
 
-Text is escaped so it cannot become markup: a backslash before an inline delimiter, and
-before a block marker — or a `1.` — that would open a paragraph's line. A leading space
-becomes `&#32;`.
+Text is escaped so it cannot become markup: a backslash before an inline delimiter (and before
+`!` and `|`, which could start an image or a table), and before a block marker — or a `1.` —
+that would open a paragraph's line. A leading space becomes `&#32;`. Where CommonMark would not
+let a delimiter open or close because punctuation sits on one side and a letter on the other
+(`x**(a)**y`), the letter is written as a character reference (`&#120;**(a)**&#121;`), which
+reads back as the same letter. An empty task item prints as `- [ ]`, which GFM alone would read
+as text; `parse` reads an item holding only `[ ]` or `[x]` back as that empty task.
 
 ## Parse Markdown
 
@@ -79,7 +83,8 @@ is decoded through the codec, so a bad construction fails loudly instead of reac
 editor.
 
 It reads CommonMark, plus GFM's task lists, strikethrough, and tables. It reports instead
-of guessing: raw HTML, a link definition, a footnote, a hard line break (which becomes its
+of guessing: raw HTML, a link definition (a reference to one keeps its text, unlinked), a
+footnote, a hard line break (which becomes its
 own paragraph, because a block holds no line break), and an image inside a paragraph
 (`Image` is a block, so a paragraph holding only one is hoisted to it). Markdown is as
 untrusted as pasted HTML, so a link's or an image's URL passes the same `safeUrl` policy
@@ -175,6 +180,11 @@ draft holds no text, or when an unedited draft does not have as many text blocks
 caller's document. Keep the old selection then.
 
 ## Limits
+
+- **Smaller losses in a round trip.** A code block's trailing blank lines, a heading's leading
+  space, the words after a fence's language (```` ```ts title ````), and a line break inside a
+  setext heading do not survive; a list item that is only a rule reads back as a rule; a row
+  with fewer cells than the widest is padded. Each is reported by nothing yet.
 
 - **A table's header.** GFM's header is the first row, so that row is printed as the header
   whether or not the document marks one; a row marked as the header anywhere else is

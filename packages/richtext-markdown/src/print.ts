@@ -42,14 +42,50 @@ const MARK_RANK: Readonly<Record<string, number>> = {
 
 /**
  * A backslash before one of these is CommonMark's own escape, so the character survives. `&`
- * would begin a character reference and `<` an autolink or inline HTML.
+ * would begin a character reference, `<` an autolink or inline HTML, `!` before a link an
+ * image, and `|` a table when a later line of the paragraph looks like its delimiter row.
  */
-const ESCAPED_INLINE = /[\\`*_[\]~&<]/g
+const ESCAPED_INLINE = /[\\`*_[\]~&<!|]/g
+/** In a table cell, which escapes its own `|` after every other escape. */
+const ESCAPED_IN_CELL = /[\\`*_[\]~&<!]/g
 
 /** What Markdown reads as a block marker, or a setext underline, when it begins a line. */
 const BLOCK_START = /^([#>+=-])|^(\d+)([.)])/
 
-const escapeInline = (text: string): string => text.replace(ESCAPED_INLINE, '\\$&')
+const escapeInline = (text: string, cell: boolean): string =>
+  text.replace(cell ? ESCAPED_IN_CELL : ESCAPED_INLINE, '\\$&')
+
+/** CommonMark's punctuation, which a delimiter run's flanking reads: Unicode's P and S. */
+const PUNCTUATION = /[\p{P}\p{S}]/u
+
+/** A character that is neither whitespace nor punctuation, against which flanking can fail. */
+const isWordy = (character: string | undefined): boolean =>
+  character !== undefined && !/\s/.test(character) && !PUNCTUATION.test(character)
+
+/**
+ * The first code point of `text` as a numeric character reference. It reads back as the same
+ * character, and its `;` is punctuation, so it lets a delimiter beside it open or close.
+ */
+const referenceFirst = (text: string): string => {
+  const point = text.codePointAt(0)!
+  return `&#${point};${text.slice(String.fromCodePoint(point).length)}`
+}
+
+/** The last code point of `text` as a numeric character reference, as `referenceFirst`. */
+const referenceLast = (text: string): string => {
+  const last = [...text].at(-1)!
+  return `${text.slice(0, -last.length)}&#${last.codePointAt(0)};`
+}
+
+/** Where a run's text starts and ends without its whitespace, found without a regex's backtracking. */
+const edges = (
+  text: string,
+): { readonly lead: string; readonly core: string; readonly trail: string } => {
+  const start = text.length - text.trimStart().length
+  if (start === text.length) return { lead: text, core: '', trail: '' }
+  const end = text.trimEnd().length
+  return { lead: text.slice(0, start), core: text.slice(start, end), trail: text.slice(end) }
+}
 
 const longestRun = (text: string, character: string): number => {
   let longest = 0
@@ -118,24 +154,51 @@ interface OpenMark {
   readonly close: string
 }
 
+/** Emphasis's other spelling, for a delimiter that would touch one of its own character. */
+const ALTERNATE: Readonly<Record<string, string>> = { '**': '__', __: '**', '*': '_', _: '*' }
+
+/** Delimiters CommonMark matches by flanking, rather than by brackets as a link's. */
+const flanks = (mark: RichText.RunMark): boolean => RichText.markName(mark) !== 'Link'
+
+/** Adjacent runs with the same marks, joined: two code spans side by side would read as one. */
+const joined = (runs: ReadonlyArray<RichText.Text>): ReadonlyArray<RichText.Text> =>
+  runs.reduce<Array<RichText.Text>>((all, run) => {
+    const last = all.at(-1)
+    if (run.text.length === 0) return all
+    if (last !== undefined && RichText.sameMarkSet(last.marks, run.marks))
+      all[all.length - 1] = { ...last, text: last.text + run.text }
+    else all.push(run)
+    return all
+  }, [])
+
 /**
  * A block's inline content. Marks are opened and closed across runs rather than per run, so a
  * mark two runs share stays one span — `*a`b`*`, not `*a**`b`*`, which a parser reads as
- * neither. A run's own whitespace at either edge is moved outside the delimiters it would
- * otherwise sit against, because `** a**` is not emphasis in CommonMark. A code span holds
- * its text literally, so the escape step is skipped inside one; a mark with no syntax here —
- * or a link with no `href` — is reported and its text kept.
+ * neither — and the marks that last longest open first, so each closes in order. A run's own
+ * whitespace at either edge is moved outside the delimiters it would otherwise sit against,
+ * because `** a**` is not emphasis in CommonMark. A delimiter that punctuation on one side
+ * and a letter on the other would keep from opening or closing (`x**(a)**y`) gets the letter
+ * as a character reference. A code span holds its text literally, so the escape step is
+ * skipped inside one; a mark with no syntax here — or a link with no `href` — is reported and
+ * its text kept.
  */
-const renderInline = (block: RichText.Block, printing: Printing): string => {
+const renderInline = (block: RichText.Block, printing: Printing, cell = false): string => {
   let out = ''
   const open: Array<OpenMark> = []
   // Whitespace that ended the last run, owed until the marks closing after it are closed.
   let pending = ''
+  // Whether the last delimiter closed where a letter right after it would keep it from
+  // closing: after punctuation, or always for `_`, which cannot close inside a word.
+  let closeGap = false
   const closeTo = (depth: number): void => {
-    while (open.length > depth) out += open.pop()!.close
+    while (open.length > depth) {
+      const { mark, close } = open.pop()!
+      closeGap = flanks(mark) && (close[0] === '_' || PUNCTUATION.test(out.at(-1) ?? ''))
+      out += close
+    }
   }
-  for (const run of block.children) {
-    if (run.text.length === 0) continue
+  const runs = joined(block.children)
+  const syntaxOf = (run: RichText.Text) => {
     const wanted: Array<readonly [RichText.RunMark, readonly [string, string]]> = []
     let code = false
     for (const mark of run.marks) {
@@ -149,9 +212,20 @@ const renderInline = (block: RichText.Block, printing: Printing): string => {
         printing.diagnostics.push({ code: 'UnsupportedMark', detail: name, node: run.id })
       else wanted.push([mark, syntax])
     }
-    const [, lead = '', core = '', trail = ''] = code
-      ? ['', '', run.text, '']
-      : (/^(\s*)(.*?)(\s*)$/s.exec(run.text) ?? [])
+    return { wanted, code }
+  }
+  /** How many runs from `index` on carry `mark`, passing over whitespace that carries nothing. */
+  const reach = (index: number, mark: RichText.RunMark): number => {
+    let count = 0
+    for (const later of runs.slice(index)) {
+      if (later.marks.some(each => RichText.sameMark(each, mark))) count += 1
+      else if (later.text.trim().length > 0) break
+    }
+    return count
+  }
+  for (const [index, run] of runs.entries()) {
+    const { wanted, code } = syntaxOf(run)
+    const { lead, core, trail } = code ? { lead: '', core: run.text, trail: '' } : edges(run.text)
     if (core.length === 0) {
       // Whitespace alone carries no visible mark, so it waits for whatever comes next.
       pending += lead
@@ -164,28 +238,51 @@ const renderInline = (block: RichText.Block, printing: Printing): string => {
     ) {
       kept += 1
     }
+    closeGap = false
     closeTo(kept)
-    out += pending + lead
+    const between = pending + lead
+    out += between
     pending = trail
     const opening = wanted
       .filter(([mark]) => !open.some(entry => RichText.sameMark(entry.mark, mark)))
+      .map(([mark, syntax]) => ({
+        mark,
+        syntax: syntax as readonly [string, string],
+        reach: reach(index, mark),
+      }))
       .sort(
-        ([left], [right]) =>
-          (MARK_RANK[RichText.markName(right)] ?? 0) - (MARK_RANK[RichText.markName(left)] ?? 0),
+        (left, right) =>
+          right.reach - left.reach ||
+          (MARK_RANK[RichText.markName(right.mark)] ?? 0) -
+            (MARK_RANK[RichText.markName(left.mark)] ?? 0),
       )
-    for (const [mark, [start, close]] of opening) {
-      out += start
-      open.push({ mark, close })
+    let text = code ? codeSpan(core) : escapeInline(core, cell)
+    if (opening.length === 0 && between === '' && closeGap && isWordy(text[0]))
+      text = referenceFirst(text)
+    const first = opening[0]
+    if (first !== undefined && flanks(first.mark)) {
+      // Right after a closing delimiter of the same character, the two would be one run, and
+      // `_` cannot open inside a word: the other spelling avoids both.
+      const [start, close] = first.syntax
+      if ((between === '' && out.at(-1) === start[0]) || (start[0] === '_' && isWordy(out.at(-1))))
+        first.syntax = [ALTERNATE[start] ?? start, ALTERNATE[close] ?? close]
+      const after = opening[1]?.syntax[0] ?? text
+      if (isWordy(out.at(-1)) && (first.syntax[0][0] === '_' || PUNCTUATION.test(after[0]!)))
+        out = referenceLast(out)
     }
-    out += code ? codeSpan(core) : escapeInline(core)
+    for (const { mark, syntax } of opening) {
+      out += syntax[0]
+      open.push({ mark, close: syntax[1] })
+    }
+    out += text
   }
   closeTo(0)
   return out + pending
 }
 
 /** A block's inline content on one line, for the places Markdown gives no second one. */
-const inlineLine = (block: RichText.Block, printing: Printing): string =>
-  renderInline(block, printing).replace(/\n/g, ' ')
+const inlineLine = (block: RichText.Block, printing: Printing, cell = false): string =>
+  renderInline(block, printing, cell).replace(/\n/g, ' ')
 
 /** Every line of a quote is marked; a blank line in one is the marker alone. */
 const quote = (lines: ReadonlyArray<string>): ReadonlyArray<string> =>
@@ -233,7 +330,8 @@ const list = (
     const opening = `${bullet}${isTask ? `[${checked ? 'x' : ' '}] ` : ''}`
     number += 1
     const content = renderBlocks(item.type === 'Node' ? (item.blocks ?? []) : [item], printing)
-    const indent = ' '.repeat(opening.length)
+    // GFM's content column is after the bullet; a checkbox is part of the first line's text.
+    const indent = ' '.repeat(bullet.length)
     const [first, ...rest] = content
     lines.push(`${opening}${first ?? ''}`)
     for (const line of rest) lines.push(line.length === 0 ? '' : `${indent}${line}`)
@@ -248,7 +346,8 @@ const code = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<stri
     .map(run => run.text)
     .join('')
     .replace(/\n$/, '')
-  const character = spellingOf(block, printing).fence
+  // A backtick fence's info string cannot hold a backtick; a tilde fence's can.
+  const character = language.includes('`') ? '~' : spellingOf(block, printing).fence
   const fence = character.repeat(Math.max(3, longestRun(text, character) + 1))
   return [`${fence}${language}`, ...text.split('\n'), fence]
 }
@@ -260,7 +359,7 @@ const image = (block: RichText.NodeBlock, printing: Printing): string => {
   if (src.length === 0) {
     printing.diagnostics.push({ code: 'UnsupportedNode', detail: 'Image', node: block.id })
   }
-  return `![${escapeInline(alt)}](${destination(src)})`
+  return `![${escapeInline(alt, false)}](${destination(src)})`
 }
 
 /**
@@ -279,7 +378,7 @@ const table = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<str
     if (cell.type === 'Unknown') return ''
     const blocks = cell.type === 'Node' ? (cell.blocks ?? []) : [cell]
     return blocks
-      .map(inner => inlineLine(inner, printing))
+      .map(inner => inlineLine(inner, printing, true))
       .join(' ')
       .replace(/\|/g, '\\|')
   }

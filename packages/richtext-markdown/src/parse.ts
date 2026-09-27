@@ -104,16 +104,21 @@ const runsFrom = (
           append(node.value, at, node)
           break
         case 'inlineCode':
-          append(node.value, [...at, 'Code'], node)
+          append(node.value, withMark(at, 'Code'), node)
           break
         case 'strong':
-          walk(node.children, [...at, 'Bold'])
+          walk(node.children, withMark(at, 'Bold'))
           break
         case 'emphasis':
-          walk(node.children, [...at, 'Italic'])
+          walk(node.children, withMark(at, 'Italic'))
           break
         case 'delete':
-          walk(node.children, [...at, 'Strikethrough'])
+          walk(node.children, withMark(at, 'Strikethrough'))
+          break
+        case 'linkReference':
+          // The definition it names is reported and skipped, so the text stays, unlinked.
+          diagnostics.push({ code: 'UnsupportedNode', detail: 'linkReference' })
+          walk(node.children, at)
           break
         case 'link': {
           // Markdown is as untrusted as pasted HTML, so a link passes the same policy; one
@@ -144,6 +149,16 @@ const runsFrom = (
   finish()
   return lines
 }
+
+/**
+ * The marks with `mark` added. Markdown can nest a mark in itself (`*a *b* c*`), and a run
+ * carries each mark once, so the inner one adds nothing.
+ */
+const withMark = (
+  at: ReadonlyArray<RichText.RunMark>,
+  mark: string,
+): ReadonlyArray<RichText.RunMark> =>
+  at.some(each => RichText.markName(each) === mark) ? at : [...at, mark]
 
 const container = (
   kind: string,
@@ -178,6 +193,19 @@ const paragraph = (children: ReadonlyArray<RichText.Text>, mint: () => string): 
   children,
 })
 
+/**
+ * The box of an item whose only content is one, `[ ]` or `[x]`. GFM reads a checkbox only
+ * with text after it, so an empty task item prints as this, and reads back as a task.
+ */
+const emptyTask = (item: List['children'][number]): boolean | undefined => {
+  const [only] = item.children
+  if (item.children.length !== 1 || only?.type !== 'paragraph') return undefined
+  const [text] = only.children
+  if (only.children.length !== 1 || text?.type !== 'text') return undefined
+  const box = /^\[([ xX])\]$/.exec(text.value)
+  return box === null ? undefined : box[1] !== ' '
+}
+
 /** A list holds items; an item that says it is checked is a `TaskItem`, which is a kind. */
 const listBlock = (node: List, reading: Reading): RichText.Block => {
   const props: Props =
@@ -186,14 +214,17 @@ const listBlock = (node: List, reading: Reading): RichText.Block => {
         ? { ordered: true }
         : { ordered: true, start: node.start }
       : {}
-  const items = node.children.map(item =>
-    container(
+  const items = node.children.map(item => {
+    const empty = item.checked === null || item.checked === undefined ? emptyTask(item) : undefined
+    if (empty !== undefined)
+      return container('TaskItem', { checked: empty }, [paragraph([], reading.mint)], reading.mint)
+    return container(
       item.checked === null || item.checked === undefined ? 'ListItem' : 'TaskItem',
       item.checked === null || item.checked === undefined ? {} : { checked: item.checked },
       blocksFrom(item.children, reading),
       reading.mint,
-    ),
-  )
+    )
+  })
   return container('List', props, items, reading.mint)
 }
 
