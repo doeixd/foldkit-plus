@@ -176,7 +176,9 @@ DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model)
 
 Slots: `ListSlots` (`root`, `status`, `table`, `head`, `headRow`, `body`, `headCell`, `sort`, `row`, `cell`,
 `open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
-`list`, the `dl`; `status`, `term`, `value`, `retry`). A failed read shows a `role="alert"` line; a failed refresh keeps the
+`list`, the `dl`; `status`, `term`, `value`, `retry`). The `status` line is
+`aria-busy` while the first answer is awaited, so a style tells loading from
+empty (`[aria-busy]`). A failed read shows a `role="alert"` line; a failed refresh keeps the
 rows (or the detail's value) below it, and `onRetry` adds a button. The button
 goes once the refresh starts, so the retry's `update` branch should return a
 `Dom.focus('#Posts', { makeFocusable: true })` Command to keep keyboard focus.

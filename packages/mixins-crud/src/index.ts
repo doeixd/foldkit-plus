@@ -166,9 +166,12 @@ const list = <Message>() => ({
                 ]),
               ]),
         ]
-        const status = (text: string): Html =>
+        // Busy while the first answer is awaited, so loading is told from empty.
+        const status = (text: string, busy = false): Html =>
           h.div(slots.root.attrs([h.Id(listed.name)]), [
-            h.p(slots.status.attrs([h.Role('status')]), [text]),
+            h.p(slots.status.attrs([h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]), [
+              text,
+            ]),
           ])
 
         const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
@@ -268,7 +271,7 @@ const list = <Message>() => ({
         switch (page._tag) {
           case 'Initial':
           case 'Loading':
-            return status(words?.loading ?? 'Loading…')
+            return status(words?.loading ?? 'Loading…', true)
           case 'Failed':
             // A failed refresh keeps the rows it had: they are still the best
             // answer there is, and the failure is said above them.
@@ -313,9 +316,12 @@ const detail = <Message>() => ({
                 ]),
               ]),
         ]
-        const status = (text: string): Html =>
+        // Busy while the first answer is awaited, so loading is told from empty.
+        const status = (text: string, busy = false): Html =>
           h.div(slots.root.attrs([h.Id(detailed.name)]), [
-            h.p(slots.status.attrs([h.Role('status')]), [text]),
+            h.p(slots.status.attrs([h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]), [
+              text,
+            ]),
           ])
         // `notice` goes above the list: a failure that left the value on screen.
         // The root is the same `div` whatever the state, as a list's is, so a
@@ -354,7 +360,7 @@ const detail = <Message>() => ({
         switch (read._tag) {
           case 'Initial':
           case 'Loading':
-            return status(words?.loading ?? 'Loading…')
+            return status(words?.loading ?? 'Loading…', true)
           case 'Failed':
             // A failed refresh keeps the value it had, with the failure above it.
             return read.previous === undefined

@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-crud`, loading told from empty:** a list's or a detail's
+  `status` line is `aria-busy` while the first answer is awaited, as the table
+  already was while refreshing, so a style can draw a quiet placeholder for
+  loading and keep its empty state for empty.
+
 - **`foldkit-agent`, correlating by the call:** a completion's `correlate`
   receives a third argument, `{ invocation }` (type `Correlation`), so a fact
   that carries the invocation's id from `toMessage` is told apart where the

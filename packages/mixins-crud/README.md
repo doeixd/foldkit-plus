@@ -179,7 +179,7 @@ A `dl` with a `dt` per shown field and its value in a `dd`. It takes `cells` and
 | Part | Element | Slot |
 | --- | --- | --- |
 | The list | `div` with the list's name as its `id` | `root` |
-| Loading, failed, or empty | `p role="status"`, or `role="alert"` for a failure | `status` |
+| Loading, failed, or empty | `p role="status"`, `aria-busy` while loading, or `role="alert"` for a failure | `status` |
 | Asking again after a failure | `button type="button"`, when `onRetry` is given | `retry` |
 | The rows | `table`, `aria-busy` while refreshing | `table` |
 | The header and the body | `thead`, its `tr`, and `tbody` | `head`, `headRow`, `body` |

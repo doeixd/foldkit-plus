@@ -247,23 +247,38 @@ it('gives a renderer the badge Slot, which the list’s Style reaches', () => {
   expect(pills).toHaveLength(2)
 })
 
-it('says what stands in for the rows: loading, failed, and empty', () => {
+it('says what stands in for the rows: loading, busy, failed, and empty', () => {
   // Rendered without a runtime: the states are text, read off the tree.
   const Plain = ListView.forMessages<Message>().define(Posts)
   const read = (page: RemoteData<Page<Row>>, words?: { readonly empty?: string }) => {
     const [status] = Inert.children(Plain({ page, words }, SlotView.inertBuilder()))
-    return [Inert.value(status, 'role'), Inert.children(status)[0]?.text]
+    return [
+      Inert.value(status, 'role'),
+      Inert.value(status, 'aria-busy') ?? 'not busy',
+      Inert.children(status)[0]?.text,
+    ]
   }
-  expect(read({ _tag: 'Loading' })).toEqual(['status', 'Loading…'])
+  expect(read({ _tag: 'Loading' })).toEqual(['status', 'true', 'Loading…'])
   expect(
     read({ _tag: 'Failed', error: { _tag: 'RemoteQueryError', message: 'offline' } as never }),
-  ).toEqual(['alert', 'offline'])
+  ).toEqual(['alert', 'not busy', 'offline'])
   expect(
     read(
       { _tag: 'Ready', value: { items: [], hasNext: false, hasPrevious: false } },
       { empty: 'No posts yet.' },
     ),
-  ).toEqual(['status', 'No posts yet.'])
+  ).toEqual(['status', 'not busy', 'No posts yet.'])
+  // A detail says loading as a list does, busy until it has its value.
+  const [detailStatus] = Inert.children(
+    Lines({ value: { _tag: 'Loading' } }, SlotView.inertBuilder()),
+  )
+  expect(Inert.value(detailStatus, 'aria-busy')).toBe('true')
+  expect(
+    Inert.value(
+      Inert.children(Lines({ value: { _tag: 'NotFound' } }, SlotView.inertBuilder()))[0],
+      'aria-busy',
+    ),
+  ).toBeUndefined()
 })
 
 /** Every element of a rendered tree, in order: its tag, role and own text. */
