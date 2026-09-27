@@ -121,17 +121,23 @@ export const anchorToBlock = (
   if (view === null) return () => {}
   element.style.position = 'fixed'
   // A patch moves blocks without moving the page: text typed above one, or the move a handle sent.
-  // The host is looked up on each placement, since it can be drawn after the handle or replaced.
+  // The host is looked up on each placement, since it can be drawn after the handle or replaced:
+  // while it is missing the page is watched for it, and once found its parent is watched too.
   const observer = new view.MutationObserver(() => place())
-  let observed: Element | undefined
+  let observed: Element | null | undefined
   const place = () => {
     const host = owner.getElementById(hostId)
-    if (host === null) return
     if (host !== observed) {
       observer.disconnect()
-      observer.observe(host, { childList: true, subtree: true, characterData: true })
+      if (host === null) {
+        observer.observe(owner.documentElement, { childList: true, subtree: true })
+      } else {
+        observer.observe(host, { childList: true, subtree: true, characterData: true })
+        if (host.parentElement !== null) observer.observe(host.parentElement, { childList: true })
+      }
       observed = host
     }
+    if (host === null) return
     const block = attachmentIn(host)?.current().elements.get(node)
     if (block === undefined) return
     write(element, placeBeside(block.getBoundingClientRect(), element.getBoundingClientRect(), gap))

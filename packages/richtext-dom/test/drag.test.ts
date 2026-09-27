@@ -47,7 +47,7 @@ describe('where a pointer drops a block', () => {
     // An edge in the same container as the block, but not beside it, is a move.
     ['past its neighbour in its own container', 'i1', 48, { after: 'i2' }],
     ['after another container’s last block', 'i1', 128, { after: 'j2' }],
-  ])('drops %s, the deeper of two edges at one height', (_, moving, y, expected) => {
+  ])('drops %s, by the nearest edge whatever its container', (_, moving, y, expected) => {
     expect(dropBeside(lists, id(moving), y)).toEqual(expected)
   })
 

@@ -409,7 +409,7 @@ outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
 `blockAnchor({ hostId, node, gap })` does the same for a block handle: it places the element
 `gap` pixels left of block `node`'s top edge, never past the window's left edge. It re-places whenever the
 editor's subtree changes (a patch can move a block without the page scrolling), and on scroll
-and resize. A Mount reads its args once, when its element is inserted, so key the element by the
+and resize, and it finds a host drawn after it or drawn again. A Mount reads its args once, when its element is inserted, so key the element by the
 block (`h.Key(node)`) when the block can change.
 
 `blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, to any block

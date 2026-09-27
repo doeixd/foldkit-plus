@@ -193,17 +193,21 @@ describe('anchorToBlock', () => {
       mountInto(host, content, { onIntent: () => {} })
       return host
     }
+    // No scroll or resize here: drawing the host is what places the handle.
     drawHost()
-    window.dispatchEvent(new Event('resize'))
+    await flush()
     expect(placed()).toEqual(['140px', '152px', 'left'])
 
-    // The replacement's redraws move the handle, not the detached first host's.
-    const replacement = drawHost()
-    window.dispatchEvent(new Event('resize'))
     boxes['b'] = { ...boxes['b']!, top: 180 }
-    replacement.querySelector('[data-run="a-t"]')!.append('!')
+    const replacement = drawHost()
     await flush()
     expect(placed()).toEqual(['180px', '152px', 'left'])
+
+    // The replacement's redraws move the handle, down to a change in a text node's data.
+    boxes['b'] = { ...boxes['b']!, top: 220 }
+    replacement.querySelector('[data-run="a-t"]')!.firstChild!.textContent += '!'
+    await flush()
+    expect(placed()).toEqual(['220px', '152px', 'left'])
     release()
   })
 
