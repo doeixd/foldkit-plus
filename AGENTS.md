@@ -705,6 +705,12 @@ of its own named a form field "fits the Catalog". Read words with
   example's grid still had three columns, collapsing only by the window, and
   the panel it showed was squeezed to 50px. Assert geometry (a width, a
   position) when the claim is about layout, and take a screenshot once.
+- **A session that spans Messages meets every other Message in between.**
+  Editing in place was tested begun, typed, committed; a review put an undo,
+  a redo, an agent's edit and a second double-click between, and Escape no
+  longer restored the text, a commit made an empty undo step, and a second
+  ask restarted the session. For state held across transitions, test each
+  transition that can land in the middle.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
