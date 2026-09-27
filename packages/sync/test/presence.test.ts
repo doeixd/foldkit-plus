@@ -8,6 +8,7 @@ import {
   servePresence,
   socketPresenceChannel,
   type PresenceOptions,
+  type PresenceUpdate,
 } from '../src/index.js'
 import { socketPair } from './sockets.js'
 
@@ -38,6 +39,78 @@ const run = (program: Effect.Effect<void, never, Clock.Clock | Scope.Scope>) =>
 
 /** Lets the forked channel consumers drain what was just published. */
 const settle = Effect.yieldNow.pipe(Effect.andThen(Effect.yieldNow))
+
+/** A channel that records what this peer sends on it. */
+const recording = Effect.gen(function* () {
+  const channel = yield* loopbackPresenceChannel<Cursor>()
+  const sent: Array<Cursor | null> = []
+  return {
+    sent,
+    channel: {
+      ...channel,
+      publish: (update: PresenceUpdate<Cursor>) =>
+        Effect.sync(() => sent.push(update.value)).pipe(Effect.andThen(channel.publish(update))),
+    },
+  }
+})
+
+describe('a throttled presence', () => {
+  const at = (millis: number) => TestClock.setTime(millis).pipe(Effect.andThen(settle))
+
+  it('sends at once, then only the latest value set within the interval, when it ends', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel, throttle: '100 millis' })
+        yield* presence.set({ cursor: 1 })
+        yield* at(10)
+        yield* presence.set({ cursor: 2 })
+        yield* at(20)
+        yield* presence.set({ cursor: 3 })
+        // The peer's own value moves at once; the channel waits.
+        expect((yield* presence.peers)[0]!.value).toEqual({ cursor: 3 })
+        expect(sent).toEqual([{ cursor: 1 }])
+        yield* at(99)
+        expect(sent).toEqual([{ cursor: 1 }])
+        yield* at(100)
+        expect(sent).toEqual([{ cursor: 1 }, { cursor: 3 }])
+      }),
+    ))
+
+  it('keeps sending once per interval while values keep coming, and at once after a lull', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel, throttle: '100 millis' })
+        yield* presence.set({ cursor: 1 })
+        yield* at(50)
+        yield* presence.set({ cursor: 2 })
+        yield* at(100)
+        yield* presence.set({ cursor: 3 })
+        yield* at(150)
+        expect(sent).toEqual([{ cursor: 1 }, { cursor: 2 }])
+        yield* at(200)
+        expect(sent).toEqual([{ cursor: 1 }, { cursor: 2 }, { cursor: 3 }])
+        yield* at(400)
+        yield* presence.set({ cursor: 4 })
+        expect(sent.at(-1)).toEqual({ cursor: 4 })
+      }),
+    ))
+
+  it('sends a departure at once and never the value it was holding', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel, throttle: '100 millis' })
+        yield* presence.set({ cursor: 1 })
+        yield* at(10)
+        yield* presence.set({ cursor: 2 })
+        yield* presence.leave
+        yield* at(500)
+        expect(sent).toEqual([{ cursor: 1 }, null])
+      }),
+    ))
+})
 
 describe('presence', () => {
   it('expires a peer that stops refreshing after its ttl', () =>

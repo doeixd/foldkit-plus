@@ -253,7 +253,8 @@ const server = Effect.gen(function* () {
   `examples/sync/src/journal.ts`.
 
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for
-ephemeral state ("who is viewing"), never a durable Message.
+ephemeral state ("who is viewing"), never a durable Message; its `throttle`
+option sends at most one value per interval, the latest.
 `Sync.lww.register` (experimental) makes one field last-writer-wins. Allocate
 stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 

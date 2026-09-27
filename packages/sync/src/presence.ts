@@ -32,6 +32,12 @@ export interface PresenceOptions<Update> {
    */
   readonly decodeValue: (value: unknown) => Update
   readonly channel?: PresenceChannel<Update> | undefined
+  /**
+   * The least time between two values sent on the channel. `set` still takes effect here at
+   * once; a value set sooner waits, and only the latest one waiting is sent when the time is
+   * up. A departure is never held back. Absent, every `set` is sent.
+   */
+  readonly throttle?: Duration.Input | undefined
 }
 
 export interface PresencePeer<Update> {
@@ -41,7 +47,7 @@ export interface PresencePeer<Update> {
 }
 
 export interface Presence<Update> {
-  /** Sets this peer's value and broadcasts it. */
+  /** Sets this peer's value and broadcasts it, no sooner than `throttle` allows. */
   readonly set: (value: Update) => Effect.Effect<void>
   /** Removes this peer and broadcasts the departure. */
   readonly leave: Effect.Effect<void>
@@ -71,6 +77,16 @@ export const createPresence = Effect.fn('Presence.create')(function* <Update>(
   options: PresenceOptions<Update>,
 ) {
   const ttl = Duration.toMillis(options.ttl)
+  const throttle = options.throttle === undefined ? 0 : Duration.toMillis(options.throttle)
+  const scope = yield* Effect.scope
+  const lastSent = yield* Ref.make<number | undefined>(undefined)
+  // Whether a flush is pending, and the latest value for it to send: one Ref, so a `set`
+  // holding a value and a flush finding nothing held cannot interleave and strand a value.
+  const outbound = yield* Ref.make<{
+    readonly flushing: boolean
+    readonly held?: { readonly value: Update }
+  }>({ flushing: false })
+  const flusher = yield* Ref.make<Fiber.Fiber<void> | undefined>(undefined)
   const peers = yield* Ref.make(new Map<string, PresencePeer<Update>>())
   const closed = yield* Ref.make(false)
   const signals = yield* PubSub.sliding<void>(1)
@@ -128,15 +144,60 @@ export const createPresence = Effect.fn('Presence.create')(function* <Update>(
           Effect.forkScoped,
         )
 
+  const send = (value: Update): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      yield* Ref.set(lastSent, yield* Clock.currentTimeMillis)
+      yield* channel!.publish({ id: options.id, value })
+    })
+
+  /** Drops a value waiting to be sent, so nothing older goes out after what comes next. */
+  const cancelHeld = Effect.gen(function* () {
+    const fiber = yield* Ref.getAndSet(flusher, undefined)
+    if (fiber !== undefined) yield* Fiber.interrupt(fiber)
+    yield* Ref.set(outbound, { flushing: false })
+  })
+
+  /** Sends what is held each time the throttle allows, until a turn finds nothing held. */
+  const flush = (wait: number): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      yield* Effect.sleep(wait)
+      const latest = yield* Ref.modify(outbound, state =>
+        state.held === undefined
+          ? [undefined, { flushing: false }]
+          : [state.held, { flushing: true }],
+      )
+      if (latest === undefined) return
+      yield* send(latest.value)
+      yield* flush(throttle)
+    })
+
+  const broadcast = (value: Update, at: number): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const sent = yield* Ref.get(lastSent)
+      const ready = sent === undefined || at - sent >= throttle
+      const action = yield* Ref.modify(outbound, state =>
+        state.flushing
+          ? (['hold', { flushing: true, held: { value } }] as const)
+          : ready
+            ? (['send', state] as const)
+            : (['flush', { flushing: true, held: { value } }] as const),
+      )
+      if (action === 'send') return yield* send(value)
+      if (action === 'flush')
+        yield* Ref.set(flusher, yield* Effect.forkIn(flush(sent! + throttle - at), scope))
+    })
+
   const set = Effect.fn('Presence.set')(function* (value: Update) {
     if (yield* Ref.get(closed)) return
-    yield* put(options.id, value, yield* Clock.currentTimeMillis)
-    if (channel !== undefined) yield* channel.publish({ id: options.id, value })
+    const at = yield* Clock.currentTimeMillis
+    yield* put(options.id, value, at)
+    if (channel !== undefined) yield* broadcast(value, at)
     yield* notify()
   })
 
   const leave = Effect.fn('Presence.leave')(function* () {
     if (yield* Ref.get(closed)) return
+    yield* cancelHeld
     yield* remove(options.id)
     if (channel !== undefined) yield* channel.publish({ id: options.id, value: null })
     yield* notify()
@@ -168,6 +229,7 @@ export const createPresence = Effect.fn('Presence.create')(function* <Update>(
   const close = Effect.fn('Presence.close')(function* () {
     if (yield* Ref.get(closed)) return
     yield* Ref.set(closed, true)
+    yield* cancelHeld
     if (consuming !== undefined) yield* Fiber.interrupt(consuming)
     yield* Effect.sync(() => listeners.clear())
     yield* PubSub.shutdown(signals)
