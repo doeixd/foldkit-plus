@@ -105,6 +105,19 @@ Up sends `MovedBlock` to put the block before its previous sibling, and down aft
 Each is disabled at its end of the container, and both are disabled when the block is not in the
 document. Moves stay inside the block's container, because that is what `MoveBlock` does.
 
+To draw it beside its block, put it in an element carrying `foldkit-richtext-dom/toolbar`'s
+`blockAnchor`, keyed by the block:
+
+```ts
+h.div(
+  [h.Key(outermost.id), h.OnMount(blockAnchor({ hostId: 'body', node: outermost.id, gap: 8 }))],
+  [blockHandle<Message>()({ document: model.document, node: outermost.id, wrap: edited }, h)],
+)
+```
+
+The key matters. A Mount reads its args once, when its element is inserted, so without the key
+the caret moving to another block would keep the handle beside the first one.
+
 | Slot | Capability | Renders |
 | --- | --- | --- |
 | `root` | Container | the handle, `role="group"` |

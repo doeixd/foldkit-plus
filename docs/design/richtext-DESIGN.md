@@ -4710,9 +4710,9 @@ command palette           `commandPalette` in the Mixins family, over the slash
                           catalogue (§142)
 floating toolbar          `coversText` in the core, `selectionAnchor` beside the
                           marks toolbar (§143)
-block handle              `MoveBlock` and `blocksAt` in the core, `MovedBlock` in the
-                          editor, `blockHandle` in the Mixins family (§144);
-                          dragging not yet
+block handle              `MoveBlock` and `blocksAt` in the core, `MovedBlock` and
+                          `blockAnchor` in the editor, `blockHandle` in the Mixins
+                          family (§144); dragging not yet
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7800,8 +7800,21 @@ selection starts in, outermost first, and the caller picks from it. `textBlockAt
 share the lookup of where a selection starts, and a node selection's chain is the one to its
 block.
 
+## Beside its block
+
+`blockAnchor({ hostId, node, gap })` places the handle's element `gap` to the left of the block's
+first line, beside §143's `selectionAnchor` in the same module and sharing its writes and its
+scroll and resize listeners. It finds the block through the adapter's own index
+(`attachmentIn(host).current().elements`), not a `[data-block]` query, so no selector is built
+from an id. A selection change is the wrong signal here: a patch can move a block with no
+selection change, for example text typed above it or the move the handle itself sent. So it
+watches the host's subtree with a `MutationObserver` instead.
+
+A Mount reads its args once. Foldkit's `OnMount` acquires on insert and releases on destroy, and
+a render with new args patches the same element without telling the Mount. A handle that follows
+the caret therefore keys its element by the block (`h.Key(node)`), and each block gets a fresh
+element and a fresh Mount. AGENTS.md records the trap.
+
 Not done:
-- **Placing the handle beside its block.** It needs the block's rectangle, as the floating
-  toolbar needs the selection's (§143); a `blockAnchor` would be the same Mount over
-  `[data-block]`.
 - **Dragging.** Its drop target is `Beside`'s shape, and it needs the cross-container rules above.
+- **Real layout**, as in §143: the arithmetic and wiring are tested with stubbed rectangles.

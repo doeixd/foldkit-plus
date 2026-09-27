@@ -148,7 +148,8 @@ dispatch their Messages, each active when the caret carries it or every run the
 selection covers does (`markActive` is that rule on its own). A floating toolbar draws them,
 while `RichText.coversText(selection)`, in an element carrying
 `h.OnMount(selectionAnchor({ hostId, gap }))`, which places it fixed above the page's
-selection in that host.
+selection in that host; `blockAnchor({ hostId, node, gap })` places a block handle beside its
+block the same way, on an element keyed by `node`, because a Mount reads its args once.
 `foldkit-mixins-richtext` draws that toolbar through Mixins slots instead
 (`MarkToolbarSlots`, `markToolbar<Message>()`), for an application that restyles or
 extends its parts. The slash menu's vocabulary lives with the editor, in `foldkit-richtext-dom/editor`:

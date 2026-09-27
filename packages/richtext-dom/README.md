@@ -36,7 +36,7 @@ foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRender
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks
-foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor
+foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor, blockAnchor
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
 ```
@@ -366,6 +366,12 @@ page's selection, centred and kept inside the window's width, or below when ther
 above. It re-places on `selectionchange`, on any scroll, and on resize, and ignores a selection
 outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
 `data-placement` (`top` or `bottom`) on the element, so a style there must leave those alone.
+
+`blockAnchor({ hostId, node, gap })` does the same for a block handle: it places the element
+`gap` pixels left of block `node`'s first line, kept inside the window. It re-places whenever the
+editor's subtree changes (a patch can move a block without the page scrolling), and on scroll
+and resize. A Mount reads its args once, when its element is inserted, so key the element by the
+block (`h.Key(node)`) when the block can change.
 
 ## What it does not do
 

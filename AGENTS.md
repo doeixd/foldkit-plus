@@ -428,6 +428,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Library behaviour**
 
+- **A Mount reads its args once.** `OnMount` acquires on snabbdom's `insert` and releases on
+  `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
+  passes new args to the same element changes nothing, so a block handle's anchor stayed beside
+  the first block the caret visited. Key the element by what the args depend on (`h.Key(node)`).
+
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
