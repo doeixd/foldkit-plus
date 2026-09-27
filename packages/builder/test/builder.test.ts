@@ -91,6 +91,16 @@ describe('the Builder, headless', () => {
     )
   })
 
+  it('takes no name Object has for a Block with starting props', () => {
+    const refused = step(
+      PageBuilder.initial,
+      Message.InsertAsked({ block: 'constructor', at: Composition.root(0) }),
+    ).model
+    expect(Option.map(refused.refused, ({ code }) => code)).toEqual(
+      Option.some('composition:unknown-block'),
+    )
+  })
+
   it('refuses a Block with no starting props, and forgets the refusal at the next edit', () => {
     const refused = step(
       PageBuilder.initial,
@@ -699,6 +709,11 @@ describe('copy, cut and paste', () => {
         'no part of a page',
       ],
       ['just some text', 'no part of a page'],
+      // Named by the ids copied, not by those a paste would mint.
+      [
+        clip({ root: 'x', nodes: { x: heading('A'), stray: heading('B') } }),
+        '"stray", which its root does not reach',
+      ],
     ]
     for (const [text, why] of refusals) {
       const refused = paste(page, text)
@@ -902,6 +917,41 @@ describe('text edited in place', () => {
   it('ends when the selection moves to another node', () => {
     const moved = send(typed(page, ['On']), Message.Selected({ id: id('h2') }))
     expect(moved.editing).toEqual(Option.none())
+  })
+
+  it('ends at an undo, which changes the page under the field', () => {
+    const undone = send(typed(page, ['On!']), Message.Undid())
+    expect(undone.editing).toEqual(Option.none())
+    expect(textOf(undone)).toBe('One')
+  })
+
+  it('puts the text back on Escape when another edit came between', () => {
+    const between = send(
+      typed(page, ['On!']),
+      Message.Applied({ op: Composition.Op.setProp(id('h1'), 'text', 'On!') }),
+    )
+    const cancelled = send(between, Message.EditingCancelled({ field: title }))
+    expect(textOf(cancelled)).toBe('One')
+    expect(cancelled.editing).toEqual(Option.none())
+  })
+
+  it('records no empty step for a commit the page already holds', () => {
+    const between = send(
+      typed(page, ['On!']),
+      Message.Applied({ op: Composition.Op.setProp(id('h1'), 'text', 'On!') }),
+    )
+    const done = send(between, Message.EditingCommitted({ field: title, text: 'On!' }))
+    expect(done.page.past).toHaveLength(between.page.past.length)
+  })
+
+  it('keeps the session when asked again for the field being edited', () => {
+    const again = send(typed(page, ['On!']), Message.EditingAsked({ field: title }))
+    const cancelled = send(
+      send(again, Message.FieldTyped({ field: title, text: 'On!!' })),
+      Message.EditingCancelled({ field: title }),
+    )
+    expect(textOf(cancelled)).toBe('One')
+    expect(History.canUndo(cancelled.page)).toBe(false)
   })
 })
 

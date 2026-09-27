@@ -8,13 +8,15 @@
 export interface EditWords {
   /** Where a node is after an edit, after its name: ", 2 of 3 in Section body". Blanks `{position}`, `{count}`, `{container}`. */
   readonly at: string
-  /** The container of a root, and of a node in a Region: `{label}` and `{region}`. */
+  /** The container of a root. */
   readonly thePage: string
+  /** The container of a node in a Region: the holder's `{label}` and the `{region}`. */
   readonly inRegion: string
-  /** An edit, said: its node's `{label}` and, but for a removal, where it is now, `{at}`. */
+  /** An edit, said: its node's `{label}` and where it is now, `{at}`. */
   readonly moved: string
   readonly added: string
   readonly duplicated: string
+  /** A removal, said: the node's `{label}`. */
   readonly removed: string
   readonly editedPage: string
   readonly undone: string
@@ -22,18 +24,21 @@ export interface EditWords {
   /** A drag that ended with nothing done: a node, or a new one from the palette. */
   readonly notMoved: string
   readonly notAdded: string
-  /** A copy and a cut, said: `{label}`. */
+  /** A copy and a cut, said: the node's `{label}`. */
   readonly copied: string
   readonly cut: string
 
-  /** The refusals the Builder makes itself, with `{block}`, `{id}` or `{name}`. */
+  /** The refusals the Builder makes itself: nothing to paste, as nothing copied or not a page. */
   readonly nothingCopied: string
   readonly notAPage: string
+  /** A Block that cannot be inserted: `{block}`. */
   readonly noStartingProps: string
   readonly startingPropsFail: string
+  /** A node the page does not hold, or one changed while its copy was made: `{id}`. */
   readonly notANode: string
-  readonly unknownPattern: string
   readonly copyChanged: string
+  /** A pattern the Catalog lacks: `{name}`. */
+  readonly unknownPattern: string
   /** A refusal `apply` made: blanks `{code}` and `{message}`, by default its own message. */
   readonly refusal: string
 

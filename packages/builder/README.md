@@ -201,13 +201,18 @@ Enter or leaving it ─► EditingCommitted      Escape ─► EditingCancelled:
   a prop that is not text, or a field other than the one being edited is
   ignored.
 - **One session is one undo step.** Beginning ends whatever group came
-  before (`History.close`), so two sessions of one prop undo apart. Escape,
-  or text that ends where it began, takes the step back and leaves nothing
-  to redo (`History.revert`).
+  before (`History.close`), so two sessions of one prop undo apart, and a
+  second ask for the field being edited (a double-click inside it) begins
+  nothing. Escape, or text that ends where it began, takes the step back and
+  leaves nothing to redo (`History.revert`). Where another edit came between
+  (the inspector, an agent), the step is no longer the last: the text is
+  written back as a step of its own, and a commit writes nothing the page
+  already holds, so no step is empty.
 - **While text is edited, the keys are the text's:** `keyCommand` offers
   nothing, so Backspace deletes a letter, not the block.
 - **Editing ends when its node is no longer the one selected**, as a click
-  elsewhere or a removal makes it.
+  elsewhere or a removal makes it, and at an undo or a redo, which change the
+  page under the field.
 - The canvas freezes the field at `initial` so a redraw never rewrites the
   element under the caret; the text is read by `foldkit-primitives`'
   `EditableText`, which `foldkit-mixins-builder` attaches to the canvas.
@@ -226,7 +231,8 @@ pastes in another.
   `ClipboardRead({ text })`. Text read wins; the Model's copy is used only when
   the browser would not let the clipboard be read.
 - **The text is untrusted.** It is decoded strictly (a key it should not have
-  is refused, not dropped), each node gets a newly minted id by
+  is refused, not dropped), checked by its own ids (`Composition.treeRefusal`),
+  so a refusal names what was copied, then each node gets a newly minted id by
   `Composition.rekey`, and the tree goes in by one `insertTree`, which checks
   every node against the Catalog. Anything that does not decode or fit (text
   that is not part of a page, an unknown Block, a prop of the wrong type, a

@@ -375,6 +375,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-builder`, text edited in place:** Escape puts the text back even
+  where another edit came between, a commit writes nothing the page already
+  holds, a second ask for the field being edited begins nothing, and an undo
+  or a redo ends editing. A Block named as one of `Object`'s own names is not
+  taken for one with starting props, and a pasted tree is checked by its own
+  ids, so a refusal names what was copied rather than freshly minted ids.
+
 - **`foldkit-composition`:** `field(key)` takes only a prop that is exactly
   `string`; a list of names (`'plain' | 'accent'`) is no longer a field. An
   id that is one of `Object`'s own names (`toString`, `constructor`,

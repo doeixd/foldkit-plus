@@ -711,7 +711,7 @@ export const Builder = {
     const startingProps = (name: string): Option.Option<Readonly<Record<string, Schema.Json>>> => {
       // Read as any Block: the starting props were checked against theirs in `make`.
       const block: AnyBlock | undefined = Catalog.block(catalog, name)
-      // A Block with no starting props has nothing to encode, and is none too.
+      // A Block the Catalog lacks has none; one given no starting props fails to encode, below.
       if (block === undefined) return Option.none()
       return Result.getSuccess(Result.flatMap(Block.encode(block, starters[name]), storedProps))
     }
@@ -990,7 +990,7 @@ export const Builder = {
         case 'Applied':
           return applyOp(model, message.op)
         case 'InsertAsked':
-          return starters[message.block] === undefined
+          return !Object.hasOwn(starters, message.block)
             ? refuse(model, {
                 code: 'composition:unknown-block',
                 message: fillWords(words.noStartingProps, { block: message.block }),
@@ -1066,6 +1066,16 @@ export const Builder = {
               code: 'builder:nothing-to-paste',
               message: Option.isSome(message.text) ? words.notAPage : words.nothingCopied,
             })
+          // Checked by its own ids, before new ones are minted, so a refusal names what was copied.
+          const wrong = Composition.treeRefusal(catalog, tree.value)
+          if (Option.isSome(wrong))
+            return refuse(model, {
+              ...wrong.value,
+              message: fillWords(words.refusal, {
+                code: wrong.value.code,
+                message: wrong.value.message,
+              }),
+            })
           const root = tree.value.nodes[tree.value.root]
           // Where it fits by the selection; else last, where `apply` says why it does not.
           const at = Option.getOrElse(
@@ -1100,6 +1110,8 @@ export const Builder = {
             }),
           })
         case 'EditingAsked':
+          // A second ask for the field being edited, a double-click inside it, begins nothing.
+          if (Option.isSome(editingOf(model, message.field))) return { model }
           return Option.match(fieldOf(message.field), {
             onNone: () => ({ model }),
             onSome: ({ id, key }) => {
@@ -1136,19 +1148,16 @@ export const Builder = {
           return Option.match(editingOf(model, message.field), {
             onNone: () => ({ model }),
             onSome: editing => {
-              const ended = { ...model, editing: Option.none() }
               const kept = message._tag === 'EditingCommitted' ? message.text : editing.initial
-              // Back where it began, it leaves no step at all.
-              if (kept === editing.initial)
-                return {
-                  model: { ...ended, page: History.revert(model.page, editingGroup(editing)) },
-                }
-              // In the session's step: what was typed is there already, or this is its first change.
-              return applyOp(
-                ended,
-                Composition.Op.setProp(editing.id, editing.key, kept),
-                editingGroup(editing),
-              )
+              const group = editingGroup(editing)
+              // Back where it began, the session's step is taken back, while it is still the last.
+              const page = kept === editing.initial ? History.revert(model.page, group) : model.page
+              const ended = { ...model, page, editing: Option.none() }
+              // Written only where the page does not hold it yet, so no step is empty; and
+              // written where another edit came between, so Escape still puts the text back.
+              return documentOf(ended).nodes[editing.id]?.props[editing.key] === kept
+                ? { model: ended }
+                : applyOp(ended, Composition.Op.setProp(editing.id, editing.key, kept), group)
             },
           })
         case 'Minted': {
@@ -1223,6 +1232,8 @@ export const Builder = {
               page,
               selected: keptIn(page.present, model.selected),
               refused: Option.none(),
+              // The page changed under the field being edited: it is drawn from the page again.
+              editing: Option.none(),
             },
             commands: announce(message._tag === 'Undid' ? words.undone : words.redone),
           }
@@ -1395,7 +1406,7 @@ export const Builder = {
       const palette = h.nav(
         [h.Class('builder-palette'), h.AriaLabel('Insert')],
         catalog.blocks
-          .filter(block => starters[block.name] !== undefined)
+          .filter(block => Object.hasOwn(starters, block.name))
           .map(block => {
             return button(
               `Add ${block.name}`,
@@ -1706,7 +1717,7 @@ export const Builder = {
       inspecting,
       /** The Blocks a new node may be, in the Catalog's order: those with starting props. */
       offered: catalog.blocks
-        .filter(block => starters[block.name] !== undefined)
+        .filter(block => Object.hasOwn(starters, block.name))
         .map(block => block.name),
       /** The Document a Builder Model is editing: its history's present. */
       document: documentOf,
