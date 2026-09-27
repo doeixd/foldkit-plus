@@ -197,6 +197,8 @@ export interface SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded> 
 
 export interface Sync<Message, Shared> {
   readonly documentId: DocumentId
+  /** Whether a Message is one the replica records and replays. */
+  readonly durable: (message: Message) => boolean
   /**
    * Low-level wire codecs for adapters and the transport. Most applications use
    * `journalContract` and `openReplica`; these are exposed for a custom
@@ -781,6 +783,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
 
   return {
     documentId,
+    durable: definition.durable,
     codec: { normalizeOperation, operationFrom, committedFrom, decodeExchange },
     journalContract,
     openReplica,

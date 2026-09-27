@@ -56,6 +56,9 @@ describe('Sync.forApplication', () => {
     expect(inspection.name).toBe('todos')
     expect(inspection.dependencies).toEqual([['todos']])
     expect(inspection.emits).toEqual([Message.CreatedTodo, Message.RenamedTodo])
+    // The durable subset, asked of the contract rather than restated by the caller.
+    expect(TodoSync.durable(Message.RenamedTodo({ id: 'a', title: 'B' }))).toBe(true)
+    expect(TodoSync.durable(Message.SelectedTodo({ id: 'a' }))).toBe(false)
   })
 
   it('replays durable Messages through update and refuses local ones', async () => {

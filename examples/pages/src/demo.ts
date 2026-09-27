@@ -27,8 +27,6 @@ const memoryStorage = (): Storage => {
   }
 }
 
-const durable = new Set<string>(['CreatedPage', 'RenamedPage', 'DeletedPage', 'EditedPage'])
-
 /** One person: a replica, and the Model their tab would hold. */
 interface Person {
   readonly name: string
@@ -45,7 +43,7 @@ const person = async (name: string): Promise<Person> => ({
 /** Dispatches as `Sync.mount` would: the Message, then the facts it returns, persisting what is durable. */
 const dispatch = async (who: Person, message: Message): Promise<void> => {
   const result = update(who.model, message)
-  if (durable.has(message._tag)) await Effect.runPromise(who.replica.submit(message))
+  if (PagesSync.durable(message)) await Effect.runPromise(who.replica.submit(message))
   who.model = result.model
   for (const command of result.commands ?? []) {
     if (command.name !== 'foldkit-sync/fact') continue

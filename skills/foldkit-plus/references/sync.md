@@ -105,7 +105,8 @@ const program = Effect.gen(function* () {
   **sends nothing**. `replica.start` is the loop: one exchange, then one after
   each submit. A failed exchange lands in `status.lastError` and is retried on
   a backoff (0.5 s to 30 s), or at once on the next submit. A contract's
-  optional `coalesce(last, next)` merges a submit into the last operation while
+  `durable(message)` says whether a Message is recorded. The optional
+  `coalesce(last, next)` merges a submit into the last operation while
   no exchange has carried it (a burst of typing becomes one operation).
 - Also available: `changes` (a stream of status + shared), `snapshot`,
   `statusChanges`, `committed`, and `close`. Transports: `Sync.transport.socket`

@@ -121,6 +121,11 @@ const status = (replica: Replica<Message, Shared>): Promise<ReplicaStatus> =>
 const close = (replica: Replica<Message, Shared>): Promise<void> => Effect.runPromise(replica.close)
 
 describe('the operation codec', () => {
+  it('says which Messages are durable, as the definition does', () => {
+    expect(Sync.durable(created('t'))).toBe(true)
+    expect(Sync.durable({ _tag: 'SelectedTodo', id: 't' })).toBe(false)
+  })
+
   it('normalizes a valid operation and refuses a broken identity', () => {
     const valid = operation('a', 1, created('t'))
     expect(Sync.codec.normalizeOperation(valid)).toEqual(valid)

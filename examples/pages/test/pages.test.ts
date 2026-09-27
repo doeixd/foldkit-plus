@@ -45,9 +45,6 @@ const textOf = (shared: Shared, id: string): ReadonlyArray<string> => {
   )
 }
 
-// The contract's durable set, which its declared `Sync` type does not expose.
-const durable = new Set<string>(['CreatedPage', 'RenamedPage', 'DeletedPage', 'EditedPage'])
-
 /**
  * Runs one of Bob's edits through the application's `update` and submits what is durable,
  * the Message itself or the facts it returns, to his replica, as `Sync.mount` would.
@@ -58,7 +55,7 @@ const bobEdits = async (
   message: Message,
 ): Promise<Model> => {
   const result = update(model, message)
-  if (durable.has(message._tag)) await Effect.runPromise(replica.submit(message))
+  if (PagesSync.durable(message)) await Effect.runPromise(replica.submit(message))
   let next = result.model
   for (const command of result.commands ?? []) {
     if (command.name !== 'foldkit-sync/fact') continue
