@@ -1,7 +1,7 @@
 # Foldkit Plus Rich Text
 
-**Status:** §124's Markdown-first order is the one being followed; its milestones 1–5 are
-built and 6 is under way. Built: the standard vocabulary and content rules (§125); the
+**Status:** §124's Markdown-first order is the one being followed; its milestones 1–5, 7, and 8
+are built, 6 lacks only dragging, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
 decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
 Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
@@ -12,11 +12,12 @@ status line, the command palette, the floating toolbar's anchor, and the block h
 (§119, §123, §132, §133, §134, §141, §142, §143, §144), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
-(§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
+(§136, §137), with the writer's spellings per construct and per block (§138, §146) and the
+caret carried across a mode switch (§147).
 Milestone 8's form control and its CMS example are built (§139, §140).
 Milestone 9 has begun: the adapter adopts matching server markup (§145).
-Still to do: dragging blocks (milestone 6), the rest of source mode, the rest of SSR (§145 names
-the open decision), real-browser hardening, collaboration, presence, and agents, in
+Still to do: dragging blocks (milestone 6), the rest of SSR (§145 names the open decision),
+real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
 the stateful-Form control is spiked, and the collaboration proof is unstarted.
