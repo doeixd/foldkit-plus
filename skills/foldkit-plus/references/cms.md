@@ -84,7 +84,8 @@ Placed.helpers.create(Cms.newEntryId()) // make the id in a Command or handler, 
 Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked, RestoreAsked({ revision }), UnpublishAsked,
 // ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Saving Saved Conflict SaveFailed
-// Publishing Published PublishFailed Incomplete (the form's checks stopped it; until the next edit)
+// Publishing (sent, or waiting on a check) Published PublishFailed
+// Incomplete (the form's checks stopped it; until the next edit)
 // Scheduling Scheduled ScheduleFailed
 PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model) // each an Option
 PostEditor.may(model, 'publish') // `allow`'s answer for this principal, read with the entry; false until then.

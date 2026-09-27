@@ -404,9 +404,10 @@ version changed; `pnpm` skips versions already in the registry.
 ### Changed
 
 - **`foldkit-cms`, editor status:** a publish or a schedule the form's own
-  checks stop is `Incomplete` (a new `EditorStatus`) until the next edit;
-  before, the status stayed what the last save said, "Saved", so a refused
-  publish read as a success.
+  checks stop is `Incomplete` (a new `EditorStatus`) until the next edit, and
+  one waiting for a check reads `Publishing`; before, the status stayed what
+  the last save said, "Saved", so a refused publish read as a success.
+  `EditorForm` gains `engine.isValidating`, which `Form.make` provides.
 
 - **`foldkit-builder`, dropping:** where the node dragged over has no place
   for what is dragged, it lands by the nearest node holding it that does,

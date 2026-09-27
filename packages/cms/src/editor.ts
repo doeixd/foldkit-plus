@@ -91,8 +91,11 @@ export interface EditorModel<FormModel> {
   readonly saveWanted: boolean
   readonly publishId: string | null
   readonly publishWanted: boolean
-  /** Whether the last publish or schedule asked was stopped by the form's checks, and not edited since. */
-  readonly incomplete: boolean
+  /**
+   * The last publish or schedule asked, as the form took it: waiting for a
+   * check still running, or stopped by one and not edited since; else idle.
+   */
+  readonly submit: 'idle' | 'waiting' | 'stopped'
   /** When the publish that is wanted, under way or last settled is a promise for later: for when. */
   readonly scheduleAt: string | null
   /** The discard or unpublish in progress or last settled. */
@@ -156,6 +159,8 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}, Servi
    * same way a text field does, and a blur or a refused edit does not.
    */
   authoredChanged(before: FormModel, after: FormModel): boolean
+  /** Whether a check is still running, which a submit waits for. */
+  readonly engine: { readonly isValidating: (model: FormModel) => boolean }
   readonly field: (
     model: FormModel,
     key: never,
@@ -309,7 +314,7 @@ export const makeEditor =
       saveWanted: false,
       publishId: null,
       publishWanted: false,
-      incomplete: false,
+      submit: 'idle',
       scheduleAt: null,
       otherId: null,
       previewing: false,
@@ -328,7 +333,7 @@ export const makeEditor =
       saveWanted: Schema.Boolean,
       publishId: Schema.NullOr(Schema.String),
       publishWanted: Schema.Boolean,
-      incomplete: Schema.Boolean,
+      submit: Schema.Literals(['idle', 'waiting', 'stopped']),
       scheduleAt: Schema.NullOr(Schema.String),
       otherId: Schema.NullOr(Schema.String),
       previewing: Schema.Boolean,
@@ -402,10 +407,20 @@ export const makeEditor =
             ]
           : []),
       ]
-      // A submit the form stopped is said until the next edit; one that went through is a publish.
-      const incomplete =
-        message._tag === 'Submitted' ? next.outMessage === undefined : model.incomplete && !edited
-      const result = { model: { ...model, form: next.model, edits, incomplete }, commands }
+      // A submit the form stopped is said until the next edit: stopped at once, or once
+      // the check it waited for answered without letting it go.
+      const validating = form.engine.isValidating(next.model)
+      const submit: Model['submit'] =
+        next.outMessage !== undefined || edited
+          ? 'idle'
+          : message._tag === 'Submitted'
+            ? validating
+              ? 'waiting'
+              : 'stopped'
+            : model.submit === 'waiting' && !validating
+              ? 'stopped'
+              : model.submit
+      const result = { model: { ...model, form: next.model, edits, submit }, commands }
       return next.outMessage === undefined ? result : { ...result, outMessage: { _tag: 'Publish' } }
     }
 
@@ -1015,9 +1030,11 @@ export const makeEditor =
             const publish = statusOf(root, editor.publishId)
             const save = statusOf(root, editor.saveId)
             const later = editor.scheduleAt !== null
-            if (publish._tag === 'Pending') return later ? 'Scheduling' : 'Publishing'
+            // A submit waiting for a check is on its way, as one sent is.
+            if (publish._tag === 'Pending' || editor.submit === 'waiting')
+              return later ? 'Scheduling' : 'Publishing'
             if (save._tag === 'Pending' || editor.settling === 'overwrite') return 'Saving'
-            if (editor.incomplete) return 'Incomplete'
+            if (editor.submit === 'stopped') return 'Incomplete'
             const conflicted = (status: MutationStatus) =>
               status._tag === 'Failed' && status.error.message.includes('CmsConflict')
             if (editor.edits > editor.savedEdit) return 'Editing'

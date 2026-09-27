@@ -3,7 +3,7 @@
  * editor is driven end to end against a real server in `foldkit-cms-drizzle`;
  * this is the part that needs a failure arranged, so the domain is a stub.
  */
-import { Option, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
@@ -300,5 +300,62 @@ describe('a publish the form stops', () => {
       undefined,
     ).model
     expect(status(typed)).toBe('Editing')
+    // Asked again with the field filled, it goes out, and is no longer said to be stopped.
+    const again = Editor.bundle.update(typed, Editor.Message.PublishAsked(), undefined)
+    expect(again.outMessage).toEqual({ _tag: 'Publish' })
+    expect(again.model.submit).toBe('idle')
+  })
+})
+
+describe('a publish that waits for a check', () => {
+  // An address is taken where it is "taken": answered by a check, not the schema.
+  const CheckedForm = Form.make('CheckedForm', Entity.input(Post, PostInput), {
+    checks: {
+      slug: (slug: string) => Effect.succeed(slug === 'taken' ? 'is taken' : undefined),
+    },
+    debounce: 0,
+  })
+  const Checked = Cms.editor('CheckedEditor', {
+    content: Cms.content('checked', { ...Posts, form: CheckedForm }),
+    rest: 0,
+  })
+  type CheckedModel = ReturnType<typeof Checked.bundle.init>['model']
+  type Step = ReturnType<typeof Checked.bundle.update>
+  /** The Messages the check's Commands answer with, the rest left alone. */
+  const answers = (step: Step) =>
+    Promise.all(
+      (step.commands ?? [])
+        .filter(command => !command.name.endsWith('.rest'))
+        .map(command => Effect.runPromise(command.effect)),
+    )
+  const typed = (model: CheckedModel, slug: string) =>
+    Checked.bundle.update(
+      Checked.bundle.update(
+        model,
+        CheckedForm.Message.Changed({ key: 'title', value: 'T' }),
+        undefined,
+      ).model,
+      CheckedForm.Message.Changed({ key: 'slug', value: slug }),
+      undefined,
+    )
+
+  it('is on its way while the check runs, and stopped only once it fails', async () => {
+    const opened = { ...Checked.bundle.init(undefined).model, mode: 'new' as const, entry: 'e2' }
+    for (const [slug, settled] of [
+      ['taken', 'stopped'],
+      ['free', 'idle'],
+    ] as const) {
+      const edited = typed(opened, slug)
+      const asked = Checked.bundle.update(edited.model, Checked.Message.PublishAsked(), undefined)
+      expect(asked.outMessage).toBeUndefined()
+      expect(asked.model.submit).toBe('waiting')
+      // The check answers; the submit that waited goes out, or is stopped.
+      const answered = (await answers(edited)).reduce<Step>(
+        (step, message) => Checked.bundle.update(step.model, message, undefined),
+        asked,
+      )
+      expect(answered.model.submit).toBe(settled)
+      expect(answered.outMessage).toEqual(settled === 'idle' ? { _tag: 'Publish' } : undefined)
+    }
   })
 })

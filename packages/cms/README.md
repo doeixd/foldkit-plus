@@ -167,7 +167,8 @@ PostEditor.storedEntry(model) // Option: the entry the server knows, none until 
   forget, and a validation error never costs an author their work.
 - **A publish the form's own checks stop is `Incomplete`**, not whatever the
   last save said: nothing was sent, the failing fields say why, and the next
-  edit clears it.
+  edit clears it. One waiting for a check still running (an address being
+  looked up) is `Publishing` until the check answers.
 - **What counts as an edit is the form's answer, not a Message tag.** The editor
   asks `form.authoredChanged(before, after)`, so a blur, a refusal, or a repeated
   value starts no rest, while a control the editor has never heard of — a
