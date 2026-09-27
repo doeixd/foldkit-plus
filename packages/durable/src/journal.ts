@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as SqliteClient from '@effect/sql-sqlite-node/SqliteClient'
 import {
   Config,
@@ -41,7 +41,7 @@ import {
   UnsupportedJournalVersionError,
 } from './errors.js'
 
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 
 /** Counters an application can scrape; the default registry already collects them. */
 export const journalMetrics = {
@@ -126,6 +126,14 @@ export interface JournalOptions<
    * only after another connection changed the document.
    */
   readonly snapshotEvery?: number
+  /**
+   * The replica an operation came from, when operations carry one. The first commit from a
+   * replica binds it to the committing actor, per document, and an operation from that
+   * replica by any other actor is refused (`OperationRejectedError`) before `validate`
+   * runs. Without it, one actor could commit an id another replica will use and have that
+   * replica's operation answered as already committed.
+   */
+  readonly replicaId?: (operation: Operation) => string
 }
 
 /**
@@ -194,6 +202,12 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
    * appends anything.
    */
   readonly cursor: (key: DocumentId) => Effect.Effect<Cursor, JournalError>
+  /**
+   * The identity of the document's history: the same while its operations are kept, new
+   * after `reset` or on a new database file. A client that saw another epoch holds a
+   * cursor into history this journal does not have, and must start again from `0`.
+   */
+  readonly epoch: (key: DocumentId) => Effect.Effect<string, JournalError>
   /** The highest sequence whose payload has been compacted away; `0` if none. */
   readonly floor: (key: DocumentId) => Effect.Effect<Sequence, JournalError>
   /**
@@ -272,9 +286,10 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
     options: RecoveryOptions<Operation>,
   ) => Effect.Effect<Cursor, InvalidCursorError | CompactedCursorError | JournalError>
   /**
-   * Drops a document's snapshot and operations. Effect records are keyed by
-   * the application's own effect identity, not by document, so they are not
-   * scoped to a key; `clearEffect` removes one.
+   * Drops a document's snapshot and operations, and its epoch, so the next `epoch` differs.
+   * Replica bindings stay: they are who a replica is, not history. Effect records are keyed
+   * by the application's own effect identity, not by document, so they are not scoped to a
+   * key; `clearEffect` removes one.
    */
   readonly reset: (key: DocumentId) => Effect.Effect<void, JournalError>
   /**
@@ -565,6 +580,13 @@ const migrate = (
           yield* sql`ALTER TABLE documents ADD COLUMN snapshot_cursor INTEGER NOT NULL DEFAULT 0`
           yield* sql`UPDATE documents SET snapshot_cursor = cursor`
         }
+        if (current < 5) {
+          yield* sql`CREATE TABLE IF NOT EXISTS epochs (key TEXT PRIMARY KEY, epoch TEXT NOT NULL)`
+          yield* sql`CREATE TABLE IF NOT EXISTS replicas (
+            key TEXT NOT NULL, replica_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+            PRIMARY KEY (key, replica_id)
+          )`
+        }
         // A literal, not a bound parameter: SQLite rejects a placeholder in a
         // PRAGMA assignment. Built from SCHEMA_VERSION so the two cannot drift.
         yield* sql.unsafe(`PRAGMA user_version = ${SCHEMA_VERSION}`)
@@ -687,6 +709,19 @@ const makeShape = <
       Effect.catchTag('SqlError', asJournalError('Could not read the cursor')),
     )
     return toCursor(rows[0]?.cursor ?? 0)
+  })
+
+  const epoch: Shape['epoch'] = Effect.fn('Journal.epoch')(function* (key: DocumentId) {
+    yield* Effect.annotateCurrentSpan({ key })
+    const rows = yield* sql
+      .withTransaction(
+        Effect.gen(function* () {
+          yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
+          return yield* sql<{ readonly epoch: string }>`SELECT epoch FROM epochs WHERE key = ${key}`
+        }),
+      )
+      .pipe(Effect.catchTag('SqlError', asJournalError('Could not read the epoch')))
+    return String(rows[0]!.epoch)
   })
 
   const floor: Shape['floor'] = Effect.fn('Journal.floor')(function* (key: DocumentId) {
@@ -850,6 +885,24 @@ const makeShape = <
           result: { _tag: 'AlreadyCommitted' as const, opId, sequence, actorId: priorActor },
           changed: false,
         }
+      }
+      if (options.replicaId !== undefined) {
+        const replica = yield* Effect.try({
+          try: () => options.replicaId!(operation),
+          catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+        })
+        const bound = yield* sql<{
+          readonly actor_id: string
+        }>`SELECT actor_id FROM replicas WHERE key = ${key} AND replica_id = ${replica}`
+        if (bound.length === 0)
+          yield* sql`INSERT INTO replicas (key, replica_id, actor_id) VALUES (${key}, ${replica}, ${actorId})`
+        else if (String(bound[0]!.actor_id) !== actorId)
+          return yield* Effect.fail(
+            new OperationRejectedError({
+              opId,
+              message: `Operation "${opId}" names a replica another actor holds`,
+            }),
+          )
       }
       const { snapshot, cursor, snapshotCursor } = yield* materialize(key, working).pipe(
         Effect.catchTag('JournalError', error =>
@@ -1081,6 +1134,7 @@ const makeShape = <
         Effect.gen(function* () {
           yield* sql`DELETE FROM operations WHERE key = ${key}`
           yield* sql`DELETE FROM documents WHERE key = ${key}`
+          yield* sql`DELETE FROM epochs WHERE key = ${key}`
         }),
       )
       .pipe(Effect.catchTag('SqlError', asJournalError('Could not reset the document')))
@@ -1206,6 +1260,7 @@ const makeShape = <
   return {
     load,
     cursor,
+    epoch,
     floor,
     read,
     append,

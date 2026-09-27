@@ -300,6 +300,12 @@ in pages. Sync's exchange carries `more` for this.
 operation's sequence is not accidentally accepted where a read cursor is
 expected.
 
+A cursor only means something within one history. `epoch(key)` names the
+document's: it stays the same while the operations are kept, and is new after
+`reset(key)` or in a new database file. A server hands it to its clients; a
+client that comes back with another epoch holds a cursor into history this
+journal does not have, and has to start again from `0`.
+
 ## Idempotency and append results
 
 A successful first append returns `Committed`, including the operation, `opId`,
@@ -351,6 +357,12 @@ const hooks: Pick<
     },
 }
 ```
+
+When operations carry the replica that made them, `replicaId: operation =>
+operation.replicaId` binds each replica to the actor of its first commit, per
+document, and refuses any other actor's operation from it before `validate`
+runs. Without it, one actor could commit an id another replica will use, and
+that replica's own operation would then be answered as already committed.
 
 Authorization may return `true` / `false`, a refusal carrying a reason, or an
 Effect producing either. A refusal becomes `OperationRejectedError`; a supplied

@@ -86,7 +86,7 @@ const missing = documentId('missing')
 type Hooks = Partial<
   Pick<
     JournalOptions<Operation, Snapshot, Principal>,
-    'validate' | 'authorize' | 'reduce' | 'snapshotEvery'
+    'validate' | 'authorize' | 'reduce' | 'snapshotEvery' | 'replicaId'
   >
 >
 
@@ -689,7 +689,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 })
         // The payload identity is recomputed canonically, so a later retransmission
         // with a different key order still proves its payload.
         expect(
@@ -735,7 +735,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 })
       } finally {
         migrated.close()
       }
@@ -762,7 +762,7 @@ describe('a durable journal', () => {
         CREATE TABLE effects (
           key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
         );
-        PRAGMA user_version = 5;
+        PRAGMA user_version = 6;
       `)
       newer.close()
 
@@ -773,12 +773,12 @@ describe('a durable journal', () => {
       )
       expect(result).toMatchObject({
         _tag: 'Failure',
-        failure: { _tag: 'UnsupportedJournalVersionError', found: 5, supported: 4 },
+        failure: { _tag: 'UnsupportedJournalVersionError', found: 6, supported: 5 },
       })
 
       const after = new DatabaseSync(path)
       try {
-        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 })
+        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
       } finally {
         after.close()
       }
@@ -843,6 +843,92 @@ describe('a durable journal', () => {
       expect(seen).toEqual(['todos'])
       expect((yield* journal.load(todos)).cursor).toBe(1)
     }))
+})
+
+describe('a replica bound to its actor', () => {
+  // An operation's replica is its opId up to the colon: `a:1` is replica `a`'s.
+  const byReplica: Hooks = { replicaId: value => value.opId.split(':')[0]! }
+  const intruder: Principal = { actorId: 'intruder', canWrite: true }
+  const refused = { _tag: 'Failure', failure: { _tag: 'OperationRejectedError' } }
+
+  it('refuses another actor an operation from a replica the first commit bound', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1, 'a'), principal)
+      expect(yield* Effect.result(journal.append(todos, add(2, 'b'), intruder))).toMatchObject(
+        refused,
+      )
+      // The owner goes on, and the other actor's own replica is its own.
+      yield* journal.append(todos, add(2, 'b'), principal)
+      yield* journal.append(todos, { opId: 'b:1', kind: 'add', id: 'c' }, intruder)
+      expect((yield* journal.load(todos)).snapshot.ids).toEqual(['a', 'b', 'c'])
+    }, byReplica))
+
+  it('binds nothing when the first commit is refused', () =>
+    withJournal(
+      function* (journal) {
+        yield* Effect.result(journal.append(todos, add(1, 'refused'), principal))
+        yield* journal.append(todos, add(2, 'b'), intruder)
+        expect((yield* journal.load(todos)).snapshot.ids).toEqual(['b'])
+      },
+      {
+        ...byReplica,
+        validate: ({ operation }) => {
+          if (operation.id === 'refused') throw new Error('refused')
+        },
+      },
+    ))
+
+  it('binds per document, and keeps the binding through a reset', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1, 'a'), principal)
+      yield* journal.append(docA, add(1, 'a'), intruder)
+      yield* journal.reset(todos)
+      expect(yield* Effect.result(journal.append(todos, add(1, 'a'), intruder))).toMatchObject(
+        refused,
+      )
+    }, byReplica))
+
+  it('lets anyone use any replica when operations name none', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1, 'a'), principal)
+      yield* journal.append(todos, add(2, 'b'), intruder)
+      expect((yield* journal.load(todos)).cursor).toBe(2)
+    }))
+})
+
+describe('a document’s epoch', () => {
+  it('stays while its history is kept, and is new after a reset, for that document only', () =>
+    withJournal(function* (journal) {
+      const first = yield* journal.epoch(todos)
+      yield* journal.append(todos, add(1, 'a'), principal)
+      expect(yield* journal.epoch(todos)).toBe(first)
+      const other = yield* journal.epoch(docA)
+      expect(other).not.toBe(first)
+      yield* journal.reset(todos)
+      expect(yield* journal.epoch(todos)).not.toBe(first)
+      expect(yield* journal.epoch(docA)).toBe(other)
+    }))
+
+  it('survives reopening the file, and is new in another file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-epoch-'))
+    try {
+      const path = join(directory, 'journal.sqlite')
+      const read = (file: string) =>
+        withJournal(
+          journal =>
+            (function* () {
+              return yield* journal.epoch(todos)
+            })(),
+          {},
+          file,
+        )
+      const first = await read(path)
+      expect(await read(path)).toBe(first)
+      expect(await read(join(directory, 'other.sqlite'))).not.toBe(first)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('the journal surface', () => {
