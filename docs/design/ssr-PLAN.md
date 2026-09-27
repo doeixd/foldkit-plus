@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A to F, and G (G1 to G5) done, and G6's time half. Next: a decision on G6's size half. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, and A to G done, G6 included: its time is within a frame, and its size risk is closed with the numbers. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -1048,7 +1048,8 @@ that can fail, or, for G4, a recorded measurement.
     `envelopeEvents.test.ts`, `deferredEvents.test.ts`, the events case in
     `listen.test.ts`, and a malformed case per check `readBindings` makes;
     each has a mutation that fails it.
-  - **Size: open, and not met by an encoding alone.** The gzipped bindings
+  - **Size: closed with the numbers** (decided 2026-09-27), since it is not
+    met by an encoding alone. The gzipped bindings
     are 21% of the gzipped page. The 3,000 ids alone gzip to 1.6 KB, so the
     entries' 8.5 KB is mostly structure, but the encodings measured without
     knowing which bindings share a value do not reach a tenth: a template
@@ -1058,10 +1059,12 @@ that can fail, or, for G4, a recorded measurement.
     is the design's fix, which needs the rows to be a keyed placement, and
     this bench's are not. The page is also unusually bare, three bindings on
     a row with almost no markup, which inflates the ratio. What to do next
-    is a choice: build the design's fix for keyed placements, which leaves
+    was a choice: build the design's fix for keyed placements, which leaves
     a list like this bench's where it is; adopt the per-template columns,
     a protocol change for a partial gain; or close the size risk with these
-    numbers.
+    numbers. It is closed: about 2.9 bytes gzipped per binding, the ratio
+    inflated by a bare page, and no change to the envelope's format. The
+    keyed-placement fix stays the answer if a real page shows the cost.
 
 - **G5. Stop depending on when `hydrate` commits.** Deferred boot assumes the
   first render, listeners included, lands inside the event that boots the
