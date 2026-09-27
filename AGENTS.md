@@ -470,6 +470,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   Mount's stream neither ended nor reported, and the observer it left called
   `measure` later ("Cannot access 'sizes' before initialization"). Make every
   observer before any observes, and test with the constructor stubbed away.
+- **A view input may hold no nested function.** `h.submodel` throws on a
+  function below the top level of `viewInputs`. The plan's sketch made each
+  word that takes a value a function, and the Builder's words, a nested
+  object, would have crashed it drawn through `BuilderView.submodel`, as the
+  CMS draws it; a test drawing it directly passed. `fillWords`' doc comment
+  already said why words are text with blanks. Read the convention in the
+  code before a plan's sketch, and test a view input through a submodel.
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
