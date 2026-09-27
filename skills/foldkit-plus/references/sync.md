@@ -150,8 +150,9 @@ await mounted.dispose()                                        // waits for in-f
 
 - A durable Message runs through `update` **immediately**, and a Command then
   persists it. A refused or failed persist reverts the edit and calls
-  `onPersistenceFailure`. The shared slice is reinstalled only when an exchange
-  commits, acknowledges, or rejects something.
+  `onPersistenceFailure`. Outside `update`, the shared slice is reinstalled only
+  when an exchange commits, acknowledges, or rejects something, and when a
+  failed persist reverts.
 - Options: `subscriptions` + `resources` (for example, Mirror entries and their
   Layer), `url: { init, onUrlChange, onUrlRequest? }`, and `onReinstall(next,
   previous)`, which returns the transition when an exchange or a failed persist
