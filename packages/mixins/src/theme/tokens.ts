@@ -57,12 +57,13 @@ export const tokens = define({
 
 export type Tokens = typeof tokens
 
-const MIN_WIDTH = /^\(min-width:\s*(\d+(?:\.\d+)?)(rem|px)\)$/
+// A plain `min-width`, of the window or of a named container.
+const MIN_WIDTH = /^(?:@container\s+[\w-]+\s+)?\(min-width:\s*(\d+(?:\.\d+)?)(rem|px)\)$/
 
 /**
  * Each breakpoint query's `min-width` in pixels (rem at 16), so CSS and the
  * Model agree on what `md` means. A query that is not a plain `min-width`
- * is refused: it has no single threshold.
+ * is refused: it has no single threshold. A container's is its container's.
  */
 export const breakpointWidths = (theme: {
   readonly breakpoint: { readonly [name: string]: string }
@@ -84,3 +85,20 @@ export const breakpointWidths = (theme: {
   }
   return Object.freeze(widths)
 }
+
+/**
+ * The same breakpoints measured on a named container rather than the window:
+ * `Theme.inContainer('page', Theme.tokens.breakpoint)` gives `md` as
+ * `'@container page (min-width: 48rem)'`, for `Style.responsive` and a
+ * responsive look. An element must be that container (`container: page /
+ * inline-size`) for them to match.
+ */
+export const inContainer = <Breakpoints extends Readonly<Record<string, string>>>(
+  name: string,
+  breakpoints: Breakpoints,
+): { readonly [K in keyof Breakpoints]: string } =>
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(breakpoints).map(([at, query]) => [at, `@container ${name} ${query}`]),
+    ),
+  ) as { readonly [K in keyof Breakpoints]: string }

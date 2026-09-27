@@ -171,7 +171,9 @@ export const states = (
  * Declarations per named breakpoint, e.g.
  * `Style.responsive({ md: '(min-width: 48rem)' }, { md: { display: 'flex' } })`.
  * The breakpoint names come from the record you pass, typically a theme's, so
- * a misspelled one is a type error.
+ * a misspelled one is a type error. A breakpoint is a media query, or a whole
+ * at-rule: `'@container page (min-width: 48rem)'` measures the container named
+ * `page` rather than the window (`Theme.inContainer` writes these).
  */
 export const responsive = <Breakpoints extends Readonly<Record<string, string>>>(
   breakpoints: Breakpoints,
@@ -183,9 +185,12 @@ export const responsive = <Breakpoints extends Readonly<Record<string, string>>>
     rules: Object.freeze(
       Object.entries(map).flatMap(([name, declarations]) => {
         const query = breakpoints[name]
-        return query === undefined || declarations === undefined
-          ? []
-          : [Rules.media(query, declarations)]
+        if (query === undefined || declarations === undefined) return []
+        return [
+          query.startsWith('@')
+            ? Rules.rule('&', declarations, query)
+            : Rules.media(query, declarations),
+        ]
       }),
     ),
   })

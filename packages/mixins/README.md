@@ -294,7 +294,8 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
 - `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that
   write `data-state`; `whenInput` when the view knows, `states` when the DOM does;
 - `Style.responsive(breakpoints, { md: { display: 'flex' } })`, named breakpoints from the record
-  you pass, so a misspelled one is a type error;
+  you pass, so a misspelled one is a type error; a breakpoint is a media query or a whole at-rule,
+  such as `'@container page (min-width: 48rem)'`;
 - `Style.enter({ opacity: '0' })`, a `@starting-style` rule the element animates from, with
   `Style.allowDiscrete` when `display` takes part;
 - `Style.vars({ '--gap': '1rem' })` and `Style.viewTransitionName('hero')`, declarations;
@@ -365,6 +366,10 @@ needs relative color syntax and `light-dark()` (Chrome 123, Firefox 128, Safari 
 `Style.responsive(Theme.tokens.breakpoint, { md: { … } })` and
 `Theme.breakpointWidths(Theme.tokens)` (for the `Breakpoints` bundle) name the same breakpoints;
 a query that is not a plain `min-width` raises `theme:unparseable-breakpoint`.
+`Theme.inContainer('page', Theme.tokens.breakpoint)` is the same breakpoints measured on the
+container named `page` rather than the window: an editor's preview frame, narrow in a wide
+window, then draws a look as a narrow screen would. An element must be that container
+(`containerType: 'inline-size', containerName: 'page'`).
 
 ### Layout
 

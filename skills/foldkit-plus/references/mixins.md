@@ -317,6 +317,8 @@ them by layer order alone.
   after `Theme.root(Theme.tokens)` to avoid duplicates. The active theme is a Model field written
   as `data-theme` on the root. `Theme.breakpointWidths(Theme.tokens)` feeds the `Breakpoints`
   bundle (`theme:unparseable-breakpoint` for a non-`min-width` query).
+  `Theme.inContainer('page', Theme.tokens.breakpoint)` gives the breakpoints as
+  `'@container page (min-width: …)'`, which `Style.responsive` and a responsive look take as is.
 - Defaults and prose: `Defaults.reset` and `Defaults.all` (`body`, `headings`, `links`, `code`,
   `controls`; `all` excludes `reset`) from `foldkit-mixins/defaults` are `:where()` element CSS over
   `--fk-*` tokens with fallbacks, unlayered: place them with `L.in('reset', …)` / `L.in('defaults',

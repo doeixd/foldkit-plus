@@ -78,6 +78,19 @@ describe('Theme.tokens', () => {
     const piece = Style.responsive(Theme.tokens.breakpoint, { md: { display: 'flex' } })
     expect(piece.rules?.[0]?.at).toBe('@media (min-width: 48rem)')
   })
+
+  it('measures the same breakpoints on a named container', () => {
+    const page = Theme.inContainer('page', Theme.tokens.breakpoint)
+    expect(page.md).toBe('@container page (min-width: 48rem)')
+    const piece = Style.responsive(page, { md: { display: 'flex' } })
+    expect(piece.rules?.[0]?.at).toBe('@container page (min-width: 48rem)')
+    expect(Theme.breakpointWidths({ breakpoint: page })).toEqual({
+      sm: 640,
+      md: 768,
+      lg: 1024,
+      xl: 1280,
+    })
+  })
 })
 
 describe('Theme.breakpointWidths', () => {
