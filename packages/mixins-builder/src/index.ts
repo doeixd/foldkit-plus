@@ -1290,7 +1290,9 @@ export const BuilderView = {
             ...(drop === undefined ? [] : [h.DataAttribute(ROW_DROP_ATTRIBUTE, drop)]),
             ...(dragged ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')] : []),
             h.AriaSelected(selected),
-            h.OnClick(Message.Selected({ id: NodeId.make(id) })),
+            // Made current, as the keys make a row: it selects the node and keeps the
+            // layers showing, where `Selected` would switch a narrow editor to Settings.
+            h.OnClick(Layers.wrapper.make(TreeNavigation.Message.Focused({ id }))),
             // Pointing at a row marks its node on the page, as pointing at the page does.
             h.OnMouseEnter(Message.Hovered({ id: NodeId.make(id) })),
             h.OnMouseLeave(Message.Unhovered()),

@@ -313,7 +313,7 @@ it('draws a look for the width of its frame, not of the window', async () => {
   expect(window.innerWidth).toBeGreaterThan(1000)
 })
 
-it('shows one panel at a time when the editor is narrow, chosen by tabs and by selecting', async () => {
+it('shows one panel at a time when the editor is narrow, chosen by tabs and by selecting on the page', async () => {
   const shown = (label: string) => {
     // Rendered at all: a panel's name may be on an element inside it.
     return document.querySelector(`[aria-label="${label}"]`)?.checkVisibility() === true
@@ -339,6 +339,13 @@ it('shows one panel at a time when the editor is narrow, chosen by tabs and by s
   expect(document.querySelector('button[data-panel="layers"]')?.getAttribute('aria-pressed')).toBe(
     'true',
   )
+  // A row clicked selects its node and keeps the layers, and the focus it took, showing.
+  const row = document.querySelector<HTMLElement>('[data-builder-row="h2"]')
+  if (row === null) throw new Error('no row')
+  await userEvent.click(row)
+  await vi.waitFor(() => expect(row.getAttribute('aria-selected')).toBe('true'))
+  expect(shown('Layers')).toBe(true)
+  expect(document.activeElement).toBe(row)
   canvas()?.querySelector<HTMLElement>('[data-composition-node="h1"] h2')?.click()
   await vi.waitFor(() => expect(shown('Properties')).toBe(true))
   expect(shown('Layers')).toBe(false)

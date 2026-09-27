@@ -250,7 +250,8 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
   Style) and every panel shows. They are not ARIA tabs, which would promise
   arrow keys and a roving tab stop.
 - **The Builder chooses the panel as it always has:** a button sends
-  `PanelChosen`, and selecting a node chooses Settings. Each panel carries its
+  `PanelChosen`, and selecting a node on the page chooses Settings; a row
+  clicked in the layers selects its node and keeps the layers showing. Each panel carries its
   `id`, `data-panel` and `data-panel-shown`, and each button `aria-controls`
   it; a layout of your own that draws `Panels` should draw the three panels.
 - **It is in the `app` layer**, so it outranks an application's placing of

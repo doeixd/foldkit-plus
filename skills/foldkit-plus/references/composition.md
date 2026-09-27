@@ -346,7 +346,8 @@ const PageForm = Form.make('PageForm', PageInput, {
   (inspector), then `live`. Lay out `regions`, by `@container builder (…)` for the editor's width.
 - Narrow editor: `.pipe(Style.attach(BuilderView.narrow('52rem')))`: below that width of the
   editor itself (container `builder`), a group of pressed buttons (Add, Layers, Settings) shows one panel
-  at a time, by the Builder's `panel` (`PanelChosen`; selecting a node chooses Settings).
+  at a time, by the Builder's `panel` (`PanelChosen`; selecting a node on the page chooses Settings, a
+  layers row clicked keeps the layers).
 - With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's
   `preview` Model field, `PreviewChosen({ key, value })`, seeded by
   `Builder.make(..., { preview })`); the canvas draws for it, marking hidden

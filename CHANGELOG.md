@@ -391,6 +391,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins-builder`:** a click on a layers row makes it current, as
+  the keys do (`TreeNavigation`'s `Focused`), rather than sending `Selected`,
+  so a narrow editor keeps the layers showing instead of switching to
+  Settings and hiding the row that had just taken focus.
+
 - **CMS example:** a Quote's text and a Callout's body keep the lines broken
   with Shift+Enter once editing ends, in the editor and on the public page
   (`white-space: pre-line` on their looks).
