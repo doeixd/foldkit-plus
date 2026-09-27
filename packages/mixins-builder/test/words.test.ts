@@ -27,7 +27,7 @@ const markers: BuilderWords = {
   addsToEnd: '«addsToEnd»',
   addsAfter: '«addsAfter:{label}»',
   addsInside: '«addsInside:{label}»',
-  selectAHolder: '«selectAHolder»',
+  nothingHoldsIt: '«nothingHoldsIt»',
   cannotGoAt: '«cannotGoAt:{label}»',
   layers: '«layers»',
   properties: '«properties»',

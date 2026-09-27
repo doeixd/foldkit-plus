@@ -95,11 +95,16 @@ describe('the drawn Builder', () => {
       ]),
     ).toEqual([
       ['Add Section', 'SectionA band of the page', 'Adds it to the end of the page', false],
-      ['Add Heading', 'Heading', 'Select a block that can hold it', true],
+      [
+        'Add Heading',
+        'Heading',
+        'Nothing on the page can hold it yet: add a block that can first',
+        true,
+      ],
       [
         'Add Promo banner',
         'Promo bannerA line that stands out',
-        'Select a block that can hold it',
+        'Nothing on the page can hold it yet: add a block that can first',
         true,
       ],
     ])
@@ -708,7 +713,7 @@ describe('the drawn Builder', () => {
         .filter(node => Inert.text(node).startsWith('This page is empty.') && node.sel === 'p')
         .map(Inert.text)
     expect(hint(PageBuilder.initial)).toEqual([
-      'This page is empty. Add a block to begin: the palette offers what can go here.',
+      'This page is empty. Begin with a block the palette offers: the others go inside it.',
     ])
     expect(hint(page)).toEqual([])
   })

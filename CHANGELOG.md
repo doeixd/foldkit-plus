@@ -19,7 +19,9 @@ version changed; `pnpm` skips versions already in the registry.
   On a phone the studio's sidebar is a top bar (the brand and who is looking,
   then the sections in a row), the editor's bar wraps its actions under its
   status, the builder's panels scroll within a short height so the page
-  shows, and a post list's cards fit a narrow canvas.
+  shows, and a post list's cards fit a narrow canvas. The posts open with what
+  the demo is and what to try, and the page says it is starting while the
+  sandbox opens.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the
@@ -402,6 +404,11 @@ version changed; `pnpm` skips versions already in the registry.
   from,** so another project can reference it.
 
 ### Changed
+
+- **`foldkit-mixins-builder`, words:** `selectAHolder` is `nothingHoldsIt`, and
+  says what it now means: with nothing selected a tile goes anywhere that can
+  hold it, so a disabled one has nowhere yet. The empty page says to begin
+  with a block the palette offers.
 
 - **`foldkit-cms`, editor status:** a publish or a schedule the form's own
   checks stop is `Incomplete` (a new `EditorStatus`) until the next edit, and

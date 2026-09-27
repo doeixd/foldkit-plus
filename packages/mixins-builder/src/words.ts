@@ -26,8 +26,11 @@ export interface BuilderWords {
   readonly addsToEnd: string
   readonly addsAfter: string
   readonly addsInside: string
-  /** Why a tile adds nothing: nothing selected holds it, or the selected (`{label}`) cannot. */
-  readonly selectAHolder: string
+  /**
+   * Why a tile adds nothing: nothing on the page can hold it yet (with nothing
+   * selected, a tile goes anywhere that can), or the selected (`{label}`) cannot.
+   */
+  readonly nothingHoldsIt: string
   readonly cannotGoAt: string
 
   /** The layers' tree. */
@@ -98,7 +101,7 @@ export const builderWords: BuilderWords = Object.freeze({
   addsToEnd: 'Adds it to the end of the page',
   addsAfter: 'Adds it after the {label}',
   addsInside: 'Adds it inside the {label}',
-  selectAHolder: 'Select a block that can hold it',
+  nothingHoldsIt: 'Nothing on the page can hold it yet: add a block that can first',
   cannotGoAt: 'It cannot go in or after the {label}',
   layers: 'Layers',
   properties: 'Properties',
@@ -136,7 +139,7 @@ export const builderWords: BuilderWords = Object.freeze({
   previewAs: 'Preview as',
   unset: 'unset',
   canvas: 'Page',
-  emptyPage: 'This page is empty. Add a block to begin: the palette offers what can go here.',
+  emptyPage: 'This page is empty. Begin with a block the palette offers: the others go inside it.',
 })
 
 // One resolved record per given one, so a part that reads `words` sees the same value each draw.

@@ -1069,7 +1069,7 @@ export const BuilderView = {
       Option.match(at, {
         onNone: () =>
           Option.match(selected, {
-            onNone: () => w.selectAHolder,
+            onNone: () => w.nothingHoldsIt,
             onSome: id => say(w.cannotGoAt, { label: labelAt(document, id) }),
           }),
         onSome: position => {
