@@ -1,7 +1,6 @@
 > **Implementation status, checked 2026-09-27:** Superseded: `foldkit-remote-drizzle` does not import `effect-postgres`, which does not load under the pinned Effect, and takes the database from a Context tag. See the
 > [design index](./README.md#where-each-design-stands).
 
-
 Exactly. Given Drizzle’s current Effect support, `foldkit-remote-drizzle` should be **much more semantic and much less infrastructural**.
 
 Drizzle now has an Effect-native PostgreSQL driver via `drizzle-orm/effect-postgres`, built around `@effect/sql-pg`, and also ships `drizzle-orm/effect-schema`, which can derive Effect select/insert/update Schemas directly from Drizzle tables. ([Drizzle ORM][1])
