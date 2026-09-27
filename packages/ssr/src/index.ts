@@ -11,7 +11,7 @@
  * Rendering and hydrating stay Foldkit's own: this package adds only the
  * handover.
  */
-import { Cause, Effect, Exit, Option, Result, Schema, Stream, type Layer } from 'effect'
+import { Cause, Effect, Exit, Option, Result, Schema, type Layer } from 'effect'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
@@ -95,7 +95,7 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
    * When the browser boots the runtime: `now` on load, `idle` when the browser
    * is idle or on the first interaction, `on-interaction` on the first only.
    * Until then the page answers events from its bindings and queues the
-   * Messages, which replay once the runtime has adopted the page.
+   * Messages, which `update` folds into the Model the runtime starts from.
    */
   readonly start: Start
   /** Subscription and Managed Resource keys that may start late (decision 10). */
@@ -1278,15 +1278,30 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     snapshots: snapshotsOf(root),
     reported: new Set(),
   }
-  const boot = (subscriptions: Readonly<Record<string, unknown>> = {}) =>
+  // The Messages the page answered before boot are folded through `update`
+  // here, so the runtime starts where the eager page would be after them and
+  // any event it answers is ordered after them. Replayed through the runtime
+  // instead, they would reach its queue after an event dispatched in the same
+  // task as the boot, and a burst of typing would end on its first character.
+  const boot = (answered: ReadonlyArray<unknown> = []) => {
+    let current = model
+    const started = [...commands]
+    for (const message of answered) {
+      const next = config.update(current, message) as {
+        readonly model: Model
+        readonly commands?: ReadonlyArray<unknown> | undefined
+      }
+      current = next.model
+      started.push(...(next.commands ?? []))
+    }
     adopt(
       makeApplication({
-        ...withContext(startingFrom(config, { model, commands }), resuming),
+        ...withContext(startingFrom(config, { model: current, commands: started }), resuming),
         container: root,
-        subscriptions: { ...config.subscriptions, ...subscriptions },
       } as never),
       { buildId: options.buildId },
     )
+  }
   const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
   if (plan.start === 'now' && pending.length === 0) {
     boot()
@@ -1303,18 +1318,18 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
 
 /**
  * Lets the page answer from its bindings until something asks for the
- * runtime, then boots it with the answers queued for replay.
+ * runtime, then boots it from the answers.
  *
- * The queued Messages reach the runtime through one Subscription entry added
- * for the purpose, so they go through Foldkit's own queue, in order, after
- * its first render, and the Model ends where an eager boot would have taken
- * it. When lazy bundles must load first, the boot waits for them.
+ * The answered Messages are handed to `boot`, in order, which folds them into
+ * the Model the runtime starts from, so the Model ends where an eager boot
+ * would have taken it. When lazy bundles must load first, the boot waits for
+ * them, and the page keeps answering until they arrive.
  */
 const deferBoot = (
   root: HTMLElement,
   decoded: ReadonlyArray<DecodedBinding>,
   start: Start,
-  boot: (subscriptions: Readonly<Record<string, unknown>>) => void,
+  boot: (answered: ReadonlyArray<unknown>) => void,
   pending: ReadonlyArray<Loadable>,
 ): void => {
   const queue: Array<unknown> = []
@@ -1337,23 +1352,21 @@ const deferBoot = (
         if (event.target instanceof Element) unanswered.push({ event, element: event.target })
         return
       }
-      startNow()
       // Nothing answered it: it goes on to the page, a plain link to the
       // router, as it would have.
-      if (messages.length === 0) return
-      // Answered here and replayed after boot: the live page must not answer
-      // this one as well.
+      if (messages.length === 0) {
+        startNow()
+        return
+      }
+      // Queued before the boot it may start, which folds the queue in. The
+      // live page must not answer this one as well.
       queue.push(...messages)
       event.stopPropagation()
+      startNow()
     },
   })
-  const replay = {
-    dependenciesSchema: Schema.Null,
-    modelToDependencies: () => null,
-    dependenciesToStream: () => Stream.fromIterable(queue),
-  }
   const commit = () => {
-    boot({ 'foldkit-ssr.replay': replay })
+    boot(queue.splice(0))
     stop()
     for (const { event, element } of unanswered.splice(0)) {
       const Ctor = event.constructor as new (type: string, init: Event) => Event

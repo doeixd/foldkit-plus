@@ -335,7 +335,9 @@ Two orderings matter and both fall out of the queue:
 
 - A user typed into a search box before boot. Hydration sets the input's
   value to the Model's (empty) draft, then the queued `ChangedSearch` Messages
-  replay and `update` puts the text back. The final Model is what it would
+  replay and `update` puts the text back. (As built, since ssr-PLAN's G2, the
+  boot folds the queued Messages through `update` first and starts from the
+  result, so the draft is already in the Model hydration patches from.) The final Model is what it would
   have been with an eager boot, because the same Messages went through the
   same `update` in the same order. This is the property component frameworks
   lack: there is no per-component state to lose.

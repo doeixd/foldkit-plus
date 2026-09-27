@@ -117,4 +117,9 @@ application.
 - **Phase G, what the resumable design asked beyond A to F:** the render lists
   each element and event a closure handles, once however many it chains; the
   entry and the generator warn about each once per process on a page that
-  waits to boot, and not at all on one that starts now.
+  waits to boot, and not at all on one that starts now. The resumed page
+  reaches the eager page's Model for the same actions: typing then a click;
+  a bubbling click and a stopped one; a submit, typing and a submit; key
+  presses with modifiers; a closure among named events sent in the booting
+  task; and a placement's input and click under a lazy bundle still loading,
+  with a closure's press between them.

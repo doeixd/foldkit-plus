@@ -759,7 +759,10 @@ this plan's next track, in its order, and it is the source for their detail:
     (`modelToMaybeRequirements`).
   - **Replay is a Subscription entry**, `foldkit-ssr.replay`, added to the
     program at boot, so the queued Messages go through Foldkit's own queue in
-    order after its first render, with no second dispatch path.
+    order after its first render, with no second dispatch path. *Replaced in
+    G2:* an event dispatched in the task that boots the page reached the
+    queue before the replay, so the boot now folds the queued Messages
+    through `update` and starts the runtime from the result.
   - **Remote marks its entries deferrable itself**, with a symbol on each
     entry `Data.subscriptions` and the fold produce, and its part's
     `deferrable(key, entry)` reads it: the declaration travels with the
@@ -931,6 +934,25 @@ that can fail, or, for G4, a recorded measurement.
   - Mutations: drop the `stopPropagation` after a queued answer; replay the
     queue in reverse; skip the re-dispatch of an unanswered event. Each must
     make a sequence's Models differ.
+  - **Done** (`test/equivalence.ts`, `equivalenceFixture.ts`, and one
+    `equivalence*.test.ts` per sequence). Every Message the fixture handles
+    appends to a log in its Model, so a Message answered twice, lost or
+    reordered makes the Models differ. The harness can pace the actions like
+    a person or send them in one task (`burst`), and the typing, closure and
+    lazy sequences use one task, so their later events land while the page
+    boots.
+  - **What it found.** The first run failed: text typed in one task ended
+    on its first character. The markers answered the first `input` and
+    booted the page, the later ones reached the live page in the same task,
+    and the replay Subscription delivered the queued `Typed` after them. Any
+    event in the booting task could be reordered this way, for example a
+    `focus` that the browser fires in the same task as the `mousedown` that
+    boots. The Subscription entry is gone: the boot folds the queued
+    Messages through `update` and starts the runtime from that Model, with
+    the Commands they return added to the plan's `boot` Commands. Nothing is
+    in flight when the first live event arrives. With the old replay the
+    typing and closure sequences fail, and each of the three planned
+    mutations fails at least one sequence.
 
 - **G3. Test Phase E the way the design states it.** The design's test is
   that a form posted without JavaScript "returns the page a browser click

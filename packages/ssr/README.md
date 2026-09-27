@@ -388,9 +388,10 @@ const Post = SSR.plan(App, {
 ```
 
 The event that boots the page is not lost and does not count twice. Messages
-answered before boot replay in order through the same `update`, so the Model
-ends where an eager boot would have taken it, and the input typed into is
-adopted, not rebuilt.
+answered before boot go through the same `update`, in order, before the
+runtime starts, and it starts from the Model they lead to, so the Model ends
+where an eager boot would have taken it, even for events dispatched in the
+task that boots it. The input typed into is adopted, not rebuilt.
 
 ### What a resumable page must declare
 
