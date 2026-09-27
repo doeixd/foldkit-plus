@@ -296,6 +296,84 @@ describe('patching only what changed', () => {
     expect(toText(after)).toBe('abcd\nTitle')
   })
 
+  it('re-renders a block whose attributes changed, such as a ticked task', () => {
+    const tasks = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TaskItem',
+              id: 't',
+              props: { checked: false },
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'p',
+                  children: [{ type: 'Text', id: 'a', text: 'milk', marks: [] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const before = mount(document, tasks, RichText.standardRendering)
+    const result = success(
+      RichText.apply({ document: tasks, selection: null }, [
+        RichText.Edit.setProps(id('t'), { checked: true }),
+      ]),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    expect(after.elements.get(id('t'))?.getAttribute('data-task')).toBe('checked')
+    expect(after.root.querySelector('[data-task]')?.getAttribute('data-task')).toBe('checked')
+  })
+
+  it.each([
+    ['drops', 'warn', null, false],
+    ['adds', null, 'warn', true],
+  ] as const)(
+    're-renders a block whose renderer %s an attribute and keeps its tag',
+    (_, from, to, has) => {
+      const toned = RichText.rendering({
+        nodes: {
+          Callout: block => ({
+            tag: 'aside',
+            attributes:
+              typeof block.props.tone === 'string' ? { 'data-tone': block.props.tone } : {},
+          }),
+        },
+      })
+      const callout = RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'Callout',
+            id: 'c',
+            props: { tone: from },
+            children: [{ type: 'Text', id: 'a', text: 'careful', marks: [] }],
+          },
+        ],
+      })
+      const before = mount(document, callout, toned)
+      const result = success(
+        RichText.apply({ document: callout, selection: null }, [
+          RichText.Edit.setProps(id('c'), { tone: to }),
+        ]),
+      )
+      const after = patch(before, result.state.document, result.changeSet)
+      expect(after.elements.get(id('c'))?.hasAttribute('data-tone')).toBe(has)
+    },
+  )
+
   it('drops elements for identities normalization retires', () => {
     const mergeable = RichText.decodeDocument({
       version: 1,

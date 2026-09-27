@@ -41,6 +41,16 @@ const blockRendering = (
     attributes: {},
   }
 
+const sameRendering = (left: RichText.ElementRendering, right: RichText.ElementRendering) => {
+  const names = Object.keys(left.attributes)
+  return (
+    left.tag === right.tag &&
+    left.inner === right.inner &&
+    names.length === Object.keys(right.attributes).length &&
+    names.every(name => left.attributes[name] === right.attributes[name])
+  )
+}
+
 /** The element a renderer entry names, with its attributes; children come later. */
 const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLElement => {
   const element = owner.createElement(entry.tag)
@@ -263,7 +273,20 @@ export const patch = (
     elements.delete(id)
   }
   const rebuilt = new Set<RichText.NodeId>()
-  patchBlocks(root.ownerDocument, root, content.children, elements, dom.rendering, spans, rebuilt)
+  const drawnBlocks = new Map<RichText.NodeId, RichText.Block>()
+  const index = (blocks: ReadonlyArray<RichText.Block>): void => {
+    for (const block of blocks) {
+      drawnBlocks.set(block.id, block)
+      if (block.type === 'Node' && block.blocks !== undefined) index(block.blocks)
+    }
+  }
+  index(dom.content.children)
+  patchBlocks(root.ownerDocument, root, content.children, elements, {
+    rendering: dom.rendering,
+    spans,
+    rebuilt,
+    drawn: drawnBlocks,
+  })
   for (const id of redrawn) {
     const located = RichText.locateRun(content, id)
     if (located === undefined) continue
@@ -284,33 +307,39 @@ export const patch = (
 }
 
 /**
- * Patches one block list into its container. A block is rebuilt only when its
- * run list and its nested blocks are unchanged in shape, or it is new;
- * otherwise its element stays, which keeps every sibling's identity — and a
- * block that merely moved is moved, not re-rendered. A kept container needs no
- * recursion: its nested identities are unchanged, so any change inside them is a
- * run-level change the caller patches directly. Nested structural patching
- * arrives with the operations that can produce it (§116 slice 3).
+ * Patches one block list into its container. A block keeps its element while it renders
+ * the same, with the same run list and nested blocks; otherwise it is rebuilt, as a new
+ * one is. Keeping an element keeps every sibling's identity, and a block that merely moved
+ * is moved, not re-rendered. A kept container is patched the same way inside, where a
+ * nested block's own rendering can have changed (a task ticked in a list).
  */
 const patchBlocks = (
   owner: Document,
   container: HTMLElement,
   blocks: ReadonlyArray<RichText.Block>,
   elements: Map<RichText.NodeId, HTMLElement>,
-  rendering: RichText.Rendering,
-  spans: Spans,
-  rebuilt: Set<RichText.NodeId>,
+  context: {
+    readonly rendering: RichText.Rendering
+    readonly spans: Spans
+    readonly rebuilt: Set<RichText.NodeId>
+    /** The blocks as last drawn, so an element is kept only while it renders the same. */
+    readonly drawn: ReadonlyMap<RichText.NodeId, RichText.Block>
+  },
 ): void => {
+  const { rendering, spans, rebuilt, drawn } = context
   let previousElement: HTMLElement | undefined
   for (const [index, block] of blocks.entries()) {
     const existing = elements.get(block.id)
     const nested = block.type === 'Node' && block.blocks !== undefined ? block.blocks : []
     // A block is kept only when its element and its child list are still what the
     // document says. The run ids alone are not enough: a heading whose level moved
-    // keeps both while its element changes from `h2` to `h3`.
+    // keeps both while its element changes from `h2` to `h3`, and a ticked task keeps
+    // its tag while its attributes change.
+    const previous = drawn.get(block.id)
     const sameStructure =
       existing !== undefined &&
-      existing.tagName.toLowerCase() === blockRendering(rendering, block).tag &&
+      previous !== undefined &&
+      sameRendering(blockRendering(rendering, previous), blockRendering(rendering, block)) &&
       sameIds(
         childIds(existing, 'data-run'),
         block.children.map(run => run.id),
@@ -333,6 +362,14 @@ const patchBlocks = (
     }
     if (existing !== undefined && sameStructure) {
       if (container.children[index] !== existing) place(existing)
+      if (nested.length > 0) {
+        const inner = blockRendering(rendering, block).inner
+        const holder =
+          inner === undefined
+            ? existing
+            : Array.from(existing.children).find(child => child.tagName.toLowerCase() === inner)
+        if (holder instanceof HTMLElement) patchBlocks(owner, holder, nested, elements, context)
+      }
       previousElement = existing
       continue
     }
