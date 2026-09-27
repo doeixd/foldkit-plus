@@ -8,7 +8,7 @@ import {
   type Selection,
   type Text,
 } from './document.js'
-import { markName, sameMarkSet } from './marks.js'
+import { markName, sameMark, sameMarkSet } from './marks.js'
 import { apply, TextBlock, type Operation, type TransactionResult } from './transaction.js'
 
 /**
@@ -209,6 +209,17 @@ const draft = (state: ReplicatedState) => {
   const create = (id: string, entry: Entry): void => {
     blocks[id] = { ...entry, spans: [...entry.spans], children: [...entry.children] }
     copied.add(id)
+    ids().add(id)
+  }
+  // Every id in use, blocks and inserts alike, gathered once per `applyOps` rather than
+  // scanned for on every op that mints one.
+  let used: Set<string> | undefined
+  const ids = (): Set<string> => {
+    if (used === undefined) {
+      used = new Set(Object.keys(blocks))
+      for (const entry of Object.values(blocks)) for (const span of entry!.spans) used.add(span.id)
+    }
+    return used
   }
   const finish = (): ReplicatedState => ({
     version: 1,
@@ -217,9 +228,15 @@ const draft = (state: ReplicatedState) => {
   })
   // The record's keys are the ids its schema checked, so they are ReplicatedIds.
   const all = (): ReadonlyArray<ReplicatedId> => Object.keys(blocks) as Array<ReplicatedId>
-  return { read, write, siblings, create, finish, all }
+  return { read, write, siblings, create, finish, all, ids }
 }
 type Draft = ReturnType<typeof draft>
+
+/** Marks with `mark` set: a same-named one replaced where it stands, or `mark` added last. */
+const withMark = (marks: ReadonlyArray<RunMark>, mark: RunMark): Array<RunMark> =>
+  marks.some(held => markName(held) === markName(mark))
+    ? marks.map(held => (markName(held) === markName(mark) ? mark : held))
+    : [...marks, mark]
 
 const holdsText = (shape: BlockShape): boolean =>
   shape.type === 'Paragraph' ||
@@ -227,9 +244,7 @@ const holdsText = (shape: BlockShape): boolean =>
   (shape.type === 'Node' && shape.holds === 'text')
 
 /** Whether an id already names a block or an insert anywhere in the state. */
-const taken = (work: Draft, id: string): boolean =>
-  work.read(id) !== undefined ||
-  work.all().some(block => work.read(block)!.spans.some(span => span.id === id))
+const taken = (work: Draft, id: string): boolean => work.ids().has(id)
 
 /** Where a character is: its block, and the span index and offset within that span. */
 interface Found {
@@ -382,6 +397,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
         marks: op.marks,
         deleted: false,
       })
+      work.ids().add(op.id)
       return
     }
     case 'Delete':
@@ -390,7 +406,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
     case 'Mark':
       eachCovered(work, op.ranges, span => ({
         ...span,
-        marks: [...span.marks.filter(mark => markName(mark) !== markName(op.mark)), op.mark],
+        marks: withMark(span.marks, op.mark),
       }))
       return
     case 'Unmark':
@@ -521,12 +537,15 @@ const applied = new WeakMap<
 
 /**
  * Folds ops into the state in order. Total: an op whose target is gone, whose ids are
- * already taken, or that would make the tree cyclic changes nothing, and one anchored on
- * a character that never arrived lands at the end of the block it names.
+ * already taken, or that would make the tree cyclic changes nothing, and an insert anchored
+ * on a character that never arrived lands at the end of the block it names. It trusts the
+ * state to be one these functions made (the ops are the untrusted input): a state decoded
+ * from elsewhere is not checked for a block listed twice or a cycle of parents.
  *
  * The same ops on the same state give back the same state object, so the edit that made
  * the ops and the durable Message that replays them agree on identity, and whatever is
- * derived from it (`project`, an editor host's key) is derived once.
+ * derived from it (`project`, an editor host's key) is derived once. The ops array is
+ * remembered by identity, so do not change one after applying it.
  */
 export const applyOps = (
   state: ReplicatedState,
@@ -841,7 +860,9 @@ const blockChars = (shadow: Shadow): Map<string, Array<CharRange>> =>
  * Restates an edit's transactions as ops against `state`, which the edit ran on the
  * projection of. `key` must be unique to this edit among everything the state has seen: it
  * names the edit's new characters and blocks. Also anchors the edit's resulting selection.
- * Throws if the transactions do not apply to the projection, which is a caller's bug.
+ * Throws if the transactions do not apply to the projection, which is a caller's bug. The
+ * transactions are replayed with `apply`'s default transforms, as `RichText.run` applies
+ * them; an edit normalized by other transforms does not translate.
  */
 export const translate = (
   state: ReplicatedState,
@@ -862,10 +883,12 @@ export const translate = (
   // Each transaction is replayed on a shadow rebuilt from the document before it: the
   // normalization between transactions merges runs, which only that document shows.
   for (const transaction of result.transactions) {
-    const shadow = shadowOf(current.document, chars, names)
-    for (const operation of transaction) translateOne(shadow, operation, ops, mint)
+    // Applied first, so a transaction that does not fit is reported as such rather than as
+    // whatever lookup the translation meets first.
     const applied = apply(current, transaction)
     if (!applied.ok) throw new Error(`translate: a transaction was refused (${applied.error})`)
+    const shadow = shadowOf(current.document, chars, names)
+    for (const operation of transaction) translateOne(shadow, operation, ops, mint)
     current = applied.state
     chars = blockChars(shadow)
   }
@@ -969,11 +992,11 @@ const translateOne = (
     }
     case 'AddMark': {
       const { run } = locateRun(shadow, operation.node)
+      // `apply` skips a mark the run already has exactly; an op for it would re-mark text
+      // another replica unmarked meanwhile.
+      if (run.marks.some(mark => sameMark(mark, operation.mark))) return
       if (run.chars.length > 0) ops.push({ type: 'Mark', ranges: run.chars, mark: operation.mark })
-      run.marks = [
-        ...run.marks.filter(mark => markName(mark) !== markName(operation.mark)),
-        operation.mark,
-      ]
+      run.marks = withMark(run.marks, operation.mark)
       return
     }
     case 'RemoveMark': {
@@ -1042,6 +1065,10 @@ const translateOne = (
     }
     case 'MoveNode': {
       const parent = operation.parent ?? ROOT
+      const from = shadow.parents.get(operation.node) ?? ROOT
+      // `apply` skips a move to where the block already is; so does the op it would make.
+      if (from === parent && shadow.children.get(parent)!.indexOf(operation.node) === operation.to)
+        return
       removeFromParent(shadow, operation.node)
       ops.push({
         type: 'MoveBlock',

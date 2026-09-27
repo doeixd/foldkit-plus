@@ -881,11 +881,80 @@ describe('translate', () => {
       [RichText.Edit.insertText(RichText.Node.make('a').at(1, 'after'), 'y')],
     )
     if (!other.ok) throw new Error(other.error)
-    expect(() => Replicated.translate(base(), other, 'other:0')).toThrow()
+    expect(() => Replicated.translate(base(), other, 'other:0')).toThrow(/refused/)
+  })
+})
+
+describe('translating what apply skips', () => {
+  const translated = (
+    state: RichText.Replicated.ReplicatedState,
+    transaction: RichText.Transaction,
+  ) => {
+    const result = RichText.apply(
+      { document: Replicated.project(state), selection: null },
+      transaction,
+    )
+    if (!result.ok) throw new Error(result.error)
+    return Replicated.translate(state, result, 'skip:0').ops
+  }
+
+  it('makes no op for a mark the run already has', () => {
+    // It would bold again text another replica unbolded meanwhile.
+    const state = base()
+    const bold = RichText.blockAtPath(Replicated.project(state), [1])!.children[1]!.id
+    expect(translated(state, [RichText.Edit.addMark(bold, 'Bold')])).toEqual([])
+  })
+
+  it('makes no op for a move to where the block already is', () => {
+    const state = base()
+    const block = RichText.blockAtPath(Replicated.project(state), [1])!.id
+    expect(translated(state, [RichText.Edit.moveBlock(block, 1)])).toEqual([])
+  })
+})
+
+describe('marks', () => {
+  it('replace a same-named mark where it stands', () => {
+    const state = Replicated.fromDocument(
+      decode([
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 'a',
+              text: 'go',
+              marks: [{ name: 'Link', props: { href: '/a' } }, 'Bold'],
+            },
+          ],
+        },
+      ]),
+      'marks:0',
+    )
+    const link = { name: 'Link', props: { href: '/b' } }
+    const next = Replicated.applyOps(state, [
+      {
+        type: 'Mark',
+        ranges: [{ id: ReplicatedId.make(keyAt(state, [0])), from: 0, to: 2 }],
+        mark: link,
+      },
+    ])
+    expect(Replicated.project(next).children[0]!.children[0]!.marks).toEqual([link, 'Bold'])
   })
 })
 
 describe('identities', () => {
+  it('refuse an id one batch of ops already minted', () => {
+    const start = base()
+    const block = idAt(start, [4])
+    const id = ReplicatedId.make('new:0')
+    const next = Replicated.applyOps(start, [
+      { type: 'Insert', id, block, after: null, text: 'A', marks: [] },
+      { type: 'Insert', id, block, after: null, text: 'B', marks: [] },
+    ])
+    expect(texts(next).at(-1)).toBe('Alast')
+  })
+
   it.each(['__proto__', 'constructor', 'toString', 'plain', 'a.b:c'])('refuse %s', id => {
     expect(Schema.is(ReplicatedId)(id)).toBe(false)
   })
