@@ -201,26 +201,28 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                 if (ours(event as Positioned)) end(false)
               },
             ],
-            [
-              'keydown',
-              event => {
-                if (pressed === null || (event as Positioned).key !== 'Escape') return
-                event.preventDefault()
-                end(false)
-              },
-            ],
           ]
+          // Heard on the way down, and kept there: an Escape that ends a drag is the
+          // drag's, not also the focused element's (a canvas that would deselect).
+          const onEscape = (event: Event) => {
+            if (pressed === null || (event as Positioned).key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            end(false)
+          }
           // The document is listened to only while a press is under way.
           let listening = false
           const listen = () => {
             if (listening) return
             listening = true
             for (const [type, listener] of onDocument) owner.addEventListener(type, listener)
+            owner.addEventListener('keydown', onEscape, true)
           }
           const release = () => {
             if (!listening) return
             listening = false
             for (const [type, listener] of onDocument) owner.removeEventListener(type, listener)
+            owner.removeEventListener('keydown', onEscape, true)
           }
 
           const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [

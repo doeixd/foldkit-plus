@@ -196,6 +196,27 @@ describe('PointerDrag', () => {
     }))
 })
 
+describe('PointerDrag and the keys of the element with focus', () => {
+  it('keeps an Escape that ends a drag from the element it was pressed on', () =>
+    withList(async ({ list, a, c }) => {
+      const heard: Array<string> = []
+      list.addEventListener('keydown', event => heard.push(event.key))
+      const facts = await run(list, 3, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(c, 'pointermove', { clientX: 10, clientY: 75 })
+        fire(list, 'keydown', { key: 'Escape' })
+        // With no drag under way, Escape is the element's again.
+        fire(list, 'keydown', { key: 'Escape' })
+      })
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'a' }),
+        DraggedOver.make({ over: { id: 'c', zone: 'inside' } }),
+        DragCancelled.make({ id: 'a' }),
+      ])
+      expect(heard).toEqual(['Escape'])
+    }))
+})
+
 describe('PointerDrag onto another region', () => {
   it('drags one of its own onto what another region marks, and nothing else', async () => {
     // A palette of tiles, a page of nodes, and a node marked the same way outside the page.

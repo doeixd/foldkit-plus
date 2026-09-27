@@ -384,6 +384,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-primitives`, `PointerDrag`:** an Escape that cancels a drag is
+  caught on the way down and stopped there, so the focused element does not
+  also act on it; in the Builder, Escape during a canvas drag cancelled the
+  drag and deselected the node.
+
 - **`foldkit-mixins-builder`:** the palette's tiles and the command buttons
   are disabled by `aria-disabled` rather than `disabled`, so Undo pressed on
   the last step, or a tile whose place fills, keeps focus instead of dropping
