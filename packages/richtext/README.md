@@ -113,8 +113,8 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
-`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection, emit a
-Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap`
+`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` names its
+blocks instead. Each emits a Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap`
 describe the effect. Nothing mints identity unless the caller's `mint` does, and
 replay applies transactions rather than commands.
 
@@ -184,6 +184,14 @@ item's paragraph leaves both the item and the list; without one it takes a singl
 never leaves a container declared `isolating`, such as the standard `TableCell`, and a block
 with nothing to leave is refused with `InvalidInput`. The block keeps its identity, and the
 caret with it.
+
+`MoveBlock` moves a block, with everything it holds, before or after a sibling:
+`{ type: 'MoveBlock', node, to: { before: other } }` or `{ after: other }`. It addresses blocks
+by identity, not by the selection, so a block handle or a key sends it for the block it stands
+for; identities are kept, and so is the selection. The sibling must share the block's container
+(otherwise `InvalidParent`), because nothing yet declares which kinds may stand at the top level
+or whether a list may be left empty. A block that is not there is `InvalidInput`, and moving a
+block beside itself changes nothing.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a

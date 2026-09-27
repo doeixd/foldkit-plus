@@ -85,6 +85,16 @@ export type Command =
    * both the item and the list. The block keeps its identity, and the caret with it.
    */
   | { readonly type: 'LiftBlock' }
+  /**
+   * Moves a block, and everything it holds, beside a sibling: before or after another block
+   * in the same container. It addresses blocks rather than the selection, so a handle or a
+   * key can move the block it stands for; identities are kept, and the selection with them.
+   */
+  | {
+      readonly type: 'MoveBlock'
+      readonly node: NodeId
+      readonly to: { readonly before: NodeId } | { readonly after: NodeId }
+    }
 
 /** A container a block is wrapped in: a node kind, and the props it starts with. */
 export const Container = Schema.Struct({
@@ -839,6 +849,24 @@ export const run = (
   const declared = options.marks ?? shippedRegistry
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
+  }
+  if (command.type === 'MoveBlock') {
+    const moving = locateBlock(state.document, command.node)
+    const beside = locateBlock(
+      state.document,
+      'before' in command.to ? command.to.before : command.to.after,
+    )
+    if (moving === undefined || beside === undefined) return failure('InvalidInput')
+    const container = moving.path.slice(0, -1)
+    // Another container would need rules nothing declares yet: which kinds may stand at the
+    // top level, and whether a list may be left empty.
+    if (pathKey(beside.path.slice(0, -1)) !== pathKey(container)) return failure('InvalidParent')
+    const from = moving.path[moving.path.length - 1]!
+    const place = beside.path[beside.path.length - 1]! + ('after' in command.to ? 1 : 0)
+    // The operation's index is after the block leaves, which shifts every later sibling up.
+    const to = from < place ? place - 1 : place
+    const parent = container.length === 0 ? undefined : blockAtPath(state.document, container)?.id
+    return apply(state, [Edit.moveBlock(command.node, to, parent)])
   }
   const selection = state.selection
   if (selection === null || selection.type === 'Node') return failure('InvalidSelection')

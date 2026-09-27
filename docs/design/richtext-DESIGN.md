@@ -4710,7 +4710,7 @@ command palette           `commandPalette` in the Mixins family, over the slash
                           catalogue (§142)
 floating toolbar          `coversText` in the core, `selectionAnchor` beside the
                           marks toolbar (§143)
-block handle              not started (§11, §120 slice 2)
+block handle              `MoveBlock` in the core (§144); the handle itself not yet
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7755,3 +7755,33 @@ Not done:
   wiring; that it looks right in Chromium, Firefox, and WebKit is milestone 9's browser gate.
 - **The Mount wrapper.** Only type-checked; a runtime test of it would need a real render.
 - **Flipping sideways and an arrow.** Neither is needed yet.
+
+---
+
+# 144. The block handle
+
+A block handle stands for one block and offers what can be done to it as a whole: move it up or
+down, and later drag it. The core had `Edit.moveBlock` as an operation but no command, because
+every command so far read the selection. A handle stands beside a block, not inside a selection,
+so `MoveBlock` names its blocks:
+
+```ts
+{ type: 'MoveBlock', node, to: { before: sibling } }   // or { after: sibling }
+```
+
+**Identities, not indices.** `MoveNode`'s index is the block's place after it leaves, so moving a
+block down past two siblings is `index + 1`, not `+ 2`. A caller would have to redo that
+arithmetic, and it is the library's to do. `before`/`after` also say what a drop indicator shows:
+the block the pointer is over, and the side of it.
+
+**Same container only.** A move to a sibling in another container is `InvalidParent`. Moving
+across containers needs rules nothing declares yet. `List` says it holds `ListItem`s, but nothing
+says a `ListItem` may stand only in a `List`, so a move could strand one at the top level. Moving
+a list's last item out would also leave an empty `List`, which a lift deletes but a move would
+not. Drag and drop across containers will need both rules. A handle's up and down need neither.
+
+Moving keeps every identity, so the selection needs no mapping: it points at runs that still
+exist. The command runs without a selection too, because it does not read one.
+
+Not done: the handle's view (which block it stands for, its buttons, and the editor Message), and
+drag and drop.

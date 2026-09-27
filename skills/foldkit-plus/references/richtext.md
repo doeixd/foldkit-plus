@@ -260,7 +260,9 @@ the caret survive; given a vocabulary, it also replaces a text-holding node kind
 props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
 wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces
 a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
-new identities and moving the selection onto them. `LiftBlock` is the inverse of a wrap, and
+new identities and moving the selection onto them. `MoveBlock { node, to: { before } | { after } }`
+moves a block and its subtree beside a sibling in the same container, by identity rather than
+the selection (a block handle's up and down). `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
 it to a paragraph; Enter in a list item starts a new item
