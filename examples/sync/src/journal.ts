@@ -209,12 +209,14 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
         const acknowledged: string[] = []
         for (const input of pending) {
           // An operation that does not decode fails the same way on every retry, so it is
-          // rejected, not left to fail the exchange and be resent forever.
+          // rejected, not left to fail the exchange and be resent forever. The socket passes
+          // pending entries through undecoded, so one with no id has nothing to reject by.
           let operation: ReturnType<typeof TodoSync.codec.normalizeOperation>
           try {
             operation = TodoSync.codec.normalizeOperation(input)
           } catch {
-            rejected.push(input.opId)
+            const opId: unknown = (input as { readonly opId?: unknown } | null)?.opId
+            if (typeof opId === 'string') rejected.push(opId)
             continue
           }
           if (!principal.canWrite) {
@@ -223,11 +225,18 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
           }
           const result = Effect.runSync(
             durable.append(DocumentId.make(principal.documentId), operation, principal).pipe(
-              Effect.catchTag('OperationRejectedError', error =>
-                Effect.sync(() => {
-                  rejected.push(error.opId)
-                  return undefined
-                }),
+              // A refusal, an operation the journal cannot apply, and an id reused for other
+              // content all fail the same way on every retry; a `JournalError` may not, so it
+              // still fails the exchange and the client tries again.
+              Effect.catch(error =>
+                error._tag === 'OperationRejectedError' ||
+                error._tag === 'InvalidOperationError' ||
+                error._tag === 'IdentityConflictError'
+                  ? Effect.sync(() => {
+                      rejected.push(operation.opId)
+                      return undefined
+                    })
+                  : Effect.fail(error),
               ),
             ),
           )

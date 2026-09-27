@@ -169,6 +169,15 @@ describe('the journal adapter', () => {
     expect(server.snapshot('todos').model).toEqual({ todos: [{ id: 'b', title: 'b' }] })
   })
 
+  it('rejects an id reused for other content, as a client whose storage was wiped sends', async () => {
+    const transport = server.transport(principal)
+    await transport.exchange(Sequence.make(0), [operation('a', 1, created('first'))])
+    await expect(
+      transport.exchange(Sequence.make(1), [operation('a', 1, created('second'))]),
+    ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: [] })
+    expect(server.snapshot('todos').model).toEqual({ todos: [{ id: 'first', title: 'first' }] })
+  })
+
   it('sends a checkpoint only below the compaction floor', async () => {
     server.append(operation('seed', 1, created('a')), principal)
     server.append(operation('seed', 2, created('b')), principal)
@@ -350,15 +359,15 @@ describe('the journal adapter', () => {
       expect(notifications).toBe(1)
 
       // a:1 is committed and compacted. Reusing that opId with a different
-      // payload must conflict, and must not settle an effect for the
-      // replacement payload that never entered the state machine.
+      // payload must conflict, which rejects it, and must not settle an effect
+      // for the replacement payload that never entered the state machine.
       await expect(
         guarded
           .transport(principal)
           .exchange(Sequence.make(0), [
             operation('a', 1, Message.RenamedTodo({ id: 'todo', title: 'malicious' })),
           ]),
-      ).rejects.toThrow()
+      ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: [] })
       expect(notifications).toBe(1)
       expect(guarded.snapshot('todos').model).toEqual({
         todos: [{ id: 'todo', title: 'renamed' }],

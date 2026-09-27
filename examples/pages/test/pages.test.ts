@@ -7,7 +7,7 @@
 import { Effect } from 'effect'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
-import { ReplicaId, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
+import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initialModel, Message, update, type Model, type Shared } from '../src/app.js'
 import { mountPages, PagesSync } from '../src/contract.js'
@@ -209,5 +209,27 @@ describe('two people on one page', () => {
     await synchronize(aliceReplica, 'alice')
     await vi.waitFor(() => expect(tab.model().open).toBeNull())
     await vi.waitFor(() => expect(document.getElementById('page-body')).toBeNull())
+  })
+
+  it('rejects an operation that does not decode, and commits the rest of the exchange', async () => {
+    const replica = await open('alice')
+    replicas.push(replica)
+    await Effect.runPromise(
+      replica.submit(Message.CreatedPage({ id: 'alice:0', title: 'Kept', key: 'alice:0:seed' })),
+    )
+    const [valid] = Effect.runSync(replica.pending)
+    const malformed = {
+      ...valid!,
+      opId: 'alice:9',
+      message: { _tag: 'EditedPage', id: 'alice:0', ops: 'x' },
+    }
+    await expect(
+      journal.transport('alice').exchange(Sequence.make(0), [
+        // @ts-expect-error a client that does not speak the schema: ops that are not an array
+        malformed,
+        valid!,
+      ]),
+    ).resolves.toMatchObject({ rejected: ['alice:9'], acknowledged: [valid!.opId] })
+    expect(journal.snapshot().pages.map(page => page.title)).toEqual(['Kept'])
   })
 })

@@ -42,8 +42,10 @@ export const openJournal = (file = ':memory:') => {
       const rejected: Array<string> = []
       const acknowledged: Array<string> = []
       for (const input of pending) {
-        // An operation that does not decode or apply fails the same way on every retry,
-        // so it is rejected rather than failing the exchange and being resent forever.
+        // An operation that does not decode, or that the journal refuses or cannot apply,
+        // fails the same way on every retry, so it is rejected rather than failing the
+        // exchange and being resent forever. A storage failure may pass, so it still fails
+        // the exchange, and the client keeps the edit and tries again.
         const outcome = Effect.runSync(
           Effect.result(
             Effect.try(() => PagesSync.codec.normalizeOperation(input)).pipe(
@@ -51,8 +53,13 @@ export const openJournal = (file = ':memory:') => {
             ),
           ),
         )
-        if (outcome._tag === 'Failure') rejected.push(input.opId)
-        else acknowledged.push(input.opId)
+        if (outcome._tag === 'Success') {
+          acknowledged.push(input.opId)
+          continue
+        }
+        if (outcome.failure._tag === 'JournalError') throw outcome.failure
+        const opId: unknown = (input as { readonly opId?: unknown } | null)?.opId
+        if (typeof opId === 'string') rejected.push(opId)
       }
       const rows = Effect.runSync(journal.read(pages, Cursor.make(cursor)))
       return { operations: rows.map(committed), rejected, acknowledged }
