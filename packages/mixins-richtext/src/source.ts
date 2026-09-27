@@ -8,7 +8,9 @@
  * now would report. What leaving does — commit at once, or confirm first when there are
  * warnings — is the application's `update`.
  */
+import { Effect, Queue, Schema, Stream } from 'effect'
 import type { Html } from 'foldkit/html'
+import * as Mount from 'foldkit/mount'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { renderDocument } from 'foldkit-richtext-dom/view'
@@ -34,9 +36,66 @@ export interface SourceEditorInput<Message> {
   readonly document: RichText.Document
   /** What the text area sends as the Markdown changes: the next draft. */
   readonly drafted: (draft: string) => Message
+  /** What the text area sends as its caret moves: the session's next `caret` (§147). */
+  readonly moved: (caret: number) => Message
   /** What the way back sends. */
   readonly done: Message
 }
+
+/**
+ * Puts a text area's caret at `caret` and focuses it, then reports each place the caret moves
+ * to, as the offset of its selection's focus, until released.
+ */
+export const followCaret = (
+  field: HTMLTextAreaElement,
+  caret: number,
+  report: (caret: number) => void,
+): (() => void) => {
+  field.focus()
+  field.setSelectionRange(caret, caret)
+  let last = caret
+  const moved = () => {
+    const at = field.selectionDirection === 'backward' ? field.selectionStart : field.selectionEnd
+    if (at === last) return
+    last = at
+    report(at)
+  }
+  // A caret moves by typing, by keys, by the pointer, and by selecting; browsers that fire
+  // `selectionchange` on the field itself cover all of these, and the rest are for the others.
+  const events = ['selectionchange', 'select', 'input', 'keyup', 'mouseup'] as const
+  for (const event of events) field.addEventListener(event, moved)
+  return () => {
+    for (const event of events) field.removeEventListener(event, moved)
+  }
+}
+
+const CaretMoved = Schema.TaggedStruct('CaretMoved', { caret: Schema.Number })
+
+/** `followCaret` as a Mount; its element is the source editor's text area. */
+const sourceCaret = Mount.defineStream('RichTextSourceCaret', {
+  args: { caret: Schema.Number },
+  messages: [CaretMoved],
+  execute: ({ element, caret }) =>
+    Stream.callback<typeof CaretMoved.Type>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          element instanceof HTMLTextAreaElement
+            ? followCaret(element, caret, at =>
+                Queue.offerUnsafe(queue, CaretMoved.make({ caret: at })),
+              )
+            : () => {},
+        ),
+        release => Effect.sync(release),
+      ),
+    ),
+})
+
+/** The caret Mount lifted into the caller's Messages, as the text area carries it. */
+export const caretMount = <Message>(
+  caret: number,
+  moved: (caret: number) => Message,
+): Mount.MountAction<Message> =>
+  Mount.mapMessage(sourceCaret({ caret }), message => moved(message.caret))
 
 /** A warning as a sentence; its code and detail also ride on the element for a Style. */
 const describe = (diagnostic: MarkdownDiagnostic): string =>
@@ -94,6 +153,8 @@ export const sourceEditor = <Message>(): SlotView.SlotView<
           h.DataAttribute('source', 'text'),
           h.Value(input.session.draft),
           h.OnInput(input.drafted),
+          // Read once, when the text area is drawn: the session's caret as it opened.
+          h.OnMount(caretMount(input.session.caret, input.moved)),
         ]) as Parameters<typeof h.textarea>[0],
       ),
       h.ul(

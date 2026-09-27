@@ -179,7 +179,8 @@ editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
 nor a link at the caret) and `ClearedMark` from inside a link, and keeps no state.
-`sourceEditor<Message>()` is source mode's view: `{ session, document, drafted, done }` in,
+`sourceEditor<Message>()` is source mode's view: `{ session, document, drafted, moved, done }` in
+(the text area opens focused at `session.caret` and sends `moved(caret)` as it moves),
 `SourceEditorSlots` (`root`, `text`, `warnings`, `warning`, `done`) out; the application keeps
 `SourceSession | null` and commits `closeSource(...)` when `done` arrives. `sourcePreview<Message>()`
 beside it is split mode: `{ session, document, rendering? }`, the draft rendered read-only as

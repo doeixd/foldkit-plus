@@ -16,6 +16,7 @@ import { sourceEditor, sourcePreview } from '../src/index.js'
 
 const Message = defineMessageUnion({
   Drafted: { draft: Schema.String },
+  Moved: { caret: Schema.Number },
   LeftSource: {},
 })
 type Message = typeof Message.Type
@@ -35,6 +36,8 @@ const original = RichText.decodeDocument({
 interface Model {
   readonly document: RichText.Document
   readonly source: SourceSession | null
+  /** Where closing put the caret, as `run:offset`. */
+  readonly caret?: string
 }
 
 let minted = 0
@@ -42,8 +45,17 @@ const update = (model: Model, message: Message): { readonly model: Model } => {
   if (model.source === null) return { model }
   if (message._tag === 'Drafted')
     return { model: { ...model, source: { ...model.source, draft: message.draft } } }
+  if (message._tag === 'Moved')
+    return { model: { ...model, source: { ...model.source, caret: message.caret } } }
   const closed = closeSource(model.source, model.document, { mint: () => `m${++minted}` })
-  return { model: { document: closed.document, source: null } }
+  const focus = closed.selection?.type === 'Range' ? closed.selection.focus : undefined
+  return {
+    model: {
+      document: closed.document,
+      source: null,
+      ...(focus === undefined ? {} : { caret: `${focus.node}:${focus.offset}` }),
+    },
+  }
 }
 
 const view = (model: Model, h: HtmlBuilder<Message>) =>
@@ -51,9 +63,15 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
     [],
     [
       model.source === null
-        ? h.p(
-            [h.Id('rich')],
-            [model.document === original ? 'untouched' : print(model.document).markdown],
+        ? h.div(
+            [],
+            [
+              h.p(
+                [h.Id('rich')],
+                [model.document === original ? 'untouched' : print(model.document).markdown],
+              ),
+              h.p([h.Id('caret')], [model.caret ?? '']),
+            ],
           )
         : // Split mode: the source beside what it would become.
           h.div(
@@ -64,6 +82,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
                   session: model.source,
                   document: model.document,
                   drafted: draft => Message.Drafted({ draft }),
+                  moved: caret => Message.Moved({ caret }),
                   done: Message.LeftSource(),
                 },
                 h,
@@ -76,6 +95,9 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
 
 const opened = (): Model => ({ document: original, source: openSource(original) })
 const text = '[data-source="text"]'
+/** The text area's caret Mount, as if the caret had moved to `caret`: the application's Message. */
+const caretAt = (caret: number) =>
+  Scene.Mount.resolve({ name: 'RichTextSourceCaret' }, Message.Moved({ caret }))
 
 describe('the Markdown source editor', () => {
   it('shows the draft, and switches back untouched when nothing was typed', () => {
@@ -84,8 +106,23 @@ describe('the Markdown source editor', () => {
       Scene.given(opened()),
       Scene.expect(Scene.selector(text)).toHaveValue('marked\n'),
       Scene.expect(Scene.selector('[data-code]')).toBeAbsent(),
+      // The caret the text area reports is where closing puts it in the document.
+      caretAt(3),
       Scene.click('[data-source="done"]'),
+      Scene.Mount.expectEnded({ name: 'RichTextSourceCaret' }),
       Scene.expect(Scene.selector('#rich')).toHaveText('untouched'),
+      Scene.expect(Scene.selector('#caret')).toHaveText('p-t:3'),
+    )
+  })
+
+  it('opens the text area at the session’s caret', () => {
+    const at = { node: RichText.NodeId.make('p-t'), offset: 3, affinity: 'after' } as const
+    const source = openSource(original, { selection: { type: 'Range', anchor: at, focus: at } })
+    Scene.scene(
+      { update, view },
+      Scene.given<Model>({ document: original, source }),
+      Scene.Mount.expectExact({ name: 'RichTextSourceCaret', args: { caret: 3 } }),
+      caretAt(3),
     )
   })
 
@@ -93,11 +130,13 @@ describe('the Markdown source editor', () => {
     Scene.scene(
       { update, view },
       Scene.given(opened()),
+      caretAt(0),
       Scene.type(text, 'marked, and *more*\n'),
       Scene.expect(Scene.selector('[data-code="UnsupportedMark"]')).toHaveText(
         'Highlight formatting has no Markdown and will be lost',
       ),
       Scene.click('[data-source="done"]'),
+      Scene.Mount.expectEnded({ name: 'RichTextSourceCaret' }),
       Scene.expect(Scene.selector('#rich')).toHaveText('marked, and *more*\n'),
     )
   })
@@ -106,6 +145,7 @@ describe('the Markdown source editor', () => {
     Scene.scene(
       { update, view },
       Scene.given(opened()),
+      caretAt(0),
       Scene.expect(Scene.selector('[data-source="preview"] p')).toHaveText('marked'),
       Scene.type(text, '# Heading\n\nbody\n'),
       Scene.expect(Scene.selector('[data-source="preview"] h1')).toHaveText('Heading'),

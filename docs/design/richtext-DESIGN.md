@@ -7963,7 +7963,18 @@ result by the session's `unprintable` array, which is one object for the life of
 together with the draft, so a caret move does not parse again. Both are performance-only: no
 test can tell them from the plain call, and they are commented as such.
 
-Not done: the view reporting the textarea's caret. Foldkit's `OnInput` carries the value only.
-The repo's pattern for more is a Mount that emits its own tagged Message (`InputMask`), which only
-an application that includes that Message can host. So it will be a Behavior on the source
-editor's `text` slot, attached with the application's Message.
+## The text area's caret
+
+Foldkit's `OnInput` carries the value only, so the source editor's text area has a Mount,
+`followCaret`. When the text area is drawn, it focuses it and puts the caret at `session.caret`.
+From then on it reports the selection's focus whenever it moves (`selectionchange`, `select`,
+`input`, `keyup`, `mouseup`), and only when it changed. A Mount's Messages are its own, but
+`Mount.mapMessage` lifts it into the caller's universe with the view's `moved(caret)` input. So
+the generic view carries it directly, and no Behavior or application Message type is needed.
+Planned first was a Behavior on the `text` slot, which only an application naming the Mount's
+Message could attach. The lift made that unnecessary.
+
+A Mount reads its args once, which suits this: the caret is placed when a session's text area
+appears, and the writer moves it after that. The view test resolves the Mount with the
+application's Message, so the lift itself is tested by running the action against a textarea
+(`caretMount`).

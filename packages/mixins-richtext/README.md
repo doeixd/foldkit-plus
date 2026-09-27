@@ -205,17 +205,24 @@ sourceEditor<Message>()(
     session: model.source,
     document: model.document,
     drafted: draft => DraftedSource({ draft }),
+    moved: caret => MovedInSource({ caret }),
     done: LeftSource(),
   },
   h,
 )
 ```
 
-The text area holds the draft and sends `drafted` as it changes. Under it, one warning per
-thing switching back would lose or refuse, read from `closeSource` — so none until the draft is
-edited, since an unedited session gives the document back whole. `done` is the way back; the
-application's `update` decides whether to commit `closeSource(...).document` at once or to ask
-first when there are warnings. The warnings are computed once per session value.
+The text area holds the draft and sends `drafted` as it changes. When it is drawn, it takes
+focus with its caret at `session.caret`, where `openSource(document, { selection })` put the
+rich editor's caret. It then sends `moved` each time the caret moves, and the application puts
+that in `session.caret`, so that `closeSource(...).selection` is the caret back in the rich
+editor. It is a Mount, and a Mount reads its args once, so the caret is placed when the text
+area appears, not on every render. Under the text area, one warning per thing switching back
+would lose or refuse, read from `closeSource`, so none until the draft is edited, since an
+unedited session gives the document back whole. `done` is the way back; the application's
+`update` decides whether to commit `closeSource(...).document` at once or to ask first when there
+are warnings. The warnings are computed once per draft, and moving the caret does not compute
+them again.
 
 Split mode is the same session drawn twice: `sourcePreview<Message>()({ session, document,
 rendering? })` beside the editor renders the document switching back would commit, through the
