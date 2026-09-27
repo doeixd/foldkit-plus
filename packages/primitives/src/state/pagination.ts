@@ -37,6 +37,14 @@ export const pageCount = (model: PaginationModel): number | null =>
 /** The offset of the first item on the page, for a slice or a query. */
 export const offset = (model: PaginationModel): number => (model.page - 1) * model.perPage
 
+const settle = (
+  model: PaginationModel,
+  next: PaginationModel,
+): { readonly model: PaginationModel } =>
+  next.page === model.page && next.perPage === model.perPage && next.total === model.total
+    ? { model }
+    : { model: next }
+
 export const Pagination = Bundle.make('Pagination', {
   Model: PaginationModel,
   Message: PaginationMessage,
@@ -52,24 +60,20 @@ export const Pagination = Bundle.make('Pagination', {
   }),
   update: (model, message) =>
     PaginationMessage.match(message, {
-      GoToPage: ({ page }) => ({
-        model: { ...model, page: clampPage(page, model.perPage, model.total) },
-      }),
-      NextPage: () => ({
-        model: { ...model, page: clampPage(model.page + 1, model.perPage, model.total) },
-      }),
-      PrevPage: () => ({
-        model: { ...model, page: clampPage(model.page - 1, model.perPage, model.total) },
-      }),
+      GoToPage: ({ page }) =>
+        settle(model, { ...model, page: clampPage(page, model.perPage, model.total) }),
+      NextPage: () =>
+        settle(model, { ...model, page: clampPage(model.page + 1, model.perPage, model.total) }),
+      PrevPage: () =>
+        settle(model, { ...model, page: clampPage(model.page - 1, model.perPage, model.total) }),
       SetPerPage: ({ perPage }) =>
         perPage > 0
-          ? { model: { ...model, perPage, page: clampPage(model.page, perPage, model.total) } }
+          ? settle(model, { ...model, perPage, page: clampPage(model.page, perPage, model.total) })
           : { model },
+      // Sent again on every refetch, usually with the total already held.
       SetTotal: ({ total }) =>
         total === null || total >= 0
-          ? {
-              model: { ...model, total, page: clampPage(model.page, model.perPage, total) },
-            }
+          ? settle(model, { ...model, total, page: clampPage(model.page, model.perPage, total) })
           : { model },
     }),
 })

@@ -51,11 +51,14 @@ export const Presence = Bundle.make<
     PresenceMessage.match<Update.ReturnWithOutMessage<PresenceModel, PresenceMessage, never>>(
       message,
       {
-        // Every new transition invalidates pending timeouts.
-        Show: () => ({
-          model: { ...model, phase: 'shown' as const, generation: model.generation + 1 },
-        }),
+        // Every new transition invalidates pending timeouts. While shown none is
+        // pending, and hiding what is hidden would show it for `durationMs`.
+        Show: () =>
+          model.phase === 'shown'
+            ? { model }
+            : { model: { ...model, phase: 'shown' as const, generation: model.generation + 1 } },
         Hide: () => {
+          if (model.phase === 'hidden') return { model }
           const generation = model.generation + 1
           return {
             model: { ...model, phase: 'hiding' as const, generation },
