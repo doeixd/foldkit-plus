@@ -504,6 +504,18 @@ describe('a selection held by anchors', () => {
   })
 })
 
+describe('applying ops', () => {
+  it('gives back the same state for the same ops on the same state', () => {
+    const start = base()
+    const ops: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+      { type: 'Delete', ranges: [{ id: ReplicatedId.make(keyAt(start, [4])), from: 0, to: 1 }] },
+    ]
+    expect(Replicated.applyOps(start, ops)).toBe(Replicated.applyOps(start, ops))
+    // Equal ops in another array are another edit's, and are applied afresh.
+    expect(Replicated.applyOps(start, [...ops])).not.toBe(Replicated.applyOps(start, ops))
+  })
+})
+
 describe('ops that no longer fit', () => {
   // Paths into `base()`: [1] the paragraph, [2] the list, [2, 0] its task item, [3] the
   // quote, [4] the last paragraph. Each case is an op the state has to shrug off, after the

@@ -472,19 +472,34 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
   }
 }
 
+const applied = new WeakMap<
+  ReplicatedState,
+  WeakMap<ReadonlyArray<ReplicatedOp>, ReplicatedState>
+>()
+
 /**
  * Folds ops into the state in order. Total: an op whose target is gone, whose ids are
  * already taken, or that would make the tree cyclic changes nothing, and one anchored on
  * a character that never arrived lands at the end of the block it names.
+ *
+ * The same ops on the same state give back the same state object, so the edit that made
+ * the ops and the durable Message that replays them agree on identity, and whatever is
+ * derived from it (`project`, an editor host's key) is derived once.
  */
 export const applyOps = (
   state: ReplicatedState,
   ops: ReadonlyArray<ReplicatedOp>,
 ): ReplicatedState => {
   if (ops.length === 0) return state
+  const known = applied.get(state)?.get(ops)
+  if (known !== undefined) return known
   const work = draft(state)
   for (const op of ops) applyOp(work, op)
-  return work.finish()
+  const next = work.finish()
+  const byOps = applied.get(state) ?? new WeakMap()
+  byOps.set(ops, next)
+  applied.set(state, byOps)
+  return next
 }
 
 // ---------------------------------------------------------------------------------------
