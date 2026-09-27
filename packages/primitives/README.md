@@ -818,7 +818,10 @@ tiles), and `over` is an element marked by that attribute inside the one
 `within` selects (the page's nodes). Its own tiles, and a matching element
 outside that one, are then over nothing. `within` is looked for nearest
 first, under the container's closest ancestor that holds a match, so two
-editors on one page each drop onto their own page.
+editors on one page each drop onto their own page. Such a drag's
+`DraggedOver` and `DragDropped` also carry `region`: whether the pointer is
+inside that element, so `over: null` with `region: true` is its empty space
+(an empty page, the space below its last node), and with `false`, elsewhere.
 
 `FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
 in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,

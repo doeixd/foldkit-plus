@@ -116,7 +116,8 @@ into a chord answer. Slices that must survive reload persist through
   marked elements `touch-action: none`). No roles or keys: give the keyboard
   its own way. Swallows the click a drop ends with. Onto another region (a palette onto a
   page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
-  found nearest the container first.
+  found nearest the container first, and each fact carries `region: boolean`, so `over: null`
+  with `region: true` is the region's empty space.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or

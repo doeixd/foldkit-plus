@@ -94,6 +94,17 @@ afterEach(() => {
 
 const canvas = () => document.querySelector<HTMLElement>('[aria-label="Page"]')
 
+/** A point in an element's box: its middle across, `down` of the way down. */
+const centre = (element: HTMLElement, down = 0.5) => {
+  const box = element.getBoundingClientRect()
+  return { clientX: box.left + box.width / 2, clientY: box.top + box.height * down }
+}
+/** A primary pointer's event of `type` at a point, pressed. */
+const at = (element: EventTarget, type: string, where: { clientX: number; clientY: number }) =>
+  element.dispatchEvent(
+    new PointerEvent(type, { bubbles: true, button: 0, buttons: 1, isPrimary: true, ...where }),
+  )
+
 it('reads its announcements out without showing them', async () => {
   unmount = mount(stylesheet)
   await vi.waitFor(() => expect(canvas()).not.toBeNull())
@@ -211,14 +222,6 @@ it('adds a Block dragged from the palette where it is dropped, between two Headi
     Array.from(page?.querySelectorAll<HTMLElement>('h2') ?? [], heading => heading.textContent)
   const target = page?.querySelectorAll<HTMLElement>('h2')[2]
   if (tile === null || page === null || target === undefined) throw new Error('no tile or page')
-  const centre = (element: HTMLElement, down = 0.5) => {
-    const box = element.getBoundingClientRect()
-    return { clientX: box.left + box.width / 2, clientY: box.top + box.height * down }
-  }
-  const at = (element: EventTarget, type: string, where: { clientX: number; clientY: number }) =>
-    element.dispatchEvent(
-      new PointerEvent(type, { bubbles: true, button: 0, buttons: 1, isPrimary: true, ...where }),
-    )
   at(tile, 'pointerdown', centre(tile))
   // Past the threshold, then over the last third of the third Heading: after it.
   at(document, 'pointermove', { clientX: centre(tile).clientX + 20, clientY: centre(tile).clientY })
@@ -463,4 +466,20 @@ it('shows the lines of a Quote and a Callout broken as they were typed, not only
   }
   await vi.waitFor(() => expect(lines(quote, 'text')).toBe(2))
   expect(lines(callout, 'body')).toBe(2)
+})
+
+it('adds a Section dragged onto an empty page, where nothing marks a place', async () => {
+  unmount = mount(stylesheet, 0, Composition.Document.make({ format: 1, roots: [], nodes: {} }))
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const tile = document.querySelector<HTMLElement>('[aria-label="Add Section"]')
+  const page = canvas()
+  if (tile === null || page === null) throw new Error('no tile or page')
+  at(tile, 'pointerdown', centre(tile))
+  at(document, 'pointermove', { clientX: centre(tile).clientX + 20, clientY: centre(tile).clientY })
+  // Onto the text that says the page is empty.
+  at(document, 'pointermove', centre(page))
+  at(page, 'pointerup', centre(page))
+  await vi.waitFor(() =>
+    expect(page.querySelectorAll('[data-composition-node]').length).toBeGreaterThan(0),
+  )
 })

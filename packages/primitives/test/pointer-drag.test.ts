@@ -246,7 +246,7 @@ describe('PointerDrag onto another region', () => {
                 attribute: 'data-row',
                 targets: { attribute: 'data-node', within: '#page' },
               }).f(palette, Mount.liveViewStateChanges),
-              5,
+              6,
             ),
           )
           for (let i = 0; i < 50; i++) yield* Effect.yieldNow
@@ -256,16 +256,19 @@ describe('PointerDrag onto another region', () => {
           fire(first, 'pointermove', { clientX: 10, clientY: 125 })
           fire(stray, 'pointermove', { clientX: 10, clientY: 210 })
           fire(second, 'pointermove', { clientX: 10, clientY: 135 })
-          fire(second, 'pointerup')
+          // The page's own space, over none of its nodes: an empty page, the space below.
+          fire(page, 'pointermove', { clientX: 10, clientY: 170 })
+          fire(page, 'pointerup')
           return yield* Fiber.join(fiber)
         }),
       )
       expect(facts).toEqual([
         DragStarted.make({ id: 'Heading' }),
-        DraggedOver.make({ over: { id: 'n1', zone: 'after' } }),
-        DraggedOver.make({ over: null }),
-        DraggedOver.make({ over: { id: 'n2', zone: 'before' } }),
-        DragDropped.make({ id: 'Heading', over: { id: 'n2', zone: 'before' } }),
+        DraggedOver.make({ over: { id: 'n1', zone: 'after' }, region: true }),
+        DraggedOver.make({ over: null, region: false }),
+        DraggedOver.make({ over: { id: 'n2', zone: 'before' }, region: true }),
+        DraggedOver.make({ over: null, region: true }),
+        DragDropped.make({ id: 'Heading', over: null, region: true }),
       ])
     } finally {
       palette.remove()
@@ -319,8 +322,8 @@ describe('PointerDrag onto another region, in the second of two editors', () => 
       )
       expect(facts).toEqual([
         DragStarted.make({ id: 'Heading' }),
-        DraggedOver.make({ over: { id: 'n2', zone: 'inside' } }),
-        DragDropped.make({ id: 'Heading', over: { id: 'n2', zone: 'inside' } }),
+        DraggedOver.make({ over: { id: 'n2', zone: 'inside' }, region: true }),
+        DragDropped.make({ id: 'Heading', over: { id: 'n2', zone: 'inside' }, region: true }),
       ])
     } finally {
       first.root.remove()

@@ -236,7 +236,8 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
   `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
   `DragStarted({ source })` (`{ _tag: 'Existing', id }`, or `{ _tag: 'New', block }` from the
-  palette), `DraggedOver({ id, zone })`, `DraggedOff()`,
+  palette), `DraggedOver({ id, zone })`, `DraggedOff()`, `DraggedOverPage()` (a tile over the
+  page's empty space, which lands where `placeFor` with nothing selected puts it),
   `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
   (`dropAt`; inside a node that takes nothing is after it, and `over`'s zone
   says so), none where the page refuses or onto the node's own place; a drop

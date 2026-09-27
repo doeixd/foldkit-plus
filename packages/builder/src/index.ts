@@ -67,7 +67,10 @@ export type DragSource = typeof DragSource.Type
 /** A drag under way: what is dragged, what it is over, and where it would go. */
 export const Drag = Schema.Struct({
   source: DragSource,
-  /** The node it is over and the zone of it; none while it is over nothing. */
+  /**
+   * The node it is over and the zone of it; none while it is over nothing, or
+   * over the page's own space, which `at` then tells apart.
+   */
   over: Schema.OptionFromNullOr(Schema.Struct({ id: NodeId, zone: DropZone })),
   /**
    * Where a drop now puts it; none where a drop there would be refused.
@@ -233,6 +236,11 @@ export const Message = defineMessageUnion({
   DraggedOver: { id: NodeId, zone: DropZone },
   /** The dragged node is over nothing. */
   DraggedOff: {},
+  /**
+   * A palette tile is over the page but over none of its nodes, as an empty
+   * page or the space below the last node: it goes last where the page takes it.
+   */
+  DraggedOverPage: {},
   /** The drag ended where it is: the node moves there, when it may. */
   DragDropped: {},
   DragCancelled: {},
@@ -759,6 +767,16 @@ export const Builder = {
     }
 
     /** What a drag carries, as `landing` weighs it; none for a node gone or a Block not offered. */
+    /**
+     * Where a palette tile dropped on the page's own space goes: last where the
+     * page takes its Block, as a press with nothing selected puts it. None for
+     * a node on the page, which is moved only onto another.
+     */
+    const onPage = (document: Document, source: DragSource): Option.Option<Position> =>
+      source._tag === 'New'
+        ? placeFor(catalog, document, Option.none(), source.block)
+        : Option.none()
+
     const draggedOf = (document: Document, source: DragSource): Option.Option<Dragged> => {
       if (source._tag === 'Existing') {
         const node = document.nodes[source.id]
@@ -1366,6 +1384,20 @@ export const Builder = {
             },
           }
         }
+        case 'DraggedOverPage': {
+          if (Option.isNone(model.drag)) return { model }
+          const drag = model.drag.value
+          return {
+            model: {
+              ...model,
+              drag: Option.some({
+                ...drag,
+                over: Option.none(),
+                at: onPage(documentOf(model), drag.source),
+              }),
+            },
+          }
+        }
         case 'DraggedOff':
           return Option.isNone(model.drag)
             ? { model }
@@ -1381,14 +1413,20 @@ export const Builder = {
               }
         case 'DragDropped': {
           if (Option.isNone(model.drag)) return { model }
-          const { source, over } = model.drag.value
+          const { source, over, at } = model.drag.value
           const ended = { ...model, drag: Option.none() }
           // Worked out again: the page may have changed since the pointer got here.
-          const landed = Option.flatMap(over, target =>
-            Option.flatMap(draggedOf(documentOf(model), source), dragged =>
-              landing(catalog, documentOf(model), dragged, target.id, target.zone),
-            ),
-          )
+          // Over no node with a place is over the page's own space.
+          const landed = Option.match(over, {
+            onNone: () =>
+              Option.isSome(at)
+                ? Option.map(onPage(documentOf(model), source), place => ({ at: place }))
+                : Option.none(),
+            onSome: target =>
+              Option.flatMap(draggedOf(documentOf(model), source), dragged =>
+                landing(catalog, documentOf(model), dragged, target.id, target.zone),
+              ),
+          })
           return Option.match(landed, {
             onNone: () => ({ model: ended, commands: announce(unmoved(source)) }),
             onSome: ({ at }) =>

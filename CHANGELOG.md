@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
+  for a drag onto `targets` carry `region`, whether the pointer is inside the
+  region, so `over: null` with `region: true` is its empty space.
+  `foldkit-builder` gains `DraggedOverPage()`, which lands a tile where a
+  press with nothing selected would put it, and `foldkit-mixins-builder` sends
+  it; a tile dropped on an empty page, or below the last node, added nothing.
+
 - **`foldkit-primitives`, `FollowTabStop`:** a Mount keeping focus inside a
   container of roving tab stops on its stop, when a transition it did not see
   moves the stop or removes the focused descendant. `TreeNavigation`'s

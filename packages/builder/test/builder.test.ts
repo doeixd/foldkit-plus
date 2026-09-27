@@ -17,7 +17,15 @@ import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
-import { Builder, Layers, Message, Model, inputOf, type DropZone } from 'foldkit-builder'
+import {
+  Builder,
+  Layers,
+  Message,
+  Model,
+  inputOf,
+  type DragSource,
+  type DropZone,
+} from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
 import {
   ColorMessage,
@@ -609,6 +617,29 @@ describe('dragging a node', () => {
     expect(
       send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Button' } })).drag,
     ).toEqual(Option.none())
+  })
+
+  it('adds a tile dropped on the page’s own space last where the page takes it, and moves no node', () => {
+    const dragged = (model: Model, source: DragSource) =>
+      send(send(model, Message.DragStarted({ source })), Message.DraggedOverPage())
+    // An empty page takes a Section as its first root.
+    const empty = send(
+      dragged(PageBuilder.initial, { _tag: 'New', block: 'Section' }),
+      Message.DragDropped(),
+    )
+    expect(empty.page.present.roots).toHaveLength(1)
+    // A Heading, no root, goes last in the last Region that takes one: the empty Section.
+    const heading = send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DragDropped())
+    expect(heading.page.present.nodes[id('s2')]?.regions['body']).toHaveLength(1)
+    // Over the page's space, a node on it goes nowhere.
+    const node = send(dragged(page, { _tag: 'Existing', id: id('h1') }), Message.DragDropped())
+    expect(node.page).toBe(page.page)
+    // Over nothing at all, a tile is not added.
+    const off = send(
+      send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DraggedOff()),
+      Message.DragDropped(),
+    )
+    expect(off.page).toBe(page.page)
   })
 
   it('says a new Block dragged away and let go was not added', () => {

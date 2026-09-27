@@ -302,10 +302,13 @@ const dragMessage =
       case 'DragStarted':
         return Message.DragStarted({ source: source(fact.id) })
       case 'DraggedOver':
-        // The DOM's fact says "over nothing" with `null`; the Builder has a Message for it.
-        return fact.over === null
-          ? Message.DraggedOff()
-          : Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
+        // The DOM's fact says "over nothing" with `null`, over the page's own space
+        // with `region` too; the Builder has a Message for each.
+        return fact.over !== null
+          ? Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
+          : fact.region === true
+            ? Message.DraggedOverPage()
+            : Message.DraggedOff()
       case 'DragDropped':
         return Message.DragDropped()
       case 'DragCancelled':
