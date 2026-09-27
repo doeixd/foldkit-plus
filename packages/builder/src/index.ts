@@ -32,6 +32,7 @@ import {
 import { Renderer, fieldName, fieldOf } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
 import { controls, inputOf, settingsOf, type Settings } from './settings.js'
+import { editWords, type EditWords } from './words.js'
 import { copyText, readText } from 'foldkit-primitives/dom'
 import { LiveAnnounce, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History, HistoryModel } from 'foldkit-primitives/state'
@@ -155,6 +156,7 @@ export interface Inspecting {
 }
 
 export { controlOf, inputOf, settingsOf, type Settings } from './settings.js'
+export { editWords, type EditWords } from './words.js'
 
 /** An edit that creates nodes and waits for their new ids. */
 const Request = Schema.Union([
@@ -475,11 +477,17 @@ const patternRoot = (
 /** What an applied edit says to assistive technology; none for a prop change. */
 const describeEdit = (
   catalog: Catalog,
+  words: EditWords,
   before: Document,
   after: Document,
   op: Operation,
 ): Option.Option<string> => {
-  const blockOf = (document: Document, id: NodeId) => document.nodes[id]?.block ?? 'Block'
+  // A node by its Block's label, the Catalog's word; one it lacks by its stored name.
+  const labelOf = (document: Document, id: NodeId): string =>
+    Option.match(Option.fromUndefinedOr(document.nodes[id]), {
+      onNone: () => id,
+      onSome: node => Catalog.block(catalog, node.block)?.words.label ?? node.block,
+    })
   const where = (id: NodeId): string => {
     const place = Composition.index(after).get(id)
     if (place === undefined) return ''
@@ -489,31 +497,28 @@ const describeEdit = (
         : (after.nodes[place.parent]?.regions[place.region ?? '']?.length ?? 0)
     const container =
       place.parent === undefined
-        ? 'the page'
-        : `${blockOf(after, place.parent)} ${place.region ?? ''}`.trim()
-    return `, ${place.index + 1} of ${siblings} in ${container}`
+        ? words.thePage
+        : words.inRegion(labelOf(after, place.parent), place.region ?? '')
+    return words.at(place.index + 1, siblings, container)
   }
+  const said = (id: NodeId) => [labelOf(after, id), where(id)] as const
   switch (op._tag) {
     case 'Move':
-      return Option.some(`Moved ${blockOf(after, op.id)}${where(op.id)}`)
+      return Option.some(words.moved(...said(op.id)))
     case 'Insert':
-      return Option.some(`Added ${blockOf(after, op.id)}${where(op.id)}`)
+      return Option.some(words.added(...said(op.id)))
     case 'InsertTree':
-      return Option.some(`Added ${blockOf(after, op.tree.root)}${where(op.tree.root)}`)
+      return Option.some(words.added(...said(op.tree.root)))
     case 'Duplicate':
-      return Option.map(
-        Option.fromUndefinedOr(op.ids[op.id]),
-        copy => `Duplicated ${blockOf(after, copy)}${where(copy)}`,
+      return Option.map(Option.fromUndefinedOr(op.ids[op.id]), copy =>
+        words.duplicated(...said(copy)),
       )
     case 'UsePattern':
-      return Option.map(
-        patternRoot(catalog, op),
-        root => `Added ${blockOf(after, root)}${where(root)}`,
-      )
+      return Option.map(patternRoot(catalog, op), root => words.added(...said(root)))
     case 'Remove':
-      return Option.some(`Removed ${blockOf(before, op.id)}`)
+      return Option.some(words.removed(labelOf(before, op.id)))
     case 'Batch':
-      return op.ops.length === 0 ? Option.none() : Option.some('Edited the page')
+      return op.ops.length === 0 ? Option.none() : Option.some(words.editedPage)
     default:
       return Option.none()
   }
@@ -623,9 +628,12 @@ export const Builder = {
        * toolbar are all drawn from the table this returns.
        */
       readonly commands?: (built: ReadonlyArray<BuilderCommand>) => ReadonlyArray<BuilderCommand>
+      /** What it says of each edit, its commands' labels and its refusals, over the English ones. */
+      readonly words?: Partial<EditWords>
     },
   ) => {
     const { catalog, renderer } = config
+    const words: EditWords = { ...editWords, ...config.words }
     const starters = config.starters as Readonly<Record<string, unknown>>
     // Each Block's props form, made now, so a control the inspector cannot run
     // is refused where the Builder is made, not at the first selection.
@@ -670,7 +678,8 @@ export const Builder = {
       group: string | null = groupOf(op),
     ): { readonly model: Model; readonly commands?: Commands } => {
       const result = Composition.apply(catalog, documentOf(model), op)
-      if (Result.isFailure(result)) return refuse(model, result.failure)
+      if (Result.isFailure(result))
+        return refuse(model, { ...result.failure, message: words.refusal(result.failure) })
       const { document, removed } = result.success
       const kept = Option.filter(model.selected, id => !removed.includes(id))
       return {
@@ -680,7 +689,7 @@ export const Builder = {
           selected: Option.orElse(created(catalog, op), () => kept),
           refused: Option.none(),
         },
-        ...Option.match(describeEdit(catalog, documentOf(model), document, op), {
+        ...Option.match(describeEdit(catalog, words, documentOf(model), document, op), {
           onNone: () => ({}),
           onSome: said => ({ commands: announce(said) }),
         }),
@@ -739,9 +748,13 @@ export const Builder = {
         ),
       )
 
+    /** A Block's label, the Catalog's word; one it lacks by its name. */
+    const blockLabel = (block: string): string =>
+      Catalog.block(catalog, block)?.words.label ?? block
+
     /** What is said when a drag ends with nothing done. */
     const unmoved = (source: DragSource): string =>
-      source._tag === 'Existing' ? 'Not moved' : 'Not added'
+      source._tag === 'Existing' ? words.notMoved : words.notAdded
 
     /** Asks for `count` new ids; the request goes through once they arrive. */
     const mint = (count: number, request: typeof Request.Type): Commands => [
@@ -973,14 +986,14 @@ export const Builder = {
           return starters[message.block] === undefined
             ? refuse(model, {
                 code: 'composition:unknown-block',
-                message: `"${message.block}" has no starting props, so it cannot be inserted`,
+                message: words.noStartingProps(message.block),
               })
             : { model, commands: mint(1, { _tag: 'Insert', block: message.block, at: message.at }) }
         case 'DuplicateAsked': {
           if (documentOf(model).nodes[message.id] === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
-              message: `"${message.id}" is not a node`,
+              message: words.notANode(message.id),
             })
           const count = Object.keys(
             Composition.takeTree(documentOf(model), message.id).nodes,
@@ -996,17 +1009,17 @@ export const Builder = {
           if (node === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
-              message: `"${message.id}" is not a node`,
+              message: words.notANode(message.id),
             })
           const tree = Composition.takeTree(documentOf(model), message.id)
           const copied = { ...model, clipboard: Option.some(tree) }
           if (message._tag === 'CopyAsked')
-            return { model: copied, commands: copy(tree, `Copied ${node.block}`) }
+            return { model: copied, commands: copy(tree, words.copied(blockLabel(node.block))) }
           const cut = applyOp(copied, Composition.Op.remove(message.id))
           // A node its Region cannot do without is not cut: nothing is copied either.
           return cut.model.page === model.page
             ? { ...cut, model: { ...cut.model, clipboard: model.clipboard } }
-            : { model: cut.model, commands: copy(tree, `Cut ${node.block}`) }
+            : { model: cut.model, commands: copy(tree, words.cut(blockLabel(node.block))) }
         }
         case 'PasteAsked':
           return {
@@ -1032,9 +1045,7 @@ export const Builder = {
           if (Option.isNone(tree))
             return refuse(model, {
               code: 'builder:nothing-to-paste',
-              message: Option.isSome(message.text)
-                ? 'The clipboard holds no part of a page'
-                : 'Nothing has been copied',
+              message: Option.isSome(message.text) ? words.notAPage : words.nothingCopied,
             })
           const root = tree.value.nodes[tree.value.root]
           // Where it fits by the selection; else last, where `apply` says why it does not.
@@ -1058,7 +1069,7 @@ export const Builder = {
             onNone: () =>
               refuse(model, {
                 code: 'composition:unknown-pattern',
-                message: `the Catalog has no pattern "${message.pattern}"`,
+                message: words.unknownPattern(message.pattern),
               }),
             onSome: pattern => ({
               model,
@@ -1128,7 +1139,7 @@ export const Builder = {
             if (ids[0] === undefined || Option.isNone(props))
               return refuse(model, {
                 code: 'composition:invalid-props',
-                message: `"${request.block}"'s starting props do not encode`,
+                message: words.startingPropsFail(request.block),
               })
             return applyOp(
               model,
@@ -1166,13 +1177,13 @@ export const Builder = {
           if (documentOf(model).nodes[request.id] === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
-              message: `"${request.id}" is not a node`,
+              message: words.notANode(request.id),
             })
           const held = Object.keys(Composition.takeTree(documentOf(model), request.id).nodes)
           if (held.length !== ids.length)
             return refuse(model, {
               code: 'composition:malformed-tree',
-              message: `"${request.id}" changed while its copy was being made; copy it again`,
+              message: words.copyChanged(request.id),
             })
           return applyOp(
             model,
@@ -1194,7 +1205,7 @@ export const Builder = {
               selected: keptIn(page.present, model.selected),
               refused: Option.none(),
             },
-            commands: announce(message._tag === 'Undid' ? 'Undone' : 'Redone'),
+            commands: announce(message._tag === 'Undid' ? words.undone : words.redone),
           }
         }
         case 'DragStarted':
@@ -1398,16 +1409,16 @@ export const Builder = {
           h.div(
             [h.Class('builder-actions')],
             [
-              button('Move up', applied(moveBy(documentOf(model), selected, -1))),
-              button('Move down', applied(moveBy(documentOf(model), selected, 1))),
+              button(words.moveUp, applied(moveBy(documentOf(model), selected, -1))),
+              button(words.moveDown, applied(moveBy(documentOf(model), selected, 1))),
               button(
-                'Duplicate',
+                words.duplicate,
                 Option.map(after(documentOf(model), selected), at =>
                   Message.DuplicateAsked({ id: selected, at }),
                 ),
               ),
               button(
-                'Delete',
+                words.delete,
                 Option.some(Message.Applied({ op: Composition.Op.remove(selected) })),
               ),
             ],
@@ -1451,11 +1462,11 @@ export const Builder = {
             [h.Class('builder-history')],
             [
               button(
-                'Undo',
+                words.undo,
                 History.canUndo(model.page) ? Option.some(Message.Undid()) : Option.none(),
               ),
               button(
-                'Redo',
+                words.redo,
                 History.canRedo(model.page) ? Option.some(Message.Redid()) : Option.none(),
               ),
             ],
@@ -1502,35 +1513,35 @@ export const Builder = {
     const built: ReadonlyArray<BuilderCommand> = [
       {
         id: 'move-up',
-        label: 'Move up',
+        label: words.moveUp,
         keys: [{ key: 'ArrowUp', alt: true }],
         placement: ['node'],
         run: onSelected((document, selected) => applied(moveBy(document, selected, -1))),
       },
       {
         id: 'move-down',
-        label: 'Move down',
+        label: words.moveDown,
         keys: [{ key: 'ArrowDown', alt: true }],
         placement: ['node'],
         run: onSelected((document, selected) => applied(moveBy(document, selected, 1))),
       },
       {
         id: 'move-out',
-        label: 'Move out',
+        label: words.moveOut,
         keys: [{ key: 'ArrowLeft', alt: true }],
         placement: ['node'],
         run: onSelected((document, selected) => applied(outdent(document, selected))),
       },
       {
         id: 'move-in',
-        label: 'Move in',
+        label: words.moveIn,
         keys: [{ key: 'ArrowRight', alt: true }],
         placement: ['node'],
         run: onSelected((document, selected) => applied(indent(catalog, document, selected))),
       },
       {
         id: 'duplicate',
-        label: 'Duplicate',
+        label: words.duplicate,
         keys: [{ key: 'd', mod: true }],
         placement: ['node'],
         run: onSelected((document, selected) =>
@@ -1539,21 +1550,21 @@ export const Builder = {
       },
       {
         id: 'copy',
-        label: 'Copy',
+        label: words.copy,
         keys: [{ key: 'c', mod: true }],
         placement: ['node'],
         run: onSelected((_, selected) => Option.some(Message.CopyAsked({ id: selected }))),
       },
       {
         id: 'cut',
-        label: 'Cut',
+        label: words.cutCommand,
         keys: [{ key: 'x', mod: true }],
         placement: ['node'],
         run: onSelected((_, selected) => Option.some(Message.CutAsked({ id: selected }))),
       },
       {
         id: 'delete',
-        label: 'Delete',
+        label: words.delete,
         keys: [{ key: 'Delete' }, { key: 'Backspace' }],
         placement: ['node'],
         run: onSelected((_, selected) =>
@@ -1562,14 +1573,14 @@ export const Builder = {
       },
       {
         id: 'undo',
-        label: 'Undo',
+        label: words.undo,
         keys: [{ key: 'z', mod: true, shift: false }],
         placement: ['toolbar'],
         run: model => history(model).undo,
       },
       {
         id: 'redo',
-        label: 'Redo',
+        label: words.redo,
         keys: [
           { key: 'z', mod: true, shift: true },
           { key: 'y', mod: true },
@@ -1579,14 +1590,14 @@ export const Builder = {
       },
       {
         id: 'paste',
-        label: 'Paste',
+        label: words.paste,
         keys: [{ key: 'v', mod: true }],
         placement: ['toolbar'],
         run: () => Option.some(Message.PasteAsked()),
       },
       {
         id: 'edit-text',
-        label: 'Edit its text',
+        label: words.editText,
         keys: [{ key: 'Enter' }],
         placement: ['keyboard'],
         // The first text the node draws as a field; none for a node that draws none.
@@ -1599,7 +1610,7 @@ export const Builder = {
       },
       {
         id: 'deselect',
-        label: 'Select nothing',
+        label: words.deselect,
         keys: [{ key: 'Escape' }],
         placement: ['keyboard'],
         run: onSelected(() => Option.some(Message.Deselected())),

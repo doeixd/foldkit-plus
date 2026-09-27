@@ -173,8 +173,15 @@ Behaviors; `foldkit-mixins-builder` does.
   key for a command, one left out, one moved to the toolbar. What runs a key,
   the node's actions and the toolbar all follow it.
 - **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
-  Section body", and so are undo, redo, and a refusal, assertively. A prop
-  edit is not: the field being typed in already says it.
+  Section body", a Block named by its label, and so are undo, redo, and a
+  refusal, assertively. A prop edit is not: the field being typed in already
+  says it.
+- **What it says is its words.** `Builder.make(name, { words })` takes any of
+  `EditWords` over the English ones (`editWords`): each announcement, each
+  command's label, and each refusal the Builder makes itself, a word that
+  takes a value being a function. A refusal `apply` makes is worded by
+  `refusal`, by default its own message; the Model's `refused` holds the
+  worded text, so the live region and a view's alert say the same.
 
 ## Text edited in place
 
@@ -393,5 +400,6 @@ Each helper that may have no answer returns an `Option`, as the Model's
 ## Limits
 
 - One node is selected at a time.
-- The plain view is plain. The drawn editor is `foldkit-mixins-builder`.
+- The plain view is plain, and names its panels in English. The drawn editor
+  is `foldkit-mixins-builder`.
 - A starting props value must encode with its Block's Schema.

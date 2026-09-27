@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-builder`: its words.** `Builder.make(name, { words })` takes any of
+  `EditWords` over `editWords`: what it announces of each edit, its commands'
+  labels, and the refusals it makes itself; `refusal` words those `apply`
+  makes. Announcements name a Block by its label, not its stored name.
+
 - **`foldkit-mixins-builder`: the editor's words.** Every word the drawn
   Builder shows of its own is one of `BuilderWords` (English defaults in
   `builderWords`), given as the view input `words`; a word that takes a value
