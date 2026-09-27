@@ -475,21 +475,29 @@ describe('what the review found', () => {
     expect(rows(`select label from cms_entries where id = 'new1'`)).toEqual([{ label: 'Hello' }])
   })
 
-  it('resumes a draft that was saved mid-check with nothing in flight', async () => {
-    const { author, rows } = world()
+  it('stores a draft saved mid-check settled, and resumes it with nothing in flight', async () => {
+    const { author, rows, sqlite } = world()
     const ada = author('ada')
     await ada.open('e1')
     // The rest ends and the draft is saved while the check of the body is still out.
     const commands = ada.hold(ada.type('body', 'Checked later'))
     await ada.settle(commands.filter(command => command.name.endsWith('.rest')))
-    expect(String(rows(`select model from cms_drafts where id = 'e1'`)[0]!['model'])).toContain(
-      'Validating',
-    )
+    const stored = String(rows(`select model from cms_drafts where id = 'e1'`)[0]!['model'])
+    expect(stored).toContain('"body":{"_tag":"NotValidated","value":"Checked later"}')
 
     const later = author('ada')
     await later.open('e1')
     expect(later.resumed()).toBe('Model')
     expect(later.field('body')).toEqual({ _tag: 'NotValidated', value: 'Checked later' })
+
+    // One stored before drafts were settled is settled as it is shown again.
+    sqlite.exec(
+      `update cms_drafts set model = '${stored.replace('"_tag":"NotValidated","value":"Checked later"', '"_tag":"Validating","value":"Checked later"')}' where id = 'e1'`,
+    )
+    const older = author('ada')
+    await older.open('e1')
+    expect(older.resumed()).toBe('Model')
+    expect(older.field('body')).toEqual({ _tag: 'NotValidated', value: 'Checked later' })
   })
 
   it('forgets an old failure once the author has moved on', async () => {
