@@ -42,6 +42,12 @@ typed into a block someone else deleted goes with the block. A deleted page goes
 trash rather than away: edits that arrive for it still apply, so someone who typed into it
 offline has not lost the text, and restoring the page from the sidebar brings it back.
 
+Undo takes back this tab's own edits and leaves everyone else's. Each edit is recorded, in the
+tab's Model, as the ops that reverse it (`Replicated.invert`); a run of typing is one step.
+Undo applies those ops as a new edit, which travels and converges like any other, and records
+their own inverse for redo. A snapshot undo would restore a document the others have moved on
+from, so the editor's own history is not used.
+
 ## Run it
 
 The two-replica trace, which is what CI runs:
@@ -79,8 +85,6 @@ and reach the other window once the server is back.
 
 ## Limits
 
-- There is no undo: the editor's undo restores a snapshot of this tab's document, which
-  other people's edits have moved on from, and collaborative undo is not built.
 - Deleted characters are kept as tombstones for good; nothing collects them yet.
 - A new replica replays the whole history, 500 edits per exchange; the server sends no
   checkpoint, because it never compacts.

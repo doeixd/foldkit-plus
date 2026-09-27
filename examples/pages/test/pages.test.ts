@@ -9,7 +9,7 @@ import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { initialModel, Message, update, type Model, type Shared } from '../src/app.js'
+import { initialModel, Message, pageOf, update, type Model, type Shared } from '../src/app.js'
 import { mountPages, PagesSync } from '../src/contract.js'
 import { openJournal } from '../src/journal.js'
 import { view } from '../src/view.js'
@@ -178,6 +178,102 @@ describe('two people on one page', () => {
     )
     await synchronize(aliceReplica, 'alice')
     expect(textOf(journal.snapshot(), tab.model().open!)).toEqual(['Hi!'])
+  })
+
+  it('undoes only this tab’s typing, keeping what someone else typed meanwhile', async () => {
+    const aliceReplica = await open('alice')
+    const bobReplica = await open('bob')
+    replicas.push(aliceReplica, bobReplica)
+    const tab = await aliceOnPage(aliceReplica)
+    const page = tab.model().open!
+    const body = () => document.getElementById('page-body')?.textContent
+    for (const text of ['H', 'i'])
+      tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text }) }))
+    await vi.waitFor(() => expect(body()).toBe('Hi'))
+    await synchronize(aliceReplica, 'alice')
+    await synchronize(bobReplica, 'bob')
+    // Bob adds to the end of Alice's word.
+    const bobShared = Effect.runSync(bobReplica.shared)
+    const bobBody = bobShared.pages[0]!.body
+    const bobRun = Replicated.project(bobBody).children[0]!.children[0]!.id
+    await bobEdits(
+      bobReplica,
+      {
+        ...initialModel('bob'),
+        pages: bobShared.pages,
+        open: page,
+        selection: Replicated.anchor(bobBody, caretAt(bobRun, 2)),
+      },
+      Message.GotEditor({ message: EditorMessage.Typed({ text: ' there' }) }),
+    )
+    await synchronize(bobReplica, 'bob')
+    await synchronize(aliceReplica, 'alice')
+    await vi.waitFor(() => expect(body()).toBe('Hi there'))
+
+    // Alice's two keystrokes were one step: undo takes both, and only them.
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Undone() }))
+    await vi.waitFor(() => expect(body()).toBe(' there'))
+    await synchronize(aliceReplica, 'alice')
+    expect(textOf(journal.snapshot(), page)).toEqual([' there'])
+
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Redone() }))
+    await vi.waitFor(() => expect(body()).toBe('Hi there'))
+    await synchronize(aliceReplica, 'alice')
+    await synchronize(bobReplica, 'bob')
+    expect(textOf(Effect.runSync(bobReplica.shared), page)).toEqual(['Hi there'])
+  })
+
+  it('keeps typing on one page and on the next apart', async () => {
+    const aliceReplica = await open('alice')
+    replicas.push(aliceReplica)
+    const tab = await aliceOnPage(aliceReplica)
+    const first = tab.model().open!
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'one' }) }))
+    tab.dispatch(Message.AddedPage({ title: 'Second' }))
+    await vi.waitFor(() => expect(tab.model().open).not.toBe(first))
+    const empty = Replicated.project(pageOf(tab.model(), tab.model().open)!.body).children[0]!
+      .children[0]!.id
+    tab.dispatch(
+      Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(empty, 0) }) }),
+    )
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'two' }) }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('two'))
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Undone() }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe(''))
+    expect(textOf(tab.model(), first)).toEqual(['one'])
+    // The first page's typing is still a step of its own, on that page.
+    tab.dispatch(Message.OpenedPage({ id: first }))
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Undone() }))
+    await vi.waitFor(() => expect(textOf(tab.model(), first)).toEqual(['']))
+  })
+
+  it('undoes a change of block apart from the typing before it', async () => {
+    const aliceReplica = await open('alice')
+    replicas.push(aliceReplica)
+    const tab = await aliceOnPage(aliceReplica)
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'Title' }) }))
+    tab.dispatch(
+      Message.GotEditor({
+        message: EditorMessage.RetypedBlock({ block: { type: 'Heading', level: 1 } }),
+      }),
+    )
+    tab.dispatch(
+      Message.GotEditor({
+        message: EditorMessage.RetypedBlock({ block: { type: 'Heading', level: 2 } }),
+      }),
+    )
+    await vi.waitFor(() => expect(document.querySelector('#page-body h2')).not.toBeNull())
+    // Each change of block is a step of its own, apart from the other and from the typing.
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Undone() }))
+    await vi.waitFor(() => expect(document.querySelector('#page-body h1')).not.toBeNull())
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Undone() }))
+    await vi.waitFor(() => expect(document.querySelector('#page-body h1')).toBeNull())
+    expect(document.getElementById('page-body')?.textContent).toBe('Title')
+    // A new edit after an undo leaves nothing to redo.
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: '!' }) }))
+    tab.dispatch(Message.GotEditor({ message: EditorMessage.Redone() }))
+    await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('Title!'))
+    expect(document.querySelector('#page-body h1, #page-body h2')).toBeNull()
   })
 
   it('ticks a task, on the page and on the server', async () => {

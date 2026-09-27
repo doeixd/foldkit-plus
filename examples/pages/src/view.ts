@@ -88,6 +88,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                 h.div(
                   [h.Class('toolbar')],
                   [
+                    tool(h, 'Undo', EditorMessage.Undone()),
+                    tool(h, 'Redo', EditorMessage.Redone()),
                     tool(h, 'Bold', EditorMessage.ToggledMark({ mark: 'Bold' })),
                     tool(h, 'Italic', EditorMessage.ToggledMark({ mark: 'Italic' })),
                     tool(

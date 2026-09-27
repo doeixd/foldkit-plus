@@ -30,6 +30,13 @@ export type Page = typeof Page.Type
 export const Shared = Schema.Struct({ pages: Schema.Array(Page) })
 export type Shared = typeof Shared.Type
 
+/** One of this tab's edits, as the ops that take it back. */
+const UndoStep = Schema.Struct({ page: Schema.String, ops: Schema.Array(Replicated.ReplicatedOp) })
+type UndoStep = typeof UndoStep.Type
+
+/** How many steps undo keeps. */
+const UNDO_DEPTH = 200
+
 export const Model = Schema.Struct({
   ...Shared.fields,
   /** The page in the editor. */
@@ -45,6 +52,15 @@ export const Model = Schema.Struct({
   selection: Schema.NullOr(Replicated.AnchoredSelection),
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
   menuIndex: Schema.Number,
+  /**
+   * This tab's own edits, newest last, each as the ops that take it back: undo applies
+   * them as a new edit, so it reverses only what this tab did and keeps everyone else's.
+   * Local to the tab, as an editor's undo is.
+   */
+  undo: Schema.Array(UndoStep),
+  redo: Schema.Array(UndoStep),
+  /** What the last step was, so a run of typing is one step. */
+  undoGroup: Schema.NullOr(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -93,6 +109,9 @@ export const initialModel = (session: string): Model => ({
   selection: null,
   storedMarks: null,
   menuIndex: 0,
+  undo: [],
+  redo: [],
+  undoGroup: null,
 })
 
 /** A page opened: the caret and what the editor carried for the last one start afresh. */
@@ -102,6 +121,7 @@ const opened = (model: Model, id: string): Model => ({
   selection: null,
   storedMarks: null,
   menuIndex: 0,
+  undoGroup: null,
 })
 
 /** The page with this id, unless it is in the trash. */
@@ -134,30 +154,23 @@ const toApp = (command: {
 })
 
 /**
- * Commits an edit the editor made on the open page's projection: restates it as ops, draws
- * what they project to, and hands the ops on as the durable fact, applied in this same
- * transition. `keyed` is the document the editor's host is now keyed by: the editor's own
- * result after an edit through it, which `patchTo` hands on to the projection.
+ * Applies ops to the open page as the durable fact, in this same transition, and draws what
+ * they project to. `keyed` is the document the editor's host is now keyed by: the editor's
+ * own result after an edit through it, which `patchTo` hands on to the projection.
  */
-const commit = (
+const applyEdit = (
   model: Model,
   page: Page,
-  edit: Pick<Extract<RichText.TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
+  ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
   keyed: RichText.Document,
   commands: Update.Commands<Message>,
 ): Return => {
-  const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`)
-  // A caret move translates to no ops and mints nothing, so its key is not spent.
-  if (translated.ops.length === 0) {
-    return { model: { ...model, selection: translated.selection }, commands }
-  }
-  const next = { ...model, minted: model.minted + 1, selection: translated.selection }
   // A Message's constructor copies its arrays, so the ops drawn here are the fact's own: the
   // fact's update then applies the same array to the same body and gets back this state.
-  const fact = Message.EditedPage({ id: page.id, ops: translated.ops })
+  const fact = Message.EditedPage({ id: page.id, ops })
   const body = Replicated.applyOps(page.body, fact.ops)
   return {
-    model: next,
+    model,
     commands: [
       // The editor's own patch would draw its placeholder ids, only for this one to replace
       // them; this one patches from whatever is drawn, so it is the only one needed.
@@ -165,13 +178,83 @@ const commit = (
       toApp(
         patchTo(hostId, keyed, {
           document: Replicated.project(body),
-          selection: Replicated.resolve(body, translated.selection),
+          selection: Replicated.resolve(body, model.selection),
         }),
       ),
       Sync.fact(fact),
     ],
   }
 }
+
+/**
+ * Commits an edit the editor made on the open page's projection: restates it as ops and
+ * applies them, and records the ops that take it back. `group` names what kind of edit it
+ * was, so a run of typing is one undo step.
+ */
+const commit = (
+  model: Model,
+  page: Page,
+  edit: Pick<Extract<RichText.TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
+  keyed: RichText.Document,
+  commands: Update.Commands<Message>,
+  group: string | null,
+): Return => {
+  const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`)
+  // A caret move translates to no ops and mints nothing, so its key is not spent.
+  if (translated.ops.length === 0) {
+    return { model: { ...model, selection: translated.selection }, commands }
+  }
+  const inverse = Replicated.invert(page.body, translated.ops)
+  const last = model.undo[model.undo.length - 1]
+  // Opening a page starts a new group, so a run of typing is always on one page.
+  const joins = last !== undefined && group !== null && group === model.undoGroup
+  const undo = joins
+    ? [...model.undo.slice(0, -1), { page: page.id, ops: [...inverse, ...last.ops] }]
+    : [...model.undo, { page: page.id, ops: inverse }].slice(-UNDO_DEPTH)
+  return applyEdit(
+    {
+      ...model,
+      minted: model.minted + 1,
+      selection: translated.selection,
+      undo,
+      redo: [],
+      undoGroup: group,
+    },
+    page,
+    translated.ops,
+    keyed,
+    commands,
+  )
+}
+
+/**
+ * Takes the last step of `from` for the open page and applies it, pushing the ops that take
+ * it back onto `to`: undo and redo are the same move in opposite directions.
+ */
+const replay = (model: Model, page: Page, direction: 'undo' | 'redo'): Return => {
+  const from = model[direction]
+  let at = from.length - 1
+  while (at >= 0 && from[at]!.page !== page.id) at--
+  const step = from[at]
+  if (step === undefined) return { model }
+  const back: UndoStep = { page: page.id, ops: Replicated.invert(page.body, step.ops) }
+  const other = direction === 'undo' ? 'redo' : 'undo'
+  return applyEdit(
+    {
+      ...model,
+      [direction]: from.filter((_, index) => index !== at),
+      [other]: [...model[other], back].slice(-UNDO_DEPTH),
+      undoGroup: null,
+    },
+    page,
+    step.ops,
+    Replicated.project(page.body),
+    [],
+  )
+}
+
+/** The editor Messages that are typing, so a run of them is one undo step. */
+const typing = new Set(['Typed', 'Backspace', 'DeletedForward'])
 
 const taskAround = (document: RichText.Document, selection: RichText.Selection | null) => {
   if (selection?.type !== 'Range') return undefined
@@ -214,11 +297,11 @@ export const update = (model: Model, message: Message): Return =>
     OpenedPage: ({ id }) => ({ model: opened(model, id) }),
     GotEditor: ({ message: incoming }) => {
       const page = pageOf(model, model.open)
-      // Undo is a snapshot of this tab's document, which another replica's edits have moved
-      // on from; collaborative undo is a different operation, so it is not offered.
-      if (page === undefined || incoming._tag === 'Undone' || incoming._tag === 'Redone') {
-        return { model }
-      }
+      if (page === undefined) return { model }
+      // The editor's own undo restores a snapshot of this tab's document, which others'
+      // edits have moved on from; this one applies the ops that take this tab's edit back.
+      if (incoming._tag === 'Undone') return replay(model, page, 'undo')
+      if (incoming._tag === 'Redone') return replay(model, page, 'redo')
       const view = editorViewOf(model, page)
       const result = Editor.update(view, incoming, { hostId })
       const interaction = {
@@ -229,7 +312,14 @@ export const update = (model: Model, message: Message): Return =>
       const commands = (result.commands ?? []).map(toApp)
       const out = result.outMessage
       if (out?._tag !== 'Edited') return { model: interaction, commands }
-      return commit(interaction, page, out, out.state.document, commands)
+      return commit(
+        interaction,
+        page,
+        out,
+        out.state.document,
+        commands,
+        typing.has(incoming._tag) ? 'typing' : null,
+      )
     },
     ToggledTask: () => {
       const page = pageOf(model, model.open)
@@ -244,7 +334,7 @@ export const update = (model: Model, message: Message): Return =>
         { nodes },
       )
       if (!result.ok) return { model }
-      return commit(model, page, result, view.document, [])
+      return commit(model, page, result, view.document, [], null)
     },
   })
 
