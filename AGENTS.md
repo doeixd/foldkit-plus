@@ -717,6 +717,13 @@ of its own named a form field "fits the Catalog". Read words with
   reads as current, and this recurred four sections after I committed that
   sentence.
 
+- **The changelog is a document the commit list does not remind you of.**
+  About fifty commits of the page builder updated each README and the skill
+  but not `CHANGELOG.md`, which the plan requires in every change, and its
+  unreleased entries went on naming APIs since removed. Before committing a
+  public change, add its entry under Unreleased, and fix an unreleased entry
+  the change makes wrong rather than logging a removal of it.
+
 - **A declared option nothing reads is worse evidence of demand than no
   option.** `LivePolicy` was typed, documented, carried on the descriptor and
   present in the Message schema, and nothing in the production path ever set it,
