@@ -1,7 +1,7 @@
 # Plan: developer experience, view architecture, and the page builder
 
 **Status:** phases 0 to 5 done, 2026-09-26, but for what each section's
-dated note leaves: B9's regions as Slots and B10 (3d), words (3b), an
+dated note leaves: B9's regions as Slots (3d), words (3b), an
 `Environment` (3a), an application's own commands (5a), hover as a Message
 (5b), and rich text edited in place (5e). Phase 6 is still to decide.
 Proposed, 2026-09-26. Addresses every item in
@@ -663,6 +663,10 @@ current `Behavior.attach`, or need a new `Parts.behavior`.
 **B10 lands here.** `Renderer.render`'s edit options take `Option`s
 (`selected`, `drop`, and `editing` from Phase 5e). `RenderContext.on` returns
 `Option<Message>`.
+
+> **B10 done, 2026-09-26.** `selected`, `hovered`, `drop` and `editing` are
+> `Option`s, and `on` returns one; the drawn Builder passes its Model's as they
+> are.
 
 ### 3e. Presentation state, written down, with `Measure` (M)
 

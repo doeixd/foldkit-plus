@@ -10,7 +10,7 @@
  * before its Message is made, and `update` stays the only place a Message has
  * effects.
  */
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { isRecord, type AnyBlock } from './block.js'
 
 /** An action a Catalog offers, ending in a `Message`: what `Action.define` from `foldkit-surface` makes. */
@@ -100,21 +100,22 @@ export const checkActions = (
 }
 
 /**
- * The Message the action an event references makes, or `undefined` when the
- * node references none for it, or one that does not check.
+ * The Message the action an event references makes; none when the node
+ * references none for it, or one that does not check.
  */
 export const messageOf = (
   actions: ReadonlyArray<CatalogAction>,
   block: AnyBlock,
   stored: unknown,
   event: string,
-): unknown => {
-  if (!isRecord(stored) || !block.events.includes(event)) return undefined
+): Option.Option<unknown> => {
+  if (!isRecord(stored) || !block.events.includes(event)) return Option.none()
   const ref = decodeRef(stored[event])
-  if (Result.isFailure(ref)) return undefined
+  if (Result.isFailure(ref)) return Option.none()
   const action = actions.find(each => each.name === ref.success.action)
-  if (action === undefined) return undefined
-  const input = inputOf(action, ref.success)
+  if (action === undefined) return Option.none()
   // The input was decoded by this action's own Schema.
-  return Result.isFailure(input) ? undefined : action.toMessage(input.success as never)
+  return Option.map(Result.getSuccess(inputOf(action, ref.success)), input =>
+    action.toMessage(input as never),
+  )
 }

@@ -356,6 +356,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-composition/foldkit`: absence is an `Option`.** `RenderContext.on(event)`
+  returns an `Option` of the Message, and `Renderer.render`'s edit options
+  `selected`, `hovered`, `drop` and `editing` take `Option`s, as an editor's
+  Model holds them, rather than `undefined`.
+
 - **`foldkit-mixins-builder`: `BuilderView.describe` and `BuilderView.controls`
   are gone,** for `Block.words` (in `foldkit-composition`) and
   `Builder.controls` (in `foldkit-builder`). The toolbar's `history`, `undo`

@@ -212,8 +212,10 @@ Composition.Op.setAction(id, 'press', { action: 'addToCart', input: { productId:
 
 const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
   Button: ({ props, on, h }) => {
-    const pressed = on('press') // the Message addToCart makes, or undefined
-    return h.button(pressed === undefined ? [] : [h.OnClick(pressed)], [props.label])
+    const pressed = on('press') // the Message addToCart makes, or none
+    return h.button(Option.match(pressed, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }), [
+      props.label,
+    ])
   },
 })
 ```
@@ -222,7 +224,7 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
   have or input the action's Schema refuses is `composition:invalid-action`,
   and an action the Catalog lacks is `composition:unknown-action`.
 - **Nothing stored runs.** `on(event)` decodes the stored input by the action's
-  Schema and makes its Message, or gives `undefined`; `update` stays the only
+  Schema and makes its Message, an `Option`, none when there is none; `update` stays the only
   place a Message has effects.
 - The same Action is an agent's capability through `Agent.action`, declared
   once for both.
@@ -430,7 +432,8 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
 - **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
   element carrying `data-composition-node`, so an editor's canvas draws the
   page a visitor sees. The wrapper also carries the editor's marks, from the
-  options `selected`, `hovered` and `drop`: `data-composition-mark` is
+  options `selected`, `hovered` and `drop`, each an `Option` as the editor's
+  Model holds it: `data-composition-mark` is
   `selected` or `hovered` (a node that is both is `selected`), and
   `data-composition-drop` says where a drop lands. A node whose `when` fails is
   drawn anyway, marked `data-composition-hidden`.
@@ -438,7 +441,7 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   takes only a prop whose type is text. For a visitor it is the text. In edit
   mode it is a span marked `data-composition-field`, whose value names the node
   and the prop as JSON (`fieldOf(value)` reads it back). While the option
-  `editing: { id, key, initial }` names it, the span is
+  `editing` (an `Option` of `{ id, key, initial }`) names it, the span is
   `contenteditable="plaintext-only"`, a `textbox` named by `label` (default: the
   prop's name spaced), multiline when asked, and it shows `initial`, the text
   when editing began, however the page has changed since. That freezing is what
@@ -455,7 +458,7 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   spreads them into one record:
   `{ ...queries.read(model), ...features.read(model), ...Stateful.views(...) }`.
 - **`Renderer.make`'s views dispatch nothing**, so their `on(event)` gives
-  `undefined`: an editor's canvas draws a page without running its actions.
+  none: an editor's canvas draws a page without running its actions.
   `Renderer.forMessages<Message>()` requires every Message the Catalog's
   actions make to be one of `Message`.
 - **A node is drawn again only when what it reads changed.** Inside a

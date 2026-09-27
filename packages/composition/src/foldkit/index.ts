@@ -58,10 +58,10 @@ export interface RenderContext<B extends AnyBlock, Message> {
   readonly appearance: Readonly<Record<string, AppearanceChoice>>
   /**
    * The Message the action this node gives `event` makes, such as a button's
-   * `on('press')`; `undefined` when it gives none. Stored input never runs: it
-   * is decoded by the action's Schema first.
+   * `on('press')`; none when it gives none. Stored input never runs: it is
+   * decoded by the action's Schema first.
    */
-  readonly on: (event: string) => Message | undefined
+  readonly on: (event: string) => Option.Option<Message>
   /**
    * What the page's reads hold for this node, from the render option `data`;
    * `undefined` when there is none. A Query Block reads it with `rows(data)`.
@@ -224,7 +224,7 @@ const drawNode = (
         renderer.dispatches
           ? // `forMessages` checked the Catalog's actions end in this Renderer's Messages.
             messageOf(renderer.catalog.actions, block, node.actions, event)
-          : undefined,
+          : Option.none(),
       field: (key, fieldOptions = {}) => {
         // `TextKey` keeps `key` to the props that are text.
         const text = (props.success as Readonly<Record<string, string>>)[key] ?? ''
@@ -299,9 +299,9 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
   options: {
     readonly mode?: Mode
     /** In edit mode, the node to mark selected. */
-    readonly selected?: NodeId | undefined
+    readonly selected?: Option.Option<NodeId>
     /** In edit mode, the node to mark hovered. */
-    readonly hovered?: NodeId | undefined
+    readonly hovered?: Option.Option<NodeId>
     /**
      * What the page is drawn for, as the Catalog's `context` declares. A node
      * whose `when` does not hold is left out, or, in edit mode, drawn marked
@@ -314,16 +314,20 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
      */
     readonly data?: Readonly<Record<string, unknown>> | undefined
     /** In edit mode, the node a drop is aimed at, and where. */
-    readonly drop?:
-      { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | undefined
+    readonly drop?: Option.Option<{
+      readonly id: NodeId
+      readonly zone: 'before' | 'inside' | 'after'
+    }>
     /** In edit mode, the text prop being edited in place: see `field`. */
-    readonly editing?: Editing | undefined
+    readonly editing?: Option.Option<Editing>
   } = {},
 ): ReadonlyArray<Html> => {
   // For a Renderer that sends nothing, `Into` is the application's Message, and
   // no view can make one: drawing with the application's builder is safe.
   const h = given as unknown as HtmlBuilder<unknown>
   const mode = options.mode ?? 'view'
+  const { selected = Option.none(), hovered = Option.none(), drop = Option.none() } = options
+  const { editing = Option.none() } = options
   const loose = renderer as unknown as Renderer<AnyBlock, unknown>
   const lazy = lazyOf(loose)
   // Memoized only inside a runtime-driven render, which the lazy slot needs; drawn
@@ -363,10 +367,20 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
       node,
       shown,
       options.data?.[id],
-      options.selected === id ? 'selected' : options.hovered === id ? 'hovered' : undefined,
-      options.drop?.id === id ? options.drop.zone : undefined,
+      Option.contains(selected, id)
+        ? 'selected'
+        : Option.contains(hovered, id)
+          ? 'hovered'
+          : undefined,
+      Option.match(drop, {
+        onNone: () => undefined,
+        onSome: at => (at.id === id ? at.zone : undefined),
+      }),
       // The one object the options hold, so a memoized node is drawn again only when it changes.
-      options.editing?.id === id ? options.editing : undefined,
+      Option.match(editing, {
+        onNone: () => undefined,
+        onSome: at => (at.id === id ? at : undefined),
+      }),
       ...children,
     ]
     if (memoize) {

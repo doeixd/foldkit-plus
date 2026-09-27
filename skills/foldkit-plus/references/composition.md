@@ -82,7 +82,7 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   Edit mode wraps each node with `data-composition-node`. Draw a text prop with
   `field('text')` (text props only): the text for a visitor; in edit mode a span marked
   `data-composition-field` (`fieldOf(value)` gives `{ id, key }`), editable
-  (`plaintext-only`, frozen at `initial`) while `render`'s option `editing: { id, key, initial }`
+  (`plaintext-only`, frozen at `initial`) while `render`'s option `editing` (an `Option` of `{ id, key, initial }`)
   names it. `Renderer.fields(renderer, doc, id)` lists the props a node draws as fields.
   A page's host (the Builder's frame, a published page's root) is the container
   `PAGE_CONTAINER`; responsive looks take `Theme.inContainer(PAGE_CONTAINER, Theme.tokens.breakpoint)`
@@ -114,8 +114,8 @@ Presentation, not authorization.
 `Block.define(..., { events: ['press'] })`; `Catalog.make({ ..., actions: [AddToCart] })`
 (a `foldkit-surface` Action); `Op.setAction(id, 'press', { action: 'addToCart',
 input })`; in a `Renderer.forMessages<Message>()` view (which must route every
-Message the Catalog's actions make; `Renderer.make`'s `on` gives `undefined`), `on('press')` is the
-Message (input decoded first) or `undefined`. Codes:
+Message the Catalog's actions make; `Renderer.make`'s `on` gives none), `on('press')` is an
+`Option` of the Message (input decoded first). Codes:
 `composition:invalid-action`, `composition:unknown-action`. `Catalog.describe`
 lists each Block's `events`. The drawn Builder's inspector picks an action per
 event (`on press`) and edits its input field by field, seeded with empty values.

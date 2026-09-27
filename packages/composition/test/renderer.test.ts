@@ -56,9 +56,9 @@ describe('drawing a Document', () => {
   it('marks the selected, hovered and drop target nodes in edit mode, for a stylesheet', () => {
     const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, {
       mode: 'edit',
-      selected: id('start'),
-      hovered: id('hero'),
-      drop: { id: id('start'), zone: 'before' },
+      selected: Option.some(id('start')),
+      hovered: Option.some(id('hero')),
+      drop: Option.some({ id: id('start'), zone: 'before' }),
     })
     const marked = Inert.all(hero).filter(
       node => Inert.value(node, 'data-composition-node') !== undefined,
@@ -74,13 +74,15 @@ describe('drawing a Document', () => {
     // Hovered and selected at once, the node is marked selected.
     const [both] = Renderer.render(SiteRenderer, homePage, inertHtml, {
       mode: 'edit',
-      selected: id('hero'),
-      hovered: id('hero'),
+      selected: Option.some(id('hero')),
+      hovered: Option.some(id('hero')),
     })
     expect(
       Inert.all(both).flatMap(node => Inert.value(node, 'data-composition-mark') ?? []),
     ).toEqual(['selected'])
-    const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, { selected: id('start') })
+    const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, {
+      selected: Option.some(id('start')),
+    })
     expect(
       Inert.all(viewed).some(node => Inert.value(node, 'data-composition-mark') !== undefined),
     ).toBe(false)
@@ -188,7 +190,7 @@ describe('drawing a Document', () => {
     })
     const Actions = Catalog.make({ blocks: [Cta], roots: [Content.Section], actions: [Subscribe] })
     const h = SlotView.inertBuilder<typeof Message.Type>()
-    const pressed: Array<typeof Message.Type | undefined> = []
+    const pressed: Array<Option.Option<typeof Message.Type>> = []
     const Drawn = Renderer.forMessages<typeof Message.Type>().make(Actions, {
       Cta: ({ props, on, h }) => {
         pressed.push(on('press'), on('hover'))
@@ -215,20 +217,20 @@ describe('drawing a Document', () => {
       cta({ press: { action: 'subscribe', input: { list: 'news' } } }),
       inertHtml,
     )
-    expect(given).toEqual([undefined])
+    expect(given).toEqual([Option.none()])
     // @ts-expect-error a dispatching Renderer must route every Message the Catalog's actions make
     Renderer.forMessages<{ readonly _tag: 'Other' }>().make(Actions, {
       Cta: ({ props, h }) => h.p([], [props.label]),
     })
     expect(pressed).toEqual([
-      Message.Subscribed({ list: 'news' }),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+      Option.some(Message.Subscribed({ list: 'news' })),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
     ])
   })
 
@@ -362,7 +364,7 @@ describe('text edited in place', () => {
   })
 
   it('draws the field being edited editable, with the text it had when editing began', () => {
-    const editing = { id: id('t'), key: 'text', initial: 'Hello' }
+    const editing = Option.some({ id: id('t'), key: 'text', initial: 'Hello' })
     // The node's other field, and the other node's same field, are drawn as they were.
     const [edited, sibling, other] = fields(
       Renderer.render(TitleRenderer, titles, inertHtml, { mode: 'edit', editing }),
@@ -385,7 +387,7 @@ describe('text edited in place', () => {
     const [, tagLine] = fields(
       Renderer.render(TitleRenderer, titles, inertHtml, {
         mode: 'edit',
-        editing: { id: id('t'), key: 'tagLine', initial: 'Hi' },
+        editing: Option.some({ id: id('t'), key: 'tagLine', initial: 'Hi' }),
       }),
     )
     expect(Inert.value(tagLine, 'aria-label')).toBe('Tag line')

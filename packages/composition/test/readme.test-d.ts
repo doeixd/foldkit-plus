@@ -247,7 +247,10 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     Section: ({ regions, h }) => h.section([], [...regions.body]),
     Button: ({ props, on, h }) => {
       const pressed = on('press')
-      return h.button(pressed === undefined ? [] : [h.OnClick(pressed)], [props.label])
+      return h.button(
+        Option.match(pressed, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }),
+        [props.label],
+      )
     },
   })
   void op
