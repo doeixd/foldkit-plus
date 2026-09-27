@@ -255,6 +255,49 @@ const reread = (runs: Runs) => {
 }
 
 describe('what a parser reads back from the printed text', () => {
+  const item = (id: string) =>
+    node('ListItem', `${id}-i`, {}, [paragraph(id, [text(`${id}-t`, id)])])
+  const bullets = (id: string, ...items: ReadonlyArray<string>) =>
+    node('List', id, {}, items.map(item))
+  const numbers = (id: string, ...items: ReadonlyArray<string>) =>
+    node('List', id, { ordered: true }, items.map(item))
+
+  it.each([
+    ['two bulleted lists', [bullets('l1', 'a'), bullets('l2', 'b')], '- a\n\n* b\n'],
+    ['two numbered lists', [numbers('l1', 'a'), numbers('l2', 'b')], '1. a\n\n1) b\n'],
+    [
+      'three in a row, alternating',
+      [bullets('l1', 'a'), bullets('l2', 'b'), bullets('l3', 'c')],
+      '- a\n\n* b\n\n- c\n',
+    ],
+    // Nothing printed between them still leaves them adjacent in the text.
+    [
+      'two with an unprintable block between',
+      [bullets('l1', 'a'), node('Embed', 'x'), bullets('l2', 'b')],
+      '- a\n\n* b\n',
+    ],
+    [
+      'a bulleted and a numbered list, which never merge',
+      [bullets('l1', 'a'), numbers('l2', 'b')],
+      '- a\n\n1. b\n',
+    ],
+    [
+      'two lists a paragraph apart',
+      [bullets('l1', 'a'), paragraph('p', [text('t', 'x')]), bullets('l2', 'b')],
+      '- a\n\nx\n\n- b\n',
+    ],
+  ])('keeps %s apart', (_, blocks, expected) => {
+    const printed = print(decode(blocks)).markdown
+    expect(printed).toBe(expected)
+    let n = 0
+    const lists = parse(printed, { mint: () => `r${n++}` }).document.children.filter(
+      block => block.type === 'Node' && block.kind === 'List',
+    )
+    expect(lists).toHaveLength(
+      blocks.filter(block => 'kind' in block && block.kind === 'List').length,
+    )
+  })
+
   const link = (href: string): RichText.RunMark => ({ name: 'Link', props: { href } })
 
   it.each([

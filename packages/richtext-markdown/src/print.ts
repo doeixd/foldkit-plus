@@ -191,12 +191,29 @@ const inlineLine = (block: RichText.Block, printing: Printing): string =>
 const quote = (lines: ReadonlyArray<string>): ReadonlyArray<string> =>
   lines.map(line => (line.length === 0 ? '>' : `> ${line}`))
 
+/** The character a list's markers repeat: its bullet, or what follows its numbers. */
+const markerOf = (block: RichText.NodeBlock, style: Required<MarkdownStyle>): string =>
+  block.props.ordered === true ? style.delimiter : style.bullet
+
+/** The other spelling of a marker, for a list that must not read as the one before it. */
+const OTHER_MARKER: Readonly<Record<string, string>> = {
+  '-': '*',
+  '*': '-',
+  '+': '-',
+  '.': ')',
+  ')': '.',
+}
+
 /**
- * A list's items. The marker goes on the first line and the rest align under its content,
- * which is what keeps a second paragraph in an item inside the item. A task item carries
- * GFM's checkbox, ordered or not.
+ * A list's items, each marked with `marker`. The marker goes on the first line and the rest
+ * align under its content, which is what keeps a second paragraph in an item inside the item.
+ * A task item carries GFM's checkbox, ordered or not.
  */
-const list = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<string> => {
+const list = (
+  block: RichText.NodeBlock,
+  printing: Printing,
+  marker: string,
+): ReadonlyArray<string> => {
   const ordered = block.props.ordered === true
   const start = typeof block.props.start === 'number' ? block.props.start : 1
   const lines: Array<string> = []
@@ -204,13 +221,13 @@ const list = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<stri
   for (const item of block.blocks ?? []) {
     const isTask = item.type === 'Node' && item.kind === 'TaskItem'
     const checked = item.type === 'Node' && item.props.checked === true
-    const bullet = ordered ? `${number}${printing.style.delimiter} ` : `${printing.style.bullet} `
-    const marker = `${bullet}${isTask ? `[${checked ? 'x' : ' '}] ` : ''}`
+    const bullet = ordered ? `${number}${marker} ` : `${marker} `
+    const opening = `${bullet}${isTask ? `[${checked ? 'x' : ' '}] ` : ''}`
     number += 1
     const content = renderBlocks(item.type === 'Node' ? (item.blocks ?? []) : [item], printing)
-    const indent = ' '.repeat(marker.length)
+    const indent = ' '.repeat(opening.length)
     const [first, ...rest] = content
-    lines.push(`${marker}${first ?? ''}`)
+    lines.push(`${opening}${first ?? ''}`)
     for (const line of rest) lines.push(line.length === 0 ? '' : `${indent}${line}`)
   }
   return lines
@@ -271,7 +288,7 @@ const table = (block: RichText.NodeBlock, printing: Printing): ReadonlyArray<str
   return [lines[0]!, separator, ...lines.slice(1)]
 }
 
-/** One block as its lines, with no blank line around it. */
+/** One block other than a list as its lines, with no blank line around it. */
 const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<string> => {
   if (block.type === 'Unknown') {
     printing.diagnostics.push({
@@ -294,7 +311,6 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
     return [`${'#'.repeat(block.level)} ${text.replace(/#$/, '\\#')}`]
   }
   if (block.kind === 'Quote') return quote(renderBlocks(block.blocks ?? [], printing))
-  if (block.kind === 'List') return list(block, printing)
   if (block.kind === 'CodeBlock') return code(block, printing)
   if (block.kind === 'ThematicBreak') return [printing.style.rule.repeat(3)]
   if (block.kind === 'Image') return [image(block, printing)]
@@ -304,17 +320,29 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
   return renderBlocks(block.blocks ?? [], printing)
 }
 
-/** Blocks one after another, separated by a blank line. */
+/**
+ * Blocks one after another, separated by a blank line. Markdown reads a list right after one
+ * with the same marker as more of that list, and a changed bullet or delimiter is what starts
+ * a new one, so such a list takes the other spelling.
+ */
 const renderBlocks = (
   blocks: ReadonlyArray<RichText.Block>,
   printing: Printing,
 ): ReadonlyArray<string> => {
   const lines: Array<string> = []
+  let listBefore: string | undefined
   for (const block of blocks) {
-    const rendered = renderBlock(block, printing)
+    const wanted =
+      block.type === 'Node' && block.kind === 'List' ? markerOf(block, printing.style) : undefined
+    const marker = wanted !== undefined && wanted === listBefore ? OTHER_MARKER[wanted] : wanted
+    const rendered =
+      block.type === 'Node' && marker !== undefined
+        ? list(block, printing, marker)
+        : renderBlock(block, printing)
     if (rendered.length === 0) continue
     if (lines.length > 0) lines.push('')
     lines.push(...rendered)
+    listBefore = marker
   }
   return lines
 }

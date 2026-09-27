@@ -54,7 +54,7 @@ skipped, because its payload is opaque.
 | --- | --- |
 | `Paragraph`, `Heading` | the text, and `#`…`######` |
 | `Quote` | `>` on every line, a blank one included |
-| `List`, `ListItem`, `TaskItem` | `-` / `1.` and `- [x]`; a nested block stays aligned under its marker |
+| `List`, `ListItem`, `TaskItem` | `-` / `1.` and `- [x]`; a nested block stays aligned under its marker, and a list right after another of the same kind takes the other marker (`*`, `)`) so it reads back as its own list |
 | `CodeBlock` | a fence, its `language`, the text verbatim, and a fence longer than any backticks inside |
 | `ThematicBreak` | `---` |
 | `Image` | `![alt](src)` on its own line |
