@@ -28,7 +28,9 @@ version changed; `pnpm` skips versions already in the registry.
   status, the builder's panels scroll within a short height so the page
   shows, and a post list's cards fit a narrow canvas. The posts open with what
   the demo is and what to try, and the page says it is starting while the
-  sandbox opens.
+  sandbox opens. The address keeps the open post, the search and the Archive
+  tab, as it kept the open page, so a reload lands where one was, and opening
+  or closing a post or a page is a step Back returns from.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

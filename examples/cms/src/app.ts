@@ -4,7 +4,7 @@
  * through. The scripted run and the browser both drive this one `update`.
  * Nothing about how any of it is placed is CMS-specific.
  */
-import { Effect, Equal, Option, Schema } from 'effect'
+import { Effect, Equal, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
@@ -15,7 +15,11 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
+import * as Subscription from 'foldkit/subscription'
+import { Url, toString as urlToString } from 'foldkit/url'
+import { paramOf, writeAddress } from './address.js'
 import { EntryRow, Post, PostForm, PostId, PostPage, PostPreview, Posts } from './domain.js'
 import { FormStyle, WritingFieldStyle } from './style.js'
 
@@ -84,6 +88,10 @@ export const Message = defineMessageUnion({
   TypedSchedule: { text: Schema.String },
   Searched: { text: Schema.String },
   ToggledArchive: {},
+  /** The address changed: a link, back or forward, or the studio's own write. */
+  UrlChanged: { url: Url },
+  /** A link was followed. */
+  UrlRequested: { request: Navigation.UrlRequest },
   /** Nothing happened; something may have arrived. */
   Ticked: {},
 })
@@ -178,9 +186,49 @@ const placed = placements.update((model: Model, message: Message) => {
       return { model: modifyFields(model, { search: () => message.text }) }
     case 'ToggledArchive':
       return { model: modifyFields(model, { archived: archived => !archived }) }
+    case 'UrlChanged': {
+      const { post, search, archived } = linkIn(message.url)
+      const narrowed = modifyFields(model, {
+        search: () => search,
+        archived: () => archived,
+      })
+      // The post the address names is opened, unless it is the one open already.
+      // Something new is not in the address until it is saved, so it stays open.
+      if (Equal.equals(post, PostEditor.storedEntry(model))) return { model: narrowed }
+      const flushed = PostEditor.flush(narrowed)
+      return {
+        model: Option.match(post, {
+          onNone: () => EditorSlot.helpers.close(),
+          onSome: entry => EditorSlot.helpers.open(entry),
+        })(flushed.model).model,
+        commands: flushed.commands ?? [],
+      }
+    }
+    case 'UrlRequested':
+      // Another address is another chair or another application: load it.
+      return {
+        model,
+        commands: [
+          {
+            name: 'FollowLink',
+            effect: Navigation.load(
+              message.request._tag === 'Internal'
+                ? urlToString(message.request.url)
+                : message.request.href,
+            ).pipe(Effect.as(Message.Ticked())),
+          },
+        ],
+      }
     default:
       return { model }
   }
+})
+
+/** The open post and the worklist's narrowing, as an address names them. */
+export const linkIn = (url: Url) => ({
+  post: paramOf(url, 'post'),
+  search: Option.getOrElse(paramOf(url, 'q'), () => ''),
+  archived: Option.isSome(paramOf(url, 'archive')),
 })
 
 /** The open entry's state as text, to tell a change of it; none while it is unknown. */
@@ -216,3 +264,31 @@ export const initial: Model = placements.initial({
   search: '',
   archived: false,
 }).model
+
+/** What an address asks for, opened: a reload, or a link someone shared, lands there. */
+export const init = (url: Url) => update(initial, Message.UrlChanged({ url }))
+
+/**
+ * The open post and how the worklist is narrowed, written into the address as
+ * they change: opening or closing a post is a step Back returns from, a search
+ * is not.
+ */
+export const address = Subscription.make<Model, Message>()(entry => ({
+  address: entry(
+    {
+      post: Schema.Option(Schema.String),
+      q: Schema.Option(Schema.String),
+      archive: Schema.Option(Schema.String),
+    },
+    {
+      modelToDependencies: model => ({
+        // Something new is not in the address until it is saved: a link would find nothing.
+        post: PostEditor.storedEntry(model),
+        q: Option.liftPredicate(model.search, search => search !== ''),
+        archive: model.archived ? Option.some('1') : Option.none(),
+      }),
+      dependenciesToStream: params =>
+        Stream.fromEffect(writeAddress(params, 'post')).pipe(Stream.drain),
+    },
+  ),
+}))

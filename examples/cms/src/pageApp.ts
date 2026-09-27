@@ -26,6 +26,7 @@ import { Post, PostById, RecentPosts } from './domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
 import { PageBuilder, Site } from './site.js'
 import { PageFieldStyle, PageFormStyle } from './style.js'
+import { paramOf, writeAddress } from './address.js'
 
 // A pause in typing saves, as the posts do: a save per keystroke encoded the page
 // and wrote the database each time. The scripted run gives its rest no wait.
@@ -184,12 +185,7 @@ const placed = placements.update((model: Model, message: Message) => {
 const stepped = PageEditor.after(placed)
 
 /** The page and the Block an address names: `?page=<entry>&block=<node>`. */
-export const linkIn = (url: Url) => {
-  const params = new URLSearchParams(Option.getOrElse(url.search, () => ''))
-  const named = (key: string) =>
-    Option.filter(Option.fromNullOr(params.get(key)), value => value !== '')
-  return { page: named('page'), block: named('block') }
-}
+export const linkIn = (url: Url) => ({ page: paramOf(url, 'page'), block: paramOf(url, 'block') })
 
 const document = PageForm.control('document')
 
@@ -249,27 +245,6 @@ export const initial: Model = placements.initial({
 }).model
 
 /**
- * The address a page and a selection write, over `href`: its other parameters
- * (the chair, `as`) kept, `page` and `block` set, or removed when there is none.
- */
-export const addressFor = (
-  href: string,
-  page: Option.Option<string>,
-  block: Option.Option<string>,
-): string => {
-  const at = new URL(href, 'https://cms.invalid')
-  for (const [key, value] of [
-    ['page', page],
-    ['block', block],
-  ] as const)
-    Option.match(value, {
-      onNone: () => at.searchParams.delete(key),
-      onSome: named => at.searchParams.set(key, named),
-    })
-  return `${at.pathname}${at.search}${at.hash}`
-}
-
-/**
  * The open page and its selection, written into the address as they change.
  * A link still waiting for its page keeps its Block there.
  */
@@ -282,14 +257,9 @@ export const address = Subscription.make<Model, Message>()(entry => ({
         page: PageEditor.storedEntry(model),
         block: Option.orElse(model.linked, () => selectedOf(model)),
       }),
+      // Opening or closing a page is a step Back returns from; a selection is not.
       dependenciesToStream: ({ page, block }) =>
-        Stream.fromEffect(
-          Effect.suspend(() => {
-            const here = `${window.location.pathname}${window.location.search}${window.location.hash}`
-            const next = addressFor(here, page, block)
-            return next === here ? Effect.void : Navigation.replaceUrl(next)
-          }),
-        ).pipe(Stream.drain),
+        Stream.fromEffect(writeAddress({ page, block }, 'page')).pipe(Stream.drain),
     },
   ),
 }))

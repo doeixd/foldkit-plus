@@ -93,14 +93,19 @@ else if (path.startsWith('/pages'))
   )
 else
   Runtime.run(
-    Runtime.makeElement(
+    Runtime.makeApplication(
       Posts.placements.complete({
         Model: Posts.Model,
         container,
-        init: () => ({ model: Posts.initial }),
+        // The address names the post open and how the list is narrowed.
+        init: (url: Url) => Posts.init(url),
         update: Posts.update,
         view: postsView,
-        subscriptions: Posts.placements.subscriptions(),
+        routing: {
+          onUrlChange: (url: Url) => Posts.Message.UrlChanged({ url }),
+          onUrlRequest: (request: UrlRequest) => Posts.Message.UrlRequested({ request }),
+        },
+        subscriptions: Posts.placements.subscriptions(Posts.address),
         resources: remote,
       }),
     ),

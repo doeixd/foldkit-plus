@@ -10,7 +10,7 @@
  * words, and which of the CMS's transitions this reader is offered.
  */
 import { Option } from 'effect'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import type { Selected } from 'foldkit-entity'
@@ -27,7 +27,7 @@ import {
   postPage,
   type Model,
 } from './app.js'
-import type { PostPreview } from './domain.js'
+import { PostForm, type PostPreview } from './domain.js'
 import { icon } from './icons.js'
 import { badge, chair, failed, intro, shell, stateIs, statusLine } from './shell.js'
 import { article, postHref } from './site.js'
@@ -375,7 +375,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   ])
 }
 
-export const view = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
+const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
   shell(
     slots,
     h,
@@ -396,3 +396,13 @@ export const view = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBui
       : [PostEditor.status(model) === 'Closed' ? list(model, slots, h) : editor(model, slots, h)],
   ),
 ).pipe(Style.attach(AdminStyle))
+
+/** The studio's posts, titled in the tab by the post open, if one is. */
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+  const typed = PostForm.field(model.editor.form, 'title').value
+  const title =
+    PostEditor.status(model) === 'Closed' || typeof typed !== 'string' || typed.trim() === ''
+      ? 'Posts'
+      : typed.trim()
+  return { title: `${title} · Journal Studio`, body: Studio(model, h) }
+}

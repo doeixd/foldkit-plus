@@ -21,9 +21,6 @@ export default defineConfig({
       // What jsdom cannot check: layout, focus, the caret. Headless Chromium,
       // at a desktop size, so a full-screen layout is the one users see.
       mergeConfig(inBrowser, {
-        // Bundled before the run: found during it, Vite reloads, and the test file that
-        // met it fails to import (the CMS sandbox's SQLite, a CommonJS package).
-        optimizeDeps: { include: ['foldkit-example-cms > sql.js'] },
         test: {
           name: 'browser',
           include: browserTests,

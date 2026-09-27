@@ -49,6 +49,14 @@ pnpm --filter foldkit-example-cms dev   # the same application, in a browser
 Both use an in-memory `node:sqlite` database, so there is no service to start,
 and a restart is a fresh start. `test/demo.test.ts` pins the transcript.
 
+### The address
+
+The studio keeps what is open in the address, so a reload or a shared link lands
+where one was: `?post=<entry>`, `?q=` and `?archive=1` for the posts,
+`?page=<entry>&block=<node>` for the pages, beside the chair, `?as=`. Opening or
+closing a post or a page is a step Back returns from; a search or a selection
+replaces the address in place ([address.ts](src/address.ts)).
+
 ### As a static site
 
 ```bash
