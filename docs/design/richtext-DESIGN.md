@@ -8,8 +8,8 @@ actions, and the block commands they need: retype, wrap (joining the list above)
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
 mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
-status line, the command palette, and the floating toolbar's anchor (§119, §123, §132, §133,
-§134, §141, §142, §143), with their views in
+status line, the command palette, the floating toolbar's anchor, and the block handle's moves
+(§119, §123, §132, §133, §134, §141, §142, §143, §144), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
@@ -4710,7 +4710,9 @@ command palette           `commandPalette` in the Mixins family, over the slash
                           catalogue (§142)
 floating toolbar          `coversText` in the core, `selectionAnchor` beside the
                           marks toolbar (§143)
-block handle              `MoveBlock` in the core (§144); the handle itself not yet
+block handle              `MoveBlock` and `blocksAt` in the core, `MovedBlock` in the
+                          editor, `blockHandle` in the Mixins family (§144);
+                          dragging not yet
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7783,5 +7785,23 @@ not. Drag and drop across containers will need both rules. A handle's up and dow
 Moving keeps every identity, so the selection needs no mapping: it points at runs that still
 exist. The command runs without a selection too, because it does not read one.
 
-Not done: the handle's view (which block it stands for, its buttons, and the editor Message), and
-drag and drop.
+## The handle
+
+The editor sends `MovedBlock { node, to }`, and `edited`'s helper is `moved(node, to)`. The
+events Mount lists it too, since an application keymap may bind a chord such as `Alt-ArrowUp` to
+it. `blockHandle` in `foldkit-mixins-richtext` draws up and down for one block, each disabled at
+its end of the container, and holds no state.
+
+Which block the handle stands for is the caller's choice, because the right answer depends on the
+document. For a caret in a list item's paragraph, moving the paragraph reorders it among the
+item's blocks, moving the item reorders the list, and moving the list moves all of it.
+The core gives the chain instead of choosing: `blocksAt(document, selection)` is every block the
+selection starts in, outermost first, and the caller picks from it. `textBlockAt` and `blocksAt`
+share the lookup of where a selection starts, and a node selection's chain is the one to its
+block.
+
+Not done:
+- **Placing the handle beside its block.** It needs the block's rectangle, as the floating
+  toolbar needs the selection's (§143); a `blockAnchor` would be the same Mount over
+  `[data-block]`.
+- **Dragging.** Its drop target is `Beside`'s shape, and it needs the cross-container rules above.

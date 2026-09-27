@@ -101,6 +101,8 @@ check(
     typeof family.BlockStyleSlots === 'object' &&
     typeof family.editorStatus === 'function' &&
     typeof family.commandPalette === 'function' &&
+    typeof family.blockHandle === 'function' &&
+    typeof family.BlockHandleSlots === 'object' &&
     typeof family.CommandPaletteSlots === 'object' &&
     typeof family.EditorStatusSlots === 'object' &&
     typeof family.LinkEditorSlots === 'object',

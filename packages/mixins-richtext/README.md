@@ -16,8 +16,9 @@ lit.
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
 versions. The mark toolbar, the block style picker, the slash menu, the link editor, the
-Markdown source editor, the status line, and the command palette are built; the rest of the
-design's editor chrome (floating toolbar, block handle) arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
+Markdown source editor, the status line, the command palette, and the block handle's moves are
+built. The floating toolbar is `foldkit-richtext-dom/toolbar`'s `selectionAnchor` around this
+package's toolbar. Dragging a block is not built. The placeholder is the editor's own, placed with `editorAt`,
 because it is drawn inside the editable subtree this package stays out of.
 
 ## The mark toolbar
@@ -82,6 +83,33 @@ undo what it shows.
 | `root` | Container | the picker's wrapper |
 | `toolbar` | Collection | the row, `role="toolbar"` |
 | `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
+
+## The block handle
+
+The moves one block can make as a whole. Which block it stands for is the caller's, usually one
+of `RichText.blocksAt(document, selection)`: the outermost to move a whole list, an item to
+reorder a list.
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { blockHandle } from 'foldkit-mixins-richtext'
+
+const [outermost] = RichText.blocksAt(model.document, model.editor.selection)
+
+outermost === undefined
+  ? h.empty
+  : blockHandle<Message>()({ document: model.document, node: outermost.id, wrap: edited }, h)
+```
+
+Up sends `MovedBlock` to put the block before its previous sibling, and down after its next.
+Each is disabled at its end of the container, and both are disabled when the block is not in the
+document. Moves stay inside the block's container, because that is what `MoveBlock` does.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the handle, `role="group"` |
+| `up` | Interactive | `data-handle="up"` |
+| `down` | Interactive | `data-handle="down"` |
 
 ## The command palette
 

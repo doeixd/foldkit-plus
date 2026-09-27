@@ -69,6 +69,9 @@ export const markToolbar = <Message>(): SlotView.SlotView<
 /** The block style picker's view and its slots (§134). */
 export { BlockStyleSlots, blockStyles, type BlockStyleInput } from './style.js'
 
+/** The block handle's view and its slots (§144). */
+export { BlockHandleSlots, blockHandle, type BlockHandleInput } from './handle.js'
+
 /** The command palette's view and its slots (§142). */
 export { CommandPaletteSlots, commandPalette, type CommandPaletteInput } from './palette.js'
 

@@ -184,7 +184,11 @@ beside it is split mode: `{ session, document, rendering? }`, the draft rendered
 the document it would become. `editorStatus<Message>()` is the status line: `{ document,
 diagnostics? }` in, `EditorStatusSlots` (`root`, `counts`, `problems`, `problem`) out; the counts
 are `RichText.count(document)` (`{ words, characters }`), the problems whatever the caller passes,
-usually `RichText.validate` against its Kit. `commandPalette<Message>()` searches the same
+usually `RichText.validate` against its Kit. `blockHandle<Message>()` is the block handle:
+`{ document, node, wrap }` in, `BlockHandleSlots` (`root`, `up`, `down`) out; up sends
+`MovedBlock` before the previous sibling and down after the next, each disabled at its end of
+the container; `node` is usually one of `RichText.blocksAt(document, selection)`, the blocks the
+selection starts in, outermost first. `commandPalette<Message>()` searches the same
 catalogue from its own field: `{ id, entries, query, index, changed, closed }` in,
 `CommandPaletteSlots` (`root`, `input`, `list`, `option`) out; the application keeps
 `{ query, index } | null`, and Enter or a click sends the entry's own Message.
@@ -196,8 +200,8 @@ vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `Re
 host element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
-`retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, and `lifted()`
-for the wrap, convert, and lift commands, and `applied(mark)` and `cleared(name)` for
+`retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, `lifted()`, and
+`moved(node, to)` for the wrap, convert, lift, and move commands, and `applied(mark)` and `cleared(name)` for
 `SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
 (`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
