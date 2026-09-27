@@ -38,6 +38,8 @@ export const Message = defineMessageUnion({
   ConvertedBlock: { to: RichText.Container },
   /** The caret's block, lifted out of its container: the inverse of a wrap. */
   LiftedBlock: {},
+  /** A block moved before or after a sibling in its container: a block handle's up and down. */
+  MovedBlock: { node: RichText.NodeId, to: RichText.Beside },
   Selected: { selection: Schema.NullOr(RichText.Selection) },
   Pasted: { slice: RichText.Slice },
   Undone: {},
@@ -303,6 +305,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.WrappedBlock,
     Message.ConvertedBlock,
     Message.LiftedBlock,
+    Message.MovedBlock,
     Message.Selected,
     Message.Pasted,
     Message.Undone,

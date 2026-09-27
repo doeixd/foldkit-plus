@@ -129,6 +129,8 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'ConvertBlock', to: message.to }
     case 'LiftedBlock':
       return { type: 'LiftBlock' }
+    case 'MovedBlock':
+      return { type: 'MoveBlock', node: message.node, to: message.to }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
     case 'Pasted':
@@ -436,6 +438,8 @@ export const wrapped = (containers: ReadonlyArray<RichText.Container>): ParentMe
 export const converted = (to: RichText.Container): ParentMessage =>
   edited(Message.ConvertedBlock({ to }))
 export const lifted = (): ParentMessage => edited(Message.LiftedBlock())
+export const moved = (node: RichText.NodeId, to: RichText.Beside): ParentMessage =>
+  edited(Message.MovedBlock({ node, to }))
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
   edited(Message.Selected({ selection }))
 export const undone = (): ParentMessage => edited(Message.Undone())

@@ -247,6 +247,10 @@ word-like segments and graphemes, so an emoji is one character and a word in a s
 spaces still counts. Runs join within a block, so a word whose mark changes midway is one word;
 blocks never join.
 
+`blocksAt(document, selection)` is the chain of blocks a selection starts in, outermost first:
+a caret in a list item's paragraph gives the list, the item, and the paragraph, and a node
+selection gives the chain to its block. It is what a block handle picks its block from.
+
 `isBlank(document)` says whether a reader would see nothing — no blocks, or a lone paragraph
 or heading with no text — which is when an editor shows its placeholder.
 

@@ -149,7 +149,8 @@ history chord; `toMessage` turns each into a Message:
 ```ts
 const Message = defineMessageUnion({
   Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
-  RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, Selected, Pasted, Undone, Redone, Patched,
+  RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, Selected, Pasted, Undone,
+  Redone, Patched,
 })
 ```
 
@@ -160,7 +161,9 @@ vocabulary has no shape for them yet, and silently losing the marks would be
 worse. `RetypedBlock` is the same kind of Message and never arrives from
 `toMessage`: no browser event means "make this block a heading", so an application
 sends it itself. `WrappedBlock` (`{ containers }`), `ConvertedBlock` (`{ to }`), and
-`LiftedBlock` are the same for the core's `WrapBlock`, `ConvertBlock`, and `LiftBlock`, and
+`LiftedBlock` are the same for the core's `WrapBlock`, `ConvertBlock`, and `LiftBlock`;
+`MovedBlock` (`{ node, to }`, `to` a `RichText.Beside`) is `MoveBlock`, which a block handle
+sends and which needs no selection; and
 `AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark`
 (`{ mark }`, a name) for `SetMark` and `ClearMark`: what a link editor sends, which at a
 caret changes or removes the whole link the caret is in. `attachEditor(host, content, emit, { rendering?, decorate?, placeholder? })` attaches the translation to a host
@@ -295,7 +298,7 @@ parent's document in, and `write` keeps only the editor fields, so the child nev
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /
 `typed` / `pressed` / `toggled` / `applied` / `cleared` / `retyped` / `wrapped` / `converted` / `lifted` /
-`selected` / `undone` / `redone` / `patched` build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
+`moved` / `selected` / `undone` / `redone` / `patched` build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
 

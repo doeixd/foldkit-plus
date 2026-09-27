@@ -90,11 +90,14 @@ export type Command =
    * in the same container. It addresses blocks rather than the selection, so a handle or a
    * key can move the block it stands for; identities are kept, and the selection with them.
    */
-  | {
-      readonly type: 'MoveBlock'
-      readonly node: NodeId
-      readonly to: { readonly before: NodeId } | { readonly after: NodeId }
-    }
+  | { readonly type: 'MoveBlock'; readonly node: NodeId; readonly to: Beside }
+
+/** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
+export const Beside = Schema.Union([
+  Schema.Struct({ before: NodeId }),
+  Schema.Struct({ after: NodeId }),
+])
+export type Beside = typeof Beside.Type
 
 /** A container a block is wrapped in: a node kind, and the props it starts with. */
 export const Container = Schema.Struct({
@@ -407,12 +410,29 @@ export const textBlockAt = (
   selection: Selection | null,
 ): TextBlock | undefined => {
   if (selection?.type !== 'Range') return undefined
-  const start = ordered(document, selection)?.start
-  const found = start === undefined ? undefined : locateRun(document, start.node)
-  const block = found === undefined ? undefined : blockAtPath(document, found.path)
+  const path = startPath(document, selection)
+  const block = path === undefined ? undefined : blockAtPath(document, path)
   if (block?.type === 'Paragraph') return { type: 'Paragraph' }
   if (block?.type === 'Heading') return { type: 'Heading', level: block.level }
   return undefined
+}
+
+/** Where a selection starts: its first run's block, or the block a node selection names. */
+const startPath = (document: Document, selection: Selection | null): BlockPath | undefined => {
+  if (selection === null) return undefined
+  if (selection.type === 'Node') return locateBlock(document, selection.node)?.path
+  const start = ordered(document, selection)?.start
+  return start === undefined ? undefined : locateRun(document, start.node)?.path
+}
+
+/**
+ * The blocks a selection starts in, outermost first: a caret in a list item's paragraph gives
+ * the list, the item, and the paragraph. What a block handle picks from, and a breadcrumb draws.
+ * Empty when the selection is null or resolves to nothing.
+ */
+export const blocksAt = (document: Document, selection: Selection | null): ReadonlyArray<Block> => {
+  const path = startPath(document, selection) ?? []
+  return path.map((_, depth) => blockAtPath(document, path.slice(0, depth + 1))!)
 }
 
 /** The last run in a block's subtree, or undefined when it holds none. */

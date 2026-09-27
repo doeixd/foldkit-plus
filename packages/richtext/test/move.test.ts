@@ -97,3 +97,25 @@ describe('moving a block beside a sibling', () => {
     expect(move(node, to)).toEqual({ ok: false, error })
   })
 })
+
+describe('the blocks a selection starts in', () => {
+  const at = (run: string) => ({ node: id(run), offset: 0, affinity: 'after' as const })
+  const ids = (selection: RichText.Selection | null) =>
+    RichText.blocksAt(document(), selection).map(block => block.id)
+
+  it.each<[string, RichText.Selection | null, ReadonlyArray<string>]>([
+    ['a caret at the top level', { type: 'Range', anchor: at('b-t'), focus: at('b-t') }, ['b']],
+    [
+      'a caret in a list item',
+      { type: 'Range', anchor: at('p2-t'), focus: at('p2-t') },
+      ['l', 'i2', 'p2'],
+    ],
+    // Dragged backwards, the range still starts at its earlier end.
+    ['a backward range', { type: 'Range', anchor: at('p2-t'), focus: at('a-t') }, ['a']],
+    ['a node selection', { type: 'Node', node: id('i1') }, ['l', 'i1']],
+    ['a selection that resolves to nothing', { type: 'Node', node: id('x') }, []],
+    ['no selection', null, []],
+  ])('%s', (_, selection, expected) => {
+    expect(ids(selection)).toEqual(expected)
+  })
+})
