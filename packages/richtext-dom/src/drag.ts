@@ -22,8 +22,11 @@ export interface Placed {
 /**
  * Where a pointer at `y` drops block `moving`, itself one of `targets` (in document order): beside
  * the target whose edge is nearest, before one at its top and after one at its bottom. Of two
- * edges at one height, the later target's wins, which is the deeper where a container's edge
- * meets its first or last block's. Undefined when that is where the block already is.
+ * edges equally near, the later target's wins. Undefined when that is where the block already is.
+ *
+ * A container's edge and its first or last block's are one edge: the block's wins while the
+ * pointer is inside that block, and the container's once it is past it, or the container's own
+ * edge could never be reached.
  */
 export const dropBeside = (
   targets: ReadonlyArray<Placed>,
@@ -32,12 +35,24 @@ export const dropBeside = (
 ): RichText.Beside | undefined => {
   const self = targets.find(target => target.id === moving)
   let nearest:
-    { readonly target: Placed; readonly after: boolean; readonly distance: number } | undefined
+    | {
+        readonly target: Placed
+        readonly after: boolean
+        readonly edge: number
+        readonly distance: number
+      }
+    | undefined
   for (const target of targets) {
     for (const after of [false, true]) {
-      const distance = Math.abs(y - (after ? target.bottom : target.top))
-      if (nearest === undefined || distance <= nearest.distance)
-        nearest = { target, after, distance }
+      const edge = after ? target.bottom : target.top
+      const distance = Math.abs(y - edge)
+      if (
+        nearest === undefined ||
+        distance < nearest.distance ||
+        (distance === nearest.distance &&
+          (edge !== nearest.edge || (y >= target.top && y <= target.bottom)))
+      )
+        nearest = { target, after, edge, distance }
     }
   }
   if (self === undefined || nearest === undefined) return undefined
@@ -103,9 +118,11 @@ export const dragBlock = (
     readonly index: number
     readonly element: HTMLElement
   }> = []
+  /** Whether an event is the pressing pointer's: another finger or pen does not steer the drag. */
+  const ours = (event: Event) => pointer === undefined || (event as Pointed).pointerId === pointer
   const moved = (event: Event) => {
     const pointed = event as Pointed
-    if (pointer !== undefined && pointed.pointerId !== pointer) return
+    if (!ours(pointed)) return
     const placed = targets.map(each => {
       const box = each.element.getBoundingClientRect()
       return { ...each, top: box.top, bottom: box.bottom, left: box.left, width: box.width }
@@ -137,8 +154,18 @@ export const dragBlock = (
   }
   const onPage: ReadonlyArray<readonly [string, (event: Event) => void]> = [
     ['pointermove', moved],
-    ['pointerup', () => end(true)],
-    ['pointercancel', () => end(false)],
+    [
+      'pointerup',
+      event => {
+        if (ours(event)) end(true)
+      },
+    ],
+    [
+      'pointercancel',
+      event => {
+        if (ours(event)) end(false)
+      },
+    ],
     [
       'keydown',
       event => {

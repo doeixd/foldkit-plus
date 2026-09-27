@@ -8078,8 +8078,10 @@ unreachable, and the mutation run said so.
 **`moveTargets` is what a drag offers**: every block the move is allowed beside, in document
 order. `blockDrag` computes it once, at the press, together with each block's place from one walk
 of the document. It measures only the targets' rectangles as the pointer moves. The drop is the
-nearest edge of a target, and between two edges at one height the later target wins, which is
-the deeper one where a container's edge meets its first or last block's. Within one container
+nearest edge of a target. A container's edge and its first or last block's are one edge: the
+block's wins while the pointer is inside that block, and the container's once the pointer is past
+it. (Letting the deeper always win, as this first did, left "after a list that ends the document"
+unreachable; a review found it.) Of two different edges equally near, the later wins. Within one container
 it lands the block where §148's midpoint rule did, though sometimes named from the other side
 (after the block above rather than before the one below).
 

@@ -53,10 +53,11 @@ describe('anchorToSelection', () => {
       <div id="floating"></div>`
     selectionBox = target
     Range.prototype.getBoundingClientRect = () => selectionBox as DOMRect
-    vi.spyOn(floating(), 'getBoundingClientRect').mockReturnValue({
-      width: 40,
-      height: 30,
-    } as DOMRect)
+    // In flow the element is as wide as the page; only fixed does it take its own width, so a
+    // measurement taken before the anchor fixes it would centre the wrong box.
+    vi.spyOn(floating(), 'getBoundingClientRect').mockImplementation(
+      () => ({ width: floating().style.position === 'fixed' ? 40 : 1000, height: 30 }) as DOMRect,
+    )
     Object.defineProperty(window, 'innerWidth', { value: 1000, configurable: true })
   })
   afterEach(() => vi.restoreAllMocks())
@@ -144,7 +145,8 @@ describe('anchorToBlock', () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: Element,
     ) {
-      if (this.id === 'handle') return { width: 40, height: 20 } as DOMRect
+      if (this.id === 'handle')
+        return { width: handle().style.position === 'fixed' ? 40 : 1000, height: 20 } as DOMRect
       return (boxes[this.getAttribute('data-block') ?? ''] ?? {}) as DOMRect
     })
   })
@@ -176,6 +178,33 @@ describe('anchorToBlock', () => {
     window.dispatchEvent(new Event('resize'))
     await flush()
     expect(placed()).toEqual(['220px', '152px', 'left'])
+  })
+
+  it('finds an editor host drawn after it, and follows the one that replaces it', async () => {
+    document.getElementById('host')!.remove()
+    const release = anchorToBlock(handle(), 'host', RichText.NodeId.make('b'), 8)
+    expect(placed()).toEqual(['', '', undefined])
+
+    const drawHost = () => {
+      document.getElementById('host')?.remove()
+      const host = document.createElement('div')
+      host.id = 'host'
+      document.body.prepend(host)
+      mountInto(host, content, { onIntent: () => {} })
+      return host
+    }
+    drawHost()
+    window.dispatchEvent(new Event('resize'))
+    expect(placed()).toEqual(['140px', '152px', 'left'])
+
+    // The replacement's redraws move the handle, not the detached first host's.
+    const replacement = drawHost()
+    window.dispatchEvent(new Event('resize'))
+    boxes['b'] = { ...boxes['b']!, top: 180 }
+    replacement.querySelector('[data-run="a-t"]')!.append('!')
+    await flush()
+    expect(placed()).toEqual(['180px', '152px', 'left'])
+    release()
   })
 
   it('leaves the handle alone for a block the editor does not hold', () => {

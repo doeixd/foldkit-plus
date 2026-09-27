@@ -41,7 +41,7 @@ export const placeOver = (
   }
 }
 
-/** Where a handle goes: beside the block's first line, `gap` to its left, never past the left edge. */
+/** Where a handle goes: level with the block's top, `gap` to its left, never past the left edge. */
 export const placeBeside = (
   target: Box,
   floating: Pick<Box, 'width'>,
@@ -58,7 +58,6 @@ const write = (
   element: Styled,
   at: { readonly top: number; readonly left: number; readonly placement: string },
 ) => {
-  element.style.position = 'fixed'
   element.style.top = `${at.top}px`
   element.style.left = `${at.left}px`
   element.setAttribute('data-placement', at.placement)
@@ -80,6 +79,8 @@ export const anchorToSelection = (element: Styled, hostId: string, gap: number) 
   const owner = element.ownerDocument
   const view = owner.defaultView
   if (view === null) return () => {}
+  // Fixed before anything is measured: in flow the element's box is not the one it floats with.
+  element.style.position = 'fixed'
   const place = () => {
     const selection = view.getSelection()
     const host = owner.getElementById(hostId)
@@ -117,17 +118,25 @@ export const anchorToBlock = (
 ) => {
   const owner = element.ownerDocument
   const view = owner.defaultView
-  const host = owner.getElementById(hostId)
-  if (view === null || host === null) return () => {}
+  if (view === null) return () => {}
+  element.style.position = 'fixed'
+  // A patch moves blocks without moving the page: text typed above one, or the move a handle sent.
+  // The host is looked up on each placement, since it can be drawn after the handle or replaced.
+  const observer = new view.MutationObserver(() => place())
+  let observed: Element | undefined
   const place = () => {
+    const host = owner.getElementById(hostId)
+    if (host === null) return
+    if (host !== observed) {
+      observer.disconnect()
+      observer.observe(host, { childList: true, subtree: true, characterData: true })
+      observed = host
+    }
     const block = attachmentIn(host)?.current().elements.get(node)
     if (block === undefined) return
     write(element, placeBeside(block.getBoundingClientRect(), element.getBoundingClientRect(), gap))
   }
   place()
-  // A patch moves blocks without moving the page: text typed above one, or the move a handle sent.
-  const observer = new view.MutationObserver(place)
-  observer.observe(host, { childList: true, subtree: true, characterData: true })
   const release = onLayout(view, place)
   return () => {
     observer.disconnect()
@@ -147,7 +156,6 @@ export const selectionAnchor = Mount.defineStream('RichTextSelectionAnchor', {
   execute: ({ element, hostId, gap }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
-        // A Mount's element is one the view drew, an HTML or SVG element, and both carry `style`.
         // A Mount's element is one the view drew, an HTML or SVG element, and both carry `style`.
         Effect.sync(() => anchorToSelection(element as Styled, hostId, gap)),
         release => Effect.sync(release),

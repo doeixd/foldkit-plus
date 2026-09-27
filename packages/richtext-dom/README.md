@@ -317,7 +317,8 @@ of sharing it.
 
 ## On a server-rendered page
 
-The editor's host is a custom element, `<foldkit-richtext>`, drawn `display: block`. Hydration
+The editor's host is a custom element, `<foldkit-richtext>`, drawn `display: block` by an inline
+style, which a stylesheet's `display` does not override without `!important`. Hydration
 leaves a custom element's contents alone, so markup the server sent there survives until the
 editor mounts, and the editor adopts it (`adopt`, above) rather than drawing the document
 again. The server sends it when the placement says the render is the server's:
@@ -337,7 +338,7 @@ replaced.
 ## As a form control
 
 `foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
-`RichText.Document`.
+`RichText.Document`. It is the one entry that imports `foldkit-form`, an optional peer.
 
 ```ts
 import { Form } from 'foldkit-form'
@@ -361,6 +362,9 @@ reported by `authoredChanged` like any other.
   go. A blank document (`RichText.isBlank`) reads as no value, so a required key refuses it.
 - **Filling:** `fill` shows a given document with a history of its own and no selection, since
   the caret was in runs the given document does not have.
+- **Drawing what the form writes in:** the host's Mount reads its document once, so `fill` and
+  `Reset` each advance a count (`loaded`) the host is keyed by, and the given document is
+  mounted afresh on a new host.
 - **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
   and the history, and clears only the slash menu's highlight, which belongs to the moment it
   was typed in.
@@ -400,7 +404,7 @@ outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
 `data-placement` (`top` or `bottom`) on the element, so a style there must leave those alone.
 
 `blockAnchor({ hostId, node, gap })` does the same for a block handle: it places the element
-`gap` pixels left of block `node`'s first line, never past the window's left edge. It re-places whenever the
+`gap` pixels left of block `node`'s top edge, never past the window's left edge. It re-places whenever the
 editor's subtree changes (a patch can move a block without the page scrolling), and on scroll
 and resize. A Mount reads its args once, when its element is inserted, so key the element by the
 block (`h.Key(node)`) when the block can change.
@@ -409,9 +413,11 @@ block (`h.Key(node)`) when the block can change.
 `RichText.moveTargets` allows under the vocabulary placed for `hostId`, so an item can go into
 another list but not to the top level. A press starts it, and the page is listened to only until
 the drag ends. The pointer picks the nearest edge of those blocks: before one at its top, after
-one at its bottom, and the deeper block where two edges meet. A line, `[data-richtext-drop]`, is fixed at the edge the block would land on,
+one at its bottom. Where a container's edge meets its first or last block's, the block's is
+picked while the pointer is inside it, and the container's once the pointer is past it. A line, `[data-richtext-drop]`, is fixed at the edge the block would land on,
 outside the editable subtree, for a stylesheet to draw. Release sends `MovedBlock` there;
-Escape, a cancelled pointer, or a place that is where the block already is sends nothing. Key
+Escape, a cancelled pointer, or a place that is where the block already is sends nothing. Only
+the pointer that pressed steers or ends it. Key
 its element by the block, as for `blockAnchor`.
 
 ## What it does not do

@@ -31,11 +31,12 @@ describe('where a pointer drops a block', () => {
     expect(dropBeside(placed, id(moving), y)).toEqual(expected)
   })
 
-  // Items of two lists: `l` holds i1 and i2, `m` holds j1, with the list `m` itself a target too.
+  // Items of two lists: `l` holds i1 and i2, `m` holds j1 and j2, and the list
+  // `m` is a target too, its edges its first item's top and its last item's bottom.
   const lists: ReadonlyArray<Placed> = [
     { id: id('i1'), container: 'l', index: 0, top: 0, bottom: 20 },
     { id: id('i2'), container: 'l', index: 1, top: 30, bottom: 50 },
-    { id: id('m'), container: '', index: 1, top: 80, bottom: 100 },
+    { id: id('m'), container: '', index: 1, top: 80, bottom: 130 },
     { id: id('j1'), container: 'm', index: 0, top: 80, bottom: 100 },
     { id: id('j2'), container: 'm', index: 1, top: 110, bottom: 130 },
   ]
@@ -45,8 +46,16 @@ describe('where a pointer drops a block', () => {
     ['into another container, after its block', 'i1', 97, { after: 'j1' }],
     // An edge in the same container as the block, but not beside it, is a move.
     ['past its neighbour in its own container', 'i1', 48, { after: 'i2' }],
+    ['after another container’s last block', 'i1', 128, { after: 'j2' }],
   ])('drops %s, the deeper of two edges at one height', (_, moving, y, expected) => {
     expect(dropBeside(lists, id(moving), y)).toEqual(expected)
+  })
+
+  it.each([
+    ['after the container, below its last block', 132, { after: 'm' }],
+    ['before the container, above its first block', 78, { before: 'm' }],
+  ])('drops %s, where the two share an edge', (_, y, expected) => {
+    expect(dropBeside(lists, id('i1'), y)).toEqual(expected)
   })
 
   it('treats an edge in another container as a move, whatever its index', () => {
@@ -157,6 +166,12 @@ describe('dragging a block by its handle', () => {
     expect(line()).toBeNull()
     document.dispatchEvent(pointed('pointermove', 1, 75))
     expect(line()?.style.top).toBe('80px')
+    // Another pointer lifting or cancelling ends nothing; the pressing one's release drops.
+    document.dispatchEvent(pointed('pointercancel', 2))
+    document.dispatchEvent(pointed('pointerup', 2))
+    expect([line()?.style.top, dropped]).toEqual(['80px', []])
+    document.dispatchEvent(pointed('pointerup', 1))
+    expect(dropped).toEqual([{ after: id('c') }])
   })
 
   it('keeps dragging through other keys, and takes Escape for itself', () => {
