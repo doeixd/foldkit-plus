@@ -479,6 +479,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   CMS draws it; a test drawing it directly passed. `fillWords`' doc comment
   already said why words are text with blanks. Read the convention in the
   code before a plan's sketch, and test a view input through a submodel.
+- **An application names its starting address twice.** `makeApplication`
+  with routing sends `onUrlChange` for the starting URL after `init` has
+  already read it; `makeElement`, which the tests embed, sends nothing. A
+  new-entry reload cleared its pending state on that repeat and showed "That
+  entry does not exist." while every test passed. A `UrlChanged` handler must
+  be a no-op for the address the Model already shows, pending work included.
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
