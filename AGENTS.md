@@ -617,6 +617,9 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   printer's test asserted `\1. not a list` as the escape for an ordered marker; a
   backslash before a digit is no escape, so the parser kept it as text, and the test
   locked the bug in. A round trip through the real parser is what catches it.
+- **A check against a reference is only as good as the reference.** `print` accepts a styled
+  text when it parses like the canonical text, and the canonical text merged two adjacent lists
+  into one, so the check trusted a wrong answer. Read the reference itself back too.
 - **A constant `mint` makes a refusal test pass for any reason.** A test that an
   `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
   split a run twice, `apply` refused the duplicate id, and the case stayed green
