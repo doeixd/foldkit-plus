@@ -231,7 +231,11 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       builder,
       /** The Block a link named that has not been selected yet. */
-      waiting: () => Option.getOrElse(model.linked, () => 'nothing waits'),
+      waiting: () =>
+        Option.getOrElse(
+          Option.flatMap(model.linked, ({ block }) => block),
+          () => 'nothing waits',
+        ),
       /** The Block the Builder has selected, by its kind. */
       selected: () =>
         Option.match(selectedOf(model), {
@@ -426,6 +430,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   await linked.send(Message.UrlChanged({ url: gone }))
   say(
     `a link to a Block the page lacks is let go: ${linked.waiting()}; ${linked.selected()} selected`,
+  )
+  const shown = Option.getOrThrow(
+    fromString('https://cms.example/pages?as=edda&page=page-entry-1&panel=layers&view=narrow'),
+  )
+  await linked.send(Message.UrlChanged({ url: shown }))
+  say(
+    `a link shows the layers, at a phone’s width: ${linked.builder().panel}, ${linked.builder().viewport}`,
   )
 
   say('— an agent edits the page, as a person does —')

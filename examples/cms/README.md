@@ -179,13 +179,20 @@ says otherwise, so it shows only what is published.
   browser's own restoring ran before Foldkit drew, against a page still
   loading. A wait shows "Loading…" only once it is noticeable, marked
   `aria-busy`, so a quick answer draws no flash.
-- **The page editor's address says which page is open and which Block is
-  selected** (`/pages?as=edda&page=…&block=…`), so a link opens the editor on a
-  Block and a reload comes back to it. The Builder owns its selection: a
-  navigation is sent to it as `Selected`, and a Subscription writes the
-  selection back (`pageApp.ts`, the Builder README's recipe). A link opened
-  while its page loads keeps its Block in `linked` until the page holds it,
-  and a new page joins the address once its first save makes the entry.
+- **The address holds what a reload should come back to.** Two kinds of state
+  go there, in two ways:
+  - The worklist's search and tab are the application's own fields, so a
+    `foldkit-mirror` URL mirror shows them (`?q=…&archive=true`) and reads them
+    back (`Narrowing` in `app.ts`).
+  - The open post and its preview, and the open page with the Builder's
+    selection, panel and preview width
+    (`/pages?as=edda&page=…&block=…&panel=layers&view=narrow`), belong to the
+    editor and the Builder. A navigation asks them through their own Messages
+    (`Selected`, `PanelChosen`, `ViewportChosen`, `PreviewShown`), and a
+    Subscription writes what they show back (the Builder README's recipe).
+    Neither has a Model until its entry has loaded, so what a link asks waits
+    in `linked` (pages) or `previewAsked` (posts) until then. A new entry joins
+    the address once its first save makes it.
 - **A connection is a list the server put in order**, so something newly made
   joins one only when the query is asked again. The worklist and the pages list
   do that for themselves (`listing` in `app.ts` and `pageApp.ts`).

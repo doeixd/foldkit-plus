@@ -5,7 +5,7 @@
  * there is a Builder.
  */
 import { Effect, Equal, Option, Schema, Stream } from 'effect'
-import { Message as BuilderMessage } from 'foldkit-builder'
+import { Message as BuilderMessage, Panel, Viewport } from 'foldkit-builder'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
@@ -43,14 +43,22 @@ const Slot = Bundle.declare(
   'editor',
 )
 
+/** What a link asks of the Builder: the Block selected, the panel shown, the width previewed. */
+export const Linked = Schema.Struct({
+  block: Schema.Option(Schema.String),
+  panel: Schema.Option(Panel),
+  viewport: Schema.Option(Viewport),
+})
+export type Linked = typeof Linked.Type
+
 export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
   /**
-   * The Block a link names, until the page holding it is open: the Builder
-   * refuses an id its page lacks, so a link opened while the page loads waits.
+   * What a link asks of the Builder, until the page it is about is open: the
+   * Builder has no Model before then, and refuses an id its page lacks.
    */
-  linked: Schema.Option(Schema.String),
+  linked: Schema.Option(Linked),
 })
 export type Model = typeof Model.Type
 
@@ -153,18 +161,19 @@ const placed = placements.update((model: Model, message: Message) => {
     case 'ClosedEditor':
       return leaving(EditorSlot.helpers.close())
     case 'UrlChanged': {
-      const { page, block } = linkIn(message.url)
-      const linked = { ...model, linked: block }
+      const { page, ...asked } = linkIn(message.url)
+      const waiting = Option.some(asked)
       // The page the address names is opened, unless it is the one open already. A new
       // page is not in the address until it is saved, so no page there leaves it open.
-      if (Equal.equals(page, PageEditor.storedEntry(model))) return { model: linked }
+      if (Equal.equals(page, PageEditor.storedEntry(model)))
+        return { model: { ...model, linked: waiting } }
       const opened = leaving(
         Option.match(page, {
           onNone: () => EditorSlot.helpers.close(),
           onSome: entry => EditorSlot.helpers.open(entry),
         }),
       )
-      return { ...opened, model: { ...opened.model, linked: block } }
+      return { ...opened, model: { ...opened.model, linked: waiting } }
     }
     case 'UrlRequested':
       // Another address is another chair or another application: load it.
@@ -188,38 +197,51 @@ const placed = placements.update((model: Model, message: Message) => {
 
 const stepped = PageEditor.after(placed)
 
-/** The page and the Block an address names: `?page=<entry>&block=<node>`. */
-export const linkIn = (url: Url) => ({ page: paramOf(url, 'page'), block: paramOf(url, 'block') })
+/**
+ * The page an address names, and what it asks of the Builder:
+ * `?page=<entry>&block=<node>&panel=layers&view=narrow`.
+ */
+export const linkIn = (url: Url) => ({
+  page: paramOf(url, 'page'),
+  block: paramOf(url, 'block'),
+  panel: Option.flatMap(paramOf(url, 'panel'), Schema.decodeUnknownOption(Panel)),
+  viewport: Option.flatMap(paramOf(url, 'view'), Schema.decodeUnknownOption(Viewport)),
+})
 
 const document = PageForm.control('document')
 
+/** The Builder as the open page's form holds it. */
+const builderOf = (model: Model) => document.field(model.editor.form).value
+
 /** The Block the Builder has selected, as the address names it. */
-export const selectedOf = (model: Model): Option.Option<NodeId> =>
-  document.field(model.editor.form).value.selected
+export const selectedOf = (model: Model): Option.Option<NodeId> => builderOf(model).selected
 
 /**
- * The linked Block, once the page has loaded: selected through the Builder's
- * own `update` if the page holds it, and let go if not, so the address follows
- * the selection again.
+ * What a link asks, once the page has loaded, through the Builder's own
+ * `update`: the Block selected if the page holds it, then the panel and the
+ * width. A selection shows Settings, so the panel comes after it. Then it is
+ * let go, so the address follows the Builder again.
  */
 const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
   if (Option.isNone(result.model.linked) || PageEditor.status(result.model) === 'Loading')
     return result
-  const linked = result.model.linked.value
+  const { block, panel, viewport } = result.model.linked.value
   // The id is the address's: `hasOwn`, since a plain object has `constructor`.
-  if (!Object.hasOwn(editing(result.model).nodes, linked))
-    return { ...result, model: { ...result.model, linked: Option.none() } }
-  const selected = stepped(
-    result.model,
-    Message.GotEditorMessage({
-      message: document.send(BuilderMessage.Selected({ id: NodeId.make(linked) })),
-    }),
+  const held = Option.filter(block, id => Object.hasOwn(editing(result.model).nodes, id))
+  const asks = [
+    ...Option.toArray(Option.map(held, id => BuilderMessage.Selected({ id: NodeId.make(id) }))),
+    ...Option.toArray(Option.map(panel, chosen => BuilderMessage.PanelChosen({ panel: chosen }))),
+    ...Option.toArray(
+      Option.map(viewport, chosen => BuilderMessage.ViewportChosen({ viewport: chosen })),
+    ),
+  ]
+  return asks.reduce<ReturnType<typeof stepped>>(
+    (done, ask) => {
+      const next = stepped(done.model, Message.GotEditorMessage({ message: document.send(ask) }))
+      return { ...next, commands: [...(done.commands ?? []), ...(next.commands ?? [])] }
+    },
+    { ...result, model: { ...result.model, linked: Option.none() } },
   )
-  return {
-    ...result,
-    model: { ...selected.model, linked: Option.none() },
-    commands: [...(result.commands ?? []), ...(selected.commands ?? [])],
-  }
 }
 
 /**
@@ -269,21 +291,50 @@ export const initial: Model = placements.initial({
 }).model
 
 /**
- * The open page and its selection, written into the address as they change.
- * A link still waiting for its page keeps its Block there.
+ * The open page and how the Builder shows it (its selection, its panel, the
+ * width it previews at), written into the address as they change. A link
+ * still waiting for its page keeps what it asked there. The panel and the
+ * width are left out at the Builder's defaults.
  */
 export const address = Subscription.make<Model, Message>()(entry => ({
   address: entry(
-    { page: Schema.Option(Schema.String), block: Schema.Option(Schema.String) },
     {
-      modelToDependencies: model => ({
+      page: Schema.Option(Schema.String),
+      block: Schema.Option(Schema.String),
+      panel: Schema.Option(Schema.String),
+      view: Schema.Option(Schema.String),
+    },
+    {
+      modelToDependencies: model => {
         // A new page is not in the address until it is saved: a link to it would find nothing.
-        page: PageEditor.storedEntry(model),
-        block: Option.orElse(model.linked, () => selectedOf(model)),
-      }),
-      // Opening or closing a page is a step Back returns from; a selection is not.
-      dependenciesToStream: ({ page, block }) =>
-        Stream.fromEffect(writeAddress({ page, block }, 'page')).pipe(Stream.drain),
+        const page = PageEditor.storedEntry(model)
+        // The Builder's own, while a page is open and nothing waits for it.
+        const shown = Option.map(page, () => builderOf(model))
+        return {
+          page,
+          block: Option.orElse(
+            Option.flatMap(model.linked, ({ block }) => block),
+            () => selectedOf(model),
+          ),
+          panel: Option.orElse(
+            Option.flatMap(model.linked, ({ panel }) => panel),
+            () =>
+              Option.flatMap(shown, ({ panel }) =>
+                Option.liftPredicate(panel, chosen => chosen !== 'insert'),
+              ),
+          ),
+          view: Option.orElse(
+            Option.flatMap(model.linked, ({ viewport }) => viewport),
+            () =>
+              Option.flatMap(shown, ({ viewport }) =>
+                Option.liftPredicate(viewport, chosen => chosen !== 'wide'),
+              ),
+          ),
+        }
+      },
+      // Opening or closing a page is a step Back returns from; the rest is not.
+      dependenciesToStream: params =>
+        Stream.fromEffect(writeAddress(params, 'page')).pipe(Stream.drain),
     },
   ),
 }))

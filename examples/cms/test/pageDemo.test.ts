@@ -43,6 +43,7 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       'while the page loads, nothing is selected: nothing',
       'once it is open, the Block the link names: Button',
       'a link to a Block the page lacks is let go: nothing waits; Button selected',
+      'a link shows the layers, at a phone’s width: layers, narrow',
       '— an agent edits the page, as a person does —',
       'it adds a heading: done',
       'the page: Written by an agent | Good morning | News | All posts',

@@ -20,6 +20,7 @@
     "foldkit-crud": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-mirror": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-builder": "workspace:*",
     "foldkit-mixins-crud": "workspace:*",

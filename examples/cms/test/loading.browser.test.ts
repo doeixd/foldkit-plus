@@ -106,3 +106,26 @@ it('says the pages are loading, busy, and never that there are none, until they 
   observer.disconnect()
   expect(said.some(each => each.includes('Nothing yet.'))).toBe(false)
 })
+
+it('opens a post previewed when its address says so, once the post has loaded', async () => {
+  const { remote, release } = await held()
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      Posts.placements.complete({
+        Model: Posts.Model,
+        container: container(),
+        init: () => Posts.init(urlOf('as=edda&post=entry-post-drafts&preview=1')),
+        update: Posts.update,
+        view: (model: Posts.Model, h: HtmlBuilder<Posts.Message>) => postsView(model, h).body,
+        subscriptions: Posts.placements.subscriptions(),
+        resources: remote,
+      }),
+    ),
+  )
+  dispose = () => handle.dispose()
+  release()
+  await expect.poll(() => text('#editor [data-state]')).toBe('Published')
+  await expect
+    .poll(() => document.querySelector('#preview')?.getAttribute('aria-pressed'))
+    .toBe('true')
+})

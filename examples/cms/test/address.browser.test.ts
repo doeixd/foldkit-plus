@@ -5,7 +5,7 @@
 import { Effect, Option } from 'effect'
 import { afterEach, expect, it } from 'vitest'
 import { writeAddress } from '../src/address.js'
-import { linkIn } from '../src/app.js'
+import { initial, linkIn, Narrowing } from '../src/app.js'
 
 afterEach(() => {
   window.history.replaceState(null, '', '/')
@@ -28,21 +28,20 @@ it('adds a step for an entry opened or closed, and replaces for a search', async
   expect(window.history.length).toBe(start + 1)
 })
 
-it('reads the open post and the worklist’s narrowing from an address', () => {
-  const at = (search: string) =>
-    linkIn({
-      protocol: 'http:',
-      host: 'studio',
-      port: Option.none(),
-      pathname: '/',
-      search: Option.some(search),
-      hash: Option.none(),
-    })
-  expect(at('as=edda&post=e1&q=milk&archive=1')).toEqual({
-    post: Option.some('e1'),
-    search: 'milk',
-    archived: true,
-  })
+const urlOf = (search: string) => ({
+  protocol: 'http:',
+  host: 'studio',
+  port: Option.none(),
+  pathname: '/',
+  search: Option.some(search),
+  hash: Option.none(),
+})
+
+it('reads the open post, its preview, and the worklist’s narrowing from an address', () => {
+  const url = urlOf('as=edda&post=e1&preview=1&q=milk&archive=true')
+  expect(linkIn(url)).toEqual({ post: Option.some('e1'), preview: true })
+  const { search, archived } = Narrowing.reduce(initial, url)
+  expect({ search, archived }).toEqual({ search: 'milk', archived: true })
   // An empty parameter is none, not an entry named "".
-  expect(at('post=&q=')).toEqual({ post: Option.none(), search: '', archived: false })
+  expect(linkIn(urlOf('post=&q='))).toEqual({ post: Option.none(), preview: false })
 })

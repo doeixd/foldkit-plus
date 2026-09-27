@@ -9,6 +9,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
+import { Mirror } from 'foldkit-mirror'
 import { Behavior, Style } from 'foldkit-mixins'
 import { FieldSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
@@ -74,6 +75,12 @@ export const Model = Schema.Struct({
   /** What the worklist is narrowed to: its search text, and whether it shows the archive. */
   search: Schema.String,
   archived: Schema.Boolean,
+  /**
+   * Whether a link asks for the preview, until the post it names is open:
+   * opening starts an editor with none, and one asked for while the post loads
+   * would be dropped when it arrives.
+   */
+  previewAsked: Schema.Option(Schema.Boolean),
 })
 export type Model = typeof Model.Type
 
@@ -164,6 +171,23 @@ const listing = (model: Model): Model => {
   })
 }
 
+/**
+ * `model` with the post an address names open, and none when it names none:
+ * what was typed saved first. The one open already stays, and so does
+ * something new, which is not in the address until it is saved.
+ */
+const openAt = (model: Model, post: Option.Option<string>) => {
+  if (Equal.equals(post, PostEditor.storedEntry(model))) return { model, commands: [] }
+  const flushed = PostEditor.flush(model)
+  return {
+    model: Option.match(post, {
+      onNone: () => EditorSlot.helpers.close(),
+      onSome: entry => EditorSlot.helpers.open(entry),
+    })(flushed.model).model,
+    commands: flushed.commands ?? [],
+  }
+}
+
 const placed = placements.update((model: Model, message: Message) => {
   // Leaving drops what is in the form, so what has not been saved is saved first:
   // an author who types and leaves within the rest loses nothing.
@@ -187,22 +211,11 @@ const placed = placements.update((model: Model, message: Message) => {
     case 'ToggledArchive':
       return { model: modifyFields(model, { archived: archived => !archived }) }
     case 'UrlChanged': {
-      const { post, search, archived } = linkIn(message.url)
-      const narrowed = modifyFields(model, {
-        search: () => search,
-        archived: () => archived,
-      })
-      // The post the address names is opened, unless it is the one open already.
-      // Something new is not in the address until it is saved, so it stays open.
-      if (Equal.equals(post, PostEditor.storedEntry(model))) return { model: narrowed }
-      const flushed = PostEditor.flush(narrowed)
-      return {
-        model: Option.match(post, {
-          onNone: () => EditorSlot.helpers.close(),
-          onSome: entry => EditorSlot.helpers.open(entry),
-        })(flushed.model).model,
-        commands: flushed.commands ?? [],
-      }
+      const { post, preview } = linkIn(message.url)
+      // The worklist's narrowing is the mirror's to read; which post is open is routing.
+      const narrowed = Narrowing.reduce(model, message.url)
+      const opened = openAt(narrowed, post)
+      return { ...opened, model: { ...opened.model, previewAsked: Option.some(preview) } }
     }
     case 'UrlRequested':
       // Another address is another chair or another application: load it.
@@ -224,11 +237,10 @@ const placed = placements.update((model: Model, message: Message) => {
   }
 })
 
-/** The open post and the worklist's narrowing, as an address names them. */
+/** The open post, and whether it is previewed, as an address names them. */
 export const linkIn = (url: Url) => ({
   post: paramOf(url, 'post'),
-  search: Option.getOrElse(paramOf(url, 'q'), () => ''),
-  archived: Option.isSome(paramOf(url, 'archive')),
+  preview: Option.isSome(paramOf(url, 'preview')),
 })
 
 /** The open entry's state as text, to tell a change of it; none while it is unknown. */
@@ -253,39 +265,80 @@ const refreshedAfterChange = (before: Model, after: Model): Model => {
   return Worklist.refresh(withHistory)
 }
 
-export const update = PostEditor.after((model: Model, message: Message) => {
+const stepped = PostEditor.after((model: Model, message: Message) => {
   const next = placed(model, message)
   return { ...next, model: listing(refreshedAfterChange(model, next.model)) }
 })
+
+/**
+ * The preview a link asks for, once the post is open, through the editor's own
+ * `update`; then let go, so the address follows the editor again. Outside
+ * `after`, whose `sync` is what opens the post a load brings.
+ */
+const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
+  const { model } = result
+  if (Option.isNone(model.previewAsked) || PostEditor.status(model) === 'Loading') return result
+  const settled = { ...model, previewAsked: Option.none() }
+  const asked = model.previewAsked.value
+  if (PostEditor.status(model) === 'Closed' || PostEditor.previewing(model) === asked)
+    return { ...result, model: settled }
+  const next = stepped(
+    settled,
+    Message.GotEditorMessage({
+      message: asked ? Editor.Message.PreviewShown() : Editor.Message.PreviewHidden(),
+    }),
+  )
+  return { ...next, commands: [...(result.commands ?? []), ...(next.commands ?? [])] }
+}
+
+export const update = (model: Model, message: Message) => follow(stepped(model, message))
 
 export const initial: Model = placements.initial({
   remote: Remote.initial,
   scheduleAt: '',
   search: '',
   archived: false,
+  previewAsked: Option.none(),
 }).model
+
+/**
+ * How the worklist is narrowed, shown in the address (`?q=milk&archive=true`).
+ * The Model owns it and the address only shows it: a search or the other tab
+ * replaces the address rather than adding a step, and a reload reads it back.
+ */
+export const Narrowing = Mirror.url(App, {
+  name: 'worklist',
+  fields: [App.model.search, App.model.archived],
+  keys: {
+    search: { key: 'q', history: 'replace' },
+    archived: { key: 'archive', history: 'replace' },
+  },
+  initial,
+})
 
 /** What an address asks for, opened: a reload, or a link someone shared, lands there. */
 export const init = (url: Url) => update(initial, Message.UrlChanged({ url }))
 
 /**
- * The open post and how the worklist is narrowed, written into the address as
- * they change: opening or closing a post is a step Back returns from, a search
- * is not.
+ * The open post and whether it is previewed, written into the address as they
+ * change: opening or closing a post is a step Back returns from, a preview is
+ * not. The worklist's narrowing is written by its mirror.
  */
 export const address = Subscription.make<Model, Message>()(entry => ({
+  ...Narrowing.subscriptions,
   address: entry(
     {
       post: Schema.Option(Schema.String),
-      q: Schema.Option(Schema.String),
-      archive: Schema.Option(Schema.String),
+      preview: Schema.Option(Schema.String),
     },
     {
       modelToDependencies: model => ({
         // Something new is not in the address until it is saved: a link would find nothing.
         post: PostEditor.storedEntry(model),
-        q: Option.liftPredicate(model.search, search => search !== ''),
-        archive: model.archived ? Option.some('1') : Option.none(),
+        // A link still waiting for its post keeps what it asked there.
+        preview: Option.getOrElse(model.previewAsked, () => PostEditor.previewing(model))
+          ? Option.some('1')
+          : Option.none(),
       }),
       dependenciesToStream: params =>
         Stream.fromEffect(writeAddress(params, 'post')).pipe(Stream.drain),

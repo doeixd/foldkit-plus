@@ -117,6 +117,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
+      foldkit-mirror:
+        specifier: workspace:*
+        version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins

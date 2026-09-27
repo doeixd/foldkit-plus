@@ -54,7 +54,10 @@ version changed; `pnpm` skips versions already in the registry.
   centred in its touch target on a phone. The page builder shows its panel
   tabs at every width it stacks at: an editor between 52rem and 64rem wide
   (a 1280px window's) stacked every panel above the page with no tabs, so a
-  new page seemed to open without one.
+  new page seemed to open without one. The address keeps a post's preview and
+  the Builder's panel and preview width, so a reload comes back to them, and
+  the worklist's search and tab go through a `foldkit-mirror` URL mirror
+  (`?archive=true` where it was `?archive=1`).
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the
