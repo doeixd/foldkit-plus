@@ -1,5 +1,5 @@
 /**
- * The rich-text editor as a form control (§12, §139): a document a `foldkit-form` key
+ * The rich-text editor as a form control (§124 §12, §139): a document a `foldkit-form` key
  * validates and submits.
  *
  * The editor Bundle leaves the document to its parent and reports each edit as an
@@ -85,7 +85,7 @@ export const richTextInput = (hostId: string, placement: EditorPlacement = {}) =
     }),
     // The count goes on, or a reset of an editor never filled would key the host it has.
     reset: (model, initial) => ({ ...initial, loaded: (model.loaded ?? 0) + 1 }),
-    // A stored draft shown again keeps its caret, format, and history (§12); only the slash
+    // A stored draft shown again keeps its caret, format, and history (§124 §12); only the slash
     // menu's highlight belongs to the moment it was typed in.
     settled: model => ({ ...model, menuIndex: 0 }),
   })

@@ -1,5 +1,5 @@
 /**
- * The link editor (§11, §132): an address field and the two things it can do, drawn
+ * The link editor (§124 §11, §132): an address field and the two things it can do, drawn
  * through slots like the toolbar and the slash menu.
  *
  * It holds no state. The link it edits is a read of the document (`RichText.linkAt`), the

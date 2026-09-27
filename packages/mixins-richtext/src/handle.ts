@@ -1,5 +1,5 @@
 /**
- * The block handle (§11, §144): the moves one block can make as a whole, drawn through slots
+ * The block handle (§124 §11, §144): the moves one block can make as a whole, drawn through slots
  * like the rest of the chrome.
  *
  * It holds no state. Which block it stands for is the caller's, usually one of

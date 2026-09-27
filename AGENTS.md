@@ -437,6 +437,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
 
+- **A Mount reads its args once, so a value replaced from outside needs a key.**
+  `richTextInput`'s `fill` and the form's `Reset` changed the editor's document and the page
+  kept the old text. A count in the Model keyed on the host fixes `fill`, but `Reset` returns
+  the form's fixed initial Model, count included, so a reset of a never-filled editor keyed the
+  host it had. The count has to be carried forward (`reset(model, initial)`), and only a
+  real-runtime test tells the two apart.
+
 - **Probe, do not assume, what a library type means.** `Schema.Struct({})` is
   not an empty-object schema: it accepts `{foo:1}`, `[]` and `"str"` even with
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.

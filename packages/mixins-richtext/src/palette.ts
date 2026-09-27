@@ -1,5 +1,5 @@
 /**
- * The command palette (§11, §68, §142): the slash menu's catalogue, searched from a field of
+ * The command palette (§124 §11, §68, §142): the slash menu's catalogue, searched from a field of
  * its own rather than typed into the document, drawn through slots like the rest of the chrome.
  *
  * It holds no state. Whether it is open, the query, and the highlighted index are the

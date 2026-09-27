@@ -1,5 +1,5 @@
 /**
- * The editor's status line (§11, §141): how long the document is, and what the application
+ * The editor's status line (§124 §11, §141): how long the document is, and what the application
  * found wrong with it, drawn through slots like the rest of the chrome.
  *
  * It sends nothing. The counts are `RichText.count`; the problems are whatever the caller

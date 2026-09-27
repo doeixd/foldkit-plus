@@ -1,5 +1,5 @@
 /**
- * The block style picker (§11, §134): a button per text style the caret's block can take —
+ * The block style picker (§124 §11, §134): a button per text style the caret's block can take —
  * a paragraph, or a heading — drawn through slots like the mark toolbar.
  *
  * The styles are the slash menu's retype entries, so the two offer the same list under the

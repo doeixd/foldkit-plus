@@ -146,10 +146,10 @@ undeclared node kinds, and its `keymap` adds or overrides chord bindings
 (`Mod-b`, `Alt-ArrowUp`), checked before the built-in chords.
 `foldkit-richtext-dom/toolbar` renders the marks as buttons (`marksToolbar`) that
 dispatch their Messages, each active when the caret carries it or every run the
-selection covers does (`markActive` is that rule on its own). A floating toolbar draws them,
-while `RichText.coversText(selection)`, in an element carrying
-`h.OnMount(selectionAnchor({ hostId, gap }))`, which places it fixed above the page's
-selection in that host; `blockAnchor({ hostId, node, gap })` places a block handle beside its
+selection covers does (`markActive` is that rule on its own). A floating toolbar is those
+buttons, drawn while `RichText.coversText(selection)` in an element carrying
+`h.OnMount(selectionAnchor({ hostId, gap }))`, which fixes it above the page's selection in
+that host; `blockAnchor({ hostId, node, gap })` places a block handle beside its
 block the same way, on an element keyed by `node`, because a Mount reads its args once.
 `foldkit-mixins-richtext` draws that toolbar through Mixins slots instead
 (`MarkToolbarSlots`, `markToolbar<Message>()`), for an application that restyles or
@@ -323,10 +323,9 @@ it cannot be). `parse` also returns a `MarkdownStyle` (which spelling each
 construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id), `print(document, { style })` reuses it where it keeps the meaning, and a
 session's `closeSource(...).style` is what to pass to the next `openSource(document, { style })`.
 
-Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
-real-browser verification; the toolbar and the slash menu are done), the editable
-adapter's decoration overlay, and collaboration remain
-unfinished. Nested children are done: a node block may carry nested `blocks`,
+Mobile keyboards, real-browser verification, and collaboration remain unfinished; the form
+control (`foldkit-richtext-dom/input`), drag and drop, and the editable adapter's decorations
+are built. Nested children are done: a node block may carry nested `blocks`,
 which decode, round-trip, count, and survive an unknown kind, and commands reach
 a run inside one — typing, grapheme deletion, marks, and the clipboard work at
 depth, with a copy across a container's children carrying the container. The HTML

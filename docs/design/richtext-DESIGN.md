@@ -1,7 +1,7 @@
 # Foldkit Plus Rich Text
 
-**Status:** §124's Markdown-first order is the one being followed; its milestones 1–5, 7, and 8
-are built, 6 is built, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
+**Status:** §124's Markdown-first order is the one being followed; its milestones 1–8 are
+built, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
 decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
 Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
@@ -20,7 +20,7 @@ browser's editor adopts it (§145), which found a table bug (§150).
 Still to do: real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
-the stateful-Form control is spiked, and the collaboration proof is unstarted.
+the stateful-Form control is built (§139), and the collaboration proof is unstarted.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4666,7 +4666,7 @@ Not done:
 The controlled-Bundle proof passed (§27), so the gate is met; nothing is
 published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
 event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
-`examples/richtext` to `packages/richtext-dom`, a private package with its own
+`examples/richtext` to `packages/richtext-dom`, a package (private then, public now) with its own
 tests, build, and README. §118 decided how a view owns that subtree and its first
 three slices landed: the editor's view renders the host element, the patch Command
 its `update` returns is what moves the DOM, paste and the undo/redo chords travel
@@ -7606,7 +7606,7 @@ Per-block spellings came next (§146).
 
 # 139. The editor as a form control
 
-§12 asks for `RichText.input(ArticleEditor)` over `Input.bundle`. It is
+§124 §12 asks for `RichText.input(ArticleEditor)` over `Input.bundle`. It is
 `richTextInput(hostId, placement)` in `foldkit-richtext-dom/input`.
 
 The editor Bundle could not be the control as it is: it leaves the document to its parent and
@@ -7617,7 +7617,7 @@ view is the editor's — and the form owns that Model as the key's draft. No sec
 written; the two differ only in who holds the document, which is what §27 said standalone and
 controlled would differ in.
 
-§12's resume table, decided:
+§124 §12's resume table, decided:
 
 ```text
 document       yes   the key's value
@@ -7631,7 +7631,7 @@ focus, DOM     no    never in the Model
 
 A new record starts on one empty paragraph, since a caret needs a block, and a blank document
 is no value, so a required body refuses it. `placeEditor` was extracted from `editorAt` so both
-place the same five things under one host id.
+place the same things under one host id (six since §145 added `serverRendered`).
 
 A limit found while checking the README snippet: a form holding this control, `export`ed from
 a project that emits declarations, fails with `TS7056` (the inferred type exceeds what the
@@ -7645,7 +7645,7 @@ Not yet: versioning resume state apart from the published document.
 
 # 140. An article in the CMS
 
-§12's CMS story, with a document as the body: `examples/cms/src/articleDemo.ts`, pinned by
+§124 §12's CMS story, with a document as the body: `examples/cms/src/articleDemo.ts`, pinned by
 `test/articleDemo.test.ts`. An Article is declared like the Post: an Entity with
 `body: RichText.Document`, a form whose `body` control is `richTextInput`, two publish
 mutations, and `Cms.content`. The CMS gains nothing for it. Its drafts, revisions, publish,
@@ -7655,7 +7655,7 @@ What the story shows:
 
 ```text
 typing     "# Tending", Enter, "Water ", Bold, "early": 22 SaveDraft calls, the title and each body edit
-resume     a fresh Model opens the entry: same document, caret at 5
+resume     a fresh Model opens the entry: same document, caret at 5 in e2
 preview    the form's document through documentToHtml with standardRendering; no mutation
 visitor    the published row's JSON decoded and drawn the same way
 revision   a second publish, then restore of revision 1 as a draft; the live page unchanged
@@ -7675,7 +7675,7 @@ that holds the editor hits §139's `TS7056` limit.
 
 # 141. The status line
 
-§11's "status/diagnostic surface" is `editorStatus` in `foldkit-mixins-richtext`: the document's
+§124 §11's "status/diagnostic surface" is `editorStatus` in `foldkit-mixins-richtext`: the document's
 counts, then a list of problems. It sends nothing.
 
 The counts are `RichText.count(document)`, in the core because any view might want one and it
@@ -7782,7 +7782,8 @@ block down past two siblings is `index + 1`, not `+ 2`. A caller would have to r
 arithmetic, and it is the library's to do. `before`/`after` also say what a drop indicator shows:
 the block the pointer is over, and the side of it.
 
-**Same container only.** A move to a sibling in another container is `InvalidParent`. Moving
+**Same container only** (superseded by §149, which added the rules and allows such moves). A
+move to a sibling in another container is `InvalidParent`. Moving
 across containers needs rules nothing declares yet. `List` says it holds `ListItem`s, but nothing
 says a `ListItem` may stand only in a `List`, so a move could strand one at the top level. Moving
 a list's last item out would also leave an empty `List`, which a lift deletes but a move would
@@ -7842,8 +7843,8 @@ walks the first client render beside the server DOM and keeps what matches. The 
 renders its host with no children, and a childless vnode owns an empty element: hydration clears
 any server DOM under it (`hydrate.js`, "a childless vnode ... owns an empty element"). Mounts run
 after the patch on adopted elements, so the editor's `events` Mount does run on the served host,
-but by then the host is empty. So today an SSR page shows an empty editor until the client mounts
-it.
+but by then the host is empty. So before this section's route 1, an SSR page showed an empty
+editor until the client mounted it.
 
 There is one exemption. An autonomous custom element (a tag with a hyphen) keeps its light DOM
 unless the view declares children or `InnerHTML` for it, because that DOM is the component's.
@@ -7862,7 +7863,7 @@ there needs a text node, and an element offers no semantic offset. The run eleme
 so its identity survives. Adoption is all or nothing. A partial match is rebuilt, since a
 half-adopted index is a subtle bug and rebuilding is what happened before.
 
-## The page half: open
+## The page half: routes considered
 
 The server has to emit the editable subtree inside the host, and the client view must not
 declare it. Otherwise hydration either clears it (childless host) or takes ownership of it
@@ -8007,6 +8008,9 @@ application's Message, so the lift itself is tested by running the action agains
 ---
 
 # 148. Dragging a block
+
+(§149 later widened this to other containers and replaced the midpoint rule with nearest edges;
+what follows is the first version.)
 
 A block is dragged by its handle's grip, among the blocks of its own container, and dropped with
 §144's `MoveBlock`. That is all the command allows, and all a handle's drag needs. A drag into
