@@ -1199,7 +1199,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         fontSize: t.size.sm,
         padding: '0.4rem 0.75rem',
       }),
-      Style.nest('&[aria-selected="true"]', {
+      Style.nest('&[aria-pressed="true"]', {
         background: t.surface.base,
         boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
         color: t.text.overt,

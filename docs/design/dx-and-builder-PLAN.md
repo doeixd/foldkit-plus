@@ -1084,6 +1084,10 @@ while the window stays wide.
 - Selecting a node switches to Settings, as it already sets `panel`.
 - If the example's narrow layout does not use it, `panel` is removed instead.
 
+> **Later, 2026-09-27:** a review found the tablist promised ARIA tabs'
+> arrow keys and roving tab stop, which it lacked; it is a `role="group"` of
+> `aria-pressed` buttons, as the viewports are.
+>
 > **Done, 2026-09-26, as one assembly and a Style.** Rather than a second
 > assembly chosen by measuring, `define` always draws a `Panels` part (a
 > `role="tablist"`, hidden by the Builder's defaults) and marks each panel

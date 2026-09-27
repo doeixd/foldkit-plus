@@ -145,7 +145,9 @@ default Style), so the regions may be laid out by the editor's own width,
 `@container builder (max-width: 64rem)`, rather than the window's: an editor
 in a narrow column stacks in a wide window. The example lays `regions` out as
 a grid of `start`, `bar` over `stage`, and `end`. A layout of your own
-(`assemble`) draws none of these.
+(`assemble`) draws none of these. An inline-size container takes no width from
+what it holds, so give the editor one: as a flex item that does not grow, an
+`auto` grid column, `inline-block` or `fit-content`, it is 0 wide.
 
 A node's props are drawn by its Block's settings form, a `foldkit-mixins-form`
 view the Builder makes. Give its Styles to `define` (or `parts`), and they are
@@ -238,14 +240,20 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 ```
 
 - **The width is the editor's own, not the window's.** Below `width` of the
-  container `builder`, the Builder's root, the `Panels` part's `role="tablist"` (Add, Layers, Settings) shows, and only the
-  panel the Builder's `panel` names. Wider, the tabs are hidden (the
-  Builder's default Style) and every panel shows.
-- **The Builder chooses the panel as it always has:** a tab sends
+  container `builder`, the Builder's root, the `Panels` part shows: a
+  `role="group"` of three buttons (Add, Layers, Settings), the chosen one
+  `aria-pressed`, as the viewports are, and only the panel the Builder's
+  `panel` names shows. Wider, the buttons are hidden (the Builder's default
+  Style) and every panel shows. They are not ARIA tabs, which would promise
+  arrow keys and a roving tab stop.
+- **The Builder chooses the panel as it always has:** a button sends
   `PanelChosen`, and selecting a node chooses Settings. Each panel carries its
-  `id`, `data-panel` and `data-panel-shown`, and each tab `aria-controls` it.
-- **It is in the `app` layer**, so it outranks an application's own placing of
-  the panels; `narrow(width, { layer })` puts it elsewhere.
+  `id`, `data-panel` and `data-panel-shown`, and each button `aria-controls`
+  it; a layout of your own that draws `Panels` should draw the three panels.
+- **It is in the `app` layer**, so it outranks an application's placing of
+  the panels in `app` or an earlier layer; an unlayered style outranks every
+  layer, and would show a hidden panel. `narrow(width, { layer })` puts it
+  elsewhere.
 
 ## As a form key
 

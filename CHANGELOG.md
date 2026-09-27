@@ -87,8 +87,8 @@ version changed; `pnpm` skips versions already in the registry.
   container (`PAGE_CONTAINER`), so a look written this way follows a narrow
   preview in a wide window.
 - **`foldkit-mixins-builder`: a narrow editor.** `BuilderView.narrow(width)`
-  shows one panel at a time, chosen by a `role="tablist"`, below that width
-  of the editor itself.
+  shows one panel at a time, chosen by a group of pressed buttons, below that
+  width of the editor itself.
 
 - **`foldkit-mixins`: a Style's rules arrive with the Slot that draws them.**
   Compiling a Style records each class with its CSS; in a browser, a class a

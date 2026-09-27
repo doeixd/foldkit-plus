@@ -92,7 +92,7 @@ export const BuilderSlots = Slots.define({
   stage: Slot.make({ capability: Capability.Container }),
   end: Slot.make({ capability: Capability.Container }),
   /**
-   * A `role="tablist"` of the three panels, Add, Layers and Settings, for a
+   * A group of three pressed-state buttons, one per panel, Add, Layers and Settings, for a
    * narrow layout that shows one at a time (`BuilderView.narrow`); hidden
    * otherwise. One `panelTab` each, with `data-panel`.
    */
@@ -174,10 +174,6 @@ export const BuilderSlots = Slots.define({
   live: Slot.make({ capability: Capability.Base }),
 })
 
-/**
- * What the drawn Builder needs to work unstyled: the frame as wide as the
- * viewport, centred. In `components`, so an application's style overrides it.
- */
 /** A box over a measured node: where `Measure` found it, and nothing to the pointer. */
 const boxOver = (name: string) => {
   const at = measured(name)
@@ -193,8 +189,11 @@ const boxOver = (name: string) => {
   })
 }
 
-// What makes the Builder work, not how it looks: the frame's width, and the boxes
-// placed over the page. Any application style overrides them.
+/**
+ * What the drawn Builder needs to work unstyled: the root a container, the frame
+ * as wide as the viewport, centred, the boxes over the canvas, the narrow tabs
+ * hidden. In `components`, so an application's style overrides it.
+ */
 const FrameDefaults = Style.forSlots(BuilderSlots)(
   {
     // The page's container, so a look measures the frame it is previewed in, not the window.
@@ -292,7 +291,6 @@ export const ROW_DROP_ATTRIBUTE = 'builder-drop'
 /** On the row being dragged. */
 export const ROW_DRAGGING_ATTRIBUTE = 'builder-dragging'
 
-/** The Builder's Message for what a drag reports. */
 /**
  * A drag's facts as the Builder's Messages; `source` says what the dragged
  * element is: a node's own id, or a palette tile's Block.
@@ -540,9 +538,9 @@ export type BuilderPart = SlotView.Part<typeof BuilderSlots, BuilderInput, Messa
 
 /** The drawn Builder's pieces, by what they show. */
 export interface BuilderParts {
-  /** The Blocks a page may gain, each a button that inserts it. */
-  /** The panels' tabs, for a narrow layout: see `BuilderView.narrow`. */
+  /** The panels' switch, for a narrow layout: see `BuilderView.narrow`. */
   readonly Panels: BuilderPart
+  /** The Blocks a page may gain, each a button that inserts it. */
   readonly Palette: BuilderPart
   /** The page's nodes as an ARIA tree, with the keyboard and dragging. */
   readonly Layers: BuilderPart
@@ -788,7 +786,7 @@ export const BuilderView = {
         onSome: target => [
           drawForm(target, target.props, 'settings', {
             submits: false,
-            words: { none: 'none' },
+            words: { none: w.none },
             // The application's choices are keyed `'Block.prop'`; the form's by prop.
             options: Object.fromEntries(
               Object.entries(options).flatMap(([at, choices]) =>
@@ -1141,13 +1139,14 @@ export const BuilderView = {
     const Panels = Parts.part('Panels', { reads: ['panel', 'words'] }, (input, slots, h) => {
       const w = wordsOf(input.words)
       return h.div(
-        slots.panelTabs.attrs([h.Role('tablist'), h.AriaLabel(w.panels)]),
+        // A group of pressed buttons, as the viewports are: ARIA tabs would promise
+        // arrow keys and a roving tab stop.
+        slots.panelTabs.attrs([h.Role('group'), h.AriaLabel(w.panels)]),
         PANELS.map(([panel, label]) =>
           h.button(
             slots.panelTab.attrs([
               h.Type('button'),
-              h.Role('tab'),
-              h.AriaSelected(input.panel === panel),
+              h.AriaPressed(input.panel === panel ? 'true' : 'false'),
               h.AriaControls(panelId(panel)),
               h.DataAttribute('panel', panel),
               h.OnClick(Message.PanelChosen({ panel })),

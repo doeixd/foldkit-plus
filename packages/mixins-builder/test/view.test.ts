@@ -160,10 +160,10 @@ describe('the drawn Builder', () => {
 
   it('names the panels a narrow layout shows one at a time, each tab naming its panel', () => {
     const root = draw(send(page, Message.PanelChosen({ panel: 'layers' })))
-    const [tabs] = Inert.byRole(root, 'tablist')
-    const tab = Inert.byRole(tabs, 'tab')
+    const [tabs] = Inert.all(root).filter(node => Inert.value(node, 'aria-label') === 'Panels')
+    const tab = Inert.all(tabs).filter(node => node.sel === 'button')
     expect(tab.map(Inert.text)).toEqual(['Add', 'Layers', 'Settings'])
-    expect(tab.map(each => Inert.value(each, 'aria-selected'))).toEqual(['false', 'true', 'false'])
+    expect(tab.map(each => Inert.value(each, 'aria-pressed'))).toEqual(['false', 'true', 'false'])
     const panels = Inert.all(root).filter(
       node => Inert.value(node, 'data-panel-shown') !== undefined,
     )

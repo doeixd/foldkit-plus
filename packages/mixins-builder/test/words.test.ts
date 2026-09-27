@@ -113,7 +113,11 @@ it('draws no word of its own but through its words', () => {
       format: 1,
       roots: [id('s'), id('lost')],
       nodes: {
-        [id('s')]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [id('b')] } },
+        [id('s')]: {
+          block: 'Section',
+          props: { tone: 'plain' },
+          regions: { body: [id('b'), id('f')] },
+        },
         [id('b')]: {
           block: 'Banner',
           props: { text: 'Hi', size: 'small', columns: 1, count: 1, shown: true },
@@ -123,6 +127,12 @@ it('draws no word of its own but through its words', () => {
           actions: { press: { action: 'subscribe', input: { note: '' } } },
         },
         [id('lost')]: { block: 'Carousel', props: {}, regions: {} },
+        // An optional picker, which offers the blank choice of `none`.
+        [id('f')]: {
+          block: 'Featured',
+          props: { category: null, maker: 'm1', tags: [] },
+          regions: {},
+        },
       },
     }),
   )
@@ -132,6 +142,7 @@ it('draws no word of its own but through its words', () => {
     send(page, Message.Selected({ id: id('s') })),
     send(page, Message.Selected({ id: id('b') })),
     send(page, Message.Selected({ id: id('lost') })),
+    send(page, Message.Selected({ id: id('f') })),
   ]
   const drawn: Array<string> = states.flatMap(model =>
     shown(PageView({ ...model, words: markers }, h)),
@@ -208,6 +219,12 @@ it('draws no word of its own but through its words', () => {
       'news',
       'offers',
       'Note',
+      // A picker of the application's things: its labels, and a chosen id no choice lists.
+      'Featured',
+      'Category',
+      'Maker',
+      'Tags',
+      '? m1',
     ]),
   )
 })

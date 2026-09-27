@@ -313,7 +313,7 @@ it('shows one panel at a time when the editor is narrow, chosen by tabs and by s
     // Rendered at all: a panel's name may be on an element inside it.
     return document.querySelector(`[aria-label="${label}"]`)?.checkVisibility() === true
   }
-  const tabs = () => document.querySelector<HTMLElement>('[role="tablist"]')
+  const tabs = () => document.querySelector<HTMLElement>('[aria-label="Panels"]')
   // Wide: every panel, and no tabs.
   unmount = mount(stylesheet, 3)
   await vi.waitFor(() => expect(canvas()).not.toBeNull())
@@ -328,12 +328,12 @@ it('shows one panel at a time when the editor is narrow, chosen by tabs and by s
   expect([shown('Add a block'), shown('Layers'), shown('Properties')]).toEqual([true, false, false])
   // Stacked by the editor's own width, not the window's: the page takes the editor's width.
   expect(canvas()?.getBoundingClientRect().width).toBeGreaterThan(500)
-  document.querySelector<HTMLElement>('[role="tab"][data-panel="layers"]')?.click()
+  document.querySelector<HTMLElement>('button[data-panel="layers"]')?.click()
   await vi.waitFor(() => expect(shown('Layers')).toBe(true))
   expect(shown('Add a block')).toBe(false)
-  expect(
-    document.querySelector('[role="tab"][data-panel="layers"]')?.getAttribute('aria-selected'),
-  ).toBe('true')
+  expect(document.querySelector('button[data-panel="layers"]')?.getAttribute('aria-pressed')).toBe(
+    'true',
+  )
   canvas()?.querySelector<HTMLElement>('[data-composition-node="h1"] h2')?.click()
   await vi.waitFor(() => expect(shown('Properties')).toBe(true))
   expect(shown('Layers')).toBe(false)
