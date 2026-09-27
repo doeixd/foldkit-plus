@@ -8,7 +8,9 @@
  * the round trips the design's testing section asks for. A profile for custom syntax
  * arrives when a custom syntax needs both directions at once.
  */
-export { type MarkdownDiagnostic } from './diagnostic.js'
+export { MarkdownDiagnostic } from './diagnostic.js'
 export { markdownInputRules } from './input.js'
-export { print, type PrintedMarkdown } from './print.js'
+export { print, type PrintedMarkdown, type PrintOptions } from './print.js'
+export { BlockSpelling, MarkdownStyle } from './style.js'
 export { parse, type ParseOptions, type ParsedMarkdown } from './parse.js'
+export { closeSource, openSource, SourceSession, type ClosedSource } from './source.js'

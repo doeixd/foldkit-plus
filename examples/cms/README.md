@@ -90,6 +90,29 @@ the composition's tolerant codec, so a stored page always reads. What a publish
 takes must also fit the site's Catalog: `PageInput` checks its `document` with
 `Composition.valid(Site)`.
 
+## An article, its body a rich-text document
+
+Last, an article whose `body` is a rich-text document, in
+[articleDemo.ts](src/articleDemo.ts). The body's control is `richTextInput` from
+[`foldkit-richtext-dom/input`](../../packages/richtext-dom/README.md): the editor, holding the
+document in its own Model, as one form key. The CMS is not told there is an editor, and the
+editor adds no CMS state.
+
+| In the transcript | What it is |
+| --- | --- |
+| `the body: "# Tending\n\nWater **early**"; caret at 5 in e2` | The writer typed `# Tending`, Enter, and a bold word; the caret is at the end of that word's run, `e2`. `# ` is a Markdown input rule that makes a heading; Enter after a heading starts a paragraph. The transcript prints the document as Markdown. |
+| `every edit is a draft: Saved; 22 saves, each SaveDraft` | Each change to the title, and each keystroke in the body (Enter included), is saved as a draft. |
+| `resumed from the Model: … caret at 5 in e2` | The saved draft holds the editor's Model: the document and the caret, which the transcript shows, and with them the stored marks and undo history. |
+| `the writer's preview: <h1>Tending</h1>…; sent nothing` | The preview draws the form's document with the standard rendering. Nothing is sent. |
+| `a visitor at /articles/on-gardens: …` | A visitor gets the published row's document, drawn the same way. |
+| `revisions: 1, 2` / `restored as a draft … nothing was published by that` | Revisions and restore are the CMS's, for a document as for a string. |
+| `the host asks what is due` / `a visitor reads: …` | A scheduled change goes out when the host asks what is due. |
+
+The body column is JSON, read back through `RichText.Document`. The content type lives in
+`articleDemo.ts` and is handed to `openServer` rather than exported: an exported form holding the
+editor fails with `TS7056`, because the editor's Model type is larger than the compiler will
+write into a declaration file.
+
 ## The files
 
 - `domain.ts` imports neither Remote's client nor Drizzle. It declares the
@@ -102,6 +125,7 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
 - `demo.ts` is the three chairs and the clock.
 - `site.ts`, `pageDomain.ts`, `pageApp.ts` and `pageDemo.ts` are the page's
   vocabulary, domain, application and story, placed the same way.
+- `articleDemo.ts` is the article's content type, application and story in one module.
 - `style.ts` and `sheet.ts` are the appearance: `foldkit-mixins` Style for each
   page and for the Builder's panels, compiled into one stylesheet that
   `client.ts` injects. There is no CSS file.

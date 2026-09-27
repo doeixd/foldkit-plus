@@ -46,7 +46,11 @@ check('/view', typeof view.renderDocument === 'function' && typeof view.renderBl
 const toolbar = await import('foldkit-richtext-dom/toolbar')
 check(
   '/toolbar',
-  typeof toolbar.marksToolbar === 'function' && typeof toolbar.markActive === 'function',
+  typeof toolbar.marksToolbar === 'function' &&
+    typeof toolbar.markActive === 'function' &&
+    typeof toolbar.selectionAnchor === 'function' &&
+    typeof toolbar.blockAnchor === 'function' &&
+    typeof toolbar.blockDrag === 'function',
 )
 
 const editor = await import('foldkit-richtext-dom/editor')
@@ -76,6 +80,12 @@ check(
     typeof bundle.edited === 'function',
 )
 
+const input = await import('foldkit-richtext-dom/input')
+check(
+  '/input',
+  typeof input.richTextInput === 'function' && typeof input.EditorInput === 'object',
+)
+
 const family = await import('foldkit-mixins-richtext')
 check(
   'mixins-richtext',
@@ -86,6 +96,17 @@ check(
     typeof family.slashMenuView === 'function' &&
     typeof family.SlashMenuSlots === 'object' &&
     typeof family.linkEditor === 'function' &&
+    typeof family.blockStyles === 'function' &&
+    typeof family.sourceEditor === 'function' &&
+    typeof family.sourcePreview === 'function' &&
+    typeof family.SourceEditorSlots === 'object' &&
+    typeof family.BlockStyleSlots === 'object' &&
+    typeof family.editorStatus === 'function' &&
+    typeof family.commandPalette === 'function' &&
+    typeof family.blockHandle === 'function' &&
+    typeof family.BlockHandleSlots === 'object' &&
+    typeof family.CommandPaletteSlots === 'object' &&
+    typeof family.EditorStatusSlots === 'object' &&
     typeof family.LinkEditorSlots === 'object',
 )
 

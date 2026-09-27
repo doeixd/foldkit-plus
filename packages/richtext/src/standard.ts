@@ -82,10 +82,13 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     }),
     children: blocksOf('ListItem', 'TaskItem'),
   }),
-  node('ListItem', { children: blockContent }),
+  node('ListItem', { children: blockContent, within: ['List'] }),
   node('TaskItem', {
     Props: Schema.Struct({ checked: Schema.Boolean }),
     children: blockContent,
+    // A task split off a done one is a new task, not a done one.
+    splitProps: { checked: false },
+    within: ['List'],
   }),
   node('CodeBlock', {
     Props: Schema.Struct({ language: Schema.optional(Schema.String) }),
@@ -102,9 +105,10 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     // agree about it instead of each assuming.
     Props: Schema.Struct({ header: Schema.optional(Schema.Boolean) }),
     children: blocksOf('TableCell'),
+    within: ['Table'],
   }),
   // A cell's content stays in the cell: Backspace at its start lifts nothing out of it.
-  node('TableCell', { children: blockContent, isolating: true }),
+  node('TableCell', { children: blockContent, isolating: true, within: ['TableRow'] }),
 ]
 
 /**
@@ -160,7 +164,7 @@ export const standardRendering: Rendering = rendering({
         alt: String(block.props.alt ?? ''),
       },
     }),
-    Table: { tag: 'table', attributes: {} },
+    Table: { tag: 'table', attributes: {}, inner: 'tbody' },
     // A row says it is the header; its cells do not have to be told apart by their parent.
     TableRow: block =>
       block.props.header === true

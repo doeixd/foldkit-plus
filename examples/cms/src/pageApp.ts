@@ -105,19 +105,19 @@ export const actives = {
   blocks: QueryBlock.active('PageBlocks', App.owner, Data, Site, editing),
   pages: {
     name: 'SitePages',
-    owner: Data.contract.owner ?? {},
+    owner: App.owner,
     messages: [],
     projectionOf: () => sitePages,
   },
   revisions: {
     name: 'Revisions',
-    owner: Data.contract.owner ?? {},
+    owner: App.owner,
     messages: [],
     projectionOf: revisions,
   },
   page: {
     name: 'PageView',
-    owner: Data.contract.owner ?? {},
+    owner: App.owner,
     messages: [],
     projectionOf: (model: Model) => {
       const id = PageEditor.pageId(model)

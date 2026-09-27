@@ -66,6 +66,9 @@ SSR.hydrate(config, Editor, { buildId })
   browser, never rendered there, so what it reads need not be in `state`. It
   changes only with a new document; anything a Message changes belongs in a
   Surface. Duplicate ids fail with `DuplicateStaticRegion`.
+- `SSR.serving()`: true while the server renders a page, false in the browser and outside a
+  render; `foldkit-richtext-dom`'s `editorAt(hostId, { serverRendered: SSR.serving })` sends
+  the document's markup in the editor's host, which the browser's editor adopts.
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.

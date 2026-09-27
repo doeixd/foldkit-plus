@@ -11,7 +11,14 @@ import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, decorationsFor, mountInto, releaseMount, renderingFor } from './host.js'
+import {
+  attachmentIn,
+  decorationsFor,
+  mountInto,
+  placeholderFor,
+  releaseMount,
+  renderingFor,
+} from './host.js'
 import type { Decorate } from './events.js'
 
 export const Message = defineMessageUnion({
@@ -31,6 +38,8 @@ export const Message = defineMessageUnion({
   ConvertedBlock: { to: RichText.Container },
   /** The caret's block, lifted out of its container: the inverse of a wrap. */
   LiftedBlock: {},
+  /** A block moved before or after a sibling in its container: a block handle's up and down. */
+  MovedBlock: { node: RichText.NodeId, to: RichText.Beside },
   Selected: { selection: Schema.NullOr(RichText.Selection) },
   Pasted: { slice: RichText.Slice },
   Undone: {},
@@ -230,6 +239,8 @@ export const slashMenu = <Payload>(
 export interface EditorDrawing {
   readonly rendering?: RichText.Rendering | undefined
   readonly decorate?: Decorate | undefined
+  /** What a blank document shows. */
+  readonly placeholder?: string | undefined
 }
 
 /**
@@ -254,6 +265,7 @@ export const attachEditor = (
       onHistory: direction => emit(direction === 'undo' ? Message.Undone() : Message.Redone()),
       onSelection: selection => emit(Message.Selected({ selection })),
       decorate: drawing.decorate,
+      placeholder: drawing.placeholder,
     },
     drawing.rendering,
   )
@@ -293,6 +305,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.WrappedBlock,
     Message.ConvertedBlock,
     Message.LiftedBlock,
+    Message.MovedBlock,
     Message.Selected,
     Message.Pasted,
     Message.Undone,
@@ -305,6 +318,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
           attachEditor(element, content, message => Queue.offerUnsafe(queue, message), {
             rendering: renderingFor(element.id),
             decorate: decorationsFor(element.id),
+            placeholder: placeholderFor(element.id),
           }),
         ),
         () => Effect.sync(() => releaseMount(element)),

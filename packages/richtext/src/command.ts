@@ -27,7 +27,7 @@ import {
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
-import { blockKind, type NodeRegistry } from './kit.js'
+import { blockKind, standsWithin, type NodeRegistry } from './kit.js'
 import {
   Edit,
   apply,
@@ -85,6 +85,21 @@ export type Command =
    * both the item and the list. The block keeps its identity, and the caret with it.
    */
   | { readonly type: 'LiftBlock' }
+  /**
+   * Moves a block, and everything it holds, before or after another block, in its own container
+   * or another one the vocabulary lets it stand in (§149). It addresses blocks rather than the
+   * selection, so a handle or a key can move the block it stands for; identities are kept, and
+   * the selection with them. A container the move leaves empty is deleted.
+   */
+  | { readonly type: 'MoveBlock'; readonly node: NodeId; readonly to: Beside }
+
+/** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
+export const Beside = Schema.Union([
+  // Each shape refuses the other's key: `{ before, after }` would name two places.
+  Schema.Struct({ before: NodeId, after: Schema.optionalKey(Schema.Never) }),
+  Schema.Struct({ after: NodeId, before: Schema.optionalKey(Schema.Never) }),
+])
+export type Beside = typeof Beside.Type
 
 /** A container a block is wrapped in: a node kind, and the props it starts with. */
 export const Container = Schema.Struct({
@@ -165,6 +180,12 @@ const refusesProps = (nodes: NodeRegistry | undefined, container: Container): bo
   )
 }
 
+/** Whether the vocabulary declares `kind` as a node that holds runs, as `CodeBlock` is. */
+const declaresText = (nodes: NodeRegistry | undefined, kind: string): boolean => {
+  const declared = nodes?.definitionFor(kind)
+  return declared?.kind === 'node' && declared.children === textContent
+}
+
 /** Whether the vocabulary names `itemKind` among the kinds `listKind` holds, as `List` names `ListItem`. */
 const holdsItem = (nodes: NodeRegistry, listKind: string, itemKind: string): boolean => {
   const declared = nodes.definitionFor(listKind)
@@ -233,6 +254,10 @@ const locate = (document: Document, node: NodeId): Located | undefined => {
 const isCollapsed = (selection: Extract<Selection, { readonly type: 'Range' }>): boolean =>
   selection.anchor.node === selection.focus.node &&
   selection.anchor.offset === selection.focus.offset
+
+/** Whether a selection covers text: a range that is not a caret. What a mark or a link applies to. */
+export const coversText = (selection: Selection | null): boolean =>
+  selection?.type === 'Range' && !isCollapsed(selection)
 
 /** A caret is a range whose endpoints coincide; direction is not yet meaningful. */
 const caretAt = (position: Position): Selection => ({
@@ -374,6 +399,118 @@ export const markExtent = (
       focus: { node: end.id, offset: end.text.length, affinity: 'before' },
     },
   }
+}
+
+/**
+ * The text style of the block a selection starts in, in the shape `RetypeBlock` takes, so a
+ * style picker compares what it would send with what is there. Undefined for a node
+ * selection, one that resolves to nothing, or a block a retype does not reach, such as a code
+ * block.
+ */
+export const textBlockAt = (
+  document: Document,
+  selection: Selection | null,
+): TextBlock | undefined => {
+  if (selection?.type !== 'Range') return undefined
+  const path = startPath(document, selection)
+  const block = path === undefined ? undefined : blockAtPath(document, path)
+  if (block?.type === 'Paragraph') return { type: 'Paragraph' }
+  if (block?.type === 'Heading') return { type: 'Heading', level: block.level }
+  return undefined
+}
+
+/**
+ * Why block `moving` may not move into the container at `container` (§149), or undefined when
+ * it may. Within its own container it always may. Elsewhere, the container must hold its kind,
+ * the kind must stand in the container's kind (a `ListItem` only in a `List`), it may not leave
+ * a container declared isolating, and it may not go inside itself.
+ */
+const moveFailure = (
+  document: Document,
+  moving: { readonly path: BlockPath; readonly block: Block },
+  container: BlockPath,
+  nodes: NodeRegistry | undefined,
+): Failure | undefined => {
+  if (moving.path.every((index, depth) => container[depth] === index)) return 'InvalidParent'
+  const source = moving.path.slice(0, -1)
+  if (pathKey(source) === pathKey(container)) return undefined
+  const kind = blockKind(moving.block)
+  const parent = container.length === 0 ? undefined : blockAtPath(document, container)
+  if (
+    !acceptsChild(document, container, kind, nodes) ||
+    !standsWithin(nodes?.definitionFor(kind), parent === undefined ? undefined : blockKind(parent))
+  ) {
+    return 'UnexpectedChild'
+  }
+  for (let depth = source.length; depth > 0; depth--) {
+    const holder = source.slice(0, depth)
+    const inside = holder.every((index, at) => container[at] === index)
+    if (!inside && isIsolating(document, holder, nodes)) return 'InvalidParent'
+  }
+  return undefined
+}
+
+const isIsolating = (document: Document, path: BlockPath, nodes: NodeRegistry | undefined) => {
+  const block = blockAtPath(document, path)
+  const declared = block === undefined ? undefined : nodes?.definitionFor(blockKind(block))
+  return declared?.kind === 'node' && declared.isolating === true
+}
+
+/**
+ * The outermost container a block leaving `source` empties, walking up while each held nothing
+ * else: a list whose only item's only block moved out goes with it. Never the container it lands
+ * in, or one holding that. An isolating one is never reached, since a move may not leave it.
+ */
+const emptiedBy = (
+  document: Document,
+  source: BlockPath,
+  container: BlockPath,
+): NodeId | undefined => {
+  let emptied: NodeId | undefined
+  for (let path = source; path.length > 0; path = path.slice(0, -1)) {
+    const block = blockAtPath(document, path)
+    const holdsTarget = path.every((index, depth) => container[depth] === index)
+    if (block?.type !== 'Node' || (block.blocks?.length ?? 0) > 1 || holdsTarget) break
+    emptied = block.id
+  }
+  return emptied
+}
+
+/**
+ * The blocks `node` may move beside, in document order (§149): the blocks of every container it
+ * may move into, which is what a drag offers. Empty when the document does not hold it.
+ */
+export const moveTargets = (
+  document: Document,
+  node: NodeId,
+  nodes?: NodeRegistry,
+): ReadonlyArray<NodeId> => {
+  const moving = locateBlock(document, node)
+  if (moving === undefined) return []
+  const targets: Array<NodeId> = []
+  eachBlock(document.children, (block, path) => {
+    if (moveFailure(document, moving, path.slice(0, -1), nodes) === undefined)
+      targets.push(block.id)
+  })
+  return targets
+}
+
+/** Where a selection starts: its first run's block, or the block a node selection names. */
+const startPath = (document: Document, selection: Selection | null): BlockPath | undefined => {
+  if (selection === null) return undefined
+  if (selection.type === 'Node') return locateBlock(document, selection.node)?.path
+  const start = ordered(document, selection)?.start
+  return start === undefined ? undefined : locateRun(document, start.node)?.path
+}
+
+/**
+ * The blocks a selection starts in, outermost first: a caret in a list item's paragraph gives
+ * the list, the item, and the paragraph. What a block handle picks from, and a breadcrumb draws.
+ * Empty when the selection is null or resolves to nothing.
+ */
+export const blocksAt = (document: Document, selection: Selection | null): ReadonlyArray<Block> => {
+  const path = startPath(document, selection) ?? []
+  return path.map((_, depth) => blockAtPath(document, path.slice(0, depth + 1))!)
 }
 
 /** The last run in a block's subtree, or undefined when it holds none. */
@@ -566,6 +703,25 @@ const itemAround = (
 }
 
 /**
+ * Whether Enter in the block at `path`, over to `end`, leaves no heading text after the caret,
+ * so the new block is a paragraph: what follows a title is text. Mid-heading, both halves stay
+ * the heading they were. Over a range, what follows is what the removal leaves: the heading's
+ * own rest when the range ends inside it, or the next block's text, which was never the
+ * heading's, when it ends there.
+ */
+const endsHeading = (document: Document, path: BlockPath, end: Position): boolean => {
+  const block = blockAtPath(document, path)
+  const endAt = locate(document, end.node)
+  return (
+    block?.type === 'Heading' &&
+    endAt !== undefined &&
+    (pathKey(endAt.path) !== pathKey(path) ||
+      (end.offset >= endAt.text.length &&
+        block.children.slice(endAt.runIndex + 1).every(run => run.text.length === 0)))
+  )
+}
+
+/**
  * Enter inside a list item. An empty block that is the item's whole content leaves the list,
  * as Backspace does. Otherwise the block splits and the second half, with every block after
  * it in the item, becomes a new item of the same kind and props right after this one.
@@ -587,10 +743,18 @@ const splitItem = (
   const textId = ids.mint()
   const blockId = ids.mint()
   const itemId = NodeId.make(ids.mint())
+  const declared = nodes?.definitionFor(container.kind)
+  const props = { ...container.props, ...(declared?.kind === 'node' ? declared.splitProps : {}) }
+  // The declaration's props are laid over the item's, so together they must still decode.
+  if (declared?.kind === 'node' && propsFailure(declared.props, props))
+    return failure('InvalidInput')
   return apply(state, [
     Edit.splitBlock(at.blockId, at.id, offset, blockId, textId),
+    ...(endsHeading(state.document, at.path, { node: at.id, offset, affinity: 'after' })
+      ? [Edit.retypeBlock(NodeId.make(blockId), { type: 'Paragraph' })]
+      : []),
     Edit.insertBlock(
-      { ...container, id: itemId, children: [], blocks: [] },
+      { ...container, id: itemId, props, children: [], blocks: [] },
       containerPath[containerPath.length - 1]! + 1,
       list.id,
     ),
@@ -637,6 +801,42 @@ const startingBlock = (
   }
 }
 
+/**
+ * Replaces a block with one that carries its runs under new identities, where it stood, and
+ * moves the selection onto them: how text crosses between a text block and a node kind that
+ * holds text. `apply` refuses an identity reused in one transaction, even one just deleted,
+ * so the runs cannot keep theirs (§131).
+ */
+const replaceCarryingText = (
+  state: EditorState,
+  { block, path, parent, selection }: StartingBlock,
+  ids: CommandIds,
+  make: (id: NodeId, children: ReadonlyArray<Run>) => Block,
+): TransactionResult => {
+  const runs = block.type === 'Unknown' ? [] : block.children
+  const renamed = new Map(runs.map(run => [run.id, NodeId.make(ids.mint())]))
+  const moved = (position: Position): Position => {
+    const node = renamed.get(position.node)
+    return node === undefined ? position : { ...position, node }
+  }
+  return apply(state, [
+    Edit.deleteBlock(block.id),
+    Edit.insertBlock(
+      make(
+        NodeId.make(ids.mint()),
+        runs.map(run => ({ ...run, id: renamed.get(run.id)! })),
+      ),
+      path[path.length - 1]!,
+      parent?.id,
+    ),
+    Edit.setSelection({
+      type: 'Range',
+      anchor: moved(selection.anchor),
+      focus: moved(selection.focus),
+    }),
+  ])
+}
+
 /** Retype, wrap, convert, and lift: each reshapes the starting block where it stands. */
 const runBlockCommand = (
   state: EditorState,
@@ -644,10 +844,11 @@ const runBlockCommand = (
     Command,
     { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'LiftBlock' }
   >,
-  { block, path, parentPath, parent, selection }: StartingBlock,
+  starting: StartingBlock,
   ids: CommandIds,
   options: RunOptions,
 ): TransactionResult => {
+  const { block, path, parentPath, parent } = starting
   const index = path[path.length - 1]!
   if (command.type === 'LiftBlock') {
     const lifted = liftOperations(state.document, block.id, ids, options.nodes)
@@ -659,7 +860,21 @@ const runBlockCommand = (
     if (!acceptsChild(state.document, parentPath, command.to.type, options.nodes)) {
       return failure('UnexpectedChild')
     }
-    return apply(state, [Edit.retypeBlock(block.id, command.to)])
+    if (block.type === 'Paragraph' || block.type === 'Heading') {
+      return apply(state, [Edit.retypeBlock(block.id, command.to)])
+    }
+    // Leaving a node kind that holds text — a code block back to a paragraph — is a replace,
+    // as entering one is. Only a vocabulary says a kind holds text: without one, a node
+    // could be an image, whose content a retype would destroy.
+    if (block.type !== 'Node' || !declaresText(options.nodes, block.kind)) {
+      return failure('InvalidInput')
+    }
+    const to = command.to
+    return replaceCarryingText(state, starting, ids, (id, children) =>
+      to.type === 'Heading'
+        ? { type: 'Heading', id, level: to.level, children }
+        : { type: 'Paragraph', id, children },
+    )
   }
 
   if (command.type === 'WrapBlock') {
@@ -669,12 +884,18 @@ const runBlockCommand = (
       return failure('InvalidInput')
     }
     const kinds = [...command.containers.map(container => container.kind), blockKind(block)]
+    const parentKind = parent === undefined ? undefined : blockKind(parent)
+    // Both sides of every link in the chain: what each container holds, and where each kind,
+    // the wrapped block's included, may stand (§149).
     const allowed =
       acceptsChild(state.document, parentPath, outer.kind, options.nodes) &&
       command.containers.every(
         (container, at) =>
           holdsBlocks(options.nodes, container.kind) &&
           kindAccepts(options.nodes, container.kind, kinds[at + 1]!),
+      ) &&
+      kinds.every((kind, at) =>
+        standsWithin(options.nodes?.definitionFor(kind), at === 0 ? parentKind : kinds[at - 1]),
       )
     if (!allowed) return failure('UnexpectedChild')
     // A list wrap right after a list of the same kind and props adds an item to it, as
@@ -721,9 +942,7 @@ const runBlockCommand = (
   if (block.type !== 'Paragraph' && block.type !== 'Heading') return failure('InvalidInput')
   const kind = command.to.kind
   if (refusesProps(options.nodes, command.to)) return failure('InvalidInput')
-  const declared = options.nodes?.definitionFor(kind)
-  const holdsText =
-    options.nodes === undefined || (declared?.kind === 'node' && declared.children === textContent)
+  const holdsText = options.nodes === undefined || declaresText(options.nodes, kind)
   if (!holdsText || !acceptsChild(state.document, parentPath, kind, options.nodes)) {
     return failure('UnexpectedChild')
   }
@@ -734,27 +953,14 @@ const runBlockCommand = (
   ) {
     return failure('ForbiddenMark')
   }
-  const renamed = new Map(block.children.map(run => [run.id, NodeId.make(ids.mint())]))
-  const converted: Block = {
+  const props = command.to.props ?? {}
+  return replaceCarryingText(state, starting, ids, (id, children) => ({
     type: 'Node',
     kind,
-    id: NodeId.make(ids.mint()),
-    props: command.to.props ?? {},
-    children: block.children.map(run => ({ ...run, id: renamed.get(run.id)! })),
-  }
-  const moved = (position: Position): Position => {
-    const node = renamed.get(position.node)
-    return node === undefined ? position : { ...position, node }
-  }
-  return apply(state, [
-    Edit.deleteBlock(block.id),
-    Edit.insertBlock(converted, index, parent?.id),
-    Edit.setSelection({
-      type: 'Range',
-      anchor: moved(selection.anchor),
-      focus: moved(selection.focus),
-    }),
-  ])
+    id,
+    props,
+    children,
+  }))
 }
 
 /**
@@ -772,6 +978,44 @@ export const run = (
   const declared = options.marks ?? shippedRegistry
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
+  }
+  if (command.type === 'MoveBlock') {
+    const moving = locateBlock(state.document, command.node)
+    const beside = locateBlock(
+      state.document,
+      'before' in command.to ? command.to.before : command.to.after,
+    )
+    if (moving === undefined || beside === undefined) return failure('InvalidInput')
+    const container = beside.path.slice(0, -1)
+    const refused = moveFailure(state.document, moving, container, options.nodes)
+    if (refused !== undefined) return failure(refused)
+    const source = moving.path.slice(0, -1)
+    const within = pathKey(source) === pathKey(container)
+    const from = moving.path[moving.path.length - 1]!
+    const place = beside.path[beside.path.length - 1]! + ('after' in command.to ? 1 : 0)
+    // The operation's index is after the block leaves, which shifts every later sibling up.
+    const to = within && from < place ? place - 1 : place
+    const parent = container.length === 0 ? undefined : blockAtPath(state.document, container)?.id
+    const emptied = emptiedBy(state.document, source, container)
+    // A node selection on a container the move deletes would dangle; the block it held is what
+    // it was selecting, so it goes there.
+    const gone = emptied === undefined ? undefined : locateBlock(state.document, emptied)
+    const selected =
+      state.selection?.type === 'Node'
+        ? locateBlock(state.document, state.selection.node)
+        : undefined
+    const inside = (path: BlockPath, holder: BlockPath) =>
+      holder.every((index, depth) => path[depth] === index)
+    const lost =
+      gone !== undefined &&
+      selected !== undefined &&
+      inside(selected.path, gone.path) &&
+      !inside(selected.path, moving.path)
+    return apply(state, [
+      Edit.moveBlock(command.node, to, parent),
+      ...(emptied === undefined ? [] : [Edit.deleteBlock(emptied)]),
+      ...(lost ? [Edit.setSelection({ type: 'Node', node: command.node })] : []),
+    ])
   }
   const selection = state.selection
   if (selection === null || selection.type === 'Node') return failure('InvalidSelection')
@@ -879,6 +1123,12 @@ export const run = (
     if (deletion !== undefined) {
       return apply(state, [...deletion.operations, Edit.setSelection(caretAt(deletion.caret))])
     }
+    // Backspace at the start of a node kind that holds text, such as a code block, turns it
+    // back into a paragraph, undoing the fence, rather than joining text across two kinds
+    // whose marks and content rules differ. Only a vocabulary says the kind holds text.
+    if (backward && block.type === 'Node' && declaresText(options.nodes, block.kind)) {
+      return run(state, { type: 'RetypeBlock', to: { type: 'Paragraph' } }, ids, options)
+    }
     // A block edge joins the sibling in the same container, wherever it sits.
     const containerPath = at.path.slice(0, -1)
     const siblings = containerBlocks(state.document, containerPath)
@@ -929,9 +1179,13 @@ export const run = (
         : runAction(state, [{ type: 'DeleteBackward' }, { type: 'SplitBlock' }], ids, options)
     }
     const textId = ids.mint()
+    const blockId = ids.mint()
     return apply(state, [
       ...deletions,
-      Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId),
+      Edit.splitBlock(at.blockId, at.id, caret.offset, blockId, textId),
+      ...(endsHeading(state.document, at.path, span?.end ?? caret)
+        ? [Edit.retypeBlock(NodeId.make(blockId), { type: 'Paragraph' })]
+        : []),
       Edit.setSelection(caretAt({ node: NodeId.make(textId), offset: 0, affinity: 'after' })),
     ])
   }
@@ -1007,12 +1261,19 @@ export const run = (
     if (replacements === undefined) return failure('InvalidParent')
     const operations: Array<Operation> = [...replacements]
     const inserted = withFreshIds(command.slice, ids.mint).blocks
-    // The content lands in the caret's container, so that container's constraint
-    // decides which kinds it accepts (§125).
+    // The content lands in the caret's container, so that container's constraint decides
+    // which kinds it accepts (§125), and each kind's own says whether it may stand there (§149).
+    const holder =
+      containerPath.length === 0 ? undefined : blockAtPath(state.document, containerPath)
     if (
-      containerPath.length > 0 &&
       inserted.some(
-        piece => !acceptsChild(state.document, containerPath, blockKind(piece), options.nodes),
+        piece =>
+          (containerPath.length > 0 &&
+            !acceptsChild(state.document, containerPath, blockKind(piece), options.nodes)) ||
+          !standsWithin(
+            options.nodes?.definitionFor(blockKind(piece)),
+            holder === undefined ? undefined : blockKind(holder),
+          ),
       )
     ) {
       return failure('UnexpectedChild')

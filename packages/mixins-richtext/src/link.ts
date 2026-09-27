@@ -1,5 +1,5 @@
 /**
- * The link editor (§11, §132): an address field and the two things it can do, drawn
+ * The link editor (§124 §11, §132): an address field and the two things it can do, drawn
  * through slots like the toolbar and the slash menu.
  *
  * It holds no state. The link it edits is a read of the document (`RichText.linkAt`), the
@@ -33,12 +33,6 @@ export interface LinkEditorInput<Message> {
   readonly wrap: (message: EditorEvent) => Message
 }
 
-/** Text to put a new link on: a range that is not a caret. */
-const coversText = (selection: RichText.Selection | null): boolean =>
-  selection?.type === 'Range' &&
-  (selection.anchor.node !== selection.focus.node ||
-    selection.anchor.offset !== selection.focus.offset)
-
 /**
  * The link editor as a slot view. Applying needs an address the URL policy accepts
  * (`RichText.safeUrl`), which is what it sends, and something to link: a range, or a caret
@@ -54,7 +48,7 @@ export const linkEditor = <Message>(): SlotView.SlotView<
     const link = RichText.linkAt(input.document, input.selection)
     const href = RichText.safeUrl(input.draft)
     const apply =
-      href === undefined || (link === undefined && !coversText(input.selection))
+      href === undefined || (link === undefined && !RichText.coversText(input.selection))
         ? undefined
         : input.wrap(EditorMessage.AppliedMark({ mark: { name: 'Link', props: { href } } }))
     return h.div(slots.root.attrs([h.Role('group'), h.AriaLabel('Link')]), [

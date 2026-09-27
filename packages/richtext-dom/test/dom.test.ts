@@ -399,6 +399,51 @@ describe('repairing a subtree the browser touched', () => {
 })
 
 describe('rendering and patching nested blocks', () => {
+  it('puts a table’s rows in a tbody, and still reads and repairs them as nested blocks', () => {
+    const table = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Table',
+          id: 't',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TableRow',
+              id: 'r',
+              props: {},
+              children: [],
+              blocks: ['a', 'b'].map(cell => ({
+                type: 'Node',
+                kind: 'TableCell',
+                id: cell,
+                props: {},
+                children: [],
+                blocks: [
+                  {
+                    type: 'Paragraph',
+                    id: `${cell}-p`,
+                    children: [{ type: 'Text', id: `${cell}-t`, text: cell, marks: [] }],
+                  },
+                ],
+              })),
+            },
+          ],
+        },
+      ],
+    } as never)
+    const dom = mount(document, table, RichText.standardRendering)
+    const element = dom.elements.get(id('t'))!
+    expect(Array.from(element.children, child => child.tagName.toLowerCase())).toEqual(['tbody'])
+    expect(element.querySelector('tbody')!.children[0]).toBe(dom.elements.get(id('r')))
+    expect(toText(dom)).toBe('a\nb')
+    // Nothing is wrong, so recovery rebuilds nothing.
+    expect(repair(dom, table)).toBe(dom)
+  })
+
   const nested = () =>
     RichText.decodeDocument({
       version: 1,

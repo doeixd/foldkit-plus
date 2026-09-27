@@ -113,8 +113,8 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
-`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection, emit a
-Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap`
+`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` names its
+blocks instead. Each emits a Transaction and applies it in one step; the returned `ChangeSet` and `positionMap`
 describe the effect. Nothing mints identity unless the caller's `mint` does, and
 replay applies transactions rather than commands.
 
@@ -149,8 +149,10 @@ way the range was made — since that is where what is typed over it lands.
 
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
-survive; a node block or preserved content is refused, because its content is not
-runs.
+survive. Given a vocabulary that declares a node kind as holding text, it also takes a block
+of that kind back out — a `CodeBlock` to a paragraph — by replacing it, as `ConvertBlock`
+does going in: the text moves under new identities and the selection moves onto them. Any
+other node block, or preserved content, is refused, because its content is not runs.
 
 `WrapBlock` puts that same block inside new containers, listed outermost first —
 `{ type: 'WrapBlock', containers: [{ kind: 'Quote' }] }`, or a `List` holding a `ListItem`
@@ -183,18 +185,40 @@ never leaves a container declared `isolating`, such as the standard `TableCell`,
 with nothing to leave is refused with `InvalidInput`. The block keeps its identity, and the
 caret with it.
 
+`MoveBlock` moves a block, with everything it holds, before or after another block:
+`{ type: 'MoveBlock', node, to: { before: other } }` or `{ after: other }`. It addresses blocks
+by identity, not by the selection, so a block handle or a key sends it for the block it stands
+for; identities are kept, and so is the selection, except a node selection on a container the
+move empties and deletes, which moves to the moved block. `other` can be in any container the block may
+move into. With a vocabulary, that container has to hold the block's kind, and the kind has to
+stand in it by its `within` (otherwise `UnexpectedChild`). The move may not leave an
+`isolating` container such as a table cell, or go inside itself (`InvalidParent`). A container
+the move leaves empty is deleted with it, as a lift deletes one: an item moved out of a
+one-item list takes the list too. A block that is not there is `InvalidInput`, and moving a
+block beside itself changes nothing. `moveTargets(document, node, nodes?)` lists the blocks it
+may move beside, in document order, which is what a drag offers.
+
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
 `> ` or `- ` typed at a block's start. Without a vocabulary, in a table cell, and forwards, the
-edge still does nothing.
+edge still does nothing. At the start of a kind the vocabulary declares as holding text, such
+as a `CodeBlock`, Backspace retypes it to a paragraph instead of joining it to the block
+above, which undoes a fence the way a lift undoes a list marker.
+
+`SplitBlock` at the end of a heading starts a paragraph under it, since what follows a title is
+text; in the middle of one, both halves stay headings. Over a selection, the range's end
+decides, and one ending past the heading also starts a paragraph.
 
 `SplitBlock` inside a list item works on the item, with a vocabulary to say what an item is: a
 container its parent declares it holds (a `List` holds `ListItem`s), and not isolating. Enter
 splits the block, and the second half, with every block after it in the item, becomes a new
 item of the same kind and props right after; the caret lands at its start. Enter in an empty
 block that is the item's whole content leaves the list instead, as Backspace does. Over a range
-inside an item, the range is deleted first. The new item copies the old one's props, so Enter in
-a checked task starts another checked task. Without a vocabulary, in a quote, and in a table
+inside an item, the range is deleted first. The new item copies the old one's props, with the
+kind's `splitProps` laid over them when it declares some: the standard `TaskItem`'s
+`{ checked: false }` makes Enter in a done task start an open one. Together they must still
+decode by the kind's `Props`, or the split is refused (`InvalidInput`), and a heading's rule
+holds inside an item too. Without a vocabulary, in a quote, and in a table
 cell, Enter splits only the block, as before.
 
 `InsertText` takes an optional `marks`. With it, the inserted text carries
@@ -221,6 +245,22 @@ button: the marks every run the selection covers carries. A caret reports its ru
 marks — an empty run can carry them, which is how a caret holds a format — a range
 that straddles a marked run and a plain one reports neither, and a node selection
 reports what its whole subtree agrees on.
+
+`textBlockAt(document, selection)` is the style of the block a selection starts in — a
+paragraph, or a heading at its level — in the shape `RetypeBlock` takes, or undefined for any
+other block (a code block) or a node selection, which is what a style picker presses.
+
+`count(document)` is `{ words, characters }` as a reader counts them: `Intl.Segmenter`'s
+word-like segments and graphemes, so an emoji is one character and a word in a script without
+spaces still counts. Runs join within a block, so a word whose mark changes midway is one word;
+blocks never join.
+
+`blocksAt(document, selection)` is the chain of blocks a selection starts in, outermost first:
+a caret in a list item's paragraph gives the list, the item, and the paragraph, and a node
+selection gives the chain to its block. It is what a block handle picks its block from.
+
+`isBlank(document)` says whether a reader would see nothing — no blocks, or a lone paragraph
+or heading with no text — which is when an editor shows its placeholder.
 
 `textBefore(document, position)` is the read for a menu: the text of the block the
 position addresses, up to that position, across its runs. A query is typed into the
@@ -649,23 +689,35 @@ is the shipped three plus `Strikethrough` and `Link`. `standardRendering` gives 
 its element — a `List` an `ol` or `ul`, an `Image` an `img` with its `src`, a `TaskItem` its
 `data-task` — and `renderingOver(base, extra)` builds a registry over another, so an
 application adds its own kinds beside the standard ones. A `TableRow` that is the header
-renders `data-header`. A link's `href` and an image's `src` pass `safeUrl` again as they are
+renders `data-header`, and a `Table`'s rows go in a `tbody` (the entry's `inner`), because an
+HTML parser inserts one around bare rows, and markup sent from a server has to parse to the tree
+that was rendered. A link's `href` and an image's `src` pass `safeUrl` again as they are
 rendered, and one it refuses is left out, so a `javascript:` URL that reached the document
 by decoding, sync, or `SetMark` rather than import is drawn inert.
 
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
-those block kinds, `marks: 'none'` forbids marks on the kind's own runs, and `isolating: true`
-makes the kind a boundary a lift never crosses, as a table cell is:
+those block kinds, `marks: 'none'` forbids marks on the kind's own runs, `isolating: true`
+makes the kind a boundary a lift never crosses, as a table cell is, `splitProps` names
+props an item split off one of this kind starts with (typed from the kind's `Props`), and `within` names the kinds it may stand
+in, so a `ListItem` stands only in a `List` and never at the top level:
 
 ```ts
 RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
 RichText.node('CodeBlock', { Props: Language, children: RichText.textContent, marks: 'none' })
 RichText.atom('Image', { Props: Schema.Struct({ src: Schema.String }) })
+RichText.node('TaskItem', {
+  Props: Schema.Struct({ checked: Schema.Boolean }),
+  children: RichText.blockContent,
+  splitProps: { checked: false },
+  within: ['List'],
+})
 ```
 
-`validate` reports those violations as `UnexpectedChild` and `ForbiddenMark`, and checks
+`validate` reports those violations as `UnexpectedChild`, `ForbiddenMark`, and
+`MisplacedNode` (a kind outside what its `within` names), and checks
 an atom's props the same way it checks a node's. `run` refuses the edits that would create
-them when it is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
+an unexpected child, a forbidden mark, or a misplaced kind (a move, a wrap, or a paste), when it
+is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
 counterpart of the `marks` option:
 
 ```ts

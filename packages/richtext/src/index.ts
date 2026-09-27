@@ -16,6 +16,7 @@ export {
   locateBlock,
   locateRun,
   textBefore,
+  isBlank,
   textRangeBefore,
   positionInBlock,
   rangeStart,
@@ -38,6 +39,7 @@ export {
   decodeDocument,
   selectionIsValid,
   inspect,
+  count,
 } from './document.js'
 export {
   type MarkDef,
@@ -59,11 +61,16 @@ export {
   type Action,
   type Command,
   Container,
+  Beside,
   type CommandIds,
   type RunOptions,
   marksInRange,
   markExtent,
   type MarkExtent,
+  textBlockAt,
+  blocksAt,
+  moveTargets,
+  coversText,
   run,
   runAction,
 } from './command.js'

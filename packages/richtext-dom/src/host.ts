@@ -5,7 +5,7 @@
  * reference never has to enter a Model.
  */
 import * as RichText from 'foldkit-richtext'
-import { mount } from './index.js'
+import { adopt, mount } from './index.js'
 import { attach, type AttachOptions, type Attachment, type Decorate } from './events.js'
 
 const attachments = new WeakMap<Element, Attachment>()
@@ -46,6 +46,34 @@ export const placeDecorations = (hostId: string, decorate: Decorate): void => {
 
 /** What is drawn over a host's document, or nothing when none was placed. */
 export const decorationsFor = (hostId: string): Decorate => decorators.get(hostId) ?? (() => [])
+
+const serverRenders = new Map<string, () => boolean>()
+
+/**
+ * Records how a placement tells a server's render from the browser's, by host id (§145): the
+ * host carries the document's markup only while it says the render is the server's.
+ */
+export const placeServerRendered = (hostId: string, serverRendered: () => boolean): void => {
+  serverRenders.set(hostId, serverRendered)
+}
+
+/** Whether this render of a host is the server's; never, when nothing was placed. */
+export const serverRenderedFor = (hostId: string): (() => boolean) =>
+  serverRenders.get(hostId) ?? (() => false)
+
+const placeholders = new Map<string, string>()
+
+/**
+ * Records what a placement's blank editor shows, by host id, beside the rest of how it
+ * draws, so the mount reads all of it from the id it renders.
+ */
+export const placePlaceholder = (hostId: string, placeholder: string | undefined): void => {
+  if (placeholder === undefined) placeholders.delete(hostId)
+  else placeholders.set(hostId, placeholder)
+}
+
+/** The placeholder placed for a host id, or none. */
+export const placeholderFor = (hostId: string): string | undefined => placeholders.get(hostId)
 
 const ruleSets = new Map<string, ReadonlyArray<RichText.InputRule>>()
 
@@ -92,8 +120,12 @@ export const mountInto = (
   // A mount runs once per element, so this is defensive: a remount replaces the
   // subtree rather than leaving two.
   releaseMount(host)
-  const dom = mount(host.ownerDocument, content, rendering, options.decorate?.(content))
-  host.append(dom.root)
+  const decorations = options.decorate?.(content)
+  // Server markup for this document is kept (§145); anything else in the host is replaced.
+  const existing = host.children.length === 1 ? host.firstElementChild : null
+  const adopted = existing === null ? undefined : adopt(existing, content, rendering, decorations)
+  const dom = adopted ?? mount(host.ownerDocument, content, rendering, decorations)
+  if (adopted === undefined) host.replaceChildren(dom.root)
   const attachment = attach(dom, options)
   attachments.set(host, attachment)
   return attachment

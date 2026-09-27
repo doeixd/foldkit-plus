@@ -8,6 +8,8 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-form": ["../form/src/index.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom/editor": ["./src/editor.ts"],
       "foldkit-richtext-dom/host": ["./src/host.ts"]
@@ -16,6 +18,8 @@
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
     { "path": "../bundle/tsconfig.build.json" },
+    { "path": "../entity/tsconfig.build.json" },
+    { "path": "../form/tsconfig.build.json" },
     { "path": "../richtext/tsconfig.build.json" }
   ]
 }

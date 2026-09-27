@@ -23,6 +23,9 @@ export default defineConfig({
       'foldkit-richtext-dom/html': fileURLToPath(
         new URL('./packages/richtext-dom/src/html.ts', import.meta.url),
       ),
+      'foldkit-richtext-dom/input': fileURLToPath(
+        new URL('./packages/richtext-dom/src/input.ts', import.meta.url),
+      ),
       'foldkit-richtext-dom/view': fileURLToPath(
         new URL('./packages/richtext-dom/src/view.ts', import.meta.url),
       ),

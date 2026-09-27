@@ -428,6 +428,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Library behaviour**
 
+- **A Mount reads its args once.** `OnMount` acquires on snabbdom's `insert` and releases on
+  `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
+  passes new args to the same element changes nothing, so a block handle's anchor stayed beside
+  the first block the caret visited. Key the element by what the args depend on (`h.Key(node)`).
+  A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
+  `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
+
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
@@ -612,6 +619,18 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   printer's test asserted `\1. not a list` as the escape for an ordered marker; a
   backslash before a digit is no escape, so the parser kept it as text, and the test
   locked the bug in. A round trip through the real parser is what catches it.
+- **Server markup has to be what a parser builds from it.** The standard rendering put a table's
+  rows straight in `<table>`; a parser inserts a `tbody`, and Foldkit refuses to serialize a view
+  whose parse differs, so no server-rendered page with a table worked. Tests that built DOM with
+  `createElement` could not see it. Test markup by rendering it to a string (`renderToString`)
+  and parsing it back.
+- **Scene does not model keys.** A handle keyed by its block still showed its old Mount as
+  mounted after the block changed, with or without `h.Key`, so a Scene test of keying passes
+  or fails for reasons unrelated to the key. Test remounting on the real runtime
+  (`Runtime.makeElement` + `embed`, as `packages/bundle/test/runtime.test.ts` does).
+- **A check against a reference is only as good as the reference.** `print` accepts a styled
+  text when it parses like the canonical text, and the canonical text merged two adjacent lists
+  into one, so the check trusted a wrong answer. Read the reference itself back too.
 - **A constant `mint` makes a refusal test pass for any reason.** A test that an
   `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
   split a run twice, `apply` refused the duplicate id, and the case stayed green
@@ -716,6 +735,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   scripted insert landed in two functions and broke an unrelated one; a later one
   matched nothing and quietly did not apply, so a field was simply absent. Assert
   the anchor, then re-read the diff -- not just the check.
+- **Anchoring an insert on `export const X` lands it under X's doc comment.** Three
+  scripted inserts here (`holdsItem`, `isBlank`, `drawPlaceholder`) went in between a
+  declaration and its comment, leaving each comment documenting the wrong thing; the
+  typecheck and the tests cannot see it. Anchor on the comment's opening `/**`, or read the
+  lines above the insert before committing.
 - **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
   git commit` committed a file prettier had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
@@ -767,6 +791,12 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   subscription retries" in three places. Before writing that something
   happens again, find the condition that makes it happen and check the
   failure path meets it.
+- **`extends` does not carry `references`.** `foldkit-richtext-markdown`'s
+  `tsconfig.build.json` extended a `tsconfig.json` that referenced the core, and had none of
+  its own; nothing noticed until a second project referenced it, which failed with `TS6059`
+  and `TS6307` and wrote `.d.ts` files beside the core's sources. Give every
+  `tsconfig.build.json` its own `references`, and delete stray emitted files after a failed
+  build.
 - **Map every workspace dep in a composite example's `paths`.** A package's
   `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
   import through `exports` fails on a clean checkout; a stale local `dist` hides

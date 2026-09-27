@@ -46,7 +46,8 @@
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
-    "foldkit-richtext-dom": "workspace:*"
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-richtext-markdown": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.0.0-rc.116",

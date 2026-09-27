@@ -307,6 +307,15 @@ content a Message should change belongs in a Surface. A region the browser
 needs that is not in the page, say after a Message shows one, is logged and
 rendered in the browser.
 
+### Markup the browser adopts: `SSR.serving`
+
+`SSR.serving()` is true while the view call in progress is the server rendering a page (both
+of `render`'s passes), and false while the browser resumes and outside any render. It is for
+a view whose element hydration leaves alone, such as a custom element's light DOM, and which
+sends markup there that the browser's own code then takes over. The rich-text editor's host is
+one: pass `serverRendered: SSR.serving` to `foldkit-richtext-dom`'s `editorAt`, and the page
+carries the document instead of an empty editor until the script runs.
+
 ## Resumable pages: answering before the runtime boots
 
 Everything above boots Foldkit's runtime as soon as the page loads. A resumable

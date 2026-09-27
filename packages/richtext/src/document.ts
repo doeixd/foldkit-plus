@@ -350,6 +350,21 @@ export const locateRun = (document: Document, node: NodeId): LocatedRun | undefi
 }
 
 /**
+ * Whether a reader would see nothing: no blocks, or a lone paragraph or heading whose runs
+ * hold no text. What an editor shows its placeholder for; a lone empty list or code block is
+ * content a writer made, so it is not blank.
+ */
+export const isBlank = (document: Document): boolean => {
+  const first = document.children[0]
+  if (first === undefined) return true
+  return (
+    document.children.length === 1 &&
+    (first.type === 'Paragraph' || first.type === 'Heading') &&
+    first.children.every(run => run.text.length === 0)
+  )
+}
+
+/**
  * The text of the block a position addresses, up to that position, in run order.
  * A menu reads this: what a query is typed into is the block's text between its
  * start and the caret, and a query never spans blocks. Affinity is not consulted — a
@@ -571,4 +586,24 @@ export const inspect = (document: Document) => {
     depth = Math.max(depth, path.length + (block.children.length > 0 ? 1 : 0))
   })
   return { nodeCount, textLength, depth }
+}
+
+const words = new Intl.Segmenter(undefined, { granularity: 'word' })
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+/**
+ * What a reader would count: words and user-perceived characters, as `Intl.Segmenter` splits
+ * them in the default locale, so a word in a script without spaces still counts. Runs are
+ * joined within a block, so a word that changes mark midway is one word, and blocks never
+ * join, so the last word of one block and the first of the next are two.
+ */
+export const count = (document: Document): { words: number; characters: number } => {
+  let wordCount = 0
+  let characterCount = 0
+  eachBlock(document.children, block => {
+    const text = block.children.map(run => run.text).join('')
+    for (const segment of words.segment(text)) if (segment.isWordLike) wordCount += 1
+    for (const _ of graphemes.segment(text)) characterCount += 1
+  })
+  return { words: wordCount, characters: characterCount }
 }

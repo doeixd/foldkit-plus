@@ -309,9 +309,9 @@ describe('the read-only renderer with a rendering registry', () => {
         { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'a', text: 'x', marks: [] }] },
       ],
     })
-    // `my-widget` is not a tag Foldkit can build, and `Attribute` names an
-    // attribute builder rather than an element — neither may become an element.
-    for (const tag of ['my-widget', 'Attribute']) {
+    // `Attribute` names an attribute builder rather than an element, and `constructor` is
+    // what every object inherits: neither may become an element.
+    for (const tag of ['Attribute', 'constructor']) {
       const renderer = RichText.rendering({ marks: { Bold: { tag, attributes: {} } } })
       const marked = RichText.decodeDocument({
         version: 1,
@@ -326,6 +326,39 @@ describe('the read-only renderer with a rendering registry', () => {
       expect(() => renderDocument(marked, renderer)).toThrow(/no element for/)
     }
     expect(tags(renderDocument(paragraph) as unknown as VNode)).toEqual(['div', 'p'])
+  })
+
+  it('writes a NUL as the U+FFFD a parser would make of it, since markup cannot carry one', () => {
+    const nul = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: `a${String.fromCharCode(0)}b`, marks: [] }],
+        },
+      ],
+    })
+    expect(text(renderDocument(nul) as unknown as VNode)).toBe(`a${String.fromCharCode(0xfffd)}b`)
+  })
+
+  it('draws a custom element, as the editable adapter does, so a server can send it', () => {
+    const widget = RichText.rendering({ marks: { Bold: { tag: 'my-widget', attributes: {} } } })
+    const marked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'x', marks: ['Bold'] }],
+        },
+      ],
+    })
+    expect(tags(renderDocument(marked, widget) as unknown as VNode)).toEqual([
+      'div',
+      'p',
+      'my-widget',
+    ])
   })
 })
 

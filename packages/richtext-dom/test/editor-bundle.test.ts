@@ -11,6 +11,7 @@ import {
   converted,
   editorAt,
   lifted,
+  moved,
   patched,
   pressed,
   redone,
@@ -25,7 +26,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { decorationsFor, renderingFor } from '../src/host.js'
+import { decorationsFor, placeholderFor, renderingFor } from '../src/host.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -452,6 +453,20 @@ describe('the block Messages an application sends', () => {
     expect(RichText.inspectHistory(back.editor.history).past).toBe(2)
   })
 
+  it('moves a block beside a sibling, keeping the caret, as one undoable step', () => {
+    const before = start(caret('a', 1))
+    const after = step(before, moved(id('p'), { after: id('q') }))
+    expect(after.document.children.map(block => block.id)).toEqual(['q', 'p'])
+    expect(after.editor.selection).toEqual(caret('a', 1))
+    const back = step(after, undone())
+    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
+  })
+
+  it('moves a block with no selection, since a handle names its block', () => {
+    const after = step(start(null), moved(id('q'), { before: id('p') }))
+    expect(after.document.children.map(block => block.id)).toEqual(['q', 'p'])
+  })
+
   it('converts the caret’s block to a kind that holds text', () => {
     // `q`'s run is bold and no vocabulary is placed, so the marks are carried over.
     const code = step(start(caret('b', 1)), converted({ kind: 'CodeBlock' }))
@@ -571,6 +586,15 @@ describe('decorations placed for the editor (§129)', () => {
     // Re-placing an id without one replaces what it had.
     editorAt('decorating-editor')
     expect(decorationsFor('decorating-editor')(document())).toEqual([])
+  })
+})
+
+describe('a placeholder placed for the editor', () => {
+  it('records the placeholder, and forgets it when the id is placed again without one', () => {
+    editorAt('hinting-editor', { placeholder: 'Write something…' })
+    expect(placeholderFor('hinting-editor')).toBe('Write something…')
+    editorAt('hinting-editor')
+    expect(placeholderFor('hinting-editor')).toBeUndefined()
   })
 })
 

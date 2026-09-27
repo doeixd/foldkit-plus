@@ -66,6 +66,28 @@ export const markToolbar = <Message>(): SlotView.SlotView<
     ])
   })
 
+/** The block style picker's view and its slots (§134). */
+export { BlockStyleSlots, blockStyles, type BlockStyleInput } from './style.js'
+
+/** The block handle's view and its slots (§144). */
+export { BlockHandleSlots, blockHandle, type BlockHandleInput } from './handle.js'
+
+/** The command palette's view and its slots (§142). */
+export { CommandPaletteSlots, commandPalette, type CommandPaletteInput } from './palette.js'
+
+/** The status line's view and its slots (§141). */
+export { EditorStatusSlots, editorStatus, type EditorStatusInput } from './status.js'
+
+/** The Markdown source editor's view and its slots (§137). */
+export {
+  SourceEditorSlots,
+  SourcePreviewSlots,
+  sourceEditor,
+  sourcePreview,
+  type SourceEditorInput,
+  type SourcePreviewInput,
+} from './source.js'
+
 /** The link editor's view and its slots (§132). */
 export { LinkEditorSlots, linkEditor, type LinkEditorInput } from './link.js'
 

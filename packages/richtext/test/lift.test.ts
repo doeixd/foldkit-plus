@@ -276,3 +276,60 @@ describe('Enter inside a list item', () => {
     expect(texts(result.state.document.children)[top]).toEqual(expected)
   })
 })
+
+describe('the props a split-off item starts with', () => {
+  const tasks = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TaskItem',
+              id: 'done',
+              props: { checked: true },
+              children: [],
+              blocks: [paragraph('p', 'ship it')],
+            },
+          ],
+        },
+      ],
+    } as never)
+  const enter = (nodes: RichText.NodeRegistry) => {
+    const result = RichText.run(
+      { document: tasks(), selection: caret('p-t', 4) },
+      { type: 'SplitBlock' },
+      ids(),
+      { nodes },
+    )
+    if (!result.ok) throw new Error(result.error)
+    const list = result.state.document.children[0]
+    return list?.type === 'Node'
+      ? list.blocks?.map(item => (item.type === 'Node' ? [item.id, item.props] : []))
+      : []
+  }
+
+  it('starts a task split off a done one unchecked, and leaves the done one done', () => {
+    expect(enter(standard)).toEqual([
+      ['done', { checked: true }],
+      ['new-3', { checked: false }],
+    ])
+  })
+
+  it('copies the props of a kind that declares none to start with', () => {
+    const plain = RichText.nodeRegistry([
+      ...RichText.standardNodes.filter(definition => definition.name !== 'TaskItem'),
+      RichText.node('TaskItem', { children: RichText.blockContent }),
+    ])
+    expect(enter(plain)).toEqual([
+      ['done', { checked: true }],
+      ['new-3', { checked: true }],
+    ])
+  })
+})

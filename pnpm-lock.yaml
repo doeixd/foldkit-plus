@@ -132,6 +132,15 @@ importers:
       foldkit-remote-server:
         specifier: workspace:*
         version: link:../../packages/remote-server
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../../packages/richtext
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../../packages/richtext-dom
+      foldkit-richtext-markdown:
+        specifier: workspace:*
+        version: link:../../packages/richtext-markdown
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
@@ -1217,6 +1226,9 @@ importers:
       foldkit-richtext-dom:
         specifier: workspace:*
         version: link:../richtext-dom
+      foldkit-richtext-markdown:
+        specifier: workspace:*
+        version: link:../richtext-markdown
     devDependencies:
       effect:
         specifier: 4.0.0-rc.116
@@ -1531,6 +1543,12 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-form:
+        specifier: workspace:*
+        version: link:../form
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -1555,6 +1573,9 @@ importers:
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
+      micromark-util-decode-string:
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       '@types/mdast':
         specifier: ^4.0.4

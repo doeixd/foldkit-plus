@@ -67,6 +67,23 @@ describe('printing a document as Markdown', () => {
     expect(print(document).markdown).toBe('> one\n>\n> two\n')
   })
 
+  it('keeps a quote holding only an empty paragraph, which reads back as a quote', () => {
+    const printed = print(
+      decode([
+        paragraph('a', [text('ta', 'one')]),
+        node('Quote', 'q', {}, [paragraph('e', [])]),
+        paragraph('b', [text('tb', 'two')]),
+      ]),
+    ).markdown
+    expect(printed).toBe('one\n\n>\n\ntwo\n')
+    let n = 0
+    expect(
+      parse(printed, { mint: () => `r${n++}` }).document.children.map(block =>
+        block.type === 'Node' ? block.kind : block.type,
+      ),
+    ).toEqual(['Paragraph', 'Quote', 'Paragraph'])
+  })
+
   it('prints an unordered list, and an ordered one from where it starts', () => {
     const items = [item('a', [text('a-t', 'one', [])]), item('b', [text('b-t', 'two', [])])]
     expect(print(decode([node('List', 'l', {}, items)])).markdown).toBe('- one\n- two\n')
@@ -255,6 +272,54 @@ const reread = (runs: Runs) => {
 }
 
 describe('what a parser reads back from the printed text', () => {
+  const item = (id: string) =>
+    node('ListItem', `${id}-i`, {}, [paragraph(id, [text(`${id}-t`, id)])])
+  const bullets = (id: string, ...items: ReadonlyArray<string>) =>
+    node('List', id, {}, items.map(item))
+  const numbers = (id: string, ...items: ReadonlyArray<string>) =>
+    node('List', id, { ordered: true }, items.map(item))
+
+  it.each([
+    ['two bulleted lists', [bullets('l1', 'a'), bullets('l2', 'b')], '- a\n\n* b\n'],
+    ['two numbered lists', [numbers('l1', 'a'), numbers('l2', 'b')], '1. a\n\n1) b\n'],
+    [
+      'three in a row, alternating',
+      [bullets('l1', 'a'), bullets('l2', 'b'), bullets('l3', 'c')],
+      '- a\n\n* b\n\n- c\n',
+    ],
+    // Nothing printed between them still leaves them adjacent in the text.
+    [
+      'two with an unprintable block between',
+      [bullets('l1', 'a'), node('Embed', 'x'), bullets('l2', 'b')],
+      '- a\n\n* b\n',
+    ],
+    [
+      'two with an empty paragraph between',
+      [bullets('l1', 'a'), paragraph('e', []), bullets('l2', 'b')],
+      '- a\n\n* b\n',
+    ],
+    [
+      'a bulleted and a numbered list, which never merge',
+      [bullets('l1', 'a'), numbers('l2', 'b')],
+      '- a\n\n1. b\n',
+    ],
+    [
+      'two lists a paragraph apart',
+      [bullets('l1', 'a'), paragraph('p', [text('t', 'x')]), bullets('l2', 'b')],
+      '- a\n\nx\n\n- b\n',
+    ],
+  ])('keeps %s apart', (_, blocks, expected) => {
+    const printed = print(decode(blocks)).markdown
+    expect(printed).toBe(expected)
+    let n = 0
+    const lists = parse(printed, { mint: () => `r${n++}` }).document.children.filter(
+      block => block.type === 'Node' && block.kind === 'List',
+    )
+    expect(lists).toHaveLength(
+      blocks.filter(block => 'kind' in block && block.kind === 'List').length,
+    )
+  })
+
   const link = (href: string): RichText.RunMark => ({ name: 'Link', props: { href } })
 
   it.each([
@@ -305,7 +370,22 @@ describe('what a parser reads back from the printed text', () => {
         ['b', ['Bold', 'Italic', 'Strikethrough']],
         ['c', ['Bold']],
       ]).printed,
-    ).toBe('***a~~b~~*c**\n')
+      // A letter right after a delimiter that follows punctuation (here the `~~`) is written as a
+      // reference, which keeps the delimiter able to close whatever reads it.
+    ).toBe('***a~~b~~*&#99;**\n')
+  })
+
+  it('opens the mark that lasts longer outside, so it closes last', () => {
+    // Italic lasts through both runs; opened inside bold, it would close and open again.
+    const both = reread([
+      ['a', ['Bold', 'Italic']],
+      ['b', ['Italic']],
+    ])
+    expect(both.printed).toBe('***a**b*\n')
+    expect(both.runs).toEqual([
+      ['a', asSet(['Bold', 'Italic'])],
+      ['b', asSet(['Italic'])],
+    ])
   })
 
   it('moves a marked run’s edge whitespace outside its delimiters, keeping the text', () => {
@@ -325,5 +405,143 @@ describe('what a parser reads back from the printed text', () => {
         [' bold', ['Bold']],
       ]).printed,
     ).toBe('plain **bold**\n')
+  })
+})
+
+describe('printing what a writer could mark', () => {
+  // A seeded generator: the same paragraphs on every run, and many more than a table holds.
+  let seed = 7
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648
+  const pick = <A>(from: ReadonlyArray<A>): A => from[Math.floor(next() * from.length)]!
+  const pieces = [
+    'a',
+    'b c',
+    '(a)',
+    '"b"',
+    'x!',
+    '!',
+    ' a',
+    'a ',
+    '.',
+    'a.b',
+    '*',
+    '_',
+    '`',
+    'é',
+    'a|b',
+    '1',
+    '~',
+  ]
+  const link = (href: string): RichText.RunMark => ({ name: 'Link', props: { href } })
+  const markings: ReadonlyArray<ReadonlyArray<RichText.RunMark>> = [
+    [],
+    ['Bold'],
+    ['Italic'],
+    ['Bold', 'Italic'],
+    ['Strikethrough'],
+    ['Code'],
+    [link('u')],
+    ['Italic', link('u')],
+    ['Bold', 'Code'],
+    ['Strikethrough', 'Italic'],
+    ['Bold', 'Strikethrough'],
+    ['Bold', link('v')],
+  ]
+  /** Each character with the marks on it; a space's marks are the known loss at a run's edge. */
+  const marked = (document: RichText.Document) =>
+    document.children.map(block =>
+      block.children.flatMap(run =>
+        [...run.text].map(character =>
+          /\s/.test(character)
+            ? character
+            : [character, ...run.marks.map(mark => JSON.stringify(mark)).sort()].join(' '),
+        ),
+      ),
+    )
+
+  it('reads back every mark on every character of a thousand generated paragraphs', () => {
+    const wrong: Array<string> = []
+    for (let count = 0; count < 1000; count += 1) {
+      const runs = Array.from({ length: 1 + Math.floor(next() * 6) }, (_, index) =>
+        text(`r${index}`, pick(pieces), pick(markings)),
+      )
+      const document = decode([paragraph('p', runs)])
+      const printed = print(document).markdown
+      let n = 0
+      const back = parse(printed, { mint: () => `m${n++}` }).document
+      if (JSON.stringify(marked(back)) !== JSON.stringify(marked(document))) wrong.push(printed)
+    }
+    expect(wrong).toEqual([])
+  })
+})
+
+describe('what a first print lost', () => {
+  const again = (blocks: ReadonlyArray<unknown>) => {
+    const printed = print(decode(blocks)).markdown
+    let n = 0
+    const read = parse(printed, { mint: () => `m${n++}` }).document
+    return { printed, reprinted: print(read).markdown, read }
+  }
+  const kinds = (blocks: ReadonlyArray<RichText.Block>): ReadonlyArray<unknown> =>
+    blocks.map(block =>
+      block.type === 'Node'
+        ? [block.kind, block.props, kinds(block.blocks ?? [])]
+        : [block.type, block.children.map(run => run.text).join('')],
+    )
+
+  it.each<[string, ReadonlyArray<unknown>]>([
+    [
+      'a list nested in a task item',
+      [
+        node('List', 'l', {}, [
+          node('TaskItem', 't', { checked: true }, [
+            paragraph('a', [text('ta', 'a')]),
+            node('List', 'm', {}, [
+              node('TaskItem', 'u', { checked: false }, [paragraph('b', [text('tb', 'b')])]),
+            ]),
+          ]),
+        ]),
+      ],
+    ],
+    [
+      'an empty task item',
+      [node('List', 'l', {}, [node('TaskItem', 't', { checked: false }, [paragraph('e', [])])])],
+    ],
+    [
+      'a code block whose language holds a backtick',
+      [node('CodeBlock', 'c', { language: 'a`b' }, undefined)],
+    ],
+    [
+      'a `!` right before a link',
+      [paragraph('p', [text('a', '!'), text('b', 'a', [{ name: 'Link', props: { href: 'u' } }])])],
+    ],
+    [
+      'a paragraph whose second line reads like a table’s',
+      [paragraph('p', [text('a', 'a|b\n|-|-|')])],
+    ],
+  ])('keeps %s', (_, blocks) => {
+    const { read, printed, reprinted } = again(blocks)
+    expect(kinds(read.children)).toEqual(kinds(decode(blocks).children))
+    expect(reprinted).toBe(printed)
+  })
+})
+
+describe('reading Markdown a writer could type', () => {
+  it.each(['*a *b* c*', '**a **b** c**', '_a *b* c_', '~~a ~~b~~ c~~'])(
+    'reads %s, a mark nested in itself, as the mark once',
+    markdown => {
+      let n = 0
+      const [block] = parse(markdown, { mint: () => `m${n++}` }).document.children
+      expect(block?.children.map(run => run.text).join('')).toBe('a b c')
+    },
+  )
+
+  it('keeps a reference link’s text, reporting the reference it cannot follow', () => {
+    let n = 0
+    const parsed = parse('[x][r]\n\n[r]: /u\n', { mint: () => `m${n++}` })
+    expect(
+      parsed.document.children.map(block => block.children.map(run => run.text).join('')),
+    ).toEqual(['x'])
+    expect(parsed.diagnostics.map(diagnostic => diagnostic.detail)).toContain('linkReference')
   })
 })
