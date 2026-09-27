@@ -335,6 +335,12 @@ export type TransactionResult =
       readonly state: EditorState
       readonly changeSet: ChangeSet
       readonly positionMap: ReadonlyArray<PositionStep | SplitStep | RelocateStep | CollapseStep>
+      /**
+       * The transactions that produced `state`, in order, each normalized before the next:
+       * folding `apply` over them from the input state yields `state` again. A command can
+       * need more than one, and an action has at least one per command.
+       */
+      readonly transactions: ReadonlyArray<Transaction>
     }
   | {
       readonly ok: false
@@ -960,5 +966,6 @@ export const apply = (
       selectionChanged: !sameSelection(selection, state.selection),
     },
     positionMap,
+    transactions: [transaction],
   }
 }

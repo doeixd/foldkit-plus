@@ -1378,12 +1378,14 @@ export const runAction = (
   let current = started.state
   let changeSet = started.changeSet
   let positionMap = started.positionMap
+  let transactions = started.transactions
   for (const command of rest) {
     const result = run(current, command, ids, options)
     if (!result.ok) return result
     current = result.state
     changeSet = unionChangeSet(changeSet, result.changeSet)
     positionMap = [...positionMap, ...result.positionMap]
+    transactions = [...transactions, ...result.transactions]
   }
-  return { ok: true, state: current, changeSet, positionMap }
+  return { ok: true, state: current, changeSet, positionMap, transactions }
 }

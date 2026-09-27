@@ -195,3 +195,84 @@ describe('a composed action', () => {
     expect(result.changeSet.dirtyNodes.size).toBe(0)
   })
 })
+
+describe('the transactions a result returns', () => {
+  const counter = () => {
+    let next = 0
+    return { mint: () => `n${next++}` }
+  }
+  const replay = (start: RichText.EditorState, transactions: ReadonlyArray<RichText.Transaction>) =>
+    transactions.reduce<RichText.EditorState>((current, transaction) => {
+      const applied = RichText.apply(current, transaction)
+      if (!applied.ok) throw new Error(`replay refused: ${applied.error}`)
+      return applied.state
+    }, start)
+
+  it('reproduce an action whose later command addresses a run an earlier one merged', () => {
+    // The fixture's two unmarked runs merge once the first insert normalizes their block,
+    // so the second insert's offset 5 exists only in the merged run: one concatenated
+    // transaction would be refused, and folding the returned ones is not.
+    const start = state(caret('a', 2))
+    const result = RichText.runAction(
+      start,
+      [
+        { type: 'InsertText', text: '!' },
+        { type: 'SetSelection', selection: caret('a', 5) },
+        { type: 'InsertText', text: '?' },
+      ],
+      counter(),
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.transactions).toHaveLength(3)
+    expect(RichText.apply(start, result.transactions.flat()).ok).toBe(false)
+    expect(replay(start, result.transactions)).toEqual(result.state)
+  })
+
+  it('reproduce a command that runs an action of its own', () => {
+    // Enter over a range inside a list item deletes the range and then splits the item.
+    const list = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: { ordered: false },
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'ListItem',
+              id: 'i',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'p',
+                  children: [{ type: 'Text', id: 'a', text: 'abcd', marks: [] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const start: RichText.EditorState = {
+      document: list,
+      selection: {
+        type: 'Range',
+        anchor: { node: id('a'), offset: 1, affinity: 'after' },
+        focus: { node: id('a'), offset: 3, affinity: 'after' },
+      },
+    }
+    const result = RichText.run(start, { type: 'SplitBlock' }, counter(), {
+      nodes: RichText.nodeRegistry(RichText.standardNodes),
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.transactions).toHaveLength(2)
+    expect(replay(start, result.transactions)).toEqual(result.state)
+  })
+})

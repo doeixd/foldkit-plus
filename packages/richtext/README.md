@@ -115,8 +115,9 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
 `WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` names its
 blocks instead. Each emits a Transaction and applies it in one step; the returned `ChangeSet` and `positionMap`
-describe the effect. Nothing mints identity unless the caller's `mint` does, and
-replay applies transactions rather than commands.
+describe the effect, and `transactions` holds what was applied, in order. Nothing mints
+identity unless the caller's `mint` does, and replay applies transactions rather than
+commands: folding `apply` over `transactions` from the starting state gives the same result.
 
 An *action* is an ordered list of those commands committed as one step:
 
