@@ -29,7 +29,7 @@ import {
   type Refusal,
   type Tree,
 } from 'foldkit-composition'
-import { Renderer } from 'foldkit-composition/foldkit'
+import { Renderer, fieldName, fieldOf } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
 import { controls, inputOf, settingsOf, type Settings } from './settings.js'
 import { copyText, readText } from 'foldkit-primitives/dom'
@@ -123,6 +123,13 @@ export const Model = Schema.Struct({
    * pastes on another.
    */
   clipboard: Schema.OptionFromOptionalNullOr(Composition.Tree),
+  /**
+   * The text prop being edited in place on the canvas, and its text when
+   * editing began, which the canvas keeps the field at. Stored only when some.
+   */
+  editing: Schema.OptionFromOptionalNullOr(
+    Schema.Struct({ id: NodeId, key: Schema.String, initial: Schema.String }),
+  ),
 })
 export type Model = typeof Model.Type
 
@@ -194,6 +201,18 @@ export const Message = defineMessageUnion({
   PasteAsked: {},
   /** What the system clipboard held for a paste; none when it could not be read. */
   ClipboardRead: { text: Schema.OptionFromNullOr(Schema.String) },
+  /**
+   * Text on the page is asked to be edited in place: a double-click on it, or
+   * Enter on its node. Each of these names the field as the canvas marks it
+   * (`data-composition-field`), which is checked here.
+   */
+  EditingAsked: { field: Schema.String },
+  /** What the field being edited holds now. */
+  FieldTyped: { field: Schema.String, text: Schema.String },
+  /** Editing ended with the text kept: Enter, or leaving the field. */
+  EditingCommitted: { field: Schema.String, text: Schema.String },
+  /** Editing ended with the text put back as it began: Escape. */
+  EditingCancelled: { field: Schema.String },
   /** The ids a request waited for. */
   Minted: { ids: Schema.Array(NodeId), request: Request },
   Undid: {},
@@ -513,6 +532,7 @@ const replace = (model: Model, document: Document): Model => ({
   refused: Option.none(),
   drag: Option.none(),
   inspector: Option.none(),
+  editing: Option.none(),
 })
 
 /** The Model with nothing in flight, as a stored draft is shown again: no hover, no drag, no undo, no refusal. */
@@ -521,8 +541,13 @@ const settle = (model: Model): Model => ({
   hovered: Option.none(),
   refused: Option.none(),
   drag: Option.none(),
+  editing: Option.none(),
   page: History.clear(model.page),
 })
+
+/** The undo group of one editing session: its steps are one, and ending it cancelled takes them back. */
+const editingGroup = (editing: { readonly id: NodeId; readonly key: string }): string =>
+  `Editing:${fieldName(editing.id, editing.key)}`
 
 /** The node an Operation that creates nodes creates first, to select it. */
 const created = (catalog: Catalog, op: Operation): Option.Option<NodeId> =>
@@ -619,6 +644,7 @@ export const Builder = {
       preview: { ...config.preview },
       inspector: Option.none(),
       clipboard: Option.none(),
+      editing: Option.none(),
     }).model
 
     /** Says `text` to assistive technology, once the Builder's transition is done. */
@@ -641,6 +667,7 @@ export const Builder = {
     const applyOp = (
       model: Model,
       op: Operation,
+      group: string | null = groupOf(op),
     ): { readonly model: Model; readonly commands?: Commands } => {
       const result = Composition.apply(catalog, documentOf(model), op)
       if (Result.isFailure(result)) return refuse(model, result.failure)
@@ -649,7 +676,7 @@ export const Builder = {
       return {
         model: {
           ...model,
-          page: History.push(model.page, document, { capacity, group: groupOf(op) }),
+          page: History.push(model.page, document, { capacity, group }),
           selected: Option.orElse(created(catalog, op), () => kept),
           refused: Option.none(),
         },
@@ -702,6 +729,15 @@ export const Builder = {
         ),
       },
     ]
+
+    /** The edit under way of the field a canvas Message names; none for any other. */
+    const editingOf = (model: Model, field: string) =>
+      Option.flatMap(fieldOf(field), named =>
+        Option.filter(
+          model.editing,
+          editing => editing.id === named.id && editing.key === named.key,
+        ),
+      )
 
     /** What is said when a drag ends with nothing done. */
     const unmoved = (source: DragSource): string =>
@@ -1033,6 +1069,58 @@ export const Builder = {
               }),
             }),
           })
+        case 'EditingAsked':
+          return Option.match(fieldOf(message.field), {
+            onNone: () => ({ model }),
+            onSome: ({ id, key }) => {
+              const stored = documentOf(model).nodes[id]?.props[key]
+              // Only text the page draws as a field, so what is edited is what shows.
+              if (
+                typeof stored !== 'string' ||
+                !Renderer.fields(renderer, documentOf(model), id).includes(key)
+              )
+                return { model }
+              return {
+                model: {
+                  ...model,
+                  editing: Option.some({ id, key, initial: stored }),
+                  selected: Option.some(id),
+                  // Its steps are one, apart from any edit of the same prop before.
+                  page: History.close(model.page),
+                },
+              }
+            },
+          })
+        case 'FieldTyped':
+          return Option.match(editingOf(model, message.field), {
+            onNone: () => ({ model }),
+            onSome: editing =>
+              applyOp(
+                model,
+                Composition.Op.setProp(editing.id, editing.key, message.text),
+                editingGroup(editing),
+              ),
+          })
+        case 'EditingCommitted':
+        case 'EditingCancelled':
+          return Option.match(editingOf(model, message.field), {
+            onNone: () => ({ model }),
+            onSome: editing => {
+              const ended = { ...model, editing: Option.none() }
+              const kept = message._tag === 'EditingCommitted' ? message.text : editing.initial
+              // Back where it began, it leaves no step at all.
+              if (kept === editing.initial)
+                return {
+                  model: { ...ended, page: History.revert(model.page, editingGroup(editing)) },
+                }
+              // In the session's step: what was typed is there already, or this is its first change.
+              return applyOp(
+                ended,
+                Composition.Op.setProp(editing.id, editing.key, kept),
+                editingGroup(editing),
+              )
+            },
+          })
         case 'Minted': {
           const { request, ids } = message
           if (request._tag === 'Insert') {
@@ -1211,10 +1299,22 @@ export const Builder = {
     }
 
     const assembled = placements.update(own)
+    /**
+     * Editing in place kept only while its node is the one selected: another
+     * selected, or the node removed (which deselects it), ends it.
+     */
+    const stillEditing = (model: Model): Model =>
+      Option.isSome(model.editing) && !Option.contains(model.selected, model.editing.value.id)
+        ? { ...model, editing: Option.none() }
+        : model
     const update = (model: Model, message: Message) => {
       const moved = assembled(model, message)
-      const next =
-        message._tag === 'Inspected' ? moved : { ...moved, model: reconciled(model, moved.model) }
+      const next = {
+        ...moved,
+        model: stillEditing(
+          message._tag === 'Inspected' ? moved.model : reconciled(model, moved.model),
+        ),
+      }
       // Moving focus in the layers moves the selection with it.
       if (message._tag === Layers.wrapper.tag && message.message._tag === 'Focused') {
         const id = NodeId.make(message.message.id)
@@ -1485,6 +1585,19 @@ export const Builder = {
         run: () => Option.some(Message.PasteAsked()),
       },
       {
+        id: 'edit-text',
+        label: 'Edit its text',
+        keys: [{ key: 'Enter' }],
+        placement: ['keyboard'],
+        // The first text the node draws as a field; none for a node that draws none.
+        run: onSelected((document, selected) =>
+          Option.map(
+            Option.fromUndefinedOr(Renderer.fields(renderer, document, selected)[0]),
+            key => Message.EditingAsked({ field: fieldName(selected, key) }),
+          ),
+        ),
+      },
+      {
         id: 'deselect',
         label: 'Select nothing',
         keys: [{ key: 'Escape' }],
@@ -1497,13 +1610,15 @@ export const Builder = {
     /**
      * The Message a key sends, for the layers panel and the canvas: the first
      * command one of whose keys it is, and whose run has one. None for a key
-     * no command takes, or one whose command has nothing to do.
+     * no command takes, or one whose command has nothing to do, and none at
+     * all while text is edited in place: its keys are the text's.
      */
     const keyCommand = (
-      model: Pick<Model, 'page' | 'selected'>,
+      model: Pick<Model, 'page' | 'selected' | 'editing'>,
       key: string,
       modifiers: KeyboardModifiers,
     ): Option.Option<Message> => {
+      if (Option.isSome(model.editing)) return Option.none()
       const command = commands.find(each => each.keys.some(spec => pressed(spec, key, modifiers)))
       return command === undefined ? Option.none() : command.run(model)
     }

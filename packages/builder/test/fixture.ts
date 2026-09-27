@@ -112,7 +112,7 @@ export const Site = Catalog.make({
 })
 
 export const SiteRenderer = Renderer.make(Site, {
-  Heading: ({ props, h }) => h.h2([], [props.text]),
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
   Button: ({ props, h }) => h.span([h.Class('button')], [props.label]),
   Group: ({ regions, h }) => h.div([], [...regions.items]),
   Card: ({ regions, h }) => h.div([], [...regions.title]),

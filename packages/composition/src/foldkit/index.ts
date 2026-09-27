@@ -112,7 +112,8 @@ export const FIELD_ATTRIBUTE = 'composition-field'
 
 const FieldName = Schema.fromJsonString(Schema.Tuple([NodeId, Schema.String]))
 /** The value `FIELD_ATTRIBUTE` holds for a node's prop: JSON, so no id is split on a separator. */
-const fieldName = (id: NodeId, key: string): string => Schema.encodeSync(FieldName)([id, key])
+export const fieldName = (id: NodeId, key: string): string =>
+  Schema.encodeSync(FieldName)([id, key])
 /** The node and prop a field's attribute names; none for a value that names none. */
 export const fieldOf = (
   name: string,

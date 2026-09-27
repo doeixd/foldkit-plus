@@ -19,6 +19,7 @@ submits it, and a CMS autosaves it.
 | Undo | the Builder's Model: the page is kept as a `foldkit-primitives/state` history |
 | What is selected, the open panel, the viewport | the Builder's Model, beside the page |
 | The last node copied or cut | the Builder's Model, as `clipboard`, and the system clipboard as text |
+| Which text on the page is being edited in place, and what it said when that began | the Builder's Model, as `editing` |
 | A prop's field while it holds text that does not decode yet | the Builder's Model, as `inspector` |
 | The layers' keyboard focus and which rows are open | the Builder's Model, as a `TreeNavigation` placement |
 | What the editor last said to assistive technology | the Builder's Model, as a `LiveAnnounce` placement |
@@ -74,6 +75,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
 | `PatternAsked({ pattern, at })` | one of the Catalog's patterns, once ids are minted for its nodes |
 | `CopyAsked({ id })`, `CutAsked({ id })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
+| `EditingAsked({ field })`, `FieldTyped({ field, text })`, `EditingCommitted({ field, text })`, `EditingCancelled({ field })` | text edited in place: see below |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
@@ -160,6 +162,7 @@ Behaviors; `foldkit-mixins-builder` does.
   | Delete, Backspace | remove it |
   | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
   | Mod+V | paste inside it, or after it, as a new node of the copy's Block goes |
+  | Enter | edit its first text in place |
   | Escape | deselect it |
 
   Attach `keyCommand` to the layers panel and the canvas, not the whole editor,
@@ -172,6 +175,34 @@ Behaviors; `foldkit-mixins-builder` does.
 - **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
   Section body", and so are undo, redo, and a refusal, assertively. A prop
   edit is not: the field being typed in already says it.
+
+## Text edited in place
+
+A Block's view that draws a text prop with `field(key)` (see
+[`foldkit-composition`](../composition/README.md#drawing-a-page-foldkit-compositionfoldkit))
+can be edited on the canvas, where it shows:
+
+```text
+double-click, or Enter ─► EditingAsked ─► editing: { id, key, initial }   the field freezes at `initial`
+typing ─► FieldTyped ─► setProp, in the session's one undo step
+Enter or leaving it ─► EditingCommitted      Escape ─► EditingCancelled: the step is taken back
+```
+
+- **Each Message names the field as the canvas marks it**, and the Builder
+  checks it: text the Renderer does not draw as a field (`Renderer.fields`),
+  a prop that is not text, or a field other than the one being edited is
+  ignored.
+- **One session is one undo step.** Beginning ends whatever group came
+  before (`History.close`), so two sessions of one prop undo apart. Escape,
+  or text that ends where it began, takes the step back and leaves nothing
+  to redo (`History.revert`).
+- **While text is edited, the keys are the text's:** `keyCommand` offers
+  nothing, so Backspace deletes a letter, not the block.
+- **Editing ends when its node is no longer the one selected**, as a click
+  elsewhere or a removal makes it.
+- The canvas freezes the field at `initial` so a redraw never rewrites the
+  element under the caret; the text is read by `foldkit-primitives`'
+  `EditableText`, which `foldkit-mixins-builder` attaches to the canvas.
 
 ## Copy, cut and paste
 

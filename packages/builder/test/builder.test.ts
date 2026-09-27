@@ -1,6 +1,6 @@
 import { Effect, Option, Result, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Renderer } from 'foldkit-composition/foldkit'
+import { Renderer, fieldName } from 'foldkit-composition/foldkit'
 import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import { Block, Catalog, Composition, Content, NodeId, type Document } from 'foldkit-composition'
@@ -787,6 +787,121 @@ describe('patterns', () => {
     expect(some(refused.refused, 'a refusal').code).toBe('composition:unknown-pattern')
     expect(refused.page).toBe(page.page)
     expect(PageBuilder.patternAt(page.page.present, page.selected, 'Outro')).toEqual(Option.none())
+  })
+})
+
+describe('text edited in place', () => {
+  const id = NodeId.make
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1')],
+      nodes: {
+        [id('s1')]: {
+          block: 'Section',
+          props: {},
+          regions: { body: [id('h1'), id('h2'), id('st')] },
+        },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('h2')]: { block: 'Heading', props: { text: 'Two' }, regions: {} },
+        // Text its view draws as plain text, not as a field.
+        [id('st')]: {
+          block: 'Stat',
+          props: {
+            value: 3,
+            caption: 'Wins',
+            frame: { width: 1 },
+            rank: '1',
+            note: null,
+            source: null,
+          },
+          regions: {},
+        },
+      },
+    }),
+  )
+  const title = fieldName(id('h1'), 'text')
+  const textOf = (model: Model) => model.page.present.nodes[id('h1')]?.props['text']
+  const plain = { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }
+  /** The heading selected, editing begun by Enter, and `texts` typed one after another. */
+  const typed = (model: Model, texts: ReadonlyArray<string>) => {
+    const selected = send(model, Message.Selected({ id: id('h1') }))
+    const begun = send(selected, some(PageBuilder.keyCommand(selected, 'Enter', plain), 'Enter'))
+    return texts.reduce(
+      (next, text) => send(next, Message.FieldTyped({ field: title, text })),
+      begun,
+    )
+  }
+
+  it('begins on Enter with the text as it was, and keeps each change as one undo step', () => {
+    const begun = typed(page, [])
+    expect(begun.editing).toEqual(Option.some({ id: id('h1'), key: 'text', initial: 'One' }))
+    const done = send(
+      typed(page, ['One!', 'One!!']),
+      Message.EditingCommitted({ field: title, text: 'One!!' }),
+    )
+    expect(textOf(done)).toBe('One!!')
+    expect(done.editing).toEqual(Option.none())
+    expect(textOf(send(done, Message.Undid()))).toBe('One')
+    // A second session of the same prop is a step of its own.
+    const again = send(
+      typed(done, ['One!!?']),
+      Message.EditingCommitted({ field: title, text: 'One!!?' }),
+    )
+    expect(textOf(send(again, Message.Undid()))).toBe('One!!')
+  })
+
+  it('puts the text back on Escape, and leaves no step, as it does for text that ends where it began', () => {
+    const cancelled = send(typed(page, ['On', 'O']), Message.EditingCancelled({ field: title }))
+    expect(cancelled.page.present).toBe(page.page.present)
+    expect(History.canUndo(cancelled.page)).toBe(false)
+    expect(History.canRedo(cancelled.page)).toBe(false)
+    const back = send(
+      typed(page, ['On', 'One']),
+      Message.EditingCommitted({ field: title, text: 'One' }),
+    )
+    expect(History.canUndo(back.page)).toBe(false)
+    expect(back.editing).toEqual(Option.none())
+  })
+
+  it('takes a commit whose text no change had reported', () => {
+    const done = send(typed(page, []), Message.EditingCommitted({ field: title, text: 'Uno' }))
+    expect(textOf(done)).toBe('Uno')
+    expect(textOf(send(done, Message.Undid()))).toBe('One')
+  })
+
+  it('leaves the keys to the text while it is edited', () => {
+    const editing = typed(page, ['On'])
+    expect(PageBuilder.keyCommand(editing, 'Delete', plain)).toEqual(Option.none())
+    expect(PageBuilder.keyCommand(editing, 'z', { ...plain, ctrlKey: true })).toEqual(Option.none())
+    // Not editing, Delete removes the selected node.
+    const selected = send(page, Message.Selected({ id: id('h1') }))
+    expect(Option.isSome(PageBuilder.keyCommand(selected, 'Delete', plain))).toBe(true)
+  })
+
+  it('edits only a field the page draws, and hears only the field being edited', () => {
+    // A Section draws no text; a name that is not a field, or a prop that is not text, is no field.
+    const onSection = send(page, Message.Selected({ id: id('s1') }))
+    expect(PageBuilder.keyCommand(onSection, 'Enter', plain)).toEqual(Option.none())
+    for (const field of [
+      'h1',
+      fieldName(id('h1'), 'colour'),
+      fieldName(id('gone'), 'text'),
+      fieldName(id('st'), 'caption'),
+    ])
+      expect(send(page, Message.EditingAsked({ field })).editing).toEqual(Option.none())
+    const editing = typed(page, [])
+    const other = send(
+      editing,
+      Message.FieldTyped({ field: fieldName(id('h2'), 'text'), text: 'X' }),
+    )
+    expect(other.page).toBe(editing.page)
+  })
+
+  it('ends when the selection moves to another node', () => {
+    const moved = send(typed(page, ['On']), Message.Selected({ id: id('h2') }))
+    expect(moved.editing).toEqual(Option.none())
   })
 })
 
