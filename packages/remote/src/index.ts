@@ -725,11 +725,6 @@ const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): Ent
   return visible
 }
 
-// A read's result per store snapshot. `Remote.storeOf` is shared across every
-// read of one Model state, so equal reads of one render assemble and decode
-// once and return one value (a view may compare by identity). A query read
-// also depends on its connection, which changes independently of the store,
-// so it keys on that object too. Weak on both, bounded by what is read.
 /**
  * `Failed` naming a field the server settled without a value, when one is
  * among what `relation` reads of the entity; otherwise nothing, and the store
@@ -753,22 +748,32 @@ const unavailableFailure = (
       }
 }
 
-const readResults = new WeakMap<object, WeakMap<object, Map<string, unknown>>>()
+interface ReadScope {
+  readonly inner: WeakMap<object, ReadScope>
+  readonly results: Map<string, unknown>
+}
 
-const memoRead = <T>(snapshot: object, by: object, key: string, compute: () => T): T => {
-  let byScope = readResults.get(snapshot)
-  if (byScope === undefined) {
-    byScope = new WeakMap()
-    readResults.set(snapshot, byScope)
+const readResults: ReadScope = { inner: new WeakMap(), results: new Map() }
+
+// A read's result per snapshot of everything it reads. `Remote.storeOf` is
+// shared across every read of one Model state, so equal reads of one render
+// assemble and decode once and return one value (a view may compare by
+// identity). A query read also depends on its connection and the overlays,
+// which change independently of the store, so it keys on those too. Weak on
+// every scope, bounded by what is read.
+const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => T): T => {
+  let scope = readResults
+  for (const by of scopes) {
+    let inner = scope.inner.get(by)
+    if (inner === undefined) {
+      inner = { inner: new WeakMap(), results: new Map() }
+      scope.inner.set(by, inner)
+    }
+    scope = inner
   }
-  let results = byScope.get(by)
-  if (results === undefined) {
-    results = new Map()
-    byScope.set(by, results)
-  }
-  if (results.has(key)) return results.get(key) as T
+  if (scope.results.has(key)) return scope.results.get(key) as T
   const value = compute()
-  results.set(key, value)
+  scope.results.set(key, value)
   return value
 }
 
@@ -1544,6 +1549,7 @@ export const Remote = {
     const selection = selectionOf<Value, Name>(given)
     assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
     const relation = relationOf(selection)
+    const relationKey = stableStringify(relation)
     return (id: string): Projection<AppModel, RemoteData<Value>> => ({
       Model: remoteDataSchema(selection.schema),
       dependencies: [],
@@ -1556,9 +1562,8 @@ export const Remote = {
         // `Initial` depends on the in-flight marks, which change independently
         // of the store, so it is decided outside the memo.
         const present = memoRead<RemoteData<Value> | undefined>(
-          store,
-          store,
-          `${key}\u0000${stableStringify(relation)}`,
+          [store],
+          `${key}\u0000${relationKey}`,
           () => {
             if (isTombstone(store, key)) return { _tag: 'NotFound' }
             const assembled = assemble(store, key, relation)
@@ -2232,8 +2237,7 @@ const bindDomain = <
       ): RemoteData<Page<Value>> | undefined => {
         const visible = visibleStoreOf(remote.entities, remote.optimistic)
         return memoRead<RemoteData<Page<Value>> | undefined>(
-          visible,
-          connection,
+          [visible, connection, remote.optimistic.overlays],
           `${ref.identity}\u0000${relationKey}`,
           () => {
             const items: Value[] = []
