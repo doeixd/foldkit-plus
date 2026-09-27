@@ -10,7 +10,6 @@ import {
   RunMark,
   Selection,
   compareRunPlaces,
-  selectionIsValid,
   type BlockPath,
   type Document,
   type NodeReference,
@@ -541,12 +540,24 @@ export const apply = (
   const textChanged = new Set<NodeId>()
   let structureChanged = false
   const positionMap: Array<PositionStep | SplitStep | RelocateStep | CollapseStep> = []
+  /** `selectionIsValid` against the working document, read through the index this transaction keeps. */
+  const selectionFits = (candidate: Selection | null): boolean => {
+    if (candidate === null) return true
+    if (candidate.type === 'Node')
+      return blockPaths.has(candidate.node) || runPaths.has(candidate.node)
+    return [candidate.anchor, candidate.focus].every(position => {
+      const location = runPaths.get(position.node)
+      const run = location === undefined ? undefined : runsAt(location.path)[location.index]
+      // The offset's sign and integrality are the decoded transaction's already.
+      return run !== undefined && position.offset <= run.text.length
+    })
+  }
   for (let operationIndex = 0; operationIndex < transaction.length; operationIndex++) {
     const operation = transaction[operationIndex]!
     if (operation.type === 'SetSelection') {
       // A pending edit could change what a position resolves against.
       materialize()
-      if (!selectionIsValid(document, operation.selection)) {
+      if (!selectionFits(operation.selection)) {
         return { ok: false, error: 'InvalidSelection' }
       }
       selection = operation.selection

@@ -77,6 +77,37 @@ describe('the state boundary', () => {
   })
 })
 
+describe('setting the selection inside a transaction', () => {
+  it('checks it against the text the transaction has made so far', () => {
+    const insert = { type: 'InsertText' as const, at: position(4), text: 'ef' }
+    const caret = (offset: number) => ({
+      type: 'SetSelection' as const,
+      selection: { type: 'Range' as const, anchor: position(offset), focus: position(offset) },
+    })
+    // 'abcd' has become 'abcdef', so 6 is its end and 7 is past it.
+    expect(RichText.apply(initial(), [insert, caret(6)]).ok).toBe(true)
+    expect(RichText.apply(initial(), [insert, caret(7)])).toEqual({
+      ok: false,
+      error: 'InvalidSelection',
+    })
+  })
+
+  it('accepts a node selection on a run as well as on a block', () => {
+    for (const node of ['t', 'p']) {
+      const select = {
+        type: 'SetSelection' as const,
+        selection: { type: 'Node' as const, node: id(node) },
+      }
+      expect(RichText.apply(initial(), [select]).ok).toBe(true)
+    }
+    const missing = {
+      type: 'SetSelection' as const,
+      selection: { type: 'Node' as const, node: id('x') },
+    }
+    expect(RichText.apply(initial(), [missing])).toEqual({ ok: false, error: 'InvalidSelection' })
+  })
+})
+
 describe('text transactions', () => {
   it('applies sequential edits and maps backward selections in the same transition', () => {
     const state = initial()

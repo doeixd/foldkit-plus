@@ -460,6 +460,30 @@ spent about 10 ms of each `apply` decoding the whole document; it now validates
 the one block the last edit replaced. The input is still refused exactly as the
 `EditorState` schema refuses it.
 
+The collaborative path (`bench/replicated.bench.ts`) types one character into
+the middle of a document of `n` paragraphs, as `examples/pages` does:
+`RichText.run`, then `Replicated.translate`, `applyOps`, `project` and
+`resolve`. The means below were measured back to back on one machine, before
+and after four changes:
+
+- `apply` validates by block (above).
+- `applyOps` keeps a layered index of which blocks hold each insert, instead of
+  scanning every block to find a character or to check an id is free.
+- `project` reuses a block's projection while its entry is unchanged.
+- `translate` builds its shadow only for the blocks the edit touches.
+
+```text
+paragraphs   before     after
+100          1.08 ms    0.17 ms
+1,000        8.70 ms    1.91 ms
+4,000       49.2  ms    9.61 ms
+```
+
+What remains grows with the document because each new document gets its own
+indexes: `apply`'s block and run paths, and the node index that `translate` and
+selection checks read. `project` also rebuilds its run table and walks every
+entry to reuse it.
+
 Two costs remain. A structural operation still rebuilds the document index, though
 a contiguous run of joins is now batched: deleting a range across B paragraphs
 emits B joins but `apply` consumes them as one structural edit, so the block array

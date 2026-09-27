@@ -276,6 +276,31 @@ describe('a replicated document', () => {
   })
 })
 
+describe('projecting', () => {
+  it('keeps every block an edit did not touch as the same object', () => {
+    const view: View = { state: base(), selection: null }
+    const before = Replicated.project(view.state).children
+    view.selection = caretIn(view, 'hello', 3)
+    edit(view, { type: 'InsertText', text: 'p' })
+    const after = Replicated.project(view.state).children
+    const kept = after.filter((block, at) => block === before[at])
+    // Only the block typed into is new; its siblings, and any container, are the same objects.
+    expect(after.length).toBe(before.length)
+    expect(kept.length).toBe(before.length - 1)
+  })
+
+  it('makes a container anew when a block inside it changes, and only then', () => {
+    const view: View = { state: base(), selection: null }
+    const [, , list, quote] = Replicated.project(view.state).children
+    view.selection = caretIn(view, 'milk', 4)
+    edit(view, { type: 'InsertText', text: 's' })
+    const [, , listAfter, quoteAfter] = Replicated.project(view.state).children
+    expect(listAfter).not.toBe(list)
+    expect(texts(view.state)).toContain('milks')
+    expect(quoteAfter).toBe(quote)
+  })
+})
+
 describe('translating an edit', () => {
   // Seeded sessions of mixed edits: each step's projection has to match what the editor
   // made of the same command, which is what `edit` asserts. Every op kind has to turn up,

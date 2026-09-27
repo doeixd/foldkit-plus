@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 import {
+  nodeIndex,
   NodeId,
   RunMark,
   type Block,
@@ -171,6 +172,84 @@ const lookup = (state: ReplicatedState, id: string): Entry | undefined =>
 // ---------------------------------------------------------------------------------------
 
 /**
+ * Which blocks hold spans of each insert. Built once for a state that needs it, then carried
+ * to each state `applyOps` makes from it as a layer of only what that call changed, so
+ * finding a character costs a lookup rather than a scan of every block. Layers are merged
+ * back into one map every so often, so a lookup walks a short chain.
+ */
+interface Holders {
+  readonly parent: Holders | undefined
+  readonly own: ReadonlyMap<string, ReadonlyArray<ReplicatedId>>
+  readonly depth: number
+}
+const MAX_HOLDER_LAYERS = 16
+
+const holdersIn = (holders: Holders, id: string): ReadonlyArray<ReplicatedId> | undefined => {
+  for (let at: Holders | undefined = holders; at !== undefined; at = at.parent) {
+    const found = at.own.get(id)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+const insertIdsOf = (entry: Entry | undefined): ReadonlySet<string> =>
+  new Set(entry?.spans.map(span => span.id) ?? [])
+
+const holderIndexes = new WeakMap<ReplicatedState, Holders>()
+const holdersOf = (state: ReplicatedState): Holders => {
+  const cached = holderIndexes.get(state)
+  if (cached !== undefined) return cached
+  const own = new Map<string, Array<ReplicatedId>>()
+  for (const [block, entry] of Object.entries(state.blocks) as Array<[ReplicatedId, Entry]>) {
+    for (const id of insertIdsOf(entry)) {
+      const list = own.get(id)
+      if (list === undefined) own.set(id, [block])
+      else list.push(block)
+    }
+  }
+  const holders = { parent: undefined, own, depth: 0 }
+  holderIndexes.set(state, holders)
+  return holders
+}
+
+/** The holders after `changed` blocks were rewritten from `before` to `after`. */
+const nextHolders = (
+  holders: Holders,
+  before: ReplicatedState,
+  after: ReplicatedState,
+  changed: Iterable<string>,
+): Holders => {
+  const own = new Map<string, Array<ReplicatedId>>()
+  const listFor = (id: string): Array<ReplicatedId> => {
+    let list = own.get(id)
+    if (list === undefined) {
+      list = [...(holdersIn(holders, id) ?? [])]
+      own.set(id, list)
+    }
+    return list
+  }
+  for (const block of changed as Iterable<ReplicatedId>) {
+    const was = insertIdsOf(lookup(before, block))
+    const is = insertIdsOf(lookup(after, block))
+    for (const id of was) {
+      if (is.has(id)) continue
+      const list = listFor(id)
+      list.splice(list.indexOf(block), 1)
+    }
+    for (const id of is) if (!was.has(id)) listFor(id).push(block)
+  }
+  if (own.size === 0) return holders
+  if (holders.depth < MAX_HOLDER_LAYERS) return { parent: holders, own, depth: holders.depth + 1 }
+  // Merged into one map: a copy of the whole index, once every so many edits.
+  const merged = new Map<string, ReadonlyArray<ReplicatedId>>()
+  const layers: Array<Holders> = []
+  for (let at: Holders | undefined = holders; at !== undefined; at = at.parent) layers.push(at)
+  for (const layer of layers.reverse()) for (const [id, list] of layer.own) merged.set(id, list)
+  for (const [id, list] of own) merged.set(id, list)
+  return { parent: undefined, own: merged, depth: 0 }
+}
+
+/**
  * A working copy of the state for one `applyOps`: the block record is copied once, and each
  * entry the ops touch once, so a batch of ops costs one copy of what it touches.
  */
@@ -209,26 +288,24 @@ const draft = (state: ReplicatedState) => {
   const create = (id: string, entry: Entry): void => {
     blocks[id] = { ...entry, spans: [...entry.spans], children: [...entry.children] }
     copied.add(id)
-    ids().add(id)
   }
-  // Every id in use, blocks and inserts alike, gathered once per `applyOps` rather than
-  // scanned for on every op that mints one.
-  let used: Set<string> | undefined
-  const ids = (): Set<string> => {
-    if (used === undefined) {
-      used = new Set(Object.keys(blocks))
-      for (const entry of Object.values(blocks)) for (const span of entry!.spans) used.add(span.id)
+  /**
+   * The blocks that may hold spans of an insert: those that did before this `applyOps`, and
+   * every block it has touched since, which is where a span can have moved.
+   */
+  const holding = (id: string): ReadonlySet<ReplicatedId> =>
+    new Set([...(holdersIn(holdersOf(state), id) ?? []), ...(copied as Set<ReplicatedId>)])
+  const finish = (): ReplicatedState => {
+    const next: ReplicatedState = {
+      version: 1,
+      root,
+      blocks: blocks as Record<ReplicatedId, Entry>,
     }
-    return used
+    const holders = holderIndexes.get(state)
+    if (holders !== undefined) holderIndexes.set(next, nextHolders(holders, state, next, copied))
+    return next
   }
-  const finish = (): ReplicatedState => ({
-    version: 1,
-    root,
-    blocks: blocks as Record<ReplicatedId, Entry>,
-  })
-  // The record's keys are the ids its schema checked, so they are ReplicatedIds.
-  const all = (): ReadonlyArray<ReplicatedId> => Object.keys(blocks) as Array<ReplicatedId>
-  return { read, write, siblings, create, finish, all, ids }
+  return { read, write, siblings, create, finish, holding }
 }
 type Draft = ReturnType<typeof draft>
 
@@ -244,7 +321,9 @@ const holdsText = (shape: BlockShape): boolean =>
   (shape.type === 'Node' && shape.holds === 'text')
 
 /** Whether an id already names a block or an insert anywhere in the state. */
-const taken = (work: Draft, id: string): boolean => work.ids().has(id)
+const taken = (work: Draft, id: string): boolean =>
+  work.read(id) !== undefined ||
+  [...work.holding(id)].some(block => work.read(block)!.spans.some(span => span.id === id))
 
 /** Where a character is: its block, and the span index and offset within that span. */
 interface Found {
@@ -270,7 +349,7 @@ const findChar = (work: Draft, ref: string, hint: ReplicatedId | undefined): Fou
   }
   const hinted = hint === undefined ? undefined : search(hint)
   if (hinted !== undefined) return hinted
-  for (const block of work.all()) {
+  for (const block of work.holding(id)) {
     const found = search(block)
     if (found !== undefined) return found
   }
@@ -322,7 +401,8 @@ const eachCovered = (
   visit: (span: Span) => Span,
 ): void => {
   const ids = new Set(ranges.map(range => range.id))
-  for (const block of work.all()) {
+  const candidates = new Set([...ids].flatMap(id => [...work.holding(id)]))
+  for (const block of candidates) {
     if (!work.read(block)!.spans.some(span => ids.has(span.id))) continue
     const spans = work.write(block)!.spans
     for (const range of ranges) {
@@ -397,7 +477,6 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
         marks: op.marks,
         deleted: false,
       })
-      work.ids().add(op.id)
       return
     }
     case 'Delete':
@@ -624,6 +703,19 @@ const projectRuns = (
 
 const projections = new WeakMap<ReplicatedState, Projection>()
 
+/**
+ * A block's projection, by the entry it was made from. `applyOps` copies only the entries it
+ * touches, so an untouched block projects to the same object in the next state: the work is
+ * the changed blocks, and whatever keys on a block's identity (validation, the DOM patch)
+ * sees it unchanged. A container is reused while its entry and every child's are.
+ */
+interface ProjectedBlock {
+  readonly block: Block
+  readonly shown: ReadonlyArray<ProjectedRun> | undefined
+  readonly nested: ReadonlyArray<Block>
+}
+const projectedBlocks = new WeakMap<Entry, ProjectedBlock>()
+
 const projection = (state: ReplicatedState): Projection => {
   const cached = projections.get(state)
   if (cached !== undefined) return cached
@@ -632,42 +724,68 @@ const projection = (state: ReplicatedState): Projection => {
     ids.flatMap((id): ReadonlyArray<Block> => {
       const entry = lookup(state, id)
       if (entry === undefined || entry.deleted) return []
-      const nodeId = NodeId.make(id)
-      const shape = entry.shape
-      if (shape.type === 'Unknown') {
-        return [
-          {
-            type: 'Unknown',
-            id: nodeId,
-            originalType: shape.originalType,
-            props: shape.props,
-            children: [],
-          },
-        ]
+      const nested =
+        entry.shape.type === 'Node' && entry.shape.holds === 'blocks' ? blocks(entry.children) : []
+      const known = projectedBlocks.get(entry)
+      if (
+        known !== undefined &&
+        known.nested.length === nested.length &&
+        known.nested.every((child, at) => child === nested[at])
+      ) {
+        if (known.shown !== undefined) runs.set(id, known.shown)
+        return [known.block]
       }
-      if (shape.type === 'Node' && shape.holds !== 'text') {
-        return [
-          {
-            type: 'Node',
-            kind: shape.kind,
-            id: nodeId,
-            props: shape.props,
-            children: [],
-            ...(shape.holds === 'blocks' ? { blocks: blocks(entry.children) } : {}),
-          },
-        ]
-      }
-      const projected = projectRuns(id, entry)
-      runs.set(id, projected.shown)
-      const children = projected.runs
-      if (shape.type === 'Paragraph') return [{ type: 'Paragraph', id: nodeId, children }]
-      if (shape.type === 'Heading')
-        return [{ type: 'Heading', id: nodeId, level: shape.level, children }]
-      return [{ type: 'Node', kind: shape.kind, id: nodeId, props: shape.props, children }]
+      const made = projectBlock(id, entry, nested)
+      projectedBlocks.set(entry, { ...made, nested })
+      if (made.shown !== undefined) runs.set(id, made.shown)
+      return [made.block]
     })
   const result: Projection = { document: { version: 1, children: blocks(state.root) }, runs }
   projections.set(state, result)
   return result
+}
+
+const projectBlock = (
+  id: string,
+  entry: Entry,
+  nested: ReadonlyArray<Block>,
+): { readonly block: Block; readonly shown: ReadonlyArray<ProjectedRun> | undefined } => {
+  const nodeId = NodeId.make(id)
+  const shape = entry.shape
+  if (shape.type === 'Unknown') {
+    return {
+      block: {
+        type: 'Unknown',
+        id: nodeId,
+        originalType: shape.originalType,
+        props: shape.props,
+        children: [],
+      },
+      shown: undefined,
+    }
+  }
+  if (shape.type === 'Node' && shape.holds !== 'text') {
+    return {
+      block: {
+        type: 'Node',
+        kind: shape.kind,
+        id: nodeId,
+        props: shape.props,
+        children: [],
+        ...(shape.holds === 'blocks' ? { blocks: nested } : {}),
+      },
+      shown: undefined,
+    }
+  }
+  const { runs: children, shown } = projectRuns(id, entry)
+  if (shape.type === 'Paragraph')
+    return { block: { type: 'Paragraph', id: nodeId, children }, shown }
+  if (shape.type === 'Heading')
+    return { block: { type: 'Heading', id: nodeId, level: shape.level, children }, shown }
+  return {
+    block: { type: 'Node', kind: shape.kind, id: nodeId, props: shape.props, children },
+    shown,
+  }
 }
 
 /** The document a state shows: visible blocks and characters, with runs merged by marks. */
@@ -812,49 +930,86 @@ interface ShadowRun {
  * the edit are renamed to minted ones, recorded in `names`.
  */
 interface Shadow {
-  readonly runs: Map<string, Array<ShadowRun>>
-  readonly children: Map<string | null, Array<string>>
-  readonly parents: Map<string, string | null>
+  readonly document: Document
+  readonly runs: Lazy<string, Array<ShadowRun>>
+  readonly children: Lazy<string | null, Array<string>>
+  readonly parents: Lazy<string, string | null>
   readonly names: Map<string, ReplicatedId>
+}
+
+/**
+ * A map that derives each key on first read and keeps what it derived, so a translation
+ * builds only the part of the shadow it touches.
+ */
+class Lazy<K, V> {
+  readonly own = new Map<K, V>()
+  constructor(private readonly derive: (key: K) => V | undefined) {}
+  get(key: K): V | undefined {
+    if (this.own.has(key)) return this.own.get(key)
+    const value = this.derive(key)
+    if (value !== undefined) this.own.set(key, value)
+    return value
+  }
+  has(key: K): boolean {
+    return this.get(key) !== undefined
+  }
+  set(key: K, value: V): void {
+    this.own.set(key, value)
+  }
+  /** Forgets a block the edit joined away, whose runs another block now holds. */
+  delete(key: K): void {
+    this.own.delete(key)
+  }
 }
 
 const ROOT = null
 
-/** Rebuilds the shadow for `document`, keeping the characters each block held. */
+/** Each block's characters, in order. */
+type BlockChars = (block: string) => ReadonlyArray<CharRange>
+
+/** The shadow for `document`, each block keeping the characters `chars` says it held. */
 const shadowOf = (
   document: Document,
-  chars: ReadonlyMap<string, ReadonlyArray<CharRange>>,
+  chars: BlockChars,
   names: Map<string, ReplicatedId>,
 ): Shadow => {
-  const shadow: Shadow = { runs: new Map(), children: new Map(), parents: new Map(), names }
-  const visit = (blocks: ReadonlyArray<Block>, parent: string | null) => {
-    shadow.children.set(
-      parent,
-      blocks.map(block => block.id),
-    )
-    for (const block of blocks) {
-      shadow.parents.set(block.id, parent)
-      if (block.type === 'Node' && block.blocks !== undefined) visit(block.blocks, block.id)
-      const held = chars.get(block.id) ?? []
-      let at = 0
-      shadow.runs.set(
-        block.id,
-        block.children.map(run => {
-          const slice = sliceChars(held, at, at + run.text.length)
-          at += run.text.length
-          return { id: run.id, chars: slice, marks: run.marks }
-        }),
-      )
-    }
+  const index = nodeIndex(document)
+  const blockNamed = (id: string): Block | undefined => {
+    const node = index.nodes.get(id as NodeId)
+    return node === undefined || node.type === 'Text' ? undefined : node
   }
-  visit(document.children, ROOT)
-  return shadow
+  return {
+    document,
+    names,
+    runs: new Lazy(id => {
+      const block = blockNamed(id)
+      if (block === undefined) return undefined
+      const held = chars(id)
+      let at = 0
+      return block.children.map(run => {
+        const slice = sliceChars(held, at, at + run.text.length)
+        at += run.text.length
+        return { id: run.id, chars: slice, marks: run.marks }
+      })
+    }),
+    children: new Lazy(parent => {
+      if (parent === ROOT) return document.children.map(block => block.id)
+      const block = blockNamed(parent)
+      return block?.type === 'Node' && block.blocks !== undefined
+        ? block.blocks.map(child => child.id)
+        : undefined
+    }),
+    parents: new Lazy(block => index.parentOf.get(block as NodeId)),
+  }
 }
 
-const blockChars = (shadow: Shadow): Map<string, Array<CharRange>> =>
-  new Map(
-    [...shadow.runs].map(([block, runs]) => [block, concatChars(...runs.map(run => run.chars))]),
-  )
+/** The characters each block holds once a shadow's edits are done. */
+const charsAfter =
+  (shadow: Shadow, before: BlockChars): BlockChars =>
+  block => {
+    const runs = shadow.runs.own.get(block)
+    return runs === undefined ? before(block) : concatChars(...runs.map(run => run.chars))
+  }
 
 /**
  * Restates an edit's transactions as ops against `state`, which the edit ran on the
@@ -873,9 +1028,7 @@ export const translate = (
   const ops: Array<ReplicatedOp> = []
   const names = new Map<string, ReplicatedId>()
   const start = projection(state)
-  let chars = new Map<string, ReadonlyArray<CharRange>>(
-    [...start.runs].map(([block, runs]) => [block, concatChars(...runs.map(run => run.chars))]),
-  )
+  let chars = projectedChars(start)
   let current: { document: Document; selection: Selection | null } = {
     document: start.document,
     selection: null,
@@ -890,7 +1043,7 @@ export const translate = (
     const shadow = shadowOf(current.document, chars, names)
     for (const operation of transaction) translateOne(shadow, operation, ops, mint)
     current = applied.state
-    chars = blockChars(shadow)
+    chars = charsAfter(shadow, chars)
   }
   return {
     ops,
@@ -901,13 +1054,31 @@ export const translate = (
 const replicated = (shadow: Shadow, block: string): ReplicatedId =>
   shadow.names.get(block) ?? (block as ReplicatedId)
 
+/**
+ * A run and where it is. The blocks this translation has already touched come first, since
+ * a run may have moved between them; any other run is where the document has it.
+ */
 const locateRun = (shadow: Shadow, run: string) => {
-  for (const [block, runs] of shadow.runs) {
+  const inBlock = (block: string, runs: Array<ShadowRun>) => {
     const index = runs.findIndex(candidate => candidate.id === run)
-    if (index !== -1) return { block, runs, index, run: runs[index]! }
+    return index === -1 ? undefined : { block, runs, index, run: runs[index]! }
   }
-  throw new Error(`translate: no run ${run}`)
+  for (const [block, runs] of shadow.runs.own) {
+    const found = inBlock(block, runs)
+    if (found !== undefined) return found
+  }
+  const block = nodeIndex(shadow.document).blockOf.get(run as NodeId)?.id
+  const runs = block === undefined ? undefined : shadow.runs.get(block)
+  const found = runs === undefined ? undefined : inBlock(block!, runs)
+  if (found === undefined) throw new Error(`translate: no run ${run}`)
+  return found
 }
+
+/** Each block's characters as a projection shows them. */
+const projectedChars =
+  (start: Projection): BlockChars =>
+  block =>
+    concatChars(...(start.runs.get(block) ?? []).map(run => run.chars))
 
 /** The character before `offset` in a run, looking back through earlier runs of its block. */
 const charBefore = (
@@ -1154,10 +1325,7 @@ export const anchor = (
   selection: Selection | null,
 ): AnchoredSelection | null => {
   const start = projection(state)
-  const chars = new Map(
-    [...start.runs].map(([block, runs]) => [block, concatChars(...runs.map(run => run.chars))]),
-  )
-  return anchorIn(shadowOf(start.document, chars, new Map()), selection)
+  return anchorIn(shadowOf(start.document, projectedChars(start), new Map()), selection)
 }
 
 // ---------------------------------------------------------------------------------------

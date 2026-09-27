@@ -544,21 +544,43 @@ export const Selection = Schema.Union([
 ])
 export type Selection = typeof Selection.Type
 
-const nodeIndexes = new WeakMap<Document, ReadonlyMap<NodeId, Block | Text>>()
-/** Every node of a document by identity, built once per document: documents are immutable. */
-const nodesOf = (document: Document): ReadonlyMap<NodeId, Block | Text> => {
+/** Every node of a document by identity, with where each block and run sits. */
+export interface NodeIndex {
+  readonly nodes: ReadonlyMap<NodeId, Block | Text>
+  /** Each run's block. */
+  readonly blockOf: ReadonlyMap<NodeId, Block>
+  /** Each block's parent block, `null` at the top level. */
+  readonly parentOf: ReadonlyMap<NodeId, NodeId | null>
+}
+const nodeIndexes = new WeakMap<Document, NodeIndex>()
+/** The document's `NodeIndex`, built once per document: documents are immutable. */
+export const nodeIndex = (document: Document): NodeIndex => {
   const cached = nodeIndexes.get(document)
   if (cached !== undefined) return cached
   const nodes = new Map<NodeId, Block | Text>()
-  indexNodes(document.children, nodes)
-  nodeIndexes.set(document, nodes)
-  return nodes
+  const blockOf = new Map<NodeId, Block>()
+  const parentOf = new Map<NodeId, NodeId | null>()
+  const visit = (blocks: ReadonlyArray<Block>, parent: NodeId | null): void => {
+    for (const block of blocks) {
+      nodes.set(block.id, block)
+      parentOf.set(block.id, parent)
+      for (const run of block.children) {
+        nodes.set(run.id, run)
+        blockOf.set(run.id, block)
+      }
+      if (block.type === 'Node' && block.blocks !== undefined) visit(block.blocks, block.id)
+    }
+  }
+  visit(document.children, null)
+  const index = { nodes, blockOf, parentOf }
+  nodeIndexes.set(document, index)
+  return index
 }
 
 /** Validates references without sorting range endpoints or changing direction. */
 export const selectionIsValid = (document: Document, selection: Selection | null): boolean => {
   if (selection === null) return true
-  const nodes = nodesOf(document)
+  const { nodes } = nodeIndex(document)
   if (selection.type === 'Node') return nodes.has(selection.node)
   return [selection.anchor, selection.focus].every(position => {
     const node = nodes.get(position.node)
