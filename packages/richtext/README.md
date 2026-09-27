@@ -844,6 +844,22 @@ if (result.ok) {
 - Two replicas' concurrent inserts at one place both survive, the later-committed first.
   A mark covers the characters it named, so text another replica typed inside the range
   before the mark arrived stays unmarked.
+- `invert(state, ops)` gives the ops that undo `ops`, computed against `state`, the state
+  `ops` were applied to. Applied later, after anything else, they take back only what
+  `ops` did:
+  - characters it inserted are deleted, and characters it deleted come back
+    (`Undelete`);
+  - marks, block types and props return to what they were;
+  - a split is joined, and a join is split out again (`Unjoin`), with its text and
+    nested blocks;
+  - a deleted block returns (`UndeleteBlock`), and a moved one goes back beside the
+    sibling it followed.
+
+  Everyone else's edits stay. Collaborative undo is applying these as a new edit, which
+  converges like any other. A restored mark goes last among its run's marks, whose order
+  carries no meaning. A prop an edit added where there was none stays, since `SetProps`
+  cannot delete one. Inverting the inverse, against the state it was applied to, gives
+  the redo.
 
 Run identities in the projection are the first character's, so they are stable while
 text is added after them; block identities are stable for a block's whole life.

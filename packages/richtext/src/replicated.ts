@@ -150,6 +150,19 @@ export const ReplicatedOp = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal('Retype'), id: ReplicatedId, to: RetypeTarget }),
   Schema.Struct({ type: Schema.Literal('SetProps'), id: ReplicatedId, props: Schema.JsonObject }),
+  // The inverses `invert` makes, for undo. Characters and blocks are never removed, only
+  // marked deleted, so each of these finds what it restores where it was.
+  Schema.Struct({ type: Schema.Literal('Undelete'), ranges: Schema.Array(CharRange) }),
+  Schema.Struct({ type: Schema.Literal('UndeleteBlock'), id: ReplicatedId }),
+  Schema.Struct({
+    type: Schema.Literal('Unjoin'),
+    /** The block a join removed, restored where it stood. */
+    id: ReplicatedId,
+    /** The characters it held, taken back from wherever they are now. */
+    ranges: Schema.Array(CharRange),
+    /** The nested blocks it held, taken back from the container they were joined into. */
+    children: Schema.Array(ReplicatedId),
+  }),
 ])
 export type ReplicatedOp = typeof ReplicatedOp.Type
 
@@ -421,6 +434,33 @@ const eachCovered = (
   }
 }
 
+/**
+ * Takes the spans a set of ranges covers out of whatever blocks hold them, cut so each lies
+ * wholly inside, and gives them back in range order.
+ */
+const takeCovered = (work: Draft, ranges: ReadonlyArray<CharRange>): Array<Span> => {
+  const taken: Array<Span> = []
+  for (const range of ranges) {
+    for (const block of work.holding(range.id)) {
+      if (!work.read(block)!.spans.some(span => span.id === range.id)) continue
+      const spans = work.write(block)!.spans
+      for (let index = 0; index < spans.length; index++) {
+        const span = spans[index]!
+        if (span.id !== range.id) continue
+        const end = span.offset + span.text.length
+        if (range.to <= span.offset || range.from >= end) continue
+        cut(spans, index, range.from - span.offset)
+        const inside = spans[index]!
+        if (inside.offset < range.from) continue
+        cut(spans, index, range.to - inside.offset)
+        taken.push(...spans.splice(index, 1))
+        index--
+      }
+    }
+  }
+  return taken
+}
+
 const insertAfterSibling = (
   list: Array<ReplicatedId>,
   id: ReplicatedId,
@@ -601,6 +641,34 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       work.write(op.id)!.shape = op.to.type === 'Node' ? { ...op.to, holds: 'text' } : op.to
       return
     }
+    case 'Undelete':
+      eachCovered(work, op.ranges, span => ({ ...span, deleted: false }))
+      return
+    case 'UndeleteBlock': {
+      // A joined block comes back by `Unjoin`, which returns what it held too.
+      const entry = work.read(op.id)
+      if (entry === undefined || !entry.deleted || entry.joined !== undefined) return
+      work.write(op.id)!.deleted = false
+      return
+    }
+    case 'Unjoin': {
+      const entry = work.read(op.id)
+      if (entry?.joined === undefined) return
+      const into = entry.joined.into
+      const restored = work.write(op.id)!
+      restored.deleted = false
+      delete restored.joined
+      restored.spans = takeCovered(work, op.ranges)
+      for (const child of op.children) {
+        const moved = work.read(child)
+        if (moved === undefined || moved.parent !== into) continue
+        const list = work.write(into)!.children
+        list.splice(list.indexOf(child), 1)
+        work.write(child)!.parent = op.id
+        restored.children.push(child)
+      }
+      return
+    }
     case 'SetProps': {
       const entry = work.read(op.id)
       if (entry?.shape.type !== 'Node') return
@@ -641,6 +709,179 @@ export const applyOps = (
   byOps.set(ops, next)
   applied.set(state, byOps)
   return next
+}
+
+// ---------------------------------------------------------------------------------------
+// Undoing
+// ---------------------------------------------------------------------------------------
+
+/** The stretches of `state`'s spans each range covers, with where each span is. */
+const coveredParts = (
+  state: ReplicatedState,
+  ranges: ReadonlyArray<CharRange>,
+): ReadonlyArray<{
+  readonly block: ReplicatedId
+  readonly index: number
+  readonly span: Span
+  readonly range: CharRange
+}> =>
+  ranges.flatMap(range =>
+    (holdersIn(holdersOf(state), range.id) ?? []).flatMap(block =>
+      lookup(state, block)!.spans.flatMap((span, index) => {
+        if (span.id !== range.id) return []
+        const from = Math.max(range.from, span.offset)
+        const to = Math.min(range.to, span.offset + span.text.length)
+        return from < to ? [{ block, index, span, range: { id: range.id, from, to } }] : []
+      }),
+    ),
+  )
+
+/** What a block that holds text is, as a retype names it. */
+const retypeTargetOf = (shape: BlockShape): RetypeTarget | undefined =>
+  shape.type === 'Paragraph' || shape.type === 'Heading'
+    ? shape
+    : shape.type === 'Node' && shape.holds === 'text'
+      ? { type: 'Node', kind: shape.kind, props: shape.props }
+      : undefined
+
+/** The ops that take back one op, made against the state it was applied to. */
+const invertOne = (state: ReplicatedState, op: ReplicatedOp): ReadonlyArray<ReplicatedOp> => {
+  switch (op.type) {
+    case 'Insert':
+      // An insert whose id was taken changed nothing.
+      return holdersIn(holdersOf(state), op.id) !== undefined
+        ? []
+        : [{ type: 'Delete', ranges: [{ id: op.id, from: 0, to: op.text.length }] }]
+    case 'Delete': {
+      // Only what this op deleted: characters already gone before it stay gone.
+      const ranges = coveredParts(state, op.ranges)
+        .filter(part => !part.span.deleted)
+        .map(part => part.range)
+      return ranges.length === 0 ? [] : [{ type: 'Undelete', ranges }]
+    }
+    case 'Undelete': {
+      const ranges = coveredParts(state, op.ranges)
+        .filter(part => part.span.deleted)
+        .map(part => part.range)
+      return ranges.length === 0 ? [] : [{ type: 'Delete', ranges }]
+    }
+    case 'Mark':
+    case 'Unmark': {
+      const name = op.type === 'Mark' ? markName(op.mark) : op.name
+      const inverse: Array<ReplicatedOp> = []
+      const unmarked: Array<CharRange> = []
+      for (const { span, range } of coveredParts(state, op.ranges)) {
+        const prior = span.marks.find(mark => markName(mark) === name)
+        if (prior === undefined) {
+          if (op.type === 'Mark') unmarked.push(range)
+        } else inverse.push({ type: 'Mark', ranges: [range], mark: prior })
+      }
+      return unmarked.length === 0
+        ? inverse
+        : [{ type: 'Unmark', ranges: unmarked, name }, ...inverse]
+    }
+    case 'InsertBlock':
+      return lookup(state, op.id) !== undefined ? [] : [{ type: 'DeleteBlock', id: op.id }]
+    case 'DeleteBlock': {
+      const entry = lookup(state, op.id)
+      return entry === undefined || entry.deleted ? [] : [{ type: 'UndeleteBlock', id: op.id }]
+    }
+    case 'UndeleteBlock': {
+      const entry = lookup(state, op.id)
+      return entry?.deleted === true && entry.joined === undefined
+        ? [{ type: 'DeleteBlock', id: op.id }]
+        : []
+    }
+    case 'MoveBlock': {
+      const entry = lookup(state, op.id)
+      if (entry === undefined) return []
+      const siblings =
+        entry.parent === null ? state.root : (lookup(state, entry.parent)?.children ?? [])
+      const at = siblings.indexOf(op.id)
+      return [
+        {
+          type: 'MoveBlock',
+          id: op.id,
+          parent: entry.parent,
+          after: at > 0 ? siblings[at - 1]! : null,
+        },
+      ]
+    }
+    case 'Split':
+      // The halves join again at the same character, which finds the same place.
+      return lookup(state, op.into) !== undefined
+        ? []
+        : [{ type: 'Join', into: op.block, removed: op.into, after: op.after }]
+    case 'Join': {
+      const removed = lookup(state, op.removed)
+      if (removed === undefined || removed.deleted) return []
+      return [
+        {
+          type: 'Unjoin',
+          id: op.removed,
+          ranges: removed.spans.map(span => ({
+            id: span.id,
+            from: span.offset,
+            to: span.offset + span.text.length,
+          })),
+          children: [...removed.children],
+        },
+      ]
+    }
+    case 'Unjoin': {
+      const joined = lookup(state, op.id)?.joined
+      if (joined === undefined) return []
+      // Joined again right after the character now before its text, deleted or not: text
+      // someone typed at the join since sits between that and the join's own anchor.
+      const first = coveredParts(state, op.ranges)[0]
+      if (first === undefined)
+        return [{ type: 'Join', into: joined.into, removed: op.id, after: joined.after }]
+      // Spans are cut but never merged, so the text starts where a span does.
+      const before = lookup(state, first.block)!.spans[first.index - 1]
+      const after =
+        before === undefined ? null : charRef(before.id, before.offset + before.text.length - 1)
+      return [{ type: 'Join', into: first.block, removed: op.id, after }]
+    }
+    case 'Retype': {
+      const entry = lookup(state, op.id)
+      const prior = entry === undefined ? undefined : retypeTargetOf(entry.shape)
+      return prior === undefined ? [] : [{ type: 'Retype', id: op.id, to: prior }]
+    }
+    case 'SetProps': {
+      const shape = lookup(state, op.id)?.shape
+      if (shape?.type !== 'Node') return []
+      // A prop the op added cannot be taken away (SetProps sets, it does not delete), so
+      // only the ones it changed go back.
+      const prior = Object.fromEntries(
+        Object.keys(op.props)
+          .filter(key => Object.hasOwn(shape.props, key))
+          .map(key => [key, shape.props[key]!]),
+      )
+      return Object.keys(prior).length === 0 ? [] : [{ type: 'SetProps', id: op.id, props: prior }]
+    }
+  }
+}
+
+/**
+ * The ops that undo `ops`, made against `state`, the state `ops` were applied to. Applied
+ * after `ops` and after whatever else has happened since, they take back what `ops` did
+ * and leave the rest alone. Characters it inserted are deleted, and characters it deleted
+ * come back. Marks, block types and props return to what they were, a split is joined and
+ * a join split out, and a moved block goes back beside the sibling it followed. A prop it
+ * added where there was none stays, since `SetProps` cannot delete one. Inverting the
+ * result gives the ops that redo it.
+ */
+export const invert = (
+  state: ReplicatedState,
+  ops: ReadonlyArray<ReplicatedOp>,
+): ReadonlyArray<ReplicatedOp> => {
+  const inverses: Array<ReadonlyArray<ReplicatedOp>> = []
+  let current = state
+  for (const op of ops) {
+    inverses.push(invertOne(current, op))
+    current = applyOps(current, [op])
+  }
+  return inverses.reverse().flat()
 }
 
 // ---------------------------------------------------------------------------------------

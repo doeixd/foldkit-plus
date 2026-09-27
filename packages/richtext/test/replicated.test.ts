@@ -378,6 +378,140 @@ describe('translating an edit', () => {
   })
 })
 
+describe('undoing', () => {
+  /**
+   * A document with each run's marks in name order: a mark undo puts back goes last among
+   * the run's marks, and the order of a run's marks means nothing.
+   */
+  const unordered = (document: RichText.Document): RichText.Document => {
+    const blocks = (list: ReadonlyArray<RichText.Block>): ReadonlyArray<RichText.Block> =>
+      list.map(block => ({
+        ...block,
+        children: block.children.map(run => ({
+          ...run,
+          marks: [...run.marks].sort((left, right) =>
+            RichText.markName(left).localeCompare(RichText.markName(right)),
+          ),
+        })),
+        ...(block.type === 'Node' && block.blocks !== undefined
+          ? { blocks: blocks(block.blocks) }
+          : {}),
+      })) as ReadonlyArray<RichText.Block>
+    return { ...document, children: blocks(document.children) }
+  }
+
+  // Every kind of edit, one at a time: the inverse takes the document back exactly, and the
+  // inverse of the inverse puts the edit back.
+  it.each([11, 29, 71])('takes back and redoes each edit of a long session (seed %i)', seed => {
+    const random = seeded(seed)
+    const view: View = { state: base(), selection: null }
+    const kinds = new Set<string>()
+    for (let step = 0; step < 300; step++) {
+      const before = view.state
+      const ops = randomEdit(view, random)
+      if (ops === undefined) continue
+      const after = view.state
+      const undo = Replicated.invert(before, ops)
+      for (const op of undo) kinds.add(op.type)
+      const undone = Replicated.applyOps(after, undo)
+      expect(unordered(Replicated.project(undone))).toEqual(unordered(Replicated.project(before)))
+      const redone = Replicated.applyOps(undone, Replicated.invert(after, undo))
+      expect(unordered(Replicated.project(redone))).toEqual(unordered(Replicated.project(after)))
+    }
+    // The inverses the session needed, so the property covers them.
+    expect([...kinds].sort()).toEqual(
+      expect.arrayContaining(['Delete', 'Join', 'Undelete', 'Unjoin', 'Retype', 'MoveBlock']),
+    )
+  })
+
+  /** The ranges of a block's characters, as a Delete names them. */
+  const charsOf = (state: RichText.Replicated.ReplicatedState, text: string) => {
+    const document = Replicated.project(state)
+    const block = document.children.find(
+      candidate => candidate.children.map(run => run.text).join('') === text,
+    )!
+    const at = (run: RichText.Text, offset: number) =>
+      ({ node: run.id, offset, affinity: 'after' }) as const
+    const deleted = RichText.run(
+      {
+        document,
+        selection: {
+          type: 'Range',
+          anchor: at(block.children[0]!, 0),
+          focus: at(block.children.at(-1)!, block.children.at(-1)!.text.length),
+        },
+      },
+      { type: 'DeleteBackward' },
+      counter(),
+      { nodes },
+    )
+    if (!deleted.ok) throw new Error(deleted.error)
+    return Replicated.translate(state, deleted, 'probe:0').ops
+  }
+
+  it('brings back only what the edit deleted, not what someone else deleted before it', () => {
+    const start = base()
+    // Someone deletes 'last' first; then an op deleting it again arrives, as a concurrent
+    // delete of the same text would.
+    const theirs = charsOf(start, 'last')
+    const deleted = Replicated.applyOps(start, theirs)
+    const undo = Replicated.invert(deleted, theirs)
+    expect(undo).toEqual([])
+    // Undone where it was the one that deleted, the text comes back.
+    expect(texts(Replicated.applyOps(deleted, Replicated.invert(start, theirs)))).toContain('last')
+  })
+
+  it('deletes again, on redo, only what an undelete brought back', () => {
+    const start = base()
+    const ops = charsOf(start, 'last')
+    const deleted = Replicated.applyOps(start, ops)
+    const undelete = Replicated.invert(start, ops)
+    // Inverted where the text was never deleted, an undelete changed nothing to redo.
+    expect(Replicated.invert(start, undelete)).toEqual([])
+    expect(Replicated.invert(deleted, undelete)).toEqual(ops)
+  })
+
+  it('revives only a block the edit deleted', () => {
+    const start = base()
+    const block = idAt(start, [4])
+    const gone = Replicated.applyOps(start, [{ type: 'DeleteBlock', id: block }])
+    expect(Replicated.invert(gone, [{ type: 'DeleteBlock', id: block }])).toEqual([])
+    expect(Replicated.invert(start, [{ type: 'DeleteBlock', id: block }])).toEqual([
+      { type: 'UndeleteBlock', id: block },
+    ])
+  })
+
+  it('splits a container join back out, with the blocks it held', () => {
+    const start = Replicated.fromDocument(
+      decode([
+        container('Quote', 'q1', {}, [paragraph('a', text('at', 'one'))]),
+        container('Quote', 'q2', {}, [paragraph('b', text('bt', 'two'))]),
+      ]),
+      'quotes:0',
+    )
+    const join: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+      { type: 'Join', into: idAt(start, [0]), removed: idAt(start, [1]), after: null },
+    ]
+    const joined = Replicated.applyOps(start, join)
+    expect(Replicated.project(joined).children).toHaveLength(1)
+    const undone = Replicated.applyOps(joined, Replicated.invert(start, join))
+    expect(Replicated.project(undone)).toEqual(Replicated.project(start))
+  })
+
+  it('takes back one person’s edit and keeps what someone else did meanwhile', () => {
+    const start = base()
+    const a: View = { state: start, selection: null }
+    const b: View = { state: start, selection: null }
+    a.selection = caretIn(a, 'hello', 5)
+    const mine = edit(a, { type: 'InsertText', text: ' there' })
+    b.selection = caretIn(b, 'last', 4)
+    const theirs = edit(b, { type: 'InsertText', text: '!' })
+    const both = Replicated.applyOps(Replicated.applyOps(start, mine), theirs)
+    const undone = Replicated.applyOps(both, Replicated.invert(start, mine))
+    expect(texts(undone)).toEqual(texts(Replicated.applyOps(start, theirs)))
+  })
+})
+
 describe('concurrent edits in server order', () => {
   /** Two replicas from one state, each editing without seeing the other. */
   const replicas = () => {
