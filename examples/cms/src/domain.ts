@@ -12,6 +12,9 @@ import { Mutation, Query } from 'foldkit-remote'
 /** Where this demo's code is read: the site links to it, and its pages point to it. */
 export const SOURCE = 'https://github.com/doeixd/foldkit-plus/tree/main/examples/cms'
 
+/** Where the published demo is served: the site's canonical addresses start here. */
+export const ORIGIN = 'https://foldkit-cms-demo.pages.dev'
+
 export const PostId = Schema.String.pipe(Schema.brand('PostId'))
 export type PostId = typeof PostId.Type
 

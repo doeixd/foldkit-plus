@@ -23,6 +23,7 @@ import { Url, toString as urlToString } from 'foldkit/url'
 import { Post, PostPage, Posts, PostById, RecentPosts } from './domain.js'
 import { Page, Pages } from './pageDomain.js'
 import { PostCard, Site } from './site.js'
+import { chairOf, chairs } from './transport.js'
 
 export const Route = Schema.Union([
   Schema.TaggedStruct('Page', { slug: Schema.String }),
@@ -42,7 +43,24 @@ export const routeOf = (url: Url): Route => {
   return second === undefined ? { _tag: 'Blog' } : { _tag: 'Post', slug: second }
 }
 
-export const Model = Schema.Struct({ remote: Remote.Model, route: Route })
+/** The address of a route: the inverse of `routeOf`. */
+export const pathOf = (route: Route): string => {
+  switch (route._tag) {
+    case 'Page':
+      return route.slug === 'home' ? '/site' : `/site/${encodeURIComponent(route.slug)}`
+    case 'Blog':
+      return '/site/blog'
+    case 'Post':
+      return `/site/blog/${encodeURIComponent(route.slug)}`
+  }
+}
+
+export const Model = Schema.Struct({
+  remote: Remote.Model,
+  route: Route,
+  /** Who is reading: a visitor, unless the address says (`?as=edda`). Links keep it. */
+  reader: Schema.Literals(chairs),
+})
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
@@ -130,4 +148,11 @@ export const update = placements.update((model: Model, message: Message) => {
 })
 
 export const initial = (url: Url) =>
-  placements.initial({ remote: Remote.initial, route: routeOf(url) })
+  placements.initial({
+    remote: Remote.initial,
+    route: routeOf(url),
+    reader: chairOf(
+      Option.getOrElse(url.search, () => ''),
+      'visitor',
+    ),
+  })
