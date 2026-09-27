@@ -258,7 +258,38 @@ describe('positions map both ways', () => {
     document.body.append(outside)
     expect(rangeToPosition(dom, outside, 0)).toBeUndefined()
     outside.remove()
-    expect(rangeToPosition(dom, dom.root.children[0] as HTMLElement, 0)).toBeUndefined()
+  })
+
+  it('reads a caret a browser puts on an element as the text boundary it stands at', () => {
+    // Chrome puts a click on an empty paragraph on the paragraph itself, never in its empty
+    // run's text node; without this a blank document could not be typed into.
+    const blank = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'e', children: [{ type: 'Text', id: 'x', text: '', marks: [] }] },
+        {
+          type: 'Paragraph',
+          id: 'f',
+          children: [
+            { type: 'Text', id: 'y', text: 'ab', marks: [] },
+            { type: 'Text', id: 'z', text: 'cd', marks: ['Bold'] },
+          ],
+        },
+      ],
+    })
+    const dom = mount(document, blank)
+    const [empty, full] = Array.from(dom.root.children) as Array<HTMLElement>
+    const cases: ReadonlyArray<readonly [Node, number, RichText.Position]> = [
+      [empty!, 0, at('x', 0, 'after')],
+      [dom.root, 0, at('x', 0, 'after')],
+      // Before a run is its start; past the last one is the end of that one.
+      [full!, 1, at('z', 0, 'before')],
+      [full!, 2, at('z', 2, 'after')],
+      [dom.root, 2, at('z', 2, 'after')],
+    ]
+    for (const [node, offset, expected] of cases) {
+      expect(rangeToPosition(dom, node, offset)).toEqual(expected)
+    }
   })
 })
 
@@ -374,6 +405,41 @@ describe('patching only what changed', () => {
       expect(after.elements.get(id('c'))?.hasAttribute('data-tone')).toBe(has)
     },
   )
+
+  it('moves a block into a container it is wrapped in, leaving no copy where it was', () => {
+    const flat = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'h',
+          children: [{ type: 'Text', id: 'a', text: 'head', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'b', text: 'milk', marks: [] }],
+        },
+      ],
+    })
+    const before = mount(document, flat, RichText.standardRendering)
+    const caret = { node: id('b'), offset: 2, affinity: 'after' as const }
+    let next = 0
+    const result = success(
+      RichText.run(
+        { document: flat, selection: { type: 'Range', anchor: caret, focus: caret } },
+        { type: 'WrapBlock', containers: [{ kind: 'List', props: {} }, { kind: 'ListItem' }] },
+        { mint: () => `w${next++}` },
+      ),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    expect(after.root.querySelectorAll('[data-block="p"]')).toHaveLength(1)
+    expect(
+      after.root.isEqualNode(
+        mount(document, result.state.document, RichText.standardRendering).root,
+      ),
+    ).toBe(true)
+  })
 
   it('drops elements for identities normalization retires', () => {
     const mergeable = RichText.decodeDocument({

@@ -327,6 +327,7 @@ const patchBlocks = (
   },
 ): void => {
   const { rendering, spans, rebuilt, drawn } = context
+  const placed = new Set<Element>()
   let previousElement: HTMLElement | undefined
   for (const [index, block] of blocks.entries()) {
     const existing = elements.get(block.id)
@@ -370,6 +371,7 @@ const patchBlocks = (
             : Array.from(existing.children).find(child => child.tagName.toLowerCase() === inner)
         if (holder instanceof HTMLElement) patchBlocks(owner, holder, nested, elements, context)
       }
+      placed.add(existing)
       previousElement = existing
       continue
     }
@@ -377,7 +379,13 @@ const patchBlocks = (
     existing?.remove()
     place(fresh)
     rebuilt.add(block.id)
+    placed.add(fresh)
     previousElement = fresh
+  }
+  // A block that moved into a container built fresh here was drawn again inside it, so its
+  // old element is still where it stood: anything here this list did not place is stale.
+  for (const child of Array.from(container.children)) {
+    if (child.hasAttribute('data-block') && !placed.has(child)) child.remove()
   }
 }
 
@@ -429,12 +437,51 @@ export const positionToRange = (dom: EditorDom, position: RichText.Position): Ra
  * range outside the owned subtree) has no semantic position and returns
  * undefined rather than guessing.
  */
-export const rangeToPosition = (
-  dom: EditorDom,
+const firstText = (node: Node): Text | undefined => {
+  if (node instanceof Text) return node
+  for (const child of Array.from(node.childNodes)) {
+    const found = firstText(child)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+const lastText = (node: Node): Text | undefined => {
+  if (node instanceof Text) return node
+  for (const child of Array.from(node.childNodes).reverse()) {
+    const found = lastText(child)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/**
+ * The text boundary a DOM position stands at. A browser can report a caret on an element:
+ * Chrome puts a click on an empty paragraph on the paragraph, never in its empty run's text
+ * node. Such a position is the start of the text after it, or else the end of the text
+ * before it.
+ */
+const textBoundary = (
   node: Node,
   offset: number,
+): { readonly text: Text; readonly offset: number } | undefined => {
+  if (node instanceof Text) return { text: node, offset }
+  const after = node.childNodes[offset]
+  const following = after === undefined ? undefined : firstText(after)
+  if (following !== undefined) return { text: following, offset: 0 }
+  const before = node.childNodes[offset - 1]
+  const preceding = before === undefined ? undefined : lastText(before)
+  return preceding === undefined ? undefined : { text: preceding, offset: preceding.length }
+}
+
+export const rangeToPosition = (
+  dom: EditorDom,
+  container: Node,
+  containerOffset: number,
 ): RichText.Position | undefined => {
-  if (!(node instanceof Text)) return undefined
+  const boundary = textBoundary(container, containerOffset)
+  if (boundary === undefined) return undefined
+  const { text: node, offset } = boundary
   const run = node.parentElement?.closest('[data-run]')
   const id = run?.getAttribute('data-run')
   if (run === null || run === undefined || id === null || id === undefined) return undefined
