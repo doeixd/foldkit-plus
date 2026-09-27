@@ -230,6 +230,12 @@ version changed; `pnpm` skips versions already in the registry.
   first frame before it returns.** Until that frame commits the page keeps
   answering from its markers, and it then sends the live page the events only
   it can answer.
+- **`foldkit-mirror`: `reduce` returns the Model it was given when the store
+  holds what the Model already does,** so the URL change a mirror's own write
+  causes, a navigation that leaves its keys alone, and a restore that finds
+  nothing new no longer render the page again. A structured field's text is
+  remembered by the value's identity, so the write entry no longer serializes
+  it on every Model change.
 - **`foldkit-bundle`: a placement or collection item returns the parent Model
   itself when the child's `update` returns its own Model,** so a Message that
   changes nothing renders nothing.

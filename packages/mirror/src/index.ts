@@ -609,10 +609,38 @@ const make = <S extends Slice, R, Name extends string>(
   const name = nameOf(kind, owned, config.name) as Name
   if (kind === 'url') claim(app.owner, location, owned, name)
 
+  // A field's text, remembered by the value's identity: the write entry
+  // encodes the slice on every Model change and `href` on every render, and a
+  // structured field (JSON) costs a stringify each time. Primitives are cheap
+  // and have no identity to remember.
+  const texts: Record<string, WeakMap<object, string>> = {}
+  for (const field of names) texts[field] = new WeakMap()
+  const encodeField = (field: string, value: unknown): string => {
+    if (typeof value !== 'object' || value === null) return codecs[field]!.encode(value)
+    const known = texts[field]!.get(value)
+    if (known !== undefined) return known
+    const text = codecs[field]!.encode(value)
+    texts[field]!.set(value, text)
+    return text
+  }
+
+  // Two slices a store cannot tell apart are the same slice: a Model keeps
+  // its identity when a store reads back what it holds, as it does after its
+  // own write to the URL, so Foldkit does not render it again.
+  const sameSlice = (
+    current: Readonly<Record<string, unknown>>,
+    next: Readonly<Record<string, unknown>>,
+  ): boolean =>
+    names.every(
+      field =>
+        Object.is(current[field], next[field]) ||
+        encodeField(field, current[field]) === encodeField(field, next[field]),
+    )
+
   const encodeSlice = (slice: Readonly<Record<string, unknown>>): Encoded => {
     const out: Record<string, string> = {}
     for (const field of names) {
-      const text = codecs[field]!.encode(slice[field])
+      const text = encodeField(field, slice[field])
       if (!keep.has(field) && text === initialText[field]) continue
       out[keyOf[field]!] = text
     }
@@ -642,7 +670,10 @@ const make = <S extends Slice, R, Name extends string>(
 
   const fromKeys = (model: AppModel, keys: Encoded): AppModel => {
     const decoded = decode(keys).value as Readonly<Record<string, unknown>>
-    return fields.set(model, { ...initialSlice, ...decoded } as never)
+    const next = { ...initialSlice, ...decoded }
+    return sameSlice(fields.get(model) as Readonly<Record<string, unknown>>, next)
+      ? model
+      : fields.set(model, next as never)
   }
 
   const restoreKeys = (model: AppModel, keys: Encoded): AppModel => {
@@ -651,10 +682,10 @@ const make = <S extends Slice, R, Name extends string>(
     const next: Record<string, unknown> = { ...current }
     for (const field of names) {
       // A change the user made before the store answered wins over the store.
-      if (codecs[field]!.encode(current[field]) !== initialText[field]) continue
+      if (encodeField(field, current[field]) !== initialText[field]) continue
       if (field in restored) next[field] = restored[field]
     }
-    return fields.set(model, next as never)
+    return sameSlice(current, next) ? model : fields.set(model, next as never)
   }
 
   const href = (model: AppModel, patch?: Partial<Value>, base?: string): string => {
