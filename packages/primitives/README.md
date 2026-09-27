@@ -413,7 +413,10 @@ while keeping the present. A `Push` may name a `group`: consecutive pushes of
 the same group are one step, so typing a word undoes as a whole, with no clock.
 The steps are also pure functions, `History.start`, `push`, `undo`, `redo` and
 `clear`, for a parent that records an edit in the same transition that makes it
-(the page Builder keeps its page this way). The past holds at most `capacity` entries (default 100);
+(the page Builder keeps its page this way). Two more are only functions:
+`History.close(model)` ends the group, so the same group pushed again is a step
+of its own, and `History.revert(model, group)` takes back the step `group` is
+making with nothing left to redo, which is what a cancelled edit leaves. The past holds at most `capacity` entries (default 100);
 a negative or fractional capacity throws at the factory, naming it. The
 factory attaches the Message union, so placements dispatch
 `EditHistory.Message.Push(...)`. `canUndo`/`canRedo` read the edges:

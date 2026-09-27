@@ -138,6 +138,31 @@ describe('grouped steps, and the steps as functions', () => {
     expect(History.push(back, 'd', { capacity: 10, group: 'g' }).past).toEqual(['a'])
   })
 
+  it('ends a group where asked, so the same group again is a step of its own', () => {
+    const first = History.push(History.start('a'), 'b', { capacity: 10, group: 'g' })
+    const closed = History.close(first)
+    expect(closed.present).toBe('b')
+    expect(History.push(closed, 'c', { capacity: 10, group: 'g' }).past).toEqual(['a', 'b'])
+    expect(History.close(closed)).toBe(closed)
+  })
+
+  it('reverts a group’s step with nothing to redo, and leaves another group’s alone', () => {
+    const before = History.push(History.start('a'), 'b', { capacity: 10 })
+    const typed = ['bx', 'bxy'].reduce(
+      (model, value) => History.push(model, value, { capacity: 10, group: 'g' }),
+      before,
+    )
+    expect(History.revert(typed, 'g')).toEqual({
+      past: ['a'],
+      present: 'b',
+      future: [],
+      group: null,
+    })
+    expect(History.revert(typed, 'h')).toBe(typed)
+    // A step closed is no longer the group's to take back.
+    expect(History.revert(History.close(typed), 'g').present).toBe('bxy')
+  })
+
   it('groups through the placed bundle too', () => {
     const typed = [
       EditHistory.Message.Push({ value: 'b', group: 'x' }),
