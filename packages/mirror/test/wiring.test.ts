@@ -94,3 +94,40 @@ describe('MirrorRestored sharing in an assembly', () => {
     expect(assembly.initial(initial).commands).toEqual([Prefs.restore, Other.restore])
   })
 })
+
+describe('URL mirrors in one assembly, beside the application’s own routing', () => {
+  const Wide = Schema.Struct({
+    filter: Schema.Literals(['all', 'active']),
+    page: Schema.Number,
+    opened: Schema.String,
+  })
+  type Wide = typeof Wide.Type
+  const start: Wide = { filter: 'all', page: 1, opened: '' }
+  const WideApp = Surface.application({
+    Model: Wide,
+    Message,
+    initial: start,
+    update: model => ({ model }),
+  })
+  const ByFilter = Mirror.url(WideApp, { name: 'by-filter', fields: [WideApp.model.filter] })
+  const ByPage = Mirror.url(WideApp, { name: 'by-page', fields: [WideApp.model.page] })
+  const assembly = Bundle.parent({ Model: Wide, Message }).assemble(
+    ByFilter.wiring('UrlChanged'),
+    ByPage.wiring('UrlChanged'),
+  )
+  // Routing on what the mirrors left: it sees their slices already read.
+  const update = assembly.update((model, message) =>
+    message._tag === 'UrlChanged'
+      ? { model: { ...model, opened: `${model.filter}/${model.page}` } }
+      : { model },
+  )
+
+  it('reads every mirror’s keys from one URL Message, then routes on the result', () => {
+    const url = urlOf('http://app/?filter=active&page=3')
+    expect(update(start, Message.UrlChanged({ url })).model).toEqual({
+      filter: 'active',
+      page: 3,
+      opened: 'active/3',
+    })
+  })
+})

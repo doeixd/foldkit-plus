@@ -104,8 +104,9 @@ package:
   sees Sync and Agent without routing anything through them.
 
 Two items claiming one Message tag fail `assemble` at startup, naming both —
-unless the tag is declared `shared` and each wiring routes only its own
-values. `complete` then checks the config uses every derivation the items
+unless every claimant declares the tag `shared`: then each folds it in list
+order and the parent's own update sees it after them (URL mirrors and the
+application's routing all read `UrlChanged`). `complete` then checks the config uses every derivation the items
 need (`init` when a wiring restores, `url` when one reads the URL).
 
 ## Common tasks

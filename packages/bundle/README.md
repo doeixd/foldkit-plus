@@ -267,8 +267,10 @@ rest of your options.
   in list order. That check needs every placement's field, so a placement
   through a custom Link (below) relaxes `rest` to `Partial<Model>`.
 - **`placements.update(own)`** is the parent's update: a placement's or
-  wiring's Message goes to its item and every other Message to `own`. Without
-  `own` they leave the Model unchanged.
+  wiring's Message goes to its item and every other Message to `own`. A tag
+  wirings declare `shared` goes to each of them in list order and then to
+  `own`, so URL mirrors and the application's routing all see `UrlChanged`.
+  Without `own` they leave the Model unchanged.
 - **`placements.url(onUrlChange)`** is the runtime URL config: `init` applies
   every wiring's `onUrl` to the Model, and a URL change becomes
   `onUrlChange`'s Message, which a wiring routes.

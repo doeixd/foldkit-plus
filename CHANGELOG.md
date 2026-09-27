@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-bundle`, a shared tag reaches everyone who shares it:** a Message
+  tag wirings declare `shared` is folded by each of them in list order, and
+  the parent's own update sees it after them. Before, the first claimant took
+  it: of two URL mirrors only the first read the URL, and an application with
+  a URL mirror never saw its own `UrlChanged`, so it could not route on it.
+
 - **`foldkit-mixins-crud`, loading told from empty:** a list's or a detail's
   `status` line is `aria-busy` while the first answer is awaited, as the table
   already was while refreshing, so a style can draw a quiet placeholder for

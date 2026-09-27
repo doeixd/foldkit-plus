@@ -14,7 +14,12 @@ export interface Wiring<Model, Message, R = never> {
   readonly key: string
   /** Message tags `route` handles. Two items handling one tag is an error unless it is `shared`. */
   readonly handles: readonly string[]
-  /** Tags several integrations may handle, each for its own values. */
+  /**
+   * Tags this integration observes rather than claims: every wiring that shares
+   * one folds it, in list order, and the parent's own update sees it after them.
+   * A URL Message is the usual case: each URL mirror reads its keys from it, and
+   * the application still routes on it.
+   */
   readonly shared?: readonly string[] | undefined
   /**
    * Folds a Message this integration handles; `None` for any other. A method, so

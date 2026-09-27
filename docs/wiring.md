@@ -57,6 +57,10 @@ contracts each package already declares still own the transitions:
   assembly; the agent still only sends Messages `update` already handles.
 - The assembly never becomes a second reducer. `update` routes each Message to
   exactly one item's fold and falls through to the application's own update.
+  A shared tag is the exception that proves it: it is observed, not claimed, so
+  every wiring sharing it folds it in list order and the application's update
+  sees it after them. Several URL mirrors read one `UrlChanged`, and the
+  application still routes on it, over the slices they have already read.
 
 ## The mental model
 
@@ -83,8 +87,8 @@ accepts a config whose `update` takes the whole parent Message, whose
 and `url` came from the assembly wherever an item needs them (a placement
 with resources, a wiring with startup Commands, a wiring that reads the URL).
 Two items claiming one Message tag fail `assemble` at startup naming both
-(unless the tag is declared `shared` and each wiring routes only its own
-values, like per-name `MirrorRestored`).
+(unless every claimant declares the tag `shared`: each folds it in turn, like
+per-name `MirrorRestored` and the URL Message).
 
 Whether you need it depends on the size of the list:
 
@@ -119,7 +123,7 @@ const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draft] })
 const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
 
-const update = wiring.update(own)              // mirrors route first, the rest falls to own
+const update = wiring.update(own)              // mirrors route first; own sees the rest, and UrlChanged after them
 const start = wiring.initial(initialModel)     // model + the restore Command
 const subscriptions = wiring.subscriptions()   // both mirrors' entries, merged
 const url = wiring.url(next => Message.UrlChanged({ url: next }))

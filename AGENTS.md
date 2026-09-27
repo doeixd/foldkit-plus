@@ -34,6 +34,8 @@ When re-reading a commit, check each of these deliberately:
 
 Fix what the review finds in a follow-up commit rather than letting it sit.
 
+AFTER EVERTY BOUT OF WORK/COMMIT, DOUBLE CHECK AND REVIEW!!!
+
 ## Jev preference review
 
 After a substantial bout of implementation work, run:
@@ -779,7 +781,7 @@ of its own named a form field "fits the Catalog". Read words with
 - **A `\u` escape written into source by a script can become the character.**
   Writing `.replaceAll('<', '\\u003c')` through a heredoc left one backslash in
   the file, and `'<'` in TypeScript is `<` itself: the escape replaced `<`
-  with `<`, silently. The same route turned a ` ` regex into a literal line
+  with `<`, silently. The same route turned a `` regex into a literal line
   separator, which ends the regex. Build such characters with
   `String.fromCharCode`, and check the bytes with `repr` before trusting the
   file. (The commit that met this, `9d395e1`, says a test caught it; reading the
