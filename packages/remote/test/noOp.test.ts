@@ -67,6 +67,13 @@ const base = [
   initialRemoteModel,
 )
 
+const Model = Schema.Struct({ remote: Remote.Model })
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))],
+})
+
 describe('A Message that changes nothing', () => {
   it.each<[string, RemoteMessage]>([
     [
@@ -159,13 +166,26 @@ describe('A Message that changes nothing', () => {
   })
 
   it('keeps the application root through Data.reduce', () => {
-    const Model = Schema.Struct({ remote: Remote.Model })
-    const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
-    const Data = Remote.make({
-      model: App.model.remote,
-      entities: [Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))],
-    })
     const model = { remote: base }
     expect(Data.reduce(model, { _tag: 'OverlayLifted', id: 'nobody' })).toBe(model)
+  })
+
+  it('keeps the visible store while only the overlays change', () => {
+    const pending = updateRemote(base, {
+      _tag: 'MutationStarted',
+      requestId: 'm3',
+      optimistic: [{ entity: 'User', id: 'u1', values: { name: 'pending' } }],
+    })
+    const inserted = updateRemote(
+      pending,
+      live('s1', {
+        _tag: 'ConnectionInsert',
+        connection: 'c2',
+        position: 'append',
+        edge: edge('u4'),
+        cursor: 4,
+      }),
+    )
+    expect(Data.storeOf({ remote: inserted })).toBe(Data.storeOf({ remote: pending }))
   })
 })

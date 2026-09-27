@@ -708,14 +708,16 @@ const confirmed = <AppModel, Store extends RemoteModel, P extends Projection<App
 })
 
 // The visible store is recomputed only when the base store or the layers
-// change, so reads and plans across renders of one Model share it.
-const visibleStores = new WeakMap<OptimisticState, WeakMap<EntityStore, EntityStore>>()
+// change, so reads and plans across renders of one Model share it. Keyed on
+// the layers rather than the whole optimistic state, which also changes with
+// every overlay (a live insert, a page pruning one) that no layer is part of.
+const visibleStores = new WeakMap<object, WeakMap<EntityStore, EntityStore>>()
 
 const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): EntityStore => {
-  let byStore = visibleStores.get(optimistic)
+  let byStore = visibleStores.get(optimistic.layers)
   if (byStore === undefined) {
     byStore = new WeakMap()
-    visibleStores.set(optimistic, byStore)
+    visibleStores.set(optimistic.layers, byStore)
   }
   let visible = byStore.get(entities)
   if (visible === undefined) {

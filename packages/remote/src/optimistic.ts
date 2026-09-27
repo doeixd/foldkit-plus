@@ -6,7 +6,7 @@
  */
 import { type Connection, type Edge, edge, items } from './connection.js'
 import { reconcileMutation, type MutationState, type NormalizedPatch } from './mutation.js'
-import { entityKey, isTombstone, writeEntity, type EntityStore } from './store.js'
+import { entityKey, isTombstone, writeEntities, type EntityStore } from './store.js'
 
 export interface EntityLayer {
   readonly id: string
@@ -171,13 +171,14 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
 
 /** Base store with every layer applied in order. Later layers win. */
 export const visibleStore = (base: EntityStore, optimistic: OptimisticState): EntityStore =>
-  optimistic.layers.reduce(
-    (store, layer) =>
-      layer.patches.reduce(
-        (current, patch) => writeEntity(current, entityKey(patch.entity, patch.id), patch.values),
-        store,
-      ),
+  writeEntities(
     base,
+    optimistic.layers.flatMap(layer =>
+      layer.patches.map(patch => ({
+        key: entityKey(patch.entity, patch.id),
+        values: patch.values,
+      })),
+    ),
   )
 
 /**
