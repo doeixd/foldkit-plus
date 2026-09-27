@@ -17,6 +17,12 @@ import type { Html } from 'foldkit/html'
 
 export type Region = ReadonlyArray<Html | string>
 
+/** An element whose handler for `event` is a function, which the page cannot describe. */
+export interface UnnamedHandler {
+  readonly element: string
+  readonly event: string
+}
+
 /**
  * An element's binding as the server's render records it, before encoding:
  * the Foldkit attribute and its DOM event, the element for diagnostics, and
@@ -56,6 +62,8 @@ export type RenderContext =
         readonly element: string
         readonly event: string
       }>
+      /** Each element and event marked `*`: a handler the page cannot name. */
+      readonly unnamed: Array<UnnamedHandler>
     }
   | {
       readonly mode: 'replay'

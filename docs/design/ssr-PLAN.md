@@ -890,6 +890,13 @@ that can fail, or, for G4, a recorded measurement.
   - Tests: the result names the closure input and the pointer button of the
     bindings fixture and nothing else; the entry warns once across two
     requests. Mutations: drop the record; warn on every request.
+  - **Done** (`test/unnamed.test.ts`). One departure: the warning is given only
+    for a page that waits to boot, one planned `'idle'` or `'on-interaction'`,
+    or with a lazy bundle. A page started `'now'` with nothing to load boots
+    before any event, so its closures hold nothing up, and a warning there
+    would fire for every application with a closure. The result lists them
+    either way. An element chaining two closures for one event is one entry,
+    and a mutation test pins that too.
 
 - **G2. Test rule 6 directly: the resumed page reaches the eager page's
   Model.** Rule 6 is the invariant the other rules serve, and the design says

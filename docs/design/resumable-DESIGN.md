@@ -133,8 +133,12 @@ These are the rules; each is checked by a type, a render diagnostic, or a
 test, never by convention.
 
 1. **A handler is a value.** A Message, or a member with a hole. A closure
-   handler still works and makes the page eager, with a diagnostic naming the
-   element. *Checked:* the builder's types, and the render collector.
+   handler still works, with a diagnostic naming the element and its event.
+   Built, it keeps the rest of the page answering and boots on that event
+   alone, rather than making the whole page eager as first written: the
+   markers mark it `*`, the delegated listener hands its event to the live
+   page, and `SSR.render` lists it under `unnamed`. *Checked:* the builder's
+   types, and the render collector.
 2. **Everything on the wire is a Schema value.** The Model slice, every
    Message, every projection. *Checked:* `Schema.encode` on the server,
    `Schema.decode` in the browser, with the application's own Message union.

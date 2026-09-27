@@ -32,7 +32,14 @@ import {
   type MetadataSummary,
   type WritableProjection,
 } from 'foldkit-surface'
-import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
+import {
+  current,
+  withContext,
+  type Binding,
+  type Region,
+  type RenderContext,
+  type UnnamedHandler,
+} from './context.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, builder, view } from './resumable.js'
 import {
   EncodedBindings,
@@ -827,6 +834,17 @@ const eagerEntries = <Model, Fields extends Schema.Struct.Fields>(
   ]
 }
 
+/** A page the server rendered against a plan, with its envelope. */
+export interface RenderedPage {
+  readonly rendered: RenderedApplication
+  readonly envelope: string
+  /**
+   * Each element whose handler for an event is a function, marked `*`: the
+   * page cannot answer that event before the live runtime boots.
+   */
+  readonly unnamed: ReadonlyArray<UnnamedHandler>
+}
+
 /**
  * Renders a page on the server against a resume plan.
  *
@@ -848,10 +866,8 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
     readonly url?: string | undefined
     readonly flags?: unknown
   },
-): Effect.Effect<
-  { readonly rendered: RenderedApplication; readonly envelope: string },
-  RenderError | ResumeUnsafe
-> => renderMatching(config, plan, options, 'full')
+): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
+  renderMatching(config, plan, options, 'full')
 
 const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
@@ -862,10 +878,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly flags?: unknown
   },
   match: RouteMatch,
-): Effect.Effect<
-  { readonly rendered: RenderedApplication; readonly envelope: string },
-  RenderError | ResumeUnsafe
-> =>
+): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
     yield* loadLazy(config)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
@@ -874,6 +887,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const servedBindings: Array<Binding> = []
     const browserBindings: Array<Binding> = []
     const inStatic: Array<{ region: string; element: string; event: string }> = []
+    const unnamed: Array<UnnamedHandler> = []
     const fallback = fallbackEncoder(plan)
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
@@ -887,6 +901,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         depth: 0,
         region: undefined,
         inStatic,
+        unnamed,
       },
     )
     const full = yield* renderToString(capturing as never, options as never)
@@ -988,6 +1003,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         match,
         bindings: encoded.success,
       }),
+      unnamed,
     }
   })
 
@@ -1035,6 +1051,31 @@ const fileOf = (path: string): string => {
   const trimmed = path.replace(/^\/+/, '').replace(/\/+$/, '')
   if (trimmed === '') return 'index.html'
   return trimmed.endsWith('.html') ? trimmed : `${trimmed}/index.html`
+}
+
+// Keyed by plan, element and event: a server renders the same page for every
+// request, so one warning each is enough to learn which handler to name.
+const warnedUnnamed = new Set<string>()
+
+/**
+ * Warns, once per process, about each handler that keeps a page from
+ * answering before boot. Only a page that waits to boot is held up: one
+ * started `'now'`, with no lazy bundle to load, boots before any event.
+ */
+const warnUnnamed = <Model, Fields extends Schema.Struct.Fields>(
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  unnamed: ReadonlyArray<UnnamedHandler>,
+): void => {
+  if (plan.start === 'now' && (config.lazy ?? []).length === 0) return
+  for (const { element, event } of unnamed) {
+    const key = JSON.stringify([plan.id, element, event])
+    if (warnedUnnamed.has(key)) continue
+    warnedUnnamed.add(key)
+    console.warn(
+      `[foldkit-ssr] plan "${plan.id}": ${element} handles ${event} with a function, which the page cannot name, so that event waits for the live runtime. Give the handler a Message, or, for OnInput, OnChange, OnKeyDown or OnKeyUp, the Message's constructor with the field the event fills left out.`,
+    )
+  }
 }
 
 /**
@@ -1093,7 +1134,10 @@ const generate = <
           },
           'path',
         ),
-        result => ({ path, file: fileOf(path), html: page(options.template, result) }),
+        result => {
+          warnUnnamed(config, plan, result.unnamed)
+          return { path, file: fileOf(path), html: page(options.template, result) }
+        },
       ),
     )
     // One page per path, in order, so the array is the tuple the paths describe.
@@ -1180,6 +1224,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
           }),
         )
       }
+      warnUnnamed(config, plan, exit.value.unnamed)
       const template = withEnvelope(options.template, exit.value.envelope)
       return Responded(
         toResponse(
@@ -1464,10 +1509,7 @@ const handle = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
   options: { readonly buildId: string; readonly flags?: unknown },
-): Effect.Effect<
-  { readonly rendered: RenderedApplication; readonly envelope: string },
-  RenderError | ResumeUnsafe | FallbackRefused
-> =>
+): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
   Effect.gen(function* () {
     if (plan.fallback !== 'server' || plan.Message === undefined) {
       return yield* refuseFallback('NoFallback', `plan "${plan.id}" has no server fallback`)
@@ -1595,3 +1637,4 @@ export {
   type ResumableBuilder,
 } from './resumable.js'
 export type { DecodedBinding } from './listen.js'
+export type { UnnamedHandler } from './context.js'

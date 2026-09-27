@@ -114,3 +114,7 @@ application.
   a click, a press only the live page can answer and typing from its markers,
   boots when the bodies arrive, and shows the click once, the press once and
   the text; the stamp is gone after the first patch.
+- **Phase G, what the resumable design asked beyond A to F:** the render lists
+  each element and event a closure handles, once however many it chains; the
+  entry and the generator warn about each once per process on a page that
+  waits to boot, and not at all on one that starts now.

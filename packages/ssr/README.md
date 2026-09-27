@@ -360,6 +360,7 @@ it leaves open. The types check it where it is written: the member must be one
 of the view's Messages, and leave exactly one string field, or exactly `key`
 and `modifiers`. A closure still works. It is not data, so the page cannot
 answer that event itself and boots on it instead, letting the live page answer.
+`SSR.render` names each such element and event in its result's `unnamed`.
 So does a hole form whose field has checks the empty placeholder fails, such
 as `Schema.isMinLength(1)`: it cannot be written into the page as data, so it
 is treated as a closure.
@@ -530,8 +531,10 @@ not at all.
   Model's, and `Runtime.hydrate` renders its first frame before it returns.
 - **Development is not production.** Under Vite's dev server, Foldkit's model
   preservation restores the previous Model after a reload and skips adoption.
-- **A closure handler makes its event wait for boot,** with no warning yet
-  naming the element.
+- **A closure handler makes its event wait for boot.** `SSR.render`'s result
+  lists each under `unnamed` (`{ element: 'button#point', event:
+  'pointerdown' }`), and on a page that waits to boot `SSR.entry` and
+  `SSR.generate` warn about each once per process, naming the fix.
 
 ## Lower-level API
 
