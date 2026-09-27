@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, Schema } from 'effect'
+import { Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 'effect'
 import { sequence } from './ids.js'
 import type { Operation, TransportClient } from './sync.js'
 
@@ -20,11 +20,25 @@ export interface ExchangeReply {
   readonly error?: string
 }
 
+/**
+ * Sent by a server, unasked, when the document may have changed. It carries no
+ * data: the replica exchanges from its own cursor, so a notice that is lost,
+ * late, or one of many is harmless.
+ */
+export interface NotifyFrame {
+  readonly notify: true
+}
+
 export interface TransportShape {
   readonly exchange: (
     cursor: number,
     pending: ReadonlyArray<Operation>,
   ) => Effect.Effect<unknown, TransportError>
+  /**
+   * Emits when the server may have something new, for a transport that can hear
+   * it: `Replica.start` exchanges on each. A wake-up, not data.
+   */
+  readonly changes?: Stream.Stream<void> | undefined
 }
 
 /**
@@ -69,8 +83,10 @@ export const toPromise = (transport: TransportShape): TransportClient => ({
  * Serves one accepted socket, answering each exchange frame.
  *
  * The counterpart to `layerSocket`: the handler returns the exchange result, or
- * throws and the failure is written back as an error frame. Returns a function
- * that stops serving.
+ * throws and the failure is written back as an error frame. With `changes`, a
+ * subscription to the document's commits, the socket is also sent a
+ * `NotifyFrame` after each, so a client hears of others' edits without polling.
+ * Returns a function that stops serving.
  */
 export const serveSocket = (
   socket: SocketLike,
@@ -79,9 +95,11 @@ export const serveSocket = (
       cursor: number,
       pending: ReadonlyArray<Operation>,
     ) => unknown | Promise<unknown>
+    /** Subscribes to the document's commits; returns the unsubscribe. */
+    readonly changes?: ((listener: () => void) => () => void) | undefined
   },
 ): (() => void) => {
-  const send = (reply: ExchangeReply): void => {
+  const send = (reply: ExchangeReply | NotifyFrame): void => {
     try {
       socket.send(JSON.stringify(reply))
     } catch {
@@ -118,9 +136,14 @@ export const serveSocket = (
       }
     })()
   })
-  const stopClose = socket.onClose(() => stopMessage())
-  return () => {
+  const stopChanges = options.changes?.(() => send({ notify: true }))
+  const stop = (): void => {
     stopMessage()
+    stopChanges?.()
+  }
+  const stopClose = socket.onClose(stop)
+  return () => {
+    stop()
     stopClose()
   }
 }
@@ -217,6 +240,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
         readonly pending: ReadonlyArray<Operation>
         readonly resume: (effect: Effect.Effect<unknown, TransportError>) => void
       }
+      const notices = yield* PubSub.sliding<void>(1)
       const queued: Array<Entry> = []
       const inFlight = new Map<string, Entry>()
       let socket: SocketLike | undefined
@@ -260,16 +284,25 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
             const next = makeSocket(options.url)
             socket = next
             ready = next.onOpen === undefined
+            // A socket that just (re)connected may have missed notices, so opening is one.
+            const opened = (): void => {
+              PubSub.publishUnsafe(notices, undefined)
+            }
             const offOpen = next.onOpen?.(() => {
               ready = true
               healthy()
+              opened()
               flush()
             })
             const offMessage = next.onMessage(data => {
-              let reply: ExchangeReply
+              let reply: ExchangeReply | NotifyFrame
               try {
-                reply = JSON.parse(data) as ExchangeReply
+                reply = JSON.parse(data) as ExchangeReply | NotifyFrame
               } catch {
+                return
+              }
+              if ('notify' in reply) {
+                if (reply.notify === true) PubSub.publishUnsafe(notices, undefined)
                 return
               }
               const entry = inFlight.get(reply.id)
@@ -292,7 +325,10 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               requeue()
               reject(new Error('transport closed'))
             })
-            if (ready) flush()
+            if (ready) {
+              opened()
+              flush()
+            }
           }),
         catch: () => new TransportError({ message: 'transport closed' }),
       })
@@ -320,6 +356,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
       )
 
       return Transport.of({
+        changes: Stream.fromPubSub(notices),
         exchange: (cursor, pending) =>
           Effect.callback<unknown, TransportError>(resume => {
             if (disposed) {

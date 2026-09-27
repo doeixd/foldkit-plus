@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { Deferred, Effect, Fiber, Schema, Stream } from 'effect'
+import { Deferred, Effect, Fiber, PubSub, Schema, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   defineSync,
@@ -19,6 +19,7 @@ import {
   type Storage,
   type SyncDefinition,
   type TransportClient,
+  Transport,
 } from '../src/index.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
@@ -886,6 +887,44 @@ describe('Replica.start', () => {
     expect(seen.map(status => status.lastError)).toContain('offline')
     expect(seen.at(-1)).toMatchObject({ pending: 0, lastError: undefined })
     expect(calls).toBe(3)
+    await close(replica)
+  })
+
+  it('exchanges when the transport hears the server changed, with nothing submitted', async () => {
+    const replica = await open('a')
+    const commits: Array<CommittedOperation> = []
+    const exchange = layerFromPromise({
+      exchange: async cursor => ({ operations: commits.slice(cursor), rejected: [] }),
+    })
+    const cursorOne = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const notices = yield* PubSub.sliding<void>(1)
+          const transport = yield* Effect.service(Transport).pipe(Effect.provide(exchange))
+          const settled = yield* replica.statusChanges.pipe(
+            Stream.filter(status => status.cursor === 1),
+            Stream.take(1),
+            Stream.runHead,
+            Effect.forkScoped,
+          )
+          yield* Effect.forkScoped(
+            replica.start.pipe(
+              Effect.provideService(Transport, {
+                ...transport,
+                changes: Stream.fromPubSub(notices),
+              }),
+            ),
+          )
+          // Someone else commits after the loop's first exchange, and the server says so.
+          yield* Effect.sleep('5 millis')
+          commits.push(committed('b', 1, 1, created('t')))
+          yield* PubSub.publish(notices, undefined)
+          return yield* Fiber.join(settled)
+        }),
+      ),
+    )
+    expect(cursorOne).toMatchObject({ _tag: 'Some' })
+    expect(shared(replica).todos.map(todo => todo.id)).toEqual(['t'])
     await close(replica)
   })
 

@@ -28,8 +28,10 @@ sockets.on('connection', (socket, request) => {
   // A real deployment authenticates here; this one trusts the tab's name.
   const actor = new URL(request.url ?? '', 'ws://localhost').searchParams.get('tab') ?? 'guest'
   const transport = journal.transport(actor)
+  // Each commit is announced to every tab, so a tab that is only reading sees others' typing.
   Sync.transport.serve(socketLike(socket), {
     exchange: (cursor, pending) => transport.exchange(Sequence.make(cursor), pending),
+    changes: journal.subscribe,
   })
 })
 

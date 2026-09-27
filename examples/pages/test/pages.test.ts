@@ -245,6 +245,19 @@ describe('two people on one page', () => {
     expect(journal.snapshot().pages).toEqual([])
   })
 
+  it('announces each commit, so a tab that only reads hears of it', async () => {
+    const replica = await open('alice')
+    replicas.push(replica)
+    let heard = 0
+    const unsubscribe = journal.subscribe(() => (heard += 1))
+    await Effect.runPromise(
+      replica.submit(Message.CreatedPage({ id: 'alice:0', title: 'Plan', key: 'alice:0:seed' })),
+    )
+    await synchronize(replica, 'alice')
+    await vi.waitFor(() => expect(heard).toBe(1))
+    unsubscribe()
+  })
+
   it('starts a page it opens without what the editor carried for the last', () => {
     const carried = { ...initialModel('alice'), storedMarks: ['Bold'], menuIndex: 2 }
     expect(update(carried, Message.OpenedPage({ id: 'other' })).model).toMatchObject({

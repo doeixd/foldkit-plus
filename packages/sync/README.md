@@ -758,6 +758,17 @@ fails and new exchanges fail fast rather than wait; the count resets once a
 socket opens. The queue is bounded by `maxQueue`. A server rejection is protocol data; only a wire failure is
 a `TransportError`.
 
+The server can also tell a client that something changed. Pass `serve` a
+`changes` subscription, a function that takes a listener and returns its
+unsubscribe, and it sends the socket a `{ notify: true }` frame after each
+commit. The client's socket transport exposes these notices, and every
+(re)connection, as the `Transport`'s optional `changes` stream, which
+`replica.start` wakes on as it does on a submit. A notice carries no data: the
+exchange that follows reads from the replica's own cursor, so a lost or repeated
+notice is harmless, and a replica that is only reading still sees others' edits
+without polling. With Durable, the subscription is `journal.subscribe` filtered
+to the document's key; `examples/sync/src/server.ts` wires it.
+
 Transport is deliberately below reconciliation. A custom transport can carry
 the same exchange without changing replica semantics.
 

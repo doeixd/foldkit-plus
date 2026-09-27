@@ -167,8 +167,9 @@ export interface Replica<Message, Shared> {
   /** Reconciles against the server. The `Transport` service must be provided. */
   readonly synchronize: Effect.Effect<void, ReplicaError | TransportError, Transport>
   /**
-   * The exchange loop: exchanges once, then after every `submit`, until the
-   * replica closes or the fiber is interrupted. A failed exchange is recorded
+   * The exchange loop: exchanges once, then after every `submit` and every
+   * notice on the transport's `changes`, until the replica closes or the fiber
+   * is interrupted. A failed exchange is recorded
    * in `status.lastError` and retried on a backoff (from 0.5 s, doubling up to
    * 30 s), or at once on the next `submit`, so the fiber never fails. Fork it
    * with `Effect.forkScoped` and provide `Transport`.
@@ -649,6 +650,12 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       )
 
       const start: Effect.Effect<void, never, Transport> = Effect.gen(function* () {
+        const transport = yield* Transport
+        // A server's notice wakes the loop as a submit does; the fiber ends with this one.
+        if (transport.changes !== undefined)
+          yield* Effect.forkChild(
+            Stream.runForEach(transport.changes, () => Queue.offer(wake, undefined)),
+          )
         let failures = 0
         while (!(yield* Ref.get(closed))) {
           const exit = yield* Effect.exit(synchronize)

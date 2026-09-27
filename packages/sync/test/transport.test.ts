@@ -1,4 +1,4 @@
-import { Effect, Fiber } from 'effect'
+import { Effect, Fiber, Stream } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
   layerFromPromise,
@@ -82,6 +82,76 @@ describe('the socket transport', () => {
       _tag: 'Success',
       success: { operations: [], rejected: [] },
     })
+  })
+
+  it('notifies a client of each commit it serves, which the client hears as a change', async () => {
+    const { client, server } = socketPair()
+    const listeners = new Set<() => void>()
+    const stop = serveSocket(server, {
+      exchange: () => ({ operations: [], rejected: [] }),
+      changes: listener => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    })
+    const program = Effect.gen(function* () {
+      const transport = yield* Effect.service(Transport)
+      const heard = yield* transport.changes!.pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkScoped,
+      )
+      yield* Effect.yieldNow
+      for (const listener of listeners) listener()
+      // An exchange still works beside the notices.
+      const result = yield* transport.exchange(0, [])
+      return { heard: yield* Fiber.join(heard), result }
+    })
+    const outcome = await Effect.runPromise(
+      Effect.scoped(
+        program.pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client }))),
+      ),
+    )
+    expect(outcome).toEqual({ heard: [undefined], result: { operations: [], rejected: [] } })
+    stop()
+    expect(listeners.size).toBe(0)
+  })
+
+  it('hears a reconnect as a change, since it may have missed notices', async () => {
+    let sockets = 0
+    const closes = new Set<() => void>()
+    const makeSocket = (): SocketLike => {
+      sockets += 1
+      return {
+        send: () => {},
+        close: () => {},
+        onMessage: () => () => {},
+        onClose: listener => {
+          closes.add(listener)
+          return () => closes.delete(listener)
+        },
+      }
+    }
+    const program = Effect.gen(function* () {
+      const transport = yield* Effect.service(Transport)
+      const heard = yield* transport.changes!.pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkScoped,
+      )
+      yield* Effect.yieldNow
+      for (const close of [...closes]) close()
+      return yield* Fiber.join(heard)
+    })
+    const heard = await Effect.runPromise(
+      Effect.scoped(
+        program.pipe(
+          Effect.provide(layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis' })),
+        ),
+      ),
+    )
+    expect(heard).toEqual([undefined])
+    expect(sockets).toBe(2)
   })
 
   it('fails the exchange when the reply carries an error', async () => {

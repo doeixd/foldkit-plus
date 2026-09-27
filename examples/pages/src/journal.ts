@@ -1,4 +1,4 @@
-import { Effect, Exit, Scope } from 'effect'
+import { Effect, Exit, Fiber, Scope, Stream } from 'effect'
 import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
 import {
   DocumentId as SyncDocumentId,
@@ -73,6 +73,13 @@ export const openJournal = (file = ':memory:') => {
 
   return {
     transport,
+    /** Calls `listener` after each commit; returns the unsubscribe. */
+    subscribe: (listener: () => void): (() => void) => {
+      const fiber = Effect.runFork(
+        Stream.runForEach(journal.subscribe, () => Effect.sync(listener)),
+      )
+      return () => Effect.runSync(Fiber.interrupt(fiber))
+    },
     snapshot: (): Shared => Effect.runSync(journal.load(pages)).snapshot,
     close: () => Effect.runSync(Scope.close(scope, Exit.void)),
   }

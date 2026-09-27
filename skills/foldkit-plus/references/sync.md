@@ -108,7 +108,8 @@ const program = Effect.gen(function* () {
 - Also available: `changes` (a stream of status + shared), `snapshot`,
   `statusChanges`, `committed`, and `close`. Transports: `Sync.transport.socket`
   (reconnecting), `.loopback`, `.fromPromise(client)`, and
-  `.serve(socket, { exchange })` for the server.
+  `.serve(socket, { exchange, changes? })` for the server, where `changes`
+  subscribes to commits and sends a notice that wakes the client's `start`.
 - `Sync.indexedDb(name, factory?)` is the only built-in storage (pass
   `fake-indexeddb` in Node). A test `Storage` is three members:
 
@@ -234,9 +235,10 @@ const server = Effect.gen(function* () {
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
 - Durable does **not** speak the sync exchange. Your server wires
-  `Sync.transport.serve(socket, { exchange })` to a handler that appends pending
+  `Sync.transport.serve(socket, { exchange, changes })` to a handler that appends pending
   ops, collects `acknowledged`/`rejected`, reads after the cursor, and returns a
-  checkpoint on `CompactedCursorError`. Reject an op that does not decode rather
+  checkpoint on `CompactedCursorError`, and `changes` to `journal.subscribe`
+  for the document's key so readers hear of commits. Reject an op that does not decode rather
   than throwing: a thrown exchange is retried with the same outbox, forever. See
   `examples/sync/src/journal.ts`.
 

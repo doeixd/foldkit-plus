@@ -79,9 +79,6 @@ and reach the other window once the server is back.
 
 - There is no undo: the editor's undo restores a snapshot of this tab's document, which
   other people's edits have moved on from, and collaborative undo is not built.
-- The server pushes nothing, so the browser exchanges every 300 ms. `Sync.transport.socket`
-  gives up after a few quick reconnects, so `src/browser.ts` makes a new connection when an
-  exchange fails.
 - Deleted characters are kept as tombstones for good; nothing collects them yet.
 - Every edit costs work in proportion to all pages: the journal rewrites the whole snapshot
   on each append, and a new replica reads the whole history, with no paging or checkpoint.

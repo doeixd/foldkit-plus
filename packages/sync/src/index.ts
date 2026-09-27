@@ -164,6 +164,7 @@ export {
   TransportError,
   type ExchangeFrame,
   type ExchangeReply,
+  type NotifyFrame,
   type SocketLike,
   type SocketOptions,
   type TransportShape,
