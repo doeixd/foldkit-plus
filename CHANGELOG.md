@@ -391,6 +391,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-builder`, dropping:** where the node dragged over has no place
+  for what is dragged, it lands by the nearest node holding it that does,
+  before or after it, and `drag.over` names that holder; a Section dragged
+  onto a Section's last Heading landed only on the Section's thin bottom edge.
+  `dropAt` agrees.
+
 - **`foldkit-mixins-builder`:** a click on a layers row makes it current, as
   the keys do (`TreeNavigation`'s `Focused`), rather than sending `Selected`,
   so a narrow editor keeps the layers showing instead of switching to

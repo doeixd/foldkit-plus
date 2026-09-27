@@ -573,9 +573,15 @@ describe('dragging a node', () => {
     expect(PageBuilder.dropAt(document, heading, id('g'), 'inside')).toEqual(
       Option.some(Composition.region(id('g'), 'items', 0)),
     )
-    // A Section fits nowhere inside a Group, nor after it among a Section's Flow.
+    // A Section fits nowhere inside a Group, nor after it among a Section's Flow:
+    // it lands by the nearest holder that takes it, after the Section, a root.
     const section = { _tag: 'New', block: 'Section' } as const
-    expect(PageBuilder.dropAt(document, section, id('g'), 'inside')).toEqual(Option.none())
+    expect(PageBuilder.dropAt(document, section, id('g'), 'inside')).toEqual(
+      Option.some(Composition.root(1)),
+    )
+    expect(PageBuilder.dropAt(document, section, id('h1'), 'before')).toEqual(
+      Option.some(Composition.root(0)),
+    )
     expect(PageBuilder.dropAt(document, section, id('s2'), 'after')).toEqual(
       Option.some(Composition.root(2)),
     )
@@ -640,6 +646,33 @@ describe('dragging a node', () => {
       Message.DragDropped(),
     )
     expect(off.page).toBe(page.page)
+  })
+
+  it('marks a drop its holder takes on the holder, and climbs no further than what is dragged', () => {
+    const over = send(
+      send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Section' } })),
+      Message.DraggedOver({ id: id('h2'), zone: 'after' }),
+    )
+    expect(Option.map(over.drag, drag => [drag.over, drag.at])).toEqual(
+      Option.some([Option.some({ id: id('s1'), zone: 'after' }), Option.some(Composition.root(1))]),
+    )
+    // Groups in a Group: ga holds gb and x; gb holds gc, which holds h.
+    const nested = Composition.Document.make({
+      format: 1,
+      roots: [id('s')],
+      nodes: {
+        [id('s')]: { block: 'Section', props: {}, regions: { body: [id('ga')] } },
+        [id('ga')]: { block: 'Group', props: {}, regions: { items: [id('gb'), id('x')] } },
+        [id('gb')]: { block: 'Group', props: {}, regions: { items: [id('gc')] } },
+        [id('gc')]: { block: 'Group', props: {}, regions: { items: [id('h')] } },
+        [id('h')]: { block: 'Heading', props: { text: 'H' }, regions: {} },
+        [id('x')]: { block: 'Heading', props: { text: 'X' }, regions: {} },
+      },
+    })
+    // Over what it holds, a node goes no higher than itself, though its holder would take it.
+    expect(drop(nested, id('gc'), id('h'), 'after')).toEqual(Option.none())
+    // Onto its own place is no move, and its holder's place is not meant instead.
+    expect(drop(nested, id('gb'), id('x'), 'before')).toEqual(Option.none())
   })
 
   it('says a new Block dragged away and let go was not added', () => {

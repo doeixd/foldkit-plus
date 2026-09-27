@@ -385,7 +385,11 @@ dragged from the palette.
   over none. The Builder works out where a drop would land, `drag.at`: before
   or after that node among its siblings, or last in the first of its Regions
   that accepts the dragged Block. Inside a node that takes nothing is after it,
-  and `drag.over`'s zone says so. Each place is tried as the edit a drop would
+  and `drag.over`'s zone says so. Where that node has no place for it, the
+  nearest node holding it that does is used, before it or after it, so a
+  Section dropped on a Section's last Heading lands after that Section, and
+  `drag.over` names the holder. It climbs no higher than a node being dragged,
+  and a drop onto a node's own place is no move, not its holder's. Each place is tried as the edit a drop would
   make (a move for a node, an insert of the Block's starting props for a new
   one), and where the page would refuse it, such as a node into itself, `at`
   is none, so a mark never promises a drop the page refuses.

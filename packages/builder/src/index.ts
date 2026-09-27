@@ -388,19 +388,20 @@ interface Dragged {
 }
 
 /**
- * Where something dragged over `target`, in `zone`, lands: before or after it
- * among its siblings, or last in the first of its Regions that accepts it,
- * with the zone it landed in. `inside` a node that takes it nowhere lands
- * after it. None when the page would refuse it there, such as a node into
- * itself: each place is tried, a move for a node and an insert for a new one.
+ * Where something dragged over `target`, in `zone`, lands beside or inside
+ * that one node: before or after it among its siblings, or last in the first
+ * of its Regions that accepts it, with the zone it landed in. `inside` a node
+ * that takes it nowhere lands after it. None when the page would refuse it
+ * there, such as a node into itself: each place is tried, a move for a node
+ * and an insert for a new one. `stays` where it would land on its own place.
  */
-const landing = (
+const landingBy = (
   catalog: Catalog,
   document: Document,
   dragged: Dragged,
   target: NodeId,
   zone: DropZone,
-): Option.Option<{ readonly at: Position; readonly zone: DropZone }> => {
+): Option.Option<{ readonly at: Position; readonly zone: DropZone }> | 'stays' => {
   const place = Composition.index(document).get(target)
   if (Option.contains(dragged.id, target) || place === undefined) return Option.none()
   // A move takes the node out before putting it back, so places count without it.
@@ -450,7 +451,7 @@ const landing = (
     if (Option.isNone(candidate.at)) continue
     const at = candidate.at.value
     // Onto its own place is not a move, and no later candidate is meant instead.
-    if (stays(at)) return Option.none()
+    if (stays(at)) return 'stays'
     if (Result.isSuccess(Composition.apply(catalog, document, dragged.to(at))))
       return Option.some({ at, zone: candidate.zone })
   }
@@ -603,6 +604,34 @@ const settle = (model: Model): Model => ({
 /** The undo group of one editing session: its steps are one, and ending it cancelled takes them back. */
 const editingGroup = (editing: { readonly id: NodeId; readonly key: string }): string =>
   `Editing:${fieldName(editing.id, editing.key)}`
+
+/**
+ * Where something dragged over `target`, in `zone`, lands: by `target`, else
+ * by the nearest node holding it where it fits, before it for `before` and
+ * after it otherwise, so a Section dropped on the last Heading of a Section
+ * lands after that Section. It climbs no further than a node being dragged.
+ * With the node it landed by.
+ */
+const landing = (
+  catalog: Catalog,
+  document: Document,
+  dragged: Dragged,
+  target: NodeId,
+  zone: DropZone,
+): Option.Option<{ readonly at: Position; readonly zone: DropZone; readonly by: NodeId }> => {
+  const places = Composition.index(document)
+  for (
+    let by: NodeId | undefined = target, at: DropZone = zone;
+    by !== undefined && !Option.contains(dragged.id, by);
+    by = places.get(by)?.parent, at = zone === 'before' ? 'before' : 'after'
+  ) {
+    const landed = landingBy(catalog, document, dragged, by, at)
+    // Its own place is no move, and no holder's place is meant instead.
+    if (landed === 'stays') return Option.none()
+    if (Option.isSome(landed)) return Option.some({ ...landed.value, by })
+  }
+  return Option.none()
+}
 
 /** The node an Operation that creates nodes creates first, to select it. */
 const created = (catalog: Catalog, op: Operation): Option.Option<NodeId> =>
@@ -1371,9 +1400,10 @@ export const Builder = {
               ...model,
               drag: Option.some({
                 ...drag,
-                // Where it lands: a drop inside a node that takes nothing is after it.
+                // Where it lands: a drop inside a node that takes nothing is after it, and
+                // one its holder takes instead is marked on the holder.
                 over: Option.some({
-                  id: message.id,
+                  id: Option.match(landed, { onNone: () => message.id, onSome: ({ by }) => by }),
                   zone: Option.match(landed, {
                     onNone: () => message.zone,
                     onSome: ({ zone }) => zone,

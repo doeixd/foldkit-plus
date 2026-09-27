@@ -240,7 +240,7 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   page's empty space, which lands where `placeFor` with nothing selected puts it),
   `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
   (`dropAt`; inside a node that takes nothing is after it, and `over`'s zone
-  says so), none where the page refuses or onto the node's own place; a drop
+  says so; where the node has no place for it, by the nearest holder that does), none where the page refuses or onto the node's own place; a drop
   is one undoable move, or for a new Block an insert with a minted id, its place worked out
   again when it happens.
 - Ids are minted in a Command; an edit and its undo step change together;
