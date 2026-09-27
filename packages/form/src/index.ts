@@ -1296,7 +1296,24 @@ const Core = {
           }
           case 'Reset':
             // Emptying the form does not change which row it is about.
-            return { model: { ...initial, subject: model.subject } }
+            return {
+              model: {
+                ...initial,
+                subject: model.subject,
+                fields: fieldsFrom(plan => {
+                  const start = drafts(initial)[plan.key as Key]
+                  return plan.bundled === undefined
+                    ? start
+                    : ({
+                        ...start,
+                        value: plan.bundled.reset(
+                          drafts(model)[plan.key as Key].value,
+                          start.value,
+                        ),
+                      } as FieldValidation.Field<Draft>)
+                }),
+              },
+            }
           case 'Submitted':
             return submitted(model)
         }

@@ -149,6 +149,8 @@ export interface BundleData<Model = any, Value = any> {
   readonly fill: (model: Model, value: Value) => Model
   /** The Model with nothing in flight, for a stored form shown again. */
   readonly settled: (model: Model) => Model
+  /** The Model `Reset` leaves, from the one the control holds and the Bundle's initial one. */
+  readonly reset: (model: Model, initial: Model) => Model
 }
 
 /**
@@ -186,6 +188,12 @@ export type BundleControlSpec<
   readonly fill: (model: Model, value: Value) => Model
   /** The Model with nothing in flight, for a stored form shown again. Default: as it is. */
   readonly settled?: (model: Model) => Model
+  /**
+   * The Model `Reset` leaves, from the one the control holds and the Bundle's initial one.
+   * Default: the initial one. A Bundle whose view mounts DOM that reads its args once can
+   * carry something forward from `model`, so the view tells the reset apart from a start.
+   */
+  readonly reset?: (model: Model, initial: Model) => Model
 } & ([Args] extends [void] ? { readonly args?: undefined } : { readonly args: Args })
 
 /** A relation picker: what it chooses from, and whether it searches. */
@@ -308,6 +316,7 @@ export const Input = {
         value: spec.value,
         fill: spec.fill,
         settled: spec.settled ?? ((model: Model) => model),
+        reset: spec.reset ?? ((_: Model, initial: Model) => initial),
       }),
     }),
 

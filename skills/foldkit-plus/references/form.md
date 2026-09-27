@@ -108,8 +108,9 @@ const RenameForm = Page.at(Slot, {
   Draw it with `FormView.define(form, { renderers: { Cents: ctx => ... } })`; the
   same table replaces a shipped renderer.
 - **A control with a Model of its own** (a color picker with a popover, a page
-  builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled? })`
-  over an ordinary Bundle. The key's draft is the Bundle's Model
+  builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled?, reset? })`
+  over an ordinary Bundle; `reset(model, initial)` is what `Reset` leaves, the initial Model by
+  default. The key's draft is the Bundle's Model
   (`model.fields.color.value`, typed); `form.control('color').send(message)`
   wraps one of its Messages as the form's `Control`; its Commands,
   Subscriptions and Resources become the form's. A Message is an edit (validated,
