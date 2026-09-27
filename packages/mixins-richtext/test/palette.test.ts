@@ -70,7 +70,10 @@ describe('the command palette', () => {
       Scene.type(field, 'head'),
       Scene.expect(option('paragraph')).toBeAbsent(),
       Scene.expect(option('heading-1')).toHaveAttr('aria-selected', 'true'),
-      Scene.expect(Scene.selector(field)).toHaveAttr('aria-activedescendant', 'palette-heading-1'),
+      Scene.expect(Scene.selector(field)).toHaveAttr(
+        'aria-activedescendant',
+        'palette-option-heading-1',
+      ),
       Scene.keydown(field, 'ArrowDown'),
       Scene.expect(option('heading-2')).toHaveAttr('aria-selected', 'true'),
       Scene.expect(option('heading-1')).toHaveAttr('aria-selected', 'false'),

@@ -72,6 +72,9 @@ export const blockHandle = <Message>(): SlotView.SlotView<
           h.Type('button'),
           h.DataAttribute('handle', 'grip'),
           h.AriaLabel('Drag to move'),
+          // The pointer's alone: up and down are the same moves from the keyboard, so the grip
+          // would be a stop in the tab order that does nothing.
+          h.Tabindex(-1),
           h.OnMount(dragMount(input.hostId, input.node, input.wrap)),
         ]),
         ['⠿'],

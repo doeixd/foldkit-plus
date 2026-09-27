@@ -150,6 +150,9 @@ describe('the Markdown source editor', () => {
       Scene.type(text, '# Heading\n\nbody\n'),
       Scene.expect(Scene.selector('[data-source="preview"] h1')).toHaveText('Heading'),
       Scene.expect(Scene.selector('[data-source="preview"] p')).toHaveText('body'),
+      // A second edit is parsed again, not answered from the first one's cache entry.
+      Scene.type(text, '# Other\n'),
+      Scene.expect(Scene.selector('[data-source="preview"] h1')).toHaveText('Other'),
     )
   })
 

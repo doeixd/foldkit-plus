@@ -54,7 +54,8 @@ export const commandPalette = <Message>(): SlotView.SlotView<
     const current = matches[input.index] === undefined ? 0 : input.index
     const highlighted = matches[current]
     const list = `${input.id}-list`
-    const optionId = (entry: SlashEntry<Message>) => `${input.id}-${entry.id}`
+    // Options have a prefix of their own, so an entry named `list` cannot take the list's id.
+    const optionId = (entry: SlashEntry<Message>) => `${input.id}-option-${entry.id}`
     const keyed = (key: string, modifiers: KeyboardModifiers) => {
       if (key === 'Escape') return Option.some(input.closed)
       if (key === 'Enter') return Option.fromUndefinedOr(highlighted?.message)

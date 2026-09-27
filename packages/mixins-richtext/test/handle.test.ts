@@ -96,6 +96,8 @@ describe('the block handle', () => {
       Scene.given<Model>({ node: 'b', sent: '' }),
       grip('b'),
       Scene.expect(sent).toHaveText('dropped'),
+      // Dragged by the pointer only; the keyboard has up and down.
+      Scene.expect(Scene.selector('[data-handle="grip"]')).toHaveAttr('tabindex', '-1'),
       Scene.click(up),
       Scene.expect(sent).toHaveText(moved('b', { before: 'a' })),
       Scene.click(down),
