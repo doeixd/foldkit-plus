@@ -318,7 +318,11 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
     // A trailing `#` would be read as the heading's optional closing sequence.
     return [`${'#'.repeat(block.level)} ${text.replace(/#$/, '\\#')}`]
   }
-  if (block.kind === 'Quote') return quote(renderBlocks(block.blocks ?? [], printing))
+  if (block.kind === 'Quote') {
+    // A quote whose blocks all print nothing is still a quote: `>` alone.
+    const inner = renderBlocks(block.blocks ?? [], printing)
+    return quote(inner.length === 0 ? [''] : inner)
+  }
   if (block.kind === 'CodeBlock') return code(block, printing)
   if (block.kind === 'ThematicBreak') return [spellingOf(block, printing).rule.repeat(3)]
   if (block.kind === 'Image') return [image(block, printing)]

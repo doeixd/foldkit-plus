@@ -5,41 +5,41 @@
  * the printer's escapes, delimiters, and indentation are read back rather than predicted.
  */
 import type * as RichText from 'foldkit-richtext'
+import { decodeString } from 'micromark-util-decode-string'
 import { parseMapped, type Segment } from './parse.js'
 
-// A character reference: named, decimal, or hexadecimal. Whether it is one, rather than text
-// that looks like one, is read from whether the parsed value holds it literally.
+// What may be a character reference: named, decimal, or hexadecimal. The parser's own decoder
+// says what it reads as (`&foo;` names nothing and stays text).
 const REFERENCE = /^&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});/
 const PUNCTUATION = /^[!-/:-@[-`{-~]$/
 
-/** How many UTF-16 units a reference decodes to: two for a numeric one past the BMP, else one. */
-const decodedLength = (reference: string): number => {
-  const numeric = /^&#([xX]?)([0-9a-fA-F]+);$/.exec(reference)
-  if (numeric === null) return 1
-  return Number.parseInt(numeric[2]!, numeric[1] === '' ? 10 : 16) > 0xffff ? 2 : 1
-}
-
 /**
  * The source offset of each index in a segment's value, and of its end. The raw source and the
- * decoded value are walked side by side: an escape or a character reference is one step, and
- * source that gives the value nothing (a quote's `>` or indentation on a later line) is passed
- * over.
+ * decoded value are walked side by side: outside code an escape or a character reference is one
+ * step, and source that gives the value nothing is passed over: a quote's `>` and the
+ * indentation that open a later line, which a paragraph's text never starts with unescaped.
  */
 const rawIndices = (markdown: string, segment: Segment): ReadonlyArray<number> => {
   const at: Array<number> = []
-  const { value, end } = segment
+  const { value, end, literal } = segment
   let raw = segment.start
   let index = 0
   const step = (): { readonly raw: number; readonly value: number } | undefined => {
     const source = markdown[raw]
+    if (!literal && markdown[raw - 1] === '\n') {
+      let content = raw
+      while (content < end && /[ \t>]/.test(markdown[content]!)) content++
+      if (content > raw) return { raw: content - raw, value: 0 }
+    }
+    if (literal) return source === value[index] ? { raw: 1, value: 1 } : undefined
     const next = markdown[raw + 1] ?? ''
     if (source === '\\' && PUNCTUATION.test(next) && next === value[index])
       return { raw: 2, value: 1 }
     if (source === '&') {
       const reference = REFERENCE.exec(markdown.slice(raw, end))?.[0]
-      if (reference !== undefined && !value.startsWith(reference, index)) {
-        return { raw: reference.length, value: decodedLength(reference) }
-      }
+      // One the decoder leaves alone is text, and stepping over it whole reads the same text.
+      if (reference !== undefined)
+        return { raw: reference.length, value: decodeString(reference).length }
     }
     return source === value[index] ? { raw: 1, value: 1 } : undefined
   }

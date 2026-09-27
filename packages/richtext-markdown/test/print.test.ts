@@ -67,6 +67,23 @@ describe('printing a document as Markdown', () => {
     expect(print(document).markdown).toBe('> one\n>\n> two\n')
   })
 
+  it('keeps a quote holding only an empty paragraph, which reads back as a quote', () => {
+    const printed = print(
+      decode([
+        paragraph('a', [text('ta', 'one')]),
+        node('Quote', 'q', {}, [paragraph('e', [])]),
+        paragraph('b', [text('tb', 'two')]),
+      ]),
+    ).markdown
+    expect(printed).toBe('one\n\n>\n\ntwo\n')
+    let n = 0
+    expect(
+      parse(printed, { mint: () => `r${n++}` }).document.children.map(block =>
+        block.type === 'Node' ? block.kind : block.type,
+      ),
+    ).toEqual(['Paragraph', 'Quote', 'Paragraph'])
+  })
+
   it('prints an unordered list, and an ordered one from where it starts', () => {
     const items = [item('a', [text('a-t', 'one', [])]), item('b', [text('b-t', 'two', [])])]
     expect(print(decode([node('List', 'l', {}, items)])).markdown).toBe('- one\n- two\n')

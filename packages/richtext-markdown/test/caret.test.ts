@@ -122,6 +122,37 @@ describe('the caret from the rich editor into the source', () => {
       {},
       '# C\\#',
     ],
+    // In code a backslash is text, even before another one.
+    [
+      'in code, after a backslash pair',
+      paragraph(['a', 'a\\\\b', ['Code']]),
+      caret('a', 3),
+      {},
+      '`a\\\\',
+    ],
+    // `>` opens the second line as the quote's marker; the text's own `>` is the escaped one.
+    [
+      'before an escaped `>` on a quote’s second line',
+      decode([
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'p',
+              children: [{ type: 'Text', id: 't', text: 'a\n>b', marks: [] }],
+            },
+          ],
+        },
+      ]),
+      caret('t', 2),
+      {},
+      '> a\n> ',
+    ],
   ] as const)('lands %s', (_, document, selection, style, before) => {
     const session = openSource(document, { style, selection })
     expect(session.draft.slice(0, session.caret)).toBe(before)
@@ -185,6 +216,14 @@ describe('the caret from the source back into the rich editor', () => {
     ['after two references and text', '&lt;tag&gt; |x\n', ['<tag> x', 6]],
     // A reference past the BMP decodes to two UTF-16 units.
     ['after a reference to an emoji', '&#x1F331;|x\n', ['\u{1F331}x', 2]],
+    ['after a named reference past the BMP', '&Afr;|x\n', ['\u{1D504}x', 2]],
+    ['after a reference to two characters', '&fjlig;|x\n', ['fjx', 2]],
+    // Past U+10FFFF a reference decodes to U+FFFD, one unit.
+    ['after an out-of-range reference', '&#x110000;|x\n', ['\uFFFDx', 1]],
+    ['after a reference, before text spelled like one', '&amp;|amp;x\n', ['&amp;x', 1]],
+    ['in code, after a backslash pair', '`\\\\|x`\n', ['\\\\x', 2]],
+    ['in a code block, after a backslash pair', '```\n\\\\|x\n```\n', ['\\\\x', 2]],
+    ['before an escaped `>` on a quote’s second line', '> a\n> |\\>b\n', ['a\n>b', 2]],
   ] as const)('lands %s', (_, marked, expected) => {
     const draft = marked.replace('|', '')
     const session = { ...openSource(escaped), draft, caret: marked.indexOf('|') }

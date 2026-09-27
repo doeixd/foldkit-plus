@@ -46,6 +46,8 @@ export interface Segment {
   readonly value: string
   readonly start: number
   readonly end: number
+  /** Code, whose source holds escapes and references as the text itself. */
+  readonly literal: boolean
 }
 
 /** Props are what a `JsonObject` holds, so this is narrower than the codec's type. */
@@ -89,6 +91,7 @@ const runsFrom = (
       value,
       start: node.position?.start.offset ?? 0,
       end: node.position?.end.offset ?? 0,
+      literal: node.type === 'inlineCode',
     })
   }
   const walk = (
@@ -270,7 +273,14 @@ const blockFrom = (node: RootContent, reading: Reading): ReadonlyArray<RichText.
         ? reading.markdown.indexOf('\n', start) + 1
         : start
       if (node.value.length > 0) {
-        reading.segments.push({ run: run.id, at: 0, value: node.value, start: opening, end })
+        reading.segments.push({
+          run: run.id,
+          at: 0,
+          value: node.value,
+          start: opening,
+          end,
+          literal: true,
+        })
       }
       return [
         holder(
