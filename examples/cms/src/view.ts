@@ -29,7 +29,7 @@ import {
 } from './app.js'
 import type { PostPreview } from './domain.js'
 import { icon } from './icons.js'
-import { badge, chair, failed, shell, stateIs, statusLine } from './shell.js'
+import { badge, chair, failed, intro, shell, stateIs, statusLine } from './shell.js'
 import { article, postHref } from './site.js'
 import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from './style.js'
 
@@ -66,6 +66,7 @@ const list = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         'New post',
       ]),
     ]),
+    intro(slots, h),
     h.div(slots.filters.attrs(), [
       h.div(slots.tabs.attrs([h.Role('group'), h.AriaLabel('Which posts')]), [
         tab('Active', false),

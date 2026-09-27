@@ -96,6 +96,10 @@ export const AdminSlots = Slots.define({
   whoName: part,
   whoRole: part,
   avatar: part,
+  /** What the demo is and what to try, above the posts: a disclosure, open at first. */
+  intro: part,
+  introSummary: control,
+  introSteps: part,
   main: part,
   /** A section's screen: its heading, its filters, then what it lists. */
   screen: part,
@@ -389,6 +393,37 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
     ),
     main: Style.self({ minWidth: '0' }),
+    intro: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      Style.self({
+        background: `color-mix(in oklch, ${t.accent.default} 7%, ${t.surface.base})`,
+        border: `1px solid color-mix(in oklch, ${t.accent.default} 25%, ${t.surface.base})`,
+        borderRadius: t.radius.lg,
+        color: t.text.default,
+        fontSize: t.size.sm,
+        lineHeight: '1.6',
+        padding: `${t.space.md} ${t.space.lg}`,
+      }),
+      Style.nest('& p', { margin: '0' }),
+    ),
+    introSummary: Style.compose(
+      Style.self({
+        color: t.text.overt,
+        cursor: 'pointer',
+        fontSize: t.size.md,
+        fontWeight: t.weight.semibold,
+      }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+    ),
+    introSteps: Style.self({
+      display: 'grid',
+      gap: t.space['2xs'],
+      margin: '0',
+      paddingInlineStart: '1.25rem',
+    }),
     screen: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({

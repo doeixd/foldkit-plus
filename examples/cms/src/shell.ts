@@ -14,6 +14,45 @@ import { chairOf, chairs, type Chair } from './transport.js'
 
 export const chair: Chair = chairOf(window.location.search)
 
+/** Whether the server runs in the page, where `?reset` starts the sandbox afresh. */
+const sandboxed = import.meta.env.MODE === 'sandbox'
+
+/**
+ * What the demo is and what to try, first thing on the posts: a disclosure,
+ * open until the author closes it for this visit.
+ */
+export const intro = <M>(slots: SlotView.SlotBuilders<typeof AdminSlots, M>, h: HtmlBuilder<M>) =>
+  h.details(slots.intro.attrs([h.Open(true)]), [
+    h.summary(slots.introSummary.attrs(), ['What this is, and what to try']),
+    h.p(
+      [],
+      [
+        'A blog’s studio and its public site, built with Foldkit Plus. ',
+        sandboxed
+          ? 'Its server and database run in this page, so nothing you write leaves your browser.'
+          : 'Its server is the one pnpm dev started, in memory.',
+      ],
+    ),
+    h.ol(slots.introSteps.attrs(), [
+      h.li([], ['As Wren, a writer, start a post. It saves as you type; a writer cannot publish.']),
+      h.li([], ['Switch to Edda, an editor, open it and publish it.']),
+      h.li([], ['View the site as a visitor: only what was published is there.']),
+      h.li([], ['In Pages, open Home and build it from blocks; publish, then look again.']),
+    ]),
+    ...(sandboxed
+      ? [
+          h.p(
+            [],
+            [
+              'Made a mess? ',
+              h.a([h.Href(`?as=${chair}&reset`)], ['Start the sandbox again']),
+              ', with the posts and pages it began with.',
+            ],
+          ),
+        ]
+      : []),
+  ])
+
 /** Who each chair is, as the sidebar introduces them. */
 const people: Readonly<Record<Chair, { readonly name: string; readonly role: string }>> = {
   wren: { name: 'Wren', role: 'Writer' },
