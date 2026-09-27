@@ -718,6 +718,15 @@ identity, cursor, committed snapshot, local sequence, and pending operations.
 Persisted and remote operations are decoded strictly against the application
 Message Schema.
 
+A submit writes only its operation. A `Storage` may implement the optional
+`append(entry, expectedRevision)`, which records one operation with the
+replica's next revision and local sequence. `load` then returns the saved state
+with those operations added to its outbox. The IndexedDB adapter keeps them in an
+`outbox` store beside the state, so a keystroke costs the size of the operation,
+not of the document. An exchange changes the committed snapshot, so it still
+saves the whole state, which clears the appended rows. A storage without
+`append` saves the whole state on every submit, as before.
+
 Important recovery cases:
 
 - **Storage absent or evicted.** The replica starts at cursor 0 and can catch up

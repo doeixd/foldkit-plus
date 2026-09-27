@@ -90,7 +90,7 @@ export const Sync = {
   },
 }
 
-export { indexedDb, type Storage } from './indexedDb.js'
+export { indexedDb, type OutboxEntry, type Storage } from './indexedDb.js'
 export {
   fact,
   mount,

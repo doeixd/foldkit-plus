@@ -403,6 +403,73 @@ describe('the wired replica', () => {
     expect(JSON.stringify(saved)).not.toMatch(/selectedTodoId|lastError/)
   })
 
+  /** What the database holds, read with IndexedDB itself rather than the storage under test. */
+  const stored = (name: string, version?: number) =>
+    new Promise<{ state: unknown; outbox: ReadonlyArray<unknown> }>((resolve, reject) => {
+      const request = factory.open(name, version)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const stores = [...database.objectStoreNames]
+        const transaction = database.transaction(stores, 'readonly')
+        const state = transaction.objectStore('replica').get('state')
+        const outbox = stores.includes('outbox')
+          ? transaction.objectStore('outbox').getAll()
+          : undefined
+        transaction.oncomplete = () => {
+          database.close()
+          resolve({ state: state.result, outbox: outbox?.result ?? [] })
+        }
+      }
+    })
+
+  it('appends a submitted operation, leaving the saved state for an exchange to rewrite', async () => {
+    const a = await open('a')
+    await a.submit(created('first'))
+    await a.submit(created('second'))
+    const written = await stored('a')
+    // The state is still the one written when the replica was made; each submit added a row.
+    expect(written.state).toMatchObject({ revision: 0, pending: [] })
+    expect(written.outbox).toHaveLength(2)
+
+    await a.synchronize(server.transport(principal))
+    const exchanged = await stored('a')
+    expect(exchanged.outbox).toEqual([])
+    expect(exchanged.state).toMatchObject({ pending: [], cursor: 2 })
+  })
+
+  it('opens a database written before the outbox existed, and appends to it', async () => {
+    // A replica's state as version 1 wrote it: one record, with its revision inside.
+    const first = await open('v1-source')
+    await first.submit(created('first'))
+    await first.synchronize(server.transport(principal))
+    const { state } = await stored('v1-source')
+    await first.close()
+    await new Promise<void>((resolve, reject) => {
+      const request = factory.open('legacy', 1)
+      request.onupgradeneeded = () => request.result.createObjectStore('replica')
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const transaction = database.transaction('replica', 'readwrite')
+        transaction
+          .objectStore('replica')
+          .put({ ...(state as object), replicaId: 'legacy' }, 'state')
+        transaction.oncomplete = () => {
+          database.close()
+          resolve()
+        }
+      }
+    })
+
+    const legacy = await open('legacy')
+    expect(legacy.shared().todos).toEqual([{ id: 'first', title: 'first' }])
+    await legacy.submit(created('second'))
+    await legacy.close()
+    const reopened = await open('legacy')
+    expect(reopened.pending().map(op => op.message)).toEqual([created('second')])
+  })
+
   it('publishes nothing on failed persistence and can retry without losing its sequence', async () => {
     const store = await Effect.runPromise(openStorage('a', factory))
     let fail = false
@@ -412,6 +479,10 @@ describe('the wired replica', () => {
         fail
           ? Effect.fail(new StorageError({ message: 'disk full' }))
           : store.save(state, revision),
+      append: (entry, revision) =>
+        fail
+          ? Effect.fail(new StorageError({ message: 'disk full' }))
+          : store.append(entry, revision),
     })
     fail = true
     await expect(a.submit(created('a'))).rejects.toThrow('disk full')

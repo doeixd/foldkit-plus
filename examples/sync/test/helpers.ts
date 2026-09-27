@@ -22,7 +22,7 @@ const scopes: Array<Scope.Closeable> = []
 export const openStorage = (
   name: string,
   factory?: IDBFactory,
-): Effect.Effect<Storage, StorageError> =>
+): Effect.Effect<Required<Storage>, StorageError> =>
   Effect.gen(function* () {
     const scope = yield* Scope.make()
     scopes.push(scope)

@@ -260,6 +260,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   })
   const decodeState = Schema.decodeUnknownSync(ReplicaStateSchema, { onExcessProperty: 'error' })
   const encodeState = Schema.encodeSync(ReplicaStateSchema)
+  const encodeOperation = Schema.encodeSync(OperationSchema)
   const VersionProbe = Schema.Struct({
     protocolVersion: Schema.optional(Schema.Number),
     schemaVersion: Schema.optional(Schema.Number),
@@ -514,7 +515,26 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               nextLocalSequence: localSequence(current.nextLocalSequence + 1),
               pending: [...current.pending, operation],
             }
-            yield* persist(next, current)
+            // Only the new operation is written when the storage can append it.
+            if (storage.append === undefined) yield* persist(next, current)
+            else {
+              const encoded = yield* Effect.try({
+                try: () => encodeOperation(operation),
+                catch: cause =>
+                  new InvalidReplicaHistoryError({
+                    message: 'Could not encode the operation',
+                    cause,
+                  }),
+              })
+              yield* storage.append(
+                {
+                  revision: next.revision,
+                  nextLocalSequence: next.nextLocalSequence,
+                  operation: encoded,
+                },
+                current.revision,
+              )
+            }
             yield* Ref.set(projection, { state: next, shared: replayed })
             yield* Queue.offer(wake, undefined)
             return [undefined, next] as const

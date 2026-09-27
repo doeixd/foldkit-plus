@@ -111,7 +111,8 @@ const program = Effect.gen(function* () {
   `.serve(socket, { exchange, changes? })` for the server, where `changes`
   subscribes to commits and sends a notice that wakes the client's `start`.
 - `Sync.indexedDb(name, factory?)` is the only built-in storage (pass
-  `fake-indexeddb` in Node). A test `Storage` is three members:
+  `fake-indexeddb` in Node). Its submit writes only the new operation, through
+  the optional `Storage.append`. A test `Storage` needs just three members:
 
 ```ts
 import { Effect } from 'effect'
