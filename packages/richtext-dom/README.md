@@ -145,6 +145,15 @@ yet. The first document a host id shows is drawn without a key, as the server dr
 So commit the document an edit returns as it is. A parent that puts its own copy in the Model
 after each edit (normalized, say) gets a fresh host, and a lost caret, on every keystroke.
 
+When the new document continues the old one (another replica's change arriving, or the
+document a collaborative edit projects to), return `patchTo(hostId, previous, next)` from the
+same transition that puts it in the Model. It hands the host's key on to the new document
+and patches the editor from one to the other, so the host, its caret, and every run the
+change did not touch keep their elements. `replaceChangeSet(previous, next)` is the patch it
+sends: the runs whose text or marks differ, and the nodes that came and went. An `Edited`
+OutMessage also carries the `transactions` the edit applied, which is what
+`RichText.Replicated.translate` reads.
+
 ## As a form control
 
 `foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a

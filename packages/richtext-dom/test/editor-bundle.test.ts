@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
   application,
+  Editor,
   applied,
   cleared,
   converted,
@@ -15,7 +16,6 @@ import {
   patched,
   pressed,
   redone,
-  replaceChangeSet,
   retyped,
   selected,
   toggled,
@@ -27,6 +27,7 @@ import {
   type ParentMessage,
 } from '../src/editor-bundle.js'
 import { decorationsFor, placeholderFor, renderingFor } from '../src/host.js'
+import { Message } from '../src/editor.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -196,22 +197,27 @@ describe('undo through the parent transition', () => {
     model = step(model, redone())
     expect(model.document.children[0]?.children[0]?.text).toBe('abX')
   })
+})
 
-  it('reports the whole document as replaced so the DOM cannot keep stale nodes', () => {
-    const before = start(caret('a', 2))
-    const typedOnce = step(before, pressed('Entered'))
-    const back = step(typedOnce, undone())
-    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
-
-    // The undone block is gone, so the replace patch must name it as removed
-    // and name every surviving identity as dirty.
-    const changeSet = replaceChangeSet(typedOnce.document, back.document)
-    const removedBlock = typedOnce.document.children[1]!.id
-    const removedRun = typedOnce.document.children[1]!.children[0]!.id
-    expect(changeSet.removedNodes).toEqual(new Set([removedBlock, removedRun]))
-    expect([...changeSet.dirtyNodes].sort()).toEqual(['a', 'b', 'p', 'q'])
-    expect(changeSet.insertedNodes).toEqual(new Set())
-    expect(changeSet.structureChanged).toBe(true)
+describe('what an edit reports', () => {
+  it('carries the transactions it applied, which replay to the state it reports', () => {
+    const model = start(caret('a', 2))
+    const view = { document: model.document, ...model.editor }
+    const result = Editor.update(view, Message.Typed({ text: '!' }), {
+      hostId: model.editor.hostId,
+    })
+    const out = result.outMessage
+    if (out?._tag !== 'Edited') throw new Error('expected an edit')
+    expect(out.transactions.length).toBeGreaterThan(0)
+    const replayed = out.transactions.reduce<RichText.EditorState>(
+      (state, transaction) => {
+        const applied = RichText.apply(state, transaction)
+        if (!applied.ok) throw new Error(applied.error)
+        return applied.state
+      },
+      { document: model.document, selection: model.editor.selection },
+    )
+    expect(replayed).toEqual(out.state)
   })
 })
 

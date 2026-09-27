@@ -788,7 +788,7 @@ const blockChars = (shadow: Shadow): Map<string, Array<CharRange>> =>
  */
 export const translate = (
   state: ReplicatedState,
-  result: Extract<TransactionResult, { readonly ok: true }>,
+  result: Pick<Extract<TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
   key: string,
 ): { readonly ops: ReadonlyArray<ReplicatedOp>; readonly selection: AnchoredSelection | null } => {
   const mint = minter(key)

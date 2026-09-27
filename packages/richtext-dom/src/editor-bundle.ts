@@ -13,6 +13,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
+import type * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import {
@@ -80,6 +81,8 @@ export type OutMessage =
       readonly _tag: 'Edited'
       readonly state: RichText.EditorState
       readonly changeSet: RichText.ChangeSet
+      /** What the edit applied, in order, as `RichText.run` returns them. */
+      readonly transactions: ReadonlyArray<RichText.Transaction>
     }
   | {
       /** Undo and redo replace the document wholesale; nothing was incremental. */
@@ -89,21 +92,47 @@ export type OutMessage =
     }
   | { readonly _tag: 'Rejected'; readonly error: string }
 
-const idsOf = (content: RichText.Document): ReadonlySet<RichText.NodeId> =>
-  new Set(content.children.flatMap(block => [block.id, ...block.children.map(run => run.id)]))
+/** Every block and run of a document by id, nested ones included. */
+const nodesOf = (
+  content: RichText.Document,
+): ReadonlyMap<RichText.NodeId, RichText.Block | RichText.Text> => {
+  const nodes = new Map<RichText.NodeId, RichText.Block | RichText.Text>()
+  const visit = (blocks: ReadonlyArray<RichText.Block>): void => {
+    for (const block of blocks) {
+      nodes.set(block.id, block)
+      for (const run of block.children) nodes.set(run.id, run)
+      if (block.type === 'Node' && block.blocks !== undefined) visit(block.blocks)
+    }
+  }
+  visit(content.children)
+  return nodes
+}
 
-/** Everything that differs between two whole documents, for a replace patch. */
+const sameRun = (left: RichText.Block | RichText.Text | undefined, right: RichText.Text): boolean =>
+  left?.type === 'Text' &&
+  left.text === right.text &&
+  left.marks.length === right.marks.length &&
+  left.marks.every((mark, index) => RichText.sameMark(mark, right.marks[index]!))
+
+/**
+ * What differs between two whole documents, for a patch from one to the other: a run is
+ * dirty when it is new or its text or marks changed, and the patch rebuilds any block whose
+ * shape changed on its own.
+ */
 export const replaceChangeSet = (
   previous: RichText.Document,
   next: RichText.Document,
 ): RichText.ChangeSet => {
-  const before = idsOf(previous)
-  const after = idsOf(next)
+  const before = nodesOf(previous)
+  const after = nodesOf(next)
+  const dirtyNodes = new Set<RichText.NodeId>()
+  for (const [id, node] of after)
+    if (node.type === 'Text' && !sameRun(before.get(id), node)) dirtyNodes.add(id)
   return {
-    dirtyNodes: after,
-    insertedNodes: new Set([...after].filter(id => !before.has(id))),
-    removedNodes: new Set([...before].filter(id => !after.has(id))),
-    textChanged: new Set(),
+    dirtyNodes,
+    insertedNodes: new Set([...after.keys()].filter(id => !before.has(id))),
+    removedNodes: new Set([...before.keys()].filter(id => !after.has(id))),
+    textChanged: dirtyNodes,
     structureChanged: true,
     selectionChanged: false,
   }
@@ -206,6 +235,21 @@ const carryKey = (hostId: string, from: RichText.Document, to: RichText.Document
   if (key === undefined || from === to) return
   keys.delete(from)
   keys.set(to, key)
+}
+
+/**
+ * Patches the editor at `hostId` from `previous`, the document it shows, to `next`, a
+ * document the parent put in its place, keeping the host element instead of mounting a
+ * new one. A parent that replaces its document outside an edit here (another replica's
+ * change arriving) returns this, in the same transition as the replacement.
+ */
+export const patchTo = (
+  hostId: string,
+  previous: RichText.Document,
+  next: RichText.EditorState,
+): Command.Command<Message> => {
+  carryKey(hostId, previous, next.document)
+  return patch(hostId, next, replaceChangeSet(previous, next.document))
 }
 
 /**
@@ -364,7 +408,12 @@ const transition = (
         ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
         : model.history,
     },
-    outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
+    outMessage: {
+      _tag: 'Edited',
+      state: result.state,
+      changeSet: result.changeSet,
+      transactions: result.transactions,
+    },
     commands: [patch(model.hostId, result.state, result.changeSet)],
   }
 }

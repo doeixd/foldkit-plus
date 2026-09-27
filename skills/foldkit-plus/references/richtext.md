@@ -218,6 +218,10 @@ and the browser's editor adopts it); every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
 constraint is enforced at the intent rather than only reported by `validate` (§125).
+A document the parent replaces from outside gets a fresh host, unless the same transition
+returns `patchTo(hostId, previous, { document, selection })`, which keeps the host and patches
+the difference (`replaceChangeSet`); that is how another replica's change reaches an open
+editor. An `Edited` OutMessage carries the `transactions` the edit applied.
 `foldkit-richtext-dom/input`'s `richTextInput(hostId, placement)` is the editor as a
 `foldkit-form` control (`Input.bundle`): `EditorInput` holds the document in its own Model,
 a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
