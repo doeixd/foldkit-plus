@@ -1,5 +1,8 @@
 # Resumable Foldkit
 
+> **Implementation status, checked 2026-09-27:** Built in `foldkit-ssr` as ssr-PLAN's Phases A–F; rule 1 and rule 6's equivalence test are ssr-PLAN Phase G, not yet built. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** design, 2026-09-23, revised the same day where checking it against
 the built phases found gaps ([ssr-PLAN.md, "What the resumable design changes
 here"](./ssr-PLAN.md#what-the-resumable-design-changes-here)); its phases are

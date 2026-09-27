@@ -1,3 +1,6 @@
+> **Implementation status, checked 2026-09-27:** Superseded by [REVISION_PLAN.md](./REVISION_PLAN.md) and built as `foldkit-surface`. See the
+> [design index](./README.md#where-each-design-stands).
+
 
 Yes. After looking at the current `foldkit-plus` code, I think **`foldkit-surface` should become the semantic backbone of the whole repo**, and `foldkit-remote` should become the standard server-data layer that plugs into that backbone.
 

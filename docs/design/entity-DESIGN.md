@@ -1,5 +1,8 @@
 # Foldkit Plus Entity / Form / Admin Architecture
 
+> **Implementation status, checked 2026-09-27:** Built through PR 8 as `foldkit-entity`, `foldkit-form`, `foldkit-crud` and their Mixins views; the CMS that §50–51 defer has since shipped as `foldkit-cms`. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** Proposed implementation direction
 **Target:** `doeixd/foldkit-plus`
 **Primary inspirations:** current `foldkit-plus`, `doeixd/gen`, `doeixd/gen2`, `doeixd/effect-atom-jsx`

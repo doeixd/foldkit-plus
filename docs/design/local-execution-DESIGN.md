@@ -1,5 +1,8 @@
 # Local execution: what TanStack DB and LiveStore have that we do not
 
+> **Implementation status, checked 2026-09-27:** Phases 0–7 are built (see §13); M is measured and deliberately not built. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** design / implementation plan
 **Date:** September 2026
 **Target packages:** `foldkit-entity`, `foldkit-remote`, `foldkit-surface`

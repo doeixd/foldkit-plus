@@ -1,5 +1,8 @@
 # Mirror: a Model slice kept in the URL or a key-value store
 
+> **Implementation status, checked 2026-09-27:** Built as `foldkit-mirror` (0.3.0); the "nothing here is implemented" line below predates it. See the
+> [design index](./README.md#where-each-design-stands).
+
 A design note. Nothing here is implemented; the shape is proposed for a
 prototype in the style of #69 (a compile-only fixture first, then the smallest
 kernel that makes it real).
