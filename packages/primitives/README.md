@@ -50,6 +50,12 @@ A bundle holds no state and performs no I/O by itself. The parent Model owns
 the placed slice; the browser (or server, or clock) only reports facts as
 Messages. The same rule as everywhere else: observation is not ownership.
 
+A Message that changes nothing (a repeated resize, `Started` while running,
+a total that is already held) returns the Model it was given, and a
+placement then returns the parent unchanged. Foldkit renders only when the
+root Model changes identity, so such a Message renders nothing, and a
+`createLazy` view over a placed slice is skipped while the slice is the same.
+
 Solid developers will notice missing plumbing: there is no event bus
 because Messages are the bus, no memo because derivations are pure reads
 over the Model, and no reactive map or store because the Model holds plain
@@ -429,6 +435,10 @@ the spacer height, `isAtEnd(model, keys, viewportHeight, threshold)` is the
 infinite-scroll check (an empty list counts as ended), `distanceToEnd`
 answers the pixels remaining for prefetch thresholds, and `offsetFor`
 computes programmatic scroll targets the application actuates itself.
+These share one table of row offsets, built once per `keys` array and
+`heights` record and then searched, so keep the keys array between renders
+(derive it where the list changes, not in the view) and a scroll costs
+O(log n) instead of a pass over every row.
 `Prune` drops heights for departed keys — the bundle never sees key order.
 Poisoned positions and heights are ignored, never stored. For window-
 scrolled lists, map the scroll entry into `Scrolled`; for follow-bottom,

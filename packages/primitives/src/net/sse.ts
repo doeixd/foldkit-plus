@@ -10,6 +10,7 @@ import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 /** The slice of an EventSource the bundle needs; satisfied by the platform class. */
 export interface SourceHandle {
@@ -93,12 +94,15 @@ export const sse = <const Name extends string>(config: {
       message,
     ): Update.ReturnWithOutMessage<SseModel, SseMessage, never, SourceService> =>
       SseMessage.match(message, {
-        Connecting: () => ({ model: { ...model, status: 'connecting' as const } }),
-        Opened: () => ({ model: { ...model, status: 'open' as const, lastError: null } }),
+        Connecting: () => ({ model: unlessSame(model, { ...model, status: 'connecting' }) }),
+        Opened: () => ({
+          model: unlessSame(model, { ...model, status: 'open', lastError: null }),
+        }),
         Received: () => ({ model }),
-        Closed: () => ({ model: { ...model, status: 'closed' as const } }),
+        Closed: () => ({ model: unlessSame(model, { ...model, status: 'closed' }) }),
+        // EventSource retries on its own, erroring the same way on every attempt.
         Failed: ({ message }) => ({
-          model: { ...model, status: 'connecting' as const, lastError: message },
+          model: unlessSame(model, { ...model, status: 'connecting', lastError: message }),
         }),
       }),
     resources: () =>
@@ -149,11 +153,13 @@ export const sse = <const Name extends string>(config: {
     subscriptions: (): Subscription.Subscriptions<SseModel, SseMessage, SourceService> =>
       Subscription.make<SseModel, SseMessage, SourceService>()(entry => ({
         incoming: entry(
-          { status: Schema.Literals(['closed', 'connecting', 'open']) },
+          // Connecting to open is no reason to restart: the stream reads the
+          // same queue, and replays an open it attached too late to see.
+          { live: Schema.Boolean },
           {
-            modelToDependencies: model => ({ status: model.status }),
-            dependenciesToStream: ({ status }) =>
-              status === 'closed'
+            modelToDependencies: model => ({ live: model.status !== 'closed' }),
+            dependenciesToStream: ({ live }) =>
+              !live
                 ? Stream.empty
                 : Stream.unwrap(
                     Effect.matchEffect(Source.get, {

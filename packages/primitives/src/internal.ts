@@ -24,3 +24,17 @@ export const clearQuery = <Model extends { readonly query: string }>(
   model: Model,
 ): { readonly model: Model } =>
   model.query === '' ? { model } : { model: { ...model, query: '' } }
+
+/**
+ * `next`, or `model` itself when both hold the same fields with the same
+ * values. Foldkit renders only when the root Model changes identity, so an
+ * equal copy renders the whole page for nothing.
+ */
+export const unlessSame = <Model extends object>(model: Model, next: Model): Model => {
+  const keys = Object.keys(next) as Array<keyof Model>
+  if (keys.length !== Object.keys(model).length) return next
+  for (const key of keys) {
+    if (!Object.hasOwn(model, key) || !Object.is(next[key], model[key])) return next
+  }
+  return model
+}

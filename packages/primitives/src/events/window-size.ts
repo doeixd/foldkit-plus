@@ -9,6 +9,7 @@ import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 export const WindowSizeModel = Schema.Struct({ width: Schema.Number, height: Schema.Number })
 export type WindowSizeModel = typeof WindowSizeModel.Type
@@ -55,7 +56,9 @@ export const WindowSize = Bundle.make('WindowSize', {
   Model: WindowSizeModel,
   Message: WindowSizeMessage,
   init: () => ({ model: { width: 0, height: 0 } }),
-  update: (model, message) => ({ model: { width: message.width, height: message.height } }),
+  update: (model, message) => ({
+    model: unlessSame(model, { width: message.width, height: message.height }),
+  }),
   subscriptions: (): Subscription.Subscriptions<WindowSizeModel, WindowSizeMessage> =>
     Subscription.make<WindowSizeModel, WindowSizeMessage>()(() => ({
       changes: Subscription.persistent(sizeStream()),

@@ -12,6 +12,7 @@ import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 export const PermissionState = Schema.Literals(['granted', 'denied', 'prompt'])
 export type PermissionState = typeof PermissionState.Type
@@ -106,18 +107,24 @@ export const permissions = <const Name extends string>(config: {
       PermissionsMessage.match<
         Update.ReturnWithOutMessage<PermissionsModel, PermissionsMessage, never>
       >(message, {
-        Snapshot: ({ states }) => ({ model: { ...model, states: { ...states } } }),
-        Changed: ({ name, state }) => ({
-          model: { ...model, states: { ...model.states, [name]: state } },
-        }),
-        Cleared: () => ({ model: { ...model, states: {} } }),
-        Failed: ({ message }) => ({ model: { ...model, lastError: message } }),
+        Snapshot: ({ states }) => {
+          const next = unlessSame(model.states, { ...states })
+          return next === model.states ? { model } : { model: { ...model, states: next } }
+        },
+        Changed: ({ name, state }) =>
+          Object.hasOwn(model.states, name) && model.states[name] === state
+            ? { model }
+            : { model: { ...model, states: { ...model.states, [name]: state } } },
+        Cleared: () =>
+          Object.keys(model.states).length === 0 ? { model } : { model: { ...model, states: {} } },
+        Failed: ({ message }) => ({ model: unlessSame(model, { ...model, lastError: message }) }),
       }),
-    resources: args =>
-      ManagedResource.make<PermissionsModel, PermissionsMessage>()(entry => ({
+    resources: args => {
+      const names = Option.some([...new Set(args.names)])
+      return ManagedResource.make<PermissionsModel, PermissionsMessage>()(entry => ({
         watch: entry(Schema.Option(Schema.Array(Schema.String)), {
           resource: Watch,
-          modelToMaybeRequirements: () => Option.some([...new Set(args.names)]),
+          modelToMaybeRequirements: () => names,
           acquire: (names: ReadonlyArray<string>) =>
             Effect.gen(function* () {
               const api = handle()
@@ -181,7 +188,8 @@ export const permissions = <const Name extends string>(config: {
               ),
             ),
         }),
-      })),
+      }))
+    },
     subscriptions: (): Subscription.Subscriptions<
       PermissionsModel,
       PermissionsMessage,

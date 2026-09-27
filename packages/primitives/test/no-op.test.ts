@@ -4,6 +4,32 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  Geolocation,
+  GeolocationMessage,
+  MediaDevicesMessage,
+  MediaStreamMessage,
+  mediaDevices,
+  mediaStream,
+  permissions,
+  PermissionsMessage,
+} from '../src/device/index.js'
+import {
+  Idle,
+  IdleMessage,
+  Visibility,
+  VisibilityMessage,
+  WindowSize,
+  WindowSizeMessage,
+} from '../src/events/index.js'
+import {
+  Online,
+  OnlineMessage,
+  sse,
+  SseMessage,
+  websocket,
+  WebSocketMessage,
+} from '../src/net/index.js'
+import {
   DismissLayer,
   GridNavigation,
   ListNavigation,
@@ -73,6 +99,20 @@ const listNav = {
 const picked = { selected: ['b', 'c'], anchor: 'b' }
 const multiple = { mode: 'multiple' as const, allowEmpty: true }
 const layers = [{ id: 'menu', outside: true, escape: true }]
+
+const Socket = websocket({ name: 'Socket' })
+const Events = sse({ name: 'Events' })
+const Camera = mediaStream({ name: 'Camera' })
+const Devices = mediaDevices({ name: 'Devices' })
+const Permissions = permissions({ name: 'Permissions' })
+const url = { url: 'ws://x' }
+const open = { url: 'ws://x', status: 'open' as const, lastError: null }
+const closed = { url: 'ws://x', status: 'closed' as const, lastError: 'gone' }
+const retrying = { url: 'ws://x', status: 'connecting' as const, lastError: 'gone' }
+const camera = { audio: true, video: true }
+const microphone = { deviceId: 'm', groupId: 'g', kind: 'audioinput' as const, label: 'Mic' }
+const granted = { states: { camera: 'granted' as const }, lastError: null }
+const names = { names: ['camera'] }
 
 describe('a Message that changes nothing keeps the Model', () => {
   it.each([
@@ -313,5 +353,133 @@ describe('a Message that changes nothing keeps the Model', () => {
         ),
       ),
     ],
+    [
+      'WebSocket Opened while open',
+      keeps(open, m => Socket.update(m, WebSocketMessage.Opened(), url)),
+    ],
+    [
+      'WebSocket Closed while closed',
+      keeps(closed, m => Socket.update(m, WebSocketMessage.Closed(), url)),
+    ],
+    [
+      'WebSocket SendFailed with the error held',
+      keeps(closed, m => Socket.update(m, WebSocketMessage.SendFailed({ message: 'gone' }), url)),
+    ],
+    [
+      'SSE Failed again on a retry',
+      keeps(retrying, m => Events.update(m, SseMessage.Failed({ message: 'gone' }), url)),
+    ],
+    [
+      'MediaStream Ended after Stopped',
+      keeps({ status: 'idle' as const, lastError: null }, m =>
+        Camera.update(m, MediaStreamMessage.Ended(), camera),
+      ),
+    ],
+    [
+      'MediaStream Started while live',
+      keeps({ status: 'live' as const, lastError: null }, m =>
+        Camera.update(m, MediaStreamMessage.Started(), camera),
+      ),
+    ],
+    [
+      'MediaDevices Refreshed with the same list',
+      keeps({ status: 'ready' as const, devices: [microphone], lastError: null }, m =>
+        Devices.update(
+          m,
+          MediaDevicesMessage.Refreshed({ devices: [{ ...microphone }] }),
+          undefined,
+        ),
+      ),
+    ],
+    [
+      'Permissions Changed to the state held',
+      keeps(granted, m =>
+        Permissions.update(
+          m,
+          PermissionsMessage.Changed({ name: 'camera', state: 'granted' }),
+          names,
+        ),
+      ),
+    ],
+    [
+      'Permissions Snapshot of the states held',
+      keeps(granted, m =>
+        Permissions.update(
+          m,
+          PermissionsMessage.Snapshot({ states: { camera: 'granted' } }),
+          names,
+        ),
+      ),
+    ],
+    [
+      'Permissions Cleared when empty',
+      keeps({ states: {}, lastError: null }, m =>
+        Permissions.update(m, PermissionsMessage.Cleared(), names),
+      ),
+    ],
+    [
+      'Geolocation Located at the fix held',
+      keeps(
+        {
+          status: 'ready' as const,
+          coords: { latitude: 1, longitude: 2, accuracy: 3 },
+          lastError: null,
+        },
+        m =>
+          Geolocation.update(
+            m,
+            GeolocationMessage.Located({ latitude: 1, longitude: 2, accuracy: 3 }),
+            undefined,
+          ),
+      ),
+    ],
+    [
+      'Visibility Changed to the state held',
+      keeps({ visible: true }, m =>
+        Visibility.update(m, VisibilityMessage.Changed({ visible: true }), undefined),
+      ),
+    ],
+    [
+      'Online Changed to the state held',
+      keeps({ online: true }, m =>
+        Online.update(m, OnlineMessage.Changed({ online: true }), undefined),
+      ),
+    ],
+    [
+      'WindowSize Changed to the size held',
+      keeps({ width: 800, height: 600 }, m =>
+        WindowSize.update(m, WindowSizeMessage.Changed({ width: 800, height: 600 }), undefined),
+      ),
+    ],
+    [
+      'Idle BecameIdle while idle',
+      keeps({ idle: true }, m => Idle.update(m, IdleMessage.BecameIdle(), { timeoutMs: 10 })),
+    ],
   ])('%s', (_, check) => check())
+})
+
+describe('a Message that changes something still does', () => {
+  it('Permissions Snapshot that drops a state', () => {
+    const two = {
+      states: { camera: 'granted' as const, microphone: 'denied' as const },
+      lastError: null,
+    }
+    const next = Permissions.update(
+      two,
+      PermissionsMessage.Snapshot({ states: { camera: 'granted' } }),
+      names,
+    )
+    expect(next.model.states).toEqual({ camera: 'granted' })
+  })
+})
+
+describe('socket subscriptions', () => {
+  it.each([
+    ['WebSocket', Socket.subscriptions!(url).incoming!],
+    ['SSE', Events.subscriptions!(url).incoming!],
+  ])('%s keeps its stream from connecting to open', (_, entry) => {
+    const connecting = { url: 'ws://x', status: 'connecting' as const, lastError: null }
+    expect(entry.modelToDependencies(open)).toEqual(entry.modelToDependencies(connecting))
+    expect(entry.modelToDependencies(closed)).not.toEqual(entry.modelToDependencies(connecting))
+  })
 })

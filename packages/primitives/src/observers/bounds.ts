@@ -27,8 +27,21 @@ export const Bounds = Mount.defineStream('Bounds', {
     Stream.callback<typeof Measured.Type>(queue =>
       Effect.gen(function* () {
         if (typeof window === 'undefined') return
+        // Every scroll anywhere measures, and mounting measures twice (the
+        // observer's first report and the call below): report only a change.
+        let last: DOMRectReadOnly | null = null
         const measure = () => {
           const rect = element.getBoundingClientRect()
+          if (
+            last !== null &&
+            last.x === rect.x &&
+            last.y === rect.y &&
+            last.width === rect.width &&
+            last.height === rect.height
+          ) {
+            return
+          }
+          last = rect
           Queue.offerUnsafe(
             queue,
             Measured.make({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }),
