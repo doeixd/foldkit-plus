@@ -47,6 +47,20 @@ export const placeDecorations = (hostId: string, decorate: Decorate): void => {
 /** What is drawn over a host's document, or nothing when none was placed. */
 export const decorationsFor = (hostId: string): Decorate => decorators.get(hostId) ?? (() => [])
 
+const serverRenders = new Map<string, () => boolean>()
+
+/**
+ * Records how a placement tells a server's render from the browser's, by host id (§145): the
+ * host carries the document's markup only while it says the render is the server's.
+ */
+export const placeServerRendered = (hostId: string, serverRendered: () => boolean): void => {
+  serverRenders.set(hostId, serverRendered)
+}
+
+/** Whether this render of a host is the server's; never, when nothing was placed. */
+export const serverRenderedFor = (hostId: string): (() => boolean) =>
+  serverRenders.get(hostId) ?? (() => false)
+
 const placeholders = new Map<string, string>()
 
 /**

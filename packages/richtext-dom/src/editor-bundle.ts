@@ -8,6 +8,7 @@
  * copy or a Command that commits half the transition.
  */
 import { Effect, Option, Schema } from 'effect'
+import { define } from 'foldkit/customElement'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
@@ -15,16 +16,21 @@ import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import {
+  decorationsFor,
   inputRulesFor,
   placeDecorations,
   placeInputRules,
   placePlaceholder,
   placeRendering,
+  placeServerRendered,
   placeVocabulary,
-  vocabularyFor,
+  renderingFor,
+  serverRenderedFor,
   type Vocabulary,
+  vocabularyFor,
 } from './host.js'
 import type { Decorate } from './events.js'
+import { renderEditable } from './view.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -165,9 +171,32 @@ const textBeforeOf = (model: EditorView): string => {
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
 
-/** The host element the editor mounts into, and whose id the patch Command finds (§118). */
+const Host = define({ tag: 'foldkit-richtext', properties: {}, events: {} })
+
+/**
+ * The host element the editor mounts into, and whose id the patch Command finds (§118). It is a
+ * custom element so hydration leaves what is inside it alone (§145): on the server it holds the
+ * document's markup, which the editor adopts; in the browser the view declares it empty, and the
+ * editor owns everything below.
+ */
 export const editorView = Submodel.defineView<EditorView, Message>((model, h) =>
-  h.div([h.Id(model.hostId), h.OnMount(events({ content: model.document }))], []),
+  Host.withMessage(h)(
+    [
+      h.Id(model.hostId),
+      // A custom element is inline until styled, and the editor inside it is a block.
+      h.Style({ display: 'block' }),
+      h.OnMount(events({ content: model.document })),
+    ],
+    serverRenderedFor(model.hostId)()
+      ? [
+          renderEditable(
+            model.document,
+            renderingFor(model.hostId),
+            decorationsFor(model.hostId)(model.document),
+          ),
+        ]
+      : [],
+  ),
 )
 
 export const Editor = Bundle.make({
@@ -378,6 +407,12 @@ export interface EditorPlacement {
   readonly decorate?: Decorate | undefined
   /** What the editor shows while its document is blank (`RichText.isBlank`). Defaults to none. */
   readonly placeholder?: string | undefined
+  /**
+   * Whether this render is the server's (§145), such as `foldkit-ssr`'s `SSR.serving`. While it
+   * is, the host carries the document's markup, which the browser's editor adopts instead of
+   * drawing again. Defaults to never, so the host is empty until the editor mounts.
+   */
+  readonly serverRendered?: (() => boolean) | undefined
 }
 
 /**
@@ -390,6 +425,7 @@ export const placeEditor = (hostId: string, placement: EditorPlacement): void =>
   placeInputRules(hostId, placement.inputRules ?? [])
   placeDecorations(hostId, placement.decorate ?? (() => []))
   placePlaceholder(hostId, placement.placeholder)
+  placeServerRendered(hostId, placement.serverRendered ?? (() => false))
 }
 
 /**

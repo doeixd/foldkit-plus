@@ -211,7 +211,9 @@ browser event means "make this block a heading" — and `editor-bundle` exposes
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
 (`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
 `::before`, and the textbox root with `aria-placeholder`),
-`application`/`update`, and the Messages a host dispatches; every accepted edit returns
+`application`/`update`, and the Messages a host dispatches (the host is a `<foldkit-richtext>`
+custom element; with `serverRendered: SSR.serving` the server sends the document's markup in it,
+and the browser's editor adopts it); every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
 constraint is enforced at the intent rather than only reported by `validate` (§125).

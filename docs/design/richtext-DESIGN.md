@@ -15,9 +15,9 @@ and none is released yet. Milestone 7's source session, its view, and split mode
 (§136, §137), with the writer's spellings per construct and per block (§138, §146) and the
 caret carried across a mode switch (§147).
 Milestone 8's form control and its CMS example are built (§139, §140).
-Milestone 9 has begun: the adapter adopts matching server markup (§145).
-Still to do: the rest of SSR (§145 names the open decision),
-real-browser hardening, collaboration, presence, and agents, in
+Milestone 9 has begun: on a server-rendered page the editor's host carries the document and the
+browser's editor adopts it (§145), which found a table bug (§150).
+Still to do: real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
 the stateful-Form control is spiked, and the collaboration proof is unstarted.
@@ -7887,9 +7887,28 @@ rendering of the editable structure. The read-only `renderDocument` differs from
 `data-block`, and the run spans, so it is a second renderer to keep equal to `mount`. A test that
 round-trips it through `adopt` would hold the two equal.
 
-Not done: the route decision, the server renderer, the placeholder on adopted markup (drawn
-after mount, as for a fresh one, and not tested there), and a page-level test through
-`foldkit-ssr`.
+## Built: route 1
+
+The route chosen was route 1:
+
+- **The host.** It is `<foldkit-richtext>`, defined through `foldkit/customElement` and drawn
+  `display: block`.
+- **The server's markup.** While the placement's `serverRendered()` is true, the host holds
+  `renderEditable` of the document, with the placement's rendering and decorations: the subtree
+  `mount` builds, as `Html`.
+- **Telling the server's render apart.** That is `foldkit-ssr`'s `SSR.serving()`, true through
+  both of `render`'s passes and false while the browser resumes. The editor's placement takes it
+  as a function, so `foldkit-richtext-dom` does not depend on `foldkit-ssr`.
+- **The test.** A page-level test renders an editor page with Foldkit's `renderToString`,
+  hydrates it, and checks the editor's attachment holds the served root and the served block
+  elements. Mutations confirmed each part is load-bearing: a plain `div` host, never seeding, and
+  seeding with the wrong registry or without the decorations.
+
+Testing `renderEditable` the way a server sends it found that no page drawing a table could be
+server-rendered at all (§150).
+
+Not done: the placeholder on adopted markup (drawn after mount, as for a fresh one, and not
+tested there), and SSR of the Markdown source view.
 
 ---
 

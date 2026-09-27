@@ -315,6 +315,25 @@ transition. `application` and `update` are the assembled parent, and `edited` /
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
 
+## On a server-rendered page
+
+The editor's host is a custom element, `<foldkit-richtext>`, drawn `display: block`. Hydration
+leaves a custom element's contents alone, so markup the server sent there survives until the
+editor mounts, and the editor adopts it (`adopt`, above) rather than drawing the document
+again. The server sends it when the placement says the render is the server's:
+
+```ts
+import { SSR } from 'foldkit-ssr'
+
+editorAt('body', { rendering: RichText.standardRendering, serverRendered: SSR.serving })
+```
+
+While `serverRendered()` is true, the host holds `renderEditable` of the document, with the
+placement's rendering and decorations, which is exactly what `mount` would build. Without the
+option the host is empty until the editor mounts, as before. The browser's Model must hold the
+same document the server rendered, or the markup is not what `mount` would build and is
+replaced.
+
 ## As a form control
 
 `foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
