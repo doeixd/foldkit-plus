@@ -205,6 +205,11 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
     transport: (principal: Principal): TransportClient => ({
       exchange: async (cursor, pending) => {
         if (!principal.actorId) throw new Error('Unauthenticated reader')
+        // A cursor past the server's names history this server does not have. Refused
+        // before anything is appended, or the operations would commit and their
+        // acknowledgements be lost with the failed read.
+        const at = Effect.runSync(durable.cursor(DocumentId.make(principal.documentId)))
+        if (cursor > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
         const rejected: string[] = []
         const acknowledged: string[] = []
         for (const input of pending) {

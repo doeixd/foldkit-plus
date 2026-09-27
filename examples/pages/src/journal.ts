@@ -39,6 +39,11 @@ export const openJournal = (file = ':memory:') => {
 
   const transport = (actorId: string): TransportClient => ({
     exchange: async (cursor, pending) => {
+      // A cursor past the server's names history this server does not have (it was reset,
+      // or the client is confused). Refused before anything is appended, or the edits
+      // would commit and their acknowledgements be lost with the failed read.
+      const at = Effect.runSync(journal.cursor(pages))
+      if (cursor > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
       const rejected: Array<string> = []
       const acknowledged: Array<string> = []
       for (const input of pending) {

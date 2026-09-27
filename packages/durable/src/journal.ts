@@ -180,6 +180,12 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
   readonly load: (
     key: DocumentId,
   ) => Effect.Effect<{ readonly snapshot: Snapshot; readonly cursor: Cursor }, JournalError>
+  /**
+   * The sequence of the document's last commit; `0` if none. Unlike `load`, it
+   * decodes nothing, so an exchange can check a client's cursor before it
+   * appends anything.
+   */
+  readonly cursor: (key: DocumentId) => Effect.Effect<Cursor, JournalError>
   /** The highest sequence whose payload has been compacted away; `0` if none. */
   readonly floor: (key: DocumentId) => Effect.Effect<Sequence, JournalError>
   readonly read: (
@@ -598,6 +604,16 @@ const makeShape = <
       try: () => decodeSnapshot(rows[0]),
       catch: cause => journalError('Could not load the snapshot', cause),
     })
+  })
+
+  const cursor: Shape['cursor'] = Effect.fn('Journal.cursor')(function* (key: DocumentId) {
+    yield* Effect.annotateCurrentSpan({ key })
+    const rows = yield* sql<{
+      readonly cursor: number
+    }>`SELECT cursor FROM documents WHERE key = ${key}`.pipe(
+      Effect.catchTag('SqlError', asJournalError('Could not read the cursor')),
+    )
+    return toCursor(rows[0]?.cursor ?? 0)
   })
 
   const floor: Shape['floor'] = Effect.fn('Journal.floor')(function* (key: DocumentId) {
@@ -1063,6 +1079,7 @@ const makeShape = <
 
   return {
     load,
+    cursor,
     floor,
     read,
     append,

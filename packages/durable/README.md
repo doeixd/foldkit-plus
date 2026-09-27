@@ -664,6 +664,7 @@ The Journal also exposes operational tooling:
 - `reset` removes one document's snapshot and operations;
 - `effect`, `unfinished`, and `clearEffect` inspect/manage effect records;
 - `compact` and `floor` manage retained operation payloads;
+- `cursor` reads a document's last sequence without decoding its snapshot;
 - `Journal.metrics` counts appends, compactions, owner effect runs, and coalesced
   effect runs.
 

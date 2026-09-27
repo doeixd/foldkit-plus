@@ -233,6 +233,18 @@ describe('two people on one page', () => {
     expect(journal.snapshot().pages.map(page => page.title)).toEqual(['Kept'])
   })
 
+  it('refuses a cursor ahead of the server before committing anything', async () => {
+    const replica = await open('alice')
+    replicas.push(replica)
+    await Effect.runPromise(
+      replica.submit(Message.CreatedPage({ id: 'alice:0', title: 'Lost', key: 'alice:0:seed' })),
+    )
+    await expect(
+      journal.transport('alice').exchange(Sequence.make(3), Effect.runSync(replica.pending)),
+    ).rejects.toThrow('Cursor 3 is ahead of the server')
+    expect(journal.snapshot().pages).toEqual([])
+  })
+
   it('starts a page it opens without what the editor carried for the last', () => {
     const carried = { ...initialModel('alice'), storedMarks: ['Bold'], menuIndex: 2 }
     expect(update(carried, Message.OpenedPage({ id: 'other' })).model).toMatchObject({

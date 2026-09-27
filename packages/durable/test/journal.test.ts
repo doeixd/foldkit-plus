@@ -268,6 +268,14 @@ describe('a durable journal', () => {
       },
     ))
 
+  it('reads the cursor without a snapshot', () =>
+    withJournal(function* (journal) {
+      expect(yield* journal.cursor(todos)).toBe(0)
+      yield* journal.append(todos, add(1, 'a'), principal)
+      yield* journal.append(todos, add(2, 'b'), principal)
+      expect(yield* journal.cursor(todos)).toBe(2)
+    }))
+
   it('compacts payloads while keeping identity and the snapshot', () =>
     withJournal(function* (journal) {
       yield* journal.append(todos, add(1, 'a'), principal)

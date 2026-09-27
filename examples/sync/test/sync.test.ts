@@ -169,6 +169,15 @@ describe('the journal adapter', () => {
     expect(server.snapshot('todos').model).toEqual({ todos: [{ id: 'b', title: 'b' }] })
   })
 
+  it('refuses a cursor ahead of the server before committing anything', async () => {
+    // A client that synced with a server since reset: its edits must not commit only to
+    // have their acknowledgements lost with the failed read.
+    await expect(
+      server.transport(principal).exchange(Sequence.make(5), [operation('a', 1, created('b'))]),
+    ).rejects.toThrow('Cursor 5 is ahead of the server')
+    expect(server.snapshot('todos')).toEqual({ cursor: 0, model: { todos: [] } })
+  })
+
   it('rejects an id reused for other content, as a client whose storage was wiped sends', async () => {
     const transport = server.transport(principal)
     await transport.exchange(Sequence.make(0), [operation('a', 1, created('first'))])
