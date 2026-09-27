@@ -91,11 +91,16 @@ const make = (
   const encodeModel = Schema.encodeSync(form.bundle.Model)
   const decodeModel = Schema.decodeUnknownResult(form.bundle.Model)
   const encodeMessage = Schema.encodeSync(form.bundle.Message)
-  const decodeMessage = Schema.decodeUnknownResult(form.bundle.Message)
+  // Strict, as every boundary here: a held Message with a key its variant lacks is not one.
+  const decodeMessage = Schema.decodeUnknownResult(form.bundle.Message, {
+    onExcessProperty: 'error',
+  })
   type FormModel = typeof form.initial
 
   return {
     form,
+    /** Every key the form's Schema names, edited or shown. */
+    keys: Object.keys(fields),
     /** The props the form does not edit, labelled as its fields are, and as stored: shown, not changed. */
     shown: (
       stored: Readonly<Record<string, unknown>>,
@@ -141,7 +146,9 @@ const make = (
     /**
      * What a new value starts from, as the Document stores it: each field's
      * empty value where it decodes (`''`, `null`, `false`), else a number's
-     * zero or a select's first choice; a field with neither is left out.
+     * zero or a select's first choice; a field with neither is left out. It is
+     * not checked: a zero a number's check refuses, or a field left out, makes
+     * a value the Document refuses when it is set.
      */
     seed: (): Readonly<Record<string, Schema.Json>> => {
       const empty: Readonly<Record<string, unknown>> = form.partial(form.initial)

@@ -304,9 +304,10 @@ const PageForm = Form.make('PageForm', PageInput, {
   `Block.annotate(Builder.controls({ body: Input.multiline(), ref: Input.hidden() }))`
   (`Builder` from `foldkit-builder`). A Block's props are a `foldkit-form` form over their
   stored side (`PageBuilder.inspecting(model)`), drawn by `FormView` (style it with
-  `FieldSlots`/`FormSlots`): a change that decodes is one `setProp`; text that does not
-  (`"abc"` for a number) stays in its field with the error and edits nothing, held in the
-  Model's `inspector` as JSON. Each event's action input is a form too (`inspecting(model).on`,
+  `FieldSlots`/`FormSlots`): a change that decodes is one `setProp`, an optional field
+  emptied one `unsetProp`; text that does not (`"abc"` for a number) stays in its field
+  with the error and edits nothing, held in the Model's `inspector` as JSON. A value the
+  Block refuses is said in `refused`, and the field shows the node's value again. Each event's action input is a form too (`inspecting(model).on`,
   one `setAction` per change). A view sends `Inspected({ id, form: form.key, message })` (the
   message from `form.settings.encodeMessage`); one for a node or form no longer drawn is
   ignored. Field ids are `<Block>Settings-<prop>` and `<Block>-<event>-<action>-<key>`; two

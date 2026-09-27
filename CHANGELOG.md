@@ -384,6 +384,13 @@ version changed; `pnpm` skips versions already in the registry.
   taken for one with starting props, and a pasted tree is checked by its own
   ids, so a refusal names what was copied rather than freshly minted ids.
 
+- **`foldkit-builder`, the inspector:** an optional prop or input emptied is
+  taken away (`unsetProp`, or the input written without it) instead of left
+  as it was; a value the Block refuses leaves its field showing the node's
+  value, not one that looks accepted; an action's input is written with only
+  the keys its Schema names; and a held form Message with a key its variant
+  lacks is not decoded. `Settings` gains `keys`.
+
 - **`foldkit-composition`:** `field(key)` takes only a prop that is exactly
   `string`; a list of names (`'plain' | 'accent'`) is no longer a field. An
   id that is one of `Object`'s own names (`toString`, `constructor`,

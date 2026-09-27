@@ -3,7 +3,15 @@ import { Bundle } from 'foldkit-bundle'
 import { Renderer, fieldName } from 'foldkit-composition/foldkit'
 import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
-import { Block, Catalog, Composition, Content, NodeId, type Document } from 'foldkit-composition'
+import {
+  Block,
+  Catalog,
+  Composition,
+  Content,
+  NodeId,
+  Region,
+  type Document,
+} from 'foldkit-composition'
 import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
@@ -1409,5 +1417,127 @@ describe('the inspector, a form over the selected node', () => {
     expect(field(moved, 'text').value).toBe('Hello')
     // Back on the Stat, its field shows the node again.
     expect(field(send(moved, Message.Selected({ id: stat })), 'value').value).toBe('3')
+  })
+})
+
+describe('the inspector, where a value is cleared or refused', () => {
+  const Sheet = Block.define('Sheet', {
+    Props: Schema.Struct({}),
+    regions: { body: Region.many({ accepts: [Content.Flow] }) },
+    provides: [Content.Section],
+  })
+  const Range = Block.define('Range', {
+    Props: Schema.Struct({
+      min: Schema.Number,
+      max: Schema.Number,
+      step: Schema.optional(Schema.Number),
+    }).check(Schema.makeFilter(range => (range.min <= range.max ? undefined : 'min above max'))),
+    provides: [Content.Flow],
+    events: ['press'],
+  })
+  const Notify = {
+    name: 'notify',
+    description: 'Send a note',
+    input: Schema.Struct({ to: Schema.String, times: Schema.optional(Schema.Number) }),
+    toMessage: (input: { readonly to: string; readonly times?: number | undefined }) => input,
+  }
+  const catalog = Catalog.make({
+    blocks: [Sheet, Range],
+    actions: [Notify],
+    roots: [Content.Section],
+  })
+  const Ranges = Builder.make('Ranges', {
+    catalog,
+    renderer: Renderer.make(catalog, {
+      Sheet: ({ regions, h }) => h.section([], [...regions.body]),
+      Range: ({ h }) => h.div([], []),
+    }),
+    starters: { Sheet: {} },
+  })
+  const s = NodeId.make('s')
+  const r = NodeId.make('r')
+  const page = Ranges.replace(
+    Ranges.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [s],
+      nodes: {
+        [s]: { block: 'Sheet', props: {}, regions: { body: [r] } },
+        [r]: {
+          block: 'Range',
+          props: { min: 1, max: 5, step: 2 },
+          // `old` is a key the action's input no longer names.
+          actions: { press: { action: 'notify', input: { to: 'ann', times: 3, old: true } } },
+          regions: {},
+        },
+      },
+    }),
+  )
+  /** Ranges has no Commands this needs answered: a refusal's timer is left unrun. */
+  const send = (model: Model, message: Message): Model =>
+    Ranges.bundle.update(model, message, undefined).model
+  const selected = send(page, Message.Selected({ id: r }))
+  const inspected = (model: Model) => some(Ranges.inspecting(model), 'the range inspected')
+  const formOf = (model: Model, form: string) =>
+    form === 'props'
+      ? inspected(model).props
+      : required(inspected(model).on['press'], 'the press input')
+  const type = (model: Model, form: string, key: string, value: string): Model => {
+    const { key: named, settings } = formOf(model, form)
+    return send(
+      model,
+      Message.Inspected({
+        id: r,
+        form: named,
+        message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
+      }),
+    )
+  }
+  const node = (model: Model) => required(model.page.present.nodes[r], 'the range')
+
+  it('shows what the node holds again when the node refuses a value', () => {
+    const refused = type(selected, 'props', 'min', '9')
+    expect(Option.isSome(refused.refused)).toBe(true)
+    expect(node(refused).props).toEqual({ min: 1, max: 5, step: 2 })
+    const { settings, model } = formOf(refused, 'props')
+    expect(settings.form.field(model, 'min').value).toBe('1')
+    // Typing on is not refused again: the field keeps what is typed while the refusal still shows.
+    const typedOn = type(refused, 'props', 'min', '1.0')
+    expect(Option.isSome(typedOn.refused)).toBe(true)
+    const again = formOf(typedOn, 'props')
+    expect(again.settings.form.field(again.model, 'min').value).toBe('1.0')
+  })
+
+  it('takes away an optional prop, and an optional input, whose field is emptied', () => {
+    const cleared = type(selected, 'props', 'step', '')
+    expect(node(cleared).props).toEqual({ min: 1, max: 5 })
+    const input = type(selected, 'press', 'times', '')
+    expect(node(input).actions?.['press']).toEqual({ action: 'notify', input: { to: 'ann' } })
+  })
+
+  it('takes nothing away for a required field emptied: the field says it is required', () => {
+    const emptied = type(selected, 'props', 'min', '')
+    expect(emptied.page).toBe(selected.page)
+    expect(emptied.refused).toEqual(Option.none())
+    const { settings, model } = formOf(emptied, 'props')
+    expect(settings.form.field(model, 'min')).toMatchObject({ _tag: 'Invalid', value: '' })
+  })
+
+  it('keeps only the keys the action’s input names when it writes the input', () => {
+    const typed = type(selected, 'press', 'to', 'bo')
+    expect(node(typed).actions?.['press']).toEqual({
+      action: 'notify',
+      input: { to: 'bo', times: 3 },
+    })
+  })
+
+  it('takes no held form Message with a key its variant lacks', () => {
+    const { settings } = formOf(selected, 'props')
+    expect(
+      settings.decodeMessage({ _tag: 'Changed', key: 'min', value: '2', extra: true }),
+    ).toEqual(Option.none())
+    expect(Option.isSome(settings.decodeMessage({ _tag: 'Changed', key: 'min', value: '2' }))).toBe(
+      true,
+    )
   })
 })

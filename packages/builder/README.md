@@ -109,6 +109,7 @@ The node owns its values; a form only holds what its fields show:
 node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key
    a key the Message changed that decodes, and the node lacks ─► setProp,
                                               or setAction with the input's other keys
+   an optional key emptied ─► unsetProp, or setAction without it
    a key that does not decode ─► its error, no edit
 ```
 
@@ -117,7 +118,13 @@ node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the 
   A field left alone is never written back, and typing back the value the node
   holds adds no undo step.
 - **Text that does not decode** (`"abc"` for a number) stays in its field with
-  the form's error, and changes nothing.
+  the form's error, and changes nothing. A required field emptied is such
+  text; an optional one emptied takes the value away.
+- **A value the node refuses**, one that fits its field but not the Block (a
+  check across props), is said in `refused`, and the form shows what the node
+  holds again.
+- **An action's input is written whole**, with only the keys its Schema names,
+  so one a stored input kept from an older Schema is dropped, not refused.
 - **A node changed another way** (an undo, the canvas, an agent) refills every
   field but one holding text that does not decode. Moving the selection drops
   what was held; the next node's fields fill from its props.

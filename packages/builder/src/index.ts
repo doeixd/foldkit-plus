@@ -777,11 +777,6 @@ export const Builder = {
       },
     ]
 
-    /**
-     * The selected node's settings form and its Model: the one the inspector
-     * holds for that node, else one filled from its props. None when nothing
-     * is selected or its Block is not in the Catalog.
-     */
     /** A stored value that is a record of JSON, as props and an action's input are; else empty. */
     const recordOf = (value: unknown): Readonly<Record<string, Schema.Json>> =>
       typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -790,15 +785,21 @@ export const Builder = {
 
     /**
      * A node's forms, each with the stored values it fills from and the
-     * Operations that write its changed values back.
+     * Operations that write its changed values back and take away those
+     * cleared.
      */
     const formsOf = (id: NodeId, node: Document['nodes'][NodeId], block: AnyBlock) => {
       const props = {
         key: 'props',
         settings: settingsOf(block),
         stored: recordOf(node.props),
-        write: (changed: Readonly<Record<string, Schema.Json>>): ReadonlyArray<Operation> =>
-          Object.entries(changed).map(([key, value]) => Composition.Op.setProp(id, key, value)),
+        write: (
+          changed: Readonly<Record<string, Schema.Json>>,
+          cleared: ReadonlyArray<string>,
+        ): ReadonlyArray<Operation> => [
+          ...Object.entries(changed).map(([key, value]) => Composition.Op.setProp(id, key, value)),
+          ...cleared.map(key => Composition.Op.unsetProp(id, key)),
+        ],
       }
       const refs = recordOf(node.actions)
       const on = block.events.flatMap(event => {
@@ -806,17 +807,26 @@ export const Builder = {
         const action = catalog.actions.find(each => each.name === ref['action'])
         if (action === undefined) return []
         const input = recordOf(ref['input'])
+        const settings = inputOf(block, event, action)
         return [
           {
             event,
             key: `on:${event}:${action.name}`,
-            settings: inputOf(block, event, action),
+            settings,
             stored: input,
-            // The action's input is one value: the changed keys over what it held.
-            write: (changed: Readonly<Record<string, Schema.Json>>): ReadonlyArray<Operation> => [
+            // The action's input is one value: the changed keys over what it held, less
+            // those cleared and any its Schema no longer names, which would be refused.
+            write: (
+              changed: Readonly<Record<string, Schema.Json>>,
+              cleared: ReadonlyArray<string>,
+            ): ReadonlyArray<Operation> => [
               Composition.Op.setAction(id, event, {
                 action: action.name,
-                input: { ...input, ...changed },
+                input: Object.fromEntries(
+                  Object.entries({ ...input, ...changed }).filter(
+                    ([key]) => settings.keys.includes(key) && !cleared.includes(key),
+                  ),
+                ),
               }),
             ],
           },
@@ -863,11 +873,20 @@ export const Builder = {
         })
       })
 
+    /** A form's Model refilled from what the node stores, but for a field that does not decode. */
+    const refill = (
+      settings: Settings,
+      model: InspectedForm['model'],
+      stored: Readonly<Record<string, Schema.Json>>,
+    ) => settings.fill(model, stored, key => settings.form.field(model, key)._tag === 'Invalid')
+
     /**
      * A Message of one of the selected node's forms: the form takes it, and
      * each value it changed, and that the node does not already hold, is
      * written back: a prop by one `setProp` each, an action's input by one
-     * `setAction`. A field that does not decode writes nothing and shows its error.
+     * `setAction`; a value cleared that the node held is taken away. A field
+     * that does not decode writes nothing and shows its error; a value the
+     * node refuses is said, and the form shows what the node holds again.
      */
     const inspect = (
       model: Model,
@@ -894,10 +913,11 @@ export const Builder = {
           // Stored values are JSON, so their text tells two apart.
           const text = (value: unknown) => JSON.stringify(value)
           const before: Readonly<Record<string, unknown>> = settings.form.partial(known.model)
+          const after: Readonly<Record<string, unknown>> = settings.form.partial(next.model)
           // Only what this Message changed: a field left alone is never written
           // back, even where its draft does not give back the stored value exactly.
           const changed = Object.fromEntries(
-            Object.entries(settings.form.partial(next.model)).flatMap(([key, value]) =>
+            Object.entries(after).flatMap(([key, value]) =>
               Object.hasOwn(before, key) && text(before[key]) === text(value)
                 ? []
                 : Option.match(settings.stored(key, value), {
@@ -905,6 +925,12 @@ export const Builder = {
                     onSome: json => (text(json) === text(stored[key]) ? [] : [[key, json]]),
                   }),
             ),
+          )
+          // A value that left the form without its field failing, as an optional
+          // one emptied does: the node holds it no longer.
+          const cleared = Object.keys(before).filter(
+            key =>
+              !Object.hasOwn(after, key) && settings.form.field(next.model, key)._tag !== 'Invalid',
           )
           const held = Option.match(model.inspector, {
             onNone: () => ({}),
@@ -924,12 +950,33 @@ export const Builder = {
               Message.Inspected({ id, form: known.key, message: settings.encodeMessage(sent) }),
             ),
           ]
-          if (Object.keys(changed).length > 0)
-            for (const op of write(changed)) {
+          let refused = false
+          if (Object.keys(changed).length > 0 || cleared.length > 0)
+            for (const op of write(changed, cleared)) {
               result = applyOp(result.model, op)
+              // A write that went through clears the refusal: one left is this one's.
+              refused ||= Option.isSome(result.model.refused)
               commands.push(...(result.commands ?? []))
             }
-          return { model: result.model, commands }
+          if (!refused) return { model: result.model, commands }
+          // Refused: the form shows what the node holds, not a value it never took.
+          const now = formsOf(id, documentOf(result.model).nodes[id] ?? node, block)
+          const holds = [now.props, ...now.on].find(form => form.key === known.key)
+          return {
+            model: {
+              ...result.model,
+              inspector: Option.some({
+                id,
+                forms: {
+                  ...held,
+                  [known.key]: settings.encode(
+                    refill(settings, next.model, holds?.stored ?? stored),
+                  ),
+                },
+              }),
+            },
+            commands,
+          }
         },
       })
     }
@@ -955,16 +1002,7 @@ export const Builder = {
         Option.match(Option.flatMap(Option.fromUndefinedOr(held[form.key]), form.settings.decode), {
           onNone: () => [],
           onSome: model => [
-            [
-              form.key,
-              form.settings.encode(
-                form.settings.fill(
-                  model,
-                  form.stored,
-                  key => form.settings.form.field(model, key)._tag === 'Invalid',
-                ),
-              ),
-            ] as const,
+            [form.key, form.settings.encode(refill(form.settings, model, form.stored))] as const,
           ],
         }),
       )
