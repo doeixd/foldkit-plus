@@ -81,14 +81,19 @@ const renderBlock = (
   }
   // A node that accepts nested blocks renders them inside it, so a list keeps
   // its items; a text block holds only its runs.
-  const children: ReadonlyArray<Child> = [
-    ...block.children.flatMap(run => renderRun(renderer, run, spans.get(run.id) ?? [])),
-    ...(block.type === 'Node' && block.blocks !== undefined
+  const runs = block.children.flatMap(run => renderRun(renderer, run, spans.get(run.id) ?? []))
+  const nested =
+    block.type === 'Node' && block.blocks !== undefined
       ? renderBlocksWith(block.blocks, renderer, spans)
-      : []),
-  ]
+      : []
+  const children: ReadonlyArray<Child> = [...runs, ...nested]
   const element = block.type === 'Node' ? RichText.nodeRendering(renderer, block) : undefined
-  if (element !== undefined) return renderElement(element, children)
+  if (element !== undefined) {
+    return renderElement(
+      element,
+      element.inner === undefined ? children : [...runs, elementFor(element.inner)([], nested)],
+    )
+  }
   if (block.type === 'Node') {
     // The kind is addressable so a stylesheet or a renderer can reach it.
     return h.div([h.DataAttribute('node', block.kind)], children)
@@ -123,3 +128,90 @@ export const renderDocument = (
     [],
     renderBlocksWith(document.children, renderer, RichText.decorationsIn(document, decorations)),
   )
+
+const MARK_ATTRIBUTE = 'data-marks'
+
+/** A run as `mount` draws it: one `span[data-run]`, its pieces' mark and decoration elements inside. */
+const editableRun = (
+  renderer: RichText.Rendering,
+  run: RichText.Text,
+  spans: ReadonlyArray<RichText.DecorationSpan>,
+): Html => {
+  const { nest, unrendered } = RichText.runRendering(renderer, run)
+  const pieces = RichText.runPieces(run.text, spans).map(({ text, decorations }) => {
+    let node: Child = text
+    for (const element of nest) node = renderElement(element, [node])
+    for (const decoration of decorations) {
+      node = h.span([h.DataAttribute('decoration', decoration.kind)], [node])
+    }
+    return node
+  })
+  return h.span(
+    [
+      h.DataAttribute('run', run.id),
+      ...(unrendered.length > 0 ? [h.Attribute(MARK_ATTRIBUTE, unrendered.join(' '))] : []),
+    ],
+    pieces,
+  )
+}
+
+const editableBlock = (
+  renderer: RichText.Rendering,
+  block: RichText.Block,
+  spans: ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>,
+): Html => {
+  if (block.type === 'Unknown') {
+    return h.div(
+      [
+        h.DataAttribute('block', block.id),
+        h.DataAttribute('unknown', block.originalType),
+        h.Attribute('contenteditable', 'false'),
+      ],
+      [`[${block.originalType}]`],
+    )
+  }
+  const runs = block.children.map(run => editableRun(renderer, run, spans.get(run.id) ?? []))
+  const nested =
+    block.type === 'Node' && block.blocks !== undefined
+      ? block.blocks.map(inner => editableBlock(renderer, inner, spans))
+      : []
+  // The same element `mount` picks: the kind's entry, else the block's own type's.
+  const element = (block.type === 'Node' ? RichText.nodeRendering(renderer, block) : undefined) ?? {
+    tag: block.type === 'Heading' ? `h${block.level}` : block.type === 'Paragraph' ? 'p' : 'div',
+    attributes: {},
+  }
+  const attributes: ElementAttributes = [
+    ...Object.entries(element.attributes)
+      .filter(([key]) => key !== 'data-block')
+      .map(([key, value]) => h.Attribute(key, value)),
+    h.DataAttribute('block', block.id),
+  ]
+  return elementFor(element.tag)(
+    attributes,
+    element.inner === undefined
+      ? [...runs, ...nested]
+      : [...runs, elementFor(element.inner)([], nested)],
+  )
+}
+
+/**
+ * The editable subtree `mount` builds, as `Html`, for a server to send in the editor's host so
+ * the browser's editor adopts it rather than drawing it again (§145). `adopt` takes it over
+ * only when it is exactly what `mount` would build, so it has to be rendered with the same
+ * registry and decorations the editor will mount with.
+ */
+export const renderEditable = (
+  document: RichText.Document,
+  renderer: RichText.Rendering = RichText.noRendering,
+  decorations: RichText.DecorationSet = [],
+): Html => {
+  const spans = RichText.decorationsIn(document, decorations)
+  return h.div(
+    [
+      h.Attribute('contenteditable', 'true'),
+      h.Role('textbox'),
+      h.Attribute('aria-multiline', 'true'),
+    ],
+    document.children.map(block => editableBlock(renderer, block, spans)),
+  )
+}

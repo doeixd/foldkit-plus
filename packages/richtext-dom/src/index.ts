@@ -100,7 +100,8 @@ const renderBlock = (
   // A declared node kind renders as its entry (§121); every other block keeps the
   // tag its own type implies. The id attribute is the interpreter's, so it wins
   // over an entry that names it.
-  const element = renderElement(owner, blockRendering(rendering, block))
+  const entry = blockRendering(rendering, block)
+  const element = renderElement(owner, entry)
   element.setAttribute('data-block', block.id)
   if (block.type === 'Unknown') {
     // Preserved content is shown as a diagnostic placeholder, never executed.
@@ -120,8 +121,13 @@ const renderBlock = (
   // A node that accepts nested blocks renders them inside it, so a list keeps
   // its items and each nested block stays addressable by identity.
   if (block.type === 'Node' && block.blocks !== undefined) {
+    // An entry can name an element the nested blocks go in, as a table's rows go in a tbody.
+    const holder =
+      entry.inner === undefined
+        ? element
+        : element.appendChild(renderElement(owner, { tag: entry.inner, attributes: {} }))
     for (const nested of block.blocks)
-      element.append(renderBlock(owner, nested, elements, rendering, spans))
+      holder.append(renderBlock(owner, nested, elements, rendering, spans))
   }
   elements.set(block.id, element)
   return element
@@ -200,10 +206,21 @@ export const adopt = (
  * untouched element keeps its object identity, so the browser is not handed a
  * rebuilt tree on each keystroke.
  */
-const childIds = (element: HTMLElement, attribute: string): ReadonlyArray<string> =>
+const childIds = (element: Element, attribute: string): ReadonlyArray<string> =>
   Array.from(element.children)
     .map(child => child.getAttribute(attribute))
     .filter((id): id is string => id !== null)
+
+/**
+ * A block element's nested block elements, looking through an element a rendering puts them in
+ * (a table's `tbody`). A run holds no blocks, so looking through one finds none.
+ */
+const nestedIn = (element: Element): ReadonlyArray<Element> =>
+  Array.from(element.children).flatMap(child =>
+    child.hasAttribute('data-block') ? [child] : nestedIn(child),
+  )
+const nestedIds = (element: Element): ReadonlyArray<string> =>
+  nestedIn(element).map(child => child.getAttribute('data-block')!)
 
 const sameIds = (present: ReadonlyArray<string | null>, wanted: ReadonlyArray<string>): boolean =>
   present.length === wanted.length && present.every((id, at) => id === wanted[at])
@@ -299,7 +316,7 @@ const patchBlocks = (
         block.children.map(run => run.id),
       ) &&
       sameIds(
-        childIds(existing, 'data-block'),
+        nestedIds(existing),
         nested.map(child => child.id),
       )
     // Placement is relative to the previous block's element, which this loop has
@@ -402,10 +419,9 @@ export const rangeToPosition = (
 export const toText = (dom: EditorDom): string => {
   const lines: Array<string> = []
   const walk = (container: Element): void => {
-    for (const element of Array.from(container.children)) {
-      if (!element.hasAttribute('data-block')) continue
+    for (const element of nestedIn(container)) {
       // A container contributes its nested blocks' lines, not one long line.
-      if (Array.from(element.children).some(child => child.hasAttribute('data-block'))) {
+      if (nestedIn(element).length > 0) {
         walk(element)
         continue
       }
@@ -479,7 +495,7 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
         marksMatch &&
         sameIds(childIds(element, 'data-run'), runs) &&
         sameIds(
-          childIds(element, 'data-block'),
+          nestedIds(element),
           nested.map(child => child.id),
         )
       if (!shapeMatches) {

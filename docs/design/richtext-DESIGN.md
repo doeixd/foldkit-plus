@@ -7882,8 +7882,8 @@ declare it. Otherwise hydration either clears it (childless host) or takes owner
    every change resets the adapter's DOM. A view is a function of the Model, and the Model has no
    "initial document" to render from.
 
-Recommendation: route 1. Also needed on the server is an `Html` rendering of the editable
-structure. The read-only `renderDocument` differs from `mount` in the root's attributes,
+Recommendation: route 1, which is the one chosen. Also needed on the server is an `Html`
+rendering of the editable structure. The read-only `renderDocument` differs from `mount` in the root's attributes,
 `data-block`, and the run spans, so it is a second renderer to keep equal to `mount`. A test that
 round-trips it through `adopt` would hold the two equal.
 
@@ -8062,3 +8062,27 @@ it lands the block where §148's midpoint rule did, though sometimes named from 
 
 Not done: paste, wrap, and the other commands still consult only the container's side
 (`blocksOf`), not `within`.
+
+---
+
+# 150. Tables on a server-rendered page
+
+Writing `renderEditable`, the editable subtree as `Html` for §145, and testing it the way a server
+sends it (Foldkit's `renderToString`, then the browser's parser, then `adopt`) found a bug older
+than it. The standard rendering puts a table's rows straight in the `table`. HTML's parser
+inserts a `tbody` around bare rows, so the parsed tree is not the rendered one, and Foldkit
+refuses to serialize it at all ("HTML parsing produced <tbody> where the view declared <tr>").
+So every server-rendered page that drew a document with a table failed, the read-only renderer
+included, which is what a CMS visitor page uses.
+
+An element rendering can now name an `inner` element its nested blocks go inside, and the
+standard `Table` names `tbody`. Every interpreter honours it: the HTML serializer, the read-only
+renderer, `renderEditable`, and `mount`. The adapter's structure checks (`patch` deciding whether
+a container is intact, `repair`, `toText`) find a block's nested blocks through such a holder,
+since anything under a block element that is not a block is at most a wrapper. That lookup
+needed no rendering entry, and the mutation run showed that excluding runs from it was
+redundant, since a run holds no blocks.
+
+The importer already reads `tbody`, so a round trip through HTML is unchanged. Any other entry
+whose element HTML's parser completes the same way (a `colgroup`, say) can name its own
+`inner`.

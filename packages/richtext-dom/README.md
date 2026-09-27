@@ -35,7 +35,7 @@ foldkit-richtext-dom          the interpreter: mount, adopt, patch, repair, posi
 foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRendering, renderingFor
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
-foldkit-richtext-dom/view     renderDocument, renderBlocks
+foldkit-richtext-dom/view     renderDocument, renderBlocks, renderEditable
 foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor, blockAnchor, blockDrag
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
@@ -251,6 +251,12 @@ stylesheet serves both interpreters. Through an attachment, the set comes from t
 `attachment.sync` draws `decorate` of the synced document, so a derived highlight follows
 each edit. `attach` on its own draws nothing until the first sync; pass the first set to
 `mount` yourself.
+
+`renderEditable(document, renderer?, decorations?)` is the other side of that coin: the
+subtree `mount` builds (the editable root, `data-block` on every block, a `span[data-run]` per
+run), as `Html` a server can send in the editor's host. The editor's `adopt` takes it over only
+when it is exactly what `mount` would build, so render it with the registry and decorations the
+editor mounts with.
 
 Foldkit types one builder per tag name and publishes no builder for an arbitrary tag,
 so a renderer tag outside the tags Foldkit can build — a custom element's, say — is
