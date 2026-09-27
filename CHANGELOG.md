@@ -32,7 +32,9 @@ version changed; `pnpm` skips versions already in the registry.
   tab, as it kept the open page, so a reload lands where one was, and opening
   or closing a post or a page is a step Back returns from. A page has its History
   and More (discard, unpublish, archive) under a fold below the editor's bar,
-  as a post has them in its aside.
+  as a post has them in its aside. The History is a timeline: each revision
+  with its date, time and publisher, the newest marked Live while it is on the
+  site, and Restore offered only where it would change something.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

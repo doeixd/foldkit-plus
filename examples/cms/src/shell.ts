@@ -135,34 +135,79 @@ export interface RevisionRow {
   readonly publishedBy: string | null
 }
 
-/** What was published, newest first, each with a way back to it. */
+/** A moment as the History says it: "Sep 27, 2026" and "9:12 PM", apart. */
+const momentOf = (iso: string) => {
+  const at = new Date(iso)
+  return {
+    day: at.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+    time: at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+  }
+}
+
+/** Who published, by the name the sidebar gives them; someone else by their own. */
+const publisherOf = (name: string): string =>
+  Option.match(Option.fromUndefinedOr(chairs.find(known => known === name)), {
+    onNone: () => name,
+    onSome: known => people[known].name,
+  })
+
+/**
+ * What was published, newest first, as a timeline: each revision on a line
+ * down to the first, with when and by whom. The newest is marked Live while
+ * the entry is on the site; restoring it is offered only while a draft sits
+ * over it, since otherwise it changes nothing.
+ */
 export const historyCard = <M>(
   slots: SlotView.SlotBuilders<typeof AdminSlots, M>,
   h: HtmlBuilder<M>,
   revisions: ReadonlyArray<RevisionRow>,
-  restore: (revision: number) => M,
-): Html =>
-  h.section(slots.card.attrs([h.Id('history')]), [
+  entry: {
+    readonly state: Option.Option<State>
+    readonly restore: (revision: number) => M
+  },
+): Html => {
+  const live = stateIs(entry.state, 'Published', 'Changed')
+  const drafted = stateIs(entry.state, 'Changed')
+  return h.section(slots.card.attrs([h.Id('history')]), [
     h.h2(slots.cardTitle.attrs(), ['History']),
     revisions.length === 0
       ? h.p(slots.muted.attrs(), ['Nothing has been published yet.'])
       : h.ol(
-          slots.list.attrs(),
-          revisions.map(revision =>
-            h.li(slots.revision.attrs(), [
-              icon(h, 'history', 14),
-              h.span(
-                [],
-                [
-                  `Revision ${revision.n} · ${Display.show(Cms.Display.Moment.of({}), revision.publishedAt)}`,
-                  revision.publishedBy === null ? '' : ` · ${revision.publishedBy}`,
-                ],
-              ),
-              h.button(slots.ghost.attrs([h.OnClick(restore(revision.n))]), ['Restore']),
-            ]),
-          ),
+          slots.timeline.attrs([h.AriaLabel('Published revisions, newest first')]),
+          revisions.map((revision, index) => {
+            const newest = index === 0
+            const { day, time } = momentOf(revision.publishedAt)
+            const isLive = newest && live
+            return h.li(slots.revision.attrs(isLive ? [h.DataAttribute('live', '')] : []), [
+              h.span(slots.revisionMark.attrs([h.AriaHidden(true)]), []),
+              h.div(slots.revisionBody.attrs(), [
+                h.p(slots.revisionTitle.attrs(), [
+                  `Revision ${revision.n}`,
+                  ...(isLive ? [h.span(slots.revisionLive.attrs(), ['Live'])] : []),
+                ]),
+                h.p(slots.revisionMeta.attrs(), [
+                  h.time([h.Attribute('datetime', revision.publishedAt)], [`${day} · ${time}`]),
+                  ...(revision.publishedBy === null
+                    ? []
+                    : [` · ${publisherOf(revision.publishedBy)}`]),
+                ]),
+              ]),
+              ...(isLive && !drafted
+                ? []
+                : [
+                    h.button(
+                      slots.revisionRestore.attrs([
+                        h.OnClick(entry.restore(revision.n)),
+                        h.AriaLabel(`Restore revision ${revision.n}`),
+                      ]),
+                      ['Restore'],
+                    ),
+                  ]),
+            ])
+          }),
         ),
   ])
+}
 
 /**
  * The rest of what can happen to an entry: its draft discarded, taken off the

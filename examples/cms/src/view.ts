@@ -330,9 +330,10 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ? [action('unschedule', 'Cancel the schedule', ask(Editor.Message.UnscheduleAsked()))]
             : []),
         ]),
-        historyCard(slots, h, revisionsOf(model), revision =>
-          ask(Editor.Message.RestoreAsked({ revision })),
-        ),
+        historyCard(slots, h, revisionsOf(model), {
+          state,
+          restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
+        }),
         ...moreCard(slots, h, {
           state,
           may,
