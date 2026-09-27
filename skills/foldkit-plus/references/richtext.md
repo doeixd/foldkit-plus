@@ -137,7 +137,8 @@ and clipboard events into editor intent while preventing the browser from mutati
 the subtree behind the document. `onSelection` reports a caret the application did
 not just commit, and `mountInto(host, content, options)` at
 `foldkit-richtext-dom/host` renders into a view's host element and records the
-attachment a patch Command later finds. A registry can also be `placeRendering`d for
+attachment a patch Command later finds; if the host already holds exactly the subtree it would
+build (server markup), it keeps those elements (`adopt`), and otherwise replaces what is there. A registry can also be `placeRendering`d for
 a host id — what the editor Bundle's `editorAt(hostId, placement?)` does — and the
 mount reads it by that id, so a renderer reaches a view's mount without entering a
 Model or schema-decoded args (`renderingFor` reads the record back). A Kit passed to `attach` degrades

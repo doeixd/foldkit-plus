@@ -229,3 +229,114 @@ describe('decorations drawn over a mounted editor (§129)', () => {
     expect(decorationsFor('undecorated-host')(content())).toEqual([])
   })
 })
+
+describe('adopting markup already in the host (§145)', () => {
+  const served = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: 'Water ', marks: [] },
+            { type: 'Text', id: 'b', text: 'early', marks: ['Bold'] },
+          ],
+        },
+        // An empty run: the markup cannot carry the text node a caret there needs.
+        {
+          type: 'Paragraph',
+          id: 'e',
+          children: [{ type: 'Text', id: 'z', text: '', marks: ['Bold'] }],
+        },
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'ListItem',
+              id: 'i',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'ip',
+                  children: [{ type: 'Text', id: 'it', text: 'one', marks: [] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as never)
+
+  /** What a server sends: the adapter's own subtree for the document, as markup. */
+  const serve = (element: HTMLElement, document_: RichText.Document) => {
+    const scratch = host()
+    mountInto(scratch, document_, { onIntent: () => {} })
+    element.innerHTML = scratch.innerHTML
+    releaseMount(scratch)
+    scratch.remove()
+  }
+
+  it('keeps the served elements and indexes them, adding the empty run its text node', () => {
+    const element = host()
+    serve(element, served())
+    const root = element.firstElementChild
+    const paragraph = element.querySelector('[data-block="p"]')
+    const empty = element.querySelector('[data-run="z"]')!
+    expect(empty.querySelector('strong')?.firstChild).toBeNull()
+
+    const attachment = mountInto(element, served(), { onIntent: () => {} })
+    const dom = attachment.current()
+    expect(dom.root).toBe(root)
+    expect(element.children).toHaveLength(1)
+    expect(dom.elements.get(RichText.NodeId.make('p'))).toBe(paragraph)
+    expect(dom.elements.get(RichText.NodeId.make('it'))).toBe(
+      element.querySelector('[data-run="it"]'),
+    )
+    expect(dom.elements.get(RichText.NodeId.make('z'))).toBe(empty)
+    expect(empty.querySelector('strong')?.firstChild).toBeInstanceOf(Text)
+
+    // It edits like a subtree the adapter built: the patch lands in the served element.
+    const result = RichText.run(
+      { document: served(), selection: { type: 'Range', anchor: at('b', 5), focus: at('b', 5) } },
+      { type: 'InsertText', text: '!' },
+      { mint: () => 'unused' },
+    )
+    if (!result.ok) throw new Error(result.error)
+    attachment.sync(result.state, result.changeSet)
+    expect(paragraph?.textContent).toBe('Water early!')
+    expect(element.querySelector('[data-block="p"]')).toBe(paragraph)
+    releaseMount(element)
+  })
+
+  it.each([
+    ['markup for another document', (element: HTMLElement) => serve(element, content())],
+    [
+      'markup with something extra beside it',
+      (element: HTMLElement) => {
+        serve(element, served())
+        element.append(document.createElement('p'))
+      },
+    ],
+    [
+      'markup the adapter did not write',
+      (element: HTMLElement) => (element.innerHTML = '<p>Water early</p>'),
+    ],
+  ])('builds afresh over %s, leaving one subtree', (_, arrange) => {
+    const element = host()
+    arrange(element)
+    const stale = element.firstElementChild
+    const attachment = mountInto(element, served(), { onIntent: () => {} })
+    expect(attachment.current().root).not.toBe(stale)
+    expect(element.children).toHaveLength(1)
+    expect(element.textContent).toBe('Water earlyone')
+    releaseMount(element)
+  })
+})

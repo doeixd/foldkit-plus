@@ -5,7 +5,7 @@
  * reference never has to enter a Model.
  */
 import * as RichText from 'foldkit-richtext'
-import { mount } from './index.js'
+import { adopt, mount } from './index.js'
 import { attach, type AttachOptions, type Attachment, type Decorate } from './events.js'
 
 const attachments = new WeakMap<Element, Attachment>()
@@ -106,8 +106,12 @@ export const mountInto = (
   // A mount runs once per element, so this is defensive: a remount replaces the
   // subtree rather than leaving two.
   releaseMount(host)
-  const dom = mount(host.ownerDocument, content, rendering, options.decorate?.(content))
-  host.append(dom.root)
+  const decorations = options.decorate?.(content)
+  // Server markup for this document is kept (§145); anything else in the host is replaced.
+  const existing = host.children.length === 1 ? host.firstElementChild : null
+  const adopted = existing === null ? undefined : adopt(existing, content, rendering, decorations)
+  const dom = adopted ?? mount(host.ownerDocument, content, rendering, decorations)
+  if (adopted === undefined) host.replaceChildren(dom.root)
   const attachment = attach(dom, options)
   attachments.set(host, attachment)
   return attachment

@@ -14,7 +14,9 @@ status line, the command palette, the floating toolbar's anchor, and the block h
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
 Milestone 8's form control and its CMS example are built (§139, §140).
-Still to do: the rest of milestone 6's chrome, then the rest of source mode, SSR and real-browser hardening, collaboration, presence, and agents, in
+Milestone 9 has begun: the adapter adopts matching server markup (§145).
+Still to do: dragging blocks (milestone 6), the rest of source mode, the rest of SSR (§145 names
+the open decision), real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
 the stateful-Form control is spiked, and the collaboration proof is unstarted.
@@ -7818,3 +7820,71 @@ element and a fresh Mount. AGENTS.md records the trap.
 Not done:
 - **Dragging.** Its drop target is `Beside`'s shape, and it needs the cross-container rules above.
 - **Real layout**, as in §143: the arithmetic and wiring are tested with stubbed rectangles.
+
+---
+
+# 145. SSR adoption
+
+§124's milestone 9 asks the DOM package to "cooperate directly with `foldkit-ssr`". The server
+renders a document into the editor's host, and the client adopts that DOM instead of rebuilding
+it. Two halves: the adapter must be able to take over markup it finds, and the page must be able
+to deliver that markup to it. The first is built. The second has a decision in it that is not
+this document's to make alone.
+
+## What hydration does to the host today
+
+`foldkit-ssr` renders with Foldkit's `renderToString` and resumes with Foldkit's `hydrate`, which
+walks the first client render beside the server DOM and keeps what matches. The editor's view
+renders its host with no children, and a childless vnode owns an empty element: hydration clears
+any server DOM under it (`hydrate.js`, "a childless vnode ... owns an empty element"). Mounts run
+after the patch on adopted elements, so the editor's `events` Mount does run on the served host,
+but by then the host is empty. So today an SSR page shows an empty editor until the client mounts
+it.
+
+There is one exemption. An autonomous custom element (a tag with a hyphen) keeps its light DOM
+unless the view declares children or `InnerHTML` for it, because that DOM is the component's.
+
+## The adapter half: `adopt`
+
+`mountInto` used to append a fresh subtree beside whatever the host held. Now it adopts:
+- If the host holds one element that is exactly what `mount` would build for this document,
+  rendering and decorations, those elements stay and the identity index is built around them
+  (`adopt`).
+- Otherwise the host's children are replaced, so it never holds two subtrees.
+
+"Exactly" is `isEqualNode` on copies without empty text nodes, because markup cannot carry an
+empty text node. For the same reason an adopted empty run gets its content from `mount`: a caret
+there needs a text node, and an element offers no semantic offset. The run element itself stays,
+so its identity survives. Adoption is all or nothing. A partial match is rebuilt, since a
+half-adopted index is a subtle bug and rebuilding is what happened before.
+
+## The page half: open
+
+The server has to emit the editable subtree inside the host, and the client view must not
+declare it. Otherwise hydration either clears it (childless host) or takes ownership of it
+(declared children), and then fights the adapter on every render. Routes considered:
+
+1. **A custom-element host, children on the server only.** The host becomes, say,
+   `<foldkit-richtext>`, rendered with `customElement`. Hydration keeps its light DOM, and the
+   Mount adopts it. The server needs to know it is the server to emit the children, which is
+   `foldkit-ssr`'s render context (`collect`/`replay`/`resume` in `staticRegion`). So this needs a
+   small `foldkit-ssr` primitive, "server-seeded, client-owned", and the editor view would use
+   it. Costs: the host's tag changes (a custom element is `display: inline` until styled), and
+   two packages gain API.
+2. **`foldkit-ssr`'s static region.** It replays the served markup as constant trusted
+   `InnerHTML`, which Foldkit would then leave alone, so the adapter could mutate inside it. But
+   outside SSR the region renders its children as vnodes on every render, which is exactly the
+   fight to avoid. It would need the same server/client switch as route 1 without route 1's
+   clean exemption.
+3. **Trusted `InnerHTML` from the view.** The value must be constant for the life of the host, or
+   every change resets the adapter's DOM. A view is a function of the Model, and the Model has no
+   "initial document" to render from.
+
+Recommendation: route 1. Also needed on the server is an `Html` rendering of the editable
+structure. The read-only `renderDocument` differs from `mount` in the root's attributes,
+`data-block`, and the run spans, so it is a second renderer to keep equal to `mount`. A test that
+round-trips it through `adopt` would hold the two equal.
+
+Not done: the route decision, the server renderer, the placeholder on adopted markup (drawn
+after mount, as for a fresh one, and not tested there), and a page-level test through
+`foldkit-ssr`.

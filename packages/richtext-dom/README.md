@@ -31,7 +31,7 @@ pnpm add foldkit-richtext-dom foldkit-richtext foldkit-bundle foldkit effect
 ## Entries
 
 ```text
-foldkit-richtext-dom          the interpreter: mount, patch, repair, position mapping
+foldkit-richtext-dom          the interpreter: mount, adopt, patch, repair, position mapping
 foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRendering, renderingFor
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
@@ -139,6 +139,13 @@ attachmentIn(host)?.sync(state, changeSet)
 // Unmount.
 releaseMount(host)
 ```
+
+If the host already holds exactly the subtree `mount` would build for `content` (server markup
+the browser parsed, say), `mountInto` keeps those elements and indexes them instead of building
+new ones. `adopt(existing, content, rendering?, decorations?)` is that check on its own. It
+compares the trees ignoring empty text nodes, which markup cannot carry, and gives an empty run
+back the text node a caret there needs. Anything else in the host is replaced, so the host ends
+with one subtree either way. How a server comes to send that markup is not settled (§145).
 
 ## The editor's Messages
 

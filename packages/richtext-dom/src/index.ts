@@ -152,6 +152,48 @@ export const mount = (
   return { root, elements, content, rendering, decorations }
 }
 
+/** A deep copy without empty text nodes, which markup cannot carry, for comparing subtrees. */
+const comparable = (node: Node): Node => {
+  const copy = node.cloneNode(true)
+  copy.normalize()
+  return copy
+}
+
+/**
+ * Takes over a subtree already in the page when it is exactly what `mount` would build, such
+ * as server markup the browser parsed (§145): the elements stay, and the identity index is
+ * built around them. Undefined when anything differs, so the caller builds afresh.
+ *
+ * Markup cannot carry an empty text node, and a caret in an empty run needs one, so an empty
+ * run's content is replaced by what `mount` gives it; the run's element stays.
+ */
+export const adopt = (
+  existing: Element,
+  content: RichText.Document,
+  rendering: RichText.Rendering = RichText.noRendering,
+  decorations: RichText.DecorationSet = [],
+): EditorDom | undefined => {
+  if (!(existing instanceof HTMLElement)) return undefined
+  const fresh = mount(existing.ownerDocument, content, rendering, decorations)
+  if (!comparable(fresh.root).isEqualNode(comparable(existing))) return undefined
+  // Equal trees list their addressable elements in the same order.
+  const found = existing.querySelectorAll<HTMLElement>('[data-block], [data-run]')
+  const elements = new Map<RichText.NodeId, HTMLElement>()
+  for (const [index, element] of Array.from(
+    fresh.root.querySelectorAll<HTMLElement>('[data-block], [data-run]'),
+  ).entries()) {
+    const id = RichText.NodeId.make(
+      element.getAttribute('data-block') ?? element.getAttribute('data-run') ?? '',
+    )
+    const adopted = found[index]!
+    if (element.hasAttribute('data-run') && element.textContent === '') {
+      adopted.replaceChildren(...Array.from(element.childNodes))
+    }
+    elements.set(id, adopted)
+  }
+  return { root: existing, elements, content, rendering, decorations }
+}
+
 /**
  * Applies a ChangeSet: removed identities lose their elements, dirty identities
  * are re-rendered in place (or inserted, when they are new), and every
