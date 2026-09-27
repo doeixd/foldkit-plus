@@ -139,6 +139,58 @@ const fresh: Model = {
 const fold = (model: Model, message: Parameters<typeof List.wrapper.make>[0]) =>
   Option.getOrThrow(placed.update(model, List.wrapper.make(message))).model.list
 
+describe('cached offsets', () => {
+  it('recompute for the same keys array when the heights or the layout change', () => {
+    expect(totalHeight(keys, fixed, flat)).toBe(50)
+    expect(totalHeight(keys, { ...fixed, a: 20 }, flat)).toBe(60)
+    expect(offsetFor(5, keys, fixed, flat)).toBe(50)
+    expect(offsetFor(5, keys, fixed, { ...flat, gap: 1 })).toBe(55)
+  })
+
+  it('window exactly as a linear scan does', () => {
+    // The scan the offsets replaced: each row a box, gaps and padding dead space.
+    const scan = (
+      rows: ReadonlyArray<string>,
+      heights: Readonly<Record<string, number>>,
+      layout: VirtualLayout,
+      scrollTop: number,
+      viewport: number,
+    ) => {
+      const height = (key: string) => heights[key] ?? layout.estimatedHeight
+      let start = 0
+      let offset = layout.paddingStart
+      while (start < rows.length && offset + height(rows[start]!) <= scrollTop) {
+        offset += height(rows[start]!) + layout.gap
+        start += 1
+      }
+      let end = start
+      while (end < rows.length && offset < scrollTop + viewport) {
+        offset += height(rows[end]!) + layout.gap
+        end += 1
+      }
+      return { start, end }
+    }
+    let seed = 7
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    for (let round = 0; round < 200; round++) {
+      const rows = Array.from({ length: Math.floor(random() * 30) }, (_, index) => `r${index}`)
+      const heights: Record<string, number> = {}
+      for (const row of rows) if (random() < 0.7) heights[row] = Math.floor(random() * 4) * 10
+      const layout: VirtualLayout = {
+        estimatedHeight: 15,
+        gap: Math.floor(random() * 3) * 5,
+        paddingStart: Math.floor(random() * 3) * 10,
+        paddingEnd: 0,
+      }
+      const scrollTop = Math.floor(random() * 400)
+      const viewport = 1 + Math.floor(random() * 100)
+      expect(visibleRange(rows, heights, layout, scrollTop, viewport, 0)).toEqual(
+        rows.length === 0 ? { start: 0, end: 0 } : scan(rows, heights, layout, scrollTop, viewport),
+      )
+    }
+  })
+})
+
 describe('Virtual transitions', () => {
   it('starts from args and follows scrolls and measures', () => {
     expect(placed.init(fresh).model.list).toEqual({

@@ -47,18 +47,62 @@ const heightAt = (
   return saneHeight(heights[key] ?? layout.estimatedHeight, layout.estimatedHeight)
 }
 
+interface Offsets {
+  readonly heights: Readonly<Record<string, number>>
+  readonly layout: VirtualLayout
+  /** `tops[i]` is row i's top edge; `tops[count]` is past the last row's gap. */
+  readonly tops: Float64Array
+}
+
+// One entry per keys array, replaced when the heights or the layout change: a
+// view that keeps its keys array between renders pays O(n) once per change of
+// heights, not once per call.
+const offsetsCache = new WeakMap<ReadonlyArray<string>, Offsets>()
+
+const sameLayout = (a: VirtualLayout, b: VirtualLayout): boolean =>
+  a.estimatedHeight === b.estimatedHeight &&
+  a.gap === b.gap &&
+  a.paddingStart === b.paddingStart &&
+  a.paddingEnd === b.paddingEnd
+
+const topsFor = (
+  keys: ReadonlyArray<string>,
+  heights: Readonly<Record<string, number>>,
+  layout: VirtualLayout,
+): Float64Array => {
+  const cached = offsetsCache.get(keys)
+  if (cached !== undefined && cached.heights === heights && sameLayout(cached.layout, layout)) {
+    return cached.tops
+  }
+  const tops = new Float64Array(keys.length + 1)
+  tops[0] = layout.paddingStart
+  for (let index = 0; index < keys.length; index++) {
+    tops[index + 1] = tops[index]! + heightAt(index, heights, keys, layout) + layout.gap
+  }
+  offsetsCache.set(keys, { heights, layout: { ...layout }, tops })
+  return tops
+}
+
+/** The first index in `[from, to)` whose value passes `test`, or `to`; `test` must be monotonic. */
+const firstIndex = (from: number, to: number, test: (index: number) => boolean): number => {
+  let low = from
+  let high = to
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (test(middle)) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
 /** Total scrollable height: padding, measured rows, estimates, and gaps. */
 export const totalHeight = (
   keys: ReadonlyArray<string>,
   heights: Readonly<Record<string, number>>,
   layout: VirtualLayout,
 ): number => {
-  let total = layout.paddingStart + layout.paddingEnd
-  for (let index = 0; index < keys.length; index++) {
-    total += heightAt(index, heights, keys, layout)
-    if (index < keys.length - 1) total += layout.gap
-  }
-  return total
+  if (keys.length === 0) return layout.paddingStart + layout.paddingEnd
+  return topsFor(keys, heights, layout)[keys.length]! - layout.gap + layout.paddingEnd
 }
 
 /** Pixel offset of a row's top edge: padding plus the prefix before it. */
@@ -67,14 +111,7 @@ export const offsetFor = (
   keys: ReadonlyArray<string>,
   heights: Readonly<Record<string, number>>,
   layout: VirtualLayout,
-): number => {
-  const clamped = Math.max(0, Math.min(index, keys.length))
-  let offset = layout.paddingStart
-  for (let i = 0; i < clamped; i++) {
-    offset += heightAt(i, heights, keys, layout) + layout.gap
-  }
-  return offset
-}
+): number => topsFor(keys, heights, layout)[Math.max(0, Math.min(index, keys.length))]!
 
 /**
  * Which rows to render for a scroll position: the rows intersecting
@@ -93,25 +130,16 @@ export const visibleRange = (
 ): VirtualWindow => {
   const count = keys.length
   if (count === 0 || viewportHeight <= 0) return { start: 0, end: 0 }
+  const tops = topsFor(keys, heights, layout)
   const top = Math.max(0, scrollTop)
   const bottom = top + viewportHeight
-  let start = 0
-  let offset = layout.paddingStart
-  for (let index = 0; index < count; index++) {
-    const height = heightAt(index, heights, keys, layout)
-    if (offset + height <= top) {
-      start = index + 1
-      offset += height + layout.gap
-    } else {
-      break
-    }
-  }
-  let end = start
-  let cursor = offset
-  while (end < count && cursor < bottom) {
-    cursor += heightAt(end, heights, keys, layout) + layout.gap
-    end += 1
-  }
+  // Row bottoms and tops only grow with the index, so both edges are searches.
+  const start = firstIndex(
+    0,
+    count,
+    index => tops[index]! + heightAt(index, heights, keys, layout) > top,
+  )
+  const end = firstIndex(start, count, index => tops[index]! >= bottom)
   return {
     start: Math.max(0, start - Math.max(0, overscan)),
     end: Math.min(count, end + Math.max(0, overscan)),
@@ -201,7 +229,7 @@ export const isAtEnd = (
 ): boolean => {
   const total = totalHeight(keys, model.heights, layoutOf(model))
   if (total <= 0) return true
-  return distanceToEnd(model, keys, viewportHeight) <= Math.max(0, threshold)
+  return total - (model.scrollTop + viewportHeight) <= Math.max(0, threshold)
 }
 
 const saneTop = (top: number): number | null => (Number.isFinite(top) ? Math.max(0, top) : null)
@@ -283,7 +311,10 @@ export const Virtual = Bundle.make<
       {
         Scrolled: ({ top }) => {
           const sane = saneTop(top)
-          if (sane === null) return { model }
+          // The Viewport reports the position it mounts at, and a horizontal
+          // scroll reports an unchanged top. The raw top is compared, so an
+          // overscroll past zero still counts as scrolling.
+          if (sane === null || top === model.scrollTop) return { model }
           const generation = model.generation + 1
           return {
             model: { ...model, scrollTop: sane, scrolling: true, generation },
@@ -301,17 +332,20 @@ export const Virtual = Bundle.make<
         },
         Measured: ({ key, height }) => {
           const sane = saneMeasured(height)
-          return sane === null
+          // A remounted row, or a width-only resize, reports the height held.
+          return sane === null || (Object.hasOwn(model.heights, key) && model.heights[key] === sane)
             ? { model }
             : { model: { ...model, heights: { ...model.heights, [key]: sane } } }
         },
         Prune: ({ keys }) => {
           const kept = new Set(keys)
           const heights: Record<string, number> = {}
+          let dropped = false
           for (const [key, height] of Object.entries(model.heights)) {
             if (kept.has(key)) heights[key] = height
+            else dropped = true
           }
-          return { model: { ...model, heights } }
+          return dropped ? { model: { ...model, heights } } : { model }
         },
         // A superseded silence timer carries an old generation: ignore it.
         Settled: ({ generation }) =>

@@ -25,6 +25,8 @@ import {
   PaginationMessage,
   SelectionSet,
   SelectionSetMessage,
+  Virtual,
+  VirtualMessage,
 } from '../src/state/index.js'
 import { Interval, IntervalMessage, Timer, TimerMessage } from '../src/time/index.js'
 
@@ -39,6 +41,18 @@ const timer = { intervalMs: 10 }
 const tween = { from: 0, to: 1, ms: 100 }
 const spring = { from: 0, to: 1, stiffness: 100, damping: 10 }
 const selected = { selected: ['a', 'b'] }
+
+const list = {
+  scrollTop: 40,
+  heights: { a: 10 },
+  scrolling: false,
+  generation: 0,
+  estimatedHeight: 10,
+  overscan: 0,
+  gap: 0,
+  paddingStart: 0,
+  paddingEnd: 0,
+}
 
 describe('a Message that changes nothing keeps the Model', () => {
   it.each([
@@ -165,6 +179,18 @@ describe('a Message that changes nothing keeps the Model', () => {
           breakpoints: { md: 768 },
         }),
       ),
+    ],
+    [
+      'Virtual Scrolled to the top held',
+      keeps(list, m => Virtual.update(m, VirtualMessage.Scrolled({ top: 40 }), list)),
+    ],
+    [
+      'Virtual Measured at the height held',
+      keeps(list, m => Virtual.update(m, VirtualMessage.Measured({ key: 'a', height: 10 }), list)),
+    ],
+    [
+      'Virtual Prune that drops nothing',
+      keeps(list, m => Virtual.update(m, VirtualMessage.Prune({ keys: ['a', 'b'] }), list)),
     ],
   ])('%s', (_, check) => check())
 })
