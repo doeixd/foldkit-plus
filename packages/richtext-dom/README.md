@@ -147,12 +147,15 @@ after each edit (normalized, say) gets a fresh host, and a lost caret, on every 
 
 When the new document continues the old one (another replica's change arriving, or the
 document a collaborative edit projects to), return `patchTo(hostId, previous, next)` from the
-same transition that puts it in the Model. It hands the host's key on to the new document
-and patches the editor from one to the other, so the host, its caret, and every run the
-change did not touch keep their elements. `replaceChangeSet(previous, next)` is the patch it
-sends: the runs whose text or marks differ, and the nodes that came and went. An `Edited`
-OutMessage also carries the `transactions` the edit applied, which is what
-`RichText.Replicated.translate` reads.
+same transition that puts it in the Model. It hands the host's key on from `previous` to
+`next.document`, which have to be the very objects the view rendered and will render, and
+patches the editor from whatever it has drawn to `next`, so the host and every run the change
+did not touch keep their elements. `next.selection` becomes the browser selection, so pass
+the caret carried across the change (`Replicated.resolve` of an anchored one), or the caret
+is lost. `replaceChangeSet(previous, next)` is the patch, in a transaction's terms: the runs
+whose text or marks differ and the blocks holding them, blocks whose own fields changed, the
+nodes that came and went, and whether any block moved. An `Edited` OutMessage also carries
+the `transactions` the edit applied, which is what `RichText.Replicated.translate` reads.
 
 ## As a form control
 

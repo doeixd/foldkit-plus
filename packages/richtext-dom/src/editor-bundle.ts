@@ -7,7 +7,7 @@
  * ownership can hold a rich-text editor without a second synchronized document
  * copy or a Command that commits half the transition.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Equal, Option, Schema } from 'effect'
 import { define } from 'foldkit/customElement'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
@@ -15,7 +15,7 @@ import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
-import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
+import { drawnDocument, events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import {
   decorationsFor,
   inputRulesFor,
@@ -92,32 +92,43 @@ export type OutMessage =
     }
   | { readonly _tag: 'Rejected'; readonly error: string }
 
-/** Every block and run of a document by id, nested ones included. */
-const nodesOf = (
-  content: RichText.Document,
-): ReadonlyMap<RichText.NodeId, RichText.Block | RichText.Text> => {
-  const nodes = new Map<RichText.NodeId, RichText.Block | RichText.Text>()
-  const visit = (blocks: ReadonlyArray<RichText.Block>): void => {
-    for (const block of blocks) {
-      nodes.set(block.id, block)
-      for (const run of block.children) nodes.set(run.id, run)
-      if (block.type === 'Node' && block.blocks !== undefined) visit(block.blocks)
+/** Where a node stands: the block holding it (null at the top), and its index there. */
+interface Placed {
+  readonly node: RichText.Block | RichText.Text
+  readonly parent: RichText.NodeId | null
+  readonly index: number
+}
+
+/** Every block and run of a document by id, nested ones included, with where it stands. */
+const nodesOf = (content: RichText.Document): ReadonlyMap<RichText.NodeId, Placed> => {
+  const nodes = new Map<RichText.NodeId, Placed>()
+  const visit = (blocks: ReadonlyArray<RichText.Block>, parent: RichText.NodeId | null): void => {
+    for (const [index, block] of blocks.entries()) {
+      nodes.set(block.id, { node: block, parent, index })
+      for (const [at, run] of block.children.entries()) {
+        nodes.set(run.id, { node: run, parent: block.id, index: at })
+      }
+      if (block.type === 'Node' && block.blocks !== undefined) visit(block.blocks, block.id)
     }
   }
-  visit(content.children)
+  visit(content.children, null)
   return nodes
 }
 
-const sameRun = (left: RichText.Block | RichText.Text | undefined, right: RichText.Text): boolean =>
-  left?.type === 'Text' &&
-  left.text === right.text &&
+const sameMarks = (left: RichText.Text, right: RichText.Text): boolean =>
   left.marks.length === right.marks.length &&
   left.marks.every((mark, index) => RichText.sameMark(mark, right.marks[index]!))
 
+/** A block's own fields, apart from what it holds: its type, level, kind and props. */
+const ownFields = ({ children: _runs, ...block }: RichText.Block): unknown => ({
+  ...block,
+  blocks: undefined,
+})
+
 /**
- * What differs between two whole documents, for a patch from one to the other: a run is
- * dirty when it is new or its text or marks changed, and the patch rebuilds any block whose
- * shape changed on its own.
+ * What differs between two whole documents, for a patch from one to the other, in a
+ * transaction's terms: the runs whose text or marks changed and the blocks holding them,
+ * blocks whose own fields changed, what came and went, and whether any block moved.
  */
 export const replaceChangeSet = (
   previous: RichText.Document,
@@ -126,14 +137,42 @@ export const replaceChangeSet = (
   const before = nodesOf(previous)
   const after = nodesOf(next)
   const dirtyNodes = new Set<RichText.NodeId>()
-  for (const [id, node] of after)
-    if (node.type === 'Text' && !sameRun(before.get(id), node)) dirtyNodes.add(id)
+  const textChanged = new Set<RichText.NodeId>()
+  let structureChanged = false
+  for (const [id, placed] of after) {
+    const was = before.get(id)
+    if (placed.node.type === 'Text') {
+      const run = placed.node
+      const old = was?.node.type === 'Text' ? was.node : undefined
+      if (old === undefined || old.text !== run.text) textChanged.add(id)
+      if (old === undefined || old.text !== run.text || !sameMarks(old, run)) {
+        dirtyNodes.add(id)
+        if (placed.parent !== null) dirtyNodes.add(placed.parent)
+      }
+      continue
+    }
+    if (was === undefined || was.parent !== placed.parent || was.index !== placed.index) {
+      structureChanged = true
+    }
+    if (
+      was === undefined ||
+      !Equal.equals(ownFields(was.node as RichText.Block), ownFields(placed.node))
+    ) {
+      dirtyNodes.add(id)
+    }
+  }
+  const removedNodes = new Set([...before.keys()].filter(id => !after.has(id)))
+  for (const id of removedNodes) {
+    const was = before.get(id)!
+    if (was.node.type !== 'Text') structureChanged = true
+    else if (was.parent !== null && after.has(was.parent)) dirtyNodes.add(was.parent)
+  }
   return {
     dirtyNodes,
     insertedNodes: new Set([...after.keys()].filter(id => !before.has(id))),
-    removedNodes: new Set([...before.keys()].filter(id => !after.has(id))),
-    textChanged: dirtyNodes,
-    structureChanged: true,
+    removedNodes,
+    textChanged,
+    structureChanged,
     selectionChanged: false,
   }
 }
@@ -238,10 +277,15 @@ const carryKey = (hostId: string, from: RichText.Document, to: RichText.Document
 }
 
 /**
- * Patches the editor at `hostId` from `previous`, the document it shows, to `next`, a
- * document the parent put in its place, keeping the host element instead of mounting a
- * new one. A parent that replaces its document outside an edit here (another replica's
- * change arriving) returns this, in the same transition as the replacement.
+ * Patches the editor at `hostId` to `next`, a document the parent put in place of
+ * `previous`, keeping the host element instead of mounting a new one. A parent that
+ * replaces its document outside an edit here (another replica's change arriving) returns
+ * this, in the same transition as the replacement.
+ *
+ * The host is found by the document the view renders, so `previous` is the object it
+ * rendered and `next.document` the object it will render; building the Command hands the
+ * host on from one to the other, so build it only to return it. The patch itself starts
+ * from whatever the editor has drawn, and `next.selection` becomes the browser selection.
  */
 export const patchTo = (
   hostId: string,
@@ -249,7 +293,16 @@ export const patchTo = (
   next: RichText.EditorState,
 ): Command.Command<Message> => {
   carryKey(hostId, previous, next.document)
-  return patch(hostId, next, replaceChangeSet(previous, next.document))
+  return {
+    name: 'RichText.patch',
+    effect: Effect.as(
+      Effect.sync(() => {
+        const drawn = drawnDocument(hostId) ?? previous
+        patchEditor(hostId, next, replaceChangeSet(drawn, next.document))
+      }),
+      Message.Patched(),
+    ),
+  }
 }
 
 /**

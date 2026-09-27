@@ -51,6 +51,21 @@ const sameRendering = (left: RichText.ElementRendering, right: RichText.ElementR
   )
 }
 
+/**
+ * Whether a block draws the same element as before. Preserved content is drawn from its
+ * type, not from a renderer entry, so a block that became preserved, or preserved content
+ * of another type, draws differently under the same entry.
+ */
+const drawsSame = (
+  rendering: RichText.Rendering,
+  previous: RichText.Block,
+  block: RichText.Block,
+): boolean =>
+  previous.type === block.type &&
+  (previous.type !== 'Unknown' ||
+    (block.type === 'Unknown' && previous.originalType === block.originalType)) &&
+  sameRendering(blockRendering(rendering, previous), blockRendering(rendering, block))
+
 /** The element a renderer entry names, with its attributes; children come later. */
 const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLElement => {
   const element = owner.createElement(entry.tag)
@@ -340,7 +355,7 @@ const patchBlocks = (
     const sameStructure =
       existing !== undefined &&
       previous !== undefined &&
-      sameRendering(blockRendering(rendering, previous), blockRendering(rendering, block)) &&
+      drawsSame(rendering, previous, block) &&
       sameIds(
         childIds(existing, 'data-run'),
         block.children.map(run => run.id),
@@ -362,8 +377,13 @@ const patchBlocks = (
       }
     }
     if (existing !== undefined && sameStructure) {
-      if (container.children[index] !== existing) place(existing)
-      if (nested.length > 0) {
+      const inPlace =
+        previousElement === undefined
+          ? container.firstElementChild === existing
+          : previousElement.nextElementSibling === existing
+      if (!inPlace) place(existing)
+      // The same block object holds the same blocks, so only a changed one is looked into.
+      if (nested.length > 0 && previous !== block) {
         const inner = blockRendering(rendering, block).inner
         const holder =
           inner === undefined
@@ -431,12 +451,6 @@ export const positionToRange = (dom: EditorDom, position: RichText.Position): Ra
   return undefined
 }
 
-/**
- * Maps a browser selection endpoint back to a semantic position. Only text-node
- * containers inside a run are supported; anything else (an element offset, a
- * range outside the owned subtree) has no semantic position and returns
- * undefined rather than guessing.
- */
 const firstText = (node: Node): Text | undefined => {
   if (node instanceof Text) return node
   for (const child of Array.from(node.childNodes)) {
@@ -466,6 +480,8 @@ const textBoundary = (
   offset: number,
 ): { readonly text: Text; readonly offset: number } | undefined => {
   if (node instanceof Text) return { text: node, offset }
+  // A browser reports no offset past the last child; clamp one that does.
+  offset = Math.min(offset, node.childNodes.length)
   const after = node.childNodes[offset]
   const following = after === undefined ? undefined : firstText(after)
   if (following !== undefined) return { text: following, offset: 0 }
@@ -474,11 +490,18 @@ const textBoundary = (
   return preceding === undefined ? undefined : { text: preceding, offset: preceding.length }
 }
 
+/**
+ * Maps a browser selection endpoint back to a semantic position: a caret in a run's text,
+ * or on an element inside the owned subtree (read as the text boundary it stands at).
+ * Anything outside the subtree, the page around the editor or another editor's runs, has
+ * no position here and returns undefined.
+ */
 export const rangeToPosition = (
   dom: EditorDom,
   container: Node,
   containerOffset: number,
 ): RichText.Position | undefined => {
+  if (!dom.root.contains(container)) return undefined
   const boundary = textBoundary(container, containerOffset)
   if (boundary === undefined) return undefined
   const { text: node, offset } = boundary

@@ -288,6 +288,12 @@ export const patchEditor = (
   return true
 }
 
+/** The document the editor at `hostId` has drawn, or undefined when none is attached there. */
+export const drawnDocument = (hostId: string): RichText.Document | undefined => {
+  const host = document.getElementById(hostId)
+  return host === null ? undefined : attachmentIn(host)?.current().content
+}
+
 /** The editor's events as a mount: one attachment per element, released with it.
  *  The rendering registry is looked up by the host id the placement recorded
  *  (§122), so it reaches the mount without entering a Model or a mount's args. */
