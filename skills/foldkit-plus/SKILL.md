@@ -46,9 +46,9 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (0.1.0, early) | [ssr.md](references/ssr.md) |
 | What a page is: Blocks in Regions, stored as a Document and checked against a Catalog; editing it | the Document, as a stored field; the Builder, as one form key | `foldkit-composition` + `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; in development, unpublished) | [composition.md](references/composition.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
-| A semantic rich-text document and pure text edits | the local Model | `foldkit-richtext` (0.1.0, foundation only) | [richtext.md](references/richtext.md) |
+| A semantic rich-text document, the commands that edit it, and what each kind may hold | the local Model | `foldkit-richtext` (0.1.0, early) | [richtext.md](references/richtext.md) |
 | An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (0.1.0, early) | [richtext.md](references/richtext.md) |
-| Rich-text editor chrome — the marks toolbar — drawn through slots | the view contract | `foldkit-mixins-richtext` (0.1.0, early) | [richtext.md](references/richtext.md) |
+| Rich-text editor chrome (toolbars, slash menu, link editor, block handle, command palette, status line, Markdown source mode) drawn through slots | the view contract | `foldkit-mixins-richtext` (0.1.0, early) | [richtext.md](references/richtext.md) |
 | Markdown in and out of a semantic rich-text document | the document; this package only maps its syntax | `foldkit-richtext-markdown` (0.1.0, early) | [richtext.md](references/richtext.md) |
 | Syntax highlighting for a rich-text code block | nobody: tokens are derived decorations, never stored | `foldkit-richtext-code` (JSON) or `foldkit-richtext-code-shiki` (any Shiki grammar) (0.1.0, early) | [richtext.md](references/richtext.md) |
 

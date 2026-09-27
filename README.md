@@ -272,6 +272,7 @@ in a line.
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
+| Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
 | Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |
 | Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; in development, not published) | [package README](./packages/builder) |
 
@@ -312,7 +313,8 @@ flowchart TB
   ssr["foldkit-ssr<br/>server render · Model handover · resume"]
   richtext["foldkit-richtext<br/>semantic documents · transactions"]
   richtextDom["foldkit-richtext-dom<br/>contenteditable adapter · editor Bundle"]
-  mixinsRichtext["foldkit-mixins-richtext"]
+  mixinsRichtext["foldkit-mixins-richtext<br/>toolbars · menus · handle · source mode"]
+  richtextMarkdown["foldkit-richtext-markdown<br/>Markdown in and out · source sessions"]
   react["foldkit-react<br/>React islands · Foldkit in React"]
   reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
   composition["foldkit-composition<br/>a page as Blocks in Regions · in development"]
@@ -360,6 +362,8 @@ flowchart TB
   surface --> ssr
   remote -- "resume part" --> ssr
   app --> richtext --> richtextDom
+  richtext --> richtextMarkdown
+  richtextMarkdown --> mixinsRichtext
   bundle --> richtextDom
   richtextDom --> mixinsRichtext
   mixins --> mixinsRichtext
