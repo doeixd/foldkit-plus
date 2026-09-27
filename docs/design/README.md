@@ -20,6 +20,7 @@ For example, the CMS design opens as an unbuilt proposal, but the
 [server adapter](../../packages/cms-drizzle/README.md) document what shipped.
 A historical status line is not a statement about today's package availability;
 the table below says where each design stands.
+[TODO.md](./TODO.md) lists every item the designs still leave open.
 
 ## Where each design stands
 
