@@ -1368,7 +1368,7 @@ export type Action = ReadonlyArray<Command>
  * one command retired and a later one restored appears in both sets, and a patch reads
  * that as "remove it, then render it", so it never under-invalidates.
  */
-const unionChangeSet = (left: ChangeSet, right: ChangeSet): ChangeSet => ({
+export const unionChangeSet = (left: ChangeSet, right: ChangeSet): ChangeSet => ({
   dirtyNodes: new Set([...left.dirtyNodes, ...right.dirtyNodes]),
   insertedNodes: new Set([...left.insertedNodes, ...right.insertedNodes]),
   removedNodes: new Set([...left.removedNodes, ...right.removedNodes]),

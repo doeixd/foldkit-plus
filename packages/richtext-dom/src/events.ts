@@ -216,7 +216,10 @@ export type Decorate = (document: RichText.Document) => RichText.DecorationSet
 export interface Attachment {
   /** The current subtree; replaced as patches are applied. */
   readonly current: () => EditorDom
-  /** Applies a committed state, patching and restoring the browser selection. */
+  /**
+   * Applies a committed state, patching and restoring the browser selection. While the
+   * browser is composing, the latest state waits and is drawn when composition ends.
+   */
   readonly sync: (state: RichText.EditorState, changeSet: RichText.ChangeSet) => void
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
@@ -299,14 +302,31 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    */
   let composingSelection: RichText.Selection | null = null
   let placeholderIds = 0
+  /**
+   * A state the application committed while the browser was composing: drawing it then
+   * would rewrite the text under the IME, so it waits for the composition to end. Change
+   * sets are unioned, which never under-invalidates.
+   */
+  let deferred: { state: RichText.EditorState; changeSet: RichText.ChangeSet } | undefined
+  const draw = (state: RichText.EditorState, changeSet: RichText.ChangeSet): void => {
+    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
+    lastSelection = state.selection
+    restoreSelection(current, state.selection)
+  }
   const onEvent = (event: Event): void => {
     const intent = intentFor(event, composing, options.keymap)
     if (intent === undefined) return
     if (intent.preventDefault) event.preventDefault()
-    if (intent.command !== undefined) options.onIntent(intent.command)
+    // `selectionchange` is asynchronous, so a click just before a keystroke may not have
+    // been reported yet: report it first, or the edit lands at the caret before the click.
+    if (intent.command !== undefined) {
+      reportSelection()
+      options.onIntent(intent.command)
+    }
     if (intent.history !== undefined) options.onHistory?.(intent.history)
   }
   const onCompositionStart = (): void => {
+    reportSelection()
     composing = true
     composingSelection = readSelection(current)
   }
@@ -318,7 +338,11 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     // put back the selection composition started from — not the caret the
     // browser moved into its own temporary text.
     redraw(repair(current, current.content))
-    restoreSelection(current, composingSelection)
+    // What arrived during the composition is drawn now. Its selection is the
+    // application's, which holds the caret composition started from.
+    if (deferred !== undefined) draw(deferred.state, deferred.changeSet)
+    else restoreSelection(current, composingSelection)
+    deferred = undefined
     composingSelection = null
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
   }
@@ -391,9 +415,14 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     current: () => current,
     composing: () => composing,
     sync: (state, changeSet) => {
-      redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
-      lastSelection = state.selection
-      restoreSelection(current, state.selection)
+      if (!composing) return draw(state, changeSet)
+      deferred = {
+        state,
+        changeSet:
+          deferred === undefined
+            ? changeSet
+            : RichText.unionChangeSet(deferred.changeSet, changeSet),
+      }
     },
     detach: () => {
       ownerDocument.removeEventListener('selectionchange', reportSelection)

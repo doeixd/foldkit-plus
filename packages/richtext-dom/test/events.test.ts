@@ -352,6 +352,30 @@ describe('the wired editing loop', () => {
     attachment.detach()
   })
 
+  it('draws a state committed during composition only once composition ends', () => {
+    const { attachment, intents } = setup()
+    attachment.current().root.dispatchEvent(composition('compositionstart'))
+    const runElement = attachment.current().elements.get(id('a'))!
+    runElement.append(document.createTextNode('にほ'))
+    // Someone else types in the next paragraph while the IME is open.
+    const remote = success(
+      RichText.run(
+        { document: attachment.current().content, selection: caretAt(['c', 2]) },
+        { type: 'InsertText', text: '!' },
+        { mint: () => 'remote' },
+      ),
+    )
+    attachment.sync(remote.state, remote.changeSet)
+    // The IME's text is left alone, and so is the element it is typing into.
+    expect(toText(attachment.current())).toBe('abにほcd\nef')
+    expect(attachment.current().elements.get(id('a'))).toBe(runElement)
+
+    attachment.current().root.dispatchEvent(composition('compositionend', 'にほ'))
+    expect(toText(attachment.current())).toBe('abcd\nef!')
+    expect(intents).toEqual([{ type: 'InsertText', text: 'にほ' }])
+    attachment.detach()
+  })
+
   it('repairs the subtree when a composition is cancelled', () => {
     const { attachment, intents } = setup()
     attachment.current().root.dispatchEvent(composition('compositionstart'))
@@ -606,6 +630,32 @@ describe('reporting a caret move', () => {
       ['a', 1, 'a', 1],
       ['b', 1, 'b', 1],
     ])
+    close(attachment)
+  })
+
+  /** Moves the browser's caret the way a click does, before its `selectionchange` fires. */
+  const clickUnannounced = (dom: EditorDom, node: string, offset: number): void => {
+    const range = positionToRange(dom, at(node, offset))!
+    window.getSelection()!.removeAllRanges()
+    window.getSelection()!.addRange(range)
+  }
+
+  it.each([
+    ['a keystroke', (root: Element) => root.dispatchEvent(beforeInput('insertText', 'X'))],
+    ['a composition', (root: Element) => root.dispatchEvent(composition('compositionstart'))],
+  ])('reports a click the browser has not announced yet before %s', (_, act) => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    const heard: Array<unknown> = []
+    const attachment = attach(dom, {
+      onIntent: command => heard.push(command.type),
+      onSelection: selection => heard.push(places([selection])[0]),
+    })
+    attachment.sync({ document: dom.content, selection: caretAt(['a', 1]) }, noChange)
+    clickUnannounced(dom, 'b', 1)
+    act(attachment.current().root)
+    // The click comes first, so the edit lands where the person clicked.
+    expect(heard[0]).toEqual(['b', 1, 'b', 1])
     close(attachment)
   })
 
