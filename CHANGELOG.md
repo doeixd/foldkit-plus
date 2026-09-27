@@ -384,6 +384,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **CMS example:** a Quote's text and a Callout's body keep the lines broken
+  with Shift+Enter once editing ends, in the editor and on the public page
+  (`white-space: pre-line` on their looks).
+
 - **`foldkit-primitives`, `PointerDrag`:** an Escape that cancels a drag is
   caught on the way down and stopped there, so the focused element does not
   also act on it; in the Builder, Escape during a canvas drag cancelled the

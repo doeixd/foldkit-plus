@@ -7,6 +7,7 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Composition, NodeId } from 'foldkit-composition'
+import { fieldName } from 'foldkit-composition/foldkit'
 import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
@@ -427,4 +428,39 @@ it('keeps focus on a command button that its own press leaves with nothing to do
   await userEvent.click(button)
   await vi.waitFor(() => expect(undo()?.getAttribute('aria-disabled')).toBe('true'))
   expect(document.activeElement).toBe(button)
+})
+
+it('shows the lines of a Quote and a Callout broken as they were typed, not only while edited', async () => {
+  const section = NodeId.make('s')
+  const quote = NodeId.make('q')
+  const callout = NodeId.make('c')
+  unmount = mount(
+    stylesheet,
+    0,
+    Composition.Document.make({
+      format: 1,
+      roots: [section],
+      nodes: {
+        [section]: {
+          block: 'Section',
+          props: { heading: '' },
+          regions: { body: [quote, callout] },
+        },
+        [quote]: { block: 'Quote', props: { text: 'one\ntwo', cite: '' }, regions: {} },
+        [callout]: { block: 'Callout', props: { title: '', body: 'three\nfour' }, regions: {} },
+      },
+    }),
+  )
+  /** How many lines a node's field is drawn on. */
+  const lines = (id: NodeId, key: string) => {
+    const field = Array.from(document.querySelectorAll('[data-composition-field]')).find(
+      each => each.getAttribute('data-composition-field') === fieldName(id, key),
+    )
+    if (field === undefined) return 0
+    const range = document.createRange()
+    range.selectNodeContents(field)
+    return new Set(Array.from(range.getClientRects(), rect => Math.round(rect.top))).size
+  }
+  await vi.waitFor(() => expect(lines(quote, 'text')).toBe(2))
+  expect(lines(callout, 'body')).toBe(2)
 })

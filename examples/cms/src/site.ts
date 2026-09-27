@@ -375,6 +375,8 @@ const QuoteLook = Appearance.make(QuoteSlots, {
         fontSize: t.size.xl,
         lineHeight: t.leading.snug,
         margin: '0',
+        // A multiline field: a line broken with Shift+Enter shows broken, edited or not.
+        whiteSpace: 'pre-line',
       }),
       cite: Style.self({ color: t.text.muted, fontStyle: 'normal' }),
     },
@@ -410,7 +412,8 @@ const CalloutLook = Appearance.make(CalloutSlots, {
         padding: `${t.space.md} ${t.space.lg}`,
       }),
       title: Style.self({ fontWeight: t.weight.semibold, margin: '0' }),
-      body: Style.self({ margin: '0' }),
+      // A multiline field, as the Quote's text is.
+      body: Style.self({ margin: '0', whiteSpace: 'pre-line' }),
     },
     variants: {
       tone: {
