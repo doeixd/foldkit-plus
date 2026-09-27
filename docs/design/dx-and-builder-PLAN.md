@@ -1,6 +1,10 @@
 # Plan: developer experience, view architecture, and the page builder
 
-**Status:** proposed, 2026-09-26. Addresses every item in
+**Status:** phases 0 to 5 done, 2026-09-26, but for what each section's
+dated note leaves: B9's regions as Slots and B10 (3d), words (3b), an
+`Environment` (3a), an application's own commands (5a), hover as a Message
+(5b), and rich text edited in place (5e). Phase 6 is still to decide.
+Proposed, 2026-09-26. Addresses every item in
 [dx-and-builder-FINDINGS.md](./dx-and-builder-FINDINGS.md): D1–D5, B1–B10,
 X1–X2, and the underlying issues U1–U9. Item numbers below refer to that file.
 

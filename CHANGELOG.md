@@ -9,6 +9,68 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins`: parts, each drawn again only when what it reads
+  changed.** `SlotView.parts(Slots)<Input, Message>()` makes parts that name
+  the input keys they read and are given only those; `assemble` places them.
+  `slots.row.lazy(item, draw, args)` draws one repeated item again only when
+  its arguments or what the Mixins gave it changed. Over 1,000 nodes, a
+  hover, a selection and a keystroke in the inspector each went from about
+  50 ms to the next frame.
+- **`foldkit-mixins-builder`: the editor as parts.** `BuilderView.parts(builder)`
+  gives `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
+  `Viewports`, `Preview`, `Alert`, `Canvas` and `Live`, each with its own
+  Behaviors; `BuilderView.assemble(render)` places them among an
+  application's elements, and `define` is the default layout.
+- **`foldkit-builder`: the inspector is a form.** A node's props, and the
+  input of the action each event runs, are edited through `foldkit-form`
+  forms of the Block's settings (`settingsOf`, `inputOf`), drawn by
+  `FormView`, so a prop gets the control a form would give it, a value that
+  does not decode shows its error and edits nothing, and a control of the
+  application's own (`Input.bundle`, such as a color picker) works with no
+  Builder code. `BuilderView.define(builder, { settings: { field, form,
+  renderers } })` styles the forms and draws the application's control kinds.
+- **`foldkit-composition`: a Block's words are its own.**
+  `Block.words({ label, description, group })` names a Block and says what it
+  is for; the palette, the layers, the inspector, `Catalog.describe`,
+  `Composition.describe` and the agent's `operationSchema` all read it.
+- **`foldkit-primitives/dom`: `Measure`**, a Mount that writes where marked
+  elements are (`--fk-<name>-x/-y/-w/-h/-display`) for an overlay drawn over
+  them. The drawn Builder's selection and hover are boxes placed this way.
+- **`foldkit-builder`: one table of commands.** `PageBuilder.commands` (`{ id,
+  label, keys, placement, run }`) is every key, node action, toolbar button
+  and shortcut listed; `keyCommand` is derived from it and `Builder.make`'s
+  `commands` changes it. Keys are written for the author's platform
+  (`BuilderView.inputs({ platform: 'mac' })`).
+- **`foldkit-builder`: a Block dragged from the palette** is added where it
+  is dropped (`DragSource` is `Existing` or `New`). **`foldkit-primitives`:**
+  `PointerDrag` takes `targets: { attribute, within }`, so a drag may land on
+  another region's elements.
+- **`foldkit-builder`: copy, cut and paste.** A node and all it holds is kept
+  in the Model's `clipboard` and on the system clipboard as tagged JSON; a
+  paste reads it back (`readText`, new in `foldkit-primitives/dom`), decodes
+  it strictly, gives every node a new id and inserts it whole or refuses it.
+- **`foldkit-composition`: Patterns.** `Catalog.make({ patterns })` holds
+  arrangements of Blocks, checked where the Catalog is made;
+  `Op.usePattern({ pattern, ids, at })` inserts one, and `operationSchema`
+  offers each with exactly its ids. The drawn palette offers them in a group
+  of their own.
+- **Text edited in place.** A Block's view draws a text prop with
+  `field(key)`; the editor edits it on the canvas, frozen at the text it had
+  when editing began so no redraw moves the caret, one undo step per session
+  (`History.close` and `History.revert`, new in `foldkit-primitives/state`).
+  `EditableText`, new in `foldkit-primitives`, reads what is typed as text,
+  once per composition, and `Renderer.fields` says which props a node draws
+  this way.
+- **`foldkit-mixins`: container breakpoints.** `Style.responsive` takes an
+  at-rule as well as a media query, `Theme.inContainer(name, breakpoints)`
+  writes a theme's breakpoints on a named container, and `Style.at(prelude,
+  piece)` puts a selector under an at-rule. The Builder's frame is the page's
+  container (`PAGE_CONTAINER`), so a look written this way follows a narrow
+  preview in a wide window.
+- **`foldkit-mixins-builder`: a narrow editor.** `BuilderView.narrow(width)`
+  shows one panel at a time, chosen by a `role="tablist"`, below that width
+  of the editor itself.
+
 - **`foldkit-mixins`: a Style's rules arrive with the Slot that draws them.**
   Compiling a Style records each class with its CSS; in a browser, a class a
   Slot draws is appended once to one `<style data-foldkit-styles>` element
@@ -46,7 +108,7 @@ version changed; `pnpm` skips versions already in the registry.
   `--fk-index` stays inline). The drawn Builder's frame writes
   `--fk-frame-width`, read by a default rule in `components`.
 - **`foldkit-mixins-builder`: what the editor calls a Block.**
-  `Block.annotate(BuilderView.describe({ label, description, group }))` names a
+  `Block.words({ label, description, group })` (now in `foldkit-composition`) names a
   Block, says what it is for, and files it in a palette group. The palette is
   grouped; each button is named "Add <label>", shows the description, and is
   titled with where it would go ("Adds it inside the Section") or why it
@@ -158,7 +220,7 @@ version changed; `pnpm` skips versions already in the registry.
   its nodes. It adds no state and no Messages. The CMS example's page form
   draws its Builder this way. Phase 7 of the page builder design.
   The inspector labels a prop with its Schema's `title`, and a Block asks for a
-  prop's control with `Block.annotate(BuilderView.controls({ ... }))`, such as
+  prop's control with `Block.annotate(Builder.controls({ ... }))`, such as
   `Input.multiline()`, or `Input.hidden()` to leave it out. A row in the
   layers or a node on the page can be dragged onto another with the pointer:
   the Builder's `drag` says where a drop would land (`dropAt`), the target is
@@ -226,7 +288,7 @@ version changed; `pnpm` skips versions already in the registry.
   what exists.
 - **`foldkit-mixins-builder`: relation pickers for Block props.** A prop asks
   for `Input.relationOne(Entity)` or `Input.relationMany(Entity)` through
-  `BuilderView.controls`, and its choices come in `BuilderView.inputs({ options
+  `Builder.controls`, and its choices come in `BuilderView.inputs({ options
   })`, keyed `'Block.prop'`.
 - **`foldkit-form`: `Input.relationOne` and `Input.relationMany`,** a picker for
   a key that holds ids without being a relation.
@@ -293,6 +355,16 @@ version changed; `pnpm` skips versions already in the registry.
   from,** so another project can reference it.
 
 ### Changed
+
+- **`foldkit-mixins-builder`: `BuilderView.describe` and `BuilderView.controls`
+  are gone,** for `Block.words` (in `foldkit-composition`) and
+  `Builder.controls` (in `foldkit-builder`). The toolbar's `history`, `undo`
+  and `redo` Slots are `toolbar` and `toolbarAction`, and `ACTIONS` and
+  `SHORTCUTS` are the command table. **`foldkit-builder`:** `DragStarted`
+  takes a `source`, and `dropAt` a `DragSource`, not an id.
+- **`foldkit-primitives`:** `Measure` attaches nothing when it cannot start.
+  Where there is no `ResizeObserver` (jsdom), it had already attached a
+  `MutationObserver`, which then threw on every change to the page.
 
 - **A value that may be absent is an `Option`, not `null` or `undefined`,**
   across the read and builder APIs. Breaking:
