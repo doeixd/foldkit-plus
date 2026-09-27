@@ -50,11 +50,11 @@ describe('the caret from the rich editor into the source', () => {
     expect(session.draft).toBe('a\\*b**cd**\n')
     expect(session.draft.slice(0, session.caret)).toBe('a\\*b**c')
     expect(openSource(escaped, { selection: caret('plain', 2) }).caret).toBe(3)
+    // Before an escaped character is before its backslash, not between the two.
+    expect(openSource(escaped, { selection: caret('plain', 1) }).caret).toBe(1)
   })
 
-  it('starts at the beginning when the mark changes how the text before it prints', () => {
-    // Right before an opening `_`, the mark leaves it unable to open, so that print falls back
-    // to canonical spellings, which turns the setext title above into `#`.
+  it('lands right before an opening delimiter, under the spellings it prints with', () => {
     const titled = decode([
       {
         type: 'Heading',
@@ -73,9 +73,58 @@ describe('the caret from the rich editor into the source', () => {
     ])
     const style = { heading: 'setext', emphasis: '_' } as const
     expect(openSource(titled, { style }).draft).toBe('Title\n=====\n\nx _y_\n')
-    expect(openSource(titled, { style, selection: caret('a', 2) }).caret).toBe(0)
-    // Control: a caret elsewhere in the same text is placed.
+    expect(openSource(titled, { style, selection: caret('a', 2) }).caret).toBe(15)
     expect(openSource(titled, { style, selection: caret('a', 1) }).caret).toBe(14)
+  })
+
+  const paragraph = (...runs: ReadonlyArray<readonly [string, string, ReadonlyArray<string>]>) =>
+    decode([
+      {
+        type: 'Paragraph',
+        id: 'p',
+        children: runs.map(([id, text, marks]) => ({ type: 'Text', id, text, marks })),
+      },
+    ])
+
+  it.each([
+    [
+      'after a trailing space, which prints as a reference',
+      paragraph(['a', 'hello ', []]),
+      caret('a', 6),
+      {},
+      'hello&#32;',
+    ],
+    [
+      'right after a closing `_`',
+      paragraph(['a', 'say ', []], ['b', 'bar', ['Italic']], ['c', ' baz', []]),
+      caret('c', 0),
+      { emphasis: '_' },
+      'say _bar_',
+    ],
+    [
+      'after a bold run’s trailing space',
+      paragraph(['a', 'hello ', ['Bold']], ['b', 'world', []]),
+      caret('a', 6),
+      {},
+      '**hello** ',
+    ],
+    [
+      'after a heading’s escaped `#`',
+      decode([
+        {
+          type: 'Heading',
+          id: 'h',
+          level: 1,
+          children: [{ type: 'Text', id: 'h-t', text: 'C#', marks: [] }],
+        },
+      ]),
+      caret('h-t', 2),
+      {},
+      '# C\\#',
+    ],
+  ] as const)('lands %s', (_, document, selection, style, before) => {
+    const session = openSource(document, { style, selection })
+    expect(session.draft.slice(0, session.caret)).toBe(before)
   })
 
   it('follows a range’s focus, the end the writer moved', () => {
@@ -132,11 +181,30 @@ describe('the caret from the source back into the rich editor', () => {
       ['see x now', 7],
     ],
     ['on a delimiter before any text', '|**ab**\n', ['ab', 0]],
+    ['after a character reference', '&amp;|ab\n', ['&ab', 1]],
+    ['after two references and text', '&lt;tag&gt; |x\n', ['<tag> x', 6]],
+    // A reference past the BMP decodes to two UTF-16 units.
+    ['after a reference to an emoji', '&#x1F331;|x\n', ['\u{1F331}x', 2]],
   ] as const)('lands %s', (_, marked, expected) => {
     const draft = marked.replace('|', '')
     const session = { ...openSource(escaped), draft, caret: marked.indexOf('|') }
     const closed = closeSource(session, escaped, minted())
     expect(placed(closed.document, closed.selection)).toEqual(expected)
+  })
+
+  it('comes back through a code block whose last newline the printer drops', () => {
+    const coded = decode([
+      {
+        type: 'Node',
+        kind: 'CodeBlock',
+        id: 'c',
+        props: {},
+        children: [{ type: 'Text', id: 'c-t', text: 'x\n', marks: [] }],
+      },
+      { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'hi', text: 'hi', marks: [] }] },
+    ])
+    const session = openSource(coded, { selection: caret('hi', 1) })
+    expect(closeSource(session, coded, minted()).selection).toEqual(caret('hi', 1))
   })
 
   it('has nowhere to put a caret in a draft with no text', () => {
@@ -171,7 +239,18 @@ describe('carrying a position between documents that hold the same text', () => 
     expect(alignedIn(two('one', 'two'), merged, at('y2', 1))).toEqual(at('b1', 2))
   })
 
-  it('refuses documents whose text differs', () => {
-    expect(alignedIn(two('one', 'twx'), merged, at('y2', 1))).toBeUndefined()
+  it('clamps to the other block’s text, which the printer can shorten', () => {
+    expect(alignedIn(two('one', 'twoooo'), merged, at('y2', 4))).toEqual(at('b1', 3))
+  })
+
+  it('refuses documents with another number of text blocks', () => {
+    const one = decode([
+      {
+        type: 'Paragraph',
+        id: 'a',
+        children: [{ type: 'Text', id: 'a1', text: 'one', marks: [] }],
+      },
+    ])
+    expect(alignedIn(two('one', 'two'), one, at('x1', 1))).toBeUndefined()
   })
 })

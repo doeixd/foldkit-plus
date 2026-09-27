@@ -7953,30 +7953,32 @@ new list.
 caret where they left it, in both directions. The session gains `caret`, an offset in the draft,
 and closing returns `selection`, a caret in the document it gives back.
 
-**Rich to source: print with a mark.** The printer decides where a position's text lands,
-including escapes, delimiters, list indentation, and a style's spellings. Rather than teach a
-second function to follow the printer's layout, `openSource` prints the document again with a
-private-use character spliced in at the selection's focus, and the mark's index is the caret.
-Markdown gives the character no meaning, so it travels with its text. It can change one thing:
-beside a `_`, it reads like a letter, and that can stop the `_` opening emphasis. That can tip
-§138's check into printing canonically, which changes text before the mark as well. So the
-answer is used only when the text before the mark matches the real draft, and the caret starts
-at 0 otherwise. A test pins the case: a setext title, `_` emphasis, and the caret right before
-an opening `_`.
+**Rich to source: read the printed text back.** The first version printed the document again
+with a private-use mark at the caret and took the mark's index. A review showed why that fails:
+the mark changes what it sits beside. Next to a `_` it reads as a letter and stops the delimiter
+opening or closing. At a run's edge it stops a space being an edge, so the space is no longer
+written as `&#32;` or moved outside the delimiters. Either way the caret fell back to 0, including
+in the commonest state, `hello |`. Now `openSource` parses its own printed text, recording source
+ranges as below, carries the position into that parse block by block, and walks the range back
+to a raw offset. One correspondence serves both directions, so they cannot disagree.
 
 **Source to rich: the parse remembers where text came from.** Each mdast text node, inline code
 span, and code block records its source range, the run it went into, and the offset in that run
 (runs that merge keep the right offset). A source offset finds its segment: the one it falls
 in, else the last one before it, else the first. Within a segment, the raw source and the
-decoded text are walked side by side, and source that yields no text is skipped: an escape's
-backslash, or a quote's `>` on a continuation line. A fenced block's walk starts after its fence
+decoded text are walked side by side. An escape (`\*`) and a character reference (`&amp;`,
+`&#x1F331;`, the latter two UTF-16 units) are one step each. Source that yields no text is
+skipped, such as a quote's `>` on a continuation line. A fenced block's walk starts after its fence
 line. Otherwise a language such as `ab` over code `ab` would be read as the code.
 
 **An unedited draft goes back to the caller's document.** Its identities are what continue, so
 the caret is read in a throwaway parse of the draft and carried over block by block: the n-th
-block that holds text, at the same offset in its text. That is exact when the two documents hold
-the same text in the same order. When they do not, for example when a block the printer cannot
-show held text, the answer is null, and the application keeps its old selection.
+block that holds text, at the same offset in its text, clamped to that block's length. The texts
+are not compared. The printer drops a code block's last newline and joins a heading's lines, and
+the first version, which required equal text, lost the caret for the whole document over one
+code block. Where two runs meet, the carried position keeps its side: at a run's start it stays
+at the start of the run after the boundary. The answer is null only when the documents have
+different numbers of text blocks, and the application then keeps its old selection.
 
 The Mixins source view no longer calls `closeSource` for an unedited draft, whose warnings and
 preview are by definition none and the caller's document. It keys its cache of an edited draft's

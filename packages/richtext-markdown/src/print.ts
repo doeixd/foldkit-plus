@@ -347,7 +347,9 @@ const renderBlocks = (
       block.type === 'Node' && marker !== undefined
         ? list(block, printing, marker)
         : renderBlock(block, printing)
-    if (rendered.length === 0) continue
+    // An empty paragraph prints only a blank line, which Markdown cannot tell from the gap
+    // between blocks: it says nothing, and two lists either side of it are still adjacent.
+    if (rendered.every(line => line.length === 0)) continue
     if (lines.length > 0) lines.push('')
     lines.push(...rendered)
     listBefore = marker

@@ -55,7 +55,7 @@ export const openSource = (
     draft: printed.markdown,
     unprintable: printed.diagnostics,
     style,
-    caret: focus === undefined ? 0 : (offsetIn(document, printed.markdown, style, focus) ?? 0),
+    caret: focus === undefined ? 0 : (offsetIn(document, printed.markdown, focus) ?? 0),
   }
 }
 

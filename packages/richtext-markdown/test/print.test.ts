@@ -277,6 +277,11 @@ describe('what a parser reads back from the printed text', () => {
       '- a\n\n* b\n',
     ],
     [
+      'two with an empty paragraph between',
+      [bullets('l1', 'a'), paragraph('e', []), bullets('l2', 'b')],
+      '- a\n\n* b\n',
+    ],
+    [
       'a bulleted and a numbered list, which never merge',
       [bullets('l1', 'a'), numbers('l2', 'b')],
       '- a\n\n1. b\n',

@@ -171,8 +171,8 @@ The caret comes along both ways. `openSource(document, { selection })` sets the 
 none, starts it at 0. Replace `caret` as it moves in the source editor, and
 `closed.selection` is that place in the document `closeSource` returns: in the parsed draft
 when it was edited, and in the caller's own document when it was not. It is null when the
-draft holds no text, or when an unedited draft's text does not line up with the caller's
-document block for block. Keep the old selection then.
+draft holds no text, or when an unedited draft does not have as many text blocks as the
+caller's document. Keep the old selection then.
 
 ## Limits
 
