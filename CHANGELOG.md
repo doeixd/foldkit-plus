@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-agent`, correlating by the call:** a completion's `correlate`
+  receives a third argument, `{ invocation }` (type `Correlation`), so a fact
+  that carries the invocation's id from `toMessage` is told apart where the
+  input is not. The todo app and the root README's example completed `add_todo`
+  by matching the trimmed title, which mixed up two todos of one title; they now
+  pass `requestId: invocation.id` through `RequestedTodo` to `SubmittedTodo`.
+
 - **CMS example as a static site:** `pnpm --filter foldkit-example-cms
   build:sandbox` builds the studio and the public site with the same server
   running in the page, on SQLite compiled to WebAssembly (`sql.js`), so it

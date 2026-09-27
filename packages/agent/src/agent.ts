@@ -45,6 +45,7 @@ export type {
   AnyMessage,
   AuthorizationRequest,
   Completion,
+  Correlation,
   DispatchResult,
   Invocation,
   InvocationContext,

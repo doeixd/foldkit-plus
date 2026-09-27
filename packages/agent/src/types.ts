@@ -44,7 +44,10 @@ export type MessageConstructor<Message extends AnyMessage = AnyMessage> = (
  *
  * `Request` is the decoded capability input, and `correlate` sees it beside the
  * Message that completed the operation -- either a success or a failure one, so
- * the two are separate parameters rather than one widened `Result`.
+ * the two are separate parameters rather than one widened `Result` -- and the
+ * invocation. Two calls can ask for the same thing (two todos titled "Milk"),
+ * so a Message that carries `invocation.id` from `toMessage` through to its
+ * fact is told apart where its input is not.
  */
 export interface Completion<
   Request = unknown,
@@ -54,8 +57,14 @@ export interface Completion<
   readonly success: MessageConstructor<Success> | ReadonlyArray<MessageConstructor<Success>>
   readonly failure?:
     MessageConstructor<Failure> | ReadonlyArray<MessageConstructor<Failure>> | undefined
-  readonly correlate?: ((request: Request, result: Success | Failure) => boolean) | undefined
+  readonly correlate?:
+    ((request: Request, result: Success | Failure, call: Correlation) => boolean) | undefined
   readonly timeout?: Duration.Input | undefined
+}
+
+/** What `correlate` knows of the call beside its input: the invocation it is. */
+export interface Correlation {
+  readonly invocation: Invocation
 }
 
 /** A value kept outside the Model that says when it may have changed, such as Sync's committed state. */

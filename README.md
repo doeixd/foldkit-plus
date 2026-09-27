@@ -167,15 +167,17 @@ const AssistantAgent = AgentBuilder.make({
       name: 'add_todo',
       description: 'Add a todo with the given title',
 
-      // The protocol input can be smaller than the internal Message.
+      // The protocol input can be smaller than the internal Message. The call's
+      // invocation id rides on the intent, and the Command copies it onto the fact.
       input: Schema.Struct({ title: Schema.String }),
-      toMessage: ({ title }) => ({ title }),
+      toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
 
       // RequestedTodo is an intent. The tool call completes when update later
-      // applies the correlated durable fact produced by the application's Command.
+      // applies the durable fact that carries this call's id: two calls adding
+      // "Milk" each finish on their own todo, which a title could not tell apart.
       completion: {
         success: Message.SubmittedTodo,
-        correlate: (request, result) => request.title.trim() === result.title,
+        correlate: (_, result, { invocation }) => result.requestId === invocation.id,
       },
     }),
     ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },
