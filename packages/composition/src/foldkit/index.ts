@@ -19,7 +19,7 @@ import { Block, spaced, type AnyBlock, type AppearanceChoice, type PropsOf } fro
 import { Catalog } from '../catalog.js'
 import { messageOf } from '../action.js'
 import { holds } from '../condition.js'
-import { NodeId, type Document, type Node } from '../document.js'
+import { NodeId, nodeAt, type Document, type Node } from '../document.js'
 import { statefulNodes } from '../stateful.js'
 
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
@@ -348,7 +348,7 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
 
   const drawn = new Set<NodeId>()
   const draw = (id: NodeId): Html => {
-    const node = document.nodes[id]
+    const node = nodeAt(document, id)
     if (node === undefined)
       return placeholder(h, mode, id, 'Missing', 'this node is not in the page')
     // A node reached twice is drawn once, which also ends a cycle.
@@ -512,7 +512,8 @@ export const Stateful = {
     const before = new Map(of(pages.before).map(node => [node.id, node]))
     const after = of(pages.after)
     const staying = new Set(after.map(node => node.id))
-    const stored = (document: Document | undefined, id: NodeId) => document?.nodes[id]?.props
+    const stored = (document: Document | undefined, id: NodeId) =>
+      document === undefined ? undefined : nodeAt(document, id)?.props
     return Update.combine([
       ...[...before.keys()].filter(id => !staying.has(id)).map(id => collection.remove(id)),
       ...after

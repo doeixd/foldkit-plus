@@ -340,8 +340,9 @@ const result = Composition.apply(
   not hold is kept as it is, for `apply` to refuse by name.
   `Composition.treeRefusal(catalog, tree)` checks a tree alone, by its own ids,
   before it is rekeyed: what a paste should say is wrong with it.
-- **Any text is an id,** `constructor` and `__proto__` included: `apply` reads
-  and writes nodes by own key only.
+- **Any text is an id,** `constructor` and `__proto__` included: `apply`,
+  `validate`, `index` and the Renderer read nodes by own key only, so a stored
+  Document naming one it lacks is `composition:missing-node`, not a crash.
 
 ## Patterns
 

@@ -405,7 +405,9 @@ version changed; `pnpm` skips versions already in the registry.
   `string`; a list of names (`'plain' | 'accent'`) is no longer a field. An
   id that is one of `Object`'s own names (`toString`, `constructor`,
   `__proto__`) is an id as any other: a tree naming one it lacks was a
-  `TypeError` from `apply`, and one it held was refused as taken.
+  `TypeError` from `apply`, and one it held was refused as taken; a stored
+  Document naming one it lacks was a `TypeError` from `validate`, `index` and
+  `describe`, and is now `composition:missing-node`.
   `Renderer.fields` no longer shares the page's memo, which made a view that
   called it redraw every node on every change. `Composition.treeRefusal` is
   exported, to check a tree by its own ids before it is rekeyed.

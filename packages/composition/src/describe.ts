@@ -6,7 +6,7 @@
  */
 import { spaced } from './block.js'
 import { Catalog } from './catalog.js'
-import type { Document, NodeId } from './document.js'
+import { nodeAt, type Document, type NodeId } from './document.js'
 
 const sorted = (value: unknown): unknown =>
   Array.isArray(value)
@@ -24,7 +24,7 @@ export const describe = (catalog: Catalog, document: Document): string => {
   const seen = new Set<NodeId>()
   const visit = (id: NodeId, depth: number): void => {
     const pad = '  '.repeat(depth)
-    const node = document.nodes[id]
+    const node = nodeAt(document, id)
     if (node === undefined) return void lines.push(`${pad}(missing ${id})`)
     if (seen.has(id)) return void lines.push(`${pad}(again ${id})`)
     seen.add(id)

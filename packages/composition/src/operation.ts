@@ -676,7 +676,12 @@ export const apply = (
     throw error
   }
   return Result.succeed({
-    document: { format: 1, roots: draft.roots, nodes: draft.nodes },
+    // A plain object again, as a decoded Document is; each id stays an own key.
+    document: {
+      format: 1,
+      roots: draft.roots,
+      nodes: Object.fromEntries(Object.entries(draft.nodes)),
+    },
     changed: [...draft.changed],
     removed: [...draft.removed],
   })

@@ -23,7 +23,7 @@
 import { Result, Schema } from 'effect'
 import type { AnyBlock } from './block.js'
 import { Block } from './block.js'
-import { Node, nodeIds, type Document, type NodeId } from './document.js'
+import { Node, nodeAt, nodeIds, type Document, type NodeId } from './document.js'
 
 export interface Migration {
   readonly name: string
@@ -46,7 +46,7 @@ const structuralFaults = (document: Document): ReadonlyArray<string> => {
   const faults: Array<string> = []
   const reached = new Set<NodeId>()
   const visit = (id: NodeId, ancestors: ReadonlySet<NodeId>): void => {
-    const node = document.nodes[id]
+    const node = nodeAt(document, id)
     if (node === undefined) return void faults.push(`"${id}" is named but is not a node`)
     if (ancestors.has(id)) return void faults.push(`"${id}" contains itself`)
     if (reached.has(id)) return void faults.push(`"${id}" is placed twice`)

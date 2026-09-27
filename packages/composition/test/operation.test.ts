@@ -503,6 +503,40 @@ describe('ids that are names Object has', () => {
   })
 })
 
+describe('a stored Document naming ids that are names Object has', () => {
+  // Named, never held: a body naming `constructor`, and a root `toString`.
+  const named: Document = {
+    format: 1,
+    roots: [id('s'), id('toString')],
+    nodes: {
+      [id('s')]: { block: 'Section', props: {}, regions: { body: [id('constructor')] } },
+    },
+  }
+
+  it('is diagnosed, not a TypeError, by every reader', () => {
+    expect(Composition.validate(Site, named).map(finding => [finding.code, finding.node])).toEqual([
+      ['composition:missing-node', id('constructor')],
+      ['composition:missing-node', id('toString')],
+    ])
+    expect([...Composition.index(named).keys()]).toEqual([id('s')])
+    expect(Composition.describe(Site, named)).toContain('(missing constructor)')
+    expect(Composition.migrate(named, []).document).toBe(named)
+  })
+
+  it('comes back from an edit as a plain object, as it was decoded', () => {
+    const edited = applied(
+      named,
+      Op.insert({
+        id: id('h'),
+        block: 'Heading',
+        props: { text: 'H', level: 1 },
+        at: region(id('s'), 'body', 0),
+      }),
+    ).document
+    expect(Object.getPrototypeOf(edited.nodes)).toBe(Object.prototype)
+  })
+})
+
 describe('props and the reserved fields', () => {
   it('sets a prop, checked against the Block', () => {
     const result = applied(start, Op.setProp(id('a'), 'text', 'Hello'))
