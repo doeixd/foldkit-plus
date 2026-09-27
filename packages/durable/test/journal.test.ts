@@ -253,6 +253,36 @@ describe('the stored snapshot', () => {
       expect(row(path)).toMatchObject({ cursor: 6, snapshot_cursor: 5 })
     }))
 
+  it('reads at most a page of operations after a cursor', () =>
+    withJournal(function* (journal) {
+      for (const edit of edits) yield* journal.append(todos, edit, principal)
+      const page = yield* journal.read(todos, cursor(1), { limit: 2 })
+      expect(page.map(committed => committed.sequence)).toEqual([2, 3])
+      const rest = yield* journal.read(todos, cursor(3), { limit: 2 })
+      expect(rest.map(committed => committed.sequence)).toEqual([4, 5])
+      expect(yield* Effect.exit(journal.read(todos, cursor(0), { limit: 0 }))).toMatchObject({
+        _tag: 'Failure',
+      })
+    }))
+
+  it('gives back the space compaction freed when vacuumed', () =>
+    inFile(async path => {
+      const { statSync } = await import('node:fs')
+      await withJournal(
+        function* (journal) {
+          // Large payloads that leave the snapshot small, so the file is mostly payload.
+          for (let index = 1; index <= 400; index++)
+            yield* journal.append(todos, remove(index, 'x'.repeat(2000) + index), principal)
+          yield* journal.compact(todos, sequence(400))
+          const compacted = statSync(path).size
+          yield* journal.vacuum()
+          expect(statSync(path).size).toBeLessThan(compacted / 2)
+        },
+        {},
+        path,
+      )
+    }))
+
   it('forgets a document it reset, though another connection takes it to the same cursor', () =>
     inFile(async path => {
       const open = makeJournal<Operation, Snapshot, Principal>({ file: path, ...base })

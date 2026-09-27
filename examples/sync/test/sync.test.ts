@@ -178,6 +178,16 @@ describe('the journal adapter', () => {
     expect(server.snapshot('todos')).toEqual({ cursor: 0, model: { todos: [] } })
   })
 
+  it('catches a replica far behind up in pages, within one synchronize', async () => {
+    const paged = openJournal(':memory:', { page: 2 })
+    for (let index = 1; index <= 5; index++)
+      paged.append(operation('seed', index, created(`t${index}`)), principal)
+    const reader = await open('reader')
+    await reader.synchronize(paged.transport(principal))
+    expect(reader.shared().todos.map(todo => todo.id)).toEqual(['t1', 't2', 't3', 't4', 't5'])
+    paged.close()
+  })
+
   it('rejects an id reused for other content, as a client whose storage was wiped sends', async () => {
     const transport = server.transport(principal)
     await transport.exchange(Sequence.make(0), [operation('a', 1, created('first'))])

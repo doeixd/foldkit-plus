@@ -80,7 +80,8 @@ and reach the other window once the server is back.
 - There is no undo: the editor's undo restores a snapshot of this tab's document, which
   other people's edits have moved on from, and collaborative undo is not built.
 - Deleted characters are kept as tombstones for good; nothing collects them yet.
-- A new replica reads the whole history in one exchange, with no paging or checkpoint.
+- A new replica replays the whole history, 500 edits per exchange; the server sends no
+  checkpoint, because it never compacts.
 - Titles are last-writer-wins by the server's order. Keystrokes the server has not seen
   yet are merged into one edit, as typing in the body is (`coalesce` in
   `src/contract.ts`).

@@ -433,6 +433,14 @@ pending operations on top. A checkpoint behind the replica's current cursor is
 rejected with `CheckpointRegressionError` rather than silently moving history
 backwards.
 
+### Paged answers
+
+A server may answer with only part of what follows the cursor and set `more:
+true`. `synchronize` then exchanges again at once, until an answer has no
+`more` or a round moves the cursor nowhere. A replica that was offline for a
+long time therefore catches up in bounded steps within one `synchronize`. The
+example servers page with Durable's `read(key, cursor, { limit })`.
+
 ### Coalescing a burst
 
 Typing makes one durable Message per keystroke. A contract can merge them while

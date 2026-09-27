@@ -236,6 +236,8 @@ const server = Effect.gen(function* () {
   `OperationRejectedError`.
 - `snapshotEvery: n` writes the snapshot every `n` commits rather than each (the
   journal keeps it in memory; `load` replays the few since).
+- `read(key, cursor, { limit })` pages history; set the exchange's `more: true`
+  and the replica asks again at once. `vacuum()` shrinks the file after `compact`.
 - Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `subscribe` (a wake-up signal; catch up
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).

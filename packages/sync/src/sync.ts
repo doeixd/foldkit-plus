@@ -88,6 +88,8 @@ export interface Exchange<Shared> {
   readonly acknowledged?: ReadonlyArray<OpId> | undefined
   /** The snapshot a replica predating compaction adopts in place of the log. */
   readonly checkpoint?: Checkpoint<Shared> | undefined
+  /** The server sent only part of what is after the cursor; the replica asks again. */
+  readonly more?: boolean | undefined
 }
 
 export interface ReplicaState<Shared> {
@@ -263,6 +265,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     rejected: Schema.Array(OpId),
     acknowledged: Schema.optional(Schema.Array(OpId)),
     checkpoint: Schema.optional(CheckpointSchema),
+    more: Schema.optional(Schema.Boolean),
   })
   const decodeState = Schema.decodeUnknownSync(ReplicaStateSchema, { onExcessProperty: 'error' })
   const encodeState = Schema.encodeSync(ReplicaStateSchema)
@@ -571,7 +574,8 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         return result
       })
 
-      const synchronize = Effect.fn('Sync.synchronize')(function* () {
+      /** One exchange; whether the server has more to send and this one made progress. */
+      const exchangeOnce = Effect.fn('Sync.exchange')(function* () {
         yield* Effect.annotateCurrentSpan({ documentId })
         const transport = yield* Transport
         if (yield* Ref.get(closed))
@@ -687,7 +691,16 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             [...response.rejected, ...previous].slice(0, 32),
           )
         yield* PubSub.publish(statusSignals, undefined)
-      })().pipe(
+        const reached = (yield* SynchronizedRef.get(stateRef)).cursor
+        return response.more === true && reached > sent.cursor
+      })
+
+      // A server that pages its answer says there is more, and the replica asks again at
+      // once; a round that moves the cursor nowhere ends it.
+      const synchronize = Effect.gen(function* () {
+        while (yield* exchangeOnce()) {}
+      }).pipe(
+        Effect.withSpan('Sync.synchronize'),
         // Any failed exchange, a refused response included, is what a UI shows,
         // so it is recorded and announced rather than left for the next submit.
         Effect.tapError(error =>

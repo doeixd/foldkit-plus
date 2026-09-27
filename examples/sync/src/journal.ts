@@ -50,6 +50,8 @@ export interface JournalPolicy {
    * so its policy must not reorder effects for previously committed operations.
    */
   readonly effects?: (message: Message) => ReadonlyArray<ServerEffect>
+  /** At most this many committed operations per exchange; a replica far behind asks again. Default 500. */
+  readonly page?: number
 }
 
 export interface ServerJournal {
@@ -75,6 +77,7 @@ export interface ServerJournal {
 export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJournal => {
   const authorize = policy.authorize
   const effectsFor = policy.effects
+  const page = policy.page ?? 500
   const scope = Effect.runSync(Scope.make())
   const durable: Journal<Operation, Shared, Principal> = (() => {
     try {
@@ -260,12 +263,14 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
         // read decides that itself, so a compaction cannot slip between the
         // floor check and the read and produce a gapped stream.
         const caught = Effect.runSync(
-          durable.read(DocumentId.make(principal.documentId), Cursor.make(cursor)).pipe(
-            Effect.map(rows => ({ rows })),
-            Effect.catchTag('CompactedCursorError', () =>
-              Effect.succeed({ checkpoint: true as const }),
+          durable
+            .read(DocumentId.make(principal.documentId), Cursor.make(cursor), { limit: page })
+            .pipe(
+              Effect.map(rows => ({ rows })),
+              Effect.catchTag('CompactedCursorError', () =>
+                Effect.succeed({ checkpoint: true as const }),
+              ),
             ),
-          ),
         )
         if ('checkpoint' in caught) {
           const { cursor: at, model } = snapshot(principal.documentId)
@@ -280,6 +285,7 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
           operations: caught.rows.map(committed => toCommitted(committed, principal.documentId)),
           rejected,
           acknowledged,
+          more: caught.rows.length === page,
         }
       },
     }),

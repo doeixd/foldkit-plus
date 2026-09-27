@@ -70,10 +70,11 @@ different hardware than the table above, so compare within the scenario):
 | snapshot kept in memory, written every commit | 1.95 |
 | snapshot kept in memory, written every 50 commits (`snapshotEvery: 50`) | 0.91 |
 
-Compaction drops payloads but does not shrink the file: identity rows remain and
-SQLite keeps freed pages, so storage tracks the number of operations, not the
-payload bytes compacted away. That matches the [retention policy](../packages/durable/README.md#retention) —
-bounding storage means rotating the journal. Append is a synchronous
+Compaction drops payloads but does not shrink the file: SQLite keeps the pages
+they occupied. `journal.vacuum()` rebuilds the file and gives that space back,
+and `pnpm bench:storage` prints the size after it too. Identity rows remain
+either way, so storage tracks the number of operations, not the payload bytes
+compacted away. That matches the [retention policy](../packages/durable/README.md#retention). Append is a synchronous
 transaction, so the per-op time is the platform's fsync; CI's `ubuntu` runner is
 faster than this laptop.
 

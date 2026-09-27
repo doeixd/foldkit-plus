@@ -292,7 +292,9 @@ const later = yield* journal.read(documentId, cursor)
 ```
 
 A typical replica uses a checkpoint/snapshot when it is far behind, then replays
-later operations in authoritative order.
+later operations in authoritative order. `read(key, cursor, { limit })` returns
+at most `limit` operations, so a server can answer a replica that is far behind
+in pages. Sync's exchange carries `more` for this.
 
 `Sequence` and `Cursor` are separate branded types on purpose. A committed
 operation's sequence is not accidentally accepted where a read cursor is
@@ -593,6 +595,11 @@ database:
 Neither is garbage-collected automatically. Storage growth is therefore tied to
 the number of distinct operations/effects, not only to retained payload size.
 
+Compaction empties payloads, but SQLite keeps the pages they occupied, so the file
+does not shrink by itself. `journal.vacuum()` rebuilds the file and checkpoints
+its write-ahead log, which gives that space back. It holds the database while it
+runs, so it is maintenance to schedule, not a step of each compaction.
+
 That retention is part of the retry guarantee. As long as an identity row
 exists, an old retransmission is recognized. If the application rotates or
 recreates the database, an operation whose identity disappeared is
@@ -674,7 +681,8 @@ The Journal also exposes operational tooling:
 - `keys` enumerates documents;
 - `reset` removes one document's snapshot and operations;
 - `effect`, `unfinished`, and `clearEffect` inspect/manage effect records;
-- `compact` and `floor` manage retained operation payloads;
+- `compact` and `floor` manage retained operation payloads, and `vacuum` returns
+  the space compaction freed to the file system;
 - `cursor` reads a document's last sequence without decoding its snapshot;
 - `Journal.metrics` counts appends, compactions, owner effect runs, and coalesced
   effect runs.

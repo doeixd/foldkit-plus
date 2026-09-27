@@ -196,9 +196,14 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
   readonly cursor: (key: DocumentId) => Effect.Effect<Cursor, JournalError>
   /** The highest sequence whose payload has been compacted away; `0` if none. */
   readonly floor: (key: DocumentId) => Effect.Effect<Sequence, JournalError>
+  /**
+   * The committed operations after `after`, in order: at most `limit` of them when
+   * given, so a caller far behind can catch up in bounded steps.
+   */
   readonly read: (
     key: DocumentId,
     after: Cursor,
+    options?: { readonly limit?: number },
   ) => Effect.Effect<
     ReadonlyArray<Committed<Operation>>,
     InvalidCursorError | CompactedCursorError | JournalError
@@ -225,6 +230,13 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
     key: DocumentId,
     through: Sequence,
   ) => Effect.Effect<void, InvalidCompactionError | JournalError>
+  /**
+   * Rebuilds the database file, returning to the file system the space that
+   * `compact` freed: compaction empties payloads but leaves their pages allocated.
+   * It rewrites every table and holds the database while it runs, so it is
+   * maintenance, not something to run per commit.
+   */
+  readonly vacuum: () => Effect.Effect<void, JournalError>
   /** The document keys that have a snapshot or a committed operation. */
   readonly keys: () => Effect.Effect<ReadonlyArray<DocumentId>, JournalError>
   /** Every recorded effect that is not `succeeded`, for recovery. */
@@ -687,7 +699,14 @@ const makeShape = <
     return toSequence(rows[0]?.compact_before ?? 0)
   })
 
-  const read: Shape['read'] = Effect.fn('Journal.read')(function* (key: DocumentId, after: Cursor) {
+  const read: Shape['read'] = Effect.fn('Journal.read')(function* (
+    key: DocumentId,
+    after: Cursor,
+    options?: { readonly limit?: number },
+  ) {
+    const limit = options?.limit ?? -1
+    if (limit !== -1 && (!Number.isSafeInteger(limit) || limit < 1))
+      return yield* Effect.die(new Error('Journal.read: limit must be a positive integer'))
     yield* Effect.annotateCurrentSpan({ key, after })
     const documents = yield* sql<{
       readonly cursor: number
@@ -717,7 +736,7 @@ const makeShape = <
         }),
       )
     const rows =
-      yield* sql<OperationRow>`SELECT actor_id, op_id, sequence, input FROM operations WHERE key = ${key} AND sequence > ${after} AND input IS NOT NULL ORDER BY sequence`.pipe(
+      yield* sql<OperationRow>`SELECT actor_id, op_id, sequence, input FROM operations WHERE key = ${key} AND sequence > ${after} AND input IS NOT NULL ORDER BY sequence LIMIT ${limit}`.pipe(
         Effect.catchTag('SqlError', asJournalError('Could not read the log')),
       )
     return yield* Effect.try({
@@ -992,6 +1011,15 @@ const makeShape = <
     yield* Effect.logDebug('journal compact', { key, through })
   })
 
+  const vacuum: Shape['vacuum'] = Effect.fn('Journal.vacuum')(function* () {
+    yield* Effect.gen(function* () {
+      yield* sql`VACUUM`
+      // The client runs in WAL mode, where the rebuilt pages sit in the log until a
+      // checkpoint writes them back and the file can be truncated.
+      yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`
+    }).pipe(Effect.catchTag('SqlError', asJournalError('Could not vacuum')))
+  })
+
   const toEffectRecord = (row: EffectRow): EffectRecord => ({
     key: String(row.key),
     status: String(row.status) as EffectStatus,
@@ -1183,6 +1211,7 @@ const makeShape = <
     append,
     appendAll,
     compact,
+    vacuum,
     keys,
     unfinished,
     effect,

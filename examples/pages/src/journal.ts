@@ -16,7 +16,10 @@ const pages = DocumentId.make('pages')
  * exchange a replica's transport calls. Every page edit is appended, reduced by the same
  * `update` the replicas run, and read back by the others after their cursor.
  */
-export const openJournal = (file = ':memory:') => {
+/** How many committed edits one exchange sends back at most; a replica far behind asks again. */
+const PAGE = 500
+
+export const openJournal = (file = ':memory:', page = PAGE) => {
   const scope = Effect.runSync(Scope.make())
   const journal = Effect.runSync(
     Journal.make<Operation, Shared, { readonly actorId: string }>({
@@ -69,8 +72,13 @@ export const openJournal = (file = ':memory:') => {
         const opId: unknown = (input as { readonly opId?: unknown } | null)?.opId
         if (typeof opId === 'string') rejected.push(opId)
       }
-      const rows = Effect.runSync(journal.read(pages, Cursor.make(cursor)))
-      return { operations: rows.map(committed), rejected, acknowledged }
+      const rows = Effect.runSync(journal.read(pages, Cursor.make(cursor), { limit: page }))
+      return {
+        operations: rows.map(committed),
+        rejected,
+        acknowledged,
+        more: rows.length === page,
+      }
     },
   })
 

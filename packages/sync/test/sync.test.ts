@@ -735,6 +735,39 @@ describe('the replica', () => {
   })
 })
 
+describe('a paged exchange', () => {
+  it('asks again at once while the server says there is more', async () => {
+    const replica = await open('a')
+    const log = [1, 2, 3, 4, 5].map(sequence =>
+      committed('b', sequence, sequence, created(`t${sequence}`)),
+    )
+    const asked: Array<number> = []
+    await sync(replica, {
+      exchange: async cursor => {
+        asked.push(cursor)
+        const operations = log.slice(cursor, cursor + 2)
+        return { operations, rejected: [], more: cursor + 2 < log.length }
+      },
+    })
+    expect(asked).toEqual([0, 2, 4])
+    expect(cursor(replica)).toBe(5)
+    await close(replica)
+  })
+
+  it('stops when a round says there is more but moves the cursor nowhere', async () => {
+    const replica = await open('a')
+    let asked = 0
+    await sync(replica, {
+      exchange: async () => {
+        asked += 1
+        return { operations: [], rejected: [], more: true }
+      },
+    })
+    expect(asked).toBe(1)
+    await close(replica)
+  })
+})
+
 describe('coalescing', () => {
   const renamed = (id: string, title: string): Message => ({ _tag: 'RenamedTodo', id, title })
   const Coalescing = defineSync({

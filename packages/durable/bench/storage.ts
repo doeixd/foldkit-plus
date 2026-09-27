@@ -50,6 +50,8 @@ const elapsed = performance.now() - started
 // file does not shrink; this separates "payload bytes" from "identity bytes".
 Effect.runSync(journal.compact(documentId('bench'), sequence(operations)))
 const compacted = size()
+Effect.runSync(journal.vacuum())
+const vacuumed = size()
 const heap = process.memoryUsage()
 
 console.log(
@@ -58,6 +60,7 @@ console.log(
     `append: ${elapsed.toFixed(0)} ms (${(elapsed / operations).toFixed(2)} ms/op)`,
     `bytes appended: ${appended} (${(appended / operations).toFixed(1)} B/op)`,
     `bytes after compacting all payloads: ${compacted}`,
+    `bytes after vacuum: ${vacuumed}`,
     `heap: ${(heap.heapUsed / 1_000_000).toFixed(1)} MB, rss: ${(heap.rss / 1_000_000).toFixed(1)} MB`,
   ].join('\n'),
 )
