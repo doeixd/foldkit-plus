@@ -16,9 +16,9 @@ lit.
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
 versions. The mark toolbar, the block style picker, the slash menu, the link editor, the
-Markdown source editor, the status line, the command palette, and the block handle's moves are
-built. The floating toolbar is `foldkit-richtext-dom/toolbar`'s `selectionAnchor` around this
-package's toolbar. Dragging a block is not built. The placeholder is the editor's own, placed with `editorAt`,
+Markdown source editor, the status line, the command palette, and the block handle, dragged or
+moved up and down, are built. The floating toolbar is `foldkit-richtext-dom/toolbar`'s
+`selectionAnchor` around this package's toolbar. A drag stays inside the block's container. The placeholder is the editor's own, placed with `editorAt`,
 because it is drawn inside the editable subtree this package stays out of.
 
 ## The mark toolbar
@@ -86,7 +86,7 @@ undo what it shows.
 
 ## The block handle
 
-The moves one block can make as a whole. Which block it stands for is the caller's, usually one
+The moves one block can make as a whole: dragged by its grip, or up and down. Which block it stands for is the caller's, usually one
 of `RichText.blocksAt(document, selection)`: the outermost to move a whole list, an item to
 reorder a list.
 
@@ -98,12 +98,18 @@ const [outermost] = RichText.blocksAt(model.document, model.editor.selection)
 
 outermost === undefined
   ? h.empty
-  : blockHandle<Message>()({ document: model.document, node: outermost.id, wrap: edited }, h)
+  : blockHandle<Message>()(
+      { document: model.document, hostId: 'body', node: outermost.id, wrap: edited },
+      h,
+    )
 ```
 
-Up sends `MovedBlock` to put the block before its previous sibling, and down after its next.
-Each is disabled at its end of the container, and both are disabled when the block is not in the
-document. Moves stay inside the block's container, because that is what `MoveBlock` does.
+The grip drags the block among its container's blocks (`foldkit-richtext-dom/toolbar`'s
+`blockDrag`), and is keyed by the block, so a handle that follows the caret drags the block it
+stands for now. Up and down are the same moves from the keyboard: up sends `MovedBlock` to put
+the block before its previous sibling, and down after its next. Each is disabled at its end of
+the container, and both are disabled when the block is not in the document. Moves stay inside
+the block's container, because that is what `MoveBlock` does.
 
 To draw it beside its block, put it in an element carrying `foldkit-richtext-dom/toolbar`'s
 `blockAnchor`, keyed by the block:
@@ -111,7 +117,12 @@ To draw it beside its block, put it in an element carrying `foldkit-richtext-dom
 ```ts
 h.div(
   [h.Key(outermost.id), h.OnMount(blockAnchor({ hostId: 'body', node: outermost.id, gap: 8 }))],
-  [blockHandle<Message>()({ document: model.document, node: outermost.id, wrap: edited }, h)],
+  [
+    blockHandle<Message>()(
+      { document: model.document, hostId: 'body', node: outermost.id, wrap: edited },
+      h,
+    ),
+  ],
 )
 ```
 
@@ -121,6 +132,7 @@ the caret moving to another block would keep the handle beside the first one.
 | Slot | Capability | Renders |
 | --- | --- | --- |
 | `root` | Container | the handle, `role="group"` |
+| `grip` | Interactive | what it is dragged by, `data-handle="grip"` |
 | `up` | Interactive | `data-handle="up"` |
 | `down` | Interactive | `data-handle="down"` |
 

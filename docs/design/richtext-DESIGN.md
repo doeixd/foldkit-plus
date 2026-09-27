@@ -1,22 +1,22 @@
 # Foldkit Plus Rich Text
 
 **Status:** §124's Markdown-first order is the one being followed; its milestones 1–5, 7, and 8
-are built, 6 lacks only dragging, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
+are built, 6 is built but for drags across containers, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
 decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
 Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
 mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
-status line, the command palette, the floating toolbar's anchor, and the block handle's moves
-(§119, §123, §132, §133, §134, §141, §142, §143, §144), with their views in
+status line, the command palette, the floating toolbar's anchor, and the block handle with its
+drag (§119, §123, §132, §133, §134, §141, §142, §143, §144, §148), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), with the writer's spellings per construct and per block (§138, §146) and the
 caret carried across a mode switch (§147).
 Milestone 8's form control and its CMS example are built (§139, §140).
 Milestone 9 has begun: the adapter adopts matching server markup (§145).
-Still to do: dragging blocks (milestone 6), the rest of SSR (§145 names the open decision),
+Still to do: dragging a block into another container (§144's rules), the rest of SSR (§145 names the open decision),
 real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
@@ -4684,7 +4684,8 @@ keymaps                   the adapter's built-ins, plus a `keymap` table an
                           application adds to or overrides; the editor's own
                           binding layer waits for a binding that needs it (§119)
 copy/paste                routed through the view's Messages (§118 slice 2)
-drag/drop                 not started
+drag/drop                 a block by its handle, within its container (`blockDrag`,
+                          §148); across containers not yet
 mobile virtual keyboards  not started (Phase 3)
 toolbar integration       the mark buttons and their active rule
                           (`foldkit-richtext-dom/toolbar`, `marksToolbar`), and the
@@ -4715,7 +4716,7 @@ floating toolbar          `coversText` in the core, `selectionAnchor` beside the
                           marks toolbar (§143)
 block handle              `MoveBlock` and `blocksAt` in the core, `MovedBlock` and
                           `blockAnchor` in the editor, `blockHandle` in the Mixins
-                          family (§144); dragging not yet
+                          family (§144), and its grip's drag (§148)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7979,3 +7980,37 @@ A Mount reads its args once, which suits this: the caret is placed when a sessio
 appears, and the writer moves it after that. The view test resolves the Mount with the
 application's Message, so the lift itself is tested by running the action against a textarea
 (`caretMount`).
+
+---
+
+# 148. Dragging a block
+
+A block is dragged by its handle's grip, among the blocks of its own container, and dropped with
+§144's `MoveBlock`. That is all the command allows, and all a handle's drag needs. A drag into
+another container waits for the rules §144 names.
+
+**Where it lands is a read of the page.** `dropBeside(blocks, moving, y)` puts the block before
+the first sibling whose middle is below the pointer, else after the last. That is `Beside`, the
+command's own shape. A place that is where the block already is (just before its next sibling,
+or just after its previous one) gives nothing. So the drop sends no Message, and records no undo
+step for a move that changes nothing.
+
+**The pointer, not the target.** The place comes from `clientY` against the blocks' rectangles,
+found through the adapter's own index, as `blockAnchor` finds its block. It never comes from
+`event.target`, which a captured pointer pins to where it went down. Only the pointer that
+pressed is followed. The page is listened to only from the press until the drag ends, as
+`PointerDrag` in `foldkit-primitives` does. Escape and `pointercancel` end it without a drop.
+
+**The line is the Mount's own element.** It is a `div[data-richtext-drop]`, fixed at the edge
+the block would land on and appended to the page body, because the editable subtree is the
+adapter's (§29) and a drop line is not content. A stylesheet draws it.
+
+**The grip is keyed by its block.** The trap AGENTS.md records from §144 showed up here in
+practice. A Mount reads its args once, so an unkeyed grip kept dragging the first block
+it was drawn for after the caret moved on. Scene cannot show this, because it tracks Mounts
+without keys: it reported the old Mount alive with and without the key. So the test runs on the
+real runtime. It points the handle at another block, drags, and checks which block the drop
+names. Without the key, it names the stale one.
+
+Not done: across containers; dragging by touch, where a long press must be told from a scroll;
+and the drop line's appearance in a real browser, for milestone 9.

@@ -188,7 +188,9 @@ the document it would become. `editorStatus<Message>()` is the status line: `{ d
 diagnostics? }` in, `EditorStatusSlots` (`root`, `counts`, `problems`, `problem`) out; the counts
 are `RichText.count(document)` (`{ words, characters }`), the problems whatever the caller passes,
 usually `RichText.validate` against its Kit. `blockHandle<Message>()` is the block handle:
-`{ document, node, wrap }` in, `BlockHandleSlots` (`root`, `up`, `down`) out; up sends
+`{ document, hostId, node, wrap }` in, `BlockHandleSlots` (`root`, `grip`, `up`, `down`) out; the
+grip drags the block within its container (`blockDrag` from `foldkit-richtext-dom/toolbar`,
+keyed by the block), up sends
 `MovedBlock` before the previous sibling and down after the next, each disabled at its end of
 the container; `node` is usually one of `RichText.blocksAt(document, selection)`, the blocks the
 selection starts in, outermost first. `commandPalette<Message>()` searches the same

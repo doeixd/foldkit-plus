@@ -1,14 +1,22 @@
 // @vitest-environment jsdom
 /** The block handle: what up and down send for a block, and where each has nowhere to go. */
-import { Schema } from 'effect'
+import { Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import * as RichText from 'foldkit-richtext'
-import { describe, it } from 'vitest'
+import * as Mount from 'foldkit/mount'
+import * as Runtime from 'foldkit/runtime'
+import { attachEditor } from 'foldkit-richtext-dom/editor'
+import { releaseMount } from 'foldkit-richtext-dom/host'
+import { describe, expect, it, vi } from 'vitest'
+import { dragMount } from '../src/handle.js'
 import { blockHandle } from '../src/index.js'
 
-const Message = defineMessageUnion({ Sent: { editor: Schema.String } })
+const Message = defineMessageUnion({
+  Sent: { editor: Schema.String },
+  Pointed: { node: Schema.String },
+})
 type Message = typeof Message.Type
 
 const paragraph = (name: string) => ({
@@ -46,7 +54,10 @@ interface Model {
 }
 
 const update = (model: Model, message: Message): { readonly model: Model } => ({
-  model: { ...model, sent: message.editor },
+  model:
+    message._tag === 'Pointed'
+      ? { ...model, node: message.node }
+      : { ...model, sent: message.editor },
 })
 
 const view = (model: Model, h: HtmlBuilder<Message>) =>
@@ -56,12 +67,14 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
       blockHandle<Message>()(
         {
           document,
+          hostId: 'host',
           node: RichText.NodeId.make(model.node),
           wrap: editor => Message.Sent({ editor: JSON.stringify(editor) }),
         },
         h,
       ),
       h.p([h.Id('sent')], [model.sent]),
+      h.button([h.Id('point-a'), h.OnClick(Message.Pointed({ node: 'a' }))], ['a']),
     ],
   )
 
@@ -69,12 +82,20 @@ const up = '[data-handle="up"]'
 const down = '[data-handle="down"]'
 const sent = Scene.selector('#sent')
 const moved = (node: string, to: object) => JSON.stringify({ _tag: 'MovedBlock', node, to })
+/** The grip's drag Mount for `node`, resolved as a drop would: the application's Message. */
+const grip = (node: string) =>
+  Scene.Mount.resolve(
+    { name: 'RichTextBlockDrag', args: { hostId: 'host', node } },
+    Message.Sent({ editor: 'dropped' }),
+  )
 
 describe('the block handle', () => {
   it('moves a block before its previous sibling, or after its next', () => {
     Scene.scene(
       { update, view },
       Scene.given<Model>({ node: 'b', sent: '' }),
+      grip('b'),
+      Scene.expect(sent).toHaveText('dropped'),
       Scene.click(up),
       Scene.expect(sent).toHaveText(moved('b', { before: 'a' })),
       Scene.click(down),
@@ -86,6 +107,7 @@ describe('the block handle', () => {
     Scene.scene(
       { update, view },
       Scene.given<Model>({ node: 'i2', sent: '' }),
+      grip('i2'),
       Scene.expect(Scene.selector(down)).toBeDisabled(),
       Scene.click(up),
       Scene.expect(sent).toHaveText(moved('i2', { before: 'i1' })),
@@ -100,6 +122,7 @@ describe('the block handle', () => {
     Scene.scene(
       { update, view },
       Scene.given<Model>({ node, sent: '' }),
+      grip(node),
       Scene.expect(Scene.selector(button)).toBeDisabled(),
     )
   })
@@ -108,8 +131,87 @@ describe('the block handle', () => {
     Scene.scene(
       { update, view },
       Scene.given<Model>({ node: 'x', sent: '' }),
+      grip('x'),
       Scene.expect(Scene.selector(up)).toBeDisabled(),
       Scene.expect(Scene.selector(down)).toBeDisabled(),
     )
+  })
+
+  it('drags through the grip into the caller’s Message', async () => {
+    window.document.body.innerHTML = '<div id="host"></div><button id="grip"></button>'
+    const host = window.document.getElementById('host')!
+    attachEditor(host, document, () => {})
+    const boxes: Record<string, number> = { a: 0, b: 30, l: 60 }
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const top = boxes[this.getAttribute('data-block') ?? ''] ?? 0
+      return { top, bottom: top + 20, left: 0, width: 100 } as DOMRect
+    })
+    const gripElement = window.document.getElementById('grip')!
+    const action = dragMount('host', RichText.NodeId.make('a'), editor =>
+      Message.Sent({ editor: JSON.stringify(editor) }),
+    )
+    const first = Effect.runFork(Stream.runHead(action.f(gripElement, Mount.liveViewStateChanges)))
+    // The fiber starts listening on its own turn; the press has to come after.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    gripElement.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    window.document.dispatchEvent(new MouseEvent('pointermove', { clientY: 75 }))
+    window.document.dispatchEvent(new MouseEvent('pointerup'))
+    expect(await Effect.runPromise(Fiber.join(first))).toEqual(
+      Option.some(Message.Sent({ editor: moved('a', { after: 'l' }) })),
+    )
+    spy.mockRestore()
+    releaseMount(host)
+  })
+
+  it('gives each block its own grip on the runtime, since a drag reads its block once', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.document.body.innerHTML = '<div id="host"></div><div id="handle-runtime"></div>'
+    const host = window.document.getElementById('host')!
+    attachEditor(host, document, () => {})
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const top = { a: 0, b: 30, l: 60 }[this.getAttribute('data-block') ?? ''] ?? 0
+      return { top, bottom: top + 20, left: 0, width: 100 } as DOMRect
+    })
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model: Schema.Struct({ node: Schema.String, sent: Schema.String }),
+        container: window.document.getElementById('handle-runtime')!,
+        init: () => ({ model: { node: 'b', sent: '' } }),
+        update,
+        view,
+      }),
+    )
+    try {
+      const grip = () => window.document.querySelector<HTMLElement>('[data-handle="grip"]')!
+      await vi.waitFor(() => expect(grip()).not.toBeNull())
+      ;(window.document.getElementById('point-a') as HTMLElement).click()
+      await vi.waitFor(() =>
+        expect(window.document.querySelector('[data-handle="up"]')?.hasAttribute('disabled')).toBe(
+          true,
+        ),
+      )
+      // Past the list's middle: the grip now stands for `a`, so the drop moves `a`.
+      await new Promise(resolve => setTimeout(resolve, 0))
+      grip().dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+      window.document.dispatchEvent(new MouseEvent('pointermove', { clientY: 75 }))
+      window.document.dispatchEvent(new MouseEvent('pointerup'))
+      await vi.waitFor(() =>
+        expect(window.document.getElementById('sent')?.textContent).toBe(
+          moved('a', { after: 'l' }),
+        ),
+      )
+    } finally {
+      handle.dispose()
+      spy.mockRestore()
+      releaseMount(host)
+      vi.unstubAllGlobals()
+    }
   })
 })

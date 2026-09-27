@@ -49,7 +49,8 @@ check(
   typeof toolbar.marksToolbar === 'function' &&
     typeof toolbar.markActive === 'function' &&
     typeof toolbar.selectionAnchor === 'function' &&
-    typeof toolbar.blockAnchor === 'function',
+    typeof toolbar.blockAnchor === 'function' &&
+    typeof toolbar.blockDrag === 'function',
 )
 
 const editor = await import('foldkit-richtext-dom/editor')
