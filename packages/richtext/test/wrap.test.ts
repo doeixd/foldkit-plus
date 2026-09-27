@@ -301,18 +301,19 @@ describe('converting a text block to a node kind that holds text', () => {
   ) =>
     RichText.run({ document: twoRuns(), selection }, { type: 'ConvertBlock', to }, ids(), options)
 
-  it('carries the text into the new kind, with new identities and the caret moved onto them', () => {
+  it('carries the text into the new kind under the same identities, the caret where it was', () => {
     const result = convert(caret('b', 1), { kind: 'CodeBlock', props: { language: 'ts' } })
     if (!result.ok) throw new Error(result.error)
     const [code] = result.state.document.children
-    expect(code).toMatchObject({ type: 'Node', kind: 'CodeBlock', id: 'new-3' })
+    // The block and its runs keep their ids, so an edit someone else made to them still
+    // finds them.
+    expect(code).toMatchObject({ type: 'Node', kind: 'CodeBlock', id: 'p' })
     expect(code?.type === 'Node' && code.props).toEqual({ language: 'ts' })
     expect(code?.children.map(run => [run.id, run.text, run.marks])).toEqual([
-      ['new-1', 'const ', []],
-      ['new-2', 'x', ['Bold']],
+      ['a', 'const ', []],
+      ['b', 'x', ['Bold']],
     ])
-    // The caret was one character into the second run, and still is.
-    expect(result.state.selection).toEqual(caret('new-2', 1))
+    expect(result.state.selection).toEqual(caret('b', 1))
   })
 
   it('converts a block where it stands among its siblings', () => {
@@ -324,7 +325,7 @@ describe('converting a text block to a node kind that holds text', () => {
     if (!result.ok) throw new Error(result.error)
     expect(shape(result.state.document.children)).toEqual([
       'Paragraph(first)',
-      'CodeBlock(new-2)',
+      'CodeBlock(p)',
       'Quote(q)[Paragraph(q-p)]',
     ])
   })
@@ -332,7 +333,7 @@ describe('converting a text block to a node kind that holds text', () => {
   it('converts a nested block where it stands', () => {
     const result = convert(caret('q-p-t', 2), { kind: 'CodeBlock' })
     if (!result.ok) throw new Error(result.error)
-    expect(shape(result.state.document.children)[1]).toBe('Quote(q)[CodeBlock(new-2)]')
+    expect(shape(result.state.document.children)[1]).toBe('Quote(q)[CodeBlock(q-p)]')
   })
 
   it('converts only a paragraph or a heading', () => {
@@ -441,18 +442,18 @@ describe('retyping a node kind that holds text back into a text block', () => {
     options: RichText.RunOptions = { nodes: standard },
   ) => RichText.run({ document: doc(), selection }, { type: 'RetypeBlock', to }, ids(), options)
 
-  it('replaces a code block with a paragraph carrying its text, caret moved onto it', () => {
+  it('retypes a code block to a paragraph under its own identity, caret following its text', () => {
     const result = retype(caret('c2', 1), { type: 'Paragraph' })
     if (!result.ok) throw new Error(result.error)
     const [, paragraph] = result.state.document.children
-    expect(paragraph).toMatchObject({ type: 'Paragraph', id: 'new-3' })
+    expect(paragraph).toMatchObject({ type: 'Paragraph', id: 'code' })
     // Two runs with the same marks merge once they are a paragraph's, and the caret, one
     // character into the second, follows into the merged run.
-    expect(paragraph?.children.map(run => [run.id, run.text])).toEqual([['new-1', 'let x']])
-    expect(result.state.selection).toEqual(caret('new-1', 5))
+    expect(paragraph?.children.map(run => [run.id, run.text])).toEqual([['c1', 'let x']])
+    expect(result.state.selection).toEqual(caret('c1', 5))
     expect(result.state.document.children.map(block => block.id)).toEqual([
       'p',
-      'new-3',
+      'code',
       'k',
       'qr',
       'q',
@@ -521,7 +522,7 @@ describe('Backspace at the start of a code block', () => {
       ['Paragraph', 'before'],
       ['Paragraph', 'let x'],
     ])
-    expect(result.state.selection).toEqual(caret('new-1', 0))
+    expect(result.state.selection).toEqual(caret('c1', 0))
   })
 
   it('leaves Delete at the code block’s end alone: only Backspace undoes the fence', () => {

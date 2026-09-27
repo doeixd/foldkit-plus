@@ -275,9 +275,9 @@ the caret survive; given a vocabulary, it also replaces a text-holding node kind
 `CodeBlock`) with a paragraph or heading carrying its text, and refuses any other node block.
 `WrapBlock` moves that block into new containers listed outermost first (`[{ kind: 'List',
 props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
-wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces
-a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
-new identities and moving the selection onto them. `MoveBlock { node, to: { before } | { after } }`
+wrap right after a list of the same props adds an item to it. `ConvertBlock` retypes
+a paragraph or heading to a text-holding kind such as `CodeBlock`, keeping the block's and its
+runs' identities, so the caret and other replicas' edits to it survive. `MoveBlock { node, to: { before } | { after } }`
 moves a block and its subtree beside another block, by identity rather than the selection (a
 block handle's moves); across containers, the vocabulary decides: the container must hold the
 kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by `validate` as

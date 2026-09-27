@@ -10,7 +10,7 @@ import {
   type Text,
 } from './document.js'
 import { markName, sameMark, sameMarkSet } from './marks.js'
-import { apply, TextBlock, type Operation, type TransactionResult } from './transaction.js'
+import { apply, RetypeTarget, type Operation, type TransactionResult } from './transaction.js'
 
 /**
  * A document shared by several replicas, where every character has an identity that
@@ -148,7 +148,7 @@ export const ReplicatedOp = Schema.Union([
      */
     after: Schema.NullOr(CharRef),
   }),
-  Schema.Struct({ type: Schema.Literal('Retype'), id: ReplicatedId, to: TextBlock }),
+  Schema.Struct({ type: Schema.Literal('Retype'), id: ReplicatedId, to: RetypeTarget }),
   Schema.Struct({ type: Schema.Literal('SetProps'), id: ReplicatedId, props: Schema.JsonObject }),
 ])
 export type ReplicatedOp = typeof ReplicatedOp.Type
@@ -595,9 +595,10 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       return
     }
     case 'Retype': {
+      // Its spans stay where they are, so what anyone typed into the block stays with it.
       const entry = work.read(op.id)
-      if (entry?.shape.type !== 'Paragraph' && entry?.shape.type !== 'Heading') return
-      work.write(op.id)!.shape = op.to
+      if (entry === undefined || !holdsText(entry.shape)) return
+      work.write(op.id)!.shape = op.to.type === 'Node' ? { ...op.to, holds: 'text' } : op.to
       return
     }
     case 'SetProps': {

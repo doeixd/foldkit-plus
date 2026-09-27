@@ -108,6 +108,73 @@ describe('setting the selection inside a transaction', () => {
   })
 })
 
+describe('retyping a block', () => {
+  const nested = (): RichText.EditorState => ({
+    document: RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 't', text: 'code', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'qp',
+              children: [{ type: 'Text', id: 'qt', text: 'x', marks: [] }],
+            },
+          ],
+        },
+        { type: 'Unknown', id: 'u', originalType: 'Embed', props: {}, children: [] },
+      ],
+    }),
+    selection: null,
+  })
+  const toCode = { type: 'Node' as const, kind: 'CodeBlock', props: { language: 'ts' } }
+
+  it('makes a block of runs a node kind under its own identity, and back', () => {
+    const coded = RichText.apply(nested(), [RichText.Edit.retypeBlock(id('p'), toCode)])
+    if (!coded.ok) throw new Error(coded.error)
+    expect(coded.state.document.children[0]).toEqual({
+      type: 'Node',
+      kind: 'CodeBlock',
+      id: 'p',
+      props: { language: 'ts' },
+      children: [{ type: 'Text', id: 't', text: 'code', marks: [] }],
+    })
+    // The same kind with the same props again changes nothing; other props are a change.
+    const again = RichText.apply(coded.state, [RichText.Edit.retypeBlock(id('p'), toCode)])
+    expect(again.ok && again.state.document).toBe(coded.state.document)
+    const python = RichText.apply(coded.state, [
+      RichText.Edit.retypeBlock(id('p'), { ...toCode, props: { language: 'py' } }),
+    ])
+    expect(python.ok && python.state.document.children[0]).toMatchObject({
+      props: { language: 'py' },
+    })
+    const back = RichText.apply(coded.state, [
+      RichText.Edit.retypeBlock(id('p'), { type: 'Paragraph' }),
+    ])
+    expect(back.ok && back.state.document.children[0]).toMatchObject({ type: 'Paragraph', id: 'p' })
+  })
+
+  it.each([
+    ['a node that holds blocks', 'q'],
+    ['preserved content', 'u'],
+  ])('refuses %s', (_, node) => {
+    expect(RichText.apply(nested(), [RichText.Edit.retypeBlock(id(node), toCode)])).toEqual({
+      ok: false,
+      error: 'InvalidRange',
+    })
+  })
+})
+
 describe('text transactions', () => {
   it('applies sequential edits and maps backward selections in the same transition', () => {
     const state = initial()

@@ -74,9 +74,8 @@ export type Command =
    */
   | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
   /**
-   * Replaces the text block the selection starts in with a node kind that holds text, such
-   * as a `CodeBlock`, carrying its text and marks. Identities are never reused, so the block
-   * and its runs get new ones and the selection moves onto them at the same offsets.
+   * Retypes the text block the selection starts in to a node kind that holds text, such as a
+   * `CodeBlock`. The block and its runs keep their identities, text, and marks.
    */
   | { readonly type: 'ConvertBlock'; readonly to: Container }
   /**
@@ -807,42 +806,6 @@ const startingBlock = (
   }
 }
 
-/**
- * Replaces a block with one that carries its runs under new identities, where it stood, and
- * moves the selection onto them: how text crosses between a text block and a node kind that
- * holds text. `apply` refuses an identity reused in one transaction, even one just deleted,
- * so the runs cannot keep theirs (§131).
- */
-const replaceCarryingText = (
-  state: EditorState,
-  { block, path, parent, selection }: StartingBlock,
-  ids: CommandIds,
-  make: (id: NodeId, children: ReadonlyArray<Run>) => Block,
-): TransactionResult => {
-  const runs = block.type === 'Unknown' ? [] : block.children
-  const renamed = new Map(runs.map(run => [run.id, NodeId.make(ids.mint())]))
-  const moved = (position: Position): Position => {
-    const node = renamed.get(position.node)
-    return node === undefined ? position : { ...position, node }
-  }
-  return apply(state, [
-    Edit.deleteBlock(block.id),
-    Edit.insertBlock(
-      make(
-        NodeId.make(ids.mint()),
-        runs.map(run => ({ ...run, id: renamed.get(run.id)! })),
-      ),
-      path[path.length - 1]!,
-      parent?.id,
-    ),
-    Edit.setSelection({
-      type: 'Range',
-      anchor: moved(selection.anchor),
-      focus: moved(selection.focus),
-    }),
-  ])
-}
-
 /** Retype, wrap, convert, and lift: each reshapes the starting block where it stands. */
 const runBlockCommand = (
   state: EditorState,
@@ -866,21 +829,17 @@ const runBlockCommand = (
     if (!acceptsChild(state.document, parentPath, command.to.type, options.nodes)) {
       return failure('UnexpectedChild')
     }
-    if (block.type === 'Paragraph' || block.type === 'Heading') {
-      return apply(state, [Edit.retypeBlock(block.id, command.to)])
-    }
-    // Leaving a node kind that holds text — a code block back to a paragraph — is a replace,
-    // as entering one is. Only a vocabulary says a kind holds text: without one, a node
-    // could be an image, whose content a retype would destroy.
-    if (block.type !== 'Node' || !declaresText(options.nodes, block.kind)) {
+    // Leaving a node kind that holds text — a code block back to a paragraph — keeps the
+    // block and its runs, as entering one does. Only a vocabulary says a kind holds text:
+    // without one, a node could be an image, whose content a retype would destroy.
+    if (
+      block.type !== 'Paragraph' &&
+      block.type !== 'Heading' &&
+      (block.type !== 'Node' || !declaresText(options.nodes, block.kind))
+    ) {
       return failure('InvalidInput')
     }
-    const to = command.to
-    return replaceCarryingText(state, starting, ids, (id, children) =>
-      to.type === 'Heading'
-        ? { type: 'Heading', id, level: to.level, children }
-        : { type: 'Paragraph', id, children },
-    )
+    return apply(state, [Edit.retypeBlock(block.id, command.to)])
   }
 
   if (command.type === 'WrapBlock') {
@@ -959,14 +918,9 @@ const runBlockCommand = (
   ) {
     return failure('ForbiddenMark')
   }
-  const props = command.to.props ?? {}
-  return replaceCarryingText(state, starting, ids, (id, children) => ({
-    type: 'Node',
-    kind,
-    id,
-    props,
-    children,
-  }))
+  return apply(state, [
+    Edit.retypeBlock(block.id, { type: 'Node', kind, props: command.to.props ?? {} }),
+  ])
 }
 
 /**

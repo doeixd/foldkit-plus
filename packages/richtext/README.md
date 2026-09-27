@@ -162,9 +162,9 @@ way the range was made — since that is where what is typed over it lands.
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
 survive. Given a vocabulary that declares a node kind as holding text, it also takes a block
-of that kind back out — a `CodeBlock` to a paragraph — by replacing it, as `ConvertBlock`
-does going in: the text moves under new identities and the selection moves onto them. Any
-other node block, or preserved content, is refused, because its content is not runs.
+of that kind back out — a `CodeBlock` to a paragraph — the same way, keeping the block's and
+its runs' identities. Any other node block, or preserved content, is refused, because its
+content is not runs.
 
 `WrapBlock` puts that same block inside new containers, listed outermost first —
 `{ type: 'WrapBlock', containers: [{ kind: 'Quote' }] }`, or a `List` holding a `ListItem`
@@ -178,12 +178,11 @@ items (as `List` holds `ListItem`) and whose block sits right after a container 
 and those props joins it: the block becomes its last item instead of starting a second list,
 which Markdown would read back as the same one.
 
-`ConvertBlock` replaces a paragraph or heading with a node kind that holds text —
-`{ type: 'ConvertBlock', to: { kind: 'CodeBlock', props: { language: 'ts' } } }` — carrying
-its text and marks. It is a replace, not a retype: identities are never reused, so the block
-and every run get new ones from `mint`, and the selection moves onto the new runs at the same
-offsets. Anything that held the old run identities, such as a decoration or a remote cursor,
-has to find the new ones. Given a vocabulary, the kind must be declared to hold text and its
+`ConvertBlock` makes a paragraph or heading a node kind that holds text —
+`{ type: 'ConvertBlock', to: { kind: 'CodeBlock', props: { language: 'ts' } } }` — with its
+text and marks. It is a retype: the block and its runs keep their identities, so the
+selection, a decoration, a remote cursor, and another replica's edit to that text still
+find them. Given a vocabulary, the kind must be declared to hold text and its
 parent must accept it (`UnexpectedChild`), its props must decode as the kind declares them
 (`InvalidInput`), and a kind that forbids marks refuses a block that carries any
 (`ForbiddenMark`).
@@ -904,9 +903,10 @@ text is added after them; block identities are stable for a block's whole life.
   the same index is a no-op. Run identities and selections are untouched, so no
   position steps are emitted. An optional `parent` moves it into a node block's
   nested blocks (and back out), and a parent that cannot hold blocks is refused.
-- `RetypeBlock` changes a text block's type — a paragraph, or a heading at a level —
-  keeping its run values and identities. Same-shape sets are no-ops; a node block or
-  preserved content is refused, because their content is not runs.
+- `RetypeBlock` changes the type of a block whose content is its runs — to a paragraph,
+  a heading at a level, or a node kind with props (`RetypeTarget`) — keeping its run
+  values and identities. Same-shape sets are no-ops; a node block holding nested blocks,
+  or preserved content, is refused (`InvalidRange`).
 - `SetProps` sets the props it names on a node block and keeps the others. Setting a
   prop to the value it has is a no-op; a text block or preserved content is refused
   (`InvalidRange`). Props cannot be deleted, only set.

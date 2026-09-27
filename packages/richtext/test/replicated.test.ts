@@ -389,6 +389,23 @@ describe('concurrent edits in server order', () => {
     }
   }
 
+  it('keeps text typed into a paragraph another replica made a code block, in either order', () => {
+    const { start, a, b } = replicas()
+    a.selection = caretIn(a, 'last', 4)
+    const converted = edit(a, { type: 'ConvertBlock', to: { kind: 'CodeBlock' } })
+    b.selection = caretIn(b, 'last', 4)
+    const typed = edit(b, { type: 'InsertText', text: '!' })
+    for (const order of [
+      [converted, typed],
+      [typed, converted],
+    ]) {
+      const committed = order.reduce(Replicated.applyOps, start)
+      const block = Replicated.project(committed).children.at(-1)
+      expect(block).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
+      expect(block?.children.map(run => run.text).join('')).toBe('last!')
+    }
+  })
+
   it('keeps both inserts in one paragraph where each was typed', () => {
     const { start, a, b } = replicas()
     a.selection = caretIn(a, 'hello', 0)

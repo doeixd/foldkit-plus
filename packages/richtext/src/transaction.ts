@@ -77,10 +77,25 @@ export const TextBlock = Schema.Union([
 ])
 export type TextBlock = typeof TextBlock.Type
 
+/**
+ * What a block that holds text becomes, under its own identity and with its own runs: a
+ * paragraph, a heading, or an application node kind that holds text, such as a code block.
+ */
+export const RetypeTarget = Schema.Union([
+  Schema.Struct({ type: Schema.Literal('Paragraph') }),
+  Schema.Struct({ type: Schema.Literal('Heading'), level: Schema.Literals([1, 2, 3, 4, 5, 6]) }),
+  Schema.Struct({
+    type: Schema.Literal('Node'),
+    kind: Schema.NonEmptyString,
+    props: Schema.JsonObject,
+  }),
+])
+export type RetypeTarget = typeof RetypeTarget.Type
+
 const RetypeBlockOperation = Schema.Struct({
   type: Schema.Literal('RetypeBlock'),
   node: NodeId,
-  to: TextBlock,
+  to: RetypeTarget,
 })
 const SetPropsOperation = Schema.Struct({
   type: Schema.Literal('SetProps'),
@@ -206,7 +221,7 @@ export const Edit = {
 
   retypeBlock: (
     node: TextTarget,
-    to: TextBlock,
+    to: RetypeTarget,
   ): Extract<Operation, { readonly type: 'RetypeBlock' }> =>
     RetypeBlockOperation.make({ type: 'RetypeBlock', node: targetId(node), to }),
 
@@ -788,22 +803,38 @@ export const apply = (
       const path = blockPaths.get(operation.node)
       if (path === undefined) return { ok: false, error: 'MissingNode' }
       const target = blockAt(path)
-      // Only a text block retypes: a node kind's content is its Kit's contract, and
-      // preserved content is never rewritten.
-      if (target === undefined || (target.type !== 'Paragraph' && target.type !== 'Heading')) {
+      // Only a block whose content is its runs retypes: nested blocks would have nowhere
+      // to go, and preserved content is never rewritten.
+      if (
+        target === undefined ||
+        target.type === 'Unknown' ||
+        (target.type === 'Node' && target.blocks !== undefined)
+      ) {
         return { ok: false, error: 'InvalidRange' }
       }
       const to = operation.to
       const already =
         to.type === 'Paragraph'
           ? target.type === 'Paragraph'
-          : target.type === 'Heading' && target.level === to.level
+          : to.type === 'Heading'
+            ? target.type === 'Heading' && target.level === to.level
+            : target.type === 'Node' &&
+              target.kind === to.kind &&
+              Equal.equals(target.props, to.props)
       if (already) continue
       writeBlock(
         path,
         to.type === 'Paragraph'
           ? { type: 'Paragraph', id: target.id, children: target.children }
-          : { type: 'Heading', id: target.id, level: to.level, children: target.children },
+          : to.type === 'Heading'
+            ? { type: 'Heading', id: target.id, level: to.level, children: target.children }
+            : {
+                type: 'Node',
+                kind: to.kind,
+                id: target.id,
+                props: to.props,
+                children: target.children,
+              },
       )
       dirtyNodes.add(target.id)
       structureChanged = true

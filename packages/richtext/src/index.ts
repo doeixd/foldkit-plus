@@ -172,6 +172,7 @@ export {
   Transaction,
   Edit,
   TextBlock,
+  RetypeTarget,
   MAX_NORMALIZATION_PASSES,
   type TextTarget,
   apply,
