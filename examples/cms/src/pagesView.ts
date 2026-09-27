@@ -14,12 +14,23 @@ import {
   Message,
   PageEditor,
   pageView,
+  revisions,
   sitePages,
   view as editorView,
   type Model,
 } from './pageApp.js'
 import { icon } from './icons.js'
-import { badge, chair, failed, shell, stateIs, statusLine } from './shell.js'
+import {
+  badge,
+  chair,
+  failed,
+  historyCard,
+  moreCard,
+  shell,
+  stateIs,
+  statusLine,
+  type RevisionRow,
+} from './shell.js'
 import { pageHref } from './site.js'
 import { AdminSlots, AdminStyle } from './style.js'
 
@@ -126,12 +137,48 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           : []),
       ]),
     ]),
+    // Folded until asked for: the page being built keeps the room. A page never
+    // saved has no history and nothing to put away.
+    ...(loaded && Option.isSome(state)
+      ? [
+          h.details(slots.manage.attrs([h.Id('manage')]), [
+            h.summary(slots.manageSummary.attrs(), ['History and more']),
+            h.div(slots.manageCards.attrs(), [
+              historyCard(slots, h, revisionsOf(model), revision =>
+                ask(Editor.Message.RestoreAsked({ revision })),
+              ),
+              ...moreCard(slots, h, {
+                state,
+                may: transition => PageEditor.may(model, transition),
+                asks: {
+                  discard: ask(Editor.Message.DiscardAsked()),
+                  unpublish: ask(Editor.Message.UnpublishAsked()),
+                  archive: ask(Editor.Message.ArchiveAsked()),
+                  unarchive: ask(Editor.Message.UnarchiveAsked()),
+                },
+              }),
+            ]),
+          ]),
+        ]
+      : []),
     h.div(
       slots.workbench.attrs(),
       loaded ? [editorView(model, h)] : [h.p(slots.muted.attrs(), [statusLine[status]])],
     ),
   ])
 }
+
+const ask = (message: typeof Editor.Message.Type) => Message.GotEditorMessage({ message })
+
+/** The open page's published revisions, as they have been read. */
+const revisionsOf = (model: Model): ReadonlyArray<RevisionRow> =>
+  Option.match(revisions(model), {
+    onNone: () => [],
+    onSome: projection => {
+      const read = projection.read(model)
+      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
+    },
+  })
 
 const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
   shell(

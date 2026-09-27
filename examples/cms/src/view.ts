@@ -29,7 +29,18 @@ import {
 } from './app.js'
 import { PostForm, type PostPreview } from './domain.js'
 import { icon } from './icons.js'
-import { badge, chair, failed, intro, shell, stateIs, statusLine } from './shell.js'
+import {
+  badge,
+  chair,
+  failed,
+  historyCard,
+  intro,
+  moreCard,
+  shell,
+  stateIs,
+  statusLine,
+  type RevisionRow,
+} from './shell.js'
 import { article, postHref } from './site.js'
 import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from './style.js'
 
@@ -126,41 +137,15 @@ const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
   })
 }
 
-const historyCard = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  const revisions = Option.match(history(model), {
+/** The open post's published revisions, as they have been read. */
+const revisionsOf = (model: Model): ReadonlyArray<RevisionRow> =>
+  Option.match(history(model), {
     onNone: () => [],
     onSome: projection => {
       const read = projection.read(model)
       return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
     },
   })
-  return h.section(slots.card.attrs([h.Id('history')]), [
-    h.h2(slots.cardTitle.attrs(), ['History']),
-    revisions.length === 0
-      ? h.p(slots.muted.attrs(), ['Nothing has been published yet.'])
-      : h.ol(
-          slots.list.attrs(),
-          revisions.map(revision =>
-            h.li(slots.revision.attrs(), [
-              icon(h, 'history', 14),
-              h.span(
-                [],
-                [
-                  `Revision ${revision.n} · ${Display.show(Cms.Display.Moment.of({}), revision.publishedAt)}`,
-                  revision.publishedBy === null ? '' : ` · ${revision.publishedBy}`,
-                ],
-              ),
-              h.button(
-                slots.ghost.attrs([
-                  h.OnClick(ask(Editor.Message.RestoreAsked({ revision: revision.n }))),
-                ]),
-                ['Restore'],
-              ),
-            ]),
-          ),
-        ),
-  ])
-}
 
 const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PostEditor.status(model)
@@ -344,32 +329,19 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ? [action('unschedule', 'Cancel the schedule', ask(Editor.Message.UnscheduleAsked()))]
             : []),
         ]),
-        historyCard(model, slots, h),
-        // Something never saved has nothing to discard, unpublish or put away.
-        ...(Option.isNone(state)
-          ? []
-          : [
-              h.section(slots.card.attrs(), [
-                h.h2(slots.cardTitle.attrs(), ['More']),
-                h.div(slots.toolbar.attrs(), [
-                  ...(may('discard') && stateIs(state, 'Changed', 'New')
-                    ? [action('discard', 'Discard draft', ask(Editor.Message.DiscardAsked()))]
-                    : []),
-                  ...(may('unpublish') && stateIs(state, 'Published', 'Changed')
-                    ? [action('unpublish', 'Unpublish', ask(Editor.Message.UnpublishAsked()))]
-                    : []),
-                  stateIs(state, 'Archived')
-                    ? action('unarchive', 'Unarchive', ask(Editor.Message.UnarchiveAsked()))
-                    : h.button(
-                        slots.danger.attrs([
-                          h.Id('archive'),
-                          h.OnClick(ask(Editor.Message.ArchiveAsked())),
-                        ]),
-                        [icon(h, 'archive', 14), 'Archive'],
-                      ),
-                ]),
-              ]),
-            ]),
+        historyCard(slots, h, revisionsOf(model), revision =>
+          ask(Editor.Message.RestoreAsked({ revision })),
+        ),
+        ...moreCard(slots, h, {
+          state,
+          may,
+          asks: {
+            discard: ask(Editor.Message.DiscardAsked()),
+            unpublish: ask(Editor.Message.UnpublishAsked()),
+            archive: ask(Editor.Message.ArchiveAsked()),
+            unarchive: ask(Editor.Message.UnarchiveAsked()),
+          },
+        }),
       ]),
     ]),
   ])

@@ -83,9 +83,13 @@ export const PageEditor = Editor.at({ data: Data, model: App.model.editor })
 /** A page as the site's own views read it: what a preview is drawn through. */
 export const pageView = (id: string) => Data.get(PageView, PageId.make(id))
 
-/** What was published, newest first. */
+/** What was published, newest first: what the History lists and `RestoreAsked` goes back to. */
 const Revisions = Entity.select(Cms.Entities.Entry, {
-  revisions: Entity.select(Cms.Entities.Revision, { n: true }),
+  revisions: Entity.select(Cms.Entities.Revision, {
+    n: true,
+    publishedAt: true,
+    publishedBy: true,
+  }),
 })
 export const revisions = (model: Model) =>
   Option.map(PageEditor.entry(model), entry => Data.get(Revisions, EntryId.make(entry)))
@@ -234,9 +238,29 @@ const listing = (model: Model): Model => {
   })
 }
 
+/**
+ * The open page's revisions and the site's pages, asked for again once its state
+ * changed (a publish, a restore, an unpublish, an archive): a publish patches the
+ * entry, not its list of revisions, nor the list of pages.
+ */
+const refreshedAfterChange = (before: Model, after: Model): Model => {
+  const stateOf = (model: Model) =>
+    Option.map(PageEditor.state(model), state => JSON.stringify(state))
+  const changed =
+    Option.isSome(stateOf(before)) &&
+    Equal.equals(PageEditor.entry(before), PageEditor.entry(after)) &&
+    !Equal.equals(stateOf(before), stateOf(after))
+  if (!changed) return after
+  const withRevisions = Option.match(revisions(after), {
+    onNone: () => after,
+    onSome: projection => Data.refresh(after, projection),
+  })
+  return Data.refresh(withRevisions, sitePages)
+}
+
 export const update = (model: Model, message: Message) => {
   const next = follow(stepped(model, message))
-  return { ...next, model: listing(next.model) }
+  return { ...next, model: listing(refreshedAfterChange(model, next.model)) }
 }
 
 export const initial: Model = placements.initial({

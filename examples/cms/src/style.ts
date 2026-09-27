@@ -115,6 +115,10 @@ export const AdminSlots = Slots.define({
   avatar: part,
   /** What the demo is and what to try, above the posts: a disclosure, open at first. */
   intro: part,
+  /** A page's History and More, folded under the editor's bar until asked for. */
+  manage: part,
+  manageSummary: control,
+  manageCards: part,
   introSummary: control,
   introSteps: part,
   main: part,
@@ -431,6 +435,41 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         outlineOffset: '2px',
       }),
     ),
+    manage: Style.compose(
+      Style.self({
+        borderBlockEnd: `1px solid ${t.outline.subtle}`,
+        fontSize: t.size.sm,
+        padding: `${t.space.xs} ${t.space.lg}`,
+      }),
+      Style.media(phone, { padding: `${t.space.xs} ${t.space.md}` }),
+      // A flex summary loses the browser's marker: its own, turned when open.
+      Style.nest('&[open] > summary::before', { transform: 'rotate(90deg)' }),
+    ),
+    manageSummary: Style.compose(
+      Style.nest('&::before', {
+        content: '"▸"',
+        display: 'inline-block',
+        transition: 'transform 150ms ease',
+      }),
+      Style.nest('&::-webkit-details-marker', { display: 'none' }),
+      Style.self({
+        alignItems: 'center',
+        color: t.text.muted,
+        cursor: 'pointer',
+        display: 'flex',
+        fontWeight: t.weight.medium,
+        gap: t.space['2xs'],
+        minHeight: '2rem',
+      }),
+      Style.pseudo(':hover', { color: t.text.overt }),
+      touchTarget,
+    ),
+    manageCards: Style.self({
+      display: 'grid',
+      gap: t.space.md,
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))',
+      paddingBlock: t.space.sm,
+    }),
     introSteps: Style.self({
       display: 'grid',
       gap: t.space['2xs'],

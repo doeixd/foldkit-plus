@@ -6,7 +6,7 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { SlotView } from 'foldkit-mixins'
 import { Option } from 'effect'
-import { Cms, type EditorStatus, type State } from 'foldkit-cms'
+import { Cms, type EditorStatus, type State, type Transition } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import type { AdminSlots } from './style.js'
 import { icon } from './icons.js'
@@ -111,6 +111,86 @@ export const badge = <M>(
         Display.show(Cms.Display.State.of({}), known),
       ]),
   })
+
+/** A published revision, as an editor's History lists it. */
+export interface RevisionRow {
+  readonly n: number
+  readonly publishedAt: string
+  readonly publishedBy: string | null
+}
+
+/** What was published, newest first, each with a way back to it. */
+export const historyCard = <M>(
+  slots: SlotView.SlotBuilders<typeof AdminSlots, M>,
+  h: HtmlBuilder<M>,
+  revisions: ReadonlyArray<RevisionRow>,
+  restore: (revision: number) => M,
+): Html =>
+  h.section(slots.card.attrs([h.Id('history')]), [
+    h.h2(slots.cardTitle.attrs(), ['History']),
+    revisions.length === 0
+      ? h.p(slots.muted.attrs(), ['Nothing has been published yet.'])
+      : h.ol(
+          slots.list.attrs(),
+          revisions.map(revision =>
+            h.li(slots.revision.attrs(), [
+              icon(h, 'history', 14),
+              h.span(
+                [],
+                [
+                  `Revision ${revision.n} · ${Display.show(Cms.Display.Moment.of({}), revision.publishedAt)}`,
+                  revision.publishedBy === null ? '' : ` · ${revision.publishedBy}`,
+                ],
+              ),
+              h.button(slots.ghost.attrs([h.OnClick(restore(revision.n))]), ['Restore']),
+            ]),
+          ),
+        ),
+  ])
+
+/**
+ * The rest of what can happen to an entry: its draft discarded, taken off the
+ * site, put away or brought back, each where the server would allow it. None
+ * for something never saved, which has nothing to discard or put away.
+ */
+export const moreCard = <M>(
+  slots: SlotView.SlotBuilders<typeof AdminSlots, M>,
+  h: HtmlBuilder<M>,
+  entry: {
+    readonly state: Option.Option<State>
+    readonly may: (transition: Transition) => boolean
+    readonly asks: {
+      readonly discard: M
+      readonly unpublish: M
+      readonly archive: M
+      readonly unarchive: M
+    }
+  },
+): ReadonlyArray<Html> => {
+  const { state, may, asks } = entry
+  if (Option.isNone(state)) return []
+  const action = (id: string, label: string, message: M): Html =>
+    h.button(slots.button.attrs([h.Id(id), h.OnClick(message)]), [label])
+  return [
+    h.section(slots.card.attrs(), [
+      h.h2(slots.cardTitle.attrs(), ['More']),
+      h.div(slots.toolbar.attrs(), [
+        ...(may('discard') && stateIs(state, 'Changed', 'New')
+          ? [action('discard', 'Discard draft', asks.discard)]
+          : []),
+        ...(may('unpublish') && stateIs(state, 'Published', 'Changed')
+          ? [action('unpublish', 'Unpublish', asks.unpublish)]
+          : []),
+        stateIs(state, 'Archived')
+          ? action('unarchive', 'Unarchive', asks.unarchive)
+          : h.button(slots.danger.attrs([h.Id('archive'), h.OnClick(asks.archive)]), [
+              icon(h, 'archive', 14),
+              'Archive',
+            ]),
+      ]),
+    ]),
+  ]
+}
 
 export const shell = <M>(
   slots: SlotView.SlotBuilders<typeof AdminSlots, M>,

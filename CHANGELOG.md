@@ -30,7 +30,9 @@ version changed; `pnpm` skips versions already in the registry.
   the demo is and what to try, and the page says it is starting while the
   sandbox opens. The address keeps the open post, the search and the Archive
   tab, as it kept the open page, so a reload lands where one was, and opening
-  or closing a post or a page is a step Back returns from.
+  or closing a post or a page is a step Back returns from. A page has its History
+  and More (discard, unpublish, archive) under a fold below the editor's bar,
+  as a post has them in its aside.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the
