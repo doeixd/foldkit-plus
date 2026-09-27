@@ -41,7 +41,7 @@ export const placeOver = (
   }
 }
 
-/** Where a handle goes: beside the block's first line, `gap` to its left, inside the viewport. */
+/** Where a handle goes: beside the block's first line, `gap` to its left, never past the left edge. */
 export const placeBeside = (
   target: Box,
   floating: Pick<Box, 'width'>,

@@ -368,7 +368,7 @@ outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
 `data-placement` (`top` or `bottom`) on the element, so a style there must leave those alone.
 
 `blockAnchor({ hostId, node, gap })` does the same for a block handle: it places the element
-`gap` pixels left of block `node`'s first line, kept inside the window. It re-places whenever the
+`gap` pixels left of block `node`'s first line, never past the window's left edge. It re-places whenever the
 editor's subtree changes (a patch can move a block without the page scrolling), and on scroll
 and resize. A Mount reads its args once, when its element is inserted, so key the element by the
 block (`h.Key(node)`) when the block can change.
