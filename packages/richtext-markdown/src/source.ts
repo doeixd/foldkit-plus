@@ -11,8 +11,9 @@
  */
 import { Schema } from 'effect'
 import type * as RichText from 'foldkit-richtext'
+import { alignedIn, offsetIn, positionAt } from './caret.js'
 import { MarkdownDiagnostic } from './diagnostic.js'
-import { parse, type ParseOptions } from './parse.js'
+import { parseMapped, type ParseOptions } from './parse.js'
 import { print } from './print.js'
 import { MarkdownStyle } from './style.js'
 
@@ -25,24 +26,36 @@ export const SourceSession = Schema.Struct({
   unprintable: Schema.Array(MarkdownDiagnostic),
   /** The spellings the draft was printed with (§138). */
   style: MarkdownStyle,
+  /** Where the caret is in the draft, as an offset; replace it as it moves (§147). */
+  caret: Schema.Number,
 })
 export type SourceSession = typeof SourceSession.Type
 
+export interface OpenOptions {
+  /** The spellings to print with: the ones the last session closed with (§138). */
+  readonly style?: MarkdownStyle | undefined
+  /** The rich editor's selection, whose focus becomes the draft's caret (§147). */
+  readonly selection?: RichText.Selection | null | undefined
+}
+
 /**
  * Opens a session on a document: its Markdown, as both what was printed and the draft,
- * spelled as `style` says — the one the last session closed with, so a writer's `_hello_`
- * comes back as they wrote it.
+ * spelled as `style` says, so a writer's `_hello_` comes back as they wrote it, with the caret
+ * where the selection's focus was. A node selection, or none, puts the caret at the start.
  */
 export const openSource = (
   document: RichText.Document,
-  style: MarkdownStyle = {},
+  options: OpenOptions = {},
 ): SourceSession => {
+  const style = options.style ?? {}
   const printed = print(document, { style })
+  const focus = options.selection?.type === 'Range' ? options.selection.focus : undefined
   return {
     printed: printed.markdown,
     draft: printed.markdown,
     unprintable: printed.diagnostics,
     style,
+    caret: focus === undefined ? 0 : (offsetIn(document, printed.markdown, style, focus) ?? 0),
   }
 }
 
@@ -58,7 +71,15 @@ export interface ClosedSource {
    * session opened with, so a construct the draft no longer contains keeps its spelling.
    */
   readonly style: MarkdownStyle
+  /**
+   * The session's caret in `document`, as a caret selection; null when the draft holds no
+   * text to put it in, or when an unedited draft does not line up with the caller's document.
+   */
+  readonly selection: RichText.Selection | null
 }
+
+const caretAt = (position: RichText.Position | undefined): RichText.Selection | null =>
+  position === undefined ? null : { type: 'Range', anchor: position, focus: position }
 
 /**
  * Ends a session against the document the caller holds. A pure read, so it also serves as a
@@ -70,13 +91,25 @@ export const closeSource = (
   options: ParseOptions,
 ): ClosedSource => {
   if (session.draft === session.printed) {
-    return { document, changed: false, diagnostics: [], style: session.style }
+    // The caret is read in a parse of the printed text and carried over by block text; the
+    // parse's own identities are throwaway, since the caller's document is what continues.
+    let n = 0
+    const read = parseMapped(session.draft, { mint: () => `caret-${n++}` })
+    const at = positionAt(session.draft, read.segments, session.caret)
+    return {
+      document,
+      changed: false,
+      diagnostics: [],
+      style: session.style,
+      selection: caretAt(at === undefined ? undefined : alignedIn(read.document, document, at)),
+    }
   }
-  const parsed = parse(session.draft, options)
+  const parsed = parseMapped(session.draft, options)
   return {
     document: parsed.document,
     changed: true,
     diagnostics: [...session.unprintable, ...parsed.diagnostics],
     style: { ...session.style, ...parsed.style },
+    selection: caretAt(positionAt(session.draft, parsed.segments, session.caret)),
   }
 }

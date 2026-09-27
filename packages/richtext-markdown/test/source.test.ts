@@ -43,7 +43,14 @@ describe('a Markdown source session', () => {
   it('gives back the caller’s document itself when the draft was not edited', () => {
     const original = document()
     const closed = closeSource(openSource(original), original, minted())
-    expect(closed).toEqual({ document: original, changed: false, diagnostics: [], style: {} })
+    const start = { node: RichText.NodeId.make('h-t'), offset: 0, affinity: 'after' } as const
+    expect(closed).toEqual({
+      document: original,
+      changed: false,
+      diagnostics: [],
+      style: {},
+      selection: { type: 'Range', anchor: start, focus: start },
+    })
     expect(closed.document).toBe(original)
   })
 
@@ -95,7 +102,7 @@ describe('a Markdown source session', () => {
     expect(firstConstructs).toEqual({ heading: 'atx', emphasis: '_', bullet: '*' })
     expect(Object.values(firstBlocks ?? {})).toEqual([{ heading: 'atx' }, { bullet: '*' }])
     // Reopening with that style prints the document as it was written, not canonically.
-    const again = openSource(first.document, first.style)
+    const again = openSource(first.document, { style: first.style })
     expect(again.draft).toBe('# Title\n\n_marked_ and\n\n* a\n')
     // Closing it unedited keeps the style; editing keeps what the new text no longer spells.
     expect(closeSource(again, first.document, minted()).style).toEqual(first.style)

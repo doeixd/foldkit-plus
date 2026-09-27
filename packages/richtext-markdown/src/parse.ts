@@ -32,6 +32,20 @@ interface Reading {
   readonly mint: () => string
   /** Each spelled block's spelling, by the id it was given (§146). */
   readonly spellings: Map<string, BlockSpelling>
+  /** Where each run's text came from in the source (§147). */
+  readonly segments: Array<Segment>
+}
+
+/**
+ * A stretch of source that became part of a run: the text an mdast node holds, the run it went
+ * into and the offset there, and the source it was read from, raw, with its escapes.
+ */
+export interface Segment {
+  readonly run: RichText.NodeId
+  readonly at: number
+  readonly value: string
+  readonly start: number
+  readonly end: number
 }
 
 /** Props are what a `JsonObject` holds, so this is narrower than the codec's type. */
@@ -47,23 +61,35 @@ const nodeType = (node: { readonly type: string }): string => node.type
 const runsFrom = (
   nodes: ReadonlyArray<PhrasingContent>,
   marks: ReadonlyArray<RichText.RunMark>,
-  diagnostics: Array<MarkdownDiagnostic>,
-  mint: () => string,
+  reading: Reading,
 ): ReadonlyArray<ReadonlyArray<RichText.Text>> => {
+  const { diagnostics, mint } = reading
   const lines: Array<Array<RichText.Text>> = []
   let current: Array<RichText.Text> = []
   const finish = (): void => {
     if (current.length > 0) lines.push(current)
     current = []
   }
-  const append = (value: string, at: ReadonlyArray<RichText.RunMark>): void => {
+  const append = (
+    value: string,
+    at: ReadonlyArray<RichText.RunMark>,
+    node: PhrasingContent,
+  ): void => {
     if (value.length === 0) return
     const last = current[current.length - 1]
-    if (last !== undefined && RichText.sameMarkSet(last.marks, at)) {
-      current[current.length - 1] = { ...last, text: last.text + value }
-      return
-    }
-    current.push({ type: 'Text', id: RichText.NodeId.make(mint()), text: value, marks: at })
+    const merges = last !== undefined && RichText.sameMarkSet(last.marks, at)
+    const run: RichText.Text = merges
+      ? { ...last, text: last.text + value }
+      : { type: 'Text', id: RichText.NodeId.make(mint()), text: value, marks: at }
+    if (merges) current[current.length - 1] = run
+    else current.push(run)
+    reading.segments.push({
+      run: run.id,
+      at: run.text.length - value.length,
+      value,
+      start: node.position?.start.offset ?? 0,
+      end: node.position?.end.offset ?? 0,
+    })
   }
   const walk = (
     list: ReadonlyArray<PhrasingContent>,
@@ -72,10 +98,10 @@ const runsFrom = (
     for (const node of list) {
       switch (node.type) {
         case 'text':
-          append(node.value, at)
+          append(node.value, at, node)
           break
         case 'inlineCode':
-          append(node.value, [...at, 'Code'])
+          append(node.value, [...at, 'Code'], node)
           break
         case 'strong':
           walk(node.children, [...at, 'Bold'])
@@ -170,11 +196,8 @@ const listBlock = (node: List, reading: Reading): RichText.Block => {
 
 /** A GFM table: a row per `tableRow`, a cell holding one paragraph of its inline content.
  *  GFM's first row is the header, so it is marked as one. */
-const tableBlock = (
-  node: Table,
-  diagnostics: Array<MarkdownDiagnostic>,
-  mint: () => string,
-): RichText.Block => {
+const tableBlock = (node: Table, reading: Reading): RichText.Block => {
+  const { mint } = reading
   const rows = node.children.map((row, index) =>
     container(
       'TableRow',
@@ -183,7 +206,7 @@ const tableBlock = (
         container(
           'TableCell',
           {},
-          runsFrom(cell.children, [], diagnostics, mint).map(runs => paragraph(runs, mint)),
+          runsFrom(cell.children, [], reading).map(runs => paragraph(runs, mint)),
           mint,
         ),
       ),
@@ -217,7 +240,7 @@ const blockFrom = (node: RootContent, reading: Reading): ReadonlyArray<RichText.
           ),
         ]
       }
-      return runsFrom(node.children, [], diagnostics, mint).map(runs => paragraph(runs, mint))
+      return runsFrom(node.children, [], reading).map(runs => paragraph(runs, mint))
     }
     case 'heading':
       return [
@@ -225,35 +248,45 @@ const blockFrom = (node: RootContent, reading: Reading): ReadonlyArray<RichText.
           type: 'Heading',
           id: RichText.NodeId.make(mint()),
           level: HEADING_LEVELS[Math.min(Math.max(Math.trunc(node.depth), 1), 6) - 1]!,
-          children: runsFrom(node.children, [], diagnostics, mint).flat(),
+          children: runsFrom(node.children, [], reading).flat(),
         },
       ]
     case 'blockquote':
       return [container('Quote', {}, blocksFrom(node.children, reading), mint)]
     case 'list':
       return [listBlock(node, reading)]
-    case 'code':
+    case 'code': {
+      const run: RichText.Text = {
+        type: 'Text',
+        id: RichText.NodeId.make(mint()),
+        text: node.value,
+        marks: [],
+      }
+      const start = node.position?.start.offset ?? 0
+      const end = node.position?.end.offset ?? 0
+      // A fenced block's text starts on the line after its fence; the fence could hold any of
+      // the text's characters, so the source walk must not begin inside it.
+      const opening = /^(```|~~~)/.test(reading.markdown.slice(start))
+        ? reading.markdown.indexOf('\n', start) + 1
+        : start
+      if (node.value.length > 0) {
+        reading.segments.push({ run: run.id, at: 0, value: node.value, start: opening, end })
+      }
       return [
         holder(
           'CodeBlock',
           node.lang === null || node.lang === undefined || node.lang.length === 0
             ? {}
             : { language: node.lang },
-          [
-            {
-              type: 'Text',
-              id: RichText.NodeId.make(mint()),
-              text: node.value,
-              marks: [],
-            },
-          ],
+          [run],
           mint,
         ),
       ]
+    }
     case 'thematicBreak':
       return [container('ThematicBreak', {}, [], mint)]
     case 'table':
-      return [tableBlock(node, diagnostics, mint)]
+      return [tableBlock(node, reading)]
     default:
       diagnostics.push({ code: 'UnsupportedNode', detail: nodeType(node) })
       return []
@@ -280,11 +313,21 @@ const blocksFrom = (
  * a document cannot — raw HTML, a footnote, a definition — is reported in `diagnostics`.
  */
 export const parse = (markdown: string, options: ParseOptions): ParsedMarkdown => {
+  const { segments: _, ...parsed } = parseMapped(markdown, options)
+  return parsed
+}
+
+/** `parse`, with where each run's text came from in the source (§147). */
+export const parseMapped = (
+  markdown: string,
+  options: ParseOptions,
+): ParsedMarkdown & { readonly segments: ReadonlyArray<Segment> } => {
   const reading: Reading = {
     markdown,
     diagnostics: [],
     mint: options.mint,
     spellings: new Map(),
+    segments: [],
   }
   const tree = fromMarkdown(markdown, {
     extensions: [gfm()],
@@ -298,5 +341,6 @@ export const parse = (markdown: string, options: ParseOptions): ParsedMarkdown =
     diagnostics: reading.diagnostics,
     // Always present, so a caller merging this over an older style drops the older ids.
     style: { ...styleOf(markdown, tree), blocks: Object.fromEntries(reading.spellings) },
+    segments: reading.segments,
   }
 }

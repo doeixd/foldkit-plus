@@ -7590,7 +7590,7 @@ Decided here:
 - **Never document content.** `MarkdownStyle` is a schema of its own, kept by the caller beside
   the document, as §9 says: interpreter state, not semantics.
 
-The source session carries it across visits: `openSource(document, style)` prints with it
+The source session carries it across visits: `openSource(document, { style })` prints with it
 and records it, and `closeSource` returns the style to keep — the edited draft's spellings over
 the session's, so a construct the new text no longer contains keeps its old spelling, and an
 unedited session hands back the one it opened with. The application keeps it beside the
@@ -7923,3 +7923,47 @@ merged them. §138's check compares the styled output with the canonical one, wh
 canonical text round-trips; here it did not. The printer now gives a list right after another of
 its kind the other marker (`-` then `*`, `.` then `)`), because a changed marker is what starts a
 new list.
+
+---
+
+# 147. The caret across a mode switch
+
+§124 §8's source Model lists `sourceSelection`. A writer who switches modes should find the
+caret where they left it, in both directions. The session gains `caret`, an offset in the draft,
+and closing returns `selection`, a caret in the document it gives back.
+
+**Rich to source: print with a mark.** The printer decides where a position's text lands,
+including escapes, delimiters, list indentation, and a style's spellings. Rather than teach a
+second function to follow the printer's layout, `openSource` prints the document again with a
+private-use character spliced in at the selection's focus, and the mark's index is the caret.
+Markdown gives the character no meaning, so it travels with its text. It can change one thing:
+beside a `_`, it reads like a letter, and that can stop the `_` opening emphasis. That can tip
+§138's check into printing canonically, which changes text before the mark as well. So the
+answer is used only when the text before the mark matches the real draft, and the caret starts
+at 0 otherwise. A test pins the case: a setext title, `_` emphasis, and the caret right before
+an opening `_`.
+
+**Source to rich: the parse remembers where text came from.** Each mdast text node, inline code
+span, and code block records its source range, the run it went into, and the offset in that run
+(runs that merge keep the right offset). A source offset finds its segment: the one it falls
+in, else the last one before it, else the first. Within a segment, the raw source and the
+decoded text are walked side by side, and source that yields no text is skipped: an escape's
+backslash, or a quote's `>` on a continuation line. A fenced block's walk starts after its fence
+line. Otherwise a language such as `ab` over code `ab` would be read as the code.
+
+**An unedited draft goes back to the caller's document.** Its identities are what continue, so
+the caret is read in a throwaway parse of the draft and carried over block by block: the n-th
+block that holds text, at the same offset in its text. That is exact when the two documents hold
+the same text in the same order. When they do not, for example when a block the printer cannot
+show held text, the answer is null, and the application keeps its old selection.
+
+The Mixins source view no longer calls `closeSource` for an unedited draft, whose warnings and
+preview are by definition none and the caller's document. It keys its cache of an edited draft's
+result by the session's `unprintable` array, which is one object for the life of a session,
+together with the draft, so a caret move does not parse again. Both are performance-only: no
+test can tell them from the plain call, and they are commented as such.
+
+Not done: the view reporting the textarea's caret. Foldkit's `OnInput` carries the value only.
+The repo's pattern for more is a Mount that emits its own tagged Message (`InputMask`), which only
+an application that includes that Message can host. So it will be a Behavior on the source
+editor's `text` slot, attached with the application's Message.

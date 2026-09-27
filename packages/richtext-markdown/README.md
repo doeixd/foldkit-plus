@@ -162,9 +162,17 @@ puts `closed.document` in its Model, so it can warn first. `SourceSession` is a 
 session fits in a Model as it is.
 
 `closed.style` is how the edited draft spelled its constructs, over the style the session
-opened with; its `blocks` are the edited draft's alone, since the blocks it names are new. Keep it beside the document and pass it to the next `openSource(document,
-style)`, and a writer who typed `_hello_` and `* item` sees them spelled that way when they
+opened with; its `blocks` are the edited draft's alone, since the blocks it names are new. Keep
+it beside the document and pass it to the next `openSource(document, { style })`, and a writer who typed `_hello_` and `* item` sees them spelled that way when they
 come back to source mode, rather than in the canonical `*hello*` and `- item`.
+
+The caret comes along both ways. `openSource(document, { selection })` sets the session's
+`caret`, an offset in the draft, to where the selection's focus printed; a node selection, or
+none, starts it at 0. Replace `caret` as it moves in the source editor, and
+`closed.selection` is that place in the document `closeSource` returns: in the parsed draft
+when it was edited, and in the caller's own document when it was not. It is null when the
+draft holds no text, or when an unedited draft's text does not line up with the caller's
+document block for block. Keep the old selection then.
 
 ## Limits
 

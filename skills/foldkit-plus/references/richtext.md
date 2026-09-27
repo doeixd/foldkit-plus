@@ -306,12 +306,14 @@ against each other: `print(parse(markdown))` returns the Markdown it started fro
 or a list (`WrapBlock`), and a fence such as `` ```ts `` converts it to a `CodeBlock`
 (`ConvertBlock`) — where the editor applies the rules its placement names
 (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A source session edits
-the Markdown itself: `openSource(document)` gives `{ printed, draft, unprintable }` (a
-`SourceSession` schema the Model holds), and `closeSource(session, document, { mint })` returns
-the caller's document untouched when the draft was not edited, or the parsed draft with the
-diagnostics of what the edit loses. `parse` also returns a `MarkdownStyle` (which spelling each
+the Markdown itself: `openSource(document, { style?, selection? })` gives `{ printed, draft,
+unprintable, style, caret }` (a `SourceSession` schema the Model holds; `caret` is where the
+selection's focus printed), and `closeSource(session, document, { mint })` returns the caller's
+document untouched when the draft was not edited, or the parsed draft with the diagnostics of
+what the edit loses, and in `selection` the session's caret placed in that document (null when
+it cannot be). `parse` also returns a `MarkdownStyle` (which spelling each
 construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id), `print(document, { style })` reuses it where it keeps the meaning, and a
-session's `closeSource(...).style` is what to pass to the next `openSource(document, style)`.
+session's `closeSource(...).style` is what to pass to the next `openSource(document, { style })`.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable
