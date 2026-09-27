@@ -58,3 +58,6 @@ export const marksToolbar =
 
 /** What places a floating toolbar over the selection (§143), and a block handle beside its block (§144). */
 export { blockAnchor, selectionAnchor } from './floating.js'
+
+/** What drags a block by its handle, within its container (§148). */
+export { blockDrag } from './drag.js'

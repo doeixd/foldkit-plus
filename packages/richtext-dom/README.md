@@ -36,7 +36,7 @@ foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRender
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks
-foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor, blockAnchor
+foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor, blockAnchor, blockDrag
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
 ```
@@ -379,6 +379,14 @@ outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
 editor's subtree changes (a patch can move a block without the page scrolling), and on scroll
 and resize. A Mount reads its args once, when its element is inserted, so key the element by the
 block (`h.Key(node)`) when the block can change.
+
+`blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, among the
+blocks of its own container. A press starts it, and the page is listened to only until the
+drag ends. The pointer picks a place: before the first block whose middle is below it, else
+after the last. A line, `[data-richtext-drop]`, is fixed at the edge the block would land on,
+outside the editable subtree, for a stylesheet to draw. Release sends `MovedBlock` there;
+Escape, a cancelled pointer, or a place that is where the block already is sends nothing. Key
+its element by the block, as for `blockAnchor`.
 
 ## What it does not do
 
