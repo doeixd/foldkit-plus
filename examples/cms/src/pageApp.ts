@@ -27,8 +27,9 @@ import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
 import { PageBuilder, Site } from './site.js'
 import { PageFieldStyle, PageFormStyle } from './style.js'
 
-// A rest of zero: the scripted run does not wait on a clock to save.
-export const Editor = Cms.editor('PageEditor', { content: Pages, rest: 0 })
+// A pause in typing saves, as the posts do: a save per keystroke encoded the page
+// and wrote the database each time. The scripted run gives its rest no wait.
+export const Editor = Cms.editor('PageEditor', { content: Pages, rest: '800 millis' })
 
 // The Builder is drawn with its own view, inside the page form.
 const PageFormView = FormView.define(PageForm, {

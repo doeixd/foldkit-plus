@@ -6,7 +6,7 @@
  * entry. The Builder adds no CMS state: every save, revision and publish is the
  * CMS's, with the page as one form key's value.
  */
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Clock, Effect, Layer, Option, Schema, Stream } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage, type Model as BuilderModel } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
@@ -99,8 +99,22 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     let model: Model = initial
 
     /** A Command as the runtime runs it: with a Remote client that asks as this chair. */
+    // A clock whose sleeps end at once: the editor's rest before a save is a pause in
+    // someone's typing, and this story has no one typing to wait for.
     const run = (effect: Effect.Effect<Message, never, RemoteClient>): Promise<Message> =>
-      Effect.runPromise(effect.pipe(Effect.provide(client)))
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const clock = yield* Clock.Clock
+          return yield* effect.pipe(
+            Effect.provide(client),
+            // Its other methods are on its prototype, which a spread would drop.
+            Effect.provideService(
+              Clock.Clock,
+              Object.assign(Object.create(clock) as Clock.Clock, { sleep: () => Effect.void }),
+            ),
+          )
+        }),
+      )
     const send = async (message: Message): Promise<void> => {
       const next = update(model, message)
       model = next.model
