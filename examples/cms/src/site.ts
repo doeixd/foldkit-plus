@@ -553,7 +553,9 @@ const PostsLook = Appearance.make(PostsSlots, {
     variants: {
       layout: {
         grid: {
-          list: Style.self({ gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))' }),
+          list: Style.self({
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 18rem), 1fr))',
+          }),
         },
         list: {},
         // A magazine's front: the newest post leads across the page, its cover
@@ -562,7 +564,7 @@ const PostsLook = Appearance.make(PostsSlots, {
           list: Style.compose(
             Style.self({
               columnGap: t.space.lg,
-              gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 18rem), 1fr))',
               rowGap: t.space.xl,
             }),
             Style.nest('> :first-child', {

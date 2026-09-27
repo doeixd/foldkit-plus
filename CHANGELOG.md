@@ -16,6 +16,10 @@ version changed; `pnpm` skips versions already in the registry.
   storage; `?reset` starts afresh. The server takes its database
   (`openServer(clock, sqlite)`), and one endpoint module answers requests for
   both the HTTP server and the page.
+  On a phone the studio's sidebar is a top bar (the brand and who is looking,
+  then the sections in a row), the editor's bar wraps its actions under its
+  status, the builder's panels scroll within a short height so the page
+  shows, and a post list's cards fit a narrow canvas.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

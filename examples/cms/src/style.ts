@@ -39,6 +39,18 @@ const app = L.layer('app')
 const part = Slot.make({ capability: Capability.Container })
 const control = Slot.make({ capability: Capability.Interactive })
 
+/** Where the studio lays itself out for a phone rather than beside a sidebar. */
+const phone = '(max-width: 52rem)'
+/** Read by assistive technology, not shown. */
+const readOnly = {
+  clipPath: 'inset(50%)',
+  height: '1px',
+  overflow: 'hidden',
+  position: 'absolute',
+  whiteSpace: 'nowrap',
+  width: '1px',
+} as const
+
 /** A button as the mixins-ui recipe draws it, for a slot of our own. */
 const button = (selection: Parameters<typeof Recipes.Button>[0]) =>
   Recipes.Button(selection).button ?? Style.empty
@@ -77,6 +89,9 @@ export const AdminSlots = Slots.define({
   account: part,
   accountLabel: part,
   whoLink: control,
+  /** A chair's name and role, beside its avatar: on a phone, the avatar alone shows. */
+  whoName: part,
+  whoRole: part,
   avatar: part,
   main: part,
   /** A section's screen: its heading, its filters, then what it lists. */
@@ -132,6 +147,8 @@ const navLink = Style.compose(
     padding: '0.45rem 0.65rem',
     textDecoration: 'none',
   }),
+  // In a phone's row of sections: whole, side by side.
+  Style.media(phone, { flexShrink: '0', whiteSpace: 'nowrap' }),
   Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
   Style.nest('&[aria-current="page"]', {
     background: t.surface.default,
@@ -218,7 +235,11 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         gridTemplateColumns: '15.5rem minmax(0, 1fr)',
         minHeight: '100vh',
       }),
-      Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      // The bar as tall as it is, and the section the rest: a short page does not stretch the bar.
+      Style.media(phone, {
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        gridTemplateRows: 'auto minmax(0, 1fr)',
+      }),
     ),
     sidebar: Style.compose(
       Style.self({
@@ -233,24 +254,35 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         position: 'sticky',
         top: '0',
       }),
-      Style.media('(max-width: 52rem)', {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
+      // On a phone, a bar across the top: the brand and who is looking, then the
+      // sections in a row of their own, scrolled sideways where they do not fit.
+      Style.media(phone, {
+        alignItems: 'center',
+        borderBlockEnd: `1px solid ${t.outline.subtle}`,
+        borderInlineEnd: '0',
+        display: 'grid',
+        gap: t.space.xs,
+        gridTemplateAreas: '"brand account" "nav nav"',
+        gridTemplateColumns: 'auto minmax(0, 1fr)',
         height: 'auto',
+        padding: `${t.space.sm} ${t.space.md}`,
         position: 'static',
       }),
     ),
-    brand: Style.self({
-      alignItems: 'center',
-      color: t.text.overt,
-      display: 'flex',
-      fontSize: t.size.md,
-      fontWeight: t.weight.bold,
-      gap: t.space.xs,
-      letterSpacing: '-0.01em',
-      padding: `0 ${t.space['2xs']}`,
-      textDecoration: 'none',
-    }),
+    brand: Style.compose(
+      Style.media(phone, { gridArea: 'brand' }),
+      Style.self({
+        alignItems: 'center',
+        color: t.text.overt,
+        display: 'flex',
+        fontSize: t.size.md,
+        fontWeight: t.weight.bold,
+        gap: t.space.xs,
+        letterSpacing: '-0.01em',
+        padding: `0 ${t.space['2xs']}`,
+        textDecoration: 'none',
+      }),
+    ),
     brandMark: Style.self({
       alignItems: 'center',
       background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 50%, ${t.tertiary.default}))`,
@@ -262,7 +294,17 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       justifyContent: 'center',
       width: '1.75rem',
     }),
-    nav: Style.self({ display: 'flex', flexDirection: 'column', gap: '2px' }),
+    nav: Style.compose(
+      Style.self({ display: 'flex', flexDirection: 'column', gap: '2px' }),
+      Style.media(phone, {
+        flexDirection: 'row',
+        gridArea: 'nav',
+        marginInline: `calc(-1 * ${t.space.md})`,
+        overflowX: 'auto',
+        paddingInline: t.space.md,
+        scrollbarWidth: 'none',
+      }),
+    ),
     navLink,
     navAside: Style.self({
       color: t.text.muted,
@@ -280,18 +322,44 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         marginBlockStart: 'auto',
         paddingBlockStart: t.space.sm,
       }),
-      Style.media('(max-width: 52rem)', { marginBlockStart: '0' }),
+      Style.media(phone, {
+        border: '0',
+        flexDirection: 'row',
+        gridArea: 'account',
+        justifySelf: 'end',
+        marginBlockStart: '0',
+        paddingBlockStart: '0',
+      }),
     ),
-    accountLabel: Style.self({
-      color: t.text.muted,
-      fontSize: t.size.xs,
-      fontWeight: t.weight.semibold,
-      letterSpacing: '0.05em',
-      margin: `0 0 ${t.space['3xs']}`,
-      padding: `0 ${t.space['2xs']}`,
-      textTransform: 'uppercase',
-    }),
-    whoLink: Style.compose(navLink, Style.self({ padding: '0.35rem 0.5rem' })),
+    accountLabel: Style.compose(
+      Style.media(phone, { display: 'none' }),
+      Style.self({
+        color: t.text.muted,
+        fontSize: t.size.xs,
+        fontWeight: t.weight.semibold,
+        letterSpacing: '0.05em',
+        margin: `0 0 ${t.space['3xs']}`,
+        padding: `0 ${t.space['2xs']}`,
+        textTransform: 'uppercase',
+      }),
+    ),
+    whoLink: Style.compose(
+      navLink,
+      Style.self({ padding: '0.35rem 0.5rem' }),
+      Style.media(phone, { padding: '0.3rem' }),
+    ),
+    // Read on a phone, not shown: the avatar stands for the chair.
+    whoName: Style.media(phone, readOnly),
+    whoRole: Style.compose(
+      Style.self({
+        color: t.text.muted,
+        display: 'inline-flex',
+        fontSize: t.size.xs,
+        fontWeight: t.weight.normal,
+        marginInlineStart: 'auto',
+      }),
+      Style.media(phone, readOnly),
+    ),
     avatar: Style.compose(
       Style.self({
         alignItems: 'center',
@@ -323,6 +391,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         maxWidth: '64rem',
         padding: `${t.space['2xl']} ${t.space.xl}`,
       }),
+      Style.media(phone, { padding: `${t.space.lg} ${t.space.md}` }),
     ),
     screenHead: L.in(
       'layouts',
@@ -375,21 +444,31 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         minWidth: '14rem',
         position: 'relative',
       }),
+      Style.media(phone, { flex: '1 1 100%', minWidth: '0' }),
       Style.nest('> svg', { insetInlineStart: '0.7rem', position: 'absolute' }),
     ),
     editorScreen: Style.self({ display: 'flex', flexDirection: 'column', minHeight: '100vh' }),
-    editorBar: Style.self({
-      alignItems: 'center',
-      background: `color-mix(in oklch, ${t.surface.base} 88%, transparent)`,
-      backdropFilter: 'blur(8px)',
-      borderBlockEnd: `1px solid ${t.outline.subtle}`,
-      display: 'flex',
-      gap: t.space.sm,
-      padding: `${t.space.sm} ${t.space.lg}`,
-      position: 'sticky',
-      top: '0',
-      zIndex: '5',
-    }),
+    editorBar: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        background: `color-mix(in oklch, ${t.surface.base} 88%, transparent)`,
+        backdropFilter: 'blur(8px)',
+        borderBlockEnd: `1px solid ${t.outline.subtle}`,
+        display: 'flex',
+        gap: t.space.sm,
+        padding: `${t.space.sm} ${t.space.lg}`,
+        position: 'sticky',
+        top: '0',
+        zIndex: '5',
+      }),
+      // Its actions go under the status where the bar is too narrow for both.
+      Style.media(phone, {
+        flexWrap: 'wrap',
+        gap: t.space.xs,
+        padding: `${t.space.xs} ${t.space.md}`,
+      }),
+      Style.nest('& a, & button', { whiteSpace: 'nowrap' }),
+    ),
     barActions: Style.self({
       alignItems: 'center',
       display: 'flex',
@@ -405,7 +484,10 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.media('(max-width: 64rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
-    workbench: Style.self({ padding: t.space.lg }),
+    workbench: Style.compose(
+      Style.self({ padding: t.space.lg }),
+      Style.media(phone, { padding: t.space.sm }),
+    ),
     canvas: Style.self({
       boxSizing: 'border-box',
       margin: '0 auto',
@@ -475,7 +557,15 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     primary: primaryButton,
     danger: button({ tone: 'danger', variant: 'outline', size: 'sm' }),
     status: Style.compose(
-      Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
+      Style.self({
+        color: t.text.muted,
+        fontSize: t.size.sm,
+        margin: '0',
+        minWidth: '0',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }),
       Style.nest('&[data-tone="error"]', { color: t.error.ink }),
     ),
     muted: Style.self({ color: t.text.muted, margin: '0' }),
@@ -930,6 +1020,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       panelName('Add a block'),
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
       Style.self({ flexShrink: '0', maxHeight: '26rem' }),
+      // On a phone the page comes into view under it; the tiles scroll within.
+      Style.container('builder (max-width: 40rem)', { maxHeight: '15rem' }),
     ),
     paletteGroup: Style.self({
       display: 'grid',
@@ -976,6 +1068,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       builderPanel,
       panelName('Layers'),
       Style.self({ flex: '1', minHeight: '0' }),
+      Style.container('builder (max-width: 40rem)', { maxHeight: '15rem' }),
     ),
     tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
     row: Style.compose(
@@ -1254,6 +1347,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       }),
       Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
       Style.container('builder (max-width: 64rem)', { minHeight: '30rem' }),
+      Style.container('builder (max-width: 30rem)', { padding: t.space.xs }),
       Style.nest('[data-composition-drop="before"] > *', { boxShadow: `0 -3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="after"] > *', { boxShadow: `0 3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="inside"] > *', {
@@ -1290,6 +1384,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         padding: t.space.md,
         transition: 'max-width 200ms ease',
       }),
+      Style.container('builder (max-width: 30rem)', { padding: t.space.xs }),
     ),
     empty: Style.self({
       border: `2px dashed ${t.outline.default}`,

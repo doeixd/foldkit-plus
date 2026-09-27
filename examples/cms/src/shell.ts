@@ -104,8 +104,8 @@ export const shell = <M>(
               h.span(slots.avatar.attrs([h.DataAttribute('chair', name)]), [
                 people[name].name.charAt(0),
               ]),
-              h.span([], [people[name].name]),
-              h.span(slots.navAside.attrs(), [people[name].role]),
+              h.span(slots.whoName.attrs(), [people[name].name]),
+              h.span(slots.whoRole.attrs(), [people[name].role]),
             ],
           ),
         ),
