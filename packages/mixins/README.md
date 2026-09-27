@@ -296,6 +296,9 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
 - `Style.responsive(breakpoints, { md: { display: 'flex' } })`, named breakpoints from the record
   you pass, so a misspelled one is a type error; a breakpoint is a media query or a whole at-rule,
   such as `'@container page (min-width: 48rem)'`;
+- `Style.at('@container builder (max-width: 40rem)', Style.pseudo('[data-open="false"]', { … }))`
+  puts a piece's rules inside an at-rule, where no one constructor does; a class, a piece chosen
+  when drawn, global CSS or a rule already inside an at-rule throws there;
 - `Style.enter({ opacity: '0' })`, a `@starting-style` rule the element animates from, with
   `Style.allowDiscrete` when `display` takes part;
 - `Style.vars({ '--gap': '1rem' })` and `Style.viewTransitionName('hero')`, declarations;

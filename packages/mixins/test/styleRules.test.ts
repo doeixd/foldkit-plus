@@ -90,6 +90,36 @@ describe('Style rule compiler', () => {
     )
   })
 
+  it('puts a selector and declarations inside an at-rule, and refuses what cannot go there', () => {
+    const Narrow = Style.forSlots(RuleSlots)({
+      root: Style.at(
+        '@container builder (max-width: 40rem)',
+        Style.compose(
+          Style.inline({ gap: '0' }),
+          Style.pseudo('[data-open="false"]', { display: 'none' }),
+        ),
+      ),
+    })
+    const builders = SlotView.buildersFor(RuleSlots, [Narrow.mixin], { input: undefined, h })
+    const generated = classValue(builders.root.attrs())
+    expect(Narrow.css).toBe(
+      `@container builder (max-width: 40rem){.${generated}{gap:0}}` +
+        `@container builder (max-width: 40rem){.${generated}[data-open="false"]{display:none}}`,
+    )
+    expect(() => Style.at('(max-width: 40rem)', Style.self({ gap: '0' }))).toThrow('at-rule')
+    expect(() => Style.at('@media print', Style.class('hidden'))).toThrow('a class')
+    expect(() =>
+      Style.at(
+        '@media print',
+        Style.whenInput(() => true, Style.self({ gap: '0' })),
+      ),
+    ).toThrow('chosen when drawn')
+    expect(() => Style.at('@media print', Style.global('body{margin:0}'))).toThrow('global CSS')
+    expect(() => Style.at('@media print', Style.media('(min-width: 1px)', { gap: '0' }))).toThrow(
+      'inside "@media (min-width: 1px)"',
+    )
+  })
+
   it('shares a class for equal rules and not for different ones', () => {
     const one = Style.forSlots(RuleSlots)({ root: Style.pseudo(':hover', { color: 'red' }) })
     const two = Style.forSlots(RuleSlots)({ root: Style.pseudo(':hover', { color: 'red' }) })
