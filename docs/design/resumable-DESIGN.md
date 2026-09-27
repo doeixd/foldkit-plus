@@ -1,6 +1,6 @@
 # Resumable Foldkit
 
-> **Implementation status, checked 2026-09-27:** Built in `foldkit-ssr` as ssr-PLAN's Phases A–F; rule 1 and rule 6's equivalence test are ssr-PLAN Phase G, not yet built. See the
+> **Implementation status, checked 2026-09-27:** Built in `foldkit-ssr` as ssr-PLAN's Phases A–G, rule 1's diagnostic and rule 6's equivalence test included. The manifest-size fix in its risk section is ssr-PLAN's G6, not yet built. See the
 > [design index](./README.md#where-each-design-stands).
 
 **Status:** design, 2026-09-23, revised the same day where checking it against

@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done. Next: [Phase G](#phase-g-close-what-the-resumable-design-asks-and-phases-a-to-f-left-out), the resumable design's remaining asks. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A to F, and G (G1 to G5) done. Next: G6, one manifest entry per keyed placement, which G4's measurement calls for. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163

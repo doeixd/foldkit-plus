@@ -127,6 +127,5 @@ application.
   plan's state, for a form at the root and for one inside a placement. With
   `hydrate` held to a later task, the click that boots the page counts once
   and a click before the first render is not lost, and a closure's event
-  still reaches the live page. Resumability depends on neither the manifest's
-  size nor its speed: `bench/manifest.ts` measures both, and the plan records
-  the table.
+  still reaches the live page. The manifest's size and decode time are
+  measured by `bench/manifest.ts`, not tested; the plan records the table.

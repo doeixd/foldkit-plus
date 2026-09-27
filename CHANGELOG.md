@@ -209,9 +209,35 @@ version changed; `pnpm` skips versions already in the registry.
   a History of its own. Undo is one mechanism in the repository, not two.
 - **`foldkit-ssr`: its build configuration references the packages it builds
   from,** so another project can reference it.
+- **`foldkit-ssr`: `SSR.render`'s result lists `unnamed`,** each element and
+  event whose handler is a function the page cannot name
+  (`{ element: 'button#point', event: 'pointerdown' }`). On a page that waits
+  to boot, `SSR.entry` and `SSR.generate` warn about each once per process.
+- **`foldkit-ssr`: `pnpm bench:manifest`** measures the resume manifest's size
+  and decode time at 10, 100 and 1,000 rows; the SSR plan records the table.
 
 ### Changed
 
+- **`foldkit-ssr`: Messages answered before boot are folded into the Model the
+  runtime starts from,** instead of replayed through a Subscription after its
+  first render. An event dispatched in the task that boots the page, such as
+  the rest of a burst of typing, reached the runtime before the replay, so
+  the text ended on its first character. The `foldkit-ssr.replay` entry is
+  gone.
+- **`foldkit-ssr`: deferred boot no longer depends on `hydrate` rendering its
+  first frame before it returns.** Until that frame commits the page keeps
+  answering from its markers, and it then sends the live page the events only
+  it can answer.
+- **`foldkit-bundle`: a placement or collection item returns the parent Model
+  itself when the child's `update` returns its own Model,** so a Message that
+  changes nothing renders nothing.
+- **`foldkit-primitives`: a Message that changes nothing returns the Model it
+  was given,** across state, time, motion, media, interaction, device, network
+  and event primitives, and the navigation and selection Behaviors describe
+  their items once per render instead of once per item. `Virtual` caches its
+  row offsets per keys array and heights record. `MediaStream`'s `Started`
+  while live no longer stays at `requesting`, and `Presence`'s `Hide` while
+  hidden no longer shows the content for the hide duration.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by
