@@ -189,8 +189,8 @@ diagnostics? }` in, `EditorStatusSlots` (`root`, `counts`, `problems`, `problem`
 are `RichText.count(document)` (`{ words, characters }`), the problems whatever the caller passes,
 usually `RichText.validate` against its Kit. `blockHandle<Message>()` is the block handle:
 `{ document, hostId, node, wrap }` in, `BlockHandleSlots` (`root`, `grip`, `up`, `down`) out; the
-grip drags the block within its container (`blockDrag` from `foldkit-richtext-dom/toolbar`,
-keyed by the block), up sends
+grip drags the block wherever `RichText.moveTargets` allows (`blockDrag` from
+`foldkit-richtext-dom/toolbar`, keyed by the block), up sends
 `MovedBlock` before the previous sibling and down after the next, each disabled at its end of
 the container; `node` is usually one of `RichText.blocksAt(document, selection)`, the blocks the
 selection starts in, outermost first. `commandPalette<Message>()` searches the same
@@ -270,8 +270,11 @@ props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a voc
 wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces
 a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
 new identities and moving the selection onto them. `MoveBlock { node, to: { before } | { after } }`
-moves a block and its subtree beside a sibling in the same container, by identity rather than
-the selection (a block handle's up and down). `LiftBlock` is the inverse of a wrap, and
+moves a block and its subtree beside another block, by identity rather than the selection (a
+block handle's moves); across containers, the vocabulary decides: the container must hold the
+kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by `validate` as
+`MisplacedNode`), it never leaves an `isolating` kind, and a container it empties is deleted;
+`moveTargets(document, node, nodes?)` lists where it may go. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
 it to a paragraph; Enter in a list item starts a new item

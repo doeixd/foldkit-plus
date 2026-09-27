@@ -6,12 +6,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { dragBlock, dropBeside, type Placed } from '../src/drag.js'
-import { mountInto, releaseMount } from '../src/host.js'
+import { mountInto, placeVocabulary, releaseMount } from '../src/host.js'
 
 const id = RichText.NodeId.make
 /** Blocks 20px tall, 10px apart: a at 0–20, b at 30–50, c at 60–80. */
 const placed: ReadonlyArray<Placed> = ['a', 'b', 'c'].map((name, index) => ({
   id: id(name),
+  container: '',
+  index,
   top: index * 30,
   bottom: index * 30 + 20,
 }))
@@ -27,6 +29,29 @@ describe('where a pointer drops a block', () => {
     ['for a block that is not there', 'x', 75, undefined],
   ])('%s', (_, moving, y, expected) => {
     expect(dropBeside(placed, id(moving), y)).toEqual(expected)
+  })
+
+  // Items of two lists: `l` holds i1 and i2, `m` holds j1, with the list `m` itself a target too.
+  const lists: ReadonlyArray<Placed> = [
+    { id: id('i1'), container: 'l', index: 0, top: 0, bottom: 20 },
+    { id: id('i2'), container: 'l', index: 1, top: 30, bottom: 50 },
+    { id: id('m'), container: '', index: 1, top: 80, bottom: 100 },
+    { id: id('j1'), container: 'm', index: 0, top: 80, bottom: 100 },
+    { id: id('j2'), container: 'm', index: 1, top: 110, bottom: 130 },
+  ]
+
+  it.each([
+    ['into another container, before its block', 'i1', 83, { before: 'j1' }],
+    ['into another container, after its block', 'i1', 97, { after: 'j1' }],
+    // An edge in the same container as the block, but not beside it, is a move.
+    ['past its neighbour in its own container', 'i1', 48, { after: 'i2' }],
+  ])('drops %s, the deeper of two edges at one height', (_, moving, y, expected) => {
+    expect(dropBeside(lists, id(moving), y)).toEqual(expected)
+  })
+
+  it('treats an edge in another container as a move, whatever its index', () => {
+    // j2 is at index 1, right after where i1 sits in its own list; in `m`, it is a move.
+    expect(dropBeside(lists, id('i1'), 110)).toEqual({ before: id('j2') })
   })
 })
 
@@ -142,5 +167,69 @@ describe('dragging a block by its handle', () => {
     const escape = at('keydown', { key: 'Escape' })
     document.dispatchEvent(escape)
     expect(escape.defaultPrevented).toBe(true)
+  })
+})
+
+describe('dragging a block into another container (§149)', () => {
+  it('drags an item into another list, as the placed vocabulary allows', () => {
+    const item = (name: string) => ({
+      type: 'Node',
+      kind: 'ListItem',
+      id: name,
+      props: {},
+      children: [],
+      blocks: [
+        {
+          type: 'Paragraph',
+          id: `${name}-p`,
+          children: [{ type: 'Text', id: `${name}-t`, text: name, marks: [] }],
+        },
+      ],
+    })
+    const list = (name: string, items: ReadonlyArray<string>) => ({
+      type: 'Node',
+      kind: 'List',
+      id: name,
+      props: {},
+      children: [],
+      blocks: items.map(item),
+    })
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [list('l', ['i1', 'i2']), list('m', ['j1'])],
+    } as never)
+    document.body.innerHTML = '<div id="lists"></div><button id="grip"></button>'
+    placeVocabulary('lists', { nodes: RichText.nodeRegistry(RichText.standardNodes) })
+    mountInto(document.getElementById('lists')!, content, { onIntent: () => {} })
+    const boxes: Record<string, number> = {
+      l: 0,
+      i1: 0,
+      'i1-p': 0,
+      i2: 30,
+      'i2-p': 30,
+      m: 80,
+      j1: 80,
+      'j1-p': 80,
+    }
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const top = boxes[this.getAttribute('data-block') ?? ''] ?? 0
+      return { top, bottom: top + 20, left: 0, width: 100 } as DOMRect
+    })
+    const dropped: Array<RichText.Beside> = []
+    const release = dragBlock(document.getElementById('grip')!, 'lists', id('i1'), to =>
+      dropped.push(to),
+    )
+    document
+      .getElementById('grip')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }))
+    document.dispatchEvent(new MouseEvent('pointermove', { clientY: 97 }))
+    document.dispatchEvent(new MouseEvent('pointerup'))
+    // The item's own paragraph and the lists are no targets for an item: it lands after j1.
+    expect(dropped).toEqual([{ after: id('j1') }])
+    release()
+    spy.mockRestore()
+    releaseMount(document.getElementById('lists')!)
   })
 })

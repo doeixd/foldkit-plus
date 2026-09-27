@@ -1,7 +1,7 @@
 # Foldkit Plus Rich Text
 
 **Status:** §124's Markdown-first order is the one being followed; its milestones 1–5, 7, and 8
-are built, 6 is built but for drags across containers, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
+are built, 6 is built, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
 decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
 Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
@@ -9,14 +9,14 @@ and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki 
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
 mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
 status line, the command palette, the floating toolbar's anchor, and the block handle with its
-drag (§119, §123, §132, §133, §134, §141, §142, §143, §144, §148), with their views in
+drag (§119, §123, §132, §133, §134, §141, §142, §143, §144, §148, §149), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), with the writer's spellings per construct and per block (§138, §146) and the
 caret carried across a mode switch (§147).
 Milestone 8's form control and its CMS example are built (§139, §140).
 Milestone 9 has begun: the adapter adopts matching server markup (§145).
-Still to do: dragging a block into another container (§144's rules), the rest of SSR (§145 names the open decision),
+Still to do: the rest of SSR (§145 names the open decision),
 real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
@@ -4684,8 +4684,8 @@ keymaps                   the adapter's built-ins, plus a `keymap` table an
                           application adds to or overrides; the editor's own
                           binding layer waits for a binding that needs it (§119)
 copy/paste                routed through the view's Messages (§118 slice 2)
-drag/drop                 a block by its handle, within its container (`blockDrag`,
-                          §148); across containers not yet
+drag/drop                 a block by its handle (`blockDrag`, §148), into any
+                          container the vocabulary lets it stand in (§149)
 mobile virtual keyboards  not started (Phase 3)
 toolbar integration       the mark buttons and their active rule
                           (`foldkit-richtext-dom/toolbar`, `marksToolbar`), and the
@@ -8014,3 +8014,51 @@ names. Without the key, it names the stale one.
 
 Not done: across containers; dragging by touch, where a long press must be told from a scroll;
 and the drop line's appearance in a real browser, for milestone 9.
+
+---
+
+# 149. Where a kind may stand
+
+§144 kept `MoveBlock` inside one container because two rules were missing. Nothing said where a
+kind may *not* go: `List` says it holds `ListItem`s, but nothing says a `ListItem` stands only
+in a `List`, and `blockContent` accepts any kind. And nothing said what happens to a container a
+move empties. Both are decided here, and moves and drags cross containers.
+
+**`within`, the child's side.** A node declaration can name the kinds it may stand in:
+`node('ListItem', { children: blockContent, within: ['List'] })`. A kind that names them never
+stands at the top level. The standard vocabulary gives `within` to `ListItem` and `TaskItem`
+(`List`), `TableRow` (`Table`), and `TableCell` (`TableRow`). `validate` reports a block outside
+its `within` as `MisplacedNode`, saying where it stands. It is declared rather than derived from
+the containers' `blocksOf`: an application kind a grid restricts itself to may still be fine at
+the top level, and inferring otherwise would surprise.
+
+**What a move checks**, all in one `moveFailure` that `MoveBlock` and `moveTargets` share:
+
+```text
+within its own container         always allowed
+into another container           it must hold the kind (blocksOf), and the kind must stand in
+                                 its kind (within), else UnexpectedChild
+leaving an isolating container   refused at any depth, a table cell's content stays in it,
+                                 like a lift (InvalidParent)
+inside itself                    refused (InvalidParent)
+```
+
+With no vocabulary nothing is declared, so only the last rule holds, which matches `run`'s rule
+that a vocabulary-free edit takes no constraints.
+
+**An emptied container goes.** A move out of a container that held nothing else deletes it, and
+its parent too if that held nothing else. It stops at the container the block lands in, which is
+not empty. A lift already did this, and an empty `List` is not a list. An isolating container is
+never reached, because a move may not leave one. So the check that stopped there was
+unreachable, and the mutation run said so.
+
+**`moveTargets` is what a drag offers**: every block the move is allowed beside, in document
+order. `blockDrag` computes it once, at the press, together with each block's place from one walk
+of the document. It measures only the targets' rectangles as the pointer moves. The drop is the
+nearest edge of a target, and between two edges at one height the later target wins, which is
+the deeper one where a container's edge meets its first or last block's. Within one container
+it lands the block where §148's midpoint rule did, though sometimes named from the other side
+(after the block above rather than before the one below).
+
+Not done: paste, wrap, and the other commands still consult only the container's side
+(`blocksOf`), not `within`.

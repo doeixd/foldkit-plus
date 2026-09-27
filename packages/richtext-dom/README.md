@@ -380,10 +380,11 @@ editor's subtree changes (a patch can move a block without the page scrolling), 
 and resize. A Mount reads its args once, when its element is inserted, so key the element by the
 block (`h.Key(node)`) when the block can change.
 
-`blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, among the
-blocks of its own container. A press starts it, and the page is listened to only until the
-drag ends. The pointer picks a place: before the first block whose middle is below it, else
-after the last. A line, `[data-richtext-drop]`, is fixed at the edge the block would land on,
+`blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, to any block
+`RichText.moveTargets` allows under the vocabulary placed for `hostId`, so an item can go into
+another list but not to the top level. A press starts it, and the page is listened to only until
+the drag ends. The pointer picks the nearest edge of those blocks: before one at its top, after
+one at its bottom, and the deeper block where two edges meet. A line, `[data-richtext-drop]`, is fixed at the edge the block would land on,
 outside the editable subtree, for a stylesheet to draw. Release sends `MovedBlock` there;
 Escape, a cancelled pointer, or a place that is where the block already is sends nothing. Key
 its element by the block, as for `blockAnchor`.
