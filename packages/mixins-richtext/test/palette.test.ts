@@ -74,6 +74,8 @@ describe('the command palette', () => {
         'aria-activedescendant',
         'palette-option-heading-1',
       ),
+      // The id the field names is the highlighted option's own.
+      Scene.expect(Scene.selector('#palette-option-heading-1')).toHaveAttr('aria-selected', 'true'),
       Scene.keydown(field, 'ArrowDown'),
       Scene.expect(option('heading-2')).toHaveAttr('aria-selected', 'true'),
       Scene.expect(option('heading-1')).toHaveAttr('aria-selected', 'false'),

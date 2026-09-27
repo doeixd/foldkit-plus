@@ -51,10 +51,10 @@ export const dragMount = <Message>(
 ): Mount.MountAction<Message> => Mount.mapMessage(blockDrag({ hostId, node }), wrap)
 
 /**
- * The handle as a slot view. The grip drags the block among its container's blocks
+ * The handle as a slot view. The grip drags the block wherever `RichText.moveTargets` allows
  * (`blockDrag`), and is keyed by the block, since a Mount reads its args once. Up moves the
- * block before its previous sibling and down after its next one, the same moves from the
- * keyboard; each is disabled at its end of the container, and both when the block is not there.
+ * block before its previous sibling and down after its next one, within its container; each is
+ * disabled at its end of the container, and both when the block is not there.
  */
 export const blockHandle = <Message>(): SlotView.SlotView<
   typeof BlockHandleSlots,
@@ -72,8 +72,8 @@ export const blockHandle = <Message>(): SlotView.SlotView<
           h.Type('button'),
           h.DataAttribute('handle', 'grip'),
           h.AriaLabel('Drag to move'),
-          // The pointer's alone: up and down are the same moves from the keyboard, so the grip
-          // would be a stop in the tab order that does nothing.
+          // A drag is the pointer's alone, so the grip would be a stop in the tab order that
+          // does nothing; the keyboard has up and down, which stay within the container.
           h.Tabindex(-1),
           h.OnMount(dragMount(input.hostId, input.node, input.wrap)),
         ]),

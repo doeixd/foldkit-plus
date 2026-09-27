@@ -191,8 +191,9 @@ usually `RichText.validate` against its Kit. `blockHandle<Message>()` is the blo
 `{ document, hostId, node, wrap }` in, `BlockHandleSlots` (`root`, `grip`, `up`, `down`) out; the
 grip drags the block wherever `RichText.moveTargets` allows (`blockDrag` from
 `foldkit-richtext-dom/toolbar`, keyed by the block), up sends
-`MovedBlock` before the previous sibling and down after the next, each disabled at its end of
-the container; `node` is usually one of `RichText.blocksAt(document, selection)`, the blocks the
+`MovedBlock` before the previous sibling and down after the next, within the container (the
+grip is out of the tab order, so only the pointer moves a block across containers), each
+disabled at its end of the container; `node` is usually one of `RichText.blocksAt(document, selection)`, the blocks the
 selection starts in, outermost first. `commandPalette<Message>()` searches the same
 catalogue from its own field: `{ id, entries, query, index, changed, closed }` in,
 `CommandPaletteSlots` (`root`, `input`, `list`, `option`) out; the application keeps

@@ -106,9 +106,11 @@ outermost === undefined
 
 The grip drags the block anywhere the vocabulary lets it stand (`foldkit-richtext-dom/toolbar`'s
 `blockDrag`), and is keyed by the block, so a handle that follows the caret drags the block it
-stands for now. Up and down are the same moves from the keyboard: up sends `MovedBlock` to put
-the block before its previous sibling, and down after its next. Each is disabled at its end of
-the container, and both are disabled when the block is not in the document.
+stands for now. The grip is left out of the tab order, since a drag has no keyboard form; the
+keyboard has up and down: up sends `MovedBlock` to put the block before its previous sibling,
+and down after its next. They move the block only within its container, so moving it into
+another one has no keyboard path yet. Each is disabled at its end of the container, and both
+are disabled when the block is not in the document.
 
 To draw it beside its block, put it in an element carrying `foldkit-richtext-dom/toolbar`'s
 `blockAnchor`, keyed by the block:

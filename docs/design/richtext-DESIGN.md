@@ -1,7 +1,7 @@
 # Foldkit Plus Rich Text
 
 **Status:** §124's Markdown-first order is the one being followed; its milestones 1–8 are
-built, and 9 has begun. Built: the standard vocabulary and content rules (§125); the
+built (6 without its keymap layer, which §123 dropped), and 9 has begun. Built: the standard vocabulary and content rules (§125); the
 decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
 Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
@@ -4672,7 +4672,7 @@ three slices landed: the editor's view renders the host element, the patch Comma
 its `update` returns is what moves the DOM, paste and the undo/redo chords travel
 the same path, and the editor Bundle and read-only renderer moved in beside the
 interpreter. The harness is now only the browser page. The keymap table, the toolbar,
-the slash menu, and link editing have landed since; the rest of §35's chrome remains.
+the slash menu, link editing, and the rest of §35's chrome (§141–§144, §148) have landed since.
 
 Per item:
 
@@ -4682,7 +4682,7 @@ stored marks              interaction state plus InsertText.marks
 history                   snapshot History committed in the child
 keymaps                   the adapter's built-ins, plus a `keymap` table an
                           application adds to or overrides; the editor's own
-                          binding layer waits for a binding that needs it (§119)
+                          binding layer was dropped (§123)
 copy/paste                routed through the view's Messages (§118 slice 2)
 drag/drop                 a block by its handle (`blockDrag`, §148), into any
                           container the vocabulary lets it stand in (§149)
@@ -4690,8 +4690,8 @@ mobile virtual keyboards  not started (Phase 3)
 toolbar integration       the mark buttons and their active rule
                           (`foldkit-richtext-dom/toolbar`, `marksToolbar`), and the
                           Mixins family that re-renders them
-                          (`foldkit-mixins-richtext`, `markToolbar`); the rest of
-                          §35's chrome is §120 slice 2
+                          (`foldkit-mixins-richtext`, `markToolbar`), and the
+                          rest of §35's chrome (§141–§144)
 slash commands            the editor's catalogue and menu
                           (`foldkit-richtext-dom/editor`: `slashQuery`,
                           `slashEntries`, `matchingEntries`, `slashMenu`), the family's
@@ -7372,7 +7372,7 @@ heading's.
 
 # 132. Editing a link
 
-§11 lists a link popover among the editor UX still missing. Before any popover, the core had
+§124 §11 lists a link popover among the editor UX still missing. Before any popover, the core had
 no way to express what one does: `ToggleMark` keys on the name, so over a link it only removes
 it, and with a caret — where a popover opens — it does nothing at all.
 
@@ -7446,7 +7446,7 @@ and a `contenteditable` div is otherwise announced as one.
 
 # 134. The block style picker
 
-§11 asks for a block type picker. It is built as a *style* picker: Paragraph and Heading 1–3,
+§124 §11 asks for a block type picker. It is built as a *style* picker: Paragraph and Heading 1–3,
 the slash menu's retype entries under the same labels, as a row of buttons in
 `foldkit-mixins-richtext` (`blockStyles`, `BlockStyleSlots`) shaped like the mark toolbar.
 
@@ -7809,8 +7809,8 @@ block.
 
 ## Beside its block
 
-`blockAnchor({ hostId, node, gap })` places the handle's element `gap` to the left of the block's
-first line, beside §143's `selectionAnchor` in the same module and sharing its writes and its
+`blockAnchor({ hostId, node, gap })` places the handle's element `gap` to the left of the block,
+level with its top edge, beside §143's `selectionAnchor` in the same module and sharing its writes and its
 scroll and resize listeners. It finds the block through the adapter's own index
 (`attachmentIn(host).current().elements`), not a `[data-block]` query, so no selector is built
 from an id. A selection change is the wrong signal here: a patch can move a block with no
@@ -7823,7 +7823,7 @@ the caret therefore keys its element by the block (`h.Key(node)`), and each bloc
 element and a fresh Mount. AGENTS.md records the trap.
 
 Not done:
-- **Dragging.** Its drop target is `Beside`'s shape, and it needs the cross-container rules above.
+- **Dragging.** Built in §148, and across containers in §149.
 - **Real layout**, as in §143: the arithmetic and wiring are tested with stubbed rectangles.
 
 ---
