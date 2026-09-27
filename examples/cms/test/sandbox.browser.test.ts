@@ -4,10 +4,10 @@
  * what was written), and started afresh when the address asks (`?reset`).
  */
 import { afterEach, expect, it } from 'vitest'
-import { openSandbox } from '../src/browser.js'
+import { openSandbox, SANDBOX_KEY } from '../src/browser.js'
 import type { Send } from '../src/transport.js'
 
-const KEY = 'foldkit-cms-demo'
+const KEY = SANDBOX_KEY
 
 /** A change the sandbox stores: the home page archived, as its editor. */
 const archiveHome = (send: Send) =>
@@ -58,4 +58,11 @@ it('keeps a change a moment after it, or at once when the page is left', async (
   expect(localStorage.getItem(KEY)).toBe(seeded)
   window.dispatchEvent(new Event('pagehide'))
   expect(localStorage.getItem(KEY)).not.toBe(seeded)
+})
+
+it('lets go of a sandbox kept from an older seed, and starts from this one', async () => {
+  localStorage.setItem('foldkit-cms-demo', 'kept from the first seed')
+  await openSandbox({ fresh: false })
+  expect(localStorage.getItem('foldkit-cms-demo')).toBeNull()
+  expect(localStorage.getItem(KEY)).not.toBeNull()
 })

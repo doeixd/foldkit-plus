@@ -65,6 +65,88 @@ export const paragraphs = (body: string): ReadonlyArray<string> =>
     .map(paragraph => paragraph.trim())
     .filter(paragraph => paragraph !== '')
 
+/** A part of a post's body: see `bodyOf`. */
+export type BodyPart =
+  | { readonly _tag: 'Paragraph'; readonly text: string }
+  | { readonly _tag: 'Heading'; readonly text: string }
+  | { readonly _tag: 'List'; readonly items: ReadonlyArray<string> }
+  | { readonly _tag: 'Code'; readonly text: string }
+
+const FENCE = '```'
+
+/**
+ * A post's body as an author types it in a plain text field. Parts are
+ * separated by a blank line: one that starts with `## ` is a heading, one
+ * whose every line starts with `- ` is a list, and the lines between two lines
+ * of three backticks are code, blank lines and all. Anything else is a
+ * paragraph.
+ */
+export const bodyOf = (body: string): ReadonlyArray<BodyPart> => {
+  const parts: Array<BodyPart> = []
+  let lines: Array<string> = []
+  const close = () => {
+    const text = lines.join('\n').trim()
+    lines = []
+    if (text === '') return
+    const rows = text.split('\n').map(row => row.trim())
+    if (text.startsWith('## ')) parts.push({ _tag: 'Heading', text: text.slice(3).trim() })
+    else if (rows.every(row => row.startsWith('- ')))
+      parts.push({ _tag: 'List', items: rows.map(row => row.slice(2).trim()) })
+    else parts.push({ _tag: 'Paragraph', text })
+  }
+  const all = body.split('\n')
+  for (let at = 0; at < all.length; at++) {
+    const line = all[at] ?? ''
+    if (line.trim().startsWith(FENCE)) {
+      close()
+      const code: Array<string> = []
+      // An unclosed fence runs to the end: the author sees it and closes it.
+      for (at++; at < all.length && !(all[at] ?? '').trim().startsWith(FENCE); at++)
+        code.push(all[at] ?? '')
+      parts.push({ _tag: 'Code', text: code.join('\n') })
+    } else if (line.trim() === '') close()
+    else lines.push(line)
+  }
+  close()
+  return parts
+}
+
+/**
+ * A sentence with its code marked: what is between two backticks is code. A
+ * backtick with no partner is text.
+ */
+export const spansOf = (
+  text: string,
+): ReadonlyArray<{ readonly code: boolean; readonly text: string }> => {
+  const pieces = text.split('`')
+  // An even count of pieces means an odd count of backticks: the last is text.
+  const paired =
+    pieces.length % 2 === 1 ? pieces : [...pieces.slice(0, -2), pieces.slice(-2).join('`')]
+  return paired
+    .map((piece, index) => ({ code: index % 2 === 1, text: piece }))
+    .filter(span => span.text !== '')
+}
+
+const inline = <M>(h: HtmlBuilder<M>, text: string): ReadonlyArray<Html | string> =>
+  spansOf(text).map(span => (span.code ? h.code([], [span.text]) : span.text))
+
+const drawBody = <M>(h: HtmlBuilder<M>, body: string): ReadonlyArray<Html> =>
+  bodyOf(body).map(part => {
+    switch (part._tag) {
+      case 'Heading':
+        return h.h2([], inline(h, part.text))
+      case 'List':
+        return h.ul(
+          [],
+          part.items.map(item => h.li([], inline(h, item))),
+        )
+      case 'Code':
+        return h.pre([], [h.code([], [part.text])])
+      case 'Paragraph':
+        return h.p([], inline(h, part.text))
+    }
+  })
+
 /** How long a post takes to read, at a reader's usual pace. */
 const readingTime = (body: string) => {
   const words = body.split(/\s+/).filter(word => word !== '').length
@@ -97,10 +179,7 @@ export const article = <M>({
       ...(post.excerpt === '' ? [] : [h.p(slots.standfirst.attrs(), [post.excerpt])]),
     ]),
     h.div(slots.cover.attrs([h.Style({ background: coverOf(post) })]), []),
-    h.div(
-      slots.body.attrs(),
-      paragraphs(post.body).map(paragraph => h.p([], [paragraph])),
-    ),
+    h.div(slots.body.attrs(), drawBody(h, post.body)),
     ...after,
   ])
 

@@ -17,6 +17,7 @@ import {
   type Message,
   type Model,
 } from './siteApp.js'
+import { SOURCE } from './domain.js'
 import { SiteRenderer, article, postGrid } from './site.js'
 import { SiteSlots, SiteStyle } from './style.js'
 import { chairOf } from './transport.js'
@@ -148,6 +149,7 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
         ...sections.map(({ label, path, current }) =>
           h.a(slots.navLink.attrs([h.Href(siteLink(path)), ...current]), [label]),
         ),
+        h.a(slots.source.attrs([h.Href(SOURCE), h.Title('This demo’s code, on GitHub')]), ['Code']),
         // A visitor too: the demo is a way through both, so there is always a way back.
         h.a(slots.studio.attrs([h.Href(reader === 'visitor' ? '/' : `/?as=${reader}`)]), [
           'Open the studio',
@@ -164,10 +166,10 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
     ),
     h.footer(slots.footer.attrs(), [
       h.span([], ['Journal · written in the studio, built with Foldkit Plus.']),
-      h.nav(
-        slots.footerNav.attrs([h.AriaLabel('Footer')]),
-        sections.map(({ label, path }) => h.a([h.Href(siteLink(path))], [label])),
-      ),
+      h.nav(slots.footerNav.attrs([h.AriaLabel('Footer')]), [
+        ...sections.map(({ label, path }) => h.a([h.Href(siteLink(path))], [label])),
+        h.a([h.Href(SOURCE)], ['Source on GitHub']),
+      ]),
     ]),
   ])
 }).pipe(Style.attach(SiteStyle))

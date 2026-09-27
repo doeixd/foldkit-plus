@@ -9,6 +9,9 @@ import { Entity, Expr, Order } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Mutation, Query } from 'foldkit-remote'
 
+/** Where this demo's code is read: the site links to it, and its pages point to it. */
+export const SOURCE = 'https://github.com/doeixd/foldkit-plus/tree/main/examples/cms'
+
 export const PostId = Schema.String.pipe(Schema.brand('PostId'))
 export type PostId = typeof PostId.Type
 
@@ -28,7 +31,8 @@ export const Post = Entity.define(
     }),
     body: Schema.String.annotate({
       title: 'Body',
-      description: 'Paragraphs are separated by a blank line.',
+      description:
+        'Paragraphs are separated by a blank line. Start one with ## for a heading, or each of its lines with - for a list. Code goes between two lines of ```, or `between backticks` in a sentence.',
     }),
     publishedAt: Schema.NullOr(Schema.String),
   }),

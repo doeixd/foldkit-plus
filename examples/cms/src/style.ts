@@ -1651,6 +1651,8 @@ export const SiteSlots = Slots.define({
   navLink: control,
   /** The way back to the studio, for an author reading the site. */
   studio: control,
+  /** The way to this demo's code. On a phone the footer's link is the way. */
+  source: control,
   main: part,
   /** The top of the blog: its name and what it is about. */
   masthead: part,
@@ -1730,6 +1732,8 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     nav: L.in('layouts', Layout.cluster({ gap: '2px', align: 'center' })),
     navLink,
     studio: Style.compose(primaryButton, Style.self({ marginInlineStart: t.space.xs })),
+    // A fourth link wrapped the studio's button under the others on a phone.
+    source: Style.compose(navLink, Style.media(phone, { display: 'none' })),
     main: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['2xl'] })),
       centred('72rem'),
@@ -1798,6 +1802,26 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     body: Style.compose(
       L.in('components', Prose.style({ measure: '44rem', leading: '1.75' })),
       Style.self({ fontFamily: serif, fontSize: '1.25rem', marginInline: 'auto', width: '100%' }),
+      Style.nest('h2', {
+        color: t.text.overt,
+        fontSize: '1.35rem',
+        letterSpacing: '-0.01em',
+      }),
+      Style.nest('code', { fontFamily: t.font.mono, fontSize: '0.8em' }),
+      Style.nest(':not(pre) > code', {
+        background: t.surface.muted,
+        borderRadius: t.radius.sm,
+        padding: '0.1em 0.3em',
+      }),
+      Style.nest('pre', {
+        background: t.surface.muted,
+        border: `1px solid ${t.outline.subtle}`,
+        borderRadius: t.radius.md,
+        fontSize: '0.95rem',
+        lineHeight: '1.55',
+        padding: `${t.space.sm} ${t.space.md}`,
+      }),
+      Style.nest('pre code', { fontSize: 'inherit' }),
     ),
     back: Style.compose(
       centred('44rem'),

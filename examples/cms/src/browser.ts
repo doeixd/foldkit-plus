@@ -11,7 +11,13 @@ import { answer, publishDue } from './endpoint.js'
 import { openServer, type Sqlite } from './server.js'
 import type { Send } from './transport.js'
 
-const KEY = 'foldkit-cms-demo'
+const PREFIX = 'foldkit-cms-demo'
+/**
+ * Where the sandbox is kept, named by the seed's edition. Raise it when the
+ * seed changes: a sandbox kept from an older edition is then let go, and
+ * everyone starts from the new one rather than from what they kept.
+ */
+export const SANDBOX_KEY = `${PREFIX}@2`
 
 /**
  * Bytes as base64, and back: by the browser's own where it has them (a big
@@ -32,7 +38,9 @@ const fromText = (text: string): Uint8Array =>
 /** The database last kept; none where there is none, or storage is refused. */
 const kept = (): Uint8Array | undefined => {
   try {
-    const text = localStorage.getItem(KEY)
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith(PREFIX) && key !== SANDBOX_KEY) localStorage.removeItem(key)
+    const text = localStorage.getItem(SANDBOX_KEY)
     return text === null ? undefined : fromText(text)
   } catch {
     return undefined
@@ -42,7 +50,7 @@ const kept = (): Uint8Array | undefined => {
 /** Keeps the database; a sandbox that cannot be kept still works until the page closes. */
 const keep = (database: Database) => {
   try {
-    localStorage.setItem(KEY, toText(database.export()))
+    localStorage.setItem(SANDBOX_KEY, toText(database.export()))
   } catch {
     // Storage full or refused: the sandbox lives as long as the page.
   }

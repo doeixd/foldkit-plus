@@ -137,8 +137,9 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
 
 ## In the browser
 
-`pnpm dev` starts the server with four published posts and two published pages
-(`seed.ts`, written as a publish would have left them), and serves three
+`pnpm dev` starts the server with six published posts, which explain how the
+demo is made, and two published pages (`seed.ts`, written as a publish would
+have left them), and serves three
 applications on Foldkit's runtime, over an HTTP transport in place of the
 in-process one:
 
