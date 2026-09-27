@@ -125,11 +125,17 @@ export const Model = Schema.Struct({
    */
   clipboard: Schema.OptionFromOptionalNullOr(Composition.Tree),
   /**
-   * The text prop being edited in place on the canvas, and its text when
-   * editing began, which the canvas keeps the field at. Stored only when some.
+   * The text prop being edited in place on the canvas; its text when editing
+   * began, which the canvas keeps the field at; and whether anything has been
+   * typed, since only then does ending it write. Stored only when some.
    */
   editing: Schema.OptionFromOptionalNullOr(
-    Schema.Struct({ id: NodeId, key: Schema.String, initial: Schema.String }),
+    Schema.Struct({
+      id: NodeId,
+      key: Schema.String,
+      initial: Schema.String,
+      typed: Schema.Boolean,
+    }),
   ),
 })
 export type Model = typeof Model.Type
@@ -1125,7 +1131,7 @@ export const Builder = {
               return {
                 model: {
                   ...model,
-                  editing: Option.some({ id, key, initial: stored }),
+                  editing: Option.some({ id, key, initial: stored, typed: false }),
                   selected: Option.some(id),
                   // Its steps are one, apart from any edit of the same prop before.
                   page: History.close(model.page),
@@ -1138,7 +1144,7 @@ export const Builder = {
             onNone: () => ({ model }),
             onSome: editing =>
               applyOp(
-                model,
+                { ...model, editing: Option.some({ ...editing, typed: true }) },
                 Composition.Op.setProp(editing.id, editing.key, message.text),
                 editingGroup(editing),
               ),
@@ -1149,6 +1155,10 @@ export const Builder = {
             onNone: () => ({ model }),
             onSome: editing => {
               const kept = message._tag === 'EditingCommitted' ? message.text : editing.initial
+              // Nothing typed and nothing new: the field only showed the text, so another
+              // edit that came between is not overwritten with what it showed.
+              if (!editing.typed && kept === editing.initial)
+                return { model: { ...model, editing: Option.none() } }
               const group = editingGroup(editing)
               // Back where it began, the session's step is taken back, while it is still the last.
               const page = kept === editing.initial ? History.revert(model.page, group) : model.page

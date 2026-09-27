@@ -851,7 +851,9 @@ describe('text edited in place', () => {
 
   it('begins on Enter with the text as it was, and keeps each change as one undo step', () => {
     const begun = typed(page, [])
-    expect(begun.editing).toEqual(Option.some({ id: id('h1'), key: 'text', initial: 'One' }))
+    expect(begun.editing).toEqual(
+      Option.some({ id: id('h1'), key: 'text', initial: 'One', typed: false }),
+    )
     const done = send(
       typed(page, ['One!', 'One!!']),
       Message.EditingCommitted({ field: title, text: 'One!!' }),
@@ -933,6 +935,22 @@ describe('text edited in place', () => {
     const cancelled = send(between, Message.EditingCancelled({ field: title }))
     expect(textOf(cancelled)).toBe('One')
     expect(cancelled.editing).toEqual(Option.none())
+  })
+
+  it('leaves another edit alone when the field is left as it was shown', () => {
+    const between = send(
+      typed(page, []),
+      Message.Applied({ op: Composition.Op.setProp(id('h1'), 'text', 'Z') }),
+    )
+    for (const ended of [
+      Message.EditingCancelled({ field: title }),
+      Message.EditingCommitted({ field: title, text: 'One' }),
+    ]) {
+      const left = send(between, ended)
+      expect(textOf(left)).toBe('Z')
+      expect(left.page).toBe(between.page)
+      expect(left.editing).toEqual(Option.none())
+    }
   })
 
   it('records no empty step for a commit the page already holds', () => {

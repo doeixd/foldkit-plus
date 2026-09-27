@@ -207,7 +207,9 @@ Enter or leaving it ─► EditingCommitted      Escape ─► EditingCancelled:
   leaves nothing to redo (`History.revert`). Where another edit came between
   (the inspector, an agent), the step is no longer the last: the text is
   written back as a step of its own, and a commit writes nothing the page
-  already holds, so no step is empty.
+  already holds, so no step is empty. A session in which nothing was typed
+  writes nothing when it ends, so a field only looked at does not put back
+  over another's edit the text it showed.
 - **While text is edited, the keys are the text's:** `keyCommand` offers
   nothing, so Backspace deletes a letter, not the block.
 - **Editing ends when its node is no longer the one selected**, as a click

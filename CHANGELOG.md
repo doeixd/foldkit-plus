@@ -378,7 +378,9 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-builder`, text edited in place:** Escape puts the text back even
   where another edit came between, a commit writes nothing the page already
   holds, a second ask for the field being edited begins nothing, and an undo
-  or a redo ends editing. A Block named as one of `Object`'s own names is not
+  or a redo ends editing. A session in which nothing was typed writes nothing
+  when it ends, so leaving a field untouched keeps an agent's edit made
+  meanwhile (the Model's `editing` gains `typed`). A Block named as one of `Object`'s own names is not
   taken for one with starting props, and a pasted tree is checked by its own
   ids, so a refusal names what was copied rather than freshly minted ids.
 
