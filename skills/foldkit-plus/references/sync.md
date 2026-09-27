@@ -153,7 +153,9 @@ await mounted.dispose()                                        // waits for in-f
   `onPersistenceFailure`. The shared slice is reinstalled only when an exchange
   commits, acknowledges, or rejects something.
 - Options: `subscriptions` + `resources` (for example, Mirror entries and their
-  Layer) and `url: { init, onUrlChange, onUrlRequest? }`.
+  Layer), `url: { init, onUrlChange, onUrlRequest? }`, and `onReinstall(next,
+  previous)`, which returns the transition when an exchange or a failed persist
+  replaces the shared slice (carry a selection across, patch a DOM).
 - `Mounted` provides `model`, `dispatch`, `subscribe`, `observe`, `committed`,
   and `dispose`. It is the host `foldkit-agent` binds to (add `principal`).
   `dispose()` does not close the replica.

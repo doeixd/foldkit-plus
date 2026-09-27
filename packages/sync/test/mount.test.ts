@@ -136,7 +136,10 @@ describe('Sync.mount', () => {
   let container: HTMLElement
   let replica: Replica<Message, Shared>
   let mounted: Mounted<Model, Message, Shared> | undefined
-  const open = async (storage: Storage = memoryStorage()) => {
+  const open = async (
+    storage: Storage = memoryStorage(),
+    onReinstall?: (next: Model, previous: Model) => Update.Return<Model, Message>,
+  ) => {
     replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), storage))
     mounted = mount(App, TodoSync, {
       replica,
@@ -156,6 +159,7 @@ describe('Sync.mount', () => {
         ),
       }),
       onPersistenceFailure: (model, error) => ({ ...model, lastError: error._tag }),
+      onReinstall,
     })
     return mounted
   }
@@ -271,6 +275,53 @@ describe('Sync.mount', () => {
     await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
     await vi.waitFor(() => expect(text()).toContain('Remote'))
     expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }])
+  })
+
+  it('hands an exchange’s reinstall to the application, which returns the transition', async () => {
+    const seen: Array<readonly [number, number]> = []
+    const app = await open(memoryStorage(), (next, previous) => {
+      seen.push([previous.todos.length, next.todos.length])
+      // Local state the application carries across, and a Command it returns.
+      return {
+        model: { ...next, selectedTodoId: next.todos.at(-1)?.id ?? null },
+        commands: [fact(Message.RenamedTodo({ id: 'r', title: 'Seen' }))],
+      }
+    })
+    const models: Array<Model> = []
+    const stop = app.subscribe(() => models.push(app.model()))
+    await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await vi.waitFor(() => expect(app.model().selectedTodoId).toBe('r'))
+    stop()
+    expect(seen).toContainEqual([0, 1])
+    // A fact it returns is applied in the same transition, so no Model ever shows the
+    // selection without it, and is persisted like any other.
+    expect(app.model().todos).toEqual([{ id: 'r', title: 'Seen' }])
+    expect(
+      models.some(model => model.selectedTodoId === 'r' && model.todos[0]?.title === 'Remote'),
+    ).toBe(false)
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+  })
+
+  it('hands a failed persist’s revert to the application too', async () => {
+    const base = memoryStorage()
+    const seen: Array<readonly [number, number, string | null]> = []
+    const app = await open(
+      {
+        ...base,
+        save: (state, revision) =>
+          revision === null
+            ? base.save(state, revision)
+            : Effect.fail(new StorageError({ message: 'disk full' })),
+      },
+      (next, previous) => {
+        seen.push([previous.todos.length, next.todos.length, next.lastError])
+        return { model: next }
+      },
+    )
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(app.model().lastError).toBe('StorageError'))
+    // It sees the Model with the edit reverted and the failure already reported.
+    expect(seen).toContainEqual([1, 0, 'StorageError'])
   })
 
   it('exposes the committed slice, which a local edit leaves and an exchange advances', async () => {

@@ -589,6 +589,13 @@ await mounted.dispose()
 `dispose()` waits for in-flight persists started by the mount; the Replica itself
 remains separately owned and must be closed with its scope/lifecycle.
 
+The mount replaces the shared slice outside `update` twice: when an exchange
+commits, acknowledges or rejects something, and when a failed persist reverts
+its edit. `onReinstall(next, previous)` sees both and returns the transition, so
+local state that points into the shared slice (a selection) can be carried
+across the change, and a Command can take it where it has to go (a DOM that is
+patched rather than re-rendered). Omitted, the Model is simply `next`.
+
 ### URL, Mirror, and agents
 
 The optional `url` option routes navigation through the application:

@@ -85,6 +85,15 @@ export interface MountOptions<Model, Message, Shared, Resources> {
    * has been reverted. Omitted, the edit is reverted silently.
    */
   readonly onPersistenceFailure?: ((model: Model, error: ReplicaError) => Model) | undefined
+  /**
+   * Runs when the mount replaces the shared slice outside `update`: an exchange committed,
+   * acknowledged or rejected something, or a persist failed and its edit was reverted.
+   * `previous` is the Model before; what it returns is the transition, so an application
+   * can carry local state across the change (a selection held by what it points at) or
+   * return Commands (a DOM the change has to reach). Omitted, the Model is `next`.
+   */
+  readonly onReinstall?:
+    ((next: Model, previous: Model) => Update.Return<Model, Message, Resources>) | undefined
 }
 
 /**
@@ -250,13 +259,13 @@ export const mount = <
       // Installs at once: edits still waiting for the replica are replayed on
       // top, so nothing is deferred behind them.
       case REFRESH:
-        return { model: install(model) }
+        return reinstalled(install(model), model)
       case PERSISTED:
         return { model }
       case FAILED: {
         const { error } = message as Extract<Private, { readonly _tag: typeof FAILED }>
         const reverted = install(model)
-        return { model: options.onPersistenceFailure?.(reverted, error) ?? reverted }
+        return reinstalled(options.onPersistenceFailure?.(reverted, error) ?? reverted, model)
       }
       case NAVIGATE: {
         // A link the application did not claim: follow it. The runtime then
@@ -282,6 +291,16 @@ export const mount = <
         return applyFacts(step(model, message as Message & Tagged))
     }
   }
+
+  const reinstalled = (
+    next: Model,
+    previous: Model,
+  ): Update.Return<Model, RuntimeMessage, Resources> =>
+    options.onReinstall === undefined
+      ? { model: next }
+      : applyFacts(
+          options.onReinstall(next, previous) as Update.Return<Model, RuntimeMessage, Resources>,
+        )
 
   /** The application's transition for one of its Messages, with the persist a durable one needs. */
   const step = (
