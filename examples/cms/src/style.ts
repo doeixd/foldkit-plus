@@ -41,6 +41,25 @@ const control = Slot.make({ capability: Capability.Interactive })
 
 /** Where the studio lays itself out for a phone rather than beside a sidebar. */
 const phone = '(max-width: 52rem)'
+/**
+ * On a touch screen, a control a finger can hit: 44px, as the platforms advise.
+ * Only where the pointer is coarse, so a desktop keeps its density.
+ */
+export const touchTarget = Style.media('(pointer: coarse)', {
+  minHeight: '2.75rem',
+  minWidth: '2.75rem',
+})
+
+/**
+ * The same, for every control a region draws: a link or button laid out as a
+ * box. A link inside a sentence is inline, where `min-height` does nothing, so
+ * prose keeps its lines.
+ */
+export const touchTargets = Style.at(
+  '@media (pointer: coarse)',
+  Style.nest(':is(a, button, summary, select)', { minHeight: '2.75rem' }),
+)
+
 /** Read by assistive technology, not shown. */
 const readOnly = {
   clipPath: 'inset(50%)',
@@ -154,6 +173,7 @@ const navLink = Style.compose(
   }),
   // In a phone's row of sections: whole, side by side.
   Style.media(phone, { flexShrink: '0', whiteSpace: 'nowrap' }),
+  touchTarget,
   Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
   Style.nest('&[aria-current="page"]', {
     background: t.surface.default,
@@ -180,6 +200,7 @@ export const primaryButton = Style.compose(
     textDecoration: 'none',
     whiteSpace: 'nowrap',
   }),
+  touchTarget,
   Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
     background: `color-mix(in oklch, ${t.text.overt} 85%, ${t.surface.base})`,
   }),
@@ -276,6 +297,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     ),
     brand: Style.compose(
       Style.media(phone, { gridArea: 'brand' }),
+      touchTarget,
       Style.self({
         alignItems: 'center',
         color: t.text.overt,
@@ -383,7 +405,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         color: t.tertiary['on-fill'],
       }),
     ),
-    main: Style.self({ minWidth: '0' }),
+    main: Style.compose(Style.self({ minWidth: '0' }), touchTargets),
     intro: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
       Style.self({
@@ -831,7 +853,11 @@ export const ListStyle = Style.forSlots(ListSlots)(
       textAlign: 'start',
       textTransform: 'uppercase',
     }),
-    row: Style.pseudo(':hover', { background: t.surface.muted }),
+    // The whole row opens its entry: the title's button reaches across it.
+    row: Style.compose(
+      Style.self({ position: 'relative' }),
+      Style.pseudo(':hover', { background: t.surface.muted }),
+    ),
     cell: Style.self({
       borderBottom: `1px solid ${t.outline.subtle}`,
       padding: '0.95rem 0.5rem',
@@ -849,6 +875,7 @@ export const ListStyle = Style.forSlots(ListSlots)(
         padding: '0',
         textAlign: 'start',
       }),
+      Style.nest('&::after', { content: '""', inset: '0', position: 'absolute' }),
       Style.pseudo(':hover', { color: t.accent.ink }),
     ),
     status: Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
@@ -1287,14 +1314,18 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       iconButton,
       iconsBy('data-action', { undo: 'undo', redo: 'redo', paste: 'paste' }),
     ),
+    // Each crumb whole, never squeezed into its neighbour: a trail longer than the
+    // bar scrolls sideways, and a narrow editor gives it a row of its own.
     crumbs: Style.compose(
       Style.self({
         alignItems: 'center',
         display: 'flex',
         flex: '1',
         minWidth: '0',
-        overflow: 'hidden',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
       }),
+      Style.container('builder (max-width: 40rem)', { flexBasis: '100%', order: '1' }),
     ),
     crumb: Style.compose(
       Style.self({
@@ -1304,10 +1335,14 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         color: t.text.muted,
         cursor: 'pointer',
         font: 'inherit',
+        flexShrink: '0',
         fontSize: t.size.sm,
+        minHeight: '2rem',
         padding: '0.25rem 0.4rem',
         whiteSpace: 'nowrap',
       }),
+      // A finger is wider than a pointer: a target it can hit.
+      Style.media('(pointer: coarse)', { minHeight: '2.75rem' }),
       Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
       Style.nest('& + &::before', {
         color: t.text.subtle,
@@ -1508,17 +1543,20 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         zIndex: '10',
       }),
     ),
-    brand: Style.self({
-      alignItems: 'center',
-      color: t.text.overt,
-      display: 'inline-flex',
-      fontFamily: t.font.heading,
-      fontSize: t.size.lg,
-      fontWeight: t.weight.bold,
-      gap: t.space.xs,
-      letterSpacing: '-0.02em',
-      textDecoration: 'none',
-    }),
+    brand: Style.compose(
+      touchTarget,
+      Style.self({
+        alignItems: 'center',
+        color: t.text.overt,
+        display: 'inline-flex',
+        fontFamily: t.font.heading,
+        fontSize: t.size.lg,
+        fontWeight: t.weight.bold,
+        gap: t.space.xs,
+        letterSpacing: '-0.02em',
+        textDecoration: 'none',
+      }),
+    ),
     brandMark: Style.self({
       alignItems: 'center',
       background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 50%, ${t.tertiary.default}))`,
@@ -1544,6 +1582,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         paddingBlock: `${t.space.xl} ${t.space['3xl']}`,
         paddingInline: t.space.lg,
       }),
+      touchTargets,
     ),
     masthead: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.xs })),
@@ -1627,7 +1666,13 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     ),
     footerNav: Style.compose(
       L.in('layouts', Layout.cluster({ gap: t.space.md })),
-      Style.nest('a', { color: 'inherit', textDecoration: 'none' }),
+      Style.nest('a', {
+        alignItems: 'center',
+        color: 'inherit',
+        display: 'inline-flex',
+        textDecoration: 'none',
+      }),
+      Style.at('@media (pointer: coarse)', Style.nest('a', { minHeight: '2.75rem' })),
       Style.nest('a:hover', { color: t.text.overt }),
     ),
     status: Style.self({
