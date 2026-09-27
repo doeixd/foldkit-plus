@@ -9,6 +9,7 @@
  * (§121), so a declared Link becomes a real `<a href>` here too instead of a
  * name.
  */
+import { define } from 'foldkit/customElement'
 import { inertHtml as h, type Html } from 'foldkit/html'
 import * as RichText from 'foldkit-richtext'
 
@@ -21,20 +22,34 @@ type ElementAttributes = NonNullable<Parameters<ElementFunction>[0]>
 const HEADINGS = { 1: h.h1, 2: h.h2, 3: h.h3, 4: h.h4, 5: h.h5, 6: h.h6 } as const
 
 /**
- * Foldkit types one builder per tag name and publishes no builder for an
- * arbitrary tag, so this narrows a tag the renderer named to the builder of that
- * name. The core has already refused a malformed name; a tag Foldkit cannot build
- * is reported rather than silently swapped for another element. Attribute
- * builders are capitalized and tags are not, which is why the name must be
- * lowercase to be looked up.
+ * Foldkit types one builder per tag name, so this narrows a tag the renderer named to the
+ * builder of that name, and builds a custom element's (a name with a hyphen) through
+ * `customElement`, as `mount` builds any tag. The core has already refused a malformed name;
+ * a tag Foldkit cannot build is reported rather than silently swapped for another element.
+ * Attribute builders are capitalized and tags are not, which is why the name must be
+ * lowercase to be looked up, and only the builder's own keys are, so `constructor` is none.
  */
 const ELEMENTS = h as unknown as Readonly<Record<string, ElementFunction>>
+const customElements = new Map<string, ElementFunction>()
 
 const elementFor = (tag: string): ElementFunction => {
-  const builder = tag === tag.toLowerCase() ? ELEMENTS[tag] : undefined
-  if (builder === undefined) throw new Error(`RichText.renderDocument: no element for "<${tag}>"`)
+  if (tag.includes('-')) {
+    const built =
+      customElements.get(tag) ?? define({ tag, properties: {}, events: {} }).withMessage(h)
+    customElements.set(tag, built)
+    return built
+  }
+  const builder =
+    tag === tag.toLowerCase() && Object.hasOwn(ELEMENTS, tag) ? ELEMENTS[tag] : undefined
+  if (builder === undefined) throw new Error(`RichText rendering: no element for "<${tag}>"`)
   return builder
 }
+
+const NUL = new RegExp(String.fromCharCode(0), 'g')
+const REPLACEMENT = String.fromCharCode(0xfffd)
+
+/** Text as markup can carry it: a U+0000, which a parser reads as U+FFFD, is written as one. */
+const representable = (text: string): string => text.replace(NUL, REPLACEMENT)
 
 const renderElement = (
   element: RichText.ElementRendering,
@@ -53,7 +68,7 @@ const renderRun = (
 ): ReadonlyArray<Child> => {
   const { nest, unrendered } = RichText.runRendering(renderer, run)
   const piece = (text: string, decorations: ReadonlyArray<RichText.Decoration>): Child => {
-    let node: Child = text
+    let node: Child = representable(text)
     for (const element of nest) node = renderElement(element, [node])
     if (unrendered.length > 0) {
       node = h.span([h.DataAttribute('marks', unrendered.join(' '))], [node])
@@ -139,7 +154,7 @@ const editableRun = (
 ): Html => {
   const { nest, unrendered } = RichText.runRendering(renderer, run)
   const pieces = RichText.runPieces(run.text, spans).map(({ text, decorations }) => {
-    let node: Child = text
+    let node: Child = representable(text)
     for (const element of nest) node = renderElement(element, [node])
     for (const decoration of decorations) {
       node = h.span([h.DataAttribute('decoration', decoration.kind)], [node])

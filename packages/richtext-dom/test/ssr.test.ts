@@ -49,9 +49,10 @@ const page = (
   hostId: string,
   serving: { now: boolean } | undefined,
   document: RichText.Document = content,
+  rendering: RichText.Rendering = RichText.standardRendering,
 ) => {
   const placed = editorAt(hostId, {
-    rendering: RichText.standardRendering,
+    rendering,
     // Drawn over the document on the server as in the browser, or adoption would refuse it.
     decorate: () => [
       {
@@ -120,4 +121,48 @@ it('adopts the markup the server sent, keeping its nodes', async () => {
 it('sends an empty host when the placement does not say which render is the server’s', async () => {
   await serve(page('plain-editor', undefined))
   expect(document.getElementById('plain-editor')?.innerHTML).toBe('')
+})
+
+it('serves text holding a NUL, and a kind drawn as a custom element, where the browser could', async () => {
+  const odd = RichText.decodeDocument({
+    version: 1,
+    children: [
+      {
+        type: 'Paragraph',
+        id: 'p',
+        children: [{ type: 'Text', id: 'a', text: `a${String.fromCharCode(0)}b`, marks: [] }],
+      },
+      {
+        type: 'Node',
+        kind: 'Callout',
+        id: 'c',
+        props: {},
+        children: [{ type: 'Text', id: 'c-t', text: 'note', marks: [] }],
+      },
+    ],
+  })
+  const callouts = RichText.rendering({ nodes: { Callout: { tag: 'x-callout', attributes: {} } } })
+  const serving = { now: true }
+  await serve(page('odd-editor', serving, odd, callouts))
+  const host = document.getElementById('odd-editor')!
+  // Markup cannot carry a NUL; it is served as the U+FFFD a parser would make of it.
+  expect(host.querySelector('[data-block="p"]')?.textContent).toBe(
+    `a${String.fromCharCode(0xfffd)}b`,
+  )
+  expect(host.querySelector('x-callout')?.textContent).toBe('note')
+
+  serving.now = false
+  hydrate(
+    makeApplication({
+      ...page('odd-editor', serving, odd, callouts),
+      container: document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`),
+    }),
+    { buildId: 'b' },
+  )
+  await settle()
+  // The editor holds the document itself, NUL included, drawn by the browser.
+  expect(attachmentIn(document.getElementById('odd-editor')!)?.current().content).toBe(odd)
+  expect(document.getElementById('odd-editor')?.querySelector('x-callout')?.textContent).toBe(
+    'note',
+  )
 })

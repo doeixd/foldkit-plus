@@ -182,8 +182,8 @@ describe('the block handle', () => {
     // The fiber starts listening on its own turn; the press has to come after.
     await new Promise(resolve => setTimeout(resolve, 0))
     gripElement.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
-    window.document.dispatchEvent(new MouseEvent('pointermove', { clientY: 75 }))
-    window.document.dispatchEvent(new MouseEvent('pointerup'))
+    window.document.dispatchEvent(new MouseEvent('pointermove', { clientY: 75, buttons: 1 }))
+    window.document.dispatchEvent(new MouseEvent('pointerup', { clientY: 75 }))
     expect(await Effect.runPromise(Fiber.join(first))).toEqual(
       Option.some(Message.Sent({ editor: moved('a', { after: 'l' }) })),
     )
@@ -226,8 +226,8 @@ describe('the block handle', () => {
       // Past the list's middle: the grip now stands for `a`, so the drop moves `a`.
       await new Promise(resolve => setTimeout(resolve, 0))
       grip().dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
-      window.document.dispatchEvent(new MouseEvent('pointermove', { clientY: 75 }))
-      window.document.dispatchEvent(new MouseEvent('pointerup'))
+      window.document.dispatchEvent(new MouseEvent('pointermove', { clientY: 75, buttons: 1 }))
+      window.document.dispatchEvent(new MouseEvent('pointerup', { clientY: 75 }))
       await vi.waitFor(() =>
         expect(window.document.getElementById('sent')?.textContent).toBe(
           moved('a', { after: 'l' }),

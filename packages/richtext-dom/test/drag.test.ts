@@ -75,21 +75,35 @@ describe('dragging a block by its handle', () => {
   })
   const handle = () => document.getElementById('handle')!
   const line = () => document.querySelector<HTMLElement>('[data-richtext-drop]')
+  // A move during a drag reports the pressed button, as a real one does.
   const at = (type: string, init: MouseEventInit & { key?: string } = {}) =>
     init.key === undefined
-      ? new MouseEvent(type, { bubbles: true, cancelable: true, ...init })
+      ? new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          ...(type === 'pointermove' ? { buttons: 1 } : {}),
+          ...init,
+        })
       : new KeyboardEvent(type, { bubbles: true, cancelable: true, key: init.key })
   let dropped: Array<RichText.Beside>
   let release: () => void
+  // How far the page has scrolled the blocks up since the drag began.
+  let scrolled = 0
 
   beforeEach(() => {
+    scrolled = 0
     document.body.innerHTML = '<div id="host"></div><button id="handle"></button>'
     mountInto(document.getElementById('host')!, content, { onIntent: () => {} })
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: Element,
     ) {
       const box = placed.find(block => block.id === this.getAttribute('data-block'))
-      return { top: box?.top ?? 0, bottom: box?.bottom ?? 0, left: 10, width: 300 } as DOMRect
+      return {
+        top: (box?.top ?? 0) - scrolled,
+        bottom: (box?.bottom ?? 0) - scrolled,
+        left: 10,
+        width: 300,
+      } as DOMRect
     })
     dropped = []
     release = dragBlock(handle(), 'host', id('a'), to => dropped.push(to))
@@ -107,7 +121,7 @@ describe('dragging a block by its handle', () => {
     expect([line()?.style.left, line()?.style.width]).toEqual(['10px', '300px'])
     document.dispatchEvent(at('pointermove', { clientY: 55 }))
     expect(line()?.style.top).toBe('60px')
-    document.dispatchEvent(at('pointerup'))
+    document.dispatchEvent(at('pointerup', { clientY: 55 }))
     expect(dropped).toEqual([{ before: id('c') }])
     expect(line()).toBeNull()
   })
@@ -117,7 +131,7 @@ describe('dragging a block by its handle', () => {
     document.dispatchEvent(at('pointermove', { clientY: 75 }))
     document.dispatchEvent(at('pointermove', { clientY: 15 }))
     expect(line()).toBeNull()
-    document.dispatchEvent(at('pointerup'))
+    document.dispatchEvent(at('pointerup', { clientY: 15 }))
     expect(dropped).toEqual([])
   })
 
@@ -168,10 +182,77 @@ describe('dragging a block by its handle', () => {
     expect(line()?.style.top).toBe('80px')
     // Another pointer lifting or cancelling ends nothing; the pressing one's release drops.
     document.dispatchEvent(pointed('pointercancel', 2))
-    document.dispatchEvent(pointed('pointerup', 2))
+    document.dispatchEvent(pointed('pointerup', 2, 75))
     expect([line()?.style.top, dropped]).toEqual(['80px', []])
-    document.dispatchEvent(pointed('pointerup', 1))
+    document.dispatchEvent(pointed('pointerup', 1, 75))
     expect(dropped).toEqual([{ after: id('c') }])
+  })
+
+  it('reads the page again on a scroll and on release, where the blocks are then', () => {
+    handle().dispatchEvent(at('pointerdown'))
+    document.dispatchEvent(at('pointermove', { clientY: 55 }))
+    expect(line()?.style.top).toBe('60px')
+    // The page scrolls under a still pointer: the line follows the block's edge.
+    scrolled = 10
+    document.dispatchEvent(new Event('scroll'))
+    expect(line()?.style.top).toBe('50px')
+    // Further, with no move before the release: the release's own place is the drop.
+    scrolled = 20
+    document.dispatchEvent(at('pointerup', { clientY: 55 }))
+    expect(dropped).toEqual([{ after: id('c') }])
+  })
+
+  it('ends without a drop on a move with the button up, whose release it never heard', () => {
+    handle().dispatchEvent(at('pointerdown'))
+    document.dispatchEvent(at('pointermove', { clientY: 75 }))
+    document.dispatchEvent(at('pointermove', { clientY: 75, buttons: 0 }))
+    expect(line()).toBeNull()
+    document.dispatchEvent(at('pointerup', { clientY: 75 }))
+    expect(dropped).toEqual([])
+  })
+
+  it('hears a release a handler below the page stops', () => {
+    document.body.addEventListener('pointerup', event => event.stopPropagation())
+    handle().dispatchEvent(at('pointerdown'))
+    document.dispatchEvent(at('pointermove', { clientY: 75 }))
+    document.body.dispatchEvent(at('pointerup', { clientY: 75 }))
+    expect(dropped).toEqual([{ after: id('c') }])
+  })
+
+  it('keeps the drag of the pointer that pressed first through a second press', () => {
+    const pointed = (type: string, pointerId: number, clientY = 0) => {
+      const event = at(type, { clientY })
+      Object.defineProperty(event, 'pointerId', { value: pointerId })
+      return event
+    }
+    handle().dispatchEvent(pointed('pointerdown', 1))
+    document.dispatchEvent(pointed('pointermove', 1, 75))
+    handle().dispatchEvent(pointed('pointerdown', 2))
+    document.dispatchEvent(pointed('pointerup', 1, 75))
+    expect(dropped).toEqual([{ after: id('c') }])
+  })
+
+  it('offers nothing to a press once the editor is gone, not the last drag’s blocks', () => {
+    handle().dispatchEvent(at('pointerdown'))
+    document.dispatchEvent(at('pointermove', { clientY: 75 }))
+    document.dispatchEvent(at('pointerup', { clientY: 75 }))
+    document.getElementById('host')!.id = 'elsewhere'
+    handle().dispatchEvent(at('pointerdown'))
+    document.dispatchEvent(at('pointermove', { clientY: 75 }))
+    document.dispatchEvent(at('pointerup', { clientY: 75 }))
+    expect(dropped).toEqual([{ after: id('c') }])
+    document.getElementById('elsewhere')!.id = 'host'
+  })
+
+  it('keeps a touch on the handle from panning the page while it can drag', () => {
+    // jsdom drops a `touch-action` it does not know, so the calls are what can be seen here.
+    const grip = document.createElement('span')
+    const set = vi.spyOn(grip.style, 'setProperty')
+    const removed = vi.spyOn(grip.style, 'removeProperty')
+    const stop = dragBlock(grip, 'host', id('a'), () => {})
+    expect(set).toHaveBeenCalledWith('touch-action', 'none')
+    stop()
+    expect(removed).toHaveBeenCalledWith('touch-action')
   })
 
   it('keeps dragging through other keys, and takes Escape for itself', () => {
@@ -239,8 +320,8 @@ describe('dragging a block into another container (§149)', () => {
     document
       .getElementById('grip')!
       .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }))
-    document.dispatchEvent(new MouseEvent('pointermove', { clientY: 97 }))
-    document.dispatchEvent(new MouseEvent('pointerup'))
+    document.dispatchEvent(new MouseEvent('pointermove', { clientY: 97, buttons: 1 }))
+    document.dispatchEvent(new MouseEvent('pointerup', { clientY: 97 }))
     // The item's own paragraph and the lists are no targets for an item: it lands after j1.
     expect(dropped).toEqual([{ after: id('j1') }])
     release()

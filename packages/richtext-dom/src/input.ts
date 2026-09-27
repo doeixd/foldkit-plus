@@ -81,9 +81,11 @@ export const richTextInput = (hostId: string, placement: EditorPlacement = {}) =
       selection: null,
       history: RichText.emptyHistory,
       storedMarks: null,
+      hostId,
     }),
     // A stored draft shown again keeps its caret, format, and history (§124 §12); only the slash
-    // menu's highlight belongs to the moment it was typed in.
-    settled: model => ({ ...model, menuIndex: 0 }),
+    // menu's highlight belongs to the moment it was typed in. The host is this placement's, not
+    // whichever one the draft was stored from.
+    settled: model => ({ ...model, menuIndex: 0, hostId }),
   })
 }

@@ -13,13 +13,14 @@ const target = { top: 100, left: 200, width: 60, height: 20 }
 describe('placeOver', () => {
   it.each([
     ['above, centred', target, { width: 40, height: 30 }, { top: 62, left: 210, placement: 'top' }],
-    // 30 tall and 8 of gap do not fit above a selection 20 from the top.
+    // 30 tall and 8 of gap fit exactly above a selection 38 from the top.
     [
       'above, with exactly room',
       { ...target, top: 38 },
       { width: 40, height: 30 },
       { top: 0, left: 210, placement: 'top' },
     ],
+    // They do not fit above one 20 from the top.
     [
       'below with no room above',
       { ...target, top: 20 },

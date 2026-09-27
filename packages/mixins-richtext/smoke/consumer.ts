@@ -20,7 +20,14 @@ import {
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
 import { parseHtml } from 'foldkit-richtext-dom/html'
 import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
-import { markActive, marksToolbar, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
+import {
+  blockAnchor,
+  blockDrag,
+  markActive,
+  marksToolbar,
+  selectionAnchor,
+  type ToolbarState,
+} from 'foldkit-richtext-dom/toolbar'
 import {
   events,
   Message,
@@ -31,11 +38,18 @@ import {
 } from 'foldkit-richtext-dom/editor'
 import { edited, editorAt, update } from 'foldkit-richtext-dom/editor-bundle'
 import {
+  blockHandle,
+  blockStyles,
+  commandPalette,
+  editorStatus,
+  linkEditor,
   MarkToolbarSlots,
   markToolbar,
   matchingEntries,
   slashEntries,
   slashQuery,
+  sourceEditor,
+  sourcePreview,
 } from 'foldkit-mixins-richtext'
 
 export type Surface = [
@@ -99,6 +113,16 @@ export type Surface = [
   typeof slashQuery,
   typeof slashEntries,
   typeof matchingEntries,
+  typeof selectionAnchor,
+  typeof blockAnchor,
+  typeof blockDrag,
+  typeof blockStyles,
+  typeof blockHandle,
+  typeof commandPalette,
+  typeof editorStatus,
+  typeof linkEditor,
+  typeof sourceEditor,
+  typeof sourcePreview,
 ]
 
 /**

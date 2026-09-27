@@ -32,13 +32,15 @@ pnpm add foldkit-richtext-dom foldkit-richtext foldkit-bundle foldkit effect
 
 ```text
 foldkit-richtext-dom          the interpreter: mount, adopt, patch, repair, position mapping
-foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRendering, renderingFor
+foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, and each place*/…For record
+                              a placement keeps by host id (rendering, vocabulary, rules, …)
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks, renderEditable
 foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor, blockAnchor, blockDrag
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
+foldkit-richtext-dom/input    richTextInput, EditorInput: the editor as a foldkit-form key
 ```
 
 ## The loop
@@ -145,20 +147,20 @@ the browser parsed, say), `mountInto` keeps those elements and indexes them inst
 new ones. `adopt(existing, content, rendering?, decorations?)` is that check on its own. It
 compares the trees ignoring empty text nodes, which markup cannot carry, and gives an empty run
 back the text node a caret there needs. Anything else in the host is replaced, so the host ends
-with one subtree either way. How a server comes to send that markup is not settled (§145).
+with one subtree either way. How a server sends that markup is below, under "On a
+server-rendered page".
 
 ## The editor's Messages
 
 `editor` is the vocabulary an editor's `update` handles, and the mount that
 produces it (§118). The adapter reports what happened as commands, a caret, and a
-history chord; `toMessage` turns each into a Message:
+history chord; `toMessage` turns each into a Message. `Message`'s cases (each built as
+`Message.Typed({ text })` and so on, not exported one by one):
 
-```ts
-const Message = defineMessageUnion({
-  Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
-  RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, Selected, Pasted, Undone,
-  Redone, Patched,
-})
+```text
+Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
+RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, Selected, Pasted, Undone,
+Redone, Patched
 ```
 
 `toMessage(command)` refuses what the vocabulary cannot carry rather than dropping
@@ -319,7 +321,9 @@ A document the parent puts in the Model any other way (an entry opened, a revisi
 a form's `fill` or `Reset`) gets a fresh host. The host's Mount reads its document once, so
 the view keys the host by the document it shows: each committed edit hands its key on to the
 next document, and a document that did not come from an edit here has none yet. The first
-document a host id shows is drawn without a key, as the server draws it.
+document a host id shows is drawn without a key, as the server draws it. So commit the document
+an edit returns as it is: a parent that puts its own copy in the Model after each edit
+(normalized, say) gets a fresh host, and a lost caret, on every keystroke.
 
 ## On a server-rendered page
 
@@ -350,6 +354,7 @@ replaced.
 import { Form } from 'foldkit-form'
 import { richTextInput } from 'foldkit-richtext-dom/input'
 
+// PostInput is an `Entity.input(...)` whose `body` field is a `RichText.Document`.
 const PostForm = Form.make('PostForm', PostInput, {
   inputs: { body: richTextInput('post-body', { placeholder: 'Write the post…' }) },
 })
@@ -363,13 +368,16 @@ that Model as the key's draft; the document is the key's value, validated, submi
 reported by `authoredChanged` like any other.
 
 - **Placement:** `richTextInput(hostId, placement)` places what `editorAt` places (rendering,
-  vocabulary, input rules, decorations, placeholder) under the same host id.
+  vocabulary, input rules, decorations, placeholder, and whether a render is the server's) under
+  the same host id. One host id is one editor on the page: the patch finds its host by id, so a
+  key repeated in a form's rows cannot be a rich-text control yet.
 - **Nothing entered:** a new record starts on one empty paragraph, which is where a caret can
   go. A blank document (`RichText.isBlank`) reads as no value, so a required key refuses it.
 - **Filling:** `fill` shows a given document with a history of its own and no selection, since
   the caret was in runs the given document does not have.
 - **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
-  and the history, and clears only the slash menu's highlight, which belongs to the moment it
+  and the history (and takes this placement's host id, in case the draft was stored under
+  another), and clears only the slash menu's highlight, which belongs to the moment it
   was typed in.
 
 ## The marks toolbar
@@ -394,7 +402,12 @@ import { marksToolbar, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
 RichText.coversText(model.editor.selection)
   ? h.div(
       [h.OnMount(selectionAnchor({ hostId: 'body', gap: 8 }))],
-      [marksToolbar({ state: model.editor, toMessage: mark => edited(Message.ToggledMark({ mark })) })(h)],
+      [
+        marksToolbar({
+          state: { ...model.editor, document: model.document },
+          toMessage: mark => edited(Message.ToggledMark({ mark })),
+        })(h),
+      ],
     )
   : h.empty
 ```
@@ -409,7 +422,8 @@ outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
 `blockAnchor({ hostId, node, gap })` does the same for a block handle: it places the element
 `gap` pixels left of block `node`'s top edge, never past the window's left edge. It re-places whenever the
 editor's subtree changes (a patch can move a block without the page scrolling), and on scroll
-and resize, and it finds a host drawn after it or drawn again. A Mount reads its args once, when its element is inserted, so key the element by the
+and resize, and it finds a host drawn after it, or drawn again in the same parent. A Mount
+reads its args once, when its element is inserted, so key the element by the
 block (`h.Key(node)`) when the block can change.
 
 `blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, to any block
@@ -419,9 +433,13 @@ the drag ends. The pointer picks the nearest edge of those blocks: before one at
 one at its bottom. Where a container's edge meets its first or last block's, the block's is
 picked while the pointer is inside it, and the container's once the pointer is past it. A line, `[data-richtext-drop]`, is fixed at the edge the block would land on,
 outside the editable subtree, for a stylesheet to draw. Release sends `MovedBlock` there;
-Escape, a cancelled pointer, or a place that is where the block already is sends nothing. Only
-the pointer that pressed steers or ends it. Key
-its element by the block, as for `blockAnchor`.
+The place is read again on a scroll and on release, where the blocks are then. Escape, a
+cancelled pointer, a move with the button up (a release the page never heard, over a frame
+say), or a place that is where the block already is sends nothing. Only the pointer that
+pressed steers or ends it, and the page is listened to in the capture phase, so a handler that
+stops a release does not hide it. The element gets `touch-action: none` while mounted, or a
+touch would pan the page and cancel the drag. Key its element by the block, as for
+`blockAnchor`.
 
 ## What it does not do
 

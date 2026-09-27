@@ -78,6 +78,7 @@ const placesOf = (
 
 interface Pointed extends Event {
   readonly clientY?: number
+  readonly buttons?: number
   readonly pointerId?: number
   readonly button?: number
   readonly key?: string
@@ -86,9 +87,11 @@ interface Pointed extends Event {
 /**
  * Lets `handle` drag block `node` of the editor in `hostId`: a press on it starts, the pointer
  * moving picks the place, release drops there through `dropped`, and Escape or a cancelled
- * pointer ends it without a drop. The page is listened to only while a press is under way. The
- * line is an element of its own, `[data-richtext-drop]`, fixed at the edge the block would land
- * on, for a stylesheet to draw.
+ * pointer ends it without a drop. The page is listened to only while a press is under way, in
+ * the capture phase, so a handler that stops a release does not hide it. The line is an element
+ * of its own, `[data-richtext-drop]`, fixed at the edge the block would land on, for a
+ * stylesheet to draw. The handle takes `touch-action: none` while attached, or a touch would
+ * pan the page and cancel the drag.
  */
 export const dragBlock = (
   handle: Element,
@@ -101,6 +104,11 @@ export const dragBlock = (
   let pressed = false
   let target: RichText.Beside | undefined
   let line: HTMLElement | undefined
+  // Where the pointer last was, for a scroll that moves the blocks under a still pointer.
+  let lastY = 0
+  const { style } = handle as Element & ElementCSSInlineStyle
+  const touchAction = style.getPropertyValue('touch-action')
+  style.setProperty('touch-action', 'none')
 
   const draw = (at: { readonly top: number; readonly left: number; readonly width: number }) => {
     line ??= owner.body.appendChild(owner.createElement('div'))
@@ -120,14 +128,14 @@ export const dragBlock = (
   }> = []
   /** Whether an event is the pressing pointer's: another finger or pen does not steer the drag. */
   const ours = (event: Event) => pointer === undefined || (event as Pointed).pointerId === pointer
-  const moved = (event: Event) => {
-    const pointed = event as Pointed
-    if (!ours(pointed)) return
+  /** Picks the place for a pointer at `y` from where the blocks are now, and draws its line. */
+  const place = (y: number) => {
+    lastY = y
     const placed = targets.map(each => {
       const box = each.element.getBoundingClientRect()
       return { ...each, top: box.top, bottom: box.bottom, left: box.left, width: box.width }
     })
-    target = dropBeside(placed, node, pointed.clientY ?? 0)
+    target = dropBeside(placed, node, y)
     const edge =
       target === undefined
         ? undefined
@@ -142,14 +150,22 @@ export const dragBlock = (
     }
     draw({ top: edge.top ? block.top : block.bottom, left: block.left, width: block.width })
   }
-  const end = (drop: boolean) => {
+  const moved = (event: Event) => {
+    const pointed = event as Pointed
+    if (!ours(pointed)) return
+    // A move with the button up is a release this page never heard: over a frame, say.
+    if (((pointed.buttons ?? 1) & 1) === 0) return end(false)
+    place(pointed.clientY ?? lastY)
+  }
+  const end = (drop: boolean): void => {
     const chosen = target
     pressed = false
     pointer = undefined
     target = undefined
+    targets = []
     line?.remove()
     line = undefined
-    for (const [type, listener] of onPage) owner.removeEventListener(type, listener)
+    for (const [type, listener] of onPage) owner.removeEventListener(type, listener, true)
     if (drop && chosen !== undefined) dropped(chosen)
   }
   const onPage: ReadonlyArray<readonly [string, (event: Event) => void]> = [
@@ -157,9 +173,13 @@ export const dragBlock = (
     [
       'pointerup',
       event => {
-        if (ours(event)) end(true)
+        if (!ours(event)) return
+        // The place is the release's own, not the last move's: the page may have scrolled.
+        place((event as Pointed).clientY ?? lastY)
+        end(true)
       },
     ],
+    ['scroll', () => place(lastY)],
     [
       'pointercancel',
       event => {
@@ -180,6 +200,7 @@ export const dragBlock = (
     if (pressed || (pointed.button ?? 0) !== 0) return
     pressed = true
     pointer = pointed.pointerId
+    lastY = pointed.clientY ?? 0
     const host = owner.getElementById(hostId)
     const dom = host === null ? undefined : attachmentIn(host)?.current()
     if (dom !== undefined) {
@@ -192,11 +213,13 @@ export const dragBlock = (
     }
     // The press is the handle's, not the start of a text selection in the page.
     event.preventDefault()
-    for (const [type, listener] of onPage) owner.addEventListener(type, listener)
+    for (const [type, listener] of onPage) owner.addEventListener(type, listener, true)
   }
   handle.addEventListener('pointerdown', pressedOn)
   return () => {
     handle.removeEventListener('pointerdown', pressedOn)
+    if (touchAction === '') style.removeProperty('touch-action')
+    else style.setProperty('touch-action', touchAction)
     if (pressed) end(false)
   }
 }

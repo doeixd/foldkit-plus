@@ -70,7 +70,17 @@ describe('the editor as a form control', () => {
         },
       ],
     })
-    const filled = PostForm.fill(typed, { body: stored }).model
+    const filled = PostForm.fill(
+      {
+        ...typed,
+        fields: {
+          ...typed.fields,
+          body: { ...typed.fields.body, value: { ...typed.fields.body.value, hostId: 'old-body' } },
+        },
+      },
+      { body: stored },
+    ).model
+    expect(body.field(filled).value.hostId).toBe('post-body')
     expect(text(PostForm.partial(filled).body)).toBe('Stored')
     expect(RichText.inspectHistory(body.field(filled).value.history).past).toBe(0)
     // The caret was in the draft's runs, which the given document does not have.
@@ -84,11 +94,16 @@ describe('the editor as a form control', () => {
       ...typed,
       fields: {
         ...typed.fields,
-        body: { ...typed.fields.body, value: { ...typed.fields.body.value, menuIndex: 2 } },
+        body: {
+          ...typed.fields.body,
+          // Stored under a host id the application has since renamed.
+          value: { ...typed.fields.body.value, menuIndex: 2, hostId: 'old-body' },
+        },
       },
     }
     const settled = body.field(PostForm.settled(highlighted)).value
     expect(settled.menuIndex).toBe(0)
+    expect(settled.hostId).toBe('post-body')
     expect(settled.selection).toEqual(body.field(typed).value.selection)
     expect(RichText.inspectHistory(settled.history).past).toBe(1)
   })
