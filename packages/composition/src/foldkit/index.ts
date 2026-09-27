@@ -326,8 +326,12 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
   // no view can make one: drawing with the application's builder is safe.
   const h = given as unknown as HtmlBuilder<unknown>
   const mode = options.mode ?? 'view'
-  const { selected = Option.none(), hovered = Option.none(), drop = Option.none() } = options
-  const { editing = Option.none() } = options
+  const {
+    selected = Option.none(),
+    hovered = Option.none(),
+    drop = Option.none(),
+    editing = Option.none(),
+  } = options
   const loose = renderer as unknown as Renderer<AnyBlock, unknown>
   const lazy = lazyOf(loose)
   // Memoized only inside a runtime-driven render, which the lazy slot needs; drawn
