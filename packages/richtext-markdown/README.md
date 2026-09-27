@@ -121,7 +121,9 @@ document than the canonical text, the canonical text is what it returns.
 marker such as `1. ` or `3) ` wrap it in a quote or a list (`WrapBlock`), an ordered list
 numbered from the number typed, and a marker typed right after a list of the same kind adds an
 item to it; and a fence with an optional language, such as
-`` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). An editor
+`` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). `[ ] ` or `[x] ` at
+the start of a list item, which `- ` has made by then, turns the item into a task in the
+same list, unticked or ticked. An editor
 placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
 editor state and the editor holds no Markdown:
 

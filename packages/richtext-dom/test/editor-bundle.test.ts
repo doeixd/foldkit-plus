@@ -676,6 +676,61 @@ describe('an input rule placed for the editor (§124 §4)', () => {
     expect(transition.model.editor.nextId).toBe(update(hash, typed('x')).model.editor.nextId)
   })
 
+  it('shows a rule the kinds around the caret’s block, innermost first', () => {
+    const seen: Array<ReadonlyArray<string>> = []
+    const watching: RichText.InputRule = {
+      name: 'watching',
+      match: (_, within) => {
+        seen.push(within)
+        return undefined
+      },
+    }
+    editorAt('nested-editor', { inputRules: [watching] })
+    const nested = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'quote',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'List',
+              id: 'list',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Node',
+                  kind: 'ListItem',
+                  id: 'item',
+                  props: {},
+                  children: [],
+                  blocks: [
+                    {
+                      type: 'Paragraph',
+                      id: 'para',
+                      children: [{ type: 'Text', id: 'n', text: 'x', marks: [] }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const model = application.initial({ document: nested }).model
+    step(
+      { ...model, editor: { ...model.editor, selection: caret('n', 1), hostId: 'nested-editor' } },
+      typed('y'),
+    )
+    expect(seen).toEqual([['ListItem', 'List', 'Quote']])
+  })
+
   it('leaves the text alone when the placement placed no rule', () => {
     const after = step(step(start(caret('a', 0)), typed('#')), typed(' '))
     expect(after.document.children[0]).toMatchObject({ type: 'Paragraph' })

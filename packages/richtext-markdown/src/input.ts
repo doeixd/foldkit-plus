@@ -3,7 +3,8 @@
  *
  * `# ` through `###### ` retype the block (`RetypeBlock`); `> `, `- `, `* `, `+ `, and an
  * ordered marker such as `1. ` wrap it in a quote or a list (`WrapBlock`); a fence with an
- * optional language, such as `` ```ts ``, converts it to a `CodeBlock` (`ConvertBlock`).
+ * optional language, such as `` ```ts ``, converts it to a `CodeBlock` (`ConvertBlock`);
+ * `[ ] ` or `[x] ` at the start of a list item makes it a task.
  *
  * Every marker, and the space that completes it, must be the whole text before the caret,
  * which is what puts it at the block's start — the same place Markdown reads a block marker
@@ -96,6 +97,32 @@ const fenceRule: InputRule = {
   },
 }
 
+/**
+ * A task marker, `[ ] ` or `[x] `, at the start of a list item: `- ` has already made the
+ * item by then, so the rule reads that it is in one. The paragraph is lifted out of the item
+ * and wrapped as a task, which joins the list it came from.
+ */
+const taskRule: InputRule = {
+  name: 'task-list',
+  match: (textBefore, within) => {
+    const marker = /^\[( |x|X)\] $/.exec(textBefore)
+    if (marker === null || within[0] !== 'ListItem') return undefined
+    return {
+      remove: textBefore.length,
+      commands: [
+        { type: 'LiftBlock' },
+        {
+          type: 'WrapBlock',
+          containers: [
+            { kind: 'List' },
+            { kind: 'TaskItem', props: { checked: marker[1] !== ' ' } },
+          ],
+        },
+      ],
+    }
+  },
+}
+
 /** The block markers the standard vocabulary can carry out. */
 export const markdownInputRules: ReadonlyArray<InputRule> = [
   ...HEADING_LEVELS.map(level => headingRule(level)),
@@ -103,4 +130,5 @@ export const markdownInputRules: ReadonlyArray<InputRule> = [
   bulletRule,
   orderedRule,
   fenceRule,
+  taskRule,
 ]

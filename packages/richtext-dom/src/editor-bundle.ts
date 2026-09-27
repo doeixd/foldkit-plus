@@ -239,6 +239,19 @@ const textBeforeOf = (model: EditorView): string => {
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
 
+/** The kinds of the node blocks around the caret's block, innermost first. */
+const withinOf = (model: EditorView): ReadonlyArray<string> => {
+  if (model.selection?.type !== 'Range') return []
+  const run = RichText.locateRun(model.document, model.selection.anchor.node)
+  if (run === undefined) return []
+  const kinds: Array<string> = []
+  for (let depth = run.path.length - 1; depth > 0; depth--) {
+    const block = RichText.blockAtPath(model.document, run.path.slice(0, depth))
+    if (block?.type === 'Node') kinds.push(block.kind)
+  }
+  return kinds
+}
+
 const Host = define({ tag: 'foldkit-richtext', properties: {}, events: {} })
 
 /**
@@ -438,6 +451,7 @@ const transition = (
           textBefore: textBeforeOf(model),
           text: message.text,
           insertion: command,
+          within: withinOf(model),
         })
       : undefined
   const attempt = runAction(

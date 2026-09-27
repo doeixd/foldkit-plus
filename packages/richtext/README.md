@@ -138,9 +138,17 @@ An *input rule* turns what was just typed into such an action:
 ```ts
 interface InputRule {
   name: string
-  match: (textBefore: string) => { remove: number; commands: Action } | undefined
+  match: (
+    textBefore: string,
+    within: ReadonlyArray<string>,
+  ) => { remove: number; commands: Action } | undefined
 }
 ```
+
+`within` is the kinds of the node blocks around the caret's block, innermost first,
+so a rule can tell `[ ] ` typed at the start of a list item from the same text at the
+top level. `applyInputRules` takes it as `within`, defaulting to none, and the editor
+fills it in.
 
 `applyInputRules(rules, { textBefore, text, insertion })` builds the action — the insertion,
 one `DeleteBackward` per character the rule consumed, then the rule's commands. The deletes

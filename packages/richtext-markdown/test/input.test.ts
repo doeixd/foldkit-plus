@@ -9,9 +9,9 @@ import { parse } from '../src/parse.js'
 import { print } from '../src/print.js'
 
 /** The first rule that has something to say about this text, as the editor would find it. */
-const match = (textBefore: string) => {
+const match = (textBefore: string, within: ReadonlyArray<string> = []) => {
   for (const rule of markdownInputRules) {
-    const matched = rule.match(textBefore)
+    const matched = rule.match(textBefore, within)
     if (matched !== undefined) return { name: rule.name, ...matched }
   }
   return undefined
@@ -178,6 +178,40 @@ describe('the rules applied to a document, as the editor applies them', () => {
     if (!result.ok) throw new Error(result.error)
     expect(result.state.document.children).toHaveLength(1)
     expect(print(result.state.document).markdown).toBe('- milk\n- eggs\n')
+  })
+
+  it.each([
+    ['[ ]', false],
+    ['[x]', true],
+  ])('turns `%s ` at the start of a list item into a task in that list', (marker, checked) => {
+    let count = 0
+    const mint = () => `m${++count}`
+    const { document } = parse(`- milk\n- ${marker}eggs\n`, { mint })
+    const list = document.children[0]
+    const item = list?.type === 'Node' ? list.blocks?.[1] : undefined
+    const run = item?.type === 'Node' ? item.blocks?.[0]?.children[0] : undefined
+    if (run === undefined) throw new Error('no second item')
+    const caret = { node: run.id, offset: marker.length, affinity: 'after' } as const
+    const action = RichText.applyInputRules(markdownInputRules, {
+      textBefore: marker,
+      text: ' ',
+      insertion: { type: 'InsertText', text: ' ' },
+      within: ['ListItem', 'List'],
+    })
+    const result = RichText.runAction(
+      { document, selection: { type: 'Range', anchor: caret, focus: caret } },
+      action,
+      { mint },
+      { nodes: RichText.nodeRegistry(RichText.standardNodes) },
+    )
+    if (!result.ok) throw new Error(result.error)
+    expect(print(result.state.document).markdown).toBe(`- milk\n- [${checked ? 'x' : ' '}] eggs\n`)
+  })
+
+  it('reads a task marker only inside a list item', () => {
+    expect(match('[ ] ')).toBeUndefined()
+    expect(match('[ ] ', ['Quote'])).toBeUndefined()
+    expect(match('[ ] ', ['ListItem', 'List'])?.name).toBe('task-list')
   })
 
   it('turns `> ` into a quote, and `3. ` into a list numbered from three', () => {

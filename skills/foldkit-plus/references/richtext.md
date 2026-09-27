@@ -19,7 +19,8 @@ prop schemas, unknown node preservation, bounded decode limits, Kits with
 vocabulary validation, a command layer resolving intent into transactions (and
 `runAction`, which commits an ordered command list as one step, so removing what a rule
 matched and acting on it is one transition), input rules (`InputRule` is
-`{ name, match(textBefore) }`, and `applyInputRules(rules, { textBefore, text, insertion })`
+`{ name, match(textBefore, within) }`, `within` the kinds around the caret's block,
+innermost first, and `applyInputRules(rules, { textBefore, text, insertion })`
 builds the action — the insertion, a backward delete per character the rule consumed, then
 its commands, so a marker and the change it made are one edit), reads for
 the marks a selection carries (`marksInRange`, for a toolbar's active button) and for
@@ -320,8 +321,8 @@ The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
 `###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
-or a list (`WrapBlock`), and a fence such as `` ```ts `` converts it to a `CodeBlock`
-(`ConvertBlock`) — where the editor applies the rules its placement names
+or a list (`WrapBlock`), a fence such as `` ```ts `` converts it to a `CodeBlock`
+(`ConvertBlock`), and `[ ] ` or `[x] ` in a list item makes it a task — where the editor applies the rules its placement names
 (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A source session edits
 the Markdown itself: `openSource(document, { style?, selection? })` gives `{ printed, draft,
 unprintable, style, caret }` (a `SourceSession` schema the Model holds; `caret` is where the
