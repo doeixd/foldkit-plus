@@ -57,7 +57,11 @@ const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => 
       ]),
     ]),
     pages.length === 0
-      ? h.p(slots.muted.attrs(), [read._tag === 'Loading' ? 'Loading…' : 'Nothing yet.'])
+      ? read._tag === 'Ready' || read._tag === 'Refreshing'
+        ? h.p(slots.muted.attrs(), ['Nothing yet.'])
+        : read._tag === 'Failed'
+          ? h.p(slots.muted.attrs([h.Role('alert')]), ['The pages could not be read.'])
+          : h.p(slots.muted.attrs([h.AriaBusy(true)]), ['Loading…'])
       : h.ul(
           slots.list.attrs(),
           pages.map(page =>
@@ -101,12 +105,14 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         icon(h, 'back'),
         'Pages',
       ]),
-      badge(slots, h, state),
+      // An entry still being read is not New: no badge until its state is known.
+      ...(status === 'Loading' ? [] : [badge(slots, h, state)]),
       h.p(
         slots.status.attrs([
           h.Id('status'),
           h.Role('status'),
           ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
+          ...(status === 'Loading' ? [h.AriaBusy(true)] : []),
         ]),
         [
           statusText(status, state),
@@ -165,7 +171,13 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       : []),
     h.div(
       slots.workbench.attrs(),
-      loaded ? [editorView(model, h)] : [h.p(slots.muted.attrs(), [statusLine[status]])],
+      loaded
+        ? [editorView(model, h)]
+        : [
+            h.p(slots.muted.attrs([...(status === 'Loading' ? [h.AriaBusy(true)] : [])]), [
+              statusLine[status],
+            ]),
+          ],
     ),
   ])
 }

@@ -13,7 +13,7 @@ import * as Pages from './pageApp.js'
 import * as Site from './siteApp.js'
 import { view as siteView } from './siteView.js'
 import { view as pagesView } from './pagesView.js'
-import { stylesheet } from './sheet.js'
+import { keepScroll } from './scroll.js'
 import { chairOf, httpSend, remoteClient, type Send } from './transport.js'
 import { view as postsView } from './view.js'
 
@@ -30,10 +30,9 @@ const startsAfresh = (): boolean => {
   return true
 }
 
-// Compiled once, at module load, from the same Style values the views attach.
-const styles = document.createElement('style')
-styles.textContent = stylesheet
-document.head.append(styles)
+// The foundations' stylesheet is in the HTML (see `vite.config.ts`); a view's own
+// Styles arrive as it draws.
+keepScroll()
 
 const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')

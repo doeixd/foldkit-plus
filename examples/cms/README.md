@@ -172,6 +172,13 @@ says otherwise, so it shows only what is published.
   (one accent color, `Theme.oklch`) and the Slots the views publish, styled.
   A Style's rules arrive when a view draws it, so `sheet.ts` holds only what
   no Slot draws: the layer order, the reset, the tokens and the theme.
+  `vite.config.ts` writes it into the HTML, so a page's first paint already
+  has the theme's background rather than white.
+- **A new screen starts at the top, and Back returns where it was**
+  (`scroll.ts`), once the screen it returns to has drawn its content: the
+  browser's own restoring ran before Foldkit drew, against a page still
+  loading. A wait shows "Loading…" only once it is noticeable, marked
+  `aria-busy`, so a quick answer draws no flash.
 - **The page editor's address says which page is open and which Block is
   selected** (`/pages?as=edda&page=…&block=…`), so a link opens the editor on a
   Block and a reload comes back to it. The Builder owns its selection: a

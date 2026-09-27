@@ -39,11 +39,13 @@ const nothing = (slots: Slots, h: HtmlBuilder<Message>, tag: string, missing: st
         ' ',
         h.a([h.Href(siteLink('/site'))], ['Go to the home page']),
       ])
-    : status(slots, h, pending(tag, missing))
+    : pending(slots, h, tag)
 
-/** What a read says while it has nothing to show: not found once it is read. */
-const pending = (tag: string, missing: string) =>
-  tag === 'Ready' ? missing : tag === 'Failed' ? 'This could not be read.' : 'Loading…'
+/** What a read says before it has an answer: busy while it waits, which shows only once the wait does. */
+const pending = (slots: Slots, h: HtmlBuilder<Message>, tag: string): Html =>
+  tag === 'Failed'
+    ? status(slots, h, 'This could not be read.')
+    : h.p(slots.status.attrs([h.AriaBusy(true)]), ['Loading…'])
 
 /** A route's read as its tag: each view runs on its own route, where its read is. */
 const tagOf = <A extends { readonly _tag: string }>(
@@ -93,7 +95,7 @@ const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
       ]),
     ]),
     Option.match(posts, {
-      onNone: () => status(slots, h, pending(tagOf(blogRead(model), model), '')),
+      onNone: () => pending(slots, h, tagOf(blogRead(model), model)),
       onSome: items =>
         items.length === 0 ? status(slots, h, 'Nothing is published yet.') : postGrid(h, items),
     }),

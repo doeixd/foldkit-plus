@@ -172,12 +172,14 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       icon(h, 'back'),
       'Posts',
     ]),
-    badge(slots, h, state),
+    // An entry still being read is not New: no badge until its state is known.
+    ...(status === 'Loading' ? [] : [badge(slots, h, state)]),
     h.p(
       slots.status.attrs([
         h.Id('status'),
         h.Role('status'),
         ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
+        ...(status === 'Loading' ? [h.AriaBusy(true)] : []),
       ]),
       [
         statusText(status, state),
@@ -220,7 +222,11 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   if (!loaded)
     return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
       bar,
-      h.div(slots.canvas.attrs(), [h.p(slots.muted.attrs(), [statusLine[status]])]),
+      h.div(slots.canvas.attrs(), [
+        h.p(slots.muted.attrs([...(status === 'Loading' ? [h.AriaBusy(true)] : [])]), [
+          statusLine[status],
+        ]),
+      ]),
     ])
 
   const scheduled = Option.exists(state, known => known.schedule !== null)

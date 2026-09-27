@@ -39,7 +39,13 @@ version changed; `pnpm` skips versions already in the registry.
   and More (discard, unpublish, archive) under a fold below the editor's bar,
   as a post has them in its aside. The History is a timeline: each revision
   with its date, time and publisher, the newest marked Live while it is on the
-  site, and Restore offered only where it would change something.
+  site, and Restore offered only where it would change something. Moving
+  between the studio's sections and the site no longer paints white: the
+  foundations' stylesheet is in the HTML. A wait says "Loading…" only once it
+  is noticeable, an entry being read shows no "New" badge, and the pages list
+  no longer says "Nothing yet." before it is read. A new screen starts at the
+  top and Back, Forward or a reload return where it was. A chair's avatar is
+  centred in its touch target on a phone.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

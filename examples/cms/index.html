@@ -4,14 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Journal Studio</title>
+    <style>
+      /* Said only when starting is slow: a quick start shows nothing before the page. */
+      @keyframes starting { from { opacity: 0 } }
+      .starting { animation: starting 0.2s 0.8s both; color: var(--fk-text-muted, #5b6170); font-size: 0.95rem; margin: 0; padding: 2.5rem }
+    </style>
   </head>
   <body>
-    <!-- Replaced by the application once its server has started in the page. -->
-    <div id="app">
-      <p style="font: 500 0.95rem/1.5 system-ui, sans-serif; color: #5b6170; padding: 2.5rem; margin: 0">
-        Starting the studio in your browser…
-      </p>
-    </div>
+    <!-- Replaced by the application once it has started. -->
+    <div id="app"><p class="starting">Starting the studio in your browser…</p></div>
     <script type="module" src="/src/client.ts"></script>
   </body>
 </html>

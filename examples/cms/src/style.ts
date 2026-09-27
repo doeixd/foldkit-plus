@@ -60,6 +60,19 @@ export const touchTargets = Style.at(
   Style.nest(':is(a, button, summary, select)', { minHeight: '2.75rem' }),
 )
 
+const appear = Style.keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })
+
+/**
+ * Something busy (`aria-busy`), said only once the wait is noticeable: a read
+ * that answers quickly shows nothing, where a "Loading…" drawn for a frame
+ * read as a flash. Its space is held from the start, so nothing moves when it
+ * shows.
+ */
+const waitShown = Style.compose(
+  appear.style,
+  Style.nest('&[aria-busy="true"]', { animation: `${appear.name} 0.2s 0.6s both` }),
+)
+
 /** Read by assistive technology, not shown. */
 const readOnly = {
   clipPath: 'inset(50%)',
@@ -379,7 +392,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     whoLink: Style.compose(
       navLink,
       Style.self({ padding: '0.35rem 0.5rem' }),
-      Style.media(phone, { padding: '0.3rem' }),
+      Style.media(phone, { justifyContent: 'center', padding: '0.3rem' }),
     ),
     // Read on a phone, not shown: the avatar stands for the chair.
     whoName: Style.media(phone, readOnly),
@@ -745,8 +758,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         whiteSpace: 'nowrap',
       }),
       Style.nest('&[data-tone="error"]', { color: t.error.ink }),
+      waitShown,
     ),
-    muted: Style.self({ color: t.text.muted, margin: '0' }),
+    muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), waitShown),
     list: Style.compose(
       Style.self({
         border: `1px solid ${t.outline.subtle}`,
@@ -999,16 +1013,21 @@ export const ListStyle = Style.forSlots(ListSlots)(
       Style.nest('&::after', { content: '""', inset: '0', position: 'absolute' }),
       Style.pseudo(':hover', { color: t.accent.ink }),
     ),
-    // An empty list, or one still loading, as a block of its own rather than a stray line.
-    status: Style.self({
-      border: `1px dashed ${t.outline.default}`,
-      borderRadius: t.radius.lg,
-      color: t.text.muted,
-      fontSize: t.size.sm,
-      margin: `${t.space.md} 0 0`,
-      padding: `${t.space['2xl']} ${t.space.lg}`,
-      textAlign: 'center',
-    }),
+    // An empty list as a block of its own rather than a stray line.
+    status: Style.compose(
+      Style.self({
+        border: `1px dashed ${t.outline.default}`,
+        borderRadius: t.radius.lg,
+        color: t.text.muted,
+        fontSize: t.size.sm,
+        margin: `${t.space.md} 0 0`,
+        padding: `${t.space['2xl']} ${t.space.lg}`,
+        textAlign: 'center',
+      }),
+      // Loading is a wait, not an empty list: no box around it.
+      Style.nest('&[aria-busy="true"]', { borderColor: 'transparent' }),
+      waitShown,
+    ),
     more: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
   },
   { name: 'ListStyle', layer: app },
@@ -1807,11 +1826,14 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
       Style.at('@media (pointer: coarse)', Style.nest('a', { minHeight: '2.75rem' })),
       Style.nest('a:hover', { color: t.text.overt }),
     ),
-    status: Style.self({
-      color: t.text.muted,
-      padding: `${t.space['3xl']} 0`,
-      textAlign: 'center',
-    }),
+    status: Style.compose(
+      Style.self({
+        color: t.text.muted,
+        padding: `${t.space['3xl']} 0`,
+        textAlign: 'center',
+      }),
+      waitShown,
+    ),
   },
   { name: 'SiteStyle', layer: app },
 )
