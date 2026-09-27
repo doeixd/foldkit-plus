@@ -61,16 +61,19 @@ export const keepScroll = (): void => {
   const saved = readSaved()
   const keyOf = () =>
     Option.fromNullOr(navigation.currentEntry).pipe(Option.map(entry => entry.key))
-  const remember = () =>
-    Option.map(keyOf(), key => {
-      // Moved to the end, so it is the last to be forgotten.
-      saved.delete(key)
-      saved.set(key, window.scrollY)
-      for (const old of saved.keys()) {
-        if (saved.size <= kept) break
-        saved.delete(old)
-      }
-    })
+  /** Where the current entry was left, if it has been. */
+  const savedHere = () => Option.flatMap(keyOf(), key => Option.fromUndefinedOr(saved.get(key)))
+  const remember = () => {
+    const key = keyOf()
+    if (Option.isNone(key)) return
+    // Moved to the end, so it is the last to be forgotten.
+    saved.delete(key.value)
+    saved.set(key.value, window.scrollY)
+    for (const old of saved.keys()) {
+      if (saved.size <= kept) break
+      saved.delete(old)
+    }
+  }
 
   let settling = new AbortController()
   /**
@@ -108,13 +111,7 @@ export const keepScroll = (): void => {
   navigation.addEventListener('currententrychange', event => {
     const type = navigationTypeOf(event)
     if (Option.contains(type, 'push')) settle(0)
-    else if (Option.contains(type, 'traverse'))
-      settle(
-        Option.getOrElse(
-          Option.flatMap(keyOf(), key => Option.fromUndefinedOr(saved.get(key))),
-          () => 0,
-        ),
-      )
+    else if (Option.contains(type, 'traverse')) settle(Option.getOrElse(savedHere(), () => 0))
     // A replace is the same entry, narrowed or selected in place: it stays where it is.
   })
   window.addEventListener('pagehide', () => {
@@ -126,8 +123,6 @@ export const keepScroll = (): void => {
     }
   })
   // A reload, or Back into this document from another: where this entry was.
-  Option.map(
-    Option.flatMap(keyOf(), key => Option.fromUndefinedOr(saved.get(key))),
-    top => settle(top),
-  )
+  const here = savedHere()
+  if (Option.isSome(here)) settle(here.value)
 }
