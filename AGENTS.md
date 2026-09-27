@@ -432,10 +432,8 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
   passes new args to the same element changes nothing, so a block handle's anchor stayed beside
   the first block the caret visited. Key the element by what the args depend on (`h.Key(node)`).
-  When the args come from outside the component, a key kept in its own Model is not enough: a
-  count bumped by `fill` repeated, because CMS fills from the form's fixed `initial` every time,
-  and `Reset` returns that Model, count included. The editor keys its host by the document
-  itself, handed on by each committed edit. Only a real-runtime test tells these apart.
+  A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
+  `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
 
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only

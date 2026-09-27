@@ -4632,7 +4632,7 @@ Not done:
 
 In `packages/richtext-dom` (`foldkit-richtext-dom/view`): a `Document` or `Slice`
 becomes ordinary Foldkit `Html` through `inertHtml`, with no dispatch and no DOM
-ownership. Not published.
+ownership. Used in the workspace (`examples/cms`); not released.
 
 ## Phase 3 — vertical editing slice
 
@@ -4664,7 +4664,7 @@ Not done:
 ## Phase 4 — editor Bundle features
 
 The controlled-Bundle proof passed (§27), so the gate is met; nothing is
-published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
+released. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
 event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
 `examples/richtext` to `packages/richtext-dom`, a package (private then, public now) with its own
 tests, build, and README. §118 decided how a view owns that subtree and its first
@@ -4795,7 +4795,10 @@ them richtext. Since then the DOM package and the Mixins family exist, the adapt
 gained a keymap table (§119) and a toolbar (§120), and `marksInRange` joined the
 core. At `377b59c`, a search of `packages/richtext-dom/src` and
 `packages/mixins-richtext/src` found no drag/drop handling and no editor placeholder
-(the one `placeholder` was the preserved-content diagnostic); §133 added the placeholder.
+(the one `placeholder` was the preserved-content diagnostic); §133 added the placeholder and
+§148 the drag. Milestone 9 has its server half (§145); still open there: the placeholder on
+adopted markup, a server render of the source view, and real-browser checks of §143's and
+§148's layout.
 
 ---
 
@@ -7041,6 +7044,18 @@ paragraph, because a block holds no break).
   image among other content is reported and skipped. The asymmetry belongs to §116's
   deferred inline content.
 
+## Later: marks that read back
+
+The tests here compared printed strings, so they could not see that CommonMark's flanking rules
+refuse a delimiter with punctuation on one side and a letter on the other (`x**(a)**y` is plain
+text). A later review printed and parsed generated paragraphs and found a quarter lost a mark.
+The printer now writes that letter as a character reference, which reads back as itself and
+whose `;` is punctuation; opens the longest-lasting mark first; gives a delimiter that would
+touch one of its own character the other spelling; joins runs with the same marks; and escapes
+`!` and `|`. None of 30,000 generated paragraphs loses a mark, and a seeded thousand are a test.
+The rule is conservative: it treats a neighbouring delimiter as punctuation, so it sometimes
+writes a reference the parser would not have needed.
+
 ---
 
 # 128. Input rules
@@ -7654,7 +7669,7 @@ restore and schedule already treat a form key's value as opaque, and a document 
 What the story shows:
 
 ```text
-typing     "# Tending", Enter, "Water ", Bold, "early": 22 SaveDraft calls, the title and each body edit
+typing     "# Tending", Enter, "Water ", Bold, "early": 22 SaveDraft calls, the title and each body keystroke
 resume     a fresh Model opens the entry: same document, caret at 5 in e2
 preview    the form's document through documentToHtml with standardRendering; no mutation
 visitor    the published row's JSON decoded and drawn the same way
@@ -7790,13 +7805,15 @@ a list's last item out would also leave an empty `List`, which a lift deletes bu
 not. Drag and drop across containers will need both rules. A handle's up and down need neither.
 
 Moving keeps every identity, so the selection needs no mapping: it points at runs that still
-exist. The command runs without a selection too, because it does not read one.
+exist. (§149 added one exception: a node selection on a container a move empties and deletes
+goes to the moved block.) The command runs without a selection too, because it does not read one.
 
 ## The handle
 
-The editor sends `MovedBlock { node, to }`, and `edited`'s helper is `moved(node, to)`. The
-events Mount lists it too, since an application keymap may bind a chord such as `Alt-ArrowUp` to
-it. `blockHandle` in `foldkit-mixins-richtext` draws up and down for one block, each disabled at
+The editor sends `MovedBlock { node, to }`, and `edited`'s helper is `moved(node, to)`. No chord
+sends it: a keymap binding names one command for any caret, and a move names its block and its
+place, which only the caller knows, so a key that moves a block is the application's own
+handler sending `moved`. `blockHandle` in `foldkit-mixins-richtext` draws up and down for one block, each disabled at
 its end of the container, and holds no state.
 
 Which block the handle stands for is the caller's choice, because the right answer depends on the
@@ -7833,8 +7850,8 @@ Not done:
 §124's milestone 9 asks the DOM package to "cooperate directly with `foldkit-ssr`". The server
 renders a document into the editor's host, and the client adopts that DOM instead of rebuilding
 it. Two halves: the adapter must be able to take over markup it finds, and the page must be able
-to deliver that markup to it. The first is built. The second has a decision in it that is not
-this document's to make alone.
+to deliver that markup to it. Both are built: the adapter half first, then the page half, by
+route 1 below, once that decision was made.
 
 ## What hydration does to the host today
 
@@ -8089,8 +8106,9 @@ unreachable; a review found it.) Of two different edges equally near, the later 
 it lands the block where §148's midpoint rule did, though sometimes named from the other side
 (after the block above rather than before the one below).
 
-Not done: paste, wrap, and the other commands still consult only the container's side
-(`blocksOf`), not `within`.
+Wrap and paste consult `within` too now: a later review found each wrote documents `validate`
+reports as `MisplacedNode` (a paragraph wrapped in a bare `ListItem`, a `ListItem` pasted at
+the top level), and both refuse them with `UnexpectedChild`, as a move does.
 
 ---
 

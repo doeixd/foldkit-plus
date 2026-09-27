@@ -306,7 +306,9 @@ marks, and the query the entry was typed into is removed in the same action.
 `slashMenuView<Message>()` draws it:
 
 ```ts
-Menus.slashMenuView<Message>()(
+import { slashMenuView } from 'foldkit-mixins-richtext'
+
+slashMenuView<Message>()(
   { entries, textBefore: RichText.textBefore(document, caret), index: model.menuIndex },
   h,
 )
