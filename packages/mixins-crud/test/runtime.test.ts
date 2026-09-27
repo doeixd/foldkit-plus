@@ -14,7 +14,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
-import { DetailView, ListSlots, ListView } from '../src/index.js'
+import { DetailView, ListSlots, ListView, type ViewWords } from '../src/index.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -373,4 +373,54 @@ it('keeps one root for a detail in every state, around the alert as well', () =>
     'div',
     'PostDetail',
   ])
+})
+
+it('says nothing of its own but through its words', () => {
+  const markers: Required<ViewWords> = {
+    yes: '«yes»',
+    no: '«no»',
+    nothing: '«nothing»',
+    separator: '«separator»',
+    loading: '«loading»',
+    failed: '«failed:{message}»',
+    empty: '«empty»',
+    more: '«more»',
+    retry: '«retry»',
+  }
+  const h = SlotView.inertBuilder<Message>()
+  const pages: ReadonlyArray<RemoteData<Page<Row>>> = [
+    { _tag: 'Loading' },
+    { _tag: 'Failed', error: offline },
+    { _tag: 'Ready', value: { items: [], hasNext: false, hasPrevious: false } },
+    ready,
+  ]
+  const drawn = [
+    ...pages.map(page =>
+      Table({ page, onMore: Message.AskedForMore(), onRetry: Message.Sorted(), words: markers }, h),
+    ),
+    Lines({ value: { _tag: 'Loading' }, words: markers }, h),
+  ].flatMap(root =>
+    Inert.all(root).flatMap(node => (typeof node.text === 'string' ? [node.text] : [])),
+  )
+  // What is left is the application's: its columns' names and its rows.
+  expect(new Set(drawn.filter(text => !text.includes('«')))).toEqual(
+    new Set([
+      'Title',
+      'Price',
+      'Live',
+      'author',
+      'Engines',
+      '$12.50',
+      'Ada',
+      'Compilers',
+      '$9.00',
+      'Grace',
+    ]),
+  )
+  // Every word of the view's own is said; `nothing` and `separator` need a value
+  // these rows lack, and `foldkit-crud`'s own tests say them.
+  const used = new Set(
+    drawn.flatMap(text => [...text.matchAll(/«([a-z]+)/g)].map(match => match[1])),
+  )
+  expect(Object.keys(markers).filter(key => !used.has(key))).toEqual(['nothing', 'separator'])
 })
