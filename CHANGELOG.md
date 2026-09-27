@@ -375,6 +375,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-primitives`, `EditableText`:** when Enter or Escape ends an edit
+  and the view then removes the field or makes it no longer editable, focus
+  comes back to the container instead of falling to `<body>`, where the next
+  key (an undo, a Delete) did nothing. The Builder's canvas is that container.
+
 - **`foldkit-primitives`, `PointerDrag`:** `targets.within` is looked for
   nearest first, under the container's closest ancestor holding a match,
   not the first on the page, so the second of two editors dropped its tiles

@@ -4,7 +4,9 @@
  * by an attribute whose value names it, while it is `contenteditable`. The
  * view decides which one is; the Mount focuses it as it becomes so (made
  * editable, or drawn editable), with the caret at its end, and at no other
- * time. A double-click on a marked field that is not editable yet asks for it
+ * time. When Enter or Escape ends an edit and the view then removes the field
+ * or makes it no longer editable, focus, left on nothing, comes back to the
+ * container, so the next key reaches it; give the container a `tabindex`. A double-click on a marked field that is not editable yet asks for it
  * to be (`EditAsked`).
  *
  * It reads `innerText`, never `innerHTML`, so what arrives is text. A field is
@@ -97,6 +99,9 @@ export const EditableText = Mount.defineStream('EditableText', {
               }
             | undefined
           let composingText = false
+          // A field whose edit a key ended: when it leaves with focus on nothing, focus
+          // comes back to the container, where the keys that began the edit are.
+          let ending: HTMLElement | undefined
 
           /** The marked field at or above an event's target, inside the container. */
           const markedOf = (target: EventTarget | null): HTMLElement | undefined => {
@@ -211,9 +216,11 @@ export const EditableText = Mount.defineStream('EditableText', {
                 if (field === undefined || composing(key)) return
                 if (key.key === 'Escape') {
                   event.preventDefault()
+                  ending = field
                   cancel(field)
                 } else if (key.key === 'Enter' && !(key.shiftKey && multiline(field))) {
                   event.preventDefault()
+                  ending = field
                   commit(field)
                 }
               },
@@ -222,7 +229,14 @@ export const EditableText = Mount.defineStream('EditableText', {
               'focusout',
               event => {
                 const field = fieldOf(event.target)
-                if (field !== undefined) commit(field)
+                if (field === undefined) return
+                // Left while still there and editable, asked once the change that may have
+                // taken it away is done: the author went elsewhere, and focus is theirs.
+                queueMicrotask(() => {
+                  if (field === ending && field.isConnected && field.isContentEditable)
+                    ending = undefined
+                })
+                commit(field)
               },
             ],
             [
@@ -244,6 +258,12 @@ export const EditableText = Mount.defineStream('EditableText', {
           // A field editable all along, or another going away, moves no focus.
           const editable = `[${attribute}][contenteditable]:not([contenteditable="false"])`
           const becoming = new MutationObserver(records => {
+            if (ending !== undefined && !(ending.isConnected && ending.isContentEditable)) {
+              ending = undefined
+              const focused = document.activeElement
+              if ((focused === null || focused === document.body) && element instanceof HTMLElement)
+                element.focus({ preventScroll: true })
+            }
             for (const record of records) {
               const changed =
                 record.type === 'attributes' ? [record.target] : Array.from(record.addedNodes)
@@ -256,6 +276,7 @@ export const EditableText = Mount.defineStream('EditableText', {
           })
 
           for (const [type, listener] of listeners) element.addEventListener(type, listener)
+          // A field made editable, drawn editable, or leaving.
           becoming.observe(element, {
             subtree: true,
             childList: true,

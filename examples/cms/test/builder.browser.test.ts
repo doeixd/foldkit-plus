@@ -271,8 +271,9 @@ it('edits a heading where it is: the caret kept through each redraw, Backspace a
   expect(field()?.textContent).toBe('Heading 1 agai')
   expect(stored()).toBe('Heading 1 agai')
 
-  // The session committed is one undo step.
-  canvas()?.focus()
+  // Escape gave focus back to the canvas, so the next key reaches it: the session
+  // committed is one undo step.
+  expect(document.activeElement).toBe(canvas())
   await userEvent.keyboard('{Control>}z{/Control}')
   await vi.waitFor(() => expect(field()?.textContent).toBe('Heading 1'))
 })

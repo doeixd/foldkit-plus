@@ -773,6 +773,10 @@ typed:
   focus, or on the first keystroke after an edit ended) back in the DOM, the
   caret at its end. A view that stopped redrawing the field while it was edited
   would not. An edit ends once: the blur after Enter commits nothing more.
+- **Focus comes back to the container** when Enter or Escape ended an edit and
+  the view then removes the field or makes it no longer editable, which leaves
+  focus on nothing; give the container a `tabindex`, and the next key (an
+  undo) reaches it. A field left by the author keeps no such claim.
 - **`EditAsked { field }`** on a double-click over a marked field that is not
   editable yet: the view's cue to make it so.
 

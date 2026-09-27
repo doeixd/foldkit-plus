@@ -103,7 +103,8 @@ into a chord answer. Slices that must survive reload persist through
   field that is `contenteditable`: `TextEdited { field, text }` per change (not while an input method
   composes), `TextCommitted` on Enter or blur, `TextCancelled { initial }` on Escape (the DOM gets
   `initial` back), `EditAsked { field }` on a double-click of one not editable yet. Text only;
-  one line unless `aria-multiline="true"`.
+  one line unless `aria-multiline="true"`. Focus returns to the (tabbable) container when the
+  field an Enter or Escape ended goes away.
 - **Dragging one item onto another** (reorder a tree or a canvas):
   `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
   (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px

@@ -354,3 +354,42 @@ it('leaves the caret at the end after Escape, so typing on goes after the text',
     await stop()
   }
 })
+
+it('gives focus back to the container when Enter or Escape ends an edit, and not when it is left', async () => {
+  const { field, facts, stop } = await mount('Hi')
+  const container = field.parentElement!
+  container.tabIndex = 0
+  try {
+    // Enter, and the view draws the field anew, not editable.
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(facts.length).toBe(1))
+    const drawn = document.createElement('span')
+    drawn.setAttribute('data-field', 'title')
+    field.replaceWith(drawn)
+    await vi.waitFor(() => expect(document.activeElement).toBe(container))
+    // Once: focus left on nothing later stays there through another change.
+    container.blur()
+    container.appendChild(document.createElement('i'))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(document.activeElement).toBe(document.body)
+    // Escape, and the view makes the field no longer editable.
+    drawn.contentEditable = 'plaintext-only'
+    await vi.waitFor(() => expect(document.activeElement).toBe(drawn))
+    await userEvent.keyboard('{Escape}')
+    drawn.contentEditable = 'false'
+    await vi.waitFor(() => expect(document.activeElement).toBe(container))
+    // Enter, but the view keeps it editable, and it is left for nothing focusable:
+    // where the author went is theirs, when the field goes later.
+    drawn.contentEditable = 'plaintext-only'
+    await vi.waitFor(() => expect(document.activeElement).toBe(drawn))
+    await userEvent.keyboard('{Enter}')
+    drawn.blur()
+    // The view redraws in a later frame, as a runtime does.
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    drawn.contentEditable = 'false'
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(document.activeElement).toBe(document.body)
+  } finally {
+    await stop()
+  }
+})
