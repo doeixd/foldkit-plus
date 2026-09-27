@@ -1,5 +1,8 @@
 # `foldkit-ssr`
 
+> **Implementation status, checked 2026-09-27:** Largely built as `foldkit-ssr` 0.1.0, following [ssr-PLAN.md](./ssr-PLAN.md); the "not started" note below predates it. Phases 4–6 wait on upstream Foldkit. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Location:** `doeixd/foldkit-plus/packages/ssr`
 **Package:** `foldkit-ssr`
 **Status:** experimental / design proposal

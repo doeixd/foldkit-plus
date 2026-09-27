@@ -1,5 +1,8 @@
 # React interop: `@foldkit/react` and `@foldkit/react-codegen`
 
+> **Implementation status, checked 2026-09-27:** Both halves are built: the runtime bridge and codegen's view mode. §20's `Resource` is not (`readAsyncData` covers Suspense over Model `AsyncData`), and §25's wrapper mode was declined. See the
+> [design index](./README.md#where-each-design-stands).
+
 > **Status: runtime bridge implemented as
 > [`foldkit-react`](../../packages/react/README.md); codegen not started.**
 > Sections 1–19 are built (package name `foldkit-react`, not `@foldkit/react`),

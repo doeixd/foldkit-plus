@@ -1,5 +1,8 @@
 # `foldkit-agent`
 
+> **Implementation status, checked 2026-09-27:** Built as `foldkit-agent` and its four adapters. `foldkit-surface`, called proposed below, ships at 0.5.0, and `context` was removed from the contract in the Surface revision. See the
+> [design index](./README.md#where-each-design-stands).
+
 > Design rationale for `foldkit-agent` and its integration with the wider
 > project, including the proposed `foldkit-surface` package. For the API
 > summary see the [package README](../../packages/agent/README.md); for the umbrella project see

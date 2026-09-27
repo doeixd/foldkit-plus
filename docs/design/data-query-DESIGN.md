@@ -1,5 +1,8 @@
 # Foldkit Plus: Composable Data, Query, Read Contracts, Routing, and Local-First Architecture
 
+> **Implementation status, checked 2026-09-27:** Phases 0–10 and 12 are built (9 and 10 as `examples/tanstack` and `examples/livestore`), 11 was declined, and 13 is open. The conformance suite now ships as `foldkit-entity/conformance`. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** partly built. §32's Phases 0–8 and 12 shipped; Phases 9–13 are
 deferred on conditions that do not exist yet. The reasoning below is unchanged except
 where a `>` note says building it found otherwise, and those notes win.  

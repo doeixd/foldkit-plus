@@ -1,5 +1,8 @@
 # Bundles: packaging a Submodel once
 
+> **Implementation status, checked 2026-09-27:** Built and published: `foldkit-bundle` 0.3.0 and `foldkit-bundle-surface` 0.2.0. The Deferred items remain deferred. See the
+> [design index](./README.md#where-each-design-stands).
+
 > **Status:** implemented as `foldkit-bundle` and `foldkit-bundle-surface`
 > (0.1.0, not yet published). This note records the decisions and what is
 > deferred; the package READMEs are the API reference.

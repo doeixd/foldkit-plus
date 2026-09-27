@@ -1,6 +1,9 @@
 
 # Foldkit Remote
 
+> **Implementation status, checked 2026-09-27:** Superseded by [REVISION_PLAN.md](./REVISION_PLAN.md); the core shipped as `foldkit-remote` and `foldkit-remote-server`. See the
+> [design index](./README.md#where-each-design-stands).
+
 ## Revised architecture using Foldkit Surface + Effect v4 infrastructure
 
 **Status:** Design plan
