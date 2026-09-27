@@ -55,6 +55,7 @@ const Item = Bundle.make({
   ),
   helpers: {
     set: (model: ItemModel, count: number) => ({ model: { ...model, count } }),
+    keep: (model: ItemModel) => ({ model }),
   },
 })
 
@@ -133,6 +134,11 @@ describe('Bundle.each', () => {
       Items.update(model, GotItemMessage.make('a', ItemMessage.Clicked())),
     )
     expect(late.model).toBe(model)
+  })
+
+  it('returns the parent itself when an item returns its own Model', () => {
+    const model = withItems({ a: { count: 0, live: false } })
+    expect(Items.helpers.keep('a')(model).model).toBe(model)
   })
 
   it('runs helpers against one item', () => {
