@@ -2,6 +2,7 @@
  * Moving a block beside a sibling: what a block handle's up and down send. The block keeps its
  * identity, its subtree, and the selection inside it.
  */
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 
@@ -196,6 +197,20 @@ describe('moving a block into another container (§149)', () => {
     expect(after(move('r1', { before: 'j1' }, {}))).toBe(
       `a q[qa qb] l[i1[p1] i2[p2]] m[r1] ${table}`,
     )
+  })
+
+  it('moves a node selection on the container it empties onto the block it moved', () => {
+    const result = RichText.run(
+      { document: document(), selection: { type: 'Node', node: id('m') } },
+      { type: 'MoveBlock', node: id('j1'), to: { after: id('i2') } },
+      { mint: () => 'unused' },
+      { nodes },
+    )
+    expect(result.ok && result.state.selection).toEqual({ type: 'Node', node: id('j1') })
+  })
+
+  it('refuses a place that names both sides when decoding', () => {
+    expect(() => Schema.decodeUnknownSync(RichText.Beside)({ before: 'a', after: 'c' })).toThrow()
   })
 
   it('keeps the selection in the block it moved', () => {

@@ -7362,8 +7362,10 @@ checked one. The core does not know what `checked` means; the Kit now says it, i
 Enter at the end of a heading kept the heading's type too, so a title followed by Enter made a
 second title; the CMS article story (§140) typed straight into it. Now the new block is a
 paragraph when no text follows the caret in the heading, and both halves stay headings when
-Enter splits one in the middle. A range's start is its caret, so a selection from a heading's
-end into the next block also gets a paragraph, holding that block's remaining text.
+Enter splits one in the middle. Over a range, what follows is what follows the range's end: a
+range to the heading's end gets a paragraph, one stopping before its last text keeps a heading,
+and one ending in another block gets a paragraph, since the text after it was never the
+heading's.
 
 
 ---

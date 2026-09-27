@@ -95,8 +95,9 @@ export type Command =
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
-  Schema.Struct({ before: NodeId }),
-  Schema.Struct({ after: NodeId }),
+  // Each shape refuses the other's key: `{ before, after }` would name two places.
+  Schema.Struct({ before: NodeId, after: Schema.optionalKey(Schema.Never) }),
+  Schema.Struct({ after: NodeId, before: Schema.optionalKey(Schema.Never) }),
 ])
 export type Beside = typeof Beside.Type
 
@@ -482,7 +483,7 @@ const emptiedBy = (
 export const moveTargets = (
   document: Document,
   node: NodeId,
-  nodes?: NodeRegistry | undefined,
+  nodes?: NodeRegistry,
 ): ReadonlyArray<NodeId> => {
   const moving = locateBlock(document, node)
   if (moving === undefined) return []
@@ -965,9 +966,24 @@ export const run = (
     const to = within && from < place ? place - 1 : place
     const parent = container.length === 0 ? undefined : blockAtPath(state.document, container)?.id
     const emptied = emptiedBy(state.document, source, container)
+    // A node selection on a container the move deletes would dangle; the block it held is what
+    // it was selecting, so it goes there.
+    const gone = emptied === undefined ? undefined : locateBlock(state.document, emptied)
+    const selected =
+      state.selection?.type === 'Node'
+        ? locateBlock(state.document, state.selection.node)
+        : undefined
+    const inside = (path: BlockPath, holder: BlockPath) =>
+      holder.every((index, depth) => path[depth] === index)
+    const lost =
+      gone !== undefined &&
+      selected !== undefined &&
+      inside(selected.path, gone.path) &&
+      !inside(selected.path, moving.path)
     return apply(state, [
       Edit.moveBlock(command.node, to, parent),
       ...(emptied === undefined ? [] : [Edit.deleteBlock(emptied)]),
+      ...(lost ? [Edit.setSelection({ type: 'Node', node: command.node })] : []),
     ])
   }
   const selection = state.selection
@@ -1134,12 +1150,17 @@ export const run = (
     const textId = ids.mint()
     const blockId = ids.mint()
     // Enter at the end of a heading starts the body under it, not another heading: what
-    // follows a title is text. Mid-heading, both halves stay the heading they were.
+    // follows a title is text. Mid-heading, both halves stay the heading they were. Over a
+    // range, what follows is what the removal leaves: the heading's own rest when the range
+    // ends inside it, or the next block's text, which was never the heading's, when it ends there.
     const block = blockAtPath(state.document, at.path)
+    const endAt = locate(state.document, (span?.end ?? caret).node)
     const endsHeading =
       block?.type === 'Heading' &&
-      caret.offset >= at.text.length &&
-      block.children.slice(at.runIndex + 1).every(run => run.text.length === 0)
+      endAt !== undefined &&
+      (pathKey(endAt.path) !== pathKey(at.path) ||
+        ((span?.end ?? caret).offset >= endAt.text.length &&
+          block.children.slice(endAt.runIndex + 1).every(run => run.text.length === 0)))
     return apply(state, [
       ...deletions,
       Edit.splitBlock(at.blockId, at.id, caret.offset, blockId, textId),

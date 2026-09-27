@@ -155,3 +155,11 @@ const markSet: boolean = RichText.sameMarkSet([{ name: 'Bold' }], [{ name: 'Bold
 // @ts-expect-error Expansions are before, after, both, or none.
 const badDef: RichText.MarkDef = { name: 'Bold', expand: 'sideways' }
 void [expansion, resolved, markSet, badDef]
+
+// `Beside` is one place: before a block, or after one, never both.
+// @ts-expect-error a place names one side
+const besideBoth: RichText.Beside = {
+  before: RichText.NodeId.make('a'),
+  after: RichText.NodeId.make('c'),
+}
+void besideBoth

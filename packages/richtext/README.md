@@ -114,7 +114,7 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
 `WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` names its
-blocks instead. Each emits a Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap`
+blocks instead. Each emits a Transaction and applies it in one step; the returned `ChangeSet` and `positionMap`
 describe the effect. Nothing mints identity unless the caller's `mint` does, and
 replay applies transactions rather than commands.
 
@@ -205,7 +205,8 @@ as a `CodeBlock`, Backspace retypes it to a paragraph instead of joining it to t
 above, which undoes a fence the way a lift undoes a list marker.
 
 `SplitBlock` at the end of a heading starts a paragraph under it, since what follows a title is
-text; in the middle of one, both halves stay headings.
+text; in the middle of one, both halves stay headings. Over a selection, the range's end
+decides, and one ending past the heading also starts a paragraph.
 
 `SplitBlock` inside a list item works on the item, with a vocabulary to say what an item is: a
 container its parent declares it holds (a `List` holds `ListItem`s), and not isolating. Enter
@@ -712,7 +713,8 @@ RichText.node('TaskItem', {
 `validate` reports those violations as `UnexpectedChild`, `ForbiddenMark`, and
 `MisplacedNode` (a kind outside what its `within` names), and checks
 an atom's props the same way it checks a node's. `run` refuses the edits that would create
-them when it is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
+an unexpected child or a forbidden mark, and a `MoveBlock` that would misplace a kind, when it
+is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
 counterpart of the `marks` option:
 
 ```ts

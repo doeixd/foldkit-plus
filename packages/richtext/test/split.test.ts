@@ -313,9 +313,16 @@ describe('Enter in a heading', () => {
       ['Heading', 'Heading'],
     ],
     ['in its middle keeps both halves headings', '', caret('v', 2), ['Heading', 'Heading']],
+    // Removing a range to the end leaves the caret there, as a caret at the end is.
     [
-      'over a range to its end keeps a heading, as the deletion decides what is left',
+      'over a range to its end starts a paragraph',
       '',
+      { type: 'Range', anchor: position('v', 2), focus: position('v', 5) },
+      ['Heading', 'Paragraph'],
+    ],
+    [
+      'over a range that stops before text keeps a heading',
+      '!',
       { type: 'Range', anchor: position('v', 2), focus: position('v', 5) },
       ['Heading', 'Heading'],
     ],
@@ -329,6 +336,45 @@ describe('Enter in a heading', () => {
       ),
     )
     expect(result.state.document.children.map(block => block.type)).toEqual(blocks)
+  })
+
+  it('starts a paragraph over a range into the next block, whose text was never the heading’s', () => {
+    let n = 0
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Heading',
+          id: 'h',
+          level: 2,
+          children: [{ type: 'Text', id: 'v', text: 'Title', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'x', text: 'body', marks: [] }],
+        },
+      ],
+    })
+    const result = success(
+      RichText.run(
+        {
+          document,
+          selection: { type: 'Range', anchor: position('v', 5), focus: position('x', 2) },
+        },
+        { type: 'SplitBlock' },
+        { mint: () => `new-${++n}` },
+      ),
+    )
+    expect(
+      result.state.document.children.map(block => [
+        block.type,
+        block.children.map(run => run.text).join(''),
+      ]),
+    ).toEqual([
+      ['Heading', 'Title'],
+      ['Paragraph', 'dy'],
+    ])
   })
 
   it('leaves Enter at the end of a code block splitting it, as a retype would be refused', () => {
