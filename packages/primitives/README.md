@@ -438,7 +438,8 @@ computes programmatic scroll targets the application actuates itself.
 These share one table of row offsets, built once per `keys` array and
 `heights` record and then searched, so keep the keys array between renders
 (derive it where the list changes, not in the view) and a scroll costs
-O(log n) instead of a pass over every row.
+O(log n) instead of a pass over every row. Both are compared by identity:
+never change a keys array in place.
 `Prune` drops heights for departed keys — the bundle never sees key order.
 Poisoned positions and heights are ignored, never stored. For window-
 scrolled lists, map the scroll entry into `Scrolled`; for follow-bottom,

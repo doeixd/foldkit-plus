@@ -56,7 +56,8 @@ interface Offsets {
 
 // One entry per keys array, replaced when the heights or the layout change: a
 // view that keeps its keys array between renders pays O(n) once per change of
-// heights, not once per call.
+// heights, not once per call. Keys and heights are compared by identity, so an
+// array or record changed in place reads stale offsets; the Model never is.
 const offsetsCache = new WeakMap<ReadonlyArray<string>, Offsets>()
 
 const sameLayout = (a: VirtualLayout, b: VirtualLayout): boolean =>
@@ -101,8 +102,15 @@ export const totalHeight = (
   heights: Readonly<Record<string, number>>,
   layout: VirtualLayout,
 ): number => {
-  if (keys.length === 0) return layout.paddingStart + layout.paddingEnd
-  return topsFor(keys, heights, layout)[keys.length]! - layout.gap + layout.paddingEnd
+  const last = keys.length - 1
+  if (last === -1) return layout.paddingStart + layout.paddingEnd
+  // The last row's bottom edge, not `tops[count]` less a gap: subtracting a
+  // fractional gap back out need not land where the row ends.
+  return (
+    topsFor(keys, heights, layout)[last]! +
+    heightAt(last, heights, keys, layout) +
+    layout.paddingEnd
+  )
 }
 
 /** Pixel offset of a row's top edge: padding plus the prefix before it. */

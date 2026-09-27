@@ -147,6 +147,14 @@ describe('cached offsets', () => {
     expect(offsetFor(5, keys, fixed, { ...flat, gap: 1 })).toBe(55)
   })
 
+  it('end the total at the last row, with fractional gaps too', () => {
+    const rows = ['a', 'b', 'c']
+    const layout: VirtualLayout = { estimatedHeight: 25, gap: 0.1, paddingStart: 0, paddingEnd: 0 }
+    // (0.1 + 0.1 + 0.3 + 0.1 + 0.35) + 0.1 - 0.1 is 0.9500000000000001.
+    const heights = { a: 0.1, b: 0.3, c: 0.35 }
+    expect(totalHeight(rows, heights, layout)).toBe(offsetFor(2, rows, heights, layout) + 0.35)
+  })
+
   it('window exactly as a linear scan does', () => {
     // The scan the offsets replaced: each row a box, gaps and padding dead space.
     const scan = (
