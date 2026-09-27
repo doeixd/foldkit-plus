@@ -29,15 +29,19 @@ These wait on upstream Foldkit or Effect, not on work here.
 
 ## SSR and resumability
 
-- [ ] **G1.** Name the handler that makes a page wait for the live runtime.
+- [x] **G1.** Name the handler that makes a page wait for the live runtime.
   This is the resumable design's rule 1. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G2.** Test rule 6 directly: the resumed page reaches the eager page's
+- [x] **G2.** Test rule 6 directly: the resumed page reaches the eager page's
   state. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G3.** Test Phase E the way the resumable design states it.
+- [x] **G3.** Test Phase E the way the resumable design states it.
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G4.** Measure the manifest before optimising it (`bench/manifest.ts`).
+- [x] **G4.** Measure the manifest before optimising it (`bench/manifest.ts`).
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G5.** Stop depending on when `hydrate` commits (`afterCommit`).
+- [x] **G5.** Stop depending on when `hydrate` commits (`afterCommit`).
+  [ssr-PLAN.md](./ssr-PLAN.md) Phase G
+- [ ] **G6.** One manifest entry per keyed placement: G4 measured the
+  manifest at a thousand rows at a fifth of the gzipped page and about 38 ms
+  to decode and listen, over both of its limits.
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
 
 ## Rich text

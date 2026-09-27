@@ -151,6 +151,58 @@ describe('encode and decode', () => {
   })
 })
 
+describe('a read-back that changes nothing', () => {
+  // Foldkit renders only when the Model changes identity: the URL a mirror
+  // just wrote, read back, must not render the page again.
+  it.each([
+    ['the URL the mirror just wrote', '/todos?filter=active&page=4'],
+    ['a URL that changes only keys it does not own', '/other?sort=asc&filter=active&page=4'],
+  ])('keeps the Model for %s', (_, url) => {
+    const model: Model = { ...initial, filter: 'active', page: 4 }
+    expect(inUrl().reduce(model, url)).toBe(model)
+  })
+
+  it('keeps the Model when a structured key decodes to an equal, fresh value', () => {
+    const m = Mirror.make(App, MirrorStore.memory(), { fields: [App.model.tags] })
+    const model: Model = { ...initial, tags: ['a', 'b'] }
+    expect(m.fromKeys(model, { tags: '["a","b"]' })).toBe(model)
+    expect(m.fromKeys(model, { tags: '["a"]' })).toEqual({ ...initial, tags: ['a'] })
+  })
+
+  it.each([
+    ['an empty store', {}],
+    ['a store holding the slice', { filter: 'active' }],
+  ])('keeps the Model when a restore finds %s', (_, keys) => {
+    const model: Model = { ...initial, filter: 'active' }
+    expect(mirror().restoreKeys(model, keys)).toBe(model)
+  })
+
+  it('encodes a structured field once per value, however often the slice is encoded', () => {
+    let encoded = 0
+    const m = Mirror.make(App, MirrorStore.memory(), {
+      fields: [App.model.tags],
+      keys: {
+        tags: {
+          codec: Schema.String.pipe(
+            Schema.decodeTo(Schema.Array(Schema.String), {
+              decode: SchemaGetter.transform((text: string) => text.split(',')),
+              encode: SchemaGetter.transform((tags: ReadonlyArray<string>) => {
+                encoded++
+                return tags.join(',')
+              }),
+            }),
+          ),
+        },
+      },
+    })
+    const tags = ['a', 'b']
+    const before = encoded
+    expect(m.encode({ ...initial, tags })).toEqual({ tags: 'a,b' })
+    expect(m.encode({ ...initial, page: 2, tags })).toEqual({ tags: 'a,b' })
+    expect(encoded - before).toBe(1)
+  })
+})
+
 describe('reduce and href', () => {
   it('from a URL: the whole slice, a missing or malformed key being the initial value', () => {
     const m = inUrl()

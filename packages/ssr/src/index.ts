@@ -26,13 +26,21 @@ import {
 } from 'foldkit/experimental/server'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
+import * as Render from 'foldkit/render'
 import {
   Metadata,
   type ActiveSurface,
   type MetadataSummary,
   type WritableProjection,
 } from 'foldkit-surface'
-import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
+import {
+  current,
+  withContext,
+  type Binding,
+  type Region,
+  type RenderContext,
+  type UnnamedHandler,
+} from './context.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, builder, view } from './resumable.js'
 import {
   EncodedBindings,
@@ -88,7 +96,7 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
    * When the browser boots the runtime: `now` on load, `idle` when the browser
    * is idle or on the first interaction, `on-interaction` on the first only.
    * Until then the page answers events from its bindings and queues the
-   * Messages, which replay once the runtime has adopted the page.
+   * Messages, which the runtime runs through `update` before any other.
    */
   readonly start: Start
   /** Subscription and Managed Resource keys that may start late (decision 10). */
@@ -827,6 +835,17 @@ const eagerEntries = <Model, Fields extends Schema.Struct.Fields>(
   ]
 }
 
+/** A page the server rendered against a plan, with its envelope. */
+export interface RenderedPage {
+  readonly rendered: RenderedApplication
+  readonly envelope: string
+  /**
+   * Each element whose handler for an event is a function, marked `*`: the
+   * page cannot answer that event before the live runtime boots.
+   */
+  readonly unnamed: ReadonlyArray<UnnamedHandler>
+}
+
 /**
  * Renders a page on the server against a resume plan.
  *
@@ -848,10 +867,8 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
     readonly url?: string | undefined
     readonly flags?: unknown
   },
-): Effect.Effect<
-  { readonly rendered: RenderedApplication; readonly envelope: string },
-  RenderError | ResumeUnsafe
-> => renderMatching(config, plan, options, 'full')
+): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
+  renderMatching(config, plan, options, 'full')
 
 const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
@@ -862,10 +879,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly flags?: unknown
   },
   match: RouteMatch,
-): Effect.Effect<
-  { readonly rendered: RenderedApplication; readonly envelope: string },
-  RenderError | ResumeUnsafe
-> =>
+): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
     yield* loadLazy(config)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
@@ -874,6 +888,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const servedBindings: Array<Binding> = []
     const browserBindings: Array<Binding> = []
     const inStatic: Array<{ region: string; element: string; event: string }> = []
+    const unnamed: Array<UnnamedHandler> = []
     const fallback = fallbackEncoder(plan)
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
@@ -887,6 +902,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         depth: 0,
         region: undefined,
         inStatic,
+        unnamed,
       },
     )
     const full = yield* renderToString(capturing as never, options as never)
@@ -988,6 +1004,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         match,
         bindings: encoded.success,
       }),
+      unnamed,
     }
   })
 
@@ -1035,6 +1052,31 @@ const fileOf = (path: string): string => {
   const trimmed = path.replace(/^\/+/, '').replace(/\/+$/, '')
   if (trimmed === '') return 'index.html'
   return trimmed.endsWith('.html') ? trimmed : `${trimmed}/index.html`
+}
+
+// Keyed by plan, element and event: a server renders the same page for every
+// request, so one warning each is enough to learn which handler to name.
+const warnedUnnamed = new Set<string>()
+
+/**
+ * Warns, once per process, about each handler that keeps a page from
+ * answering before boot. Only a page that waits to boot is held up: one
+ * started `'now'`, with no lazy bundle to load, boots before any event.
+ */
+const warnUnnamed = <Model, Fields extends Schema.Struct.Fields>(
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  unnamed: ReadonlyArray<UnnamedHandler>,
+): void => {
+  if (plan.start === 'now' && (config.lazy ?? []).length === 0) return
+  for (const { element, event } of unnamed) {
+    const key = JSON.stringify([plan.id, element, event])
+    if (warnedUnnamed.has(key)) continue
+    warnedUnnamed.add(key)
+    console.warn(
+      `[foldkit-ssr] plan "${plan.id}": ${element} handles ${event} with a function, which the page cannot name, so that event waits for the live runtime. Give the handler a Message, or, for OnInput, OnChange, OnKeyDown or OnKeyUp, the Message's constructor with the field the event fills left out.`,
+    )
+  }
 }
 
 /**
@@ -1093,7 +1135,10 @@ const generate = <
           },
           'path',
         ),
-        result => ({ path, file: fileOf(path), html: page(options.template, result) }),
+        result => {
+          warnUnnamed(config, plan, result.unnamed)
+          return { path, file: fileOf(path), html: page(options.template, result) }
+        },
       ),
     )
     // One page per path, in order, so the array is the tuple the paths describe.
@@ -1180,6 +1225,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
           }),
         )
       }
+      warnUnnamed(config, plan, exit.value.unnamed)
       const template = withEnvelope(options.template, exit.value.envelope)
       return Responded(
         toResponse(
@@ -1233,12 +1279,34 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     snapshots: snapshotsOf(root),
     reported: new Set(),
   }
-  const boot = (subscriptions: Readonly<Record<string, unknown>> = {}) =>
+  // The runtime starts from the resumed Model, so its first render is the
+  // served markup and Foldkit adopts every node. The Messages the page
+  // answered before the live page listened wait in `answered`, and the first
+  // Message the runtime processes, whatever it is, runs them through `update`
+  // ahead of itself: they reach the Model before anything the live page
+  // answers, an event dispatched in the task that boots it included.
+  const answered: Array<unknown> = []
+  const update = (current: Model, message: unknown) => {
+    const handingOver = message === HANDOVER
+    if (answered.length === 0)
+      return handingOver ? { model: current } : config.update(current, message)
+    const returned: Array<unknown> = []
+    for (const next of [...answered.splice(0), ...(handingOver ? [] : [message])]) {
+      const step = config.update(current, next) as {
+        readonly model: Model
+        readonly commands?: ReadonlyArray<unknown> | undefined
+      }
+      current = step.model
+      returned.push(...(step.commands ?? []))
+    }
+    return { model: current, commands: returned }
+  }
+  const boot = (entries: Readonly<Record<string, unknown>> = {}) =>
     adopt(
       makeApplication({
-        ...withContext(startingFrom(config, { model, commands }), resuming),
+        ...withContext(startingFrom({ ...config, update }, { model, commands }), resuming),
         container: root,
-        subscriptions: { ...config.subscriptions, ...subscriptions },
+        subscriptions: { ...config.subscriptions, ...entries },
       } as never),
       { buildId: options.buildId },
     )
@@ -1253,71 +1321,103 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     adopt(program({ model: plan.baseline }), { buildId: '' })
     return
   }
-  deferBoot(root, decoded.success, plan.start, boot, pending)
+  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending)
 }
 
 /**
+ * The Message the handover entry sends so the runtime takes the answered
+ * Messages when nothing else has asked it to. The wrapped `update` consumes
+ * it; the application never sees it.
+ */
+const HANDOVER: unknown = Object.freeze({ _tag: 'foldkit-ssr/Handover' })
+
+/**
  * Lets the page answer from its bindings until something asks for the
- * runtime, then boots it with the answers queued for replay.
+ * runtime, then boots it and hands over to the live page.
  *
- * The queued Messages reach the runtime through one Subscription entry added
- * for the purpose, so they go through Foldkit's own queue, in order, after
- * its first render, and the Model ends where an eager boot would have taken
- * it. When lazy bundles must load first, the boot waits for them.
+ * Every Message the page answers goes to `answered`, which the runtime takes
+ * before its first Message. An event only the live page can answer is kept
+ * and sent again to where it first went once the live page listens. The page
+ * stops listening as soon as the runtime's first render has committed: when
+ * `hydrate` returns, which Foldkit does today, or else when a handover
+ * Subscription entry starts, after `Render.afterCommit`. When lazy bundles
+ * must load first, the boot waits for them and the page keeps answering.
  */
 const deferBoot = (
   root: HTMLElement,
   decoded: ReadonlyArray<DecodedBinding>,
   start: Start,
-  boot: (subscriptions: Readonly<Record<string, unknown>>) => void,
+  runtime: {
+    readonly boot: (entries: Readonly<Record<string, unknown>>) => void
+    readonly answered: Array<unknown>
+  },
   pending: ReadonlyArray<Loadable>,
 ): void => {
-  const queue: Array<unknown> = []
-  // Events only the live page can answer, met while the bodies were loading.
+  // Events only the live page can answer, met before it listened.
   const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
-  let booted = false
-  // Foldkit's hydrate runs its first render before returning: it adopts the
-  // page and attaches its listeners. So the event that boots the page, still
-  // in dispatch, reaches the live page afterwards, unless a bundle's bodies
-  // are still on their way; then the page gets the event again once booted.
+  // `waiting` for an interaction or idle, `loading` bodies, `starting` the
+  // runtime until its first render commits, then `live`.
+  let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
   const stop = listen(root, {
     bindings: decoded,
     onAnswer: ({ event, messages, unnamed }) => {
       // An answer the markers could not complete is left to the live page.
       if (unnamed !== undefined) {
-        // Kept for a boot still waiting on bodies, and sent again to where it
-        // first went, so every live handler on its path answers it. One that
-        // just committed has stopped listening and reads this no more.
         startNow()
-        if (event.target instanceof Element) unanswered.push({ event, element: event.target })
+        // Once the live page listens, this event reaches it in the rest of
+        // its own dispatch; until then it is kept for the handover.
+        if (phase !== 'live' && event.target instanceof Element) {
+          unanswered.push({ event, element: event.target })
+        }
         return
       }
-      startNow()
       // Nothing answered it: it goes on to the page, a plain link to the
       // router, as it would have.
-      if (messages.length === 0) return
-      // Answered here and replayed after boot: the live page must not answer
-      // this one as well.
-      queue.push(...messages)
+      if (messages.length === 0) {
+        startNow()
+        return
+      }
+      // Taken by the runtime before anything else. The live page must not
+      // answer this one as well.
+      runtime.answered.push(...messages)
       event.stopPropagation()
+      startNow()
     },
   })
-  const replay = {
-    dependenciesSchema: Schema.Null,
-    modelToDependencies: () => null,
-    dependenciesToStream: () => Stream.fromIterable(queue),
-  }
-  const commit = () => {
-    boot({ 'foldkit-ssr.replay': replay })
+  const handOver = () => {
+    if (phase === 'live') return
+    phase = 'live'
     stop()
     for (const { event, element } of unanswered.splice(0)) {
       const Ctor = event.constructor as new (type: string, init: Event) => Event
       element.dispatchEvent(new Ctor(event.type, event))
     }
   }
+  const commit = () => {
+    phase = 'starting'
+    runtime.boot({
+      'foldkit-ssr.handover': {
+        dependenciesSchema: Schema.Null,
+        modelToDependencies: () => null,
+        // Foldkit strips the root's stamp just before its first patch, so a
+        // stamped root still has a render to wait for.
+        dependenciesToStream: () =>
+          Stream.fromEffect(
+            Effect.as(
+              Effect.andThen(
+                root.hasAttribute(FOLDKIT_APP_ATTRIBUTE) ? Render.afterCommit : Effect.void,
+                Effect.sync(handOver),
+              ),
+              HANDOVER,
+            ),
+          ),
+      },
+    })
+    if (!root.hasAttribute(FOLDKIT_APP_ATTRIBUTE)) handOver()
+  }
   const startNow = () => {
-    if (booted) return
-    booted = true
+    if (phase !== 'waiting') return
+    phase = 'loading'
     if (pending.length === 0) {
       commit()
       return
@@ -1464,10 +1564,7 @@ const handle = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
   options: { readonly buildId: string; readonly flags?: unknown },
-): Effect.Effect<
-  { readonly rendered: RenderedApplication; readonly envelope: string },
-  RenderError | ResumeUnsafe | FallbackRefused
-> =>
+): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
   Effect.gen(function* () {
     if (plan.fallback !== 'server' || plan.Message === undefined) {
       return yield* refuseFallback('NoFallback', `plan "${plan.id}" has no server fallback`)
@@ -1595,3 +1692,4 @@ export {
   type ResumableBuilder,
 } from './resumable.js'
 export type { DecodedBinding } from './listen.js'
+export type { UnnamedHandler } from './context.js'

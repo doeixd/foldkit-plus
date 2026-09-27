@@ -114,3 +114,19 @@ application.
   a click, a press only the live page can answer and typing from its markers,
   boots when the bodies arrive, and shows the click once, the press once and
   the text; the stamp is gone after the first patch.
+- **Phase G, what the resumable design asked beyond A to F:** the render lists
+  each element and event a closure handles, once however many it chains; the
+  entry and the generator warn about each once per process on a page that
+  waits to boot, and not at all on one that starts now. The resumed page
+  reaches the eager page's Model for the same actions: typing then a click;
+  a bubbling click and a stopped one; a submit, typing and a submit; key
+  presses with modifiers; a closure among named events sent in the booting
+  task; and a placement's input and click under a lazy bundle still loading,
+  with a closure's press between them. Its first render adopts an input
+  beside text the booting event changes, rather than rebuilding it. A form posted with scripts off
+  answers with the Model a browser submit reaches, compared through the
+  plan's state, for a form at the root and for one inside a placement. With
+  `hydrate` held to a later task, the click that boots the page counts once
+  and a click before the first render is not lost, and a closure's event
+  still reaches the live page. The manifest's size and decode time are
+  measured by `bench/manifest.ts`, not tested; the plan records the table.
