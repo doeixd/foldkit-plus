@@ -389,9 +389,12 @@ its scroll box, and writes `--fk-selected-x`, `-y`, `-w`, `-h` (pixels) and
 element (`measured('selected')` names them). A child placed absolutely from
 them, such as an editor's selection outline, sits over the target and scrolls
 with it. Where an element is, is presentation: it sends no Message and keeps
-nothing in the Model. It measures again when the subtree changes, when the
-element scrolls, when it or a target changes size, and when the window
-resizes, at most once a frame.
+nothing in the Model. It measures again when the subtree changes, as the
+records arrive, so the box moves in the frame the change is drawn in; and, at
+most once a frame, when the element scrolls, when it or a target changes size,
+when the window resizes, when an image or a font inside loads, and on each
+frame of a transition or an animation inside. Anything else that moves a
+target without resizing it (a stylesheet added) is seen at the next of these.
 
 ## State: `foldkit-primitives/state`
 

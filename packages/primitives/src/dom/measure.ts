@@ -9,9 +9,13 @@
  * mounted element gets `--fk-<name>-x`, `-y`, `-w` and `-h` in pixels, and
  * `--fk-<name>-display`: `block` while a target is found, `none` while none is.
  *
- * It measures again when the subtree changes (a selection moves), when the
- * mounted element scrolls, when the window resizes, and when the mounted
- * element or a measured one changes size, at most once a frame.
+ * It measures again when the subtree changes (a selection moves), in the
+ * frame the change is drawn in; and, at most once a frame, when the mounted
+ * element scrolls, the window resizes, the mounted element or a measured one
+ * changes size, an image or a font inside loads, and on every frame of a
+ * transition or an animation inside. What moves a target by any other way,
+ * such as a stylesheet added that shifts it without resizing it, is seen at
+ * the next of these.
  */
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
@@ -40,8 +44,11 @@ export const Measure = Mount.defineStream('Measure', {
           const names = Object.keys(targets)
           let watched: ReadonlyArray<Element> = []
           let frame: number | undefined
+          // Whether a transition or an animation may be moving something, until one frame finds none.
+          let animating = false
 
           const measure = () => {
+            if (frame !== undefined) cancelAnimationFrame(frame)
             frame = undefined
             const box = container.getBoundingClientRect()
             const found: Array<Element> = []
@@ -69,21 +76,40 @@ export const Measure = Mount.defineStream('Measure', {
               for (const each of found) sizes.observe(each)
               watched = found
             }
+            if (animating) {
+              // Asked each frame rather than counted: an element removed mid-transition ends none.
+              animating = container
+                .getAnimations({ subtree: true })
+                .some(animation => animation.playState === 'running')
+              if (animating) soon()
+            }
           }
           const soon = () => {
             if (frame === undefined) frame = requestAnimationFrame(measure)
           }
+          const moving = () => {
+            animating = true
+            soon()
+          }
 
-          // Both made before either observes: where one is missing (jsdom has no
-          // ResizeObserver), the Mount fails with nothing attached to call `measure`.
-          const changes = new MutationObserver(soon)
+          // A change is measured as its records arrive, before the frame it is drawn in is
+          // painted, so a box never shows one frame on the element it has left.
+          const changes = new MutationObserver(measure)
+          // Made, and the fonts listened to, before anything observes: where one is
+          // missing (jsdom has neither a ResizeObserver nor `document.fonts`), the Mount
+          // fails with nothing attached to call `measure`.
           const sizes = new ResizeObserver(soon)
+          document.fonts.addEventListener('loadingdone', soon)
           // Its own properties change the container's style too, but writing the same
           // values again records nothing, so a measure that changed nothing rests.
           changes.observe(container, { subtree: true, childList: true, attributes: true })
           sizes.observe(container)
           container.addEventListener('scroll', soon, { passive: true })
           window.addEventListener('resize', soon)
+          // `load` does not bubble, so it is caught on the way down.
+          container.addEventListener('load', soon, { capture: true })
+          container.addEventListener('transitionrun', moving)
+          container.addEventListener('animationstart', moving)
           measure()
           return () => {
             if (frame !== undefined) cancelAnimationFrame(frame)
@@ -91,6 +117,10 @@ export const Measure = Mount.defineStream('Measure', {
             sizes.disconnect()
             container.removeEventListener('scroll', soon)
             window.removeEventListener('resize', soon)
+            container.removeEventListener('load', soon, { capture: true })
+            document.fonts.removeEventListener('loadingdone', soon)
+            container.removeEventListener('transitionrun', moving)
+            container.removeEventListener('animationstart', moving)
           }
         }),
         stop => Effect.sync(stop),

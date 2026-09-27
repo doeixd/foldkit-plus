@@ -130,3 +130,57 @@ it('rests once nothing changes, though writing its properties changes the contai
     await Effect.runPromise(Fiber.interrupt(fiber))
   }
 })
+
+it('measures a change as its records arrive, before the frame is painted', async () => {
+  const { rows, read, fiber } = mount()
+  try {
+    await vi.waitFor(() => expect(read('y')).toBe('100px'))
+    delete rows[1]!.dataset['mark']
+    rows[2]!.dataset['mark'] = ''
+    // The records' microtask runs before this one: no frame has passed.
+    await Promise.resolve()
+    expect(read('y')).toBe('200px')
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})
+
+it('measures again when something moves the target without a change or a resize', async () => {
+  const { container, rows, read, fiber } = mount()
+  const sheet = document.createElement('style')
+  try {
+    await vi.waitFor(() => expect(read('y')).toBe('100px'))
+    // An image above it loads: its height arrives with no change to the DOM.
+    const image = document.createElement('img')
+    image.style.display = 'block'
+    container.insertBefore(image, rows[0]!)
+    await vi.waitFor(() => expect(read('y')).toBe('100px'))
+    image.src = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="30"/>')}`
+    await vi.waitFor(() => expect(read('y')).toBe('130px'))
+    image.remove()
+    await vi.waitFor(() => expect(read('y')).toBe('100px'))
+
+    // A row above it shrinks over a transition: measured to where it ends.
+    rows[0]!.style.transition = 'height 150ms linear'
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    rows[0]!.style.height = '60px'
+    await vi.waitFor(() => expect(read('y')).toBe('60px'))
+
+    // A font arrives: a stylesheet moved it first, as a font's metrics would.
+    sheet.textContent = '[data-mark] { margin-top: 5px }'
+    document.head.appendChild(sheet)
+    for (const _ of [1, 2, 3]) await new Promise(resolve => requestAnimationFrame(resolve))
+    expect(read('y')).toBe('60px')
+    document.fonts.dispatchEvent(new Event('loadingdone'))
+    await vi.waitFor(() => expect(read('y')).toBe('65px'))
+
+    // And over an animation's frames, to where it ends.
+    sheet.textContent += '@keyframes shrink { to { height: 20px } }'
+    await vi.waitFor(() => expect(read('y')).toBe('65px'))
+    rows[0]!.style.animation = 'shrink 150ms linear forwards'
+    await vi.waitFor(() => expect(read('y')).toBe('25px'))
+  } finally {
+    sheet.remove()
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+})

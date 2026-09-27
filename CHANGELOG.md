@@ -375,6 +375,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-primitives`, `Measure`:** a change in the subtree is measured as
+  its records arrive, so an editor's selection box moves in the frame the
+  selection is drawn in rather than one after; and it measures again when an
+  image or a font inside loads and on each frame of a transition or an
+  animation inside, which moved a target without resizing it and left the box
+  where it was.
+
 - **`foldkit-mixins`, per-item memo (`slots.x.lazy`):** a static Style's
   contribution is compared too, so two views apart only by a Style no longer
   reuse each other's rows (a theme switch kept the old theme's rows); and an
