@@ -443,7 +443,7 @@ const transition = (
   }
   let nextId = model.nextId
   // With nothing selected, a mark toggle is the caret's own state: the next
-  // typed text lands with it. A caret move ends the format it was carrying.
+  // typed text lands with it.
   const collapsed =
     model.selection?.type === 'Range' &&
     model.selection.anchor.node === model.selection.focus.node &&
@@ -463,9 +463,7 @@ const transition = (
       ? model.storedMarks?.includes(message.mark)
         ? model.storedMarks.filter(mark => mark !== message.mark)
         : [...(model.storedMarks ?? []), message.mark]
-      : message._tag === 'Selected'
-        ? null
-        : model.storedMarks
+      : model.storedMarks
   const command =
     message._tag === 'Typed' && storedMarks !== null
       ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
@@ -511,6 +509,10 @@ const transition = (
     // A refused command changes nothing, so it does not burn identities.
     return { model, outMessage: { _tag: 'Rejected', error: result.error } }
   }
+  // `runAction` returns the state it was given when nothing changed: a caret the browser
+  // echoes back, or a command with nothing to act on. Keeping the Model keeps the page from
+  // rendering, and a caret that did not move keeps the format it carries.
+  if (result.state === state && storedMarks === model.storedMarks) return { model }
   // History holds content, not cursor movement: a selection change keeps the
   // redo stack, and a no-op edit adds no step to undo.
   const contentChanged = result.state.document !== model.document
@@ -519,7 +521,8 @@ const transition = (
       ...model,
       selection: result.state.selection,
       nextId,
-      storedMarks,
+      // A caret move ends the format it was carrying.
+      storedMarks: message._tag === 'Selected' ? null : storedMarks,
       history: contentChanged
         ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
         : model.history,
@@ -588,18 +591,17 @@ const editorLink: Link<
       menuIndex: parent.editor.menuIndex,
       hostId: parent.editor.hostId,
     }),
-  // Only interaction state is written back: the document is not the child's.
-  write: (parent, child) => ({
-    ...parent,
-    editor: {
-      selection: child.selection,
-      nextId: child.nextId,
-      history: child.history,
-      storedMarks: child.storedMarks,
-      menuIndex: child.menuIndex,
-      hostId: child.hostId,
-    },
-  }),
+  // Only interaction state is written back: the document is not the child's. `read` builds a
+  // new view each time, so the Bundle cannot see that a child returned what it read; a child
+  // whose fields are the parent's own leaves the parent as it was. The placement's `init`
+  // writes into a parent that has no `editor` yet.
+  write: (parent, { document: _document, ...editor }) => {
+    const current: EditorState | undefined = parent.editor
+    return current !== undefined &&
+      (Object.keys(editor) as Array<keyof EditorState>).every(key => editor[key] === current[key])
+      ? parent
+      : { ...parent, editor }
+  },
   wrapper: GotEditor,
   path: ['editor'],
 })
