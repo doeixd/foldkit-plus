@@ -374,6 +374,9 @@ importers:
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../../packages/mixins-form
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui

@@ -165,6 +165,40 @@ attributes, to put on the element that holds the value. A control whose kind has
 no renderer throws when it is drawn, naming the kind and the key.
 `FormView.field(form, { renderers })` takes them too, for a field view you style.
 
+### Per-key overrides: `fields`
+
+`FormView.fields` is `define` with per-key overrides, and one flat key's
+control for a layout the caller owns:
+
+```ts
+const Fields = FormView.fields(PriceForm, {
+  drawers: {
+    // Drawn through the whole-form view, in the form's own universe.
+    code: (input, h) => h.input([h.Id(input.id), h.Value(String(input.field.value))]),
+  },
+  styles: {
+    // A style around one key's base field view.
+    total: Style.forSlots(FieldSlots)({ root: Style.class('total') }),
+  },
+})
+```
+
+Keys with no drawer render through the base field view, so a new key of a
+known kind needs nothing new; unknown keys in either map are type errors.
+`Fields.view` is the whole form. `Fields.field(control, model, id, h)` draws
+one flat key for a custom layout, or with the drawer it is given, in any `h`:
+
+```ts
+Fields.field(control, formModel, control.key, h, (input, draw) =>
+  draw.input([draw.Id(input.id), draw.Value(String(input.field.value))]),
+)
+```
+
+A drawer receives the control, its field, id, validity, errors, and the
+`changed`/`blurred` Messages, so a custom layout reconstructs no form
+plumbing. Nested keys and Bundle-backed keys draw only through `view` (or a
+drawer); `field` without one refuses them, naming the key.
+
 A number is a text input because its draft is text: `"4."` is a fine thing to
 have typed, and `type="number"` would refuse to report it.
 

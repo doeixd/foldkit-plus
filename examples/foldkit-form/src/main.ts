@@ -7,8 +7,9 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import { Entity } from 'foldkit-entity'
-import { Form, Input as FormInput, type FormControl, type Submitted } from 'foldkit-form'
+import { Form, Input as FormInput, type Draft, type FormControl, type Submitted } from 'foldkit-form'
 import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
+import { FormView, type FieldDrawerInput } from 'foldkit-mixins-form'
 import { Button, Input, Textarea } from 'foldkit-mixins-ui'
 
 import { InputStyle, FormPage, SubmitButtonStyle, TextareaStyle } from './style.js'
@@ -183,7 +184,7 @@ export const SubmitForm = Command.define('SubmitForm', {
 // VIEW
 
 type Slots = SlotBuilders<typeof FormPage.slots, Message>
-type Field = FieldValidation.Field<string>
+type Field = FieldValidation.Field<Draft>
 
 /**
  * Whether every key is valid as it stands. `engine.value` decodes only then, so
@@ -192,10 +193,87 @@ type Field = FieldValidation.Field<string>
  */
 const isFormValid = (model: Model): boolean => WaitlistForm.engine.value(model.form) !== undefined
 
-const changed =
-  (key: FieldKey) =>
-  (value: string): Message =>
-    Message.GotFormMessage({ message: WaitlistForm.Message.Changed({ key, value }) })
+type FormMessage = typeof WaitlistForm.Message.Type
+
+const Fields = FormView.fields(WaitlistForm)
+
+type FieldDrawer = (
+  input: FieldDrawerInput<FieldKey, FormMessage>,
+  h: HtmlBuilder<Message>,
+) => Html
+
+const changed = (message: FormMessage): Message => Message.GotFormMessage({ message })
+
+const textDrawer =
+  (slots: Slots, type: string): FieldDrawer =>
+  (input, h) =>
+    UiInput.view(
+      {
+        id: input.id,
+        value: String(input.field.value),
+        onInput: value => changed(input.changed(value)),
+        isInvalid: input.invalid,
+        hasDescription: Option.isSome(descriptionOf(input.field)),
+        type,
+        toView: attributes => {
+          const resolved = Input.resolve<Field, Message>(attributes, [InputStyle.mixin], {
+            input: input.field,
+            h,
+          })
+          return fieldLayout(
+            {
+              field: input.field,
+              label: h.label(resolved.label, [input.control.label]),
+              control: h.input(resolved.input),
+              description: descriptionView(input.field, resolved.description, h),
+            },
+            slots,
+            h,
+          )
+        },
+      },
+      h,
+    )
+
+const textareaDrawer =
+  (slots: Slots): FieldDrawer =>
+  (input, h) =>
+    UiTextarea.view(
+      {
+        id: input.id,
+        value: String(input.field.value),
+        onInput: value => changed(input.changed(value)),
+        isInvalid: input.invalid,
+        hasDescription: Option.isSome(descriptionOf(input.field)),
+        toView: attributes => {
+          const resolved = Textarea.resolve<Field, Message>(attributes, [TextareaStyle.mixin], {
+            input: input.field,
+            h,
+          })
+          return fieldLayout(
+            {
+              field: input.field,
+              label: h.label(resolved.label, [input.control.label]),
+              // A slot's attributes are typed for every element, and Foldkit's textarea
+              // excludes `InnerHTML`; nothing here sets one.
+              control: h.textarea(resolved.textarea as Parameters<typeof h.textarea>[0]),
+              description: descriptionView(input.field, resolved.description, h),
+            },
+            slots,
+            h,
+          )
+        },
+      },
+      h,
+    )
+
+/** How each key is drawn: the control's kind decides, with email's HTML type the one per-key fact. */
+const drawerOf = (control: FormControl<FieldKey>, slots: Slots): FieldDrawer => {
+  if (control.control.kind === FormInput.Multiline.kind) return textareaDrawer(slots)
+  if (control.control.kind === FormInput.Text.kind)
+    return textDrawer(slots, control.key === 'email' ? 'email' : 'text')
+  throw new Error(`no drawer for a "${control.control.kind}" control ("${control.key}")`)
+}
 
 /** What is said under a field: that it is being checked, or its first error. */
 const descriptionOf = (field: Field): Option.Option<string> =>
@@ -238,81 +316,6 @@ const fieldLayout = (parts: FieldParts, slots: Slots, h: HtmlBuilder<Message>): 
     parts.description,
   ])
 
-type FieldDrawer = (
-  control: FormControl<FieldKey>,
-  field: Field,
-  slots: Slots,
-  h: HtmlBuilder<Message>,
-) => Html
-
-const inputField =
-  (type: string): FieldDrawer =>
-  (control, field, slots, h) =>
-    UiInput.view(
-      {
-        id: control.key,
-        value: field.value,
-        onInput: changed(control.key),
-        isInvalid: FieldValidation.isInvalid(field),
-        hasDescription: Option.isSome(descriptionOf(field)),
-        type,
-        toView: attributes => {
-          const resolved = Input.resolve<Field, Message>(attributes, [InputStyle.mixin], {
-            input: field,
-            h,
-          })
-          return fieldLayout(
-            {
-              field,
-              label: h.label(resolved.label, [control.label]),
-              control: h.input(resolved.input),
-              description: descriptionView(field, resolved.description, h),
-            },
-            slots,
-            h,
-          )
-        },
-      },
-      h,
-    )
-
-const textareaField: FieldDrawer = (control, field, slots, h) =>
-  UiTextarea.view(
-    {
-      id: control.key,
-      value: field.value,
-      onInput: changed(control.key),
-      isInvalid: FieldValidation.isInvalid(field),
-      hasDescription: Option.isSome(descriptionOf(field)),
-      toView: attributes => {
-        const resolved = Textarea.resolve<Field, Message>(attributes, [TextareaStyle.mixin], {
-          input: field,
-          h,
-        })
-        return fieldLayout(
-          {
-            field,
-            label: h.label(resolved.label, [control.label]),
-            // A slot's attributes are typed for every element, and Foldkit's textarea
-            // excludes `InnerHTML`; nothing here sets one.
-            control: h.textarea(resolved.textarea as Parameters<typeof h.textarea>[0]),
-            description: descriptionView(field, resolved.description, h),
-          },
-          slots,
-          h,
-        )
-      },
-    },
-    h,
-  )
-
-/** How each key is drawn. Its label is the form's, from the input's `title`. */
-const fieldDrawers: { readonly [K in FieldKey]: FieldDrawer } = {
-  name: inputField('text'),
-  email: inputField('email'),
-  messageText: textareaField,
-}
-
 const submitButton = (model: Model, h: HtmlBuilder<Message>): Html =>
   Button.view(
     {
@@ -336,7 +339,7 @@ export const Page = SlotView.forMessages<Message>()
           ]),
           [
             ...WaitlistForm.controls.map(control =>
-              fieldDrawers[control.key](control, model.form.fields[control.key], slots, h),
+              Fields.field(control, model.form, control.key, h, drawerOf(control, slots)),
             ),
             submitButton(model, h),
           ],

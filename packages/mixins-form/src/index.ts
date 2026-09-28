@@ -15,7 +15,17 @@ import {
   type FormRow,
   type NestedForm,
 } from 'foldkit-form'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type SlotBuilders } from 'foldkit-mixins'
+import {
+  Attr,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  Style,
+  type NamedStyle,
+  type SlotBuilders,
+} from 'foldkit-mixins'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
@@ -493,6 +503,86 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
   }
 }
 
+/**
+ * What a per-key drawer receives: everything to draw the control, and the
+ * Messages that leave it, in the form's own universe. The `h` a drawer draws
+ * with stays the caller's: the whole-form view's, or a custom layout's.
+ */
+export interface FieldDrawerInput<Key extends string = string, Changed = unknown> {
+  readonly control: FormControl<Key>
+  readonly field: FieldValidation.Field<Draft>
+  readonly id: string
+  readonly invalid: boolean
+  readonly errors: ReadonlyArray<string>
+  readonly changed: (value: Draft) => Changed
+  readonly blurred: Changed
+}
+
+/**
+ * Draws one key's control, for a layout the base field view does not own.
+ * `Changed` is the form's Message; `Message` the universe of the `h` that
+ * draws, which is the form's in the whole-form view and the application's
+ * in a custom layout.
+ */
+export type FieldDrawer<Key extends string = string, Changed = unknown, Message = unknown> = (
+  input: FieldDrawerInput<Key, Changed>,
+  h: HtmlBuilder<Message>,
+) => Html
+
+/**
+ * Per-key overrides for `FormView.fields`. `drawers` draw through the
+ * whole-form view; `styles` style one key's base field view there. Unknown
+ * keys in either are type errors. A custom layout passes its drawer to
+ * `field` itself, with its own `h`.
+ */
+export interface FieldsOptions<Key extends string, Changed> {
+  /** A key drawn by this instead of the base field view (or its styled one). */
+  readonly drawers?: { readonly [K in Key]?: FieldDrawer<Key, Changed, Changed> } | undefined
+  /** A style around a key's base field view, kept for keys with no drawer. */
+  readonly styles?: { readonly [K in Key]?: NamedStyle<typeof FieldSlots> } | undefined
+}
+
+/**
+ * One flat key's control, for a layout the caller owns: through the base
+ * field view with a form-universe `h`, or through the drawer it is given,
+ * with any `h`. A call with neither a form `h` nor a drawer is a type error,
+ * since the base view's Messages are the form's own.
+ */
+export interface FieldsField<Key extends string, Model, FormMessage extends { readonly _tag: string }> {
+  (
+    control: FormControl<Key>,
+    model: Model,
+    id: string,
+    h: HtmlBuilder<FormMessage>,
+    drawer?: FieldDrawer<Key, FormMessage, FormMessage>,
+  ): Html
+  <Message>(
+    control: FormControl<Key>,
+    model: Model,
+    id: string,
+    h: HtmlBuilder<Message>,
+    drawer: FieldDrawer<Key, FormMessage, Message>,
+  ): Html
+}
+
+/** The Messages of one key, through its row's send or the form's own. */
+const changedOf =
+  <Key extends string, Model, Message>(
+    form: FormLike<Key, Model, Message>,
+    key: Key,
+    send: FieldInput<Key>['send'],
+  ): ((value: Draft) => Message) =>
+  value =>
+    (send === undefined ? form.Message.Changed({ key, value }) : send.changed(value)) as Message
+
+/** The blur Message of one key, through its row's send or the form's own. */
+const blurredOf = <Key extends string, Model, Message>(
+  form: FormLike<Key, Model, Message>,
+  key: Key,
+  send: FieldInput<Key>['send'],
+): Message =>
+  (send === undefined ? form.Message.Blurred({ key }) : send.blurred) as Message
+
 /** The view of one field, to style or extend before handing it to `FormView.define`. */
 const field = <Key extends string, Model, Message extends { readonly _tag: string }>(
   form: FormLike<Key, Model, Message>,
@@ -509,9 +599,8 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const { key, label, description, required } = control
       const draft = input.field.value
       const { send } = input
-      const change = (value: Draft): Message =>
-        send === undefined ? form.Message.Changed({ key, value }) : (send.changed(value) as Message)
-      const blurred = send === undefined ? form.Message.Blurred({ key }) : (send.blurred as Message)
+      const change = changedOf(form, key, send)
+      const blurred = blurredOf(form, key, send)
       const searched = (text: string): Message =>
         send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
       const searches = control.control.searches
@@ -752,6 +841,105 @@ export const FormView = {
       },
       { name: form.bundle.name },
     )
+  },
+
+  /**
+   * The whole form, as `define` draws it, with per-key overrides; and one flat
+   * key's control, for a layout the caller owns. Keys with no drawer render
+   * through the base field view (a new key of a known kind needs nothing new),
+   * each through its style when one is given. `field` draws through the base
+   * view with a form-universe `h`, or through the drawer it is given, with any
+   * `h`. Nested keys and Bundle-backed keys draw only through `view` (or a
+   * drawer); `field` without one refuses them, naming the key.
+   */
+  fields: <Key extends string, Model, FormMessage extends { readonly _tag: string }>(
+    form: FormLike<Key, Model, FormMessage> & { readonly bundle: { readonly name: string } },
+    options: {
+      readonly field?: FieldView<Key, FormMessage>
+      /** Renderers by kind, for the field views this makes. */
+      readonly renderers?: Renderers<FormMessage>
+    } & FieldsOptions<Key, FormMessage> = {},
+  ): {
+    readonly view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, FormMessage>
+    readonly field: FieldsField<Key, Model, FormMessage>
+  } => {
+    const base =
+      options.field ??
+      field(form, options.renderers === undefined ? {} : { renderers: options.renderers })
+    const styled = new Map<Key, FieldView<Key, FormMessage>>()
+    const viewOf = (key: Key): FieldView<Key, FormMessage> => {
+      const known = styled.get(key)
+      if (known !== undefined) return known
+      const style = options.styles?.[key]
+      const made = style === undefined ? base : Style.attach(style)(base)
+      styled.set(key, made)
+      return made
+    }
+    const drawn = (input: FieldInput<Key>, h: HtmlBuilder<FormMessage>): Html => {
+      const drawer = options.drawers?.[input.control.key]
+      if (drawer === undefined) return viewOf(input.control.key)(input, h)
+      return drawer(
+        {
+          control: input.control,
+          field: input.field,
+          id: input.id,
+          invalid: input.invalid,
+          errors: input.errors,
+          changed: changedOf(form, input.control.key, input.send),
+          blurred: blurredOf(form, input.control.key, input.send),
+        },
+        h,
+      )
+    }
+    return {
+      view: FormView.define(form, {
+        field: SlotView.forMessages<FormMessage>().define(
+          FieldSlots,
+          (input: FieldInput<Key>, _slots, h) => drawn(input, h),
+          { name: `${form.bundle.name}Fields` },
+        ),
+      }),
+      field: (<M>(
+        control: FormControl<Key>,
+        model: Model,
+        id: string,
+        h: HtmlBuilder<M> | HtmlBuilder<FormMessage>,
+        drawer?: FieldDrawer<Key, FormMessage, M>,
+      ): Html => {
+        const state = form.field(model, control.key)
+        if (drawer !== undefined)
+          return drawer(
+            {
+              control,
+              field: state,
+              id,
+              invalid: FieldValidation.isInvalid(state),
+              errors: errorsOf(state),
+              changed: value => form.Message.Changed({ key: control.key, value }),
+              blurred: form.Message.Blurred({ key: control.key }),
+            },
+            h as HtmlBuilder<M>,
+          )
+        if (Input.Nested.is(control.control) || Input.isBundle(control.control))
+          throw new Error(
+            `FormView.fields: "${control.key}" nests rows or a Bundle; draw it with the whole-form view, or give a drawer for it`,
+          )
+        return viewOf(control.key)(
+          {
+            control,
+            field: state,
+            bundle: undefined,
+            invalid: FieldValidation.isInvalid(state),
+            errors: errorsOf(state),
+            options: [],
+            id,
+            search: form.search(model, control.key),
+            following: form.isFollowing(model, control.key),
+          },
+          h as HtmlBuilder<FormMessage>,
+        )
+      }) as FieldsField<Key, Model, FormMessage>,
+    }
   },
 
   /**
