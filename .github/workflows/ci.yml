@@ -28,6 +28,9 @@ jobs:
       # workspace import is a referenced project, so none reads a stale build.
       - run: pnpm paths:check
 
+      # Every branch on a `_tag` goes through a type the checker holds (AGENTS.md).
+      - run: pnpm tags:check
+
       # Forced, so a warm `.tsbuild` cannot hide a project-graph change.
       - run: pnpm typecheck:force
 
