@@ -1007,11 +1007,13 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. `Replicated` is the pure core of collaboration;
-wiring it to `foldkit-sync` is still pending. Retain rejected source content for
-recovery; do not replace it with an empty document.
+`examples/pages` wires it to `foldkit-sync` and `foldkit-durable`. Retain rejected
+source content for recovery; do not replace it with an empty document.
 
-Each transaction currently validates the whole input and indexes its text runs.
-Edits copy the affected arrays and preserve untouched nodes. The performance
-section records the measured cases; collaborative replay remains unmeasured.
+A transaction validates only the top-level blocks it has not seen validated before,
+so a container is checked again whenever anything inside it changes, and indexes its
+text runs. Edits copy the affected arrays and preserve untouched nodes. The
+performance section records the measured cases, the collaborative path included
+(`bench/replicated.bench.ts`).
 
 See the [design and phase status](../../docs/design/richtext-DESIGN.md#101-phase-1--pure-semantics-and-integration-feasibility).
