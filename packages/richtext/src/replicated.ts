@@ -712,7 +712,8 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
     case 'Unjoin': {
       const entry = work.read(op.id)
       if (entry?.joined === undefined) return
-      const into = entry.joined.into
+      // Where its children are now: the container it joined, or the one that was joined into.
+      const home = liveContainer(work, entry.joined.into)
       const restored = work.write(op.id)!
       restored.deleted = false
       delete restored.swept
@@ -721,8 +722,8 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       for (const child of op.children) {
         const moved = work.read(child)
         // A child that is the block itself, or holds it since a move, would make a cycle.
-        if (moved === undefined || moved.parent !== into || isWithin(work, op.id, child)) continue
-        const list = work.write(into)!.children
+        if (moved === undefined || moved.parent !== home || isWithin(work, op.id, child)) continue
+        const list = work.write(home!)!.children
         list.splice(list.indexOf(child), 1)
         work.write(child)!.parent = op.id
         restored.children.push(child)

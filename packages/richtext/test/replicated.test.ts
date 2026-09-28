@@ -1165,6 +1165,34 @@ describe('unjoining containers', () => {
     expect(tree(moved)).toEqual([{ [L1]: [{ [L2]: [{ [X]: [] }] }] }])
   })
 
+  it('takes back its blocks from where the container it joined was joined since', () => {
+    const L0 = ReplicatedId.make('c:0')
+    const inside = (parent: RichText.Replicated.ReplicatedId, id: string) =>
+      ({
+        type: 'InsertBlock',
+        id: ReplicatedId.make(id),
+        shape: { type: 'Paragraph' },
+        parent,
+        after: null,
+      }) as const
+    const start = Replicated.applyOps(lists(L0, L1, L2), [
+      inside(L0, 'p:0'),
+      inside(L1, 'p:1'),
+      inside(L2, 'p:2'),
+    ])
+    const join: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+      { type: 'Join', into: L1, removed: L2, after: null },
+    ]
+    const later = Replicated.applyOps(start, [
+      ...join,
+      { type: 'Join', into: L0, removed: L1, after: null },
+    ])
+    expect(tree(Replicated.applyOps(later, Replicated.invert(start, join)))).toEqual([
+      { [L0]: ['p:0', 'p:1'] },
+      { [L2]: ['p:2'] },
+    ])
+  })
+
   it('does not take back a child the block has been moved into since', () => {
     const start = Replicated.applyOps(lists(L1, L2), [
       { type: 'InsertBlock', id: C, shape: list, parent: L2, after: null },
