@@ -841,10 +841,13 @@ if (result.ok) {
 - `translate` is pure and reads nothing but its arguments. The `ops` are what travels: every
   replica applies the same ops in the server's order and projects the same document.
 - `applyOps` never throws. An op that no longer fits changes nothing: a block already
-  deleted, an id already taken, a move into the block's own subtree. Text typed into a block
-  another replica deleted is gone with it. An insert or split anchored on a character that
-  is gone (its insert was refused, or a `Collect` removed it) lands at the end of the block
-  it was typed in, or of the block that one was joined into.
+  deleted, an id already taken, a move or an `Unjoin` that would put a block inside itself.
+  Text typed into a block another replica deleted is gone with it. An insert or split
+  anchored on a character that is gone (its insert was refused, or a `Collect` removed it)
+  lands at the end of the block it was typed in, or of the block that one was joined into.
+- `applyOps` checks structure, not vocabulary: a `Retype` or `SetProps` op takes any node
+  kind and any JSON props. An application applying ops from replicas it does not trust
+  checks those against its own Kit before committing them.
 - A selection travels as anchors (`translate`'s `selection`, or `anchor(state, selection)`),
   and `resolve` places it again after other replicas' ops: after the same character, or the
   nearest one before it still shown.
@@ -870,8 +873,11 @@ if (result.ok) {
     sibling it followed.
 
   Everyone else's edits stay. Collaborative undo is applying these as a new edit, which
-  converges like any other. A restored mark goes last among its run's marks, whose order
-  carries no meaning. A prop an edit added where there was none stays, since `SetProps`
+  converges like any other. The text an undone split joins back, or a redone join, goes
+  right after the character it followed, so text typed at that place since ends up after
+  it, as two inserts at one place do: split `ab` at its start, type `x` in the empty first
+  half, and undoing the split gives `abx`. A restored mark goes last among its run's marks,
+  whose order carries no meaning. A prop an edit added where there was none stays, since `SetProps`
   cannot delete one. Inverting the inverse, against the state it was applied to, gives
   the redo.
 

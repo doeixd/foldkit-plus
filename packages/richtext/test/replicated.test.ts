@@ -567,6 +567,22 @@ describe('undoing', () => {
     expect(texts(applyReloaded(undone, redo))).toEqual(['ppiiabcdef', ''])
   })
 
+  // The join has only the character it follows to go by, so text typed there since is
+  // an insert at the same place, and the later-committed join goes first.
+  it('joins an undone split back right after the character it followed', () => {
+    const start = base()
+    const block = idAt(start, [4])
+    const split: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+      { type: 'Split', block, after: null, into: ReplicatedId.make('new:0') },
+    ]
+    const typed = Replicated.applyOps(start, [
+      ...split,
+      { type: 'Insert', id: ReplicatedId.make('new:1'), block, after: null, text: 'x', marks: [] },
+    ])
+    expect(texts(typed).slice(-2)).toEqual(['x', 'last'])
+    expect(texts(Replicated.applyOps(typed, Replicated.invert(start, split))).at(-1)).toBe('lastx')
+  })
+
   it('takes back one person’s edit and keeps what someone else did meanwhile', () => {
     const start = base()
     const a: View = { state: start, selection: null }

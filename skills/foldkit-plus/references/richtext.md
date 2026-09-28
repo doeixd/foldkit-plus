@@ -348,7 +348,8 @@ replica's own insert carry on that insert, and `coalesce(ops)` folds such a run 
 A `Collect` op, committed through the log (the server's to issue), removes text deleted
 before the previous `Collect`. `invert(state, ops)` gives the ops that undo `ops` (against the state they
 were applied to) and leave others' edits alone: collaborative undo is applying them as a new
-edit. `examples/pages` wires all of it to `foldkit-sync` and `foldkit-durable`.
+edit. `applyOps` checks structure, not vocabulary: check `Retype` and `SetProps` ops from
+untrusted replicas against the Kit before committing them. `examples/pages` wires all of it to `foldkit-sync` and `foldkit-durable`.
 
 Mobile keyboards remain unfinished; the form
 control (`foldkit-richtext-dom/input`), drag and drop, and the editable adapter's decorations
