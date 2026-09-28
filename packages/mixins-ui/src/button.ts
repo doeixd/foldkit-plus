@@ -1,6 +1,6 @@
-import type { ButtonAttributes } from '@foldkit/ui/button'
-import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
-import type { Html } from 'foldkit/html'
+import { view as buttonView, type ButtonAttributes } from '@foldkit/ui/button'
+import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
@@ -39,3 +39,43 @@ export const toView =
   ) =>
   (attributes: ButtonAttributes<Message>): Html =>
     draw(resolve(attributes, mixins, context))
+
+/**
+ * A button in one call: the label, a style for its slot, and the rest of
+ * `@foldkit/ui`'s own config. `toView` stays for a button drawn as something
+ * else (an `a`, a split control); this covers the common case.
+ */
+export interface ButtonView<Message> {
+  /** The button's text. */
+  readonly label: string
+  /** A style of `ButtonSlots`, for the button's own look. */
+  readonly style?: NamedStyle<typeof ButtonSlots> | undefined
+  /** Mixins beside the style, for state or behavior the style does not own. */
+  readonly mixins?: MixinList<Message> | undefined
+  /** What an input-driven Mixin reads; omit it when no attached Mixin reads one. */
+  readonly input?: unknown
+  readonly type?: 'button' | 'submit' | 'reset' | undefined
+  readonly disabled?: boolean | undefined
+  readonly onClick?: Message | undefined
+}
+
+export const view = <Message>(
+  options: ButtonView<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  buttonView(
+    {
+      ...(options.type === undefined ? {} : { type: options.type }),
+      ...(options.disabled === undefined ? {} : { isDisabled: options.disabled }),
+      ...(options.onClick === undefined ? {} : { onClick: options.onClick }),
+      toView: toView(
+        [
+          ...(options.style === undefined ? [] : [options.style.mixin]),
+          ...(options.mixins ?? []),
+        ],
+        { input: options.input, h },
+        ({ button }) => h.button(button, [options.label]),
+      ),
+    },
+    h,
+  )

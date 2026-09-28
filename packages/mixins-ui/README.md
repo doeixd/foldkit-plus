@@ -195,10 +195,28 @@ alike. The Message type comes from `h`, and a Submodel's value type (a
 RadioGroup's or Tabs' `Value`) from where the `toView` goes, so neither needs
 writing out.
 
+A button drawn as a button needs no `draw` at all. `Button.view` takes the
+label, a style, and `@foldkit/ui`'s own config:
+
+```ts
+import { Button } from 'foldkit-mixins-ui'
+
+const saveButton = (disabled: boolean, h: HtmlBuilder<Message>) =>
+  Button.view(
+    {
+      label: 'Save',
+      style: SaveStyle,
+      type: 'submit',
+      disabled,
+      onClick: Message.Saved(),
+    },
+    h,
+  )
+```
+
 `resolve` is the seam underneath, for bundles already in hand: a view that
 receives a Tabs `render` as its input, or a Calendar whose Mixins read the
 mode it is showing, which is only known once the attributes arrive:
-
 ```ts
 import type { CalendarAttributes } from '@foldkit/ui/calendar'
 import { Calendar, CalendarSlots } from 'foldkit-mixins-ui'

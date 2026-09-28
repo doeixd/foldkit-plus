@@ -1,4 +1,3 @@
-import * as UiButton from '@foldkit/ui/button'
 import * as UiInput from '@foldkit/ui/input'
 import * as UiTextarea from '@foldkit/ui/textarea'
 import { Array, Duration, Effect, Option, Random, Schema } from 'effect'
@@ -315,18 +314,12 @@ const fieldDrawers: { readonly [K in FieldKey]: FieldDrawer } = {
 }
 
 const submitButton = (model: Model, h: HtmlBuilder<Message>): Html =>
-  UiButton.view(
+  Button.view(
     {
+      label: isSubmitting(model.submission) ? 'Joining...' : 'Join Waitlist',
+      style: SubmitButtonStyle,
       type: 'submit',
-      isDisabled: !isFormValid(model) || isSubmitting(model.submission),
-      toView: attributes =>
-        h.button(
-          Button.resolve<undefined, Message>(attributes, [SubmitButtonStyle.mixin], {
-            input: undefined,
-            h,
-          }).button,
-          [isSubmitting(model.submission) ? 'Joining...' : 'Join Waitlist'],
-        ),
+      disabled: !isFormValid(model) || isSubmitting(model.submission),
     },
     h,
   )

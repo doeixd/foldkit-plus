@@ -49,6 +49,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`, `Button.view({ label, style, ... })`:** a button
+  drawn as a button in one call (label, style, `type`, `disabled`, `onClick`),
+  without the `UiButton.view` → `Button.toView` → `h.button` ceremony.
+  `toView` stays for buttons drawn as something else.
+
 - **`foldkit-remote`, `Data.satisfy(model, actives, { passes? })`:** the Model
   with everything the active Surfaces read, for a render that fetches nothing.
   It prefetches each Surface that plans a read, cache-first, pass after pass

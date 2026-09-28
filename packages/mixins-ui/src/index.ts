@@ -43,7 +43,7 @@ export { TooltipSlots } from './tooltip.js'
 
 export { resolveFor as resolve } from './resolve.js'
 export type { MixinList, ResolveContext, Resolved, ResolvedSlots } from './resolve.js'
-export type { ResolvedButton } from './button.js'
+export type { ButtonView, ResolvedButton } from './button.js'
 export type { ResolvedCheckbox } from './checkbox.js'
 export type { ResolvedDialog } from './dialog.js'
 export type { ResolvedDisclosure } from './disclosure.js'
