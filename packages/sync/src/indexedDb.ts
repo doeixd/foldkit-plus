@@ -1,4 +1,4 @@
-import { Config, Effect, type Scope } from 'effect'
+import { Config, Effect } from 'effect'
 import { StorageError } from './errors.js'
 
 /** One submitted operation, as `Storage.append` records it. */
