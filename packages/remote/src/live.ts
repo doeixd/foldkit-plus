@@ -123,17 +123,14 @@ const removeEdgeOverlays = (
   optimistic: OptimisticState,
   connection: string,
   key: string,
-): OptimisticState => {
-  let changed = false
-  const overlays = optimistic.overlays.map(overlay => {
+): OptimisticState => ({
+  ...optimistic,
+  overlays: optimistic.overlays.map(overlay => {
     if (overlay.connection !== connection || overlay.position === 'remove') return overlay
     const edges = overlay.edges.filter(edge => edge.key !== key)
-    if (edges.length === overlay.edges.length) return overlay
-    changed = true
-    return { ...overlay, edges }
-  })
-  return changed ? { ...optimistic, overlays } : optimistic
-}
+    return edges.length === overlay.edges.length ? overlay : { ...overlay, edges }
+  }),
+})
 
 export const applyConnectionEvent = (
   state: LiveState,

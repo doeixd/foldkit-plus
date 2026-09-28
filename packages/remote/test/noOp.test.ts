@@ -165,6 +165,29 @@ describe('A Message that changes nothing', () => {
     expect(removed.optimistic.overlays[0]).toBe(base.optimistic.overlays[0])
   })
 
+  it('drops an insert a live remove emptied once a page of its connection lands', () => {
+    const inserted = updateRemote(
+      base,
+      live('s3', {
+        _tag: 'ConnectionInsert',
+        connection: 'c1',
+        position: 'append',
+        edge: edge('u5'),
+        cursor: 1,
+      }),
+    )
+    const removed = updateRemote(
+      inserted,
+      live('s3', { _tag: 'ConnectionRemove', connection: 'c1', edge: edge('u5'), cursor: 2 }),
+    )
+    const paged = updateRemote(removed, { _tag: 'ConnectionMerged', connection: 'c1', page })
+    // The insert and the remove are both settled evidence about `c1`; a page of it
+    // is newer than either, and an empty insert shows nothing.
+    expect(paged.optimistic.overlays.filter(overlay => overlay.connection === 'c1')).toEqual([
+      expect.objectContaining({ position: 'remove' }),
+    ])
+  })
+
   it('keeps the application root through Data.reduce', () => {
     const model = { remote: base }
     expect(Data.reduce(model, { _tag: 'OverlayLifted', id: 'nobody' })).toBe(model)

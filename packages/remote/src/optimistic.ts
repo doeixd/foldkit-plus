@@ -197,7 +197,8 @@ export const pruneOverlays = (
   const overlays = optimistic.overlays.flatMap(overlay => {
     if (overlay.connection !== connection || pending.has(overlay.id)) return [overlay]
     const edges = overlay.edges.filter(edge => !covered.has(edge.key))
-    if (edges.length === overlay.edges.length) return [overlay]
+    // An overlay a live remove emptied goes too: it shows nothing.
+    if (edges.length > 0 && edges.length === overlay.edges.length) return [overlay]
     changed = true
     return edges.length === 0 ? [] : [{ ...overlay, edges }]
   })
