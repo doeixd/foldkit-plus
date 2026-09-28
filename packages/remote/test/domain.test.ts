@@ -507,6 +507,11 @@ describe('Data.live and Data.subscriptions', () => {
     })
   })
 
+  it('the read entry plans once per Remote state and ask, whatever else the Model changes', () => {
+    const planned = subscriptions['page.read'].modelToDependencies(at('p7'))
+    expect(subscriptions['page.read'].modelToDependencies(at('p7'))).toBe(planned)
+  })
+
   it('the live entry subscribes only what the Surface reads live', () => {
     expect(subscriptions['page.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],

@@ -1277,6 +1277,14 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     Effect.map(readMessage(requirements, now), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
     Effect.map(queryMessage(query), toMessage)
+  // A plan is a function of the Remote model, what is asked, and the clock only
+  // until the next value ages out (`expires`), so a Model change the Remote
+  // model is not part of (typing in a field) reuses it rather than walking
+  // every row again.
+  const planned = new WeakMap<
+    RemoteModel,
+    Map<string, { readonly until: number; readonly dependencies: ReadDependencies }>
+  >()
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
@@ -1286,21 +1294,33 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     }),
     modelToDependencies: model => {
       const remote = bound.store.get(model)
-      const planned = planAsked(remote, askedOf(model), RemotePolicy.toPlan(policy, now()))
-      return {
+      const asked = askedOf(model)
+      const askedKey = stableStringify(asked)
+      const at = now()
+      let byAsked = planned.get(remote)
+      const known = byAsked?.get(askedKey)
+      if (known !== undefined && at < known.until) return known.dependencies
+      const plan = planAsked(remote, asked, RemotePolicy.toPlan(policy, at))
+      const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
-          planned.requirements,
-          planned.queries.map(query => query.identity),
+          plan.requirements,
+          plan.queries.map(query => query.identity),
         ),
-        requirements: planned.requirements,
-        queries: planned.queries.map(({ identity, window, select }) => ({
+        requirements: plan.requirements,
+        queries: plan.queries.map(({ identity, window, select }) => ({
           identity,
           window,
           select,
         })),
-        expires: planned.expires,
+        expires: plan.expires,
       }
+      if (byAsked === undefined) {
+        byAsked = new Map()
+        planned.set(remote, byAsked)
+      }
+      byAsked.set(askedKey, { until: plan.expires?.at ?? Infinity, dependencies })
+      return dependencies
     },
     dependenciesToStream: ({ requirements, queries, refresh, expires }) =>
       Stream.concat(

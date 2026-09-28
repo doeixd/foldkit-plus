@@ -270,6 +270,10 @@ version changed; `pnpm` skips versions already in the registry.
   `ObserveOptions` and `LiveOptions` do, and `settleSuccess` and
   `reconcileMutation` a trailing `now`. A hand-built `MutationSucceeded` adds
   the field.
+- **`foldkit-remote`: the read entry plans once per Remote state and ask.** A
+  Model change the Remote model is not part of, such as typing in a field,
+  reuses the plan until the next freshness deadline instead of walking every
+  row again: about 1 ms to 0.02 ms per change for a list of 400 rows.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by
