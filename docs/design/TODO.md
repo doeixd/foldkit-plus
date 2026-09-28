@@ -274,7 +274,9 @@ The [`examples/foldkit-*`](../../examples/README.md#foldkits-own-examples-on-fol
 ports worked around each of these; the example named has the workaround and
 its README the details.
 
-- [ ] **Mirror: a restore that loses the race to the first write.** On the
+- [x] **Mirror: a restore that loses the race to the first write.** Fixed
+  and tested (`packages/mirror/test/restore.test.ts`); the ports keep Flags
+  so the first frame shows stored data. On the
   documented `Mirror.fold().init` path the write subscription starts with the
   initial value before the restore arrives, and could delete the stored
   document if the restore takes longer than the throttle. Unverified; the ports

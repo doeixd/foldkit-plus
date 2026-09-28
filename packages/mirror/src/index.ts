@@ -429,7 +429,10 @@ export interface Mirror<
   readonly restoreKeys: (model: AppModel, keys: Encoded) => AppModel
   /** A link: the keys of `model` with `patch` applied, on `base` (default the current URL, else `/`). */
   readonly href: (model: AppModel, patch?: Partial<Value>, base?: string) => string
-  /** A Command that reads the store and yields `MirrorRestored` for this mirror. */
+  /**
+   * A Command that reads the store and yields `MirrorRestored` for this
+   * mirror. Until the Model holds what it answered, writes wait.
+   */
   readonly restore: Command<MirrorMessage, never, R>
   /** One Subscription entry, `<name>.mirror`: writes the store when the encoded slice changes. */
   readonly subscriptions: {
@@ -508,6 +511,12 @@ export interface KvMirror<
   readonly wiring: () => KvMirrorWiring<AppModel>
 }
 
+/** One runtime's store, for a mirror's writes: the keys its Model has yet to take in, and the writes waiting on that. */
+interface Session {
+  pending: Option.Option<Encoded>
+  readonly waiting: Set<() => void>
+}
+
 const nameOf = (
   kind: Mirror<unknown, Record<string, unknown>>['kind'],
   keys: ReadonlyArray<string>,
@@ -565,6 +574,9 @@ const make = <S extends Slice, R, Name extends string>(
   store: MirrorStore<R>,
   config: MirrorConfig<S, Name> & { readonly location?: UrlLocation | undefined },
   throttle: Duration.Input,
+  // Names one runtime's store, so writes wait for that runtime's restore; none
+  // for the URL, which startup reads before the first write.
+  sessionKey: Option.Option<Effect.Effect<object, never, R>>,
 ) => {
   type AppModel = SliceRoot<S>
   type Value = SliceValue<S>
@@ -676,16 +688,28 @@ const make = <S extends Slice, R, Name extends string>(
       : fields.set(model, next as never)
   }
 
+  // The fields a restore of `keys` would change in a slice whose text per
+  // field is `textOf`: those still at their initial text, since a change the
+  // user made before the store answered wins over the store.
+  const restorable = (
+    textOf: (field: string) => string,
+    keys: Encoded,
+  ): Readonly<Record<string, unknown>> => {
+    const decoded = decode(keys).value as Readonly<Record<string, unknown>>
+    const out: Record<string, unknown> = {}
+    for (const field of names) {
+      if (textOf(field) !== initialText[field] || !Object.hasOwn(decoded, field)) continue
+      if (encodeField(field, decoded[field]) !== initialText[field]) out[field] = decoded[field]
+    }
+    return out
+  }
+
   const restoreKeys = (model: AppModel, keys: Encoded): AppModel => {
     const current = fields.get(model) as Readonly<Record<string, unknown>>
-    const restored = decode(keys).value as Readonly<Record<string, unknown>>
-    const next: Record<string, unknown> = { ...current }
-    for (const field of names) {
-      // A change the user made before the store answered wins over the store.
-      if (encodeField(field, current[field]) !== initialText[field]) continue
-      if (field in restored) next[field] = restored[field]
-    }
-    return sameSlice(current, next) ? model : fields.set(model, next as never)
+    const restored = restorable(field => encodeField(field, current[field]), keys)
+    return Object.keys(restored).length === 0
+      ? model
+      : fields.set(model, { ...current, ...restored } as never)
   }
 
   const href = (model: AppModel, patch?: Partial<Value>, base?: string): string => {
@@ -705,10 +729,65 @@ const make = <S extends Slice, R, Name extends string>(
     metadata: [],
   }
 
+  // Until the Model has taken in what the store held, a write would replace
+  // the stored slice with the initial one: the write Subscription starts with
+  // the initial Model, before `restore` answers. So per session (one runtime's
+  // store) a write waits until its slice is one a restore of the store's keys
+  // leaves unchanged. The keys are the latest restore's answer, or, before any
+  // answer, what the store holds at the first write, so a mirror nobody
+  // restores (a test, a Model kept across a hot reload) writes once its slice
+  // agrees with the store.
+  const sessions = new WeakMap<object, Session>()
+  const sessionOf = (key: object, keys: Encoded): Session => {
+    const known = sessions.get(key)
+    if (known !== undefined) return known
+    const made: Session = { pending: Option.some(keys), waiting: new Set() }
+    sessions.set(key, made)
+    return made
+  }
+  const answered = (keys: Encoded): Effect.Effect<void, never, R> =>
+    Option.match(sessionKey, {
+      onNone: () => Effect.void,
+      onSome: key =>
+        Effect.map(key, key => {
+          const session = sessionOf(key, keys)
+          session.pending = Option.some(keys)
+          for (const wake of [...session.waiting]) wake()
+        }),
+    })
+  const settled = (encoded: Encoded): Effect.Effect<void, never, R> =>
+    Option.match(sessionKey, {
+      onNone: () => Effect.void,
+      onSome: key =>
+        Effect.gen(function* () {
+          const at = yield* key
+          const session = sessions.get(at) ?? sessionOf(at, (yield* store.read) ?? {})
+          const text = (field: string) => encoded[keyOf[field]!] ?? initialText[field]!
+          yield* Effect.callback<void>(resume => {
+            const check = () => {
+              const absorbed = Option.match(session.pending, {
+                onNone: () => true,
+                onSome: keys => Object.keys(restorable(text, keys)).length === 0,
+              })
+              if (!absorbed) return
+              session.pending = Option.none()
+              session.waiting.delete(check)
+              resume(Effect.void)
+            }
+            session.waiting.add(check)
+            check()
+            // A newer slice interrupts this one before the Model took the keys in.
+            return Effect.sync(() => session.waiting.delete(check))
+          })
+        }),
+    })
+
   const restore: Command<MirrorMessage, never, R> = {
     name: `Mirror.restore(${name})`,
     effect: store.read.pipe(
-      Effect.map((keys): MirrorMessage => ({ _tag: 'MirrorRestored', name, keys: keys ?? {} })),
+      Effect.map(keys => keys ?? {}),
+      Effect.tap(answered),
+      Effect.map((keys): MirrorMessage => ({ _tag: 'MirrorRestored', name, keys })),
     ),
   }
 
@@ -728,7 +807,9 @@ const make = <S extends Slice, R, Name extends string>(
     dependenciesSchema: Schema.Struct({ keys: Schema.Record(Schema.String, Schema.String) }),
     modelToDependencies: model => ({ keys: encode(model) }),
     dependenciesToStream: ({ keys }) =>
-      Stream.fromEffect(sync(keys).pipe(Effect.delay(throttle))).pipe(Stream.drain),
+      Stream.fromEffect(
+        settled(keys).pipe(Effect.andThen(sync(keys)), Effect.delay(throttle)),
+      ).pipe(Stream.drain),
   }
 
   const mirror: Mirror<AppModel, Value, R, Name> = {
@@ -832,6 +913,7 @@ export const Mirror = {
       MirrorStore.url(owned, config.location ?? 'search'),
       config,
       config.throttle ?? '50 millis',
+      Option.none(),
     )
     const reduce = (model: SliceRoot<S>, url: Url | string) =>
       mirror.fromKeys(model, keysOfUrl(url))
@@ -871,6 +953,8 @@ export const Mirror = {
       }),
       { ...config, name: config.name ?? config.key },
       config.throttle ?? '250 millis',
+      // One runtime builds one KeyValueStore: the session is that service.
+      Option.some(Effect.service(KeyValueStore.KeyValueStore)),
     )
     const reduce = (model: SliceRoot<S>, message: MirrorRestored) =>
       message.name === mirror.name ? mirror.restoreKeys(model, message.keys) : model
@@ -900,5 +984,6 @@ export const Mirror = {
     store: MirrorStore<R>,
     config: MirrorConfig<S, Name>,
   ): Mirror<SliceRoot<S>, SliceValue<S>, R, Name> =>
-    make(app, 'memory', store, config, config.throttle ?? 0).mirror,
+    make(app, 'memory', store, config, config.throttle ?? 0, Option.some(Effect.succeed(store)))
+      .mirror,
 }

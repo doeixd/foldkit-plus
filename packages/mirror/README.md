@@ -522,6 +522,27 @@ current draft is no longer initial
 keep 'new text'
 ```
 
+The write Subscription starts with the initial Model, before the store has
+answered. Until the Model has taken in what the store holds, writing it would
+replace the stored document with the initial slice, so a key-value mirror
+holds each write until its slice is one the restore leaves unchanged:
+
+```text
+cold load: Model at defaults, store holds { sidebar: 'closed' }
+
+write (after the throttle)   held: a restore would still change the Model
+restore answers              MirrorRestored -> reduce -> Model has sidebar 'closed'
+write                        goes ahead: the Model holds what the store held
+```
+
+The check is against the latest restore's answer, or, before any answer, the
+store's own content at the first write, so a mirror nobody restores (a test
+harness, a Model kept across a hot reload) writes once its slice agrees with
+the store. An empty store holds back nothing. A read that fails answers as an empty store: `MirrorRestored`
+carries no keys, and later writes replace whatever the store held. A second
+`restore` holds writes again until its answer is taken in. The hold is per
+runtime (per built `KeyValueStore`), so two runtimes never wait on each other.
+
 When URL and KV mirrors both represent one field, cold-load precedence is:
 
 ```text
@@ -620,6 +641,10 @@ MirrorStore.memory(...)  test/in-memory representation
 
 `applyToHref(href, { set, remove })` is the pure URL transformation used by the
 URL store.
+
+A kernel mirror holds its writes until the Model has taken in its `restore`,
+as a key-value mirror does, with one store object as the session. A URL mirror
+does not: startup reduces the URL before the first write.
 
 Most applications should use `Mirror.url` / `Mirror.kv` rather than starting at
 this kernel.

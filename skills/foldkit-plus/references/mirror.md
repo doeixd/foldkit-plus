@@ -146,6 +146,10 @@ for (const command of start.commands ?? []) {
   (`?page=abc`) becomes initial. KV `reduce` fills only fields **still at
   initial**, which keeps early edits, and ignores other mirrors' restores
   (matched by `name`, which defaults to `key`).
+- A KV mirror's writes wait until the Model holds what `restore` answered (per
+  runtime), so a slow store cannot lose its document to the first write.
+  Before any answer, a write is checked against what the store holds, so a
+  mirror that is never restored writes once its slice agrees with the store.
 - Writes are throttled (URL 50 ms, KV 250 ms, `throttle`) and deduped, so
   `popstate` cannot loop. `location: 'hash'` is supported, and SSR writes nothing.
 - `Mirror.kv({ scope })` scopes to a user or tenant. Another scope or version,

@@ -342,6 +342,75 @@ describe('the write entry', () => {
     )
     expect(store.writes).toEqual([{ set: { page: '3' }, remove: [], intent: 'push' }])
   })
+
+  it('holds a write until the Model has taken in the latest restore', async () => {
+    const store = MirrorStore.memory({ filter: 'active' })
+    const m = Mirror.make(App, store, { name: 'filters', fields: Filters, throttle: '10 millis' })
+    const entry = m.subscriptions['filters.mirror']!
+    // A write that is still waiting after its throttle is interrupted, as a newer slice would.
+    const write = (model: Model) =>
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          Stream.runDrain(entry.dependenciesToStream(entry.modelToDependencies(model))),
+        )
+        yield* TestClock.adjust('10 millis')
+        yield* Fiber.interrupt(fiber)
+      })
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        // Before any restore answers, the initial slice does not replace the stored one.
+        yield* write(initial)
+        expect(store.current()).toEqual({ filter: 'active' })
+        // Called twice; until the Model holds what it restores, still nothing is written.
+        const { keys } = yield* m.restore.effect
+        yield* m.restore.effect
+        yield* write(initial)
+        expect(store.writes).toEqual([])
+        const restored = m.restoreKeys(initial, keys)
+        yield* write({ ...restored, page: 2 })
+        // Taken in: a field back at its initial value is now removed.
+        yield* write(initial)
+        expect(store.current()).toEqual({})
+        // Another restore, of what another writer left, holds writes again.
+        yield* store.write({ set: { q: 'elsewhere' }, remove: [], intent: 'replace' })
+        yield* m.restore.effect
+        yield* write(initial)
+        expect(store.current()).toEqual({ q: 'elsewhere' })
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+    expect(store.writes.map(({ set, remove }) => ({ set, remove }))).toEqual([
+      { set: { filter: 'active', page: '2' }, remove: [] },
+      { set: {}, remove: ['filter', 'page'] },
+      { set: { q: 'elsewhere' }, remove: [] },
+    ])
+  })
+
+  it('a write superseded while held has no say in whether the next one goes ahead', async () => {
+    const store = MirrorStore.memory({ filter: 'active', page: '2' })
+    const m = Mirror.make(App, store, { name: 'filters', fields: Filters, throttle: '10 millis' })
+    const entry = m.subscriptions['filters.mirror']!
+    const fork = (model: Model) =>
+      Effect.forkChild(
+        Stream.runDrain(entry.dependenciesToStream(entry.modelToDependencies(model))),
+      )
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        // Held: the store's page would still be restored into it.
+        const superseded = yield* fork({ ...initial, filter: 'done' })
+        yield* TestClock.adjust('10 millis')
+        yield* Fiber.interrupt(superseded)
+        yield* store.write({ set: { filter: 'active' }, remove: ['page'], intent: 'replace' })
+        const held = yield* fork(initial)
+        yield* TestClock.adjust('10 millis')
+        // This answer would let the superseded slice through, not the held one.
+        yield* m.restore.effect
+        for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+        yield* Fiber.interrupt(held)
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+    expect(store.writes.slice(1)).toEqual([])
+    expect(store.current()).toEqual({ filter: 'active' })
+  })
 })
 
 describe('restore', () => {

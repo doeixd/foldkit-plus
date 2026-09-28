@@ -7,6 +7,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **`foldkit-mirror`, a slow restore no longer loses the stored document:** a
+  key-value or kernel mirror holds each write until the Model has taken in
+  what `restore` answered. Before, the write Subscription started from the
+  initial Model and, once the throttle passed, replaced or deleted the stored
+  slice while the restore was still reading it. The hold is per runtime and
+  applies again on every restore; a failed read counts as an empty store.
+
 ### Added
 
 - **`foldkit-mixins-form`, a check running and a submit in flight:** a key
