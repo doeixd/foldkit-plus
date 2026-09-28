@@ -220,11 +220,20 @@ const TOKEN_READ = /var\((--fk-[\w-]+)\)/g
 const missingTokens = (root: Html, stylesheet: string): ReadonlyArray<string> => {
   const nodes = all(root)
   const drawn = css(nodes)
-  const inline = nodes.flatMap(node => Object.keys(style(node)))
-  const read = new Set(Array.from(drawn.matchAll(TOKEN_READ), ([, name]) => name ?? ''))
+  const inline = nodes.flatMap(node => Object.entries(style(node)))
+  const read = new Set([
+    ...Array.from(drawn.matchAll(TOKEN_READ), ([, name]) => name ?? ''),
+    ...inline.flatMap(([, value]) =>
+      Array.from(value.matchAll(TOKEN_READ), ([, name]) => name ?? ''),
+    ),
+  ])
+  const defined = new Set(inline.map(([property]) => property))
   return [...read].filter(
     name =>
-      !stylesheet.includes(`${name}:`) && !drawn.includes(`${name}:`) && !inline.includes(name),
+      name !== '' &&
+      !stylesheet.includes(`${name}:`) &&
+      !drawn.includes(`${name}:`) &&
+      !defined.has(name),
   )
 }
 

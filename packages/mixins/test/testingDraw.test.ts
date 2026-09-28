@@ -93,4 +93,19 @@ describe('Inert.css and Inert.missingTokens', () => {
       .pipe(Style.attach(Page.style))
     expect(Inert.missingTokens(Inert.draw(Inline, undefined), '')).toEqual([])
   })
+
+  it('lists a token an inline style value reads that nothing defines', () => {
+    const InlineRead = SlotView.forMessages<never>()
+      .define(Page.slots, (_: void, slots, h) =>
+        h.main(slots.root.attrs([h.Style({ color: 'var(--fk-inline-read)' })]), []),
+      )
+      .pipe(Style.attach(Page.style))
+    const tree = Inert.draw(InlineRead, undefined)
+    // Without the inline scan this passes for the wrong reason: no drawn
+    // rule reads the token, so nothing reports it.
+    expect(Inert.missingTokens(tree, '')).toEqual(expect.arrayContaining(['--fk-inline-read']))
+    expect(Inert.missingTokens(tree, ':root{--fk-inline-read:red}')).toEqual(
+      expect.not.arrayContaining(['--fk-inline-read']),
+    )
+  })
 })
