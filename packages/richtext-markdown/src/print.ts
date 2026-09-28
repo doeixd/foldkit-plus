@@ -312,7 +312,8 @@ const OTHER_MARKER: Readonly<Record<string, string>> = {
 /**
  * A list's items, each marked with `marker`. The marker goes on the first line and the rest
  * align under its content, which is what keeps a second paragraph in an item inside the item.
- * A task item carries GFM's checkbox, ordered or not.
+ * A task item carries GFM's checkbox, ordered or not. A loose list has a blank line between
+ * its items; a tight one has none, and none inside an item where CommonMark allows it.
  */
 const list = (
   block: RichText.NodeBlock,
@@ -321,15 +322,21 @@ const list = (
 ): ReadonlyArray<string> => {
   const ordered = block.props.ordered === true
   const start = typeof block.props.start === 'number' ? block.props.start : 1
+  const tight = spellingOf(block, printing).spacing === 'tight'
   const lines: Array<string> = []
   let number = start
   for (const item of block.blocks ?? []) {
+    if (!tight && lines.length > 0) lines.push('')
     const isTask = item.type === 'Node' && item.kind === 'TaskItem'
     const checked = item.type === 'Node' && item.props.checked === true
     const bullet = ordered ? `${number}${marker} ` : `${marker} `
     const opening = `${bullet}${isTask ? `[${checked ? 'x' : ' '}] ` : ''}`
     number += 1
-    const content = renderBlocks(item.type === 'Node' ? (item.blocks ?? []) : [item], printing)
+    const content = renderBlocks(
+      item.type === 'Node' ? (item.blocks ?? []) : [item],
+      printing,
+      tight,
+    )
     // GFM's content column is after the bullet; a checkbox is part of the first line's text.
     const indent = ' '.repeat(bullet.length)
     const [first, ...rest] = content
@@ -432,13 +439,24 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
 }
 
 /**
+ * Whether a printed list can start right under the line before it, even a paragraph's:
+ * CommonMark lets a list interrupt a paragraph unless its first item is empty or its number
+ * is not 1.
+ */
+const interrupts = (block: RichText.NodeBlock, lines: ReadonlyArray<string>): boolean =>
+  (block.props.ordered !== true || (block.props.start ?? 1) === 1) &&
+  /^\S+ +\S/.test(lines[0] ?? '')
+
+/**
  * Blocks one after another, separated by a blank line. Markdown reads a list right after one
  * with the same marker as more of that list, and a changed bullet or delimiter is what starts
- * a new one, so such a list takes the other spelling.
+ * a new one, so such a list takes the other spelling. In a tight list's item a blank line
+ * would make the list loose, so a list that can start without one does.
  */
 const renderBlocks = (
   blocks: ReadonlyArray<RichText.Block>,
   printing: Printing,
+  tight = false,
 ): ReadonlyArray<string> => {
   const lines: Array<string> = []
   let listBefore: string | undefined
@@ -453,7 +471,9 @@ const renderBlocks = (
     // An empty paragraph prints only a blank line, which Markdown cannot tell from the gap
     // between blocks: it says nothing, and two lists either side of it are still adjacent.
     if (rendered.every(line => line.length === 0)) continue
-    if (lines.length > 0) lines.push('')
+    const joins =
+      tight && block.type === 'Node' && marker !== undefined && interrupts(block, rendered)
+    if (lines.length > 0 && !joins) lines.push('')
     lines.push(...rendered)
     listBefore = marker
   }

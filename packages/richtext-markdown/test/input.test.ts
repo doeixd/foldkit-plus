@@ -9,9 +9,9 @@ import { parse } from '../src/parse.js'
 import { print } from '../src/print.js'
 
 /** The first rule that has something to say about this text, as the editor would find it. */
-const match = (textBefore: string) => {
+const match = (textBefore: string, within: ReadonlyArray<string> = []) => {
   for (const rule of markdownInputRules) {
-    const matched = rule.match(textBefore)
+    const matched = rule.match(textBefore, within)
     if (matched !== undefined) return { name: rule.name, ...matched }
   }
   return undefined
@@ -178,6 +178,68 @@ describe('the rules applied to a document, as the editor applies them', () => {
     if (!result.ok) throw new Error(result.error)
     expect(result.state.document.children).toHaveLength(1)
     expect(print(result.state.document).markdown).toBe('- milk\n- eggs\n')
+  })
+
+  /**
+   * Completes the task marker the source already holds at the start of a paragraph (`[ ]`
+   * before the space that makes it one), as the editor would, with the kinds around it, and
+   * prints the result in the source's style, or gives the refusal.
+   */
+  const completeTask = (source: string) => {
+    let count = 0
+    const mint = () => `m${++count}`
+    const { document, style } = parse(source, { mint })
+    let found: RichText.Text | undefined
+    const visit = (blocks: ReadonlyArray<RichText.Block>) => {
+      for (const block of blocks) {
+        found ??= block.children.find(run => /^\[[ x]\]/.test(run.text))
+        if (block.type === 'Node') visit(block.blocks ?? [])
+      }
+    }
+    visit(document.children)
+    if (found === undefined) throw new Error('no marker in the source')
+    const marker = found.text.slice(0, 3)
+    const caret = { node: found.id, offset: 3, affinity: 'after' } as const
+    const selection = { type: 'Range', anchor: caret, focus: caret } as const
+    const within = RichText.blocksAt(document, selection)
+      .slice(0, -1)
+      .map(block => (block.type === 'Node' ? block.kind : block.type))
+      .reverse()
+    const action = RichText.applyInputRules(markdownInputRules, {
+      textBefore: marker,
+      text: ' ',
+      insertion: { type: 'InsertText', text: ' ' },
+      within,
+    })
+    const result = RichText.runAction(
+      { document, selection },
+      action,
+      { mint },
+      { nodes: RichText.nodeRegistry(RichText.standardNodes) },
+    )
+    return result.ok ? print(result.state.document, { style }).markdown : result
+  }
+
+  it.each([
+    ['first', '- [ ]milk\n- eggs\n', '- [ ] milk\n- eggs\n'],
+    ['middle', '- a\n- [x]b\n- c\n', '- a\n- [x] b\n- c\n'],
+    ['last', '- milk\n- [ ]eggs\n', '- milk\n- [ ] eggs\n'],
+    ['ordered', '1. a\n2. [ ]b\n3. c\n', '1. a\n2. [ ] b\n3. c\n'],
+    ['nested', '- a\n  - [ ]b\n  - c\n- d\n', '- a\n  - [ ] b\n  - c\n- d\n'],
+    ['sub-listed', '- [x]a\n  - b\n- c\n', '- [x] a\n  - b\n- c\n'],
+  ])('makes the %s item a task where it stands', (_, source, expected) => {
+    expect(completeTask(source)).toBe(expected)
+  })
+
+  // The editor then types the space alone, so the marker stays text.
+  it('refuses a marker in a later paragraph of the item', () => {
+    expect(completeTask('- a\n\n  [ ]b\n')).toEqual({ ok: false, error: 'InvalidInput' })
+  })
+
+  it('reads a task marker only inside a list item', () => {
+    expect(match('[ ] ')).toBeUndefined()
+    expect(match('[ ] ', ['Quote'])).toBeUndefined()
+    expect(match('[ ] ', ['ListItem', 'List'])?.name).toBe('task-list')
   })
 
   it('turns `> ` into a quote, and `3. ` into a list numbered from three', () => {

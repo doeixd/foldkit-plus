@@ -514,6 +514,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.
   Run a scratch probe against the installed version before relying on semantics
   inferred from a name.
+- **`Schema.Record` drops a key its key schema refuses.** Decoding `{ constructor: … }`
+  against `Schema.Record(Id, Entry)` returned `{}`, with no error, unless the call passes
+  `onExcessProperty: 'error'`. That keeps a bad key out, and also loses its value silently.
 - **Run the probe from the package, not the repo root.** A scratch probe run
   from the root resolves a different, v3-era `effect` than the pinned rc the
   package actually compiles against, so it answers a question about the wrong
@@ -898,18 +901,11 @@ of its own named a form field "fits the Catalog". Read words with
   `Data.subscriptions` entry (typed `any`) passed its test and failed
   `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
   example, run the root typecheck, not only its test.
-- **Run a test from the repo root, not from its package.** The root
-  `vitest.config.ts` aliases every workspace package to its `src`; run from
-  `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
-  and a demo line that passed under `tsx` failed its test for no reason in the
-  change. `npx vitest run examples/remote` from the root tests the source.
-- **Vitest does not typecheck.** A demo line mapped over the dependencies of a
-  `Data.subscriptions` entry (typed `any`) passed its test and failed
-  `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
-  example, run the root typecheck, not only its test.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
-  run `pnpm check`.
+  run `pnpm check`. `server` is one too: two example READMEs said
+  `pnpm server`, which fails with `Unknown option: 'recursive'`; write
+  `pnpm run server`.
 - **The index is shared: stage and commit in one command.** Two sessions in
   one worktree share `git add`'s staging area, so files one session stages
   and leaves for a review step are swept into the other's next `git commit`.

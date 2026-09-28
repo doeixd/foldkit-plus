@@ -35,6 +35,35 @@ type Private =
   | { readonly _tag: typeof NAVIGATE; readonly request: UrlRequest }
   | { readonly _tag: typeof NAVIGATED }
 
+// A registered symbol, so two copies of this package in one bundle recognize each other's.
+const FACT = Symbol.for('foldkit-sync/fact')
+
+/**
+ * A Command that dispatches `message` as the next transition, which under `Sync.mount`
+ * means within this one: the mount applies it straight after the `update` that returned
+ * it, and persists it if it is durable, before any other Message is processed. This is
+ * how a local intent turns into a durable fact that needs something only the intent's
+ * transition knows, such as an id minted from local state, without a later Message
+ * seeing the Model before the fact. Elsewhere, or once a parent has mapped the Command,
+ * it is an ordinary Command that yields `message`, and so is one a durable Message's
+ * update returns: replay would not apply it, and with derived replay the durable Message's
+ * persist fails with `ReplayError` as for any Command.
+ */
+export const fact = <Message>(
+  message: Message,
+): { readonly name: string; readonly effect: Effect.Effect<Message> } =>
+  // Not enumerable, so the spread a mapping Command is copied with drops the marker, and a
+  // mapped fact is the ordinary Command it now is rather than the unmapped Message.
+  Object.defineProperty({ name: 'foldkit-sync/fact', effect: Effect.succeed(message) }, FACT, {
+    value: message,
+    enumerable: false,
+  })
+
+const factOf = (command: unknown): { readonly message: unknown } | undefined =>
+  typeof command === 'object' && command !== null && FACT in command
+    ? { message: (command as { readonly [FACT]: unknown })[FACT] }
+    : undefined
+
 /**
  * The URL as part of the application: `onUrlChange` names the Message the
  * runtime sends for the current URL at start and on every navigation (so a
@@ -64,6 +93,16 @@ export interface MountOptions<Model, Message, Shared, Resources> {
    * has been reverted. Omitted, the edit is reverted silently.
    */
   readonly onPersistenceFailure?: ((model: Model, error: ReplicaError) => Model) | undefined
+  /**
+   * Runs when the mount replaces the shared slice outside `update`: an exchange committed,
+   * acknowledged or rejected something, or a persist failed and its edit was reverted.
+   * `previous` is the Model before; what it returns is the transition, so an application
+   * can carry local state across the change (a selection held by what it points at) or
+   * return Commands (a DOM the change has to reach). Omitted, the Model is `next`. It is
+   * not called for a status that changes nothing the Model shows, such as the first.
+   */
+  readonly onReinstall?:
+    ((next: Model, previous: Model) => Update.Return<Model, Message, Resources>) | undefined
 }
 
 /**
@@ -184,8 +223,15 @@ export const mount = <
   // its submit lands; the rest are replayed on top. Read from one snapshot, so
   // a refresh neither hides an edit still waiting for the replica nor applies
   // one the replica already holds.
+  // The replica's shared value the Model was last installed from, and whether a durable
+  // edit has changed the Model's copy since. The replica keeps one object per state, so
+  // the same object with no edit since is the shared slice the Model already shows.
+  let installedFrom: Shared | undefined
+  let editedSinceInstall = false
   const install = (model: Model): Model => {
     const snapshot = Effect.runSync(replica.snapshot)
+    installedFrom = snapshot.shared
+    editedSinceInstall = false
     const shared = unconfirmedEdits(edits, snapshot.nextLocalSequence).reduce<Shared>(
       (value, message) => {
         try {
@@ -229,13 +275,17 @@ export const mount = <
       // Installs at once: edits still waiting for the replica are replayed on
       // top, so nothing is deferred behind them.
       case REFRESH:
-        return { model: install(model) }
+        // The first status, and any other that changed nothing the Model shows, reinstall
+        // nothing, so `onReinstall` hears only of a real change.
+        return !editedSinceInstall && Effect.runSync(replica.snapshot).shared === installedFrom
+          ? { model }
+          : reinstalled(install(model), model)
       case PERSISTED:
         return { model }
       case FAILED: {
         const { error } = message as Extract<Private, { readonly _tag: typeof FAILED }>
         const reverted = install(model)
-        return { model: options.onPersistenceFailure?.(reverted, error) ?? reverted }
+        return reinstalled(options.onPersistenceFailure?.(reverted, error) ?? reverted, model)
       }
       case NAVIGATE: {
         // A link the application did not claim: follow it. The runtime then
@@ -257,49 +307,94 @@ export const mount = <
       }
       case NAVIGATED:
         return { model }
-      default: {
-        notifyEach(messageListeners, message as Message)
-        const result = app.update(model, message as Message) as Update.Return<
-          Model,
-          RuntimeMessage,
-          Resources
-        >
-        if (!durable.has(message._tag)) return result
-        const edit: LocalEdit<Message> = { message: message as Message, started: undefined }
-        edits.push(edit)
-        const previous = tail
-        let settle!: () => void
-        const done = new Promise<void>(resolve => {
-          settle = resolve
-        })
-        tail = done
-        const release = (): void => {
-          const index = edits.indexOf(edit)
-          if (index !== -1) edits.splice(index, 1)
-          inFlight.delete(done)
-          settle()
-        }
-        const persist = {
-          name: 'foldkit-sync/persist',
-          effect: Effect.gen(function* () {
-            // Tracked so `dispose` can wait instead of interrupting a persist.
-            inFlight.add(done)
-            // One submit at a time, in dispatch order, so `started` is the
-            // sequence this edit takes if its submit succeeds.
-            yield* Effect.promise(() => previous)
-            edit.started = (yield* replica.snapshot).nextLocalSequence
-            const outcome = yield* Effect.result(replica.submit(edit.message))
-            return outcome._tag === 'Success'
-              ? ({ _tag: PERSISTED } as RuntimeMessage)
-              : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
-          }).pipe(
-            // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
-            Effect.ensuring(Effect.sync(release)),
-          ),
-        }
-        return { model: result.model, commands: [...(result.commands ?? []), persist] }
-      }
+      default:
+        return transition(model, message as Message & Tagged)
     }
+  }
+
+  const reinstalled = (
+    next: Model,
+    previous: Model,
+  ): Update.Return<Model, RuntimeMessage, Resources> =>
+    options.onReinstall === undefined
+      ? { model: next }
+      : applyFacts(
+          options.onReinstall(next, previous) as Update.Return<Model, RuntimeMessage, Resources>,
+        )
+
+  /** The application's transition for one of its Messages, with the persist a durable one needs. */
+  const step = (
+    model: Model,
+    message: Message & Tagged,
+  ): Update.Return<Model, RuntimeMessage, Resources> => {
+    notifyEach(messageListeners, message)
+    const result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
+    if (!durable.has(message._tag)) return result
+    editedSinceInstall = true
+    const edit: LocalEdit<Message> = { message, started: undefined }
+    edits.push(edit)
+    const previous = tail
+    let settle!: () => void
+    const done = new Promise<void>(resolve => {
+      settle = resolve
+    })
+    tail = done
+    const release = (): void => {
+      const index = edits.indexOf(edit)
+      if (index !== -1) edits.splice(index, 1)
+      inFlight.delete(done)
+      settle()
+    }
+    const persist = {
+      name: 'foldkit-sync/persist',
+      effect: Effect.gen(function* () {
+        // Tracked so `dispose` can wait instead of interrupting a persist.
+        inFlight.add(done)
+        // One submit at a time, in dispatch order, so `started` is the
+        // sequence this edit takes if its submit succeeds.
+        yield* Effect.promise(() => previous)
+        edit.started = (yield* replica.snapshot).nextLocalSequence
+        const outcome = yield* Effect.result(replica.submit(edit.message))
+        return outcome._tag === 'Success'
+          ? ({ _tag: PERSISTED } as RuntimeMessage)
+          : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
+      }).pipe(
+        // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
+        Effect.ensuring(Effect.sync(release)),
+      ),
+    }
+    return { model: result.model, commands: [...(result.commands ?? []), persist] }
+  }
+
+  /**
+   * A Message's transition, with the facts it returned applied after it. A durable
+   * Message's are not: replay would not apply them, so they stay ordinary Commands.
+   */
+  const transition = (
+    model: Model,
+    message: Message & Tagged,
+  ): Update.Return<Model, RuntimeMessage, Resources> => {
+    const result = step(model, message)
+    return durable.has(message._tag) ? result : applyFacts(result)
+  }
+
+  /** Applies the facts a transition returned, in order, each as the transition after it. */
+  const applyFacts = (
+    result: Update.Return<Model, RuntimeMessage, Resources>,
+  ): Update.Return<Model, RuntimeMessage, Resources> => {
+    let model = result.model
+    const kept: Array<Update.Commands<RuntimeMessage, Resources>[number]> = []
+    for (const command of result.commands ?? []) {
+      const found = factOf(command)
+      if (found === undefined) {
+        kept.push(command)
+        continue
+      }
+      const next = transition(model, found.message as Message & Tagged)
+      model = next.model
+      kept.push(...(next.commands ?? []))
+    }
+    return { model, commands: kept }
   }
 
   const ports = {

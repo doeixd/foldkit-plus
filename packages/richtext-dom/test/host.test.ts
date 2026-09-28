@@ -225,7 +225,7 @@ describe('decorations drawn over a mounted editor (§129)', () => {
   it('records what a placement draws, and draws nothing where none was placed', () => {
     const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'e')
     placeDecorations('decorated-host', decorate)
-    expect(decorationsFor('decorated-host')).toBe(decorate)
+    expect(decorationsFor('decorated-host')(content())).toEqual(decorate(content()))
     expect(decorationsFor('undecorated-host')(content())).toEqual([])
   })
 })

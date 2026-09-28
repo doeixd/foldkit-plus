@@ -107,8 +107,11 @@ What each part does, and does not do:
   is completed (§128), such as `foldkit-richtext-markdown`'s `markdownInputRules`. A rule the
   vocabulary refuses does not cost the keystroke: the text is inserted on its own.
 - **`decorate`**: `document => DecorationSet`, drawn over the document on the mount and every
-  patch (§129), code highlighting for one. It sees the document only, so a highlight derived
-  from application state, such as a search query, does not belong here.
+  patch (§129), code highlighting for one. It sees the document only. A highlight derived
+  from application state, such as a search query or other people's carets, goes through
+  the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
+  own and leaves the caret where it is. Its positions name the document shown, so set it
+  again when that changes; placing the host id again starts it with none.
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
@@ -144,6 +147,21 @@ yet. The first document a host id shows is drawn without a key, as the server dr
 
 So commit the document an edit returns as it is. A parent that puts its own copy in the Model
 after each edit (normalized, say) gets a fresh host, and a lost caret, on every keystroke.
+
+When the new document continues the old one (another replica's change arriving, or the
+document a collaborative edit projects to), return `patchTo(hostId, previous, next)` from the
+same transition that puts it in the Model. It hands the host's key on from `previous` to
+`next.document`, which have to be the very objects the view rendered and will render, and
+patches the editor from the latest state it holds (what it has drawn, or a state waiting for an
+IME to finish) to `next`, so the host and every run the change
+did not touch keep their elements. `next.selection` becomes the browser selection, so pass
+the caret carried across the change (`Replicated.resolve` of an anchored one), or the caret
+is lost. A replacement that changes nothing drawn, as an exchange that only confirms edits
+already shown does, leaves the DOM and its selection alone. `replaceChangeSet(previous, next)` is the patch, in a transaction's terms: the runs
+whose text or marks differ and the blocks holding them, blocks whose runs moved in or out or
+changed order, blocks whose own fields changed, the
+nodes that came and went, and whether any block moved. An `Edited` OutMessage also carries
+the `transactions` the edit applied, which is what `RichText.Replicated.translate` reads.
 
 ## As a form control
 
@@ -297,7 +315,12 @@ swapped for another element.
 
 A decoration set (§64, §126) is projected with `RichText.decorationsIn`: each covered piece of
 a run becomes a `span[data-decoration=<kind>]` with the run's marks inside it, which is also how
-the editor draws one, so one stylesheet serves both. `renderBlocks` takes no set, since a
+the editor draws one, so one stylesheet serves both. Each string field of the decoration's
+`data` whose name is lowercase letters, digits, and hyphens is drawn as
+`data-decoration-<name>` on that span (`data: { name: 'Ada' }` is `data-decoration-name="Ada"`,
+for a stylesheet's `attr()`); any other field is not drawn. A decoration that starts or ends in
+an empty run, such as another person's caret on an empty line, is drawn as an empty span in it,
+where the core's `decorationsIn` has no text to cover. `renderBlocks` takes no set, since a
 slice's positions cannot be resolved without its document. Text holding a NUL, which markup
 cannot carry, is written as the U+FFFD a parser would make of it.
 
@@ -389,10 +412,18 @@ that transition committed.
   composition, copy, cut, and paste, and reports each one it understands as intent. Everything
   it understands it prevents, so the browser never mutates the DOM behind the document; an
   event it cannot honor yet is prevented with no intent rather than allowed to drift.
-  `onSelection` reports a caret or range the application did not just commit, and nothing while
-  an IME owns the caret. `keymap` adds or overrides chord bindings, checked before the
-  built-in ones. `attachment.sync(state, changeSet)` patches and restores the selection in one
-  call, and `detach()` removes the listeners.
+  `onSelection` reports a caret or range inside the editor that the application did not just
+  commit, and nothing while an IME owns the caret. A selection elsewhere on the page is not
+  reported, so the editor keeps its own caret (or selected block) while another field has
+  focus. A keystroke, a composition start, a cut, or a paste reads the live selection first and
+  reports it before its intent, because `selectionchange` is asynchronous and a click just
+  before would otherwise be missed. `keymap` adds or overrides chord bindings, checked
+  before the built-in ones. `attachment.sync(state, changeSet)` patches and restores the
+  selection in one call, but only while the browser's selection is inside the editor: a sync
+  never takes the caret from another editor or an input. While an IME is composing, the latest
+  state waits and is drawn when composition ends, so another person's edit never rewrites the
+  text under the IME.
+  `detach()` removes the listeners.
 - **`patch(dom, content, changeSet, decorations?)`** removes what the change set removed,
   re-renders what it marked dirty, and places inserted or moved elements in document order.
   `decorations` is the next render's whole set, so a run whose share of it changed is redrawn,

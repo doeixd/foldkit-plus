@@ -1,6 +1,7 @@
 import { Equal, Schema } from 'effect'
 import { markName, sameMark } from './marks.js'
 import {
+  assertEditorState,
   Block,
   eachBlock,
   EditorState,
@@ -9,10 +10,10 @@ import {
   RunMark,
   Selection,
   compareRunPlaces,
-  selectionIsValid,
   type BlockPath,
   type Document,
   type NodeReference,
+  type RunPlace,
   type Text,
 } from './document.js'
 import { defaultTransforms, type Transform } from './transform.js'
@@ -77,10 +78,32 @@ export const TextBlock = Schema.Union([
 ])
 export type TextBlock = typeof TextBlock.Type
 
+/**
+ * What a block becomes, under its own identity and with its own content: a block that holds
+ * text becomes a paragraph, a heading, or an application node kind that holds text, such as a
+ * code block, keeping its runs; a node that holds blocks becomes another node kind, keeping
+ * its nested blocks, as a list item becomes a task.
+ */
+export const RetypeTarget = Schema.Union([
+  Schema.Struct({ type: Schema.Literal('Paragraph') }),
+  Schema.Struct({ type: Schema.Literal('Heading'), level: Schema.Literals([1, 2, 3, 4, 5, 6]) }),
+  Schema.Struct({
+    type: Schema.Literal('Node'),
+    kind: Schema.NonEmptyString,
+    props: Schema.JsonObject,
+  }),
+])
+export type RetypeTarget = typeof RetypeTarget.Type
+
 const RetypeBlockOperation = Schema.Struct({
   type: Schema.Literal('RetypeBlock'),
   node: NodeId,
-  to: TextBlock,
+  to: RetypeTarget,
+})
+const SetPropsOperation = Schema.Struct({
+  type: Schema.Literal('SetProps'),
+  node: NodeId,
+  props: Schema.JsonObject,
 })
 const InsertNodeOperation = Schema.Struct({
   type: Schema.Literal('InsertNode'),
@@ -110,6 +133,7 @@ export const Operation = Schema.Union([
   JoinNodeOperation,
   MoveNodeOperation,
   RetypeBlockOperation,
+  SetPropsOperation,
   InsertNodeOperation,
   DeleteNodeOperation,
   SplitRunOperation,
@@ -200,9 +224,16 @@ export const Edit = {
 
   retypeBlock: (
     node: TextTarget,
-    to: TextBlock,
+    to: RetypeTarget,
   ): Extract<Operation, { readonly type: 'RetypeBlock' }> =>
     RetypeBlockOperation.make({ type: 'RetypeBlock', node: targetId(node), to }),
+
+  /** Sets the named props of a node block; props it does not name keep their values. */
+  setProps: (
+    node: TextTarget,
+    props: Schema.JsonObject,
+  ): Extract<Operation, { readonly type: 'SetProps' }> =>
+    SetPropsOperation.make({ type: 'SetProps', node: targetId(node), props }),
 
   insertBlock: (
     block: Block,
@@ -335,6 +366,12 @@ export type TransactionResult =
       readonly state: EditorState
       readonly changeSet: ChangeSet
       readonly positionMap: ReadonlyArray<PositionStep | SplitStep | RelocateStep | CollapseStep>
+      /**
+       * The transactions that produced `state`, in order, each normalized before the next:
+       * folding `apply` over them from the input state yields `state` again. A command can
+       * need more than one, and an action has at least one per command.
+       */
+      readonly transactions: ReadonlyArray<Transaction>
     }
   | {
       readonly ok: false
@@ -350,7 +387,6 @@ export type TransactionResult =
         | 'UnstableNormalization'
     }
 
-const decodeState = Schema.decodeUnknownSync(EditorState, { onExcessProperty: 'error' })
 const decodeTransaction = Schema.decodeUnknownSync(Transaction, { onExcessProperty: 'error' })
 const sameSelection = (left: Selection | null, right: Selection | null): boolean => {
   if (left === null || right === null) return left === right
@@ -376,6 +412,28 @@ const nestedOf = (block: Block): ReadonlyArray<Block> | undefined =>
 const pathKey = (path: BlockPath): string => path.join('.')
 const keyToPath = (key: string): BlockPath => (key === '' ? [] : key.split('.').map(Number))
 
+interface DocumentIndex {
+  readonly blockPaths: ReadonlyMap<NodeId, BlockPath>
+  readonly runPaths: ReadonlyMap<NodeId, { readonly path: BlockPath; readonly index: number }>
+}
+const indexes = new WeakMap<Document, DocumentIndex>()
+/** Where each block and run sits, built once per document: documents are immutable. */
+const indexDocument = (document: Document): DocumentIndex => {
+  const cached = indexes.get(document)
+  if (cached !== undefined) return cached
+  const blockPaths = new Map<NodeId, BlockPath>()
+  const runPaths = new Map<NodeId, { readonly path: BlockPath; readonly index: number }>()
+  eachBlock(document.children, (block, path) => {
+    blockPaths.set(block.id, path)
+    for (const [runIndex, run] of block.children.entries()) {
+      runPaths.set(run.id, { path, index: runIndex })
+    }
+  })
+  const index = { blockPaths, runPaths }
+  indexes.set(document, index)
+  return index
+}
+
 /**
  * Pure, atomic text transaction. Rejection returns no partially edited state.
  * `transforms` defaults to the registry's shipped rules; a Kit's transforms
@@ -387,29 +445,28 @@ export const apply = (
   transforms: ReadonlyArray<Transform> = defaultTransforms,
 ): TransactionResult => {
   try {
-    decodeState(state)
+    assertEditorState(state)
     decodeTransaction(transaction)
   } catch {
     return { ok: false, error: 'InvalidInput' }
   }
-  const indexDocument = (current: Document) => {
-    const blockPaths = new Map<NodeId, BlockPath>()
-    const runPaths = new Map<NodeId, { readonly path: BlockPath; readonly index: number }>()
-    eachBlock(current.children, (block, path) => {
-      blockPaths.set(block.id, path)
-      for (const [runIndex, run] of block.children.entries()) {
-        runPaths.set(run.id, { path, index: runIndex })
-      }
-    })
-    return { blockPaths, runPaths }
-  }
-  let { blockPaths, runPaths } = indexDocument(state.document)
+  const initial = indexDocument(state.document)
+  let { blockPaths, runPaths } = initial
+  /** The index as this transaction's own copy, once `indexInserted` has written to it. */
+  let owned: { blocks: Map<NodeId, BlockPath>; runs: Map<NodeId, RunPlace> } | undefined
   const reindex = () => {
     ;({ blockPaths, runPaths } = indexDocument(document))
+    owned = undefined
   }
   // Identities stay reserved for the whole transaction so a reused id can never
-  // silently address two nodes across structural edits.
-  const usedIds = new Set<NodeId>([...runPaths.keys(), ...blockPaths.keys()])
+  // silently address two nodes across structural edits: the input's, and every one
+  // the transaction adds.
+  const added = new Set<NodeId>()
+  const usedIds = {
+    has: (id: NodeId): boolean =>
+      initial.runPaths.has(id) || initial.blockPaths.has(id) || added.has(id),
+    add: (id: NodeId): void => void added.add(id),
+  }
   let document: Document = state.document
   // Working copies: each touched container is copied once per transaction, so N
   // edits in one paragraph cost O(N) rather than N copies of the same array. A
@@ -449,6 +506,27 @@ export const apply = (
     const copy = [...(blockAt(path)?.children ?? [])]
     workingRuns.set(key, copy)
     return copy
+  }
+  /**
+   * Indexes a block just inserted at `at` in a container, and moves each later sibling's
+   * subtree one place on, rather than indexing the whole document again: a paste inserts one
+   * block at a time, and reindexing after each made it quadratic in the blocks pasted.
+   */
+  const indexInserted = (containerPath: BlockPath, at: number): void => {
+    const index = (owned ??= { blocks: new Map(blockPaths), runs: new Map(runPaths) })
+    blockPaths = index.blocks
+    runPaths = index.runs
+    const record = (block: Block, path: BlockPath): void => {
+      index.blocks.set(block.id, path)
+      block.children.forEach((run, place) => index.runs.set(run.id, { path, index: place }))
+      if (block.type === 'Node' && block.blocks !== undefined) {
+        block.blocks.forEach((child, place) => record(child, [...path, place]))
+      }
+    }
+    const blocks = blocksAt(containerPath)
+    for (let place = at; place < blocks.length; place++) {
+      record(blocks[place]!, [...containerPath, place])
+    }
   }
   const writeBlock = (path: BlockPath, block: Block): void => {
     const container = ensureContainer(path.slice(0, -1))
@@ -504,12 +582,24 @@ export const apply = (
   const textChanged = new Set<NodeId>()
   let structureChanged = false
   const positionMap: Array<PositionStep | SplitStep | RelocateStep | CollapseStep> = []
+  /** `selectionIsValid` against the working document, read through the index this transaction keeps. */
+  const selectionFits = (candidate: Selection | null): boolean => {
+    if (candidate === null) return true
+    if (candidate.type === 'Node')
+      return blockPaths.has(candidate.node) || runPaths.has(candidate.node)
+    return [candidate.anchor, candidate.focus].every(position => {
+      const location = runPaths.get(position.node)
+      const run = location === undefined ? undefined : runsAt(location.path)[location.index]
+      // The offset's sign and integrality are the decoded transaction's already.
+      return run !== undefined && position.offset <= run.text.length
+    })
+  }
   for (let operationIndex = 0; operationIndex < transaction.length; operationIndex++) {
     const operation = transaction[operationIndex]!
     if (operation.type === 'SetSelection') {
       // A pending edit could change what a position resolves against.
       materialize()
-      if (!selectionIsValid(document, operation.selection)) {
+      if (!selectionFits(operation.selection)) {
         return { ok: false, error: 'InvalidSelection' }
       }
       selection = operation.selection
@@ -740,54 +830,84 @@ export const apply = (
       const path = blockPaths.get(operation.node)
       if (path === undefined) return { ok: false, error: 'MissingNode' }
       const target = blockAt(path)
-      // Only a text block retypes: a node kind's content is its Kit's contract, and
-      // preserved content is never rewritten.
-      if (target === undefined || (target.type !== 'Paragraph' && target.type !== 'Heading')) {
+      const to = operation.to
+      // Content keeps its shape: runs stay runs, and nested blocks stay nested, so a node
+      // holding blocks retypes only to another node. Preserved content is never rewritten.
+      const nested = target?.type === 'Node' && target.blocks !== undefined
+      if (target === undefined || target.type === 'Unknown' || (nested && to.type !== 'Node')) {
         return { ok: false, error: 'InvalidRange' }
       }
-      const to = operation.to
       const already =
         to.type === 'Paragraph'
           ? target.type === 'Paragraph'
-          : target.type === 'Heading' && target.level === to.level
+          : to.type === 'Heading'
+            ? target.type === 'Heading' && target.level === to.level
+            : target.type === 'Node' &&
+              target.kind === to.kind &&
+              Equal.equals(target.props, to.props)
       if (already) continue
       writeBlock(
         path,
         to.type === 'Paragraph'
           ? { type: 'Paragraph', id: target.id, children: target.children }
-          : { type: 'Heading', id: target.id, level: to.level, children: target.children },
+          : to.type === 'Heading'
+            ? { type: 'Heading', id: target.id, level: to.level, children: target.children }
+            : {
+                type: 'Node',
+                kind: to.kind,
+                id: target.id,
+                props: to.props,
+                children: target.children,
+                ...(nested ? { blocks: target.blocks } : {}),
+              },
       )
       dirtyNodes.add(target.id)
       structureChanged = true
       continue
     }
+    if (operation.type === 'SetProps') {
+      const path = blockPaths.get(operation.node)
+      if (path === undefined) return { ok: false, error: 'MissingNode' }
+      const target = blockAt(path)
+      // Only an application node has props; a text block's shape is its type.
+      if (target?.type !== 'Node') return { ok: false, error: 'InvalidRange' }
+      const props = { ...target.props, ...operation.props }
+      if (Equal.equals(props, target.props)) continue
+      writeBlock(path, { ...target, props })
+      dirtyNodes.add(target.id)
+      continue
+    }
     if (operation.type === 'InsertNode') {
-      materialize()
       const target = containerPathOf(operation.parent)
       if ('error' in target) return { ok: false, error: target.error }
+      // A pending copy under a place the insert shifts would be folded back at the wrong
+      // path. The container and its ancestors do not shift, so a run of inserts into one
+      // container, as a paste is, keeps its copy rather than copying the list each time.
+      const unshifted = new Set(
+        Array.from({ length: target.path.length + 1 }, (_, depth) =>
+          pathKey(target.path.slice(0, depth)),
+        ),
+      )
+      if (workingRuns.size > 0 || [...workingBlocks.keys()].some(key => !unshifted.has(key))) {
+        materialize()
+      }
       if (operation.at > blocksAt(target.path).length) return { ok: false, error: 'InvalidRange' }
-      const carried = [
-        operation.block.id,
-        ...operation.block.children.map(run => run.id),
-        ...(operation.block.type === 'Node' && operation.block.blocks !== undefined
-          ? operation.block.blocks.flatMap(block => [
-              block.id,
-              ...block.children.map(run => run.id),
-            ])
-          : []),
-      ]
+      const carried: Array<NodeId> = []
+      eachBlock([operation.block], block => {
+        carried.push(block.id)
+        for (const run of block.children) carried.push(run.id)
+      })
       if (new Set(carried).size !== carried.length || carried.some(id => usedIds.has(id))) {
         return { ok: false, error: 'InvalidInput' }
       }
       const container = ensureContainer(target.path)
       container.splice(operation.at, 0, operation.block)
-      materialize()
       for (const id of carried) {
         usedIds.add(id)
         dirtyNodes.add(id)
         insertedNodes.add(id)
       }
-      reindex()
+      indexInserted(target.path, operation.at)
       structureChanged = true
       continue
     }
@@ -960,5 +1080,6 @@ export const apply = (
       selectionChanged: !sameSelection(selection, state.selection),
     },
     positionMap,
+    transactions: [transaction],
   }
 }

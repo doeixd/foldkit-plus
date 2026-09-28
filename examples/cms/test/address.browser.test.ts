@@ -14,18 +14,33 @@ afterEach(() => {
 const write = (post: Option.Option<string>, q: Option.Option<string>) =>
   Effect.runPromise(writeAddress({ post, q }, ['post', 'new']))
 
+const travel = (go: () => void): Promise<void> =>
+  new Promise(resolve => {
+    window.addEventListener('popstate', () => resolve(), { once: true })
+    go()
+  })
+
 it('adds a step for an entry opened or closed, and replaces for a search', async () => {
-  window.history.replaceState(null, '', '/?as=edda')
-  const start = window.history.length
+  const guard = { marker: crypto.randomUUID() }
+  window.history.replaceState(guard, '', '/?as=edda')
+  window.history.pushState({}, '', '/?as=edda')
   await write(Option.none(), Option.some('milk'))
   expect(window.location.search).toBe('?as=edda&q=milk')
-  expect(window.history.length).toBe(start)
+  await travel(() => window.history.back())
+  expect(window.history.state).toEqual(guard)
+  await travel(() => window.history.forward())
+  const beforePost = { marker: crypto.randomUUID() }
+  window.history.replaceState(beforePost, '', window.location.href)
   await write(Option.some('e1'), Option.some('milk'))
   expect(window.location.search).toBe('?as=edda&q=milk&post=e1')
-  expect(window.history.length).toBe(start + 1)
-  // Already so, as after Back: no step is added.
+  await travel(() => window.history.back())
+  expect(window.location.search).toBe('?as=edda&q=milk')
+  expect(window.history.state).toEqual(beforePost)
+  await travel(() => window.history.forward())
   await write(Option.some('e1'), Option.some('milk'))
-  expect(window.history.length).toBe(start + 1)
+  await travel(() => window.history.back())
+  expect(window.history.state).toEqual(beforePost)
+  await travel(() => window.history.forward())
 })
 
 const urlOf = (search: string) => ({

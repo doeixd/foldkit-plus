@@ -29,7 +29,9 @@ is dropped and the rest replay on top. Pending ops replay many times, so a
 durable Message must be **deterministic and state-only**. If its `update`
 returns a Command or writes outside the shared projection, `submit` fails with
 `ReplayError` and writes nothing. Pattern: a local intent Message runs a Command
-(IDs, clock, provider), which dispatches a durable *fact* Message.
+(IDs, clock, provider), which dispatches a durable *fact* Message. When the fact
+needs only the Model (an id from a local counter), return `Sync.fact(message)`:
+the mount applies it in the intent's own transition, before any later Message.
 
 ## Minimal contract
 
@@ -101,13 +103,21 @@ const program = Effect.gen(function* () {
 
 - `submit` validates, replays, assigns an `opId`, and persists to the outbox. It
   **sends nothing**. `replica.start` is the loop: one exchange, then one after
-  each submit. Transport errors land in `status.lastError` and it keeps going.
+  each submit and each server notice on `Transport.changes`. A failed exchange lands in `status.lastError` and is retried on
+  a backoff (0.5 s to 30 s), or at once on the next submit. A contract's
+  `durable(message)` says whether a Message is recorded. The optional
+  `coalesce(last, next)` merges a submit into the last operation while
+  no exchange has carried it (a burst of typing becomes one operation).
 - Also available: `changes` (a stream of status + shared), `snapshot`,
   `statusChanges`, `committed`, and `close`. Transports: `Sync.transport.socket`
   (reconnecting), `.loopback`, `.fromPromise(client)`, and
-  `.serve(socket, { exchange })` for the server.
+  `.serve(socket, { exchange, changes? })` for the server, where `changes`
+  subscribes to commits and sends a notice that wakes the client's `start`. The
+  socket transport's `transport.socket` shares its connection, across reconnects,
+  with `Sync.presence.socketChannel`.
 - `Sync.indexedDb(name, factory?)` is the only built-in storage (pass
-  `fake-indexeddb` in Node). A test `Storage` is three members:
+  `fake-indexeddb` in Node). Its submit writes only the new operation, through
+  the optional `Storage.append`. A test `Storage` needs just three members:
 
 ```ts
 import { Effect } from 'effect'
@@ -148,10 +158,13 @@ await mounted.dispose()                                        // waits for in-f
 
 - A durable Message runs through `update` **immediately**, and a Command then
   persists it. A refused or failed persist reverts the edit and calls
-  `onPersistenceFailure`. The shared slice is reinstalled only when an exchange
-  commits, acknowledges, or rejects something.
+  `onPersistenceFailure`. Outside `update`, the shared slice is reinstalled only
+  when an exchange commits, acknowledges, or rejects something, and when a
+  failed persist reverts.
 - Options: `subscriptions` + `resources` (for example, Mirror entries and their
-  Layer) and `url: { init, onUrlChange, onUrlRequest? }`.
+  Layer), `url: { init, onUrlChange, onUrlRequest? }`, and `onReinstall(next,
+  previous)`, which returns the transition when an exchange or a failed persist
+  replaces the shared slice (carry a selection across, patch a DOM).
 - `Mounted` provides `model`, `dispatch`, `subscribe`, `observe`, `committed`,
   and `dispose`. It is the host `foldkit-agent` binds to (add `principal`).
   `dispose()` does not close the replica.
@@ -224,16 +237,34 @@ const server = Effect.gen(function* () {
   resent `opId` is never applied twice. The same `opId` with a different
   payload fails with `IdentityConflictError`, and a refusal with
   `OperationRejectedError`.
-- Also: `appendAll`, `compact`/`floor`, `subscribe` (a wake-up signal; catch up
+- `snapshotEvery: n` writes the snapshot every `n` commits rather than each (the
+  journal keeps it in memory; `load` replays the few since).
+- `read(key, cursor, { limit })` pages history; set the exchange's `more: true`
+  and the replica asks again at once. `vacuum()` shrinks the file after `compact`.
+- Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `epoch`, `subscribe` (a wake-up signal; catch up
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
 - Durable does **not** speak the sync exchange. Your server wires
-  `Sync.transport.serve(socket, { exchange })` to a handler that appends pending
+  `Sync.transport.serve(socket, { exchange, changes })` to a handler that appends pending
   ops, collects `acknowledged`/`rejected`, reads after the cursor, and returns a
-  checkpoint on `CompactedCursorError`. See `examples/sync/src/journal.ts`.
+  checkpoint on `CompactedCursorError`, and `changes` to `journal.subscribe`
+  for the document's key so readers hear of commits. Reject an op that does not decode rather
+  than throwing: a thrown exchange is retried with the same outbox, forever. See
+  `examples/sync/src/journal.ts`.
+
+**Server reset.** A server returns `epoch: journal.epoch(key)` from every
+exchange; the replica sends it back as `exchange`'s third argument. When it
+differs, the server answers from sequence 0 (skipping its cursor-ahead check)
+and the replica rebuilds its committed state, keeping its outbox: everything the
+old server committed is lost, only pending work survives. A replica that never
+heard an epoch cannot detect a reset. `journalContract()` also passes
+`replicaId`, so Durable binds each replica to its first committing actor.
+It also supplies `legacyReplicaId`, which recovers those bindings from compacted
+operation ids when a schema-5 journal upgrades to schema 6.
 
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for
-ephemeral state ("who is viewing"), never a durable Message.
+ephemeral state ("who is viewing"), never a durable Message; its `throttle`
+option sends at most one value per interval: the first at once, then the latest.
 `Sync.lww.register` (experimental) makes one field last-writer-wins. Allocate
 stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 

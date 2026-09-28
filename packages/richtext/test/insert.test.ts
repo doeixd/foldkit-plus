@@ -122,6 +122,53 @@ describe('insert blocks', () => {
     expect(state.document.children).toHaveLength(2)
   })
 
+  describe('identities at every depth of a nested insert', () => {
+    const node = (nodeId: string, blocks: ReadonlyArray<RichText.Block>) =>
+      RichText.NodeBlock.make({
+        type: 'Node',
+        kind: 'Box',
+        id: id(nodeId),
+        props: {},
+        children: [],
+        blocks,
+      })
+    /** Box a > [Paragraph q > Text r, Box b > Paragraph c > Text d]: `ids` renames any of them. */
+    const nested = (ids: Partial<Record<'a' | 'q' | 'r' | 'b' | 'c' | 'd', string>> = {}) =>
+      node(ids.a ?? 'a', [
+        paragraph(ids.q ?? 'q', ids.r ?? 'r', 'near'),
+        node(ids.b ?? 'b', [paragraph(ids.c ?? 'c', ids.d ?? 'd', 'deep')]),
+      ])
+
+    it('inserts the subtree when every identity is fresh', () => {
+      const result = success(RichText.apply(initial(), [RichText.Edit.insertBlock(nested(), 1)]))
+      expect(result.state.document.children.map(block => block.id)).toEqual(['p', 'a', 'h'])
+      expect(result.changeSet.insertedNodes).toEqual(new Set(['a', 'q', 'r', 'b', 'c', 'd']))
+    })
+
+    it.each([
+      ['the inserted block', { a: 'p' }],
+      ['a child block', { b: 'p' }],
+      ['a child run', { r: 't' }],
+      ['a grandchild block', { c: 'p' }],
+      ['a grandchild run', { d: 't' }],
+      ['two descendants of the insert', { d: 'b' }],
+    ] as const)('rejects a reused identity on %s', (_label, ids) => {
+      expect(RichText.apply(initial(), [RichText.Edit.insertBlock(nested(ids), 1)])).toEqual({
+        ok: false,
+        error: 'InvalidInput',
+      })
+    })
+
+    it('rejects an identity an earlier insert in the transaction took deep down', () => {
+      expect(
+        RichText.apply(initial(), [
+          RichText.Edit.insertBlock(nested(), 0),
+          RichText.Edit.insertBlock(paragraph('x', 'd', 'again'), 0),
+        ]),
+      ).toEqual({ ok: false, error: 'InvalidInput' })
+    })
+  })
+
   it('rejects unknown node types at the boundary', () => {
     expect(
       // @ts-expect-error Unknown nodes cannot be inserted.

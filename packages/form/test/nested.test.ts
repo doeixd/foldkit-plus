@@ -106,6 +106,9 @@ describe('a form with nested keys', () => {
     // A Message for a row that is not there, or not one of the nested form, is dropped.
     expect(step(short, named('r9', 'Ada')).model).toBe(short)
     expect(step(short, inRow('author', 'r0', { _tag: 'Nope' })).model).toBe(short)
+    // One the row takes and changes nothing with keeps the Model, as a rich-text control's can.
+    const searched = PostForm.row('author', 'r0').Searched({ key: 'name', text: 'Ad' })
+    expect(step(short, searched).model).toBe(short)
   })
 
   it('adds and removes rows, within what the relation allows', () => {

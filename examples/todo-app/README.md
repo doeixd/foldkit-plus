@@ -31,7 +31,7 @@ Then, from `examples/todo-app`:
 ```bash
 pnpm demo    # the whole contract as a transcript — no browser, no network
 pnpm dev     # the SQLite sync server plus Vite, on http://127.0.0.1:5173
-pnpm server  # the sync server alone, on ws://127.0.0.1:8787
+pnpm run server  # the sync server alone, on ws://127.0.0.1:8787
 ```
 
 `pnpm vitest run examples/todo-app` from the root runs the tests.

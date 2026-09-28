@@ -1,0 +1,223 @@
+// @vitest-environment jsdom
+/**
+ * A document the parent replaces outside an edit, as another replica's change arrives: with
+ * `patchTo` the editor is patched in the host it has, rather than mounted afresh.
+ */
+import { Effect, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type { HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import type * as Update from 'foldkit/update'
+import * as RichText from 'foldkit-richtext'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Message } from '../src/editor.js'
+import { EditorView, editorView, overlay, patchTo } from '../src/editor-bundle.js'
+import { mountInto, releaseMount } from '../src/host.js'
+
+const hostId = 'patched-body'
+const paragraphs = (...texts: ReadonlyArray<string>) =>
+  RichText.decodeDocument({
+    version: 1,
+    children: texts.map((text, index) => ({
+      type: 'Paragraph',
+      id: `p${index}`,
+      children: [{ type: 'Text', id: `t${index}`, text, marks: [] }],
+    })),
+  })
+
+const App = defineMessageUnion({
+  GotEditor: { message: Message },
+  /** Another replica's text, with or without the patch that draws it. */
+  Arrived: { text: Schema.String, patched: Schema.Boolean },
+  /** Someone else's caret, one character into the second paragraph. */
+  Peered: {},
+})
+type App = typeof App.Type
+const Model = Schema.Struct({ editor: EditorView })
+type Model = typeof Model.Type
+
+const initial: Model = {
+  editor: {
+    document: paragraphs('one', 'two'),
+    selection: null,
+    nextId: 0,
+    history: RichText.emptyHistory,
+    storedMarks: null,
+    menuIndex: 0,
+    hostId,
+  },
+}
+
+const peer: RichText.Decoration = {
+  from: { node: RichText.NodeId.make('t1'), offset: 0, affinity: 'after' },
+  to: { node: RichText.NodeId.make('t1'), offset: 1, affinity: 'after' },
+  kind: 'peer',
+}
+
+const toApp = (command: { readonly name: string; readonly effect: Effect.Effect<Message> }) => ({
+  ...command,
+  effect: Effect.map(command.effect, inner => App.GotEditor({ message: inner })),
+})
+
+const update = (model: Model, message: App): Update.Return<Model, App> => {
+  if (message._tag === 'GotEditor') return { model }
+  if (message._tag === 'Peered') return { model, commands: [toApp(overlay(hostId, [peer]))] }
+  const document = paragraphs('one', message.text)
+  return {
+    model: { editor: { ...model.editor, document } },
+    commands: message.patched
+      ? [patchTo(hostId, model.editor.document, { document, selection: null })].map(command => ({
+          ...command,
+          effect: Effect.map(command.effect, inner => App.GotEditor({ message: inner })),
+        }))
+      : [],
+  }
+}
+
+const view = (model: Model, h: HtmlBuilder<App>) =>
+  h.div(
+    [],
+    [
+      h.submodel({
+        slotId: 'editor',
+        model: model.editor,
+        view: editorView,
+        toParentMessage: message => App.GotEditor({ message }),
+      }),
+      h.button([h.Id('patched'), h.OnClick(App.Arrived({ text: 'two!', patched: true }))], []),
+      h.button([h.Id('replaced'), h.OnClick(App.Arrived({ text: 'other', patched: false }))], []),
+      h.button([h.Id('same'), h.OnClick(App.Arrived({ text: 'two', patched: true }))], []),
+      h.button([h.Id('peered'), h.OnClick(App.Peered())], []),
+    ],
+  )
+
+describe('a document replaced by the parent', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.document.body.innerHTML = ''
+  })
+
+  it('leaves the DOM and its selection alone when the replacement changes nothing drawn', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.document.body.innerHTML = '<div id="patch-runtime"></div>'
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container: window.document.getElementById('patch-runtime')!,
+        init: () => ({ model: initial }),
+        update,
+        view,
+      }),
+    )
+    const host = () => window.document.getElementById(hostId)
+    try {
+      await vi.waitFor(() => expect(host()?.textContent).toBe('onetwo'))
+      const text = host()!.querySelector('[data-run="t1"]')!.firstChild!
+      window.getSelection()!.collapse(text, 2)
+      // An equal document arrives, as an exchange that only confirms an edit brings; the
+      // patch it would send carries no selection, which would clear the caret.
+      window.document.getElementById('same')!.click()
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(host()?.textContent).toBe('onetwo')
+      expect(window.getSelection()!.anchorNode).toBe(text)
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('draws an overlay over the document without moving the caret', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.document.body.innerHTML = '<div id="patch-runtime"></div>'
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container: window.document.getElementById('patch-runtime')!,
+        init: () => ({ model: initial }),
+        update,
+        view,
+      }),
+    )
+    const host = () => window.document.getElementById(hostId)
+    try {
+      await vi.waitFor(() => expect(host()?.textContent).toBe('onetwo'))
+      const run = () => host()!.querySelector('[data-run="t1"]')!
+      // The caret is in the run the overlay redraws, two characters in.
+      window.getSelection()!.collapse(run().firstChild!, 2)
+      window.document.getElementById('peered')!.click()
+      await vi.waitFor(() =>
+        expect(run().querySelector('[data-decoration="peer"]')?.textContent).toBe('t'),
+      )
+      const selection = window.getSelection()!
+      expect(run().contains(selection.anchorNode)).toBe(true)
+      const before = window.document.createRange()
+      before.setStart(run(), 0)
+      before.setEnd(selection.anchorNode!, selection.anchorOffset)
+      expect(before.toString()).toBe('tw')
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('is patched into the host it has with patchTo, and mounted afresh without it', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.document.body.innerHTML = '<div id="patch-runtime"></div>'
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container: window.document.getElementById('patch-runtime')!,
+        init: () => ({ model: initial }),
+        update,
+        view,
+      }),
+    )
+    const host = () => window.document.getElementById(hostId)
+    const run = (id: string) => host()?.querySelector(`[data-run="${id}"]`)
+    try {
+      await vi.waitFor(() => expect(host()?.textContent).toBe('onetwo'))
+      const first = host()
+      const untouched = run('t0')
+      window.document.getElementById('patched')!.click()
+      await vi.waitFor(() => expect(host()?.textContent).toBe('onetwo!'))
+      // The same host, and the run the change did not touch kept its element.
+      expect(host()).toBe(first)
+      expect(run('t0')).toBe(untouched)
+      window.document.getElementById('replaced')!.click()
+      await vi.waitFor(() => expect(host()?.textContent).toBe('oneother'))
+      expect(host()).not.toBe(first)
+    } finally {
+      handle.dispose()
+    }
+  })
+})
+
+describe('a replacement that arrives during a composition', () => {
+  it('is judged against the state waiting on the composition, not the one drawn', () => {
+    const host = window.document.createElement('div')
+    host.id = 'composing-body'
+    window.document.body.append(host)
+    const attachment = mountInto(host, paragraphs('one', 'two'), { onIntent: () => {} })
+    const replace = (from: RichText.Document, to: RichText.Document) =>
+      Effect.runSync(patchTo(host.id, from, { document: to, selection: null }).effect)
+    try {
+      attachment.current().root.dispatchEvent(new Event('compositionstart'))
+      const upper = paragraphs('one', 'TWO')
+      replace(paragraphs('one', 'two'), upper)
+      // Back to what is drawn: unchanged from the drawing, but not from the state held.
+      replace(upper, paragraphs('one', 'two'))
+      attachment.current().root.dispatchEvent(new Event('compositionend'))
+      expect(host.textContent).toBe('onetwo')
+    } finally {
+      releaseMount(host)
+      host.remove()
+    }
+  })
+})

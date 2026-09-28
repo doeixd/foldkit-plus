@@ -6,6 +6,7 @@
  * browser selection back to a semantic position.
  */
 import * as RichText from 'foldkit-richtext'
+import { decorationAttributes, decorationSpans, piecesOf, type Spans } from './decorations.js'
 
 export interface EditorDom {
   /** The owned subtree root. Everything inside belongs to this interpreter. */
@@ -19,8 +20,6 @@ export interface EditorDom {
   /** The decorations drawn over it (§129); a patch redraws a run whose share of them changed. */
   readonly decorations: RichText.DecorationSet
 }
-
-type Spans = ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>
 
 const MARK_ATTRIBUTE = 'data-marks'
 
@@ -40,6 +39,31 @@ const blockRendering = (
     tag: blockTag(block),
     attributes: {},
   }
+
+const sameRendering = (left: RichText.ElementRendering, right: RichText.ElementRendering) => {
+  const names = Object.keys(left.attributes)
+  return (
+    left.tag === right.tag &&
+    left.inner === right.inner &&
+    names.length === Object.keys(right.attributes).length &&
+    names.every(name => left.attributes[name] === right.attributes[name])
+  )
+}
+
+/**
+ * Whether a block draws the same element as before. Preserved content is drawn from its
+ * type, not from a renderer entry, so a block that became preserved, or preserved content
+ * of another type, draws differently under the same entry.
+ */
+const drawsSame = (
+  rendering: RichText.Rendering,
+  previous: RichText.Block,
+  block: RichText.Block,
+): boolean =>
+  previous.type === block.type &&
+  (previous.type !== 'Unknown' ||
+    (block.type === 'Unknown' && previous.originalType === block.originalType)) &&
+  sameRendering(blockRendering(rendering, previous), blockRendering(rendering, block))
 
 /** The element a renderer entry names, with its attributes; children come later. */
 const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLElement => {
@@ -67,7 +91,7 @@ const renderRun = (
   const element = owner.createElement('span')
   element.setAttribute('data-run', run.id)
   const { nest, unrendered } = RichText.runRendering(rendering, run)
-  for (const piece of RichText.runPieces(run.text, spans)) {
+  for (const piece of piecesOf(run.text, spans)) {
     // Always a text node, even when empty: a caret inside an empty run has to be
     // addressable, and an element container has no semantic offset.
     let content: Node = owner.createTextNode(piece.text)
@@ -78,7 +102,8 @@ const renderRun = (
     }
     for (const decoration of piece.decorations) {
       const wrapper = owner.createElement('span')
-      wrapper.setAttribute('data-decoration', decoration.kind)
+      for (const [name, value] of decorationAttributes(decoration))
+        wrapper.setAttribute(name, value)
       wrapper.append(content)
       content = wrapper
     }
@@ -151,7 +176,7 @@ export const mount = (
   root.setAttribute('role', 'textbox')
   root.setAttribute('aria-multiline', 'true')
   const elements = new Map<RichText.NodeId, HTMLElement>()
-  const spans = RichText.decorationsIn(content, decorations)
+  const spans = decorationSpans(content, decorations)
   for (const block of content.children) {
     root.append(renderBlock(owner, block, elements, rendering, spans))
   }
@@ -225,7 +250,14 @@ const nestedIds = (element: Element): ReadonlyArray<string> =>
 const sameIds = (present: ReadonlyArray<string | null>, wanted: ReadonlyArray<string>): boolean =>
   present.length === wanted.length && present.every((id, at) => id === wanted[at])
 
-/** Whether a run is drawn the same under two projections: the same ranges, the same kinds. */
+const sameAttributes = (
+  left: ReadonlyArray<readonly [string, string]>,
+  right: ReadonlyArray<readonly [string, string]>,
+): boolean =>
+  left.length === right.length &&
+  left.every(([name, value], at) => name === right[at]![0] && value === right[at]![1])
+
+/** Whether a run is drawn the same under two projections: the same ranges and attributes. */
 const sameSpans = (
   left: ReadonlyArray<RichText.DecorationSpan> = [],
   right: ReadonlyArray<RichText.DecorationSpan> = [],
@@ -235,7 +267,10 @@ const sameSpans = (
     (span, at) =>
       span.from === right[at]!.from &&
       span.to === right[at]!.to &&
-      span.decoration.kind === right[at]!.decoration.kind,
+      sameAttributes(
+        decorationAttributes(span.decoration),
+        decorationAttributes(right[at]!.decoration),
+      ),
   )
 
 export const patch = (
@@ -246,10 +281,10 @@ export const patch = (
 ): EditorDom => {
   const elements = new Map(dom.elements)
   const root = dom.root
-  const spans = RichText.decorationsIn(content, decorations)
+  const spans = decorationSpans(content, decorations)
   // A decoration change edits no document, so no ChangeSet names it: a run whose share of
   // the decorations differs from what was drawn is redrawn as a dirty run is.
-  const drawn = RichText.decorationsIn(dom.content, dom.decorations)
+  const drawn = decorationSpans(dom.content, dom.decorations)
   const redrawn = new Set(changeSet.dirtyNodes)
   for (const id of new Set([...drawn.keys(), ...spans.keys()])) {
     if (!sameSpans(drawn.get(id), spans.get(id))) redrawn.add(id)
@@ -263,7 +298,20 @@ export const patch = (
     elements.delete(id)
   }
   const rebuilt = new Set<RichText.NodeId>()
-  patchBlocks(root.ownerDocument, root, content.children, elements, dom.rendering, spans, rebuilt)
+  const drawnBlocks = new Map<RichText.NodeId, RichText.Block>()
+  const index = (blocks: ReadonlyArray<RichText.Block>): void => {
+    for (const block of blocks) {
+      drawnBlocks.set(block.id, block)
+      if (block.type === 'Node' && block.blocks !== undefined) index(block.blocks)
+    }
+  }
+  index(dom.content.children)
+  patchBlocks(root.ownerDocument, root, content.children, elements, {
+    rendering: dom.rendering,
+    spans,
+    rebuilt,
+    drawn: drawnBlocks,
+  })
   for (const id of redrawn) {
     const located = RichText.locateRun(content, id)
     if (located === undefined) continue
@@ -284,33 +332,40 @@ export const patch = (
 }
 
 /**
- * Patches one block list into its container. A block is rebuilt only when its
- * run list and its nested blocks are unchanged in shape, or it is new;
- * otherwise its element stays, which keeps every sibling's identity — and a
- * block that merely moved is moved, not re-rendered. A kept container needs no
- * recursion: its nested identities are unchanged, so any change inside them is a
- * run-level change the caller patches directly. Nested structural patching
- * arrives with the operations that can produce it (§116 slice 3).
+ * Patches one block list into its container. A block keeps its element while it renders
+ * the same, with the same run list and nested blocks; otherwise it is rebuilt, as a new
+ * one is. Keeping an element keeps every sibling's identity, and a block that merely moved
+ * is moved, not re-rendered. A kept container is patched the same way inside, where a
+ * nested block's own rendering can have changed (a task ticked in a list).
  */
 const patchBlocks = (
   owner: Document,
   container: HTMLElement,
   blocks: ReadonlyArray<RichText.Block>,
   elements: Map<RichText.NodeId, HTMLElement>,
-  rendering: RichText.Rendering,
-  spans: Spans,
-  rebuilt: Set<RichText.NodeId>,
+  context: {
+    readonly rendering: RichText.Rendering
+    readonly spans: Spans
+    readonly rebuilt: Set<RichText.NodeId>
+    /** The blocks as last drawn, so an element is kept only while it renders the same. */
+    readonly drawn: ReadonlyMap<RichText.NodeId, RichText.Block>
+  },
 ): void => {
+  const { rendering, spans, rebuilt, drawn } = context
+  const placed = new Set<Element>()
   let previousElement: HTMLElement | undefined
   for (const [index, block] of blocks.entries()) {
     const existing = elements.get(block.id)
     const nested = block.type === 'Node' && block.blocks !== undefined ? block.blocks : []
     // A block is kept only when its element and its child list are still what the
     // document says. The run ids alone are not enough: a heading whose level moved
-    // keeps both while its element changes from `h2` to `h3`.
+    // keeps both while its element changes from `h2` to `h3`, and a ticked task keeps
+    // its tag while its attributes change.
+    const previous = drawn.get(block.id)
     const sameStructure =
       existing !== undefined &&
-      existing.tagName.toLowerCase() === blockRendering(rendering, block).tag &&
+      previous !== undefined &&
+      drawsSame(rendering, previous, block) &&
       sameIds(
         childIds(existing, 'data-run'),
         block.children.map(run => run.id),
@@ -332,7 +387,21 @@ const patchBlocks = (
       }
     }
     if (existing !== undefined && sameStructure) {
-      if (container.children[index] !== existing) place(existing)
+      const inPlace =
+        previousElement === undefined
+          ? container.firstElementChild === existing
+          : previousElement.nextElementSibling === existing
+      if (!inPlace) place(existing)
+      // The same block object holds the same blocks, so only a changed one is looked into.
+      if (nested.length > 0 && previous !== block) {
+        const inner = blockRendering(rendering, block).inner
+        const holder =
+          inner === undefined
+            ? existing
+            : Array.from(existing.children).find(child => child.tagName.toLowerCase() === inner)
+        if (holder instanceof HTMLElement) patchBlocks(owner, holder, nested, elements, context)
+      }
+      placed.add(existing)
       previousElement = existing
       continue
     }
@@ -340,7 +409,13 @@ const patchBlocks = (
     existing?.remove()
     place(fresh)
     rebuilt.add(block.id)
+    placed.add(fresh)
     previousElement = fresh
+  }
+  // A block that moved into a container built fresh here was drawn again inside it, so its
+  // old element is still where it stood: anything here this list did not place is stale.
+  for (const child of Array.from(container.children)) {
+    if (child.hasAttribute('data-block') && !placed.has(child)) child.remove()
   }
 }
 
@@ -386,18 +461,60 @@ export const positionToRange = (dom: EditorDom, position: RichText.Position): Ra
   return undefined
 }
 
+const firstText = (node: Node): Text | undefined => {
+  if (node instanceof Text) return node
+  for (const child of Array.from(node.childNodes)) {
+    const found = firstText(child)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+const lastText = (node: Node): Text | undefined => {
+  if (node instanceof Text) return node
+  for (const child of Array.from(node.childNodes).reverse()) {
+    const found = lastText(child)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
 /**
- * Maps a browser selection endpoint back to a semantic position. Only text-node
- * containers inside a run are supported; anything else (an element offset, a
- * range outside the owned subtree) has no semantic position and returns
- * undefined rather than guessing.
+ * The text boundary a DOM position stands at. A browser can report a caret on an element:
+ * Chrome puts a click on an empty paragraph on the paragraph, never in its empty run's text
+ * node. Such a position is the start of the text after it, or else the end of the text
+ * before it.
+ */
+const textBoundary = (
+  node: Node,
+  offset: number,
+): { readonly text: Text; readonly offset: number } | undefined => {
+  if (node instanceof Text) return { text: node, offset }
+  // A browser reports no offset past the last child; clamp one that does.
+  offset = Math.min(offset, node.childNodes.length)
+  const after = node.childNodes[offset]
+  const following = after === undefined ? undefined : firstText(after)
+  if (following !== undefined) return { text: following, offset: 0 }
+  const before = node.childNodes[offset - 1]
+  const preceding = before === undefined ? undefined : lastText(before)
+  return preceding === undefined ? undefined : { text: preceding, offset: preceding.length }
+}
+
+/**
+ * Maps a browser selection endpoint back to a semantic position: a caret in a run's text,
+ * or on an element inside the owned subtree (read as the text boundary it stands at).
+ * Anything outside the subtree, the page around the editor or another editor's runs, has
+ * no position here and returns undefined.
  */
 export const rangeToPosition = (
   dom: EditorDom,
-  node: Node,
-  offset: number,
+  container: Node,
+  containerOffset: number,
 ): RichText.Position | undefined => {
-  if (!(node instanceof Text)) return undefined
+  if (!dom.root.contains(container)) return undefined
+  const boundary = textBoundary(container, containerOffset)
+  if (boundary === undefined) return undefined
+  const { text: node, offset } = boundary
   const run = node.parentElement?.closest('[data-run]')
   const id = run?.getAttribute('data-run')
   if (run === null || run === undefined || id === null || id === undefined) return undefined
@@ -484,7 +601,7 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
   // dropped from the map as well as the DOM, so `patch` renders it fresh rather
   // than placing a stale element back where it was.
   const elements = new Map(dom.elements)
-  const spans = RichText.decorationsIn(content, dom.decorations)
+  const spans = decorationSpans(content, dom.decorations)
   const inspect = (blocks: ReadonlyArray<RichText.Block>): void => {
     for (const block of blocks) {
       present.add(block.id)

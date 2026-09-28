@@ -430,7 +430,7 @@ flowchart LR
     replica <--> storage
   end
 
-  transport["Transport.exchange(cursor, pending)"]
+  transport["Transport.exchange(cursor, pending, epoch)"]
 
   subgraph server["server / Node"]
     durable["foldkit-durable Journal<br/>authorize · order · append"]
@@ -449,6 +449,7 @@ needs to reconcile:
 client -> server
 cursor
 pending operations
+the epoch the cursor points into, once the replica has heard one
 ```
 
 The response can contain:
@@ -459,6 +460,7 @@ committed operations after the cursor
 acknowledged operation ids
 rejected operation ids
 optional checkpoint
+the epoch of the server's history
 ```
 
 The replica treats that response as untrusted input. It validates committed
@@ -889,8 +891,8 @@ memory.
 ### Client persistence
 
 `Sync.indexedDb(...)` persists replica protocol/schema versions, document and
-replica identity, revision, next local sequence, cursor, committed snapshot,
-committed-id window, and pending operations.
+replica identity, revision, next local sequence, cursor, the server's epoch,
+committed snapshot, committed-id window, and pending operations.
 
 The storage adapter uses compare-and-swap revisions. Two active writers must not
 silently race on the same replica storage identity. Give each tab/replica its own
@@ -924,6 +926,8 @@ failure cases fit the same ownership model:
 | Server rejects an operation | remove it from pending and rebase the rest |
 | Other clients commit first | advance committed base and replay local pending operations |
 | Server compacted needed history | adopt a checkpoint, then replay newer commits + local pending |
+| Server lost its history (reset, new database) | a new `epoch`: the server answers from 0, the replica rebuilds committed state from that and resends pending; everything the old server committed is lost on every replica, and only pending operations survive |
+| Another actor sends a replica's operations | Durable binds each replica to its first committing actor (`replicaId` in `journalContract`) and refuses the rest; the first actor to use an id claims it |
 | Local replica storage was evicted | start from server state; unsent local edits are unrecoverable |
 | Two writers use one replica storage | CAS fails rather than silently merging two local histories |
 | Replay refuses a Message | `ReplayError`; operation is not written to the outbox |
@@ -934,7 +938,9 @@ failure cases fit the same ownership model:
 At the wire boundary, Sync also rejects malformed exchanges, non-contiguous
 committed order, foreign acknowledgements/rejections, and checkpoints that move
 backwards. A faulty server response must not be able to make local pending work
-silently disappear.
+silently disappear. The one exception is deliberate: a response with a new epoch
+resets the cursor and drops committed state, because the replica trusts a server
+that names a new history to have answered from its start.
 
 ## Presence is not replicated history
 

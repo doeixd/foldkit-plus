@@ -28,6 +28,11 @@ const definition = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
   shared: Todos,
   durable: TodoChanges,
+  // Renames the server has not seen yet go as one: the last title wins either way.
+  coalesce: (last, next) =>
+    last._tag === 'RenamedTodo' && next._tag === 'RenamedTodo' && last.id === next.id
+      ? next
+      : undefined,
 })
 
 /**

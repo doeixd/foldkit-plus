@@ -132,7 +132,10 @@ export const intentFor = (
   }
 }
 
-/** The semantic selection the browser is currently showing, if it resolves. */
+/**
+ * The semantic selection the browser is currently showing, if it resolves: null when the
+ * page's selection is outside the editor, which is not the editor's to read.
+ */
 export const readSelection = (dom: EditorDom): RichText.Selection | null => {
   const selection = dom.root.ownerDocument.defaultView?.getSelection()
   if (selection === null || selection === undefined || selection.rangeCount === 0) return null
@@ -213,11 +216,35 @@ export interface AttachOptions {
 /** What is drawn over a document, derived from it on every render (§129). */
 export type Decorate = (document: RichText.Document) => RichText.DecorationSet
 
+/** A change set that names nothing: what a redraw of the same document patches with. */
+const unchanged: RichText.ChangeSet = {
+  dirtyNodes: new Set(),
+  insertedNodes: new Set(),
+  removedNodes: new Set(),
+  textChanged: new Set(),
+  structureChanged: false,
+  selectionChanged: false,
+}
+
 export interface Attachment {
   /** The current subtree; replaced as patches are applied. */
   readonly current: () => EditorDom
-  /** Applies a committed state, patching and restoring the browser selection. */
+  /**
+   * Applies a committed state, patching and restoring the browser selection. While the
+   * browser is composing, the latest state waits and is drawn when composition ends.
+   */
   readonly sync: (state: RichText.EditorState, changeSet: RichText.ChangeSet) => void
+  /**
+   * Draws the decorations again over what is drawn, for when they changed and the document
+   * did not, and puts the browser's selection back where it was. Nothing while composing:
+   * the next state drawn brings them.
+   */
+  readonly redecorate: () => void
+  /**
+   * The latest document synced: the one waiting on a composition, or else the one drawn. A
+   * patch computed from here to the next state is what brings the subtree up to it.
+   */
+  readonly held: () => RichText.Document
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
   readonly detach: () => void
@@ -284,31 +311,58 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    * Affinity is ignored: it is derived from the range, not carried by it.
    */
   let lastSelection: RichText.Selection | null = null
+  /**
+   * Only a range that resolves inside the editor is news. A selection elsewhere on the page
+   * (another editor, an input) leaves the editor's own where it was, and so does a live
+   * selection that cannot show the Model's: the browser never holds a Node selection, so
+   * reading its absence back would turn a selected block into no selection at all.
+   */
   const reportSelection = (): void => {
     // While composing, the caret points into text the document does not have.
     if (composing) return
     const selection = readSelection(current)
-    if (sameSelection(selection, lastSelection)) return
+    if (selection === null || sameSelection(selection, lastSelection)) return
     lastSelection = selection
     options.onSelection?.(selection)
   }
   /**
-   * The semantic selection as it was before the browser took over. The live
-   * caret during composition points into text the document does not have, so
-   * committing against it would resolve against the wrong document — or fail.
+   * The browser's selection is the page's, not the editor's: the editor moves it only while
+   * it is inside the editor, so a redraw never takes the caret from another editor or an input.
+   * Read before a patch replaces the nodes it points into.
    */
-  let composingSelection: RichText.Selection | null = null
+  const ownsSelection = (): boolean => {
+    const live = current.root.ownerDocument.defaultView?.getSelection()
+    if (live === null || live === undefined || live.rangeCount === 0) return false
+    return current.root.contains(live.anchorNode) && current.root.contains(live.focusNode)
+  }
   let placeholderIds = 0
+  /**
+   * A state the application committed while the browser was composing: drawing it then
+   * would rewrite the text under the IME, so it waits for the composition to end. Change
+   * sets are unioned, which never under-invalidates.
+   */
+  let deferred: { state: RichText.EditorState; changeSet: RichText.ChangeSet } | undefined
+  const draw = (state: RichText.EditorState, changeSet: RichText.ChangeSet): void => {
+    const owned = ownsSelection()
+    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
+    lastSelection = state.selection
+    if (owned) restoreSelection(current, state.selection)
+  }
   const onEvent = (event: Event): void => {
     const intent = intentFor(event, composing, options.keymap)
     if (intent === undefined) return
     if (intent.preventDefault) event.preventDefault()
-    if (intent.command !== undefined) options.onIntent(intent.command)
+    // `selectionchange` is asynchronous, so a click just before a keystroke may not have
+    // been reported yet: report it first, or the edit lands at the caret before the click.
+    if (intent.command !== undefined) {
+      reportSelection()
+      options.onIntent(intent.command)
+    }
     if (intent.history !== undefined) options.onHistory?.(intent.history)
   }
   const onCompositionStart = (): void => {
+    reportSelection()
     composing = true
-    composingSelection = readSelection(current)
   }
   const onCompositionEnd = (event: Event): void => {
     composing = false
@@ -316,10 +370,15 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     // The browser's temporary text is not in the document, whether the IME
     // committed or cancelled, so repair the subtree before anything else, then
     // put back the selection composition started from — not the caret the
-    // browser moved into its own temporary text.
+    // browser moved into its own temporary text. Nothing is reported or synced
+    // while composing, so that is still `lastSelection`; with none known (an end
+    // without a start), the caret is left where the browser put it.
     redraw(repair(current, current.content))
-    restoreSelection(current, composingSelection)
-    composingSelection = null
+    // What arrived during the composition is drawn now. Its selection is the
+    // application's, which holds the caret composition started from.
+    if (deferred !== undefined) draw(deferred.state, deferred.changeSet)
+    else if (lastSelection !== null) restoreSelection(current, lastSelection)
+    deferred = undefined
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
   }
   const writeClipboard = (clipboard: ClipboardLike, slice: RichText.Slice): void => {
@@ -337,6 +396,9 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     writeClipboard(clipboard, slice)
   }
   const onCut = (event: Event): void => {
+    // The delete below runs at the application's selection, which a click just before may
+    // not have reached yet, as with a keystroke.
+    reportSelection()
     const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
     const selection = readSelection(current)
     const slice = RichText.sliceOf(current.content, selection)
@@ -373,6 +435,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       (text.length > 0 ? RichText.sliceFromText(text, placeholders) : undefined)
     if (slice === undefined || slice.blocks.length === 0) return
     event.preventDefault()
+    reportSelection()
     options.onIntent({ type: 'Paste', slice })
   }
   const target = dom.root
@@ -389,11 +452,23 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   target.addEventListener('paste', onPaste)
   return {
     current: () => current,
+    held: () => deferred?.state.document ?? current.content,
     composing: () => composing,
+    redecorate: () => {
+      if (composing) return
+      const selection = readSelection(current)
+      redraw(patchInto(current, current.content, unchanged, options.decorate?.(current.content)))
+      if (selection !== null) restoreSelection(current, selection)
+    },
     sync: (state, changeSet) => {
-      redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
-      lastSelection = state.selection
-      restoreSelection(current, state.selection)
+      if (!composing) return draw(state, changeSet)
+      deferred = {
+        state,
+        changeSet:
+          deferred === undefined
+            ? changeSet
+            : RichText.unionChangeSet(deferred.changeSet, changeSet),
+      }
     },
     detach: () => {
       ownerDocument.removeEventListener('selectionchange', reportSelection)

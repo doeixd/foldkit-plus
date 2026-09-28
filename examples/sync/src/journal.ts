@@ -50,6 +50,8 @@ export interface JournalPolicy {
    * so its policy must not reorder effects for previously committed operations.
    */
   readonly effects?: (message: Message) => ReadonlyArray<ServerEffect>
+  /** At most this many committed operations per exchange; a replica far behind asks again. Default 500. */
+  readonly page?: number
 }
 
 export interface ServerJournal {
@@ -75,6 +77,7 @@ export interface ServerJournal {
 export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJournal => {
   const authorize = policy.authorize
   const effectsFor = policy.effects
+  const page = policy.page ?? 500
   const scope = Effect.runSync(Scope.make())
   const durable: Journal<Operation, Shared, Principal> = (() => {
     try {
@@ -203,23 +206,48 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
       return () => Effect.runSync(Fiber.interrupt(fiber))
     },
     transport: (principal: Principal): TransportClient => ({
-      exchange: async (cursor, pending) => {
+      exchange: async (cursor, pending, seen) => {
         if (!principal.actorId) throw new Error('Unauthenticated reader')
+        // A replica that saw another epoch holds a cursor into history this server lacks
+        // (it was reset): it is answered from the start, and rebuilds from that. Otherwise
+        // a cursor past the server's is refused before anything is appended, or the
+        // operations would commit and their acknowledgements be lost with the failed read.
+        const epoch = Effect.runSync(durable.epoch(DocumentId.make(principal.documentId)))
+        const from = seen !== undefined && seen !== epoch ? 0 : cursor
+        const at = Effect.runSync(durable.cursor(DocumentId.make(principal.documentId)))
+        if (from > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
         const rejected: string[] = []
         const acknowledged: string[] = []
         for (const input of pending) {
-          const operation = TodoSync.codec.normalizeOperation(input)
+          // An operation that does not decode fails the same way on every retry, so it is
+          // rejected, not left to fail the exchange and be resent forever. The socket passes
+          // pending entries through undecoded, so one with no id has nothing to reject by.
+          let operation: ReturnType<typeof TodoSync.codec.normalizeOperation>
+          try {
+            operation = TodoSync.codec.normalizeOperation(input)
+          } catch {
+            const opId: unknown = (input as { readonly opId?: unknown } | null)?.opId
+            if (typeof opId === 'string') rejected.push(opId)
+            continue
+          }
           if (!principal.canWrite) {
             rejected.push(operation.opId)
             continue
           }
           const result = Effect.runSync(
             durable.append(DocumentId.make(principal.documentId), operation, principal).pipe(
-              Effect.catchTag('OperationRejectedError', error =>
-                Effect.sync(() => {
-                  rejected.push(error.opId)
-                  return undefined
-                }),
+              // A refusal, an operation the journal cannot apply, and an id reused for other
+              // content all fail the same way on every retry; a `JournalError` may not, so it
+              // still fails the exchange and the client tries again.
+              Effect.catch(error =>
+                error._tag === 'OperationRejectedError' ||
+                error._tag === 'InvalidOperationError' ||
+                error._tag === 'IdentityConflictError'
+                  ? Effect.sync(() => {
+                      rejected.push(operation.opId)
+                      return undefined
+                    })
+                  : Effect.fail(error),
               ),
             ),
           )
@@ -238,12 +266,14 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
         // read decides that itself, so a compaction cannot slip between the
         // floor check and the read and produce a gapped stream.
         const caught = Effect.runSync(
-          durable.read(DocumentId.make(principal.documentId), Cursor.make(cursor)).pipe(
-            Effect.map(rows => ({ rows })),
-            Effect.catchTag('CompactedCursorError', () =>
-              Effect.succeed({ checkpoint: true as const }),
+          durable
+            .read(DocumentId.make(principal.documentId), Cursor.make(from), { limit: page })
+            .pipe(
+              Effect.map(rows => ({ rows })),
+              Effect.catchTag('CompactedCursorError', () =>
+                Effect.succeed({ checkpoint: true as const }),
+              ),
             ),
-          ),
         )
         if ('checkpoint' in caught) {
           const { cursor: at, model } = snapshot(principal.documentId)
@@ -252,12 +282,15 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
             operations: [],
             rejected,
             acknowledged,
+            epoch,
           }
         }
         return {
           operations: caught.rows.map(committed => toCommitted(committed, principal.documentId)),
           rejected,
           acknowledged,
+          more: caught.rows.length === page,
+          epoch,
         }
       },
     }),

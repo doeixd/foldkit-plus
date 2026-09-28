@@ -260,6 +260,8 @@ The tests go much further than the demo. Grouped by the guarantee they exercise:
 | edit during pull | an operation created during synchronization is preserved and rebased over the new base |
 | lost acknowledgement / resend | the same operation id is not committed twice |
 | server restart | committed operations and snapshots survive journal reopen |
+| server reset | a replica that saw another epoch is answered from the start; it rebuilds its committed state and its outbox is committed on the new server |
+| replica claimed by another actor | an operation naming a replica another actor committed from is rejected; each caller's server agent has its own replica |
 | compaction | a far-behind replica can resume from a checkpoint; compacted acknowledged work is not re-applied |
 | rejection / policy | unauthorized operations are removed from optimistic state and the remaining pending work is rebased |
 | malformed response | invalid server data does not corrupt local durable state |

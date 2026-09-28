@@ -146,7 +146,7 @@ describe('the printer and the parser round trip', () => {
     ['> one\n>\n> two\n'],
     ['- one\n- two\n'],
     ['3. one\n4. two\n'],
-    ['- one\n\n  - nested\n'],
+    ['- one\n  - nested\n'],
     ['- [x] done\n- [ ] todo\n'],
     ['```ts\nconst x = 1\n```\n'],
     ['---\n'],

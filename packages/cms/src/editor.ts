@@ -420,7 +420,14 @@ export const makeEditor =
             : model.submit === 'waiting' && !validating
               ? 'stopped'
               : model.submit
-      const result = { model: { ...model, form: next.model, edits, submit }, commands }
+      // A form Message that changed nothing keeps this Model: Foldkit renders on its identity.
+      const result = {
+        model:
+          next.model === model.form && submit === model.submit
+            ? model
+            : { ...model, form: next.model, edits, submit },
+        commands,
+      }
       return next.outMessage === undefined ? result : { ...result, outMessage: { _tag: 'Publish' } }
     }
 
@@ -450,7 +457,7 @@ export const makeEditor =
               ? { model }
               : { model: { ...model, previewing: true, previewedAs: null } }
           case 'PreviewHidden':
-            return { model: { ...model, previewing: false } }
+            return model.previewing ? { model: { ...model, previewing: false } } : { model }
           case 'RestoreAsked':
             return { model, outMessage: { _tag: 'Restore', revision: message.revision } }
           case 'ScheduleAsked':

@@ -84,7 +84,10 @@ const docB = documentId('b')
 const missing = documentId('missing')
 
 type Hooks = Partial<
-  Pick<JournalOptions<Operation, Snapshot, Principal>, 'validate' | 'authorize' | 'reduce'>
+  Pick<
+    JournalOptions<Operation, Snapshot, Principal>,
+    'validate' | 'authorize' | 'reduce' | 'snapshotEvery' | 'replicaId' | 'legacyReplicaId'
+  >
 >
 
 const base = {
@@ -121,6 +124,254 @@ const appendCommitted = <Operation>(result: AppendResult<Operation>): Committed<
   if (result._tag !== 'Committed') throw new Error('Expected a committed operation')
   return result.committed
 }
+
+describe('the stored snapshot', () => {
+  /** Runs `body` against a journal file in a fresh directory, then removes it. */
+  const inFile = async (body: (path: string) => Promise<void>) => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-snapshot-'))
+    try {
+      await body(join(directory, 'journal.sqlite'))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
+  /** The stored row, read with SQLite itself. */
+  const row = (path: string) => {
+    const database = new DatabaseSync(path)
+    try {
+      return database
+        .prepare('SELECT cursor, snapshot, snapshot_cursor FROM documents WHERE key = ?')
+        .get('todos')
+    } finally {
+      database.close()
+    }
+  }
+  // Order matters to these, so replaying an operation twice or skipping one shows.
+  const edits = [add(1, 'a'), add(2, 'b'), remove(3, 'a'), add(4, 'a'), add(5, 'c')]
+  const after = { snapshot: { ids: ['b', 'a', 'c'] }, cursor: 5 }
+
+  it('writes it every so many commits, and replays the rest on load', () =>
+    inFile(async path => {
+      await withJournal(
+        function* (journal) {
+          for (const edit of edits) yield* journal.append(todos, edit, principal)
+          expect(yield* journal.load(todos)).toEqual(after)
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+      expect(row(path)).toMatchObject({
+        cursor: 5,
+        snapshot_cursor: 3,
+        snapshot: JSON.stringify({ ids: ['b'] }),
+      })
+      // A journal that never saw these commits rebuilds the state from the stored rows.
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.load(todos)).toEqual(after)
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+    }))
+
+  it('writes a lagging snapshot before compacting what it has not folded in', () =>
+    inFile(async path => {
+      await withJournal(
+        function* (journal) {
+          for (const edit of edits) yield* journal.append(todos, edit, principal)
+          yield* journal.compact(todos, sequence(5))
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+      expect(row(path)).toMatchObject({ snapshot_cursor: 5 })
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.load(todos)).toEqual(after)
+        },
+        { snapshotEvery: 3 },
+        path,
+      )
+    }))
+
+  it('sees a commit made through another connection', () =>
+    inFile(async path => {
+      const open = Effect.gen(function* () {
+        return yield* makeJournal<Operation, Snapshot, Principal>({ file: path, ...base })
+      })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            yield* first.append(todos, add(1, 'a'), principal)
+            yield* second.append(todos, remove(2, 'a'), principal)
+            // The first journal's remembered state is behind the file: its next commit
+            // must build on the second's, not on what it remembers.
+            yield* first.append(todos, add(3, 'b'), principal)
+            expect(yield* first.load(todos)).toEqual({ snapshot: { ids: ['b'] }, cursor: 3 })
+          }),
+        ),
+      )
+    }))
+
+  it('forgets a batch that did not commit', () =>
+    withJournal(
+      function* (journal) {
+        yield* journal.append(todos, add(1, 'a'), principal)
+        const refused = yield* Effect.result(
+          journal.appendAll(todos, [add(2, 'b'), add(3, 'refused')], principal),
+        )
+        expect(refused).toMatchObject({ _tag: 'Failure' })
+        yield* journal.append(todos, add(4, 'c'), principal)
+        expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['a', 'c'] }, cursor: 2 })
+      },
+      { authorize: ({ operation }) => operation.id !== 'refused' },
+    ))
+
+  it('notices a snapshot another connection wrote at the same cursor', () =>
+    inFile(async path => {
+      const open = makeJournal<Operation, Snapshot, Principal>({
+        file: path,
+        ...base,
+        snapshotEvery: 3,
+      })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            for (const edit of edits) yield* first.append(todos, edit, principal)
+            // The second writes the snapshot at 5 to compact; the first still remembers
+            // it at 3, which would have its next commit write another at once.
+            yield* second.compact(todos, sequence(5))
+            yield* first.append(todos, add(6, 'd'), principal)
+          }),
+        ),
+      )
+      expect(row(path)).toMatchObject({ cursor: 6, snapshot_cursor: 5 })
+    }))
+
+  it('reads at most a page of operations after a cursor', () =>
+    withJournal(function* (journal) {
+      for (const edit of edits) yield* journal.append(todos, edit, principal)
+      const page = yield* journal.read(todos, cursor(1), { limit: 2 })
+      expect(page.map(committed => committed.sequence)).toEqual([2, 3])
+      const rest = yield* journal.read(todos, cursor(3), { limit: 2 })
+      expect(rest.map(committed => committed.sequence)).toEqual([4, 5])
+      expect(yield* Effect.exit(journal.read(todos, cursor(0), { limit: 0 }))).toMatchObject({
+        _tag: 'Failure',
+      })
+    }))
+
+  it('gives back the space compaction freed when vacuumed', () =>
+    inFile(async path => {
+      const { statSync } = await import('node:fs')
+      await withJournal(
+        function* (journal) {
+          // Large payloads that leave the snapshot small, so the file is mostly payload.
+          for (let index = 1; index <= 400; index++)
+            yield* journal.append(todos, remove(index, 'x'.repeat(2000) + index), principal)
+          yield* journal.compact(todos, sequence(400))
+          const compacted = statSync(path).size
+          yield* journal.vacuum()
+          expect(statSync(path).size).toBeLessThan(compacted / 2)
+        },
+        {},
+        path,
+      )
+    }))
+
+  it('forgets a document it reset, though another connection takes it to the same cursor', () =>
+    inFile(async path => {
+      const open = makeJournal<Operation, Snapshot, Principal>({ file: path, ...base })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            yield* first.append(todos, add(1, 'a'), principal)
+            yield* first.reset(todos)
+            yield* second.append(todos, add(1, 'b'), principal)
+            expect(yield* first.load(todos)).toEqual({ snapshot: { ids: ['b'] }, cursor: 1 })
+          }),
+        ),
+      )
+    }))
+
+  it('notices another connection reset a document and committed back to the same cursor', () =>
+    inFile(async path => {
+      const open = makeJournal<Operation, Snapshot, Principal>({ file: path, ...base })
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* open
+            const second = yield* open
+            yield* first.append(todos, add(1, 'a'), principal)
+            yield* second.reset(todos)
+            yield* second.append(todos, { opId: 'b:1', kind: 'add', id: 'b' }, principal)
+            expect(yield* first.load(todos)).toEqual({ snapshot: { ids: ['b'] }, cursor: 1 })
+          }),
+        ),
+      )
+    }))
+
+  it('fails an append whose stored state does not load as its own failure, not the operation’s', () =>
+    inFile(async path => {
+      await withJournal(
+        function* (journal) {
+          yield* journal.append(todos, add(1, 'a'), principal)
+        },
+        {},
+        path,
+      )
+      const database = new DatabaseSync(path)
+      database.prepare(`UPDATE documents SET snapshot = '"not a snapshot"'`).run()
+      database.close()
+      await withJournal(
+        function* (journal) {
+          const result = yield* Effect.result(journal.append(todos, add(2, 'b'), principal))
+          expect(result).toMatchObject({ _tag: 'Failure', failure: { _tag: 'JournalError' } })
+        },
+        {},
+        path,
+      )
+    }))
+
+  it('takes a snapshot written before it could lag as current, and replays nothing onto it', () =>
+    inFile(async path => {
+      // Version 3's layout, whose snapshot was always written at the cursor.
+      const legacy = new DatabaseSync(path)
+      legacy.exec(`
+        CREATE TABLE documents (
+          key TEXT PRIMARY KEY, cursor INTEGER NOT NULL, snapshot TEXT NOT NULL,
+          compact_before INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE operations (
+          key TEXT NOT NULL, op_id TEXT NOT NULL, sequence INTEGER NOT NULL,
+          actor_id TEXT NOT NULL, input TEXT, payload_hash TEXT,
+          PRIMARY KEY (key, op_id), UNIQUE (key, sequence)
+        );
+        CREATE TABLE effects (
+          key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
+        );
+        INSERT INTO operations (key, op_id, sequence, actor_id, input)
+          VALUES ('todos', 'a:1', 1, 'owner', '{"opId":"a:1","kind":"add","id":"a"}');
+        INSERT INTO documents (key, cursor, snapshot) VALUES ('todos', 1, '{"ids":["a"]}');
+        PRAGMA user_version = 3;
+      `)
+      legacy.close()
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['a'] }, cursor: 1 })
+        },
+        // Not idempotent, so an operation replayed onto a snapshot that already has it shows.
+        { reduce: (state, op) => ({ ids: [...state.ids, op.id] }) },
+        path,
+      )
+    }))
+})
 
 describe('a durable journal', () => {
   it('orders appends and reads them after a cursor', () =>
@@ -267,6 +518,14 @@ describe('a durable journal', () => {
         },
       },
     ))
+
+  it('reads the cursor without a snapshot', () =>
+    withJournal(function* (journal) {
+      expect(yield* journal.cursor(todos)).toBe(0)
+      yield* journal.append(todos, add(1, 'a'), principal)
+      yield* journal.append(todos, add(2, 'b'), principal)
+      expect(yield* journal.cursor(todos)).toBe(2)
+    }))
 
   it('compacts payloads while keeping identity and the snapshot', () =>
     withJournal(function* (journal) {
@@ -469,7 +728,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 3 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
         // The payload identity is recomputed canonically, so a later retransmission
         // with a different key order still proves its payload.
         expect(
@@ -515,10 +774,104 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 3 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
       } finally {
         migrated.close()
       }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('binds a retained replica from a version 4 database to its original actor', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-v4-'))
+    const path = join(directory, 'journal.sqlite')
+    try {
+      const older = new DatabaseSync(path)
+      older.exec(`
+        CREATE TABLE documents (
+          key TEXT PRIMARY KEY, cursor INTEGER NOT NULL, snapshot TEXT NOT NULL,
+          compact_before INTEGER NOT NULL DEFAULT 0, snapshot_cursor INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE operations (
+          key TEXT NOT NULL, op_id TEXT NOT NULL, sequence INTEGER NOT NULL,
+          actor_id TEXT NOT NULL, input TEXT, payload_hash TEXT,
+          PRIMARY KEY (key, op_id), UNIQUE (key, sequence)
+        );
+        CREATE TABLE effects (
+          key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
+        );
+        INSERT INTO operations (key, op_id, sequence, actor_id, input)
+          VALUES ('todos', 'a:1', 1, 'owner', '{"opId":"a:1","kind":"add","id":"before-upgrade"}');
+        INSERT INTO documents (key, cursor, snapshot, snapshot_cursor)
+          VALUES ('todos', 1, '{"ids":["before-upgrade"]}', 1);
+        PRAGMA user_version = 4;
+      `)
+      older.close()
+      const intruder: Principal = { actorId: 'intruder', canWrite: true }
+      await withJournal(
+        function* (journal) {
+          expect(yield* journal.epoch(todos)).toBe(yield* journal.epoch(todos))
+          const refused = yield* Effect.result(journal.append(todos, add(2, 'b'), intruder))
+          expect(refused).toMatchObject({
+            _tag: 'Failure',
+            failure: { _tag: 'OperationRejectedError' },
+          })
+          yield* journal.append(todos, add(2, 'after-upgrade'), principal)
+          expect((yield* journal.load(todos)).snapshot.ids).toEqual([
+            'before-upgrade',
+            'after-upgrade',
+          ])
+        },
+        { replicaId: value => value.opId.split(':')[0]! },
+        path,
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('requires a replica identity for compacted history before binding new commits', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-v5-compacted-'))
+    const path = join(directory, 'journal.sqlite')
+    try {
+      const older = new DatabaseSync(path)
+      older.exec(`
+        CREATE TABLE documents (key TEXT PRIMARY KEY, cursor INTEGER NOT NULL, snapshot TEXT NOT NULL, compact_before INTEGER NOT NULL DEFAULT 0, snapshot_cursor INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE operations (key TEXT NOT NULL, op_id TEXT NOT NULL, sequence INTEGER NOT NULL, actor_id TEXT NOT NULL, input TEXT, payload_hash TEXT, PRIMARY KEY (key, op_id), UNIQUE (key, sequence));
+        CREATE TABLE effects (key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT);
+        CREATE TABLE epochs (key TEXT PRIMARY KEY, epoch TEXT NOT NULL);
+        CREATE TABLE replicas (key TEXT NOT NULL, replica_id TEXT NOT NULL, actor_id TEXT NOT NULL, PRIMARY KEY (key, replica_id));
+        INSERT INTO documents VALUES ('todos', 1, '{"ids":["before-upgrade"]}', 1, 1);
+        INSERT INTO operations VALUES ('todos', 'a:1', 1, 'owner', NULL, NULL);
+        PRAGMA user_version = 5;
+      `)
+      older.close()
+      const byReplica: Hooks = { replicaId: value => value.opId.split(':')[0]! }
+      const unavailable = await Effect.runPromise(
+        Effect.scoped(
+          Effect.result(
+            makeJournal<Operation, Snapshot, Principal>({ file: path, ...base, ...byReplica }),
+          ),
+        ),
+      )
+      expect(unavailable).toMatchObject({ _tag: 'Failure', failure: { _tag: 'JournalError' } })
+      await withJournal(
+        function* (journal) {
+          const intruder: Principal = { actorId: 'intruder', canWrite: true }
+          expect(yield* Effect.result(journal.append(todos, add(2), intruder))).toMatchObject({
+            _tag: 'Failure',
+            failure: { _tag: 'OperationRejectedError' },
+          })
+          yield* journal.append(todos, add(2, 'after-upgrade'), principal)
+          expect((yield* journal.load(todos)).snapshot.ids).toEqual([
+            'before-upgrade',
+            'after-upgrade',
+          ])
+        },
+        { ...byReplica, legacyReplicaId: id => id.split(':')[0]! },
+        path,
+      )
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -542,7 +895,7 @@ describe('a durable journal', () => {
         CREATE TABLE effects (
           key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
         );
-        PRAGMA user_version = 4;
+        PRAGMA user_version = 7;
       `)
       newer.close()
 
@@ -553,12 +906,12 @@ describe('a durable journal', () => {
       )
       expect(result).toMatchObject({
         _tag: 'Failure',
-        failure: { _tag: 'UnsupportedJournalVersionError', found: 4, supported: 3 },
+        failure: { _tag: 'UnsupportedJournalVersionError', found: 7, supported: 6 },
       })
 
       const after = new DatabaseSync(path)
       try {
-        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 })
+        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 7 })
       } finally {
         after.close()
       }
@@ -623,6 +976,116 @@ describe('a durable journal', () => {
       expect(seen).toEqual(['todos'])
       expect((yield* journal.load(todos)).cursor).toBe(1)
     }))
+})
+
+describe('a replica bound to its actor', () => {
+  // An operation's replica is its opId up to the colon: `a:1` is replica `a`'s.
+  const byReplica: Hooks = { replicaId: value => value.opId.split(':')[0]! }
+  const intruder: Principal = { actorId: 'intruder', canWrite: true }
+  const refused = { _tag: 'Failure', failure: { _tag: 'OperationRejectedError' } }
+
+  it('refuses another actor an operation from a replica the first commit bound', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1, 'a'), principal)
+      expect(yield* Effect.result(journal.append(todos, add(2, 'b'), intruder))).toMatchObject(
+        refused,
+      )
+      // The owner goes on, and the other actor's own replica is its own.
+      yield* journal.append(todos, add(2, 'b'), principal)
+      yield* journal.append(todos, { opId: 'b:1', kind: 'add', id: 'c' }, intruder)
+      expect((yield* journal.load(todos)).snapshot.ids).toEqual(['a', 'b', 'c'])
+    }, byReplica))
+
+  it('binds nothing when the first commit is refused', () =>
+    withJournal(
+      function* (journal) {
+        yield* Effect.result(journal.append(todos, add(1, 'refused'), principal))
+        yield* journal.append(todos, add(2, 'b'), intruder)
+        expect((yield* journal.load(todos)).snapshot.ids).toEqual(['b'])
+      },
+      {
+        ...byReplica,
+        validate: ({ operation }) => {
+          if (operation.id === 'refused') throw new Error('refused')
+        },
+      },
+    ))
+
+  it('binds per document, and keeps the binding through a reset', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1, 'a'), principal)
+      yield* journal.append(docA, add(1, 'a'), intruder)
+      yield* journal.reset(todos)
+      expect(yield* Effect.result(journal.append(todos, add(1, 'a'), intruder))).toMatchObject(
+        refused,
+      )
+    }, byReplica))
+
+  it('lets anyone use any replica when operations name none', () =>
+    withJournal(function* (journal) {
+      yield* journal.append(todos, add(1, 'a'), principal)
+      yield* journal.append(todos, add(2, 'b'), intruder)
+      expect((yield* journal.load(todos)).cursor).toBe(2)
+    }))
+})
+
+describe('a document’s epoch', () => {
+  it('stays while its history is kept, and is new after a reset, for that document only', () =>
+    withJournal(function* (journal) {
+      const first = yield* journal.epoch(todos)
+      yield* journal.append(todos, add(1, 'a'), principal)
+      expect(yield* journal.epoch(todos)).toBe(first)
+      const other = yield* journal.epoch(docA)
+      expect(other).not.toBe(first)
+      yield* journal.reset(todos)
+      expect(yield* journal.epoch(todos)).not.toBe(first)
+      expect(yield* journal.epoch(docA)).toBe(other)
+    }))
+
+  it('survives reopening the file, and is new in another file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-epoch-'))
+    try {
+      const path = join(directory, 'journal.sqlite')
+      const read = (file: string) =>
+        withJournal(
+          journal =>
+            (function* () {
+              return yield* journal.epoch(todos)
+            })(),
+          {},
+          file,
+        )
+      const first = await read(path)
+      expect(await read(path)).toBe(first)
+      expect(await read(join(directory, 'other.sqlite'))).not.toBe(first)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('reloads another handle after a reset reuses the cursor and operation id', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-cache-reset-'))
+    try {
+      const file = join(directory, 'journal.sqlite')
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* makeJournal<Operation, Snapshot, Principal>({ file, ...base })
+            const second = yield* makeJournal<Operation, Snapshot, Principal>({ file, ...base })
+            yield* first.append(todos, add(1, 'old'), principal)
+            expect((yield* first.load(todos)).snapshot.ids).toEqual(['old'])
+            yield* second.reset(todos)
+            yield* second.append(todos, add(1, 'new'), principal)
+            expect((yield* first.load(todos)).snapshot.ids).toEqual(['new'])
+            yield* first.append(todos, add(2, 'later'), principal)
+            expect((yield* second.load(todos)).snapshot.ids).toEqual(['new', 'later'])
+          }),
+        ),
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('the journal surface', () => {

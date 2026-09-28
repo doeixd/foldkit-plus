@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
   application,
+  Editor,
   applied,
   cleared,
   converted,
@@ -15,7 +16,6 @@ import {
   patched,
   pressed,
   redone,
-  replaceChangeSet,
   retyped,
   selected,
   toggled,
@@ -26,7 +26,8 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { decorationsFor, placeholderFor, renderingFor } from '../src/host.js'
+import { decorationsFor, placeholderFor, placeOverlay, renderingFor } from '../src/host.js'
+import { Message } from '../src/editor.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -196,22 +197,27 @@ describe('undo through the parent transition', () => {
     model = step(model, redone())
     expect(model.document.children[0]?.children[0]?.text).toBe('abX')
   })
+})
 
-  it('reports the whole document as replaced so the DOM cannot keep stale nodes', () => {
-    const before = start(caret('a', 2))
-    const typedOnce = step(before, pressed('Entered'))
-    const back = step(typedOnce, undone())
-    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
-
-    // The undone block is gone, so the replace patch must name it as removed
-    // and name every surviving identity as dirty.
-    const changeSet = replaceChangeSet(typedOnce.document, back.document)
-    const removedBlock = typedOnce.document.children[1]!.id
-    const removedRun = typedOnce.document.children[1]!.children[0]!.id
-    expect(changeSet.removedNodes).toEqual(new Set([removedBlock, removedRun]))
-    expect([...changeSet.dirtyNodes].sort()).toEqual(['a', 'b', 'p', 'q'])
-    expect(changeSet.insertedNodes).toEqual(new Set())
-    expect(changeSet.structureChanged).toBe(true)
+describe('what an edit reports', () => {
+  it('carries the transactions it applied, which replay to the state it reports', () => {
+    const model = start(caret('a', 2))
+    const view = { document: model.document, ...model.editor }
+    const result = Editor.update(view, Message.Typed({ text: '!' }), {
+      hostId: model.editor.hostId,
+    })
+    const out = result.outMessage
+    if (out?._tag !== 'Edited') throw new Error('expected an edit')
+    expect(out.transactions.length).toBeGreaterThan(0)
+    const replayed = out.transactions.reduce<RichText.EditorState>(
+      (state, transaction) => {
+        const applied = RichText.apply(state, transaction)
+        if (!applied.ok) throw new Error(applied.error)
+        return applied.state
+      },
+      { document: model.document, selection: model.editor.selection },
+    )
+    expect(replayed).toEqual(out.state)
   })
 })
 
@@ -582,10 +588,28 @@ describe('decorations placed for the editor (§129)', () => {
   it('records what a placement draws over its document, and nothing when it names none', () => {
     const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'a')
     editorAt('decorating-editor', { decorate })
-    expect(decorationsFor('decorating-editor')).toBe(decorate)
+    expect(decorationsFor('decorating-editor')(document())).toEqual(decorate(document()))
     // Re-placing an id without one replaces what it had.
     editorAt('decorating-editor')
     expect(decorationsFor('decorating-editor')(document())).toEqual([])
+  })
+
+  it('draws an overlay the application sets after the placement’s own', () => {
+    const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'a')
+    editorAt('overlaid-editor', { decorate })
+    const peer: RichText.Decoration = {
+      from: { node: id('b'), offset: 0, affinity: 'after' },
+      to: { node: id('b'), offset: 1, affinity: 'after' },
+      kind: 'peer',
+    }
+    placeOverlay('overlaid-editor', [peer])
+    expect(decorationsFor('overlaid-editor')(document())).toEqual([...decorate(document()), peer])
+    placeOverlay('overlaid-editor', [])
+    expect(decorationsFor('overlaid-editor')(document())).toEqual(decorate(document()))
+    // Placing the id again starts it without one.
+    placeOverlay('overlaid-editor', [peer])
+    editorAt('overlaid-editor', { decorate })
+    expect(decorationsFor('overlaid-editor')(document())).toEqual(decorate(document()))
   })
 })
 
@@ -670,9 +694,102 @@ describe('an input rule placed for the editor (§124 §4)', () => {
     expect(transition.model.editor.nextId).toBe(update(hash, typed('x')).model.editor.nextId)
   })
 
+  it('shows a rule the kinds around the caret’s block, innermost first', () => {
+    const seen: Array<ReadonlyArray<string>> = []
+    const watching: RichText.InputRule = {
+      name: 'watching',
+      match: (_, within) => {
+        seen.push(within)
+        return undefined
+      },
+    }
+    editorAt('nested-editor', { inputRules: [watching] })
+    const nested = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'top',
+          children: [{ type: 'Text', id: 't', text: 'ab', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'quote',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'List',
+              id: 'list',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Node',
+                  kind: 'ListItem',
+                  id: 'item',
+                  props: {},
+                  children: [],
+                  blocks: [
+                    {
+                      type: 'Paragraph',
+                      id: 'para',
+                      children: [{ type: 'Text', id: 'n', text: 'x', marks: [] }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const model = application.initial({ document: nested }).model
+    const at = (selection: RichText.Selection) =>
+      step(
+        { ...model, editor: { ...model.editor, selection, hostId: 'nested-editor' } },
+        typed('y'),
+      )
+    at(caret('n', 1))
+    // A range dragged backwards is read from its start, as the text before it is: where what
+    // is typed over it lands.
+    at(range(['n', 1], ['t', 1]))
+    expect(seen).toEqual([['ListItem', 'List', 'Quote'], []])
+  })
+
   it('leaves the text alone when the placement placed no rule', () => {
     const after = step(step(start(caret('a', 0)), typed('#')), typed(' '))
     expect(after.document.children[0]).toMatchObject({ type: 'Paragraph' })
     expect(after.document.children[0]?.children.map(run => run.text).join('')).toBe('# ab')
+  })
+})
+
+describe('a Message that changes nothing keeps the Model', () => {
+  // A fresh selection equal by value: what `selectionchange` reports back.
+  it.each<[string, RichText.Selection | null, ParentMessage]>([
+    ['the patch Command’s completion', caret('a', 1), patched()],
+    ['the same caret, reported again', caret('a', 1), selected(caret('a', 1))],
+    [
+      'the same range, reported again',
+      range(['a', 0], ['b', 1]),
+      selected(range(['a', 0], ['b', 1])),
+    ],
+    ['no selection, reported again', null, selected(null)],
+    ['Backspace at the document’s start', caret('a', 0), pressed('Backspace')],
+    ['undo with nothing to undo', caret('a', 1), undone()],
+    ['a refused command', caret('a', 1), toggled('Nope')],
+  ])('%s', (_, selection, message) => {
+    const model = start(selection)
+    const result = update(model, message)
+    expect(result.model).toBe(model)
+    expect(result.commands ?? []).toEqual([])
+  })
+
+  it('keeps the caret’s stored marks when the caret is reported where it is', () => {
+    const model = step(start(caret('a', 1)), toggled('Bold'))
+    expect(step(model, selected(caret('a', 1)))).toBe(model)
+    expect(step(model, selected(caret('a', 0))).editor.storedMarks).toBeNull()
   })
 })

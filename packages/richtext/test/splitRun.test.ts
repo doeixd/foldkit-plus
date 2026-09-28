@@ -93,6 +93,16 @@ describe('split runs', () => {
     expect(result.changeSet.insertedNodes).toEqual(new Set())
   })
 
+  it('refuses an id the same transaction already gave out', () => {
+    // The first split names a run `t2`; the second may not name another one so.
+    expect(
+      RichText.apply(initial(), [
+        { type: 'SplitRun', node: id('t'), offset: 2, textId: id('t2') },
+        { type: 'SplitRun', node: id('t'), offset: 1, textId: id('t2') },
+      ]),
+    ).toEqual({ ok: false, error: 'InvalidInput' })
+  })
+
   it('builds the documented wire shape from ids or references', () => {
     expect(RichText.Edit.splitRun(id('t'), 2, 't2')).toEqual({
       type: 'SplitRun',

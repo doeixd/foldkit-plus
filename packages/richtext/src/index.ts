@@ -73,6 +73,7 @@ export {
   coversText,
   run,
   runAction,
+  unionChangeSet,
 } from './command.js'
 export { type InputContext, type InputMatch, type InputRule, applyInputRules } from './input.js'
 export {
@@ -171,6 +172,7 @@ export {
   Transaction,
   Edit,
   TextBlock,
+  RetypeTarget,
   MAX_NORMALIZATION_PASSES,
   type TextTarget,
   apply,
@@ -182,3 +184,4 @@ export {
   type CollapseStep,
   type TransactionResult,
 } from './transaction.js'
+export * as Replicated from './replicated.js'

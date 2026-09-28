@@ -6,7 +6,10 @@ export interface ServerAgentHostOptions {
   readonly journal: ServerJournal
   /** The transport-authenticated caller the agent acts as. */
   readonly principal: Principal
-  /** Identifies the producer in the durable log, separate from the caller. */
+  /**
+   * Identifies the producer in the durable log, separate from the caller. The journal binds
+   * a replica to the first actor that commits from it, so the default is one per caller.
+   */
   readonly replicaId?: string
 }
 
@@ -29,7 +32,7 @@ export const serverAgentHost = (
   readonly principal: (invocation: Agent.Invocation) => Principal
 } => {
   const { journal, principal } = options
-  const replicaId = options.replicaId ?? 'agent'
+  const replicaId = options.replicaId ?? `agent-${principal.actorId}`
   return {
     model: () => journal.snapshot(principal.documentId).model,
     principal: () => principal,

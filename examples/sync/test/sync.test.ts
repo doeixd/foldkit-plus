@@ -154,6 +154,73 @@ describe('the journal adapter', () => {
     }
   })
 
+  it('rejects an operation that does not decode, and commits the rest of the exchange', async () => {
+    const malformed = {
+      ...operation('a', 1),
+      // @ts-expect-error a client that does not speak the schema: an id that is not a string
+      message: { _tag: 'CreatedTodo', id: 5, title: 'x' } as Message,
+    }
+    // Retrying would fail the same way, so it is rejected rather than failing the exchange.
+    await expect(
+      server
+        .transport(principal)
+        .exchange(Sequence.make(0), [malformed, operation('a', 2, created('b'))]),
+    ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: ['a:2'] })
+    expect(server.snapshot('todos').model).toEqual({ todos: [{ id: 'b', title: 'b' }] })
+  })
+
+  it('refuses a cursor ahead of the server before committing anything', async () => {
+    // A client that synced with a server since reset: its edits must not commit only to
+    // have their acknowledgements lost with the failed read.
+    await expect(
+      server.transport(principal).exchange(Sequence.make(5), [operation('a', 1, created('b'))]),
+    ).rejects.toThrow('Cursor 5 is ahead of the server')
+    expect(server.snapshot('todos')).toEqual({ cursor: 0, model: { todos: [] } })
+  })
+
+  it('answers a replica that saw another epoch from the start, committing its outbox', async () => {
+    const a = await open('a')
+    await a.submit(created('old'))
+    await a.synchronize(server.transport(principal))
+    await a.submit(created('waiting'))
+    // A new server behind the replica's cursor: it has another epoch and other history.
+    const other = openJournal(':memory:')
+    other.append(operation('b', 1, created('theirs')), principal)
+    await a.synchronize(other.transport(principal))
+    expect(a.shared().todos.map(todo => todo.id)).toEqual(['theirs', 'waiting'])
+    expect(other.snapshot('todos').model.todos.map(todo => todo.id)).toEqual(['theirs', 'waiting'])
+    other.close()
+  })
+
+  it('refuses an operation from a replica another actor committed from first', async () => {
+    const transport = server.transport(principal)
+    await transport.exchange(Sequence.make(0), [operation('a', 1, created('first'))])
+    await expect(
+      server
+        .transport({ ...principal, actorId: 'intruder' })
+        .exchange(Sequence.make(1), [operation('a', 2, created('second'))]),
+    ).resolves.toMatchObject({ rejected: ['a:2'], acknowledged: [] })
+  })
+
+  it('catches a replica far behind up in pages, within one synchronize', async () => {
+    const paged = openJournal(':memory:', { page: 2 })
+    for (let index = 1; index <= 5; index++)
+      paged.append(operation('seed', index, created(`t${index}`)), principal)
+    const reader = await open('reader')
+    await reader.synchronize(paged.transport(principal))
+    expect(reader.shared().todos.map(todo => todo.id)).toEqual(['t1', 't2', 't3', 't4', 't5'])
+    paged.close()
+  })
+
+  it('rejects an id reused for other content, as a client whose storage was wiped sends', async () => {
+    const transport = server.transport(principal)
+    await transport.exchange(Sequence.make(0), [operation('a', 1, created('first'))])
+    await expect(
+      transport.exchange(Sequence.make(1), [operation('a', 1, created('second'))]),
+    ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: [] })
+    expect(server.snapshot('todos').model).toEqual({ todos: [{ id: 'first', title: 'first' }] })
+  })
+
   it('sends a checkpoint only below the compaction floor', async () => {
     server.append(operation('seed', 1, created('a')), principal)
     server.append(operation('seed', 2, created('b')), principal)
@@ -335,15 +402,15 @@ describe('the journal adapter', () => {
       expect(notifications).toBe(1)
 
       // a:1 is committed and compacted. Reusing that opId with a different
-      // payload must conflict, and must not settle an effect for the
-      // replacement payload that never entered the state machine.
+      // payload must conflict, which rejects it, and must not settle an effect
+      // for the replacement payload that never entered the state machine.
       await expect(
         guarded
           .transport(principal)
           .exchange(Sequence.make(0), [
             operation('a', 1, Message.RenamedTodo({ id: 'todo', title: 'malicious' })),
           ]),
-      ).rejects.toThrow()
+      ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: [] })
       expect(notifications).toBe(1)
       expect(guarded.snapshot('todos').model).toEqual({
         todos: [{ id: 'todo', title: 'renamed' }],
@@ -370,6 +437,96 @@ describe('the wired replica', () => {
     expect(JSON.stringify(saved)).not.toMatch(/selectedTodoId|lastError/)
   })
 
+  /** What the database holds, read with IndexedDB itself rather than the storage under test. */
+  const stored = (name: string, version?: number) =>
+    new Promise<{ state: unknown; outbox: ReadonlyArray<unknown> }>((resolve, reject) => {
+      const request = factory.open(name, version)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const stores = [...database.objectStoreNames]
+        const transaction = database.transaction(stores, 'readonly')
+        const state = transaction.objectStore('replica').get('state')
+        const outbox = stores.includes('outbox')
+          ? transaction.objectStore('outbox').getAll()
+          : undefined
+        transaction.oncomplete = () => {
+          database.close()
+          resolve({ state: state.result, outbox: outbox?.result ?? [] })
+        }
+      }
+    })
+
+  it('appends a submitted operation, leaving the saved state for an exchange to rewrite', async () => {
+    const a = await open('a')
+    await a.submit(created('first'))
+    await a.submit(created('second'))
+    const written = await stored('a')
+    // The state is still the one written when the replica was made; each submit added a row.
+    expect(written.state).toMatchObject({ revision: 0, pending: [] })
+    expect(written.outbox).toHaveLength(2)
+
+    await a.synchronize(server.transport(principal))
+    const exchanged = await stored('a')
+    expect(exchanged.outbox).toEqual([])
+    expect(exchanged.state).toMatchObject({ pending: [], cursor: 2 })
+  })
+
+  it('rewrites a merged rename in place, wherever the unsent rename was stored', async () => {
+    const a = await open('a')
+    await a.submit(created('t'))
+    const rename = (title: string) => Message.RenamedTodo({ id: 't', title })
+    // Submitted while an exchange is out, so the exchange's save stores it in the state,
+    // unsent; the next rename merges into it with a row of its own.
+    await a.synchronize({
+      exchange: async (cursor, pending) => {
+        await a.submit(rename('one'))
+        return server.transport(principal).exchange(cursor, pending)
+      },
+    })
+    expect(await stored('a')).toMatchObject({ state: { pending: [{ opId: 'a:2' }] }, outbox: [] })
+    await a.submit(rename('two'))
+    // Merged again, into the row the last merge wrote: still one row.
+    await a.submit(rename('three'))
+    expect((await stored('a')).outbox).toHaveLength(1)
+    await a.close()
+
+    const reopened = await open('a')
+    expect(reopened.pending().map(op => [op.opId, op.message])).toEqual([['a:2', rename('three')]])
+  })
+
+  it('opens a database written before the outbox existed, and appends to it', async () => {
+    // A replica's state as version 1 wrote it: one record, with its revision inside.
+    const first = await open('v1-source')
+    await first.submit(created('first'))
+    await first.synchronize(server.transport(principal))
+    const { state } = await stored('v1-source')
+    await first.close()
+    await new Promise<void>((resolve, reject) => {
+      const request = factory.open('legacy', 1)
+      request.onupgradeneeded = () => request.result.createObjectStore('replica')
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const transaction = database.transaction('replica', 'readwrite')
+        transaction
+          .objectStore('replica')
+          .put({ ...(state as object), replicaId: 'legacy' }, 'state')
+        transaction.oncomplete = () => {
+          database.close()
+          resolve()
+        }
+      }
+    })
+
+    const legacy = await open('legacy')
+    expect(legacy.shared().todos).toEqual([{ id: 'first', title: 'first' }])
+    await legacy.submit(created('second'))
+    await legacy.close()
+    const reopened = await open('legacy')
+    expect(reopened.pending().map(op => op.message)).toEqual([created('second')])
+  })
+
   it('publishes nothing on failed persistence and can retry without losing its sequence', async () => {
     const store = await Effect.runPromise(openStorage('a', factory))
     let fail = false
@@ -379,6 +536,10 @@ describe('the wired replica', () => {
         fail
           ? Effect.fail(new StorageError({ message: 'disk full' }))
           : store.save(state, revision),
+      append: (entry, revision) =>
+        fail
+          ? Effect.fail(new StorageError({ message: 'disk full' }))
+          : store.append(entry, revision),
     })
     fail = true
     await expect(a.submit(created('a'))).rejects.toThrow('disk full')
@@ -545,13 +706,27 @@ describe('a server agent', () => {
     // The agent is a producer with its own replica identity and the caller's
     // actor, not a second mutation path.
     expect(server.read('todos', 0).at(-1)).toMatchObject({
-      replicaId: 'agent',
+      replicaId: 'agent-owner',
       actorId: 'owner',
     })
 
     const replica = await open('replica')
     await replica.synchronize(server.transport(principal))
     expect(replica.shared()).toEqual(server.snapshot('todos').model)
+  })
+
+  it('lets agents acting for different callers each commit to one document', async () => {
+    server.append(operation('seed', 1, created('a')), principal)
+    for (const actorId of ['owner', 'alice']) {
+      const agent = Agent.bind({
+        definition: SyncAgent.make({
+          messages: SyncAgent.expose(Message, { RenamedTodo: rename }),
+        }),
+        host: serverAgentHost({ journal: server, principal: { ...principal, actorId } }),
+      })
+      await Effect.runPromise(agent.messages.dispatch('rename_todo', { id: 'a', title: actorId }))
+    }
+    expect(server.snapshot('todos').model.todos).toEqual([{ id: 'a', title: 'alice' }])
   })
 
   it('refuses a capability the principal may not invoke, appending nothing', async () => {
