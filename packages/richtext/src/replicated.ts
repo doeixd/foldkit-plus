@@ -716,7 +716,8 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       restored.spans = takeCovered(work, op.ranges)
       for (const child of op.children) {
         const moved = work.read(child)
-        if (moved === undefined || moved.parent !== into) continue
+        // A child that is the block itself, or holds it since a move, would make a cycle.
+        if (moved === undefined || moved.parent !== into || isWithin(work, op.id, child)) continue
         const list = work.write(into)!.children
         list.splice(list.indexOf(child), 1)
         work.write(child)!.parent = op.id

@@ -1063,6 +1063,64 @@ describe('ops that no longer fit', () => {
   })
 })
 
+describe('unjoining containers', () => {
+  const list = { type: 'Node', kind: 'List', props: {}, holds: 'blocks' } as const
+  const [L1, L2, C, X] = ['c:1', 'c:2', 'c:3', 'c:4'].map(id => ReplicatedId.make(id)) as [
+    RichText.Replicated.ReplicatedId,
+    RichText.Replicated.ReplicatedId,
+    RichText.Replicated.ReplicatedId,
+    RichText.Replicated.ReplicatedId,
+  ]
+  /** Each visible block's id, with the ids nested in it. */
+  const tree = (state: RichText.Replicated.ReplicatedState): unknown => {
+    const shape = (blocks: ReadonlyArray<RichText.Block>): unknown =>
+      blocks.map(block =>
+        block.type === 'Node' && block.blocks !== undefined
+          ? { [block.id]: shape(block.blocks) }
+          : block.id,
+      )
+    return shape(Replicated.project(state).children)
+  }
+  const lists = (...ids: ReadonlyArray<RichText.Replicated.ReplicatedId>) =>
+    Replicated.applyOps(
+      Replicated.empty,
+      ids.map((id, at) => ({
+        type: 'InsertBlock',
+        id,
+        shape: list,
+        parent: null,
+        after: at === 0 ? null : ids[at - 1]!,
+      })),
+    )
+
+  // Unjoin's children are untrusted: taking back one that now holds the block would make
+  // a cycle, and the next walk up from it would never end.
+  it('does not take back the block itself, moved since into the one it joined', () => {
+    const state = Replicated.applyOps(lists(L1, L2, X), [
+      { type: 'Join', into: L1, removed: L2, after: null },
+      { type: 'MoveBlock', id: L2, parent: L1, after: null },
+      { type: 'Unjoin', id: L2, ranges: [], children: [L2] },
+    ])
+    expect(tree(state)).toEqual([{ [L1]: [{ [L2]: [] }] }, { [X]: [] }])
+    const moved = Replicated.applyOps(state, [
+      { type: 'MoveBlock', id: X, parent: L2, after: null },
+    ])
+    expect(tree(moved)).toEqual([{ [L1]: [{ [L2]: [{ [X]: [] }] }] }])
+  })
+
+  it('does not take back a child the block has been moved into since', () => {
+    const start = Replicated.applyOps(lists(L1, L2), [
+      { type: 'InsertBlock', id: C, shape: list, parent: L2, after: null },
+    ])
+    const state = Replicated.applyOps(start, [
+      { type: 'Join', into: L1, removed: L2, after: null },
+      { type: 'MoveBlock', id: L2, parent: C, after: null },
+      { type: 'Unjoin', id: L2, ranges: [], children: [C] },
+    ])
+    expect(tree(state)).toEqual([{ [L1]: [{ [C]: [{ [L2]: [] }] }] }])
+  })
+})
+
 describe('translate', () => {
   it('follows a split at a run’s start, which the editor makes no run for', () => {
     const state = base()
