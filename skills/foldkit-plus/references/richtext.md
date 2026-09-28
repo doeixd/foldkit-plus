@@ -338,7 +338,9 @@ selection's focus printed), and `closeSource(session, document, { mint })` retur
 document untouched when the draft was not edited, or the parsed draft with the diagnostics of
 what the edit loses, and in `selection` the session's caret placed in that document (null when
 it cannot be). `parse` also returns a `MarkdownStyle` (which spelling each
-construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id), `print(document, { style })` reuses it where it keeps the meaning, and a
+construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id;
+a list's spelling includes its `spacing`, `'tight'` or `'loose'`, and printing without a style
+is tight), `print(document, { style })` reuses it where it keeps the meaning, and a
 session's `closeSource(...).style` is what to pass to the next `openSource(document, { style })`.
 
 `RichText.Replicated` is the pure core of collaborative editing: a state where every character
