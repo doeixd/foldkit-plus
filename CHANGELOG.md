@@ -807,8 +807,14 @@ version changed; `pnpm` skips versions already in the registry.
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by
   `Form.make` have them.
-- **`foldkit-durable` schema 5** adds epoch and replica-binding tables. Files
-  from schema 4 upgrade in place; an older build refuses a schema 5 file.
+- **`foldkit-durable` schema 6:** schema 5 adds epoch and replica-binding
+  tables; schema 6 records the replica on each operation. Files from schema 4
+  or 5 upgrade in place;
+  retained operations restore their actor bindings. A custom journal with
+  compacted older operations needs `legacyReplicaId` to recover the replica
+  from an operation id; without it opening is refused. `foldkit-sync` supplies
+  this callback. The snapshot cache also follows the document epoch after a
+  reset through another handle. Older builds refuse a schema 6 file.
 - **`foldkit-sync`: the socket transport reconnects for as long as its layer
   lives.** `maxRetries` now counts consecutive failures after which queued work
   fails fast, instead of ending the transport. `Replica.start` retries a failed

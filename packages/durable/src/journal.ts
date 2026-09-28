@@ -41,7 +41,7 @@ import {
   UnsupportedJournalVersionError,
 } from './errors.js'
 
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 /** How many documents' states a journal keeps decoded in memory. */
 const CACHED_DOCUMENTS = 256
 
@@ -136,6 +136,13 @@ export interface JournalOptions<
    * actor to use an id claims it, so ids should be unguessable or assigned per actor.
    */
   readonly replicaId?: (operation: Operation) => string
+  /**
+   * Recovers a replica from the id of a compacted operation written before schema 6.
+   * Required to enable `replicaId` on such a journal: its payload is gone, so the
+   * operation cannot be decoded. The journal refuses to open rather than let another
+   * actor claim an unrecognized replica.
+   */
+  readonly legacyReplicaId?: (opId: OpId) => string
 }
 
 /**
@@ -493,6 +500,41 @@ const makeShapeEffect = <
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* migrate(sql)
+    if (options.replicaId !== undefined) {
+      const decode = resolveCodec(options.operation).decode
+      yield* sql
+        .withTransaction(
+          Effect.gen(function* () {
+            const legacy = yield* sql<{
+              readonly key: string
+              readonly op_id: string
+              readonly actor_id: string
+              readonly input: string | null
+            }>`SELECT key, op_id, actor_id, input FROM operations WHERE replica_id IS NULL`
+            for (const row of legacy) {
+              const replica = yield* Effect.try({
+                try: () => {
+                  if (row.input !== null) return options.replicaId!(decode(JSON.parse(row.input)))
+                  if (options.legacyReplicaId === undefined)
+                    throw new Error('A compacted operation needs legacyReplicaId')
+                  return options.legacyReplicaId(toOpId(row.op_id))
+                },
+                catch: cause => journalError('Could not recover a legacy replica', cause),
+              })
+              const bound = yield* sql<{
+                readonly actor_id: string
+              }>`SELECT actor_id FROM replicas WHERE key = ${row.key} AND replica_id = ${replica}`
+              if (bound.length > 0 && bound[0]!.actor_id !== row.actor_id)
+                return yield* Effect.fail(
+                  journalError(`Replica "${replica}" has operations from different actors`, row),
+                )
+              yield* sql`INSERT OR IGNORE INTO replicas (key, replica_id, actor_id) VALUES (${row.key}, ${replica}, ${row.actor_id})`
+              yield* sql`UPDATE operations SET replica_id = ${replica} WHERE key = ${row.key} AND op_id = ${row.op_id}`
+            }
+          }),
+        )
+        .pipe(Effect.catchTag('SqlError', asJournalError('Could not recover legacy replicas')))
+    }
     // A sliding change stream: publishing never blocks a commit, and a slow
     // subscriber drops the oldest keys instead of growing memory without bound.
     // A dropped key is a missed wake-up, not missed data; subscribers reconcile
@@ -589,6 +631,16 @@ const migrate = (
             PRIMARY KEY (key, replica_id)
           )`
         }
+        if (current < 6) {
+          yield* sql`ALTER TABLE operations ADD COLUMN replica_id TEXT`
+          const documents = yield* sql<{ readonly key: string }>`SELECT key FROM documents`
+          yield* Effect.forEach(
+            documents,
+            row =>
+              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${row.key}, ${randomUUID()})`,
+            { discard: true },
+          )
+        }
         // A literal, not a bound parameter: SQLite rejects a placeholder in a
         // PRAGMA assignment. Built from SCHEMA_VERSION so the two cannot drift.
         yield* sql.unsafe(`PRAGMA user_version = ${SCHEMA_VERSION}`)
@@ -643,12 +695,13 @@ const makeShape = <
     readonly cursor: Cursor
     readonly snapshotCursor: number
     readonly last: string | null
+    readonly epoch: string | null
   }
   /**
    * The state of each document this journal last read or committed, the most recent few
-   * hundred. A hit needs the stored cursor, snapshot cursor and last operation to match, so
-   * a commit through another connection is noticed, and so is a `reset` there followed by
-   * commits back to the same cursor.
+   * hundred. A hit needs the stored cursor, snapshot cursor, last operation and epoch to
+   * match, so another connection's commit or reset invalidates it even if a new history
+   * reuses the same cursor and operation id.
    */
   const current = new Map<string, Current>()
   const remember = (key: string, state: Current): void => {
@@ -670,19 +723,28 @@ const makeShape = <
         readonly cursor: number
         readonly snapshot_cursor: number
         readonly last: string | null
-      }>`SELECT d.cursor, d.snapshot_cursor, o.op_id AS last FROM documents d LEFT JOIN operations o ON o.key = d.key AND o.sequence = d.cursor WHERE d.key = ${key}`
+        readonly epoch: string | null
+      }>`SELECT d.cursor, d.snapshot_cursor, o.op_id AS last, e.epoch FROM documents d LEFT JOIN operations o ON o.key = d.key AND o.sequence = d.cursor LEFT JOIN epochs e ON e.key = d.key WHERE d.key = ${key}`
       const row = rows[0]
       if (row === undefined)
-        return { snapshot: options.empty(), cursor: toCursor(0), snapshotCursor: 0, last: null }
+        return {
+          snapshot: options.empty(),
+          cursor: toCursor(0),
+          snapshotCursor: 0,
+          last: null,
+          epoch: null,
+        }
       const cursor = toCursor(Number(row.cursor))
       const snapshotCursor = Number(row.snapshot_cursor)
       const last = row.last === null ? null : String(row.last)
+      const epoch = row.epoch === null ? null : String(row.epoch)
       const cached = current.get(key)
       if (
         cached !== undefined &&
         cached.cursor === cursor &&
         cached.snapshotCursor === snapshotCursor &&
-        cached.last === last
+        cached.last === last &&
+        cached.epoch === epoch
       )
         return cached
       const stored = yield* sql<{
@@ -703,7 +765,7 @@ const makeShape = <
           ),
         catch: cause => journalError('Could not load the snapshot', cause),
       })
-      const found = { snapshot, cursor, snapshotCursor, last }
+      const found = { snapshot, cursor, snapshotCursor, last, epoch }
       remember(key, found)
       return found
     })
@@ -910,8 +972,9 @@ const makeShape = <
           changed: false,
         }
       }
+      let replica: string | null = null
       if (options.replicaId !== undefined) {
-        const replica = yield* Effect.try({
+        replica = yield* Effect.try({
           try: () => options.replicaId!(operation),
           catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
         })
@@ -930,7 +993,8 @@ const makeShape = <
       }
       // A stored state that no longer loads is the server's failure, not this operation's:
       // it stays a `JournalError`, which a caller retries rather than rejecting the edit.
-      const { snapshot, cursor, snapshotCursor } = yield* materialize(key, working)
+      yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
+      const { snapshot, cursor, snapshotCursor, epoch } = yield* materialize(key, working)
       const validation = yield* Effect.try({
         try: () => options.validate?.({ key, principal, operation, snapshot, cursor }),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
@@ -967,7 +1031,7 @@ const makeShape = <
           try: () => JSON.stringify(snapshotCodec.encode(value)),
           catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
         })
-      yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${encoded}, ${payloadHash})`
+      yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash, replica_id) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${encoded}, ${payloadHash}, ${replica})`
       const writes = sequence - snapshotCursor >= snapshotEvery
       if (writes) {
         const encodedSnapshot = yield* encodeSnapshot(reduced)
@@ -982,6 +1046,7 @@ const makeShape = <
         cursor: toCursor(sequence),
         snapshotCursor: writes ? sequence : snapshotCursor,
         last: opId,
+        epoch,
       })
       return {
         result: {

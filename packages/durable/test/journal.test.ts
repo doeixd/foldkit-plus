@@ -86,7 +86,7 @@ const missing = documentId('missing')
 type Hooks = Partial<
   Pick<
     JournalOptions<Operation, Snapshot, Principal>,
-    'validate' | 'authorize' | 'reduce' | 'snapshotEvery' | 'replicaId'
+    'validate' | 'authorize' | 'reduce' | 'snapshotEvery' | 'replicaId' | 'legacyReplicaId'
   >
 >
 
@@ -728,7 +728,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
         // The payload identity is recomputed canonically, so a later retransmission
         // with a different key order still proves its payload.
         expect(
@@ -774,7 +774,7 @@ describe('a durable journal', () => {
 
       const migrated = new DatabaseSync(path)
       try {
-        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 })
+        expect(migrated.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
       } finally {
         migrated.close()
       }
@@ -783,7 +783,7 @@ describe('a durable journal', () => {
     }
   })
 
-  it('upgrades a version 4 database to one with epochs and replica bindings', async () => {
+  it('binds a retained replica from a version 4 database to its original actor', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'foldkit-v4-'))
     const path = join(directory, 'journal.sqlite')
     try {
@@ -801,6 +801,10 @@ describe('a durable journal', () => {
         CREATE TABLE effects (
           key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
         );
+        INSERT INTO operations (key, op_id, sequence, actor_id, input)
+          VALUES ('todos', 'a:1', 1, 'owner', '{"opId":"a:1","kind":"add","id":"before-upgrade"}');
+        INSERT INTO documents (key, cursor, snapshot, snapshot_cursor)
+          VALUES ('todos', 1, '{"ids":["before-upgrade"]}', 1);
         PRAGMA user_version = 4;
       `)
       older.close()
@@ -808,14 +812,64 @@ describe('a durable journal', () => {
       await withJournal(
         function* (journal) {
           expect(yield* journal.epoch(todos)).toBe(yield* journal.epoch(todos))
-          yield* journal.append(todos, add(1, 'a'), principal)
           const refused = yield* Effect.result(journal.append(todos, add(2, 'b'), intruder))
           expect(refused).toMatchObject({
             _tag: 'Failure',
             failure: { _tag: 'OperationRejectedError' },
           })
+          yield* journal.append(todos, add(2, 'after-upgrade'), principal)
+          expect((yield* journal.load(todos)).snapshot.ids).toEqual([
+            'before-upgrade',
+            'after-upgrade',
+          ])
         },
         { replicaId: value => value.opId.split(':')[0]! },
+        path,
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('requires a replica identity for compacted history before binding new commits', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-v5-compacted-'))
+    const path = join(directory, 'journal.sqlite')
+    try {
+      const older = new DatabaseSync(path)
+      older.exec(`
+        CREATE TABLE documents (key TEXT PRIMARY KEY, cursor INTEGER NOT NULL, snapshot TEXT NOT NULL, compact_before INTEGER NOT NULL DEFAULT 0, snapshot_cursor INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE operations (key TEXT NOT NULL, op_id TEXT NOT NULL, sequence INTEGER NOT NULL, actor_id TEXT NOT NULL, input TEXT, payload_hash TEXT, PRIMARY KEY (key, op_id), UNIQUE (key, sequence));
+        CREATE TABLE effects (key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT);
+        CREATE TABLE epochs (key TEXT PRIMARY KEY, epoch TEXT NOT NULL);
+        CREATE TABLE replicas (key TEXT NOT NULL, replica_id TEXT NOT NULL, actor_id TEXT NOT NULL, PRIMARY KEY (key, replica_id));
+        INSERT INTO documents VALUES ('todos', 1, '{"ids":["before-upgrade"]}', 1, 1);
+        INSERT INTO operations VALUES ('todos', 'a:1', 1, 'owner', NULL, NULL);
+        PRAGMA user_version = 5;
+      `)
+      older.close()
+      const byReplica: Hooks = { replicaId: value => value.opId.split(':')[0]! }
+      const unavailable = await Effect.runPromise(
+        Effect.scoped(
+          Effect.result(
+            makeJournal<Operation, Snapshot, Principal>({ file: path, ...base, ...byReplica }),
+          ),
+        ),
+      )
+      expect(unavailable).toMatchObject({ _tag: 'Failure', failure: { _tag: 'JournalError' } })
+      await withJournal(
+        function* (journal) {
+          const intruder: Principal = { actorId: 'intruder', canWrite: true }
+          expect(yield* Effect.result(journal.append(todos, add(2), intruder))).toMatchObject({
+            _tag: 'Failure',
+            failure: { _tag: 'OperationRejectedError' },
+          })
+          yield* journal.append(todos, add(2, 'after-upgrade'), principal)
+          expect((yield* journal.load(todos)).snapshot.ids).toEqual([
+            'before-upgrade',
+            'after-upgrade',
+          ])
+        },
+        { ...byReplica, legacyReplicaId: id => id.split(':')[0]! },
         path,
       )
     } finally {
@@ -841,7 +895,7 @@ describe('a durable journal', () => {
         CREATE TABLE effects (
           key TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT, error TEXT
         );
-        PRAGMA user_version = 6;
+        PRAGMA user_version = 7;
       `)
       newer.close()
 
@@ -852,12 +906,12 @@ describe('a durable journal', () => {
       )
       expect(result).toMatchObject({
         _tag: 'Failure',
-        failure: { _tag: 'UnsupportedJournalVersionError', found: 6, supported: 5 },
+        failure: { _tag: 'UnsupportedJournalVersionError', found: 7, supported: 6 },
       })
 
       const after = new DatabaseSync(path)
       try {
-        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 })
+        expect(after.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 7 })
       } finally {
         after.close()
       }
@@ -1004,6 +1058,30 @@ describe('a document’s epoch', () => {
       const first = await read(path)
       expect(await read(path)).toBe(first)
       expect(await read(join(directory, 'other.sqlite'))).not.toBe(first)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('reloads another handle after a reset reuses the cursor and operation id', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'foldkit-cache-reset-'))
+    try {
+      const file = join(directory, 'journal.sqlite')
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const first = yield* makeJournal<Operation, Snapshot, Principal>({ file, ...base })
+            const second = yield* makeJournal<Operation, Snapshot, Principal>({ file, ...base })
+            yield* first.append(todos, add(1, 'old'), principal)
+            expect((yield* first.load(todos)).snapshot.ids).toEqual(['old'])
+            yield* second.reset(todos)
+            yield* second.append(todos, add(1, 'new'), principal)
+            expect((yield* first.load(todos)).snapshot.ids).toEqual(['new'])
+            yield* first.append(todos, add(2, 'later'), principal)
+            expect((yield* second.load(todos)).snapshot.ids).toEqual(['new', 'later'])
+          }),
+        ),
+      )
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

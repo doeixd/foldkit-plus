@@ -259,6 +259,8 @@ and the replica rebuilds its committed state, keeping its outbox: everything the
 old server committed is lost, only pending work survives. A replica that never
 heard an epoch cannot detect a reset. `journalContract()` also passes
 `replicaId`, so Durable binds each replica to its first committing actor.
+It also supplies `legacyReplicaId`, which recovers those bindings from compacted
+operation ids when a schema-5 journal upgrades to schema 6.
 
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for
 ephemeral state ("who is viewing"), never a durable Message; its `throttle`

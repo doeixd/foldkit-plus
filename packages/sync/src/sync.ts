@@ -235,6 +235,8 @@ export interface Sync<Message, Shared> {
 export interface JournalContract<Operation, Shared> {
   /** The replica each operation came from, which Durable binds to its first committer. */
   readonly replicaId: (operation: Operation) => string
+  /** Sync's operation id includes the replica, even after Durable compacts its payload. */
+  readonly legacyReplicaId: (opId: string) => string
   readonly operation: {
     /** Operations are stored in their encoded form, so this is the identity. */
     readonly encode: (operation: Operation) => Operation
@@ -363,6 +365,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
 
   const journalContract = (): JournalContract<Operation, Shared> => ({
     replicaId: operation => operation.replicaId,
+    legacyReplicaId: opId => opId.slice(0, opId.lastIndexOf(':')),
     // Operations are stored in their encoded form: `normalizeOperation` has
     // already encoded the Message and validated the identity.
     operation: { encode: operation => operation, decode: normalizeOperation },

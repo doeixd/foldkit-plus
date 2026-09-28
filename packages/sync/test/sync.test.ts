@@ -121,6 +121,10 @@ const status = (replica: Replica<Message, Shared>): Promise<ReplicaStatus> =>
 const close = (replica: Replica<Message, Shared>): Promise<void> => Effect.runPromise(replica.close)
 
 describe('the operation codec', () => {
+  it('recovers a replica containing colons from a compacted operation id', () => {
+    expect(Sync.journalContract().legacyReplicaId('actor:tab:42')).toBe('actor:tab')
+  })
+
   it('says which Messages are durable, as the definition does', () => {
     expect(Sync.durable(created('t'))).toBe(true)
     expect(Sync.durable({ _tag: 'SelectedTodo', id: 't' })).toBe(false)

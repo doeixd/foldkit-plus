@@ -386,7 +386,11 @@ document, and refuses any other actor's operation from it before `validate`
 runs, so the replica an operation names is one its actor holds. The first actor
 to commit from an unused replica id claims it, even across `reset`, so replica
 ids should be unguessable or assigned per actor. `foldkit-sync`'s
-`journalContract()` supplies it.
+`journalContract()` supplies it. On an existing journal, opening with `replicaId`
+recovers bindings from retained operations before accepting another commit. If
+older compacted operations have no payload, supply `legacyReplicaId` to recover
+their replica from their operation id; otherwise opening is refused.
+`journalContract()` supplies this callback for Sync's `replicaId:sequence` ids.
 
 Authorization may return `true` / `false`, a refusal carrying a reason, or an
 Effect producing either. A refusal becomes `OperationRejectedError`; a supplied
