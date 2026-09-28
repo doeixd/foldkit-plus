@@ -770,7 +770,9 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   example, run the root typecheck, not only its test.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
-  run `pnpm check`.
+  run `pnpm check`. `server` is one too: two example READMEs said
+  `pnpm server`, which fails with `Unknown option: 'recursive'`; write
+  `pnpm run server`.
 - **The index is shared: stage and commit in one command.** Two sessions in
   one worktree share `git add`'s staging area, so files one session stages
   and leaves for a review step are swept into the other's next `git commit`.

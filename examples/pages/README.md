@@ -73,7 +73,7 @@ and asserts that both replicas and the server agree.
 The browser app needs the packages built (`pnpm build`) and two processes:
 
 ```bash
-pnpm --filter foldkit-example-pages server   # the journal, on ws://127.0.0.1:8787
+pnpm --filter foldkit-example-pages run server   # the journal, on ws://127.0.0.1:8787
 pnpm --filter foldkit-example-pages dev      # the page, on http://127.0.0.1:5173
 ```
 
