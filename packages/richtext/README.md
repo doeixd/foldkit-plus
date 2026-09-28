@@ -873,10 +873,11 @@ if (result.ok) {
     sibling it followed.
 
   Everyone else's edits stay. Collaborative undo is applying these as a new edit, which
-  converges like any other. The text an undone split joins back, or a redone join, goes
-  right after the character it followed, so text typed at that place since ends up after
-  it, as two inserts at one place do: split `ab` at its start, type `x` in the empty first
-  half, and undoing the split gives `abx`. A restored mark goes last among its run's marks,
+  converges like any other. The text an undone split joins back goes at the end of the
+  first half as it is then (a `Join` with `at: 'end'`), so what was typed there since stays
+  before it: split `ab` at its start, type `x` in the empty first half, and undoing the
+  split gives `xab`. A redone join goes right after the character its text followed, or at
+  the block's end when its text ended the block. A restored mark goes last among its run's marks,
   whose order carries no meaning. A prop an edit added where there was none stays, since `SetProps`
   cannot delete one. Inverting the inverse, against the state it was applied to, gives
   the redo.

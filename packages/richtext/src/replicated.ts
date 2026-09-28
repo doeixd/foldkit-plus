@@ -161,6 +161,12 @@ export const ReplicatedOp = Schema.Union([
      * lands where it was made after `into` is split or joined itself.
      */
     after: Schema.NullOr(CharRef),
+    /**
+     * `'end'` puts the text at the end of the block holding `after` (of `into` when null) as
+     * that block is when the join applies, so text typed at its end since stays before it.
+     * Only undo makes it: rejoining halves someone has typed into since.
+     */
+    at: Schema.optionalKey(Schema.Literal('end')),
   }),
   Schema.Struct({ type: Schema.Literal('Retype'), id: ReplicatedId, to: RetypeTarget }),
   Schema.Struct({ type: Schema.Literal('SetProps'), id: ReplicatedId, props: Schema.JsonObject }),
@@ -659,10 +665,18 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       const removed = work.read(op.removed)
       if (removed === undefined || removed.deleted) return
       if (holdsText(removed.shape)) {
-        // Right after the character `into` ended with, wherever a split or another join has
-        // taken it since.
+        // Right after the character `into` ended with, or at the end of the block holding it
+        // now, wherever a split or another join has taken it since.
         const place =
-          op.after === null ? startOf(work, op.into) : afterChar(work, op.after, op.into)
+          op.at === 'end'
+            ? endOf(
+                work,
+                (op.after === null ? undefined : findChar(work, op.after, op.into)?.block) ??
+                  op.into,
+              )
+            : op.after === null
+              ? startOf(work, op.into)
+              : afterChar(work, op.after, op.into)
         if (place === undefined || place.block === op.removed) return
         const target = work.read(place.block)!
         // A block deleted rather than joined takes nothing: the text would vanish with it.
@@ -971,10 +985,11 @@ const invertOne = (state: ReplicatedState, op: ReplicatedOp): ReadonlyArray<Repl
       ]
     }
     case 'Split':
-      // The halves join again at the same character, which finds the same place.
+      // At the end of the half holding the character split after, so what was typed at the
+      // end of that half since stays before the text rejoined.
       return lookup(state, op.into) !== undefined
         ? []
-        : [{ type: 'Join', into: op.block, removed: op.into, after: op.after }]
+        : [{ type: 'Join', into: op.block, removed: op.into, after: op.after, at: 'end' }]
     case 'Join': {
       const removed = lookup(state, op.removed)
       if (removed === undefined || removed.deleted) return []
@@ -994,16 +1009,30 @@ const invertOne = (state: ReplicatedState, op: ReplicatedOp): ReadonlyArray<Repl
     case 'Unjoin': {
       const joined = lookup(state, op.id)?.joined
       if (joined === undefined) return []
-      // Joined again right after the character now before its text, deleted or not: text
-      // someone typed at the join since sits between that and the join's own anchor.
-      const first = coveredParts(state, op.ranges)[0]
+      // Joined again right after the character now before its text, deleted or not. When
+      // its text ends that block, at the block's end instead, as an undone split is: text
+      // typed there once it was split out stays before it.
+      const parts = coveredParts(state, op.ranges)
+      const first = parts[0]
       if (first === undefined)
         return [{ type: 'Join', into: joined.into, removed: op.id, after: joined.after }]
       // Spans are cut but never merged, so the text starts where a span does.
-      const before = lookup(state, first.block)!.spans[first.index - 1]
+      const spans = lookup(state, first.block)!.spans
+      const before = spans[first.index - 1]
       const after =
         before === undefined ? null : charRef(before.id, before.offset + before.text.length - 1)
-      return [{ type: 'Join', into: first.block, removed: op.id, after }]
+      const last = Math.max(
+        ...parts.filter(part => part.block === first.block).map(part => part.index),
+      )
+      return [
+        {
+          type: 'Join',
+          into: first.block,
+          removed: op.id,
+          after,
+          ...(last === spans.length - 1 ? { at: 'end' as const } : {}),
+        },
+      ]
     }
     case 'Collect':
       // What it removed is gone for good; undoing an edit made before it finds less.

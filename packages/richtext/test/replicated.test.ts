@@ -567,20 +567,82 @@ describe('undoing', () => {
     expect(texts(applyReloaded(undone, redo))).toEqual(['ppiiabcdef', ''])
   })
 
-  // The join has only the character it follows to go by, so text typed there since is
-  // an insert at the same place, and the later-committed join goes first.
-  it('joins an undone split back right after the character it followed', () => {
-    const start = base()
-    const block = idAt(start, [4])
-    const split: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
-      { type: 'Split', block, after: null, into: ReplicatedId.make('new:0') },
-    ]
-    const typed = Replicated.applyOps(start, [
-      ...split,
-      { type: 'Insert', id: ReplicatedId.make('new:1'), block, after: null, text: 'x', marks: [] },
+  describe('rejoining halves someone typed into', () => {
+    const A = ReplicatedId.make('b:A')
+    const B = ReplicatedId.make('b:B')
+    const char = Replicated.CharRef.make
+    const typing = (id: string, block: typeof A, after: string | null, value: string) =>
+      ({
+        type: 'Insert',
+        id: ReplicatedId.make(id),
+        block,
+        after: after === null ? null : char(after),
+        text: value,
+        marks: [],
+      }) as const
+    const start = Replicated.applyOps(Replicated.empty, [
+      { type: 'InsertBlock', id: A, shape: { type: 'Paragraph' }, parent: null, after: null },
+      typing('t:ab', A, null, 'ab'),
     ])
-    expect(texts(typed).slice(-2)).toEqual(['x', 'last'])
-    expect(texts(Replicated.applyOps(typed, Replicated.invert(start, split))).at(-1)).toBe('lastx')
+
+    // Text typed at the end of the first half goes where it was typed: before the second.
+    it.each([
+      ['at its start', null, null, 'xab'],
+      ['after a character', 't:ab.0', 't:ab.0', 'aXb'],
+    ] as const)(
+      'undoes a split made %s, keeping typed text before the rejoined half',
+      (_, at, typedAfter, expected) => {
+        const split: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+          { type: 'Split', block: A, after: at === null ? null : char(at), into: B },
+        ]
+        const typed = Replicated.applyOps(start, [
+          ...split,
+          typing('t:x', A, typedAfter, expected.replace(/[ab]/g, '')),
+        ])
+        const undone = applyReloaded(typed, Replicated.invert(start, split))
+        expect(texts(undone)).toEqual([expected])
+        // Redone and undone again, the rejoin keeps its place too.
+        const redo = Replicated.invert(typed, Replicated.invert(start, split))
+        const redone = applyReloaded(undone, redo)
+        expect(texts(redone)).toEqual(texts(typed))
+        const again = applyReloaded(
+          Replicated.applyOps(redone, [typing('t:y', A, 't:x.0', 'y')]),
+          Replicated.invert(undone, redo),
+        )
+        expect(texts(again)).toEqual([expected.replace('x', 'xy').replace('X', 'Xy')])
+      },
+    )
+
+    it('rejoins at the end of the first half when the character split after was collected', () => {
+      const split: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+        { type: 'Split', block: A, after: char('t:ab.0'), into: B },
+      ]
+      const collected = Replicated.applyOps(start, [
+        ...split,
+        typing('t:x', A, 't:ab.0', 'x'),
+        { type: 'Delete', ranges: [{ id: ReplicatedId.make('t:ab'), from: 0, to: 1 }] },
+        { type: 'Collect' },
+        { type: 'Collect' },
+      ])
+      expect(texts(collected)).toEqual(['x', 'b'])
+      expect(texts(applyReloaded(collected, Replicated.invert(start, split)))).toEqual(['xb'])
+    })
+
+    // Text typed after the joined text while it was joined stays after it on redo.
+    it('redoes a join after the character it followed when text came after it', () => {
+      const two = Replicated.applyOps(start, [
+        { type: 'Split', block: A, after: char('t:ab.0'), into: B },
+      ])
+      const join: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+        { type: 'Join', into: A, removed: B, after: char('t:ab.0') },
+      ]
+      const joined = Replicated.applyOps(two, [...join, typing('t:y', A, 't:ab.1', 'Y')])
+      expect(texts(joined)).toEqual(['abY'])
+      const undo = Replicated.invert(two, join)
+      const undone = applyReloaded(joined, undo)
+      expect(texts(undone)).toEqual(['aY', 'b'])
+      expect(texts(applyReloaded(undone, Replicated.invert(joined, undo)))).toEqual(['abY'])
+    })
   })
 
   it('takes back one person’s edit and keeps what someone else did meanwhile', () => {

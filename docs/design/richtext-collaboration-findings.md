@@ -360,6 +360,5 @@ Nine reviewers read the whole branch against AGENTS.md, and every finding that h
 
 - Finding 19: the LWW clock's write per stamp.
 - The Markdown task rule (`[ ] ` in a list item) breaks the list unless the item is the last of a bulleted list. A correct rule needs a core command that turns the item around the caret into a task in place.
-- Undoing a split puts text typed since at the end of the first half after the rejoined text. Fixing it needs an "end of block" form of `Join`, which changes the op format.
 - A replica that never heard an epoch cannot tell that the server it last saw was reset.
 - The epoch rule is copied into the sync and pages example servers; Sync has no server-side exchange helper to hold it, and `examples/todo-app` neither returns an epoch nor answers from 0.
