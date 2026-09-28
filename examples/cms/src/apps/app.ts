@@ -29,7 +29,15 @@ import {
   writeAddress,
   type EntryEditor,
 } from '../routing/address.js'
-import { EntryRow, Post, PostForm, PostId, PostPage, PostPreview, Posts } from '../content/domain.js'
+import {
+  EntryRow,
+  Post,
+  PostForm,
+  PostId,
+  PostPage,
+  PostPreview,
+  Posts,
+} from '../content/domain.js'
 import { FormStyle, WritingFieldStyle } from '../styles/style.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
