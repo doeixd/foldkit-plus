@@ -892,16 +892,11 @@ export const apply = (
         materialize()
       }
       if (operation.at > blocksAt(target.path).length) return { ok: false, error: 'InvalidRange' }
-      const carried = [
-        operation.block.id,
-        ...operation.block.children.map(run => run.id),
-        ...(operation.block.type === 'Node' && operation.block.blocks !== undefined
-          ? operation.block.blocks.flatMap(block => [
-              block.id,
-              ...block.children.map(run => run.id),
-            ])
-          : []),
-      ]
+      const carried: Array<NodeId> = []
+      eachBlock([operation.block], block => {
+        carried.push(block.id)
+        for (const run of block.children) carried.push(run.id)
+      })
       if (new Set(carried).size !== carried.length || carried.some(id => usedIds.has(id))) {
         return { ok: false, error: 'InvalidInput' }
       }
