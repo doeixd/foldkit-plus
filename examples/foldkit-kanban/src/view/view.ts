@@ -5,7 +5,7 @@ import { SlotView, Style } from 'foldkit-mixins'
 
 import type { Message } from '../message.js'
 import type { Model } from '../model.js'
-import { BoardSlots, BoardStyle } from '../style.js'
+import { KanbanBoard } from '../style.js'
 import { type Slots, ghostCardView } from './card.js'
 import { columnView } from './column.js'
 
@@ -38,7 +38,7 @@ const ghostElement = (model: Model, slots: Slots, h: HtmlBuilder<Message>) =>
   )
 
 export const Board = SlotView.forMessages<Message>()
-  .define(BoardSlots, (model: Model, slots, h) =>
+  .define(KanbanBoard.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.div(slots.header.attrs(), [h.h1(slots.heading.attrs(), ['Kanban Board'])]),
       h.div(
@@ -49,7 +49,7 @@ export const Board = SlotView.forMessages<Message>()
       h.div(slots.announcer.attrs([h.AriaLive('assertive')]), [model.announcement]),
     ]),
   )
-  .pipe(Style.attach(BoardStyle))
+  .pipe(Style.attach(KanbanBoard.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'Kanban Board',

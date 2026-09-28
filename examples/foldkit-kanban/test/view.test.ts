@@ -1,4 +1,4 @@
-import { SlotView, Style } from 'foldkit-mixins'
+import { SlotView } from 'foldkit-mixins'
 import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
 import type { Html } from 'foldkit/html'
 import { describe, expect, test } from 'vitest'
@@ -13,10 +13,6 @@ import {
   keyboardDraggingModel,
   pointerDraggingModel,
 } from './fixtures.js'
-
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
 
 const models: ReadonlyArray<readonly [string, Model]> = [
   ['at rest', boardModel],
@@ -85,19 +81,16 @@ describe('the board view', () => {
     ['card', 'keyboard-dragged', keyboardDraggingModel],
     ['column', 'drop-target', pointerDraggingModel],
   ] as const)('styles the %s by its data-state', (slot, state, model) => {
-    expect(cssOf(Inert.bySlot(Inert.draw(Board, model), slot))).toContain(`[data-state="${state}"]`)
+    expect(Inert.css(Inert.bySlot(Inert.draw(Board, model), slot))).toContain(
+      `[data-state="${state}"]`,
+    )
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      models.flatMap(([, model]) =>
-        [...cssOf(Inert.all(Inert.draw(Board, model))).matchAll(/var\((--fk-[\w-]+)\)/g)].map(
-          ([, name]) => name,
-        ),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const [, model] of models) {
+      const tree = Inert.draw(Board, model)
+      expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
+    }
   })
 })

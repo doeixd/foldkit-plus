@@ -1,37 +1,35 @@
 /**
  * The board's appearance, as `foldkit-mixins` data. The views in `view/`
- * draw the markup through these Slots; everything it looks like lives here.
+ * draw the markup through the Slots declared here; everything it looks
+ * like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped recipes and the `Layout`
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped recipes and the `Layout`
  * pieces by layer order rather than by specificity.
  */
-import { Capability, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Style, type StyleValue } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
 
-const L = Layers.standard
-const app = L.layer('app')
-
-// THEME
-
-/** Blue over near-gray surfaces, as upstream's Tailwind `blue-500` and `gray-*`. */
-const palette = Theme.oklch({
-  accent: { h: 260, c: 0.214, l: '62.3%' },
-  surfaceSaturation: 0.003,
+/**
+ * Blue over near-gray surfaces, as upstream's Tailwind `blue-500` and `gray-*`.
+ * A white base, for the header and the cards, over the page's `surface.muted`.
+ */
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.compose(
+    Theme.oklch({
+      accent: { h: 260, c: 0.214, l: '62.3%' },
+      surfaceSaturation: 0.003,
+    }),
+    Theme.define({ knob: { 'base-l': '100%' } }),
+  ),
+  colorScheme: 'light',
 })
 
-/** A white base, for the header and the cards, over the page's `surface.muted`. */
-const theme = Theme.compose(
-  Theme.compose(Theme.tokens, palette),
-  Theme.define({ knob: { 'base-l': '100%' } }),
-)
-
-const t = Theme.ref(theme)
-
-const container = Slot.make({ capability: Capability.Container })
+export { stylesheet }
 
 /** Upstream's `sr-only`: out of sight, still read. */
 const visuallyHidden: StyleValue = Style.self({
@@ -52,213 +50,163 @@ const smallShadow = '0 1px 3px 0 rgb(0 0 0 / 10%), 0 1px 2px -1px rgb(0 0 0 / 10
 /** Upstream's `blue-300`, the dashed edge of a drop target. */
 const dropEdge = `color-mix(in oklch, ${t.accent.default} 55%, ${t.surface.base})`
 
+const cardBox = [U.p('sm'), U.rounded('lg'), U.bg('surface.base')]
+
 // BOARD
 
-export const BoardSlots = Slots.define({
-  page: container,
-  header: container,
-  heading: container,
-  board: container,
-  column: container,
-  columnHeader: container,
-  columnName: container,
-  cardCount: container,
-  cardList: container,
-  card: container,
-  cardTitle: container,
-  cardDescription: container,
-  dropPlaceholder: container,
-  columnFooter: container,
-  addCardForm: container,
-  newCardLabel: container,
-  formActions: container,
-  ghost: container,
-  ghostCard: container,
-  announcer: container,
-})
-
-const cardBox: StyleValue = Style.self({
-  padding: t.space.sm,
-  borderRadius: t.radius.lg,
-  background: t.surface.base,
-})
-
-export const BoardStyle = Style.forSlots(BoardSlots)(
+export const KanbanBoard = slots(
   {
-    page: Style.self({
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '100vh',
-      background: t.surface.muted,
-      color: t.text.default,
-    }),
-    header: Style.self({
-      padding: `${t.space.md} ${t.space.lg}`,
-      background: t.surface.base,
-      borderBottom: `${t.border.thin} solid ${t.outline.subtle}`,
-    }),
-    heading: Style.self({
-      margin: '0',
-      fontSize: t.size.lg,
-      fontWeight: t.weight.semibold,
-      color: t.text.overt,
-    }),
-    board: Style.compose(
+    page: [U.column, U.bg('surface.muted'), U.color('text.default'), { minHeight: '100vh' }],
+    header: [
+      U.bg('surface.base'),
+      {
+        padding: `${t.space.md} ${t.space.lg}`,
+        borderBottom: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
+    heading: [U.text('lg'), U.font('semibold'), U.color('text.overt'), { margin: '0' }],
+    board: [
       L.in('layouts', Layout.autoGrid({ gap: t.space.lg, minItemSize: '16rem' })),
-      Style.self({ flex: '1', alignItems: 'start', padding: t.space.lg }),
-    ),
-    column: Style.compose(
-      Style.self({
-        display: 'flex',
-        flexDirection: 'column',
+      U.p('lg'),
+      { flex: '1', alignItems: 'start' },
+    ],
+    column: [
+      U.column,
+      U.p('sm'),
+      U.rounded('lg'),
+      U.bg('surface.subtle'),
+      {
         minHeight: '0',
-        padding: t.space.sm,
-        borderRadius: t.radius.lg,
-        background: t.surface.subtle,
         border: `${t.border.thick} solid transparent`,
-      }),
+      },
       Style.states({ 'drop-target': { borderStyle: 'dashed', borderColor: dropEdge } }),
-    ),
-    columnHeader: Style.self({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingBottom: t.space.xs,
-      marginBottom: t.space.sm,
-      borderBottom: `${t.border.thin} solid ${t.outline.subtle}`,
-    }),
-    columnName: Style.self({
-      margin: '0',
-      fontSize: t.size.xs,
-      fontWeight: t.weight.semibold,
-      textTransform: 'uppercase',
-      letterSpacing: '0.025em',
-      color: t.text.muted,
-    }),
-    cardCount: Style.self({ fontSize: t.size.xs, color: t.text.muted }),
-    cardList: Style.compose(
+    ],
+    columnHeader: [
+      U.flex,
+      U.items('center'),
+      U.justify('between'),
+      {
+        paddingBottom: t.space.xs,
+        marginBottom: t.space.sm,
+        borderBottom: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
+    columnName: [
+      U.text('xs'),
+      U.font('semibold'),
+      U.color('text.muted'),
+      { margin: '0', textTransform: 'uppercase', letterSpacing: '0.025em' },
+    ],
+    cardCount: [U.text('xs'), U.color('text.muted')],
+    cardList: [
       L.in('layouts', Layout.stack({ gap: t.space.xs })),
-      Style.self({
+      {
         flex: '1',
         minHeight: '0',
         overflowY: 'auto',
         margin: '0',
         padding: '0',
         listStyle: 'none',
-      }),
-    ),
-    card: Style.compose(
+      },
+    ],
+    card: [
       cardBox,
-      Style.self({
+      {
         border: `${t.border.thick} solid transparent`,
         outline: 'none',
         boxShadow: smallShadow,
         cursor: 'grab',
-      }),
+      },
       Style.pseudo(':focus', { borderColor: t.outline.overt }),
       Style.states({
         'keyboard-dragged': { borderColor: t.accent.default, cursor: 'auto' },
       }),
-    ),
-    cardTitle: Style.self({
-      fontSize: t.size.sm,
-      fontWeight: t.weight.medium,
-      color: t.text.overt,
-    }),
-    cardDescription: Style.self({
-      marginTop: t.space['2xs'],
-      fontSize: t.size.xs,
-      color: t.text.muted,
-      display: '-webkit-box',
-      WebkitBoxOrient: 'vertical',
-      WebkitLineClamp: '2',
-      overflow: 'hidden',
-    }),
-    dropPlaceholder: Style.self({
-      height: '3rem',
-      boxSizing: 'border-box',
-      borderRadius: t.radius.lg,
-      border: `${t.border.thick} dashed ${dropEdge}`,
-      background: t.accent.subtle,
-    }),
-    columnFooter: Style.self({
-      marginTop: t.space.sm,
-      paddingTop: t.space.xs,
-      borderTop: `${t.border.thin} solid ${t.outline.subtle}`,
-    }),
+    ],
+    cardTitle: [U.text('sm'), U.font('medium'), U.color('text.overt')],
+    cardDescription: [
+      U.text('xs'),
+      U.color('text.muted'),
+      {
+        marginTop: t.space['2xs'],
+        display: '-webkit-box',
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: '2',
+        overflow: 'hidden',
+      },
+    ],
+    dropPlaceholder: [
+      U.rounded('lg'),
+      U.bg('accent.subtle'),
+      {
+        height: '3rem',
+        boxSizing: 'border-box',
+        border: `${t.border.thick} dashed ${dropEdge}`,
+      },
+    ],
+    columnFooter: [
+      {
+        marginTop: t.space.sm,
+        paddingTop: t.space.xs,
+        borderTop: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
     addCardForm: L.in('layouts', Layout.stack({ gap: t.space.xs })),
     newCardLabel: visuallyHidden,
-    formActions: Style.self({ display: 'flex', justifyContent: 'flex-end', gap: t.space.xs }),
-    ghost: Style.self({ width: '16rem' }),
-    ghostCard: Style.compose(
+    formActions: [U.flex, U.justify('end'), U.gap('xs')],
+    ghost: { width: '16rem' },
+    ghostCard: [
       cardBox,
-      Style.self({
+      {
         border: `${t.border.thin} solid ${t.outline.subtle}`,
         boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)',
         transform: 'scale(1.05) rotate(2deg)',
-      }),
-    ),
+      },
+    ],
     announcer: visuallyHidden,
   },
-  { name: 'BoardStyle', layer: app },
+  { name: 'BoardStyle' },
 )
 
 // ADD CARD
 
 /** Upstream's dashed, full-width `+ Add card` button. */
-export const AddCardButtonStyle = Style.forSlots(ButtonSlots)(
+export const AddCardButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
     base: {
-      button: Style.compose(
-        Style.self({
+      button: [
+        U.rounded('lg'),
+        U.font('normal'),
+        U.color('text.muted'),
+        {
           width: '100%',
           padding: t.space.xs,
-          borderRadius: t.radius.lg,
           border: `${t.border.thin} dashed ${t.outline.default}`,
           background: 'transparent',
-          color: t.text.muted,
-          fontWeight: t.weight.normal,
-        }),
+        },
         Style.pseudo(':hover', { borderColor: t.outline.overt, color: t.text.subtle }),
-      ),
+      ],
     },
   })({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-  { name: 'AddCardButtonStyle', layer: app },
+  { name: 'AddCardButtonStyle' },
 )
 
-export const NewCardInputStyle = Style.forSlots(InputSlots)(
+export const NewCardInputStyle = forSlots(InputSlots)(
   Recipes.Input.extend({
-    base: { input: Style.self({ boxSizing: 'border-box', borderRadius: t.radius.lg }) },
+    base: { input: [U.rounded('lg'), { boxSizing: 'border-box' }] },
   })({ size: 'sm' }),
-  { name: 'NewCardInputStyle', layer: app },
+  { name: 'NewCardInputStyle' },
 )
 
-export const CancelButtonStyle = Style.forSlots(ButtonSlots)(
+export const CancelButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
-    base: { button: Style.self({ borderRadius: t.radius.lg, fontWeight: t.weight.normal }) },
+    base: { button: [U.rounded('lg'), U.font('normal')] },
   })({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-  { name: 'CancelButtonStyle', layer: app },
+  { name: 'CancelButtonStyle' },
 )
 
-export const SubmitButtonStyle = Style.forSlots(ButtonSlots)(
+export const SubmitButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
-    base: { button: Style.self({ borderRadius: t.radius.lg, fontWeight: t.weight.medium }) },
+    base: { button: [U.rounded('lg'), U.font('medium')] },
   })({ size: 'sm' }),
-  { name: 'SubmitButtonStyle', layer: app },
-)
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The slot styles' own classes are injected when a Slot
- * first draws them, so they are not repeated here. `colorScheme: 'light'`
- * keeps the page light in a dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
+  { name: 'SubmitButtonStyle' },
 )

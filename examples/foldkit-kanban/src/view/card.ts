@@ -6,9 +6,9 @@ import type { SlotBuilders } from 'foldkit-mixins'
 import type { Card } from '../domain/index.js'
 import type { Message } from '../message.js'
 import type { Model } from '../model.js'
-import type { BoardSlots } from '../style.js'
+import { KanbanBoard } from '../style.js'
 
-export type Slots = SlotBuilders<typeof BoardSlots, Message>
+export type Slots = SlotBuilders<typeof KanbanBoard.slots, Message>
 
 /**
  * Whether the keyboard is carrying this card, as a `data-state`. A card the
