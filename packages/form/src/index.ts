@@ -385,11 +385,36 @@ export type RequirementOf<C> = {
   [K in keyof C]: C[K] extends (...args: never) => Effect.Effect<any, any, infer R> ? R : never
 }[keyof C]
 
-/** An edit, however deep: it answers the last submit. An answered check or a blur does not. */
-const isEdit = (message: { readonly _tag: string; readonly message?: unknown }): boolean =>
-  message._tag === 'Nested'
-    ? isEdit(message.message as { readonly _tag: string })
-    : ['Changed', 'RowAdded', 'RowRemoved', 'Reset'].includes(message._tag)
+/**
+ * Which of a form's Messages are edits, which answer the last submit; an answered
+ * check or a blur does not. A `Nested` one is an edit when the row's Message is.
+ */
+const edits = {
+  Changed: true,
+  Blurred: false,
+  Submitted: false,
+  Reset: true,
+  Checked: false,
+  Refused: false,
+  About: false,
+  Searched: false,
+  Nested: false,
+  Control: false,
+  RowAdded: true,
+  RowRemoved: true,
+} as const
+
+/** A form's tags. Every form has these, so a nested form's Message, known only at runtime, is read by them. */
+type FormTag = keyof typeof edits
+
+interface AnyFormMessage {
+  readonly _tag: FormTag
+  readonly message?: unknown
+}
+
+/** An edit, however deep. */
+const isEdit = (message: AnyFormMessage): boolean =>
+  message._tag === 'Nested' ? isEdit(message.message as AnyFormMessage) : edits[message._tag]
 
 interface Plan extends FormControl {
   readonly kind: HeldDraft
@@ -799,7 +824,7 @@ const Core = {
       RowAdded: { key: Schema.String },
       /** Removes a row. A `one` that must be there stays. */
       RowRemoved: { key: Schema.String, row: Schema.String },
-    })
+    } satisfies Record<FormTag, Schema.Struct.Fields>)
     type Message = typeof Message.Type
     type Commands = ReadonlyArray<Command<Message, never, R>>
 
@@ -894,12 +919,10 @@ const Core = {
       const accepts = Schema.is(bundled.bundle.Message as Schema.Codec<unknown>)
       const toParentMessage = (message: unknown): Message =>
         Message.Control({ key: key as ControlKey, message })
-      const fromParentMessage = (message: { readonly _tag: string }): Option.Option<unknown> => {
-        const held = message as { readonly key?: unknown; readonly message?: unknown }
-        return message._tag === 'Control' && held.key === key && accepts(held.message)
-          ? Option.some(held.message)
+      const fromParentMessage = (message: Message): Option.Option<unknown> =>
+        message._tag === 'Control' && message.key === key && accepts(message.message)
+          ? Option.some(message.message)
           : Option.none()
-      }
       const link = Link.make({
         read: (model: Model) => Option.some(drafts(model)[key].value),
         // The draft changes and its validation state stays: `update` revalidates
@@ -1261,7 +1284,8 @@ const Core = {
             const row = rowsOf(model)[message.key]?.find(held => held.id === message.row)
             if (plan === undefined || row === undefined) return { model }
             if (!Schema.is(plan.form.bundle.Message)(message.message)) return { model }
-            const inner = message.message as { readonly _tag: string }
+            // Its Schema took it, so it is a form's Message.
+            const inner = message.message as AnyFormMessage
             // Enter in a row submits the form the row is in.
             if (inner._tag === 'Submitted') return submitted(model)
             const answered = plan.form.bundle.update(row.model, inner, undefined)

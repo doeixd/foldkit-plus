@@ -13,8 +13,8 @@
  * In the browser the builder marks nothing: it is the application's `h`, with
  * the hole forms turned into the closures Foldkit expects.
  */
-import type { Schema } from 'effect'
-import type { Attribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import { Schema, SchemaAST } from 'effect'
+import type { Attribute, ChildAttribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { current, type Binding } from './context.js'
 
 /** The attribute prefix of an element's binding marker. */
@@ -233,8 +233,10 @@ const isMember = (value: unknown): value is AnyMember =>
   typeof value === 'function' && typeof (value as { fields?: unknown }).fields === 'object'
 
 const tagOf = (member: AnyMember): string => {
-  const literal = (member.fields as { _tag?: { ast?: { literal?: unknown } } })._tag?.ast?.literal
-  return typeof literal === 'string' ? literal : 'the member'
+  const tag = member.fields._tag
+  return Schema.isSchema(tag) && SchemaAST.isLiteral(tag.ast) && typeof tag.ast.literal === 'string'
+    ? tag.ast.literal
+    : 'the member'
 }
 
 /** The fields a member leaves for the event to fill, given what is fixed. */
@@ -254,10 +256,10 @@ const holes = new WeakMap<
   { readonly template: unknown; readonly hole: ReadonlyArray<string> }
 >()
 
-const isTagged = (value: unknown): value is { readonly _tag: string } & Record<string, unknown> =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { _tag?: unknown })._tag === 'string'
+/** What an element is given: Foldkit's attributes, and a Submodel's wrapped ones, which carry no tag. */
+type Item = Attribute<unknown> | ChildAttribute
+
+const isAttribute = (item: Item): item is Attribute<unknown> => '_tag' in item
 
 const builders = new WeakMap<object, unknown>()
 
@@ -283,21 +285,20 @@ export const builder = <Builder extends AnyBuilder>(
   const attribute = source.Attribute as (name: string, value: string) => unknown
 
   /** The attributes with a marker for each binding, while the server renders. */
-  const mark = (tag: string, attributes: ReadonlyArray<unknown>): ReadonlyArray<unknown> => {
+  const mark = (tag: string, attributes: ReadonlyArray<Item>): ReadonlyArray<unknown> => {
     const now = current()
     if (now?.mode !== 'collect' && now?.mode !== 'replay') return attributes
-    const id = attributes.find(item => isTagged(item) && item._tag === 'Id') as
-      { readonly value: string } | undefined
+    const id = attributes.find(
+      (item): item is Extract<Attribute<unknown>, { readonly _tag: 'Id' }> =>
+        isAttribute(item) && item._tag === 'Id',
+    )
     const element = id === undefined ? tag : `${tag}#${id.value}`
     // Foldkit chains every handler of an event, in the order the attributes
     // come, so a marker lists every binding of its event in that order.
     const tokens = new Map<string, Array<string>>()
     for (const item of attributes) {
-      if (!isTagged(item)) continue
-      const event =
-        item._tag === 'OnCustomEvent' && typeof item.name === 'string'
-          ? item.name
-          : EVENT_OF[item._tag]
+      if (!isAttribute(item)) continue
+      const event = item._tag === 'OnCustomEvent' ? item.name : EVENT_OF[item._tag]
       if (event === undefined) continue
       // Recorded for the refusal; the render does not survive it.
       if (now.mode === 'collect' && now.region !== undefined) {
@@ -313,7 +314,7 @@ export const builder = <Builder extends AnyBuilder>(
               event,
               element,
               message: now.wrap(item.message),
-              ...(item.options === undefined ? {} : { options: item.options }),
+              ...('options' in item && item.options !== undefined ? { options: item.options } : {}),
             }
           : recorded === undefined
             ? undefined
@@ -354,9 +355,9 @@ export const builder = <Builder extends AnyBuilder>(
    */
   const fallback = (
     tag: string,
-    attributes: ReadonlyArray<unknown>,
+    attributes: ReadonlyArray<Item>,
     children: unknown,
-  ): { readonly attributes: ReadonlyArray<unknown>; readonly children: unknown } => {
+  ): { readonly attributes: ReadonlyArray<Item>; readonly children: unknown } => {
     const now = current()
     if (
       tag !== 'form' ||
@@ -367,12 +368,13 @@ export const builder = <Builder extends AnyBuilder>(
       return { attributes, children }
     }
     const submit = attributes.find(
-      item => isTagged(item) && item._tag === 'OnSubmit' && 'message' in item,
-    ) as { readonly message: unknown } | undefined
+      (item): item is Extract<Attribute<unknown>, { readonly _tag: 'OnSubmit' }> =>
+        isAttribute(item) && item._tag === 'OnSubmit',
+    )
     if (submit === undefined || !Array.isArray(children)) return { attributes, children }
     const encoded = now.fallback(now.wrap(submit.message))
     if (encoded === undefined) return { attributes, children }
-    const make = (name: string) => source[name] as (value: string) => unknown
+    const make = (name: string) => source[name] as (value: string) => Attribute<unknown>
     const input = source.input as (attributes: ReadonlyArray<unknown>) => unknown
     const hidden = (name: string, value: string) =>
       input([make('Type')('hidden'), make('Name')(name), make('Value')(value)])
@@ -473,7 +475,7 @@ export const builder = <Builder extends AnyBuilder>(
       const keyed = value as (tag: string) => (key: PropertyKey, ...rest: Array<unknown>) => unknown
       wrapped[name] =
         (tag: string) =>
-        (key: PropertyKey, attributes: ReadonlyArray<unknown> = [], ...rest: Array<unknown>) => {
+        (key: PropertyKey, attributes: ReadonlyArray<Item> = [], ...rest: Array<unknown>) => {
           const posted = fallback(tag, attributes, rest[0])
           return keyed(tag)(key, mark(tag, posted.attributes), posted.children, ...rest.slice(1))
         }
@@ -482,7 +484,7 @@ export const builder = <Builder extends AnyBuilder>(
         attributes: ReadonlyArray<unknown>,
         ...rest: Array<unknown>
       ) => unknown
-      wrapped[name] = (attributes: ReadonlyArray<unknown>, ...rest: Array<unknown>) => {
+      wrapped[name] = (attributes: ReadonlyArray<Item>, ...rest: Array<unknown>) => {
         const posted = fallback(name, attributes, rest[0])
         return element(mark(name, posted.attributes), posted.children, ...rest.slice(1))
       }

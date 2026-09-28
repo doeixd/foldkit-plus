@@ -1,5 +1,5 @@
 import type { Duration } from 'effect'
-import { Schema } from 'effect'
+import { Predicate, Schema } from 'effect'
 import type { MessageUnion } from 'foldkit/message'
 import type { Action, MessageSet } from 'foldkit-surface'
 import { toJsonSchema } from './jsonSchema.js'
@@ -480,7 +480,7 @@ export const expose = <
       if (toMessage === undefined) return make(input)
       const made = toMessage(input, context)
       // A whole Message, as `Agent.action` gives, must be the one this key names.
-      const madeTag = (made as { readonly _tag?: unknown } | null)?._tag
+      const madeTag = Predicate.hasProperty(made, '_tag') ? made._tag : undefined
       if (typeof madeTag === 'string' && madeTag !== tag)
         throw new Error(`"${name}" made a "${madeTag}" Message, but is exposed as "${tag}"`)
       return make(made)

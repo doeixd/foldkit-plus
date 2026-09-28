@@ -8,9 +8,9 @@
  * a collection, not a special case. Which DOM, component, or design system
  * draws a kind is the application's.
  */
-import { Schema } from 'effect'
+import { Schema, SchemaAST } from 'effect'
 import type { Bundle } from 'foldkit-bundle'
-import type { AnyEntity, InputMember } from 'foldkit-entity'
+import { SchemaShape, type AnyEntity, type InputMember } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 
 /**
@@ -247,27 +247,16 @@ const key = Metadata.key<Control>('foldkit-form/input', {
   summarize: control => control.kind,
 })
 
-interface AstLike {
-  readonly _tag: string
-  readonly literal?: unknown
-  readonly types?: ReadonlyArray<AstLike>
-}
-
-/** The schema with `null` and `undefined` set aside: optional text is still text. */
-const present = (ast: AstLike): ReadonlyArray<AstLike> =>
-  ast._tag === 'Union'
-    ? (ast.types ?? []).filter(member => member._tag !== 'Null' && member._tag !== 'Undefined')
-    : [ast]
-
+// Optional text is still text, so `null` and `undefined` are set aside first.
 const fromSchema = (schema: Schema.Top): Control | undefined => {
-  const members = present(schema.ast as unknown as AstLike)
+  const members = SchemaShape.present(schema.ast)
   const [only] = members
   if (members.length === 1 && only !== undefined) {
-    if (only._tag === 'String') return Text.of(nothing)
-    if (only._tag === 'Number') return Number_.of(nothing)
-    if (only._tag === 'Boolean') return Toggle.of(nothing)
+    if (SchemaAST.isString(only)) return Text.of(nothing)
+    if (SchemaAST.isNumber(only)) return Number_.of(nothing)
+    if (SchemaAST.isBoolean(only)) return Toggle.of(nothing)
   }
-  const literals = members.map(member => (member._tag === 'Literal' ? member.literal : undefined))
+  const literals = members.map(member => (SchemaAST.isLiteral(member) ? member.literal : undefined))
   const options = literals.filter(
     (literal): literal is string | number =>
       typeof literal === 'string' || typeof literal === 'number',
@@ -390,14 +379,21 @@ export const Input = {
    * than guessing.
    */
   resolve: (member: InputMember, schema: Schema.Top): Control | undefined => {
-    if (member._tag === 'Unmapped') return fromSchema(schema)
-    // A nested key is not a control to choose: the form builds it from the nested input.
-    if (member._tag === 'NestedInput') return undefined
-    const owner = member._tag === 'Field' ? member : member.relation
-    const [explicit] = key.get(owner.metadata)
-    if (explicit !== undefined) return explicit
-    if (member._tag === 'Field') return fromSchema(schema)
-    const data = { target: member.relation.target(), search: false }
-    return member.relation.cardinality === 'many' ? RelationMany.of(data) : RelationOne.of(data)
+    switch (member._tag) {
+      case 'Unmapped':
+        return fromSchema(schema)
+      // A nested key is not a control to choose: the form builds it from the nested input.
+      case 'NestedInput':
+        return undefined
+      case 'Field':
+        return key.get(member.metadata)[0] ?? fromSchema(schema)
+      case 'RelationInput': {
+        const { relation } = member
+        const [explicit] = key.get(relation.metadata)
+        if (explicit !== undefined) return explicit
+        const data = { target: relation.target(), search: false }
+        return relation.cardinality === 'many' ? RelationMany.of(data) : RelationOne.of(data)
+      }
+    }
   },
 }

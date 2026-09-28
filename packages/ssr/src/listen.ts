@@ -12,7 +12,7 @@
  * the live page does something here the page cannot describe, so the walk
  * ends and the answer names that element.
  */
-import { Result, Schema } from 'effect'
+import { Predicate, Result, Schema } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { BINDING_ATTRIBUTE, EVENT_OF, UNNAMED_HANDLER } from './resumable.js'
 
@@ -119,7 +119,7 @@ export const decodeBindings = (
         `binding ${index} does not decode as a Message: ${message.failure.message}`,
       )
     }
-    const tag = (message.success as { readonly _tag?: unknown })._tag
+    const tag = Predicate.hasProperty(message.success, '_tag') ? message.success._tag : undefined
     if (typeof tag !== 'string' || !allowed.has(tag)) {
       return Result.fail(
         `binding ${index} dispatches ${typeof tag === 'string' ? tag : 'an untagged Message'}, which no active Surface lists in its messages`,

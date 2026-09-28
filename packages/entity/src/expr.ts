@@ -135,9 +135,7 @@ export type TextOperand =
   | Expr<string | null>
 
 const tagOf = (value: unknown): unknown =>
-  typeof value === 'object' && value !== null
-    ? (value as { readonly _tag?: unknown })._tag
-    : undefined
+  typeof value === 'object' && value !== null && '_tag' in value ? value._tag : undefined
 
 /**
  * An Entity's field and a `FieldExpr` are the same three members under the same

@@ -4,8 +4,8 @@
  * member says what it is, a Display says how it reads, and which DOM draws it is
  * the application's.
  */
-import { Schema } from 'effect'
-import type { AnyEntity, EntityMember } from 'foldkit-entity'
+import { Schema, SchemaAST } from 'effect'
+import { SchemaShape, type AnyEntity, type EntityMember } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 
 /**
@@ -61,20 +61,13 @@ const key = Metadata.key<Display>('foldkit-crud/display', {
   summarize: display => display.kind,
 })
 
-interface AstLike {
-  readonly _tag: string
-  readonly types?: ReadonlyArray<AstLike>
-}
-
 const fromSchema = (schema: Schema.Top): Display => {
-  const ast = Schema.toType(schema).ast as unknown as AstLike
-  const members =
-    ast._tag === 'Union'
-      ? (ast.types ?? []).filter(member => member._tag !== 'Null' && member._tag !== 'Undefined')
-      : [ast]
+  const members = SchemaShape.present(Schema.toType(schema).ast)
   const [only] = members
-  if (members.length === 1 && only?._tag === 'Number') return Number_.of({})
-  if (members.length === 1 && only?._tag === 'Boolean') return Flag.of(nothing)
+  if (members.length === 1 && only !== undefined) {
+    if (SchemaAST.isNumber(only)) return Number_.of({})
+    if (SchemaAST.isBoolean(only)) return Flag.of(nothing)
+  }
   return Text.of({})
 }
 

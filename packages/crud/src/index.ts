@@ -8,7 +8,7 @@
  * ordinary Foldkit: a Bundle, an ActiveSurface, Update Steps. Nothing is
  * generated from an Entity alone; each capability is declared.
  */
-import { Option, Schema } from 'effect'
+import { Option, Predicate, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
@@ -653,7 +653,7 @@ export const Crud = {
       update: (model: Model, message: FormMessage) => {
         const next = form.bundle.update(model.form, message, undefined)
         // An edit after a save starts a new round; the last save no longer describes the form.
-        const requestId = message._tag === 'Changed' ? null : model.requestId
+        const requestId = Predicate.isTagged(message, 'Changed') ? null : model.requestId
         // The form's Commands are the editor's: a check the form started has to run.
         const edited = {
           model: { ...model, form: next.model, requestId },
@@ -794,11 +794,17 @@ export const Crud = {
             const read = loaded(root)
             if (read?._tag === 'NotFound') return 'NotFound'
             const save = saveOf(root)
-            if (save._tag === 'Pending') return 'Saving'
-            if (save._tag === 'Failed') return 'SaveFailed'
-            if (save._tag === 'Applied') return 'Saved'
-            if (editor.filled) return 'Editing'
-            return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
+            switch (save._tag) {
+              case 'Pending':
+                return 'Saving'
+              case 'Failed':
+                return 'SaveFailed'
+              case 'Applied':
+                return 'Saved'
+              case 'Unknown':
+                if (editor.filled) return 'Editing'
+                return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
+            }
           },
         }
       },

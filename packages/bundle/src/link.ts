@@ -60,6 +60,7 @@ const wrapper = <const Tag extends string, ChildMessage>(
   const fields = { message: childMessage }
   const make = (message: ChildMessage): Wrapped<Tag, ChildMessage> => ({ _tag: tag, message })
   const isWrapped = (message: AnyMessage): message is Wrapped<Tag, ChildMessage> =>
+    // tag-check: open — the parent's Message, against the tag its caller chose
     message._tag === tag && 'message' in message
   return {
     tag,
@@ -265,6 +266,7 @@ const keyedWrapper = <const Tag extends string, ChildMessage, Key extends string
     message: childMessage,
   }
   const isWrapped = (message: AnyMessage): message is KeyedWrapped<Tag, ChildMessage, Key> =>
+    // tag-check: open — the parent's Message, against the tag its caller chose
     message._tag === tag && 'key' in message && 'message' in message
   return {
     tag,

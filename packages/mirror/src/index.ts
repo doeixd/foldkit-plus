@@ -844,6 +844,7 @@ export const Mirror = {
         handles: [tag],
         shared: [tag],
         route: (model, message) =>
+          // tag-check: open — `Tag` is the application's URL variant, generic here
           message._tag === tag ? Option.some({ model: reduce(model, message.url) }) : Option.none(),
         onUrl: reduce,
         subscriptions: brandEntries(mirror.subscriptions),

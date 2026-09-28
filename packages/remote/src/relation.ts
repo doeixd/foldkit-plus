@@ -3,7 +3,8 @@
  * nullable ref key, an array of ref keys, or a page of ref keys. The planner
  * follows them into the store; the server follows them into the next read.
  */
-import type { Schema } from 'effect'
+import { SchemaAST, type Schema } from 'effect'
+import { SchemaShape } from 'foldkit-entity'
 import type { RelationRequirement } from './requirement.js'
 
 export interface RefParts {
@@ -98,22 +99,15 @@ export const isRefPage = (value: unknown): value is RefPageValue => {
   )
 }
 
-interface AstLike {
-  readonly _tag: string
-  readonly annotations?: Readonly<Record<string, unknown>> | undefined
-  readonly types?: ReadonlyArray<AstLike> | undefined
-  readonly rest?: ReadonlyArray<AstLike> | undefined
-}
-
 /**
  * The relation shape an entity field schema declares: a ref (`one`), a nullable
  * ref, an array of refs (`many`), or a page of refs (`page`). `undefined` for a
  * scalar field, which cannot take a nested selection.
  */
 export const relationShape = (schema: Schema.Top): RelationShape | undefined =>
-  shapeOf(schema.ast as unknown as AstLike, false)
+  shapeOf(schema.ast, false)
 
-const shapeOf = (ast: AstLike, nullable: boolean): RelationShape | undefined => {
+const shapeOf = (ast: SchemaAST.AST, nullable: boolean): RelationShape | undefined => {
   const annotated = ast.annotations?.[RelationAnnotation]
   if (annotated === 'one' || annotated === 'page') {
     return {
@@ -122,15 +116,14 @@ const shapeOf = (ast: AstLike, nullable: boolean): RelationShape | undefined => 
       entity: String(ast.annotations?.[RelationEntityAnnotation]),
     }
   }
-  if (ast._tag === 'Arrays') {
-    const item = ast.rest?.[0]
+  if (SchemaAST.isArrays(ast)) {
+    const item = ast.rest[0]
     const inner = item === undefined ? undefined : shapeOf(item, false)
     return inner?.kind === 'one' ? { kind: 'many', nullable, entity: inner.entity } : undefined
   }
-  if (ast._tag === 'Union') {
-    const members = ast.types ?? []
-    const optional = members.some(member => member._tag === 'Null' || member._tag === 'Undefined')
-    for (const member of members) {
+  if (SchemaAST.isUnion(ast)) {
+    const optional = ast.types.some(SchemaShape.isNullish)
+    for (const member of ast.types) {
       const shape = shapeOf(member, optional)
       if (shape !== undefined) return shape
     }

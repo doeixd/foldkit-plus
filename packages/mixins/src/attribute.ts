@@ -1,7 +1,7 @@
 /**
  * Internal attribute helpers. Foldkit's `isChildAttribute` and the tagged
- * attribute shape are not public, so this module localizes the two casts they
- * require. Probed against foldkit 0.158.2; see docs/design/mixins-DESIGN.md.
+ * attribute shape are not public, so this module reads them in one place.
+ * Probed against foldkit 0.158.2; see docs/design/mixins-DESIGN.md.
  */
 import type { Attribute, ChildAttribute } from 'foldkit/html'
 import { inertHtml as ih } from 'foldkit/html'
@@ -20,8 +20,10 @@ interface Tagged {
 export const isTagged = (value: unknown): value is Tagged =>
   typeof value === 'object' &&
   value !== null &&
+  // `hasOwn` refuses an inherited tag; `in` is what narrows the type.
   Object.hasOwn(value, '_tag') &&
-  typeof (value as { readonly _tag?: unknown })._tag === 'string'
+  '_tag' in value &&
+  typeof value._tag === 'string'
 
 /** `Class` carries no Message, so the inert builder is the honest constructor. */
 export const classAttribute = (value: string): Attribute<never> => ih.Class(value)

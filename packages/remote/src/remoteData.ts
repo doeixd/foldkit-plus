@@ -156,7 +156,9 @@ export const RemoteData = {
         return data.previous === undefined
           ? { _tag: 'Failed', error: data.error }
           : { _tag: 'Failed', error: data.error, previous: f(data.previous) }
-      default:
+      case 'Initial':
+      case 'Loading':
+      case 'NotFound':
         return data
     }
   },

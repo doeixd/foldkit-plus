@@ -4,7 +4,7 @@
  * into the low-level `defineSync` contract, and exposes a read-only Surface over
  * the same projection.
  */
-import { Schema } from 'effect'
+import { Option, Predicate, Schema } from 'effect'
 import {
   MessageSet,
   Projection,
@@ -39,6 +39,12 @@ const messageTag = (constructor: unknown): string | undefined => {
     ?._tag?.ast?.literal
   return typeof literal === 'string' ? literal : undefined
 }
+
+/** A Message's tag. The application's union is generic here, so its `_tag` is read, not typed. */
+const tagOf = (message: unknown): Option.Option<string> =>
+  Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
+    ? Option.some(message._tag)
+    : Option.none()
 
 /** The `_tag` literal of the Message a constructor produces. */
 type TagOf<C> = C extends (...args: never[]) => infer M
@@ -282,10 +288,9 @@ const derivedReplay = <
     )
   return (value, message) => {
     const result = update(shared.set(initial, value), message)
-    const tag = (message as { readonly _tag?: string })._tag
     if (result.commands !== undefined && result.commands.length > 0)
       throw new Error(
-        `Sync.forApplication: durable "${tag}" returned ${result.commands.length} Command(s); a durable transition is state-only`,
+        `Sync.forApplication: durable "${Option.getOrElse(tagOf(message), () => 'untagged')}" returned ${result.commands.length} Command(s); a durable transition is state-only`,
       )
     const next = shared.get(result.model)
     // Writing the projection back into the baseline reproduces `update`'s
@@ -295,7 +300,7 @@ const derivedReplay = <
     const changed = fields.filter(([key, equal]) => !equal(actual[key], written[key]))
     if (changed.length > 0)
       throw new Error(
-        `Sync.forApplication: durable "${tag}" changed Model fields outside the shared projection: ${changed.map(([key]) => key).join(', ')}`,
+        `Sync.forApplication: durable "${Option.getOrElse(tagOf(message), () => 'untagged')}" changed Model fields outside the shared projection: ${changed.map(([key]) => key).join(', ')}`,
       )
     return next
   }
@@ -378,10 +383,7 @@ const build = <
       message: app.Message as unknown as Schema.Codec<Message, unknown>,
       shared: sharedCodec,
       empty: shared.get(app.initial),
-      durable: message => {
-        const tag = (message as { readonly _tag?: string })._tag
-        return tag !== undefined && durableTags.has(tag)
-      },
+      durable: message => Option.exists(tagOf(message), tag => durableTags.has(tag)),
       replay,
     })
 
@@ -394,8 +396,13 @@ const build = <
         ...base,
         authorize: ({ principal, operation, snapshot }) => {
           const message = decodeMessage(operation.message)
-          const rule = rules[(message as { readonly _tag: string })._tag]
-          return rule === undefined ? true : rule({ principal, message, shared: snapshot })
+          return Option.match(
+            Option.flatMapNullishOr(tagOf(message), tag => rules[tag]),
+            {
+              onNone: () => true,
+              onSome: rule => rule({ principal, message, shared: snapshot }),
+            },
+          )
         },
       }
     }

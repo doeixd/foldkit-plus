@@ -771,6 +771,15 @@ version changed; `pnpm` skips versions already in the registry.
   never aged, planned or timed. A field the server settled without a value
   now ages out with its entity on the read entry's timer, instead of waiting
   for an unrelated Model change. `EntityWrite` takes an optional `updatedAt`.
+- **Tag branching the type checker can check.** Every package branches on a
+  `_tag` it can type: Schema ASTs are `SchemaAST.AST`, tested with Effect's
+  guards, instead of a hand-written `{ _tag: string }`; switches list every
+  variant or end in `absurd`; and casts before a `_tag` read are gone.
+  `foldkit-entity` exports `SchemaShape` (`isNullish`, `present`, `isText`),
+  the one reading of an optional Schema that `cms`, `crud`, `form`, `remote`
+  and `remote-drizzle` each had a copy of. `foldkit-cms`'s `EditorForm.field`
+  returns a `FieldValidation.Field<unknown>`. `pnpm tags:check` finds branching
+  the checker cannot vouch for.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

@@ -570,7 +570,11 @@ const describeEdit = (
       return Option.some(fillWords(words.removed, { label: labelOf(before, op.id) }))
     case 'Batch':
       return op.ops.length === 0 ? Option.none() : Option.some(words.editedPage)
-    default:
+    case 'SetProp':
+    case 'UnsetProp':
+    case 'SetWhen':
+    case 'SetAppearance':
+    case 'SetAction':
       return Option.none()
   }
 }
@@ -1294,65 +1298,69 @@ export const Builder = {
           })
         case 'Minted': {
           const { request, ids } = message
-          if (request._tag === 'Insert') {
-            const props = startingProps(request.block)
-            if (ids[0] === undefined || Option.isNone(props))
-              return refuse(model, {
-                code: 'composition:invalid-props',
-                message: fillWords(words.startingPropsFail, { block: request.block }),
+          switch (request._tag) {
+            case 'Insert': {
+              const props = startingProps(request.block)
+              if (ids[0] === undefined || Option.isNone(props))
+                return refuse(model, {
+                  code: 'composition:invalid-props',
+                  message: fillWords(words.startingPropsFail, { block: request.block }),
+                })
+              return applyOp(
+                model,
+                Composition.Op.insert({
+                  id: ids[0],
+                  block: request.block,
+                  props: props.value,
+                  at: request.at,
+                }),
+              )
+            }
+            case 'Pattern': {
+              // Asked for by name, so it is the Catalog's still: its ids, in its order.
+              const held = Option.match(Catalog.pattern(catalog, request.pattern), {
+                onNone: () => [],
+                onSome: pattern => Object.keys(pattern.tree.nodes),
               })
-            return applyOp(
-              model,
-              Composition.Op.insert({
-                id: ids[0],
-                block: request.block,
-                props: props.value,
-                at: request.at,
-              }),
-            )
+              return applyOp(
+                model,
+                Composition.Op.usePattern({
+                  pattern: request.pattern,
+                  ids: Object.fromEntries(held.map((id, at) => [id, ids[at]!])),
+                  at: request.at,
+                }),
+              )
+            }
+            case 'Paste': {
+              // Its own ids are kept out of the page: each node gets a new one.
+              const renamed = Composition.rekey(
+                request.tree,
+                Object.fromEntries(Object.keys(request.tree.nodes).map((id, at) => [id, ids[at]!])),
+              )
+              return applyOp(model, Composition.Op.insertTree({ tree: renamed, at: request.at }))
+            }
+            case 'Duplicate': {
+              if (documentOf(model).nodes[request.id] === undefined)
+                return refuse(model, {
+                  code: 'composition:missing-node',
+                  message: fillWords(words.notANode, { id: request.id }),
+                })
+              const held = Object.keys(Composition.takeTree(documentOf(model), request.id).nodes)
+              if (held.length !== ids.length)
+                return refuse(model, {
+                  code: 'composition:malformed-tree',
+                  message: fillWords(words.copyChanged, { id: request.id }),
+                })
+              return applyOp(
+                model,
+                Composition.Op.duplicate({
+                  id: request.id,
+                  ids: Object.fromEntries(held.map((id, at) => [id, ids[at]!])),
+                  at: request.at,
+                }),
+              )
+            }
           }
-          if (request._tag === 'Pattern') {
-            // Asked for by name, so it is the Catalog's still: its ids, in its order.
-            const held = Option.match(Catalog.pattern(catalog, request.pattern), {
-              onNone: () => [],
-              onSome: pattern => Object.keys(pattern.tree.nodes),
-            })
-            return applyOp(
-              model,
-              Composition.Op.usePattern({
-                pattern: request.pattern,
-                ids: Object.fromEntries(held.map((id, at) => [id, ids[at]!])),
-                at: request.at,
-              }),
-            )
-          }
-          if (request._tag === 'Paste') {
-            // Its own ids are kept out of the page: each node gets a new one.
-            const renamed = Composition.rekey(
-              request.tree,
-              Object.fromEntries(Object.keys(request.tree.nodes).map((id, at) => [id, ids[at]!])),
-            )
-            return applyOp(model, Composition.Op.insertTree({ tree: renamed, at: request.at }))
-          }
-          if (documentOf(model).nodes[request.id] === undefined)
-            return refuse(model, {
-              code: 'composition:missing-node',
-              message: fillWords(words.notANode, { id: request.id }),
-            })
-          const held = Object.keys(Composition.takeTree(documentOf(model), request.id).nodes)
-          if (held.length !== ids.length)
-            return refuse(model, {
-              code: 'composition:malformed-tree',
-              message: fillWords(words.copyChanged, { id: request.id }),
-            })
-          return applyOp(
-            model,
-            Composition.Op.duplicate({
-              id: request.id,
-              ids: Object.fromEntries(held.map((id, at) => [id, ids[at]!])),
-              at: request.at,
-            }),
-          )
         }
         case 'Undid':
         case 'Redid': {
@@ -1487,7 +1495,9 @@ export const Builder = {
           return { model: { ...model, panel: message.panel } }
         case 'ViewportChosen':
           return { model: { ...model, viewport: message.viewport } }
-        default:
+        // The placements' own: the layers and the announcer update themselves.
+        case 'GotLayersMessage':
+        case 'GotAnnouncerMessage':
           return { model }
       }
     }

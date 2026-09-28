@@ -9,6 +9,7 @@
  */
 import { Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
+import { SchemaShape } from './shape.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
 export type EntityTypeId = typeof EntityTypeId
@@ -306,25 +307,13 @@ type SelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
   readonly [K in keyof Spec & keyof E['members']]: SelectedSchema<E['members'][K], Spec[K]>
 }>
 
-interface AstLike {
-  readonly _tag: string
-  readonly literal?: unknown
-  readonly types?: ReadonlyArray<AstLike>
-}
-
-const isText = (ast: AstLike): boolean =>
-  ast._tag === 'String' ||
-  ast._tag === 'TemplateLiteral' ||
-  (ast._tag === 'Literal' && typeof ast.literal === 'string') ||
-  (ast._tag === 'Union' && (ast.types ?? []).length > 0 && (ast.types ?? []).every(isText))
-
 /** The `id` field's schema when it is text, so a ref's id keeps its brand and its checks; else text. */
 const idSchemaOf = (entity: AnyEntity): Schema.Top => {
   const fields: Readonly<Record<string, EntityMember | undefined>> = entity.fields
   const id = fields.id
   if (id === undefined || id._tag !== 'Field') return Schema.String
   const type = Schema.toType(id.schema as Schema.Top)
-  return isText(type.ast as unknown as AstLike) ? type : Schema.String
+  return SchemaShape.isText(type.ast) ? type : Schema.String
 }
 
 const isSelectionPage = (value: unknown): value is SelectionPage<string, Schema.Constraint> =>
@@ -797,13 +786,18 @@ export const Entity = {
     // A member named by its key: a Field as it is, a relation as its ids.
     const named = (key: string, name: string): InputMember => {
       const member = (entity.members as Readonly<Record<string, EntityMember | undefined>>)[name]
-      if (member?._tag === 'Field') return member
-      if (member?._tag === 'Relation')
-        return Object.freeze({ _tag: 'RelationInput', relation: member })
-      return fail(
-        entity,
-        `input key "${key}" is mapped to "${name}", which names no field or relation`,
-      )
+      switch (member?._tag) {
+        case 'Field':
+          return member
+        case 'Relation':
+          return Object.freeze({ _tag: 'RelationInput', relation: member })
+        case 'Derived':
+        case undefined:
+          return fail(
+            entity,
+            `input key "${key}" is mapped to "${name}", which names no field or relation`,
+          )
+      }
     }
     const given: Readonly<Record<string, InputMember | undefined>> = mapValues(
       written,
@@ -919,18 +913,23 @@ export const Entity = {
       const written = member._tag === 'Field' ? member.key : member.relation.key
       if (!(written in value)) return []
       const read = value[written]
-      if (member._tag === 'Field') return [[key, read] as const]
-      if (member._tag === 'NestedInput') {
-        const nested = (held: unknown): unknown =>
-          typeof held === 'object' && held !== null
-            ? Entity.valuesFor(member.input, held as Readonly<Record<string, unknown>>)
-            : null
-        return [[key, Array.isArray(read) ? read.map(nested) : nested(read)] as const]
+      switch (member._tag) {
+        case 'Field':
+          return [[key, read] as const]
+        case 'NestedInput': {
+          const nested = (held: unknown): unknown =>
+            typeof held === 'object' && held !== null
+              ? Entity.valuesFor(member.input, held as Readonly<Record<string, unknown>>)
+              : null
+          return [[key, Array.isArray(read) ? read.map(nested) : nested(read)] as const]
+        }
+        case 'RelationInput': {
+          const ids = Array.isArray(read) ? read.map(idOf) : idOf(read)
+          // A relation read without its ids (a nested Selection that left `id` out) fills nothing.
+          const known = Array.isArray(ids) ? !ids.includes(undefined) : ids !== undefined
+          return known ? [[key, ids] as const] : []
+        }
       }
-      const ids = Array.isArray(read) ? read.map(idOf) : idOf(read)
-      // A relation read without its ids (a nested Selection that left `id` out) fills nothing.
-      const known = Array.isArray(ids) ? !ids.includes(undefined) : ids !== undefined
-      return known ? [[key, ids] as const] : []
     })
     return Object.fromEntries(entries) as Partial<Schema.Struct.Type<Fields>>
   },
@@ -983,6 +982,7 @@ export const Derived = {
 
 export * from './expr.js'
 export * from './words.js'
+export * from './shape.js'
 // The reference semantics of the IR above. The conformance suite that proves
 // an interpreter agrees with it is `foldkit-entity/conformance`, kept out of
 // this entry because it is fixture data every form and admin screen would

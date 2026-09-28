@@ -2170,6 +2170,21 @@ const brandEntries = <AppModel>(
 ): Subscription.Subscriptions<AppModel, RemoteMessage, RemoteClient> =>
   Subscription.make<AppModel, RemoteMessage, RemoteClient>()(() => entries)
 
+/** Why a read failed, in words: Remote's own failures say what to do, and a server's error says itself. */
+const failedReadWords = (error: RemoteError): string => {
+  // tag-check: open — a server names its own errors; only these three are Remote's.
+  switch (error._tag) {
+    case 'DecodeError':
+      return `What the server sent does not decode against the Selection: ${error.message}`
+    case 'Unavailable':
+      return `${error.message} Select without it, or Data.refresh asks again.`
+    case 'Overlaid':
+      return `${error.message} Overlay every field the Selection reads, or select fewer.`
+    default:
+      return `Its request failed: ${error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`
+  }
+}
+
 /** The bound domain: the descriptor, the binding, and the operations over them. */
 const bindDomain = <
   AppModel,
@@ -2230,7 +2245,7 @@ const bindDomain = <
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
   const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel => {
     const live =
-      (message as RemoteMessage)._tag === 'LiveReceived'
+      message._tag === 'LiveReceived'
         ? (message as Extract<RemoteMessage, { _tag: 'LiveReceived' }>)
         : undefined
     // A caller that said what it wanted keeps it; `updateRemote` on its own is
@@ -2481,7 +2496,9 @@ const bindDomain = <
               return { _tag: 'Failed', error: failure, previous: read.value }
             case 'Failed':
               return read
-            default:
+            case 'Initial':
+            case 'Loading':
+            case 'NotFound':
               return { _tag: 'Failed', error: failure }
           }
         },
@@ -2585,14 +2602,7 @@ const bindDomain = <
         case 'Failed':
           return {
             state: state._tag,
-            message:
-              state.error._tag === 'DecodeError'
-                ? `What the server sent does not decode against the Selection: ${state.error.message}`
-                : state.error._tag === 'Unavailable'
-                  ? `${state.error.message} Select without it, or Data.refresh asks again.`
-                  : state.error._tag === 'Overlaid'
-                    ? `${state.error.message} Overlay every field the Selection reads, or select fewer.`
-                    : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
+            message: failedReadWords(state.error),
             ...withSurfaces,
           }
         case 'Initial':

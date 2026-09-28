@@ -8,7 +8,8 @@
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
-import { Schema } from 'effect'
+import { Schema, SchemaAST } from 'effect'
+import { SchemaShape } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type { ComputedConfig, EntityBinding, RelationBinding, Visible } from './binding.js'
@@ -138,26 +139,16 @@ const fail = (message: string): never => {
 
 type PlainKind = 'string' | 'number' | 'boolean'
 
-interface AstLike {
-  readonly _tag: string
-  readonly literal?: unknown
-  readonly types?: ReadonlyArray<AstLike>
-}
-
-const kindOfAst = (ast: AstLike): PlainKind | undefined => {
-  const members =
-    ast._tag === 'Union'
-      ? (ast.types ?? []).filter(member => member._tag !== 'Null' && member._tag !== 'Undefined')
-      : [ast]
+const kindOfAst = (ast: SchemaAST.AST): PlainKind | undefined => {
   const kinds = new Set(
-    members.map((member): PlainKind | undefined =>
-      member._tag === 'String'
+    SchemaShape.present(ast).map((member): PlainKind | undefined =>
+      SchemaAST.isString(member)
         ? 'string'
-        : member._tag === 'Number'
+        : SchemaAST.isNumber(member)
           ? 'number'
-          : member._tag === 'Boolean'
+          : SchemaAST.isBoolean(member)
             ? 'boolean'
-            : member._tag === 'Literal' &&
+            : SchemaAST.isLiteral(member) &&
                 (typeof member.literal === 'string' ||
                   typeof member.literal === 'number' ||
                   typeof member.literal === 'boolean')
@@ -175,8 +166,8 @@ const kindOfAst = (ast: AstLike): PlainKind | undefined => {
  * struct, a mixed union) is `undefined`, and is not checked.
  */
 const plainKind = (schema: Schema.Top): PlainKind | undefined => {
-  const decoded = kindOfAst(Schema.toType(schema).ast as unknown as AstLike)
-  const encoded = kindOfAst(Schema.toEncoded(schema).ast as unknown as AstLike)
+  const decoded = kindOfAst(Schema.toType(schema).ast)
+  const encoded = kindOfAst(Schema.toEncoded(schema).ast)
   return decoded === encoded ? decoded : undefined
 }
 

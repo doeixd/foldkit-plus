@@ -10,7 +10,7 @@
  * Nothing here runs: the deliverable is the type surface, pinned by
  * `test/inference.test-d.ts`.
  */
-import { Optic, Option, Result, Schema } from 'effect'
+import { Optic, Option, Predicate, Result, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
 import type { Entry as ManagedResourceEntry } from 'foldkit/managedResource'
@@ -158,6 +158,12 @@ const messageTag = (constructor: unknown): string | undefined => {
     ?._tag?.ast?.literal
   return typeof literal === 'string' ? literal : undefined
 }
+
+/** Whether a Message, of an application this cannot name, has one of `tags`. */
+const hasTagIn = (tags: ReadonlySet<string>, message: unknown): boolean =>
+  Predicate.hasProperty(message, '_tag') &&
+  typeof message._tag === 'string' &&
+  tags.has(message._tag)
 
 /** The tags of the Messages a Surface lists in `messages`. */
 const messageTags = (surface: { readonly messages: readonly unknown[] }): ReadonlyArray<string> =>
@@ -1027,7 +1033,7 @@ export const MessageSet = {
       >,
       tags,
       includes: (message): message is SubsetOf<Ms> & Schema.Schema.Type<MessageUnion<Cases>> =>
-        tags.has((message as { readonly _tag?: string })._tag ?? ''),
+        hasTagIn(tags, message),
     }
   },
 
@@ -1072,8 +1078,7 @@ export const MessageSet = {
         never
       >,
       tags,
-      includes: (message): message is ValueOfSubset<Subs[number]> =>
-        tags.has((message as { readonly _tag?: string })._tag ?? ''),
+      includes: (message): message is ValueOfSubset<Subs[number]> => hasTagIn(tags, message),
     }
   },
 }
@@ -1118,7 +1123,7 @@ export const Action = {
 
   /** Whether a value is an Action. */
   is: (value: unknown): value is Action =>
-    typeof value === 'object' && value !== null && (value as { _tag?: unknown })._tag === 'Action',
+    typeof value === 'object' && Predicate.isTagged(value, 'Action'),
 
   /**
    * The Message an Action makes of `data`, decoded as its input first; a
@@ -1194,8 +1199,8 @@ export const Surface = {
       messages: messageTags(surface),
       activation: { path: place.dependency, tag },
       projectionOf: model => {
-        const value = place.get(model) as { readonly _tag: string } | undefined
-        return value?._tag === tag
+        const value = place.get(model)
+        return Predicate.isTagged(value, tag)
           ? Option.some(surface.projection(params(value as Schema.Schema.Type<Case>)))
           : Option.none()
       },

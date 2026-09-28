@@ -11,7 +11,7 @@
  * saves have got. What the server holds is read from Remote, never copied: the
  * draft's `updatedAt` a save is based on, and the entry's `revision` a publish is.
  */
-import { Duration, Effect, Option, Schema } from 'effect'
+import { Duration, Effect, Option, Predicate, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
@@ -25,6 +25,7 @@ import type {
 } from 'foldkit-remote'
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
+import type * as FieldValidation from 'foldkit/fieldValidation'
 import * as ManagedResource from 'foldkit/managedResource'
 import { defineMessageUnion } from 'foldkit/message'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -161,10 +162,7 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}, Servi
   authoredChanged(before: FormModel, after: FormModel): boolean
   /** Whether a check is still running, which a submit waits for. */
   readonly engine: { readonly isValidating: (model: FormModel) => boolean }
-  readonly field: (
-    model: FormModel,
-    key: never,
-  ) => { readonly _tag: string; readonly value: unknown; readonly errors?: ReadonlyArray<string> }
+  readonly field: (model: FormModel, key: never) => FieldValidation.Field<unknown>
 }
 
 /** The parts of a bound Remote domain the editor uses. */
@@ -413,7 +411,7 @@ export const makeEditor =
       const submit: Model['submit'] =
         next.outMessage !== undefined || edited
           ? 'idle'
-          : message._tag === 'Submitted'
+          : Predicate.isTagged(message, 'Submitted')
             ? validating
               ? 'waiting'
               : 'stopped'
@@ -433,7 +431,7 @@ export const makeEditor =
         // A submit from the form's own button is a publish now, whatever was asked before.
         if (!isOwn(message))
           return viaForm(
-            message._tag === 'Submitted' ? { ...model, scheduleAt: null } : model,
+            Predicate.isTagged(message, 'Submitted') ? { ...model, scheduleAt: null } : model,
             message,
           )
         switch (message._tag) {
@@ -455,7 +453,13 @@ export const makeEditor =
             return { model, outMessage: { _tag: 'Restore', revision: message.revision } }
           case 'ScheduleAsked':
             return viaForm({ ...model, scheduleAt: message.at }, form.Message.Submitted())
-          default:
+          case 'UnscheduleAsked':
+          case 'ArchiveAsked':
+          case 'UnarchiveAsked':
+          case 'DiscardAsked':
+          case 'UnpublishAsked':
+          case 'ReloadAsked':
+          case 'OverwriteAsked':
             return { model, outMessage: asks[message._tag] }
         }
       },
@@ -788,7 +792,7 @@ export const makeEditor =
           if (key === undefined || content.roles.slug?.key !== key) return root
           const reason = slugTaken.reason(failure.error.message)
           const field = form.field(editor.form, key as never)
-          if (field._tag === 'Invalid' && (field.errors ?? []).includes(reason)) return root
+          if (field._tag === 'Invalid' && field.errors.includes(reason)) return root
           return slice.set(root, {
             ...editor,
             form: form.bundle.update(
@@ -1041,13 +1045,27 @@ export const makeEditor =
               status._tag === 'Failed' && status.error.message.includes('CmsConflict')
             if (editor.edits > editor.savedEdit) return 'Editing'
             if (conflicted(save) || conflicted(publish)) return 'Conflict'
-            if (save._tag === 'Failed') return 'SaveFailed'
-            if (publish._tag === 'Failed') return later ? 'ScheduleFailed' : 'PublishFailed'
-            if (publish._tag === 'Applied') return later ? 'Scheduled' : 'Published'
-            if (save._tag === 'Applied') return 'Saved'
-            // Nothing pending and nothing entered: the form is as it was found. A draft
-            // it was filled from is on the server already; anything else is not a draft.
-            return editor.resumed === 'Model' || editor.resumed === 'Values' ? 'Saved' : 'Opened'
+            // A failed save outranks what the publish says; neither is pending here.
+            switch (save._tag) {
+              case 'Failed':
+                return 'SaveFailed'
+              case 'Unknown':
+              case 'Applied':
+                switch (publish._tag) {
+                  case 'Failed':
+                    return later ? 'ScheduleFailed' : 'PublishFailed'
+                  case 'Applied':
+                    return later ? 'Scheduled' : 'Published'
+                  case 'Unknown':
+                    // Nothing pending and nothing entered: the form is as it was found. A
+                    // draft it was filled from is on the server already; anything else is not.
+                    return save._tag === 'Applied' ||
+                      editor.resumed === 'Model' ||
+                      editor.resumed === 'Values'
+                      ? 'Saved'
+                      : 'Opened'
+                }
+            }
           },
         }
       },

@@ -7,7 +7,7 @@
  * ownership can hold a rich-text editor without a second synchronized document
  * copy or a Command that commits half the transition.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { define } from 'foldkit/customElement'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
@@ -255,117 +255,132 @@ const transition = (
       ? slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)
       : undefined
   const message = menu?.highlighted?.message ?? incoming
-  // The patch Command's own completion: the render already happened.
-  if (message._tag === 'Patched') return { model }
-  if (message._tag === 'Undone' || message._tag === 'Redone') {
-    const restored =
-      message._tag === 'Undone'
-        ? RichText.undo(model.history, state)
-        : RichText.redo(model.history, state)
-    if (restored === undefined) {
-      return {
-        model,
-        outMessage: {
-          _tag: 'Rejected',
-          error: message._tag === 'Undone' ? 'NothingToUndo' : 'NothingToRedo',
-        },
+  return Match.value(message).pipe(
+    Match.withReturnType<Update.ReturnWithOutMessage<EditorView, Message, OutMessage>>(),
+    Match.tags({
+      // The patch Command's own completion: the render already happened.
+      Patched: () => ({ model }),
+      Undone: undone => travel(model, state, undone),
+      Redone: redone => travel(model, state, redone),
+    }),
+    Match.orElse(message => {
+      let nextId = model.nextId
+      // With nothing selected, a mark toggle is the caret's own state: the next
+      // typed text lands with it. A caret move ends the format it was carrying.
+      const collapsed =
+        model.selection?.type === 'Range' &&
+        model.selection.anchor.node === model.selection.focus.node &&
+        model.selection.anchor.offset === model.selection.focus.offset
+      // The caret never carries a mark the vocabulary cannot type — an unknown one, or one
+      // like Link whose props a bare name lacks — so it is refused here rather than at the
+      // first keystroke after it.
+      if (
+        message._tag === 'ToggledMark' &&
+        collapsed &&
+        !(vocabulary.marks ?? RichText.shippedRegistry).accepts(message.mark)
+      ) {
+        return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
       }
-    }
-    const changeSet = replaceChangeSet(model.document, restored.state.document)
-    return {
-      model: {
-        ...model,
-        selection: restored.state.selection,
-        history: restored.history,
-      },
-      outMessage: { _tag: 'Replaced', state: restored.state, changeSet },
-      commands: [patch(model.hostId, restored.state, changeSet)],
-    }
-  }
-  let nextId = model.nextId
-  // With nothing selected, a mark toggle is the caret's own state: the next
-  // typed text lands with it. A caret move ends the format it was carrying.
-  const collapsed =
-    model.selection?.type === 'Range' &&
-    model.selection.anchor.node === model.selection.focus.node &&
-    model.selection.anchor.offset === model.selection.focus.offset
-  // The caret never carries a mark the vocabulary cannot type — an unknown one, or one
-  // like Link whose props a bare name lacks — so it is refused here rather than at the
-  // first keystroke after it.
-  if (
-    message._tag === 'ToggledMark' &&
-    collapsed &&
-    !(vocabulary.marks ?? RichText.shippedRegistry).accepts(message.mark)
-  ) {
-    return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
-  }
-  const storedMarks =
-    message._tag === 'ToggledMark' && collapsed
-      ? model.storedMarks?.includes(message.mark)
-        ? model.storedMarks.filter(mark => mark !== message.mark)
-        : [...(model.storedMarks ?? []), message.mark]
-      : message._tag === 'Selected'
-        ? null
-        : model.storedMarks
-  const command =
-    message._tag === 'Typed' && storedMarks !== null
-      ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
-      : toCommand(message)
-  // Choosing an entry removes the query it was typed into and applies the choice as
-  // one action (§124 §5), so one transition and one undo step cover both. The range is
-  // a read, not state: `menu.query` is the text the document already holds, and the
-  // `+ 1` is the slash that opened it.
-  const queryRange =
-    menu === undefined || menu.highlighted === undefined || model.selection?.type !== 'Range'
-      ? undefined
-      : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
-  const runAction = (action: RichText.Action) =>
-    RichText.runAction(
-      state,
-      action,
-      { mint: () => `e${nextId++}` },
-      { marks: vocabulary.marks, nodes: vocabulary.nodes },
-    )
-  // What is typed can be a block marker (§124 §4): the rules are the placement's own, so
-  // the editor carries none of any syntax's vocabulary itself.
-  const ruled =
-    queryRange === undefined && message._tag === 'Typed'
-      ? RichText.applyInputRules(inputRulesFor(model.hostId), {
-          textBefore: textBeforeOf(model),
-          text: message.text,
-          insertion: command,
-        })
-      : undefined
-  const attempt = runAction(
-    queryRange !== undefined
-      ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
-      : (ruled ?? [command]),
+      const storedMarks =
+        message._tag === 'ToggledMark' && collapsed
+          ? model.storedMarks?.includes(message.mark)
+            ? model.storedMarks.filter(mark => mark !== message.mark)
+            : [...(model.storedMarks ?? []), message.mark]
+          : message._tag === 'Selected'
+            ? null
+            : model.storedMarks
+      const command =
+        message._tag === 'Typed' && storedMarks !== null
+          ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
+          : toCommand(message)
+      // Choosing an entry removes the query it was typed into and applies the choice as
+      // one action (§124 §5), so one transition and one undo step cover both. The range is
+      // a read, not state: `menu.query` is the text the document already holds, and the
+      // `+ 1` is the slash that opened it.
+      const queryRange =
+        menu === undefined || menu.highlighted === undefined || model.selection?.type !== 'Range'
+          ? undefined
+          : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
+      const runAction = (action: RichText.Action) =>
+        RichText.runAction(
+          state,
+          action,
+          { mint: () => `e${nextId++}` },
+          { marks: vocabulary.marks, nodes: vocabulary.nodes },
+        )
+      // What is typed can be a block marker (§124 §4): the rules are the placement's own, so
+      // the editor carries none of any syntax's vocabulary itself.
+      const ruled =
+        queryRange === undefined && message._tag === 'Typed'
+          ? RichText.applyInputRules(inputRulesFor(model.hostId), {
+              textBefore: textBeforeOf(model),
+              text: message.text,
+              insertion: command,
+            })
+          : undefined
+      const attempt = runAction(
+        queryRange !== undefined
+          ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
+          : (ruled ?? [command]),
+      )
+      // A rule the vocabulary refuses — a fence typed into bold text, say — leaves the marker
+      // as the text it is, rather than refusing the keystroke along with it. The refused
+      // attempt's identities are given back first.
+      const fallback = !attempt.ok && ruled !== undefined
+      if (fallback) nextId = model.nextId
+      const result = fallback ? runAction([command]) : attempt
+      if (!result.ok) {
+        // A refused command changes nothing, so it does not burn identities.
+        return { model, outMessage: { _tag: 'Rejected', error: result.error } }
+      }
+      // History holds content, not cursor movement: a selection change keeps the
+      // redo stack, and a no-op edit adds no step to undo.
+      const contentChanged = result.state.document !== model.document
+      return {
+        model: {
+          ...model,
+          selection: result.state.selection,
+          nextId,
+          storedMarks,
+          history: contentChanged
+            ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
+            : model.history,
+        },
+        outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
+        commands: [patch(model.hostId, result.state, result.changeSet)],
+      }
+    }),
   )
-  // A rule the vocabulary refuses — a fence typed into bold text, say — leaves the marker
-  // as the text it is, rather than refusing the keystroke along with it. The refused
-  // attempt's identities are given back first.
-  const fallback = !attempt.ok && ruled !== undefined
-  if (fallback) nextId = model.nextId
-  const result = fallback ? runAction([command]) : attempt
-  if (!result.ok) {
-    // A refused command changes nothing, so it does not burn identities.
-    return { model, outMessage: { _tag: 'Rejected', error: result.error } }
+}
+
+/** Undo or redo: history restores content and selection, and the host is told as a replace. */
+const travel = (
+  model: EditorView,
+  state: RichText.EditorState,
+  message: Extract<Message, { readonly _tag: 'Undone' | 'Redone' }>,
+): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
+  const restored =
+    message._tag === 'Undone'
+      ? RichText.undo(model.history, state)
+      : RichText.redo(model.history, state)
+  if (restored === undefined) {
+    return {
+      model,
+      outMessage: {
+        _tag: 'Rejected',
+        error: message._tag === 'Undone' ? 'NothingToUndo' : 'NothingToRedo',
+      },
+    }
   }
-  // History holds content, not cursor movement: a selection change keeps the
-  // redo stack, and a no-op edit adds no step to undo.
-  const contentChanged = result.state.document !== model.document
+  const changeSet = replaceChangeSet(model.document, restored.state.document)
   return {
     model: {
       ...model,
-      selection: result.state.selection,
-      nextId,
-      storedMarks,
-      history: contentChanged
-        ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
-        : model.history,
+      selection: restored.state.selection,
+      history: restored.history,
     },
-    outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
-    commands: [patch(model.hostId, result.state, result.changeSet)],
+    outMessage: { _tag: 'Replaced', state: restored.state, changeSet },
+    commands: [patch(model.hostId, restored.state, changeSet)],
   }
 }
 

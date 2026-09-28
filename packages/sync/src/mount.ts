@@ -8,6 +8,7 @@
  * a persist fails, through one private Message the application never sees.
  */
 import { Effect, Exit, Layer, Schema, Stream } from 'effect'
+import { absurd } from 'effect/Function'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
 import type { UrlRequest } from 'foldkit/navigation'
@@ -34,6 +35,18 @@ type Private =
   | { readonly _tag: typeof FAILED; readonly error: ReplicaError }
   | { readonly _tag: typeof NAVIGATE; readonly request: UrlRequest }
   | { readonly _tag: typeof NAVIGATED }
+
+// A key per private tag, so a variant added to `Private` must be added here too.
+const PRIVATE: Readonly<Record<Private['_tag'], true>> = {
+  [REFRESH]: true,
+  [PERSISTED]: true,
+  [FAILED]: true,
+  [NAVIGATE]: true,
+  [NAVIGATED]: true,
+}
+
+const isPrivate = (message: { readonly _tag: string }): message is Private =>
+  Object.hasOwn(PRIVATE, message._tag)
 
 /**
  * The URL as part of the application: `onUrlChange` names the Message the
@@ -221,9 +234,9 @@ export const mount = <
   }
   const notifyCommitted = (): void => notifyEach(committedListeners, undefined)
 
-  const update = (
+  const updatePrivate = (
     model: Model,
-    message: RuntimeMessage,
+    message: Private,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
     switch (message._tag) {
       // Installs at once: edits still waiting for the replica are replayed on
@@ -233,14 +246,14 @@ export const mount = <
       case PERSISTED:
         return { model }
       case FAILED: {
-        const { error } = message as Extract<Private, { readonly _tag: typeof FAILED }>
+        const { error } = message
         const reverted = install(model)
         return { model: options.onPersistenceFailure?.(reverted, error) ?? reverted }
       }
       case NAVIGATE: {
         // A link the application did not claim: follow it. The runtime then
         // reports the new URL through `onUrlChange`.
-        const { request } = message as Extract<Private, { readonly _tag: typeof NAVIGATE }>
+        const { request } = message
         const follow =
           request._tag === 'Internal'
             ? Navigation.pushUrl(Url.toString(request.url))
@@ -257,49 +270,52 @@ export const mount = <
       }
       case NAVIGATED:
         return { model }
-      default: {
-        notifyEach(messageListeners, message as Message)
-        const result = app.update(model, message as Message) as Update.Return<
-          Model,
-          RuntimeMessage,
-          Resources
-        >
-        if (!durable.has(message._tag)) return result
-        const edit: LocalEdit<Message> = { message: message as Message, started: undefined }
-        edits.push(edit)
-        const previous = tail
-        let settle!: () => void
-        const done = new Promise<void>(resolve => {
-          settle = resolve
-        })
-        tail = done
-        const release = (): void => {
-          const index = edits.indexOf(edit)
-          if (index !== -1) edits.splice(index, 1)
-          inFlight.delete(done)
-          settle()
-        }
-        const persist = {
-          name: 'foldkit-sync/persist',
-          effect: Effect.gen(function* () {
-            // Tracked so `dispose` can wait instead of interrupting a persist.
-            inFlight.add(done)
-            // One submit at a time, in dispatch order, so `started` is the
-            // sequence this edit takes if its submit succeeds.
-            yield* Effect.promise(() => previous)
-            edit.started = (yield* replica.snapshot).nextLocalSequence
-            const outcome = yield* Effect.result(replica.submit(edit.message))
-            return outcome._tag === 'Success'
-              ? ({ _tag: PERSISTED } as RuntimeMessage)
-              : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
-          }).pipe(
-            // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
-            Effect.ensuring(Effect.sync(release)),
-          ),
-        }
-        return { model: result.model, commands: [...(result.commands ?? []), persist] }
-      }
+      default:
+        return absurd(message)
     }
+  }
+
+  const update = (
+    model: Model,
+    message: RuntimeMessage,
+  ): Update.Return<Model, RuntimeMessage, Resources> => {
+    if (isPrivate(message)) return updatePrivate(model, message)
+    notifyEach(messageListeners, message)
+    const result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
+    if (!durable.has(message._tag)) return result
+    const edit: LocalEdit<Message> = { message, started: undefined }
+    edits.push(edit)
+    const previous = tail
+    let settle!: () => void
+    const done = new Promise<void>(resolve => {
+      settle = resolve
+    })
+    tail = done
+    const release = (): void => {
+      const index = edits.indexOf(edit)
+      if (index !== -1) edits.splice(index, 1)
+      inFlight.delete(done)
+      settle()
+    }
+    const persist = {
+      name: 'foldkit-sync/persist',
+      effect: Effect.gen(function* () {
+        // Tracked so `dispose` can wait instead of interrupting a persist.
+        inFlight.add(done)
+        // One submit at a time, in dispatch order, so `started` is the
+        // sequence this edit takes if its submit succeeds.
+        yield* Effect.promise(() => previous)
+        edit.started = (yield* replica.snapshot).nextLocalSequence
+        const outcome = yield* Effect.result(replica.submit(edit.message))
+        return outcome._tag === 'Success'
+          ? ({ _tag: PERSISTED } as RuntimeMessage)
+          : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
+      }).pipe(
+        // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
+        Effect.ensuring(Effect.sync(release)),
+      ),
+    }
+    return { model: result.model, commands: [...(result.commands ?? []), persist] }
   }
 
   const ports = {

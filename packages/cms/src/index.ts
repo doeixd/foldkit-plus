@@ -18,6 +18,7 @@ import {
   type EntityInput,
   Expr,
   Order,
+  SchemaShape,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
@@ -64,18 +65,6 @@ const rolesKey = Metadata.key<Readonly<Record<string, string>>>('foldkit-cms/rol
   merge: roles => [Object.assign({}, ...roles) as Readonly<Record<string, string>>],
   summarize: roles => Object.keys(roles).join(','),
 })
-
-interface AstLike {
-  readonly _tag: string
-  readonly literal?: unknown
-  readonly types?: ReadonlyArray<AstLike>
-}
-
-const isText = (ast: AstLike): boolean =>
-  ast._tag === 'String' ||
-  ast._tag === 'TemplateLiteral' ||
-  (ast._tag === 'Literal' && typeof ast.literal === 'string') ||
-  (ast._tag === 'Union' && (ast.types ?? []).length > 0 && (ast.types ?? []).every(isText))
 
 const fail = (message: string): never => {
   throw new Error(`foldkit-cms: ${message}`)
@@ -315,7 +304,7 @@ export const Cms = {
         if (role === 'published') {
           if (!Schema.is(type as Schema.Codec<unknown>)(null))
             fail(`"${key}" of ${entity.name} admits no null, so it cannot say a row is unpublished`)
-        } else if (!isText(type.ast as unknown as AstLike)) {
+        } else if (!SchemaShape.isText(type.ast)) {
           fail(`"${key}" of ${entity.name} is not text, so it cannot be its ${role}`)
         }
       }
