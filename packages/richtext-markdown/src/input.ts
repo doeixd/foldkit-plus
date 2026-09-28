@@ -99,10 +99,9 @@ const fenceRule: InputRule = {
 
 /**
  * A task marker, `[ ] ` or `[x] `, at the start of a list item: `- ` has already made the
- * item by then, so the rule reads that it is in one. The paragraph is lifted out of the item
- * and wrapped as a task, which joins the list it came from only when the item was the last of
- * a bulleted list and held nothing else; anywhere else it splits the list, because no command
- * retypes a list item in place and a rule cannot see where its item stands.
+ * item by then, so the rule reads that it is in one. The item becomes a task where it stands,
+ * with everything it holds. `RetypeContainer` refuses unless the marker is in the item's first
+ * block, as Markdown reads it, so in a later paragraph of the item the marker stays text.
  */
 const taskRule: InputRule = {
   name: 'task-list',
@@ -112,13 +111,9 @@ const taskRule: InputRule = {
     return {
       remove: textBefore.length,
       commands: [
-        { type: 'LiftBlock' },
         {
-          type: 'WrapBlock',
-          containers: [
-            { kind: 'List' },
-            { kind: 'TaskItem', props: { checked: marker[1] !== ' ' } },
-          ],
+          type: 'RetypeContainer',
+          to: { kind: 'TaskItem', props: { checked: marker[1] !== ' ' } },
         },
       ],
     }

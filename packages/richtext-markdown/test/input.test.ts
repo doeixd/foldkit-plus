@@ -180,38 +180,65 @@ describe('the rules applied to a document, as the editor applies them', () => {
     expect(print(result.state.document).markdown).toBe('- milk\n- eggs\n')
   })
 
+  /**
+   * Completes the task marker the source already holds at the start of a paragraph (`[ ]`
+   * before the space that makes it one), as the editor would, with the kinds around it, and
+   * prints the result in the source's style, or gives the refusal.
+   */
+  const completeTask = (source: string) => {
+    let count = 0
+    const mint = () => `m${++count}`
+    const { document, style } = parse(source, { mint })
+    let found: RichText.Text | undefined
+    const visit = (blocks: ReadonlyArray<RichText.Block>) => {
+      for (const block of blocks) {
+        found ??= block.children.find(run => /^\[[ x]\]/.test(run.text))
+        if (block.type === 'Node') visit(block.blocks ?? [])
+      }
+    }
+    visit(document.children)
+    if (found === undefined) throw new Error('no marker in the source')
+    const marker = found.text.slice(0, 3)
+    const caret = { node: found.id, offset: 3, affinity: 'after' } as const
+    const selection = { type: 'Range', anchor: caret, focus: caret } as const
+    const within = RichText.blocksAt(document, selection)
+      .slice(0, -1)
+      .map(block => (block.type === 'Node' ? block.kind : block.type))
+      .reverse()
+    const action = RichText.applyInputRules(markdownInputRules, {
+      textBefore: marker,
+      text: ' ',
+      insertion: { type: 'InsertText', text: ' ' },
+      within,
+    })
+    const result = RichText.runAction(
+      { document, selection },
+      action,
+      { mint },
+      { nodes: RichText.nodeRegistry(RichText.standardNodes) },
+    )
+    return result.ok ? print(result.state.document, { style }).markdown : result
+  }
+
   it.each([
-    ['[ ]', false],
-    ['[x]', true],
-  ])(
-    'turns `%s ` at the start of a list’s last item into a task in that list',
-    (marker, checked) => {
-      let count = 0
-      const mint = () => `m${++count}`
-      const { document } = parse(`- milk\n- ${marker}eggs\n`, { mint })
-      const list = document.children[0]
-      const item = list?.type === 'Node' ? list.blocks?.[1] : undefined
-      const run = item?.type === 'Node' ? item.blocks?.[0]?.children[0] : undefined
-      if (run === undefined) throw new Error('no second item')
-      const caret = { node: run.id, offset: marker.length, affinity: 'after' } as const
-      const action = RichText.applyInputRules(markdownInputRules, {
-        textBefore: marker,
-        text: ' ',
-        insertion: { type: 'InsertText', text: ' ' },
-        within: ['ListItem', 'List'],
-      })
-      const result = RichText.runAction(
-        { document, selection: { type: 'Range', anchor: caret, focus: caret } },
-        action,
-        { mint },
-        { nodes: RichText.nodeRegistry(RichText.standardNodes) },
-      )
-      if (!result.ok) throw new Error(result.error)
-      expect(print(result.state.document).markdown).toBe(
-        `- milk\n- [${checked ? 'x' : ' '}] eggs\n`,
-      )
-    },
-  )
+    ['first', '- [ ]milk\n- eggs\n', '- [ ] milk\n- eggs\n'],
+    ['middle', '- a\n- [x]b\n- c\n', '- a\n- [x] b\n- c\n'],
+    ['last', '- milk\n- [ ]eggs\n', '- milk\n- [ ] eggs\n'],
+    ['ordered', '1. a\n2. [ ]b\n3. c\n', '1. a\n2. [ ] b\n3. c\n'],
+    ['nested', '- a\n  - [ ]b\n  - c\n- d\n', '- a\n  - [ ] b\n  - c\n- d\n'],
+    ['sub-listed', '- [x]a\n  - b\n- c\n', '- [x] a\n  - b\n- c\n'],
+  ])('makes the %s item a task where it stands', (_, source, expected) => {
+    // Against what the printer makes of the expected source, which is where it writes a
+    // nested list after a blank line.
+    let count = 0
+    const { document, style } = parse(expected, { mint: () => `x${++count}` })
+    expect(completeTask(source)).toBe(print(document, { style }).markdown)
+  })
+
+  // The editor then types the space alone, so the marker stays text.
+  it('refuses a marker in a later paragraph of the item', () => {
+    expect(completeTask('- a\n\n  [ ]b\n')).toEqual({ ok: false, error: 'InvalidInput' })
+  })
 
   it('reads a task marker only inside a list item', () => {
     expect(match('[ ] ')).toBeUndefined()

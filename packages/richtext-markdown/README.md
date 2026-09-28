@@ -122,10 +122,9 @@ marker such as `1. ` or `3) ` wrap it in a quote or a list (`WrapBlock`), an ord
 numbered from the number typed, and a marker typed right after a list of the same kind adds an
 item to it; and a fence with an optional language, such as
 `` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). `[ ] ` or `[x] ` at
-the start of a list item, which `- ` has made by then, lifts its paragraph out and wraps it as a
-task, unticked or ticked. That joins the list it came from only when the item was the last of a
-bulleted list and held only that paragraph: in any other item it splits the list, because no
-command yet retypes a list item in place. An editor
+the start of a list item, which `- ` has made by then, makes the item a task where it stands,
+unticked or ticked (`RetypeContainer`), in a bulleted or an ordered list, with any list nested
+in it. Typed in a later paragraph of the item, the marker stays text, as Markdown reads it. An editor
 placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
 editor state and the editor holds no Markdown:
 
