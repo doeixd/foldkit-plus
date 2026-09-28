@@ -69,7 +69,10 @@ version changed; `pnpm` skips versions already in the registry.
   preview, canonical address and article facts, beside a sitemap and
   `robots.txt`. The browser takes a generated page over without drawing or
   reading it again, while the visitor's sandbox still holds the seed. The
-  studio is `noindex`.
+  studio is `noindex`. Moving between the studio's Posts and Pages no longer
+  reloads the page: the two applications share one document and swap in
+  place, keeping the loaded code and the in-page server, about 60 ms a move
+  where a load took 220 (and 0.8–1 s on a slowed CPU).
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

@@ -196,6 +196,11 @@ in-process one:
 | `/pages` | **The studio's pages**: the site's pages, and a page opened in the page Builder: the Blocks to add and the page's layers on the left, the page in the middle, the selected Block's settings on the right. |
 | `/site` | **The public site**: the home page, the blog at `/site/blog` (the newest post leading), a post at `/site/blog/<slug>`, and any other page at `/site/<slug>`, read as a visitor may see them. |
 
+The studio's two sections share one document (`studio.ts`): moving between
+Posts and Pages swaps the application in place, keeping the loaded code and
+the open sandbox, and Back and Forward cross between them the same way. A
+change of chair, or the public site, is still a full load.
+
 **Which chair you sit in is in the address** (`?as=wren`, `?as=edda`,
 `?as=visitor`), and the studio's sidebar switches it, so a reload is a change
 of chair, and two windows side by side are two authors on one entry. What a
