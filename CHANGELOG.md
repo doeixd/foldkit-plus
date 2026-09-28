@@ -42,6 +42,10 @@ version changed; `pnpm` skips versions already in the registry.
   initial Model and, once the throttle passed, replaced or deleted the stored
   slice while the restore was still reading it. The hold is per runtime and
   applies again on every restore; a failed read counts as an empty store.
+- **`foldkit-mixins`, `Inert.missingTokens` reads inline styles:** a
+  `var(--fk-…)` in an inline style value is reported when nothing defines it,
+  as a compiled rule's read already was; a token set inline still counts as
+  defined.
 
 ### Added
 
