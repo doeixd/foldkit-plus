@@ -355,7 +355,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   ])
 }
 
-const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
+/** The studio's posts shell, for a parent drawing it as a submodel. */
+export const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
   shell(
     slots,
     h,
@@ -378,11 +379,17 @@ const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<
 ).pipe(Style.attach(AdminStyle))
 
 /** The studio's posts, titled in the tab by the post open, if one is. */
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+export const titleOf = (model: Model): string => {
   const typed = PostForm.field(model.editor.form, 'title').value
   const title =
     PostEditor.status(model) === 'Closed' || typeof typed !== 'string' || typed.trim() === ''
       ? 'Posts'
       : typed.trim()
-  return { title: `${title} · Journal Studio`, body: Studio(model, h) }
+  return `${title} · Journal Studio`
 }
+
+/** The studio's posts, titled in the tab by the post open, if one is. */
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
+  title: titleOf(model),
+  body: Studio(model, h),
+})

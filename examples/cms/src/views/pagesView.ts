@@ -197,7 +197,8 @@ const revisionsOf = (model: Model): ReadonlyArray<RevisionRow> =>
     },
   })
 
-const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
+/** The studio's pages shell, for a parent drawing it as a submodel. */
+export const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
   shell(
     slots,
     h,
@@ -220,6 +221,8 @@ const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Me
 ).pipe(Style.attach(AdminStyle))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: 'Pages · Journal Studio',
+  title: titleOf(model),
   body: Page(model, h),
 })
+
+export const titleOf = (_model: Model): string => 'Pages · Journal Studio'

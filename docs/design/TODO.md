@@ -182,9 +182,11 @@ not later polish.
   is a full load and one within it is a Navigate Command. §33.7
 - [ ] **Prefetch a target's data before navigating,** which removes the waits
   the demo still shows between screens. §16, §33.6
-- [ ] **The studio's one blank frame between sections:** one application with
+- [x] **The studio's one blank frame between sections:** one application with
   lazily loaded sections, or rendered first paints as the public site now has.
-  §33.7
+  §33.7 Built as one studio application (`examples/cms/src/apps/studioApp.ts`)
+  with section-gated subscriptions; see [cms-demo-PLAN.md](./cms-demo-PLAN.md)
+  §1b. Prefetch (the item above) is what removes the remaining waits.
 - [ ] **Site paths and targets:** `Site.paths(node, source)` enumerating a
   node's addresses from a query, `Site.targets(site)` for a build, a sitemap
   and prefetch, and one declaration giving both `routeOf` and `pathOf`. §33.9

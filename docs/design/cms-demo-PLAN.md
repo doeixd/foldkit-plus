@@ -76,6 +76,15 @@ first `foldkit-site` cut (TODO.md routing section), not later polish.
 
 ## 1b. The studio should be one application, not two (the site stays separate)
 
+> **Built** as `examples/cms/src/apps/studioApp.ts`: one studio runtime for
+> posts and pages; the site stays separate. As built, both section slices
+> boot (neither init fetches by itself), and both keep their `remote` slice:
+> the two Remote domains share no tags to tell their Messages apart, so each
+> section folds its own inside its update, and the subscriptions lift with a
+> section gate (a closed gate tears its entries down, as a remount did).
+> Same-document links `Navigate` with the address's query carried into the
+> target (dropping a foreign `new`); `mountStudio` and its test are gone.
+
 `client.ts` boots three applications: posts at `/`, pages at `/pages`
 (swapped in place by `mountStudio`), and the site at `/site`. The two studio
 sections are structural twins (same `EntryEditor`/`openNamed`/`beginMissing`

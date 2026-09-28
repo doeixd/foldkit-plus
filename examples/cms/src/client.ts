@@ -5,20 +5,15 @@
  * (`?as=wren`), so a reload is a change of chair.
  */
 import type { UrlRequest } from 'foldkit/navigation'
-import { Option } from 'effect'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
-import { Remote } from 'foldkit-remote'
-import * as Posts from './apps/app.js'
-import * as Pages from './apps/pageApp.js'
+import { Remote, type RemoteClient } from 'foldkit-remote'
 import * as Site from './apps/siteApp.js'
+import * as Studio from './apps/studioApp.js'
 import { APP_ROOT, siteConfig, takesOver } from './content/siteConfig.js'
-import { view as pagesView } from './views/pagesView.js'
 import { edited } from './server/sandboxKey.js'
 import { keepScroll } from './routing/scroll.js'
-import { mountStudio } from './apps/studio.js'
 import { chairOf, httpSend, remoteClient, type Send } from './server/transport.js'
-import { view as postsView } from './views/view.js'
 
 /**
  * Whether the address asks for a fresh sandbox (`?reset`): read, and taken out of
@@ -59,7 +54,6 @@ const send: Send =
     : httpSend('/remote')
 const path = window.location.pathname
 
-type Section = 'posts' | 'pages'
 // The site is read as a visitor unless the address says otherwise; the studio as a writer.
 const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visitor' : 'wren')
 const remote = Remote.clientLayer(remoteClient(send, chair))
@@ -75,60 +69,23 @@ if (path.startsWith('/site')) {
     )
   else Runtime.run(Runtime.makeApplication(config))
 } else {
-  // The studio's two sections share one document (`studio.ts`).
-  const sectionOf = (pathname: string): Option.Option<Section> =>
-    pathname === '/'
-      ? Option.some('posts')
-      : pathname.startsWith('/pages')
-        ? Option.some('pages')
-        : Option.none()
-  const programOf = (section: Section, at: HTMLElement) =>
-    section === 'pages'
-      ? Runtime.makeApplication(
-          Pages.placements.complete({
-            Model: Pages.Model,
-            container: at,
-            // The address names the page and the Block: opening it is a navigation.
-            init: (url: Url) => Pages.update(Pages.initial, Pages.Message.UrlChanged({ url })),
-            update: Pages.update,
-            view: pagesView,
-            routing: {
-              onUrlChange: (url: Url) => Pages.Message.UrlChanged({ url }),
-              onUrlRequest: (request: UrlRequest) => Pages.Message.UrlRequested({ request }),
-            },
-            subscriptions: Pages.placements.subscriptions(Pages.address),
-            resources: remote,
-          }),
-        )
-      : Runtime.makeApplication(
-          Posts.placements.complete({
-            Model: Posts.Model,
-            container: at,
-            // The address names the post open and how the list is narrowed.
-            init: (url: Url) => Posts.init(url),
-            update: Posts.update,
-            view: postsView,
-            routing: {
-              onUrlChange: (url: Url) => Posts.Message.UrlChanged({ url }),
-              onUrlRequest: (request: UrlRequest) => Posts.Message.UrlRequested({ request }),
-            },
-            subscriptions: Posts.placements.subscriptions(Posts.address),
-            resources: remote,
-          }),
-        )
-
-  // The studio keeps a host of its own for the sections to be drawn in.
+  // The studio's two sections share one document and one runtime: moving
+  // between them swaps no application, so nothing reloads and nothing refetches.
   const host = document.createElement('div')
   container.replaceWith(host)
-  mountStudio({
-    host,
-    sectionOf,
-    initial: Option.getOrElse(sectionOf(path), (): Section => 'posts'),
-    mount: (section, at) => {
-      const handle = Runtime.embed(programOf(section, at))
-      return () => handle.dispose()
-    },
-    // Another chair is another transport, so it is still a full load.
-    sameReader: url => chairOf(url.search) === chair,
-  })
+  Runtime.run(
+    Runtime.makeApplication<Studio.Model, Studio.Message, RemoteClient>({
+      Model: Studio.Model,
+      container: host,
+      init: (url: Url) => Studio.init(url),
+      update: Studio.update,
+      view: Studio.view,
+      routing: {
+        onUrlChange: (url: Url) => Studio.Message.UrlChanged({ url }),
+        onUrlRequest: (request: UrlRequest) => Studio.Message.UrlRequested({ request }),
+      },
+      subscriptions: Studio.subscriptions,
+      resources: remote,
+    }),
+  )
 }

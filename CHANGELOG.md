@@ -49,6 +49,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **CMS example, one studio application:** posts and pages share a document,
+  a runtime and an address (`examples/cms/src/apps/studioApp.ts`); moving
+  between them swaps no application. Each section keeps its Model, update,
+  view and subscriptions (its Remote domain folds its own Messages); a
+  same-document navigation carries the address's query into its target.
+
 - **`foldkit-mixins-form`, `FormView.fields(form, { overrides, styles })`:**
   the whole form as `define` draws it, with per-key overrides and styles, plus
   one flat key's control for a layout the caller owns. Keys with no override

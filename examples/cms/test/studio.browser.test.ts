@@ -1,99 +1,80 @@
 /**
- * The studio's sections in one document: a link to another section, or Back
- * across one, swaps the application in place; anything else is left to the
- * page, a full load as before.
+ * The studio as one application in a real browser: its sections share one
+ * runtime, so moving between them swaps no application — the address, the
+ * narrowing and each section's Model stay as they were.
  */
-import { Option } from 'effect'
-import { afterEach, beforeEach, expect, it } from 'vitest'
-import { mountStudio } from '../src/apps/studio.js'
+import { Remote } from 'foldkit-remote'
+import type { HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import type { Url } from 'foldkit/url'
+import { afterEach, expect, it } from 'vitest'
+import * as Studio from '../src/apps/studioApp.js'
+import { openSandbox } from '../src/server/browser.js'
+import { remoteClient, type Send } from '../src/server/transport.js'
 
-type Section = 'posts' | 'pages'
-const sectionOf = (pathname: string): Option.Option<Section> =>
-  pathname === '/'
-    ? Option.some('posts')
-    : pathname.startsWith('/pages')
-      ? Option.some('pages')
-      : Option.none()
-
-/** Links that reached the page, which the studio left alone; stopped here, so the test stays put. */
-let reached: Array<string> = []
-const stay = (event: MouseEvent) => {
-  const link = event.target instanceof Element ? event.target.closest('a') : null
-  if (link !== null) reached.push(link.id)
-  event.preventDefault()
-}
-let teardown = () => {}
-
-beforeEach(() => {
-  reached = []
-  window.history.replaceState(null, '', '/?as=edda')
-  document.addEventListener('click', stay)
-})
+let dispose = () => {}
 afterEach(() => {
-  teardown()
-  document.removeEventListener('click', stay)
+  dispose()
   document.body.replaceChildren()
-  window.history.replaceState(null, '', '/')
+  localStorage.clear()
 })
 
-const studio = () => {
-  const host = document.createElement('div')
-  document.body.append(host)
-  const log: Array<string> = []
-  teardown = mountStudio<Section>({
-    host,
-    sectionOf,
-    initial: 'posts',
-    mount: (section, at) => {
-      at.innerHTML = [
-        '<a id="posts" href="/?as=edda">Posts</a>',
-        '<a id="pages" href="/pages?as=edda">Pages</a>',
-        '<a id="wren" href="/pages?as=wren">Wren</a>',
-        '<a id="site" href="/site?as=edda">Site</a>',
-      ].join('')
-      log.push(`start ${section}`)
-      return () => log.push(`stop ${section}`)
-    },
-    sameReader: url => url.searchParams.get('as') === 'edda',
-  })
-  return { host, log }
+const container = () => {
+  const element = document.createElement('div')
+  element.id = 'studio-test'
+  document.body.appendChild(element)
+  return element
 }
 
-const click = (id: string) => document.getElementById(id)?.click()
+const text = (selector: string) => document.querySelector(selector)?.textContent ?? ''
 
-it('swaps to the section a link names, in place, with the address to match', () => {
-  const { host, log } = studio()
-  click('pages')
-  expect(log).toEqual(['start posts', 'stop posts', 'start pages'])
-  expect(window.location.pathname).toBe('/pages')
-  expect(host.children).toHaveLength(1)
-  expect(reached).toEqual([])
-})
+/** Mounts the studio at `path`, answering Remote from a fresh seed. */
+const mount = async (path: string, search: string) => {
+  window.history.replaceState(null, '', `${path}?${search}`)
+  const send: Send = await openSandbox({ fresh: true })
+  const handle = Runtime.embed(
+    Runtime.makeApplication({
+      Model: Studio.Model,
+      container: container(),
+      init: (url: Url) => Studio.init(url),
+      update: Studio.update,
+      view: (model: Studio.Model, h: HtmlBuilder<Studio.Message>) => Studio.view(model, h),
+      routing: {
+        onUrlChange: (url: Url) => Studio.Message.UrlChanged({ url }),
+        onUrlRequest: request => Studio.Message.UrlRequested({ request }),
+      },
+      subscriptions: Studio.subscriptions,
+      resources: Remote.clientLayer(remoteClient(send, 'edda')),
+    }),
+  )
+  dispose = () => handle.dispose()
+}
 
-it('leaves the same section, another reader and the site to the page', () => {
-  const { log } = studio()
-  click('posts')
-  click('wren')
-  click('site')
-  expect(reached).toEqual(['posts', 'wren', 'site'])
-  expect(log).toEqual(['start posts'])
-})
+const click = (selector: string) => (document.querySelector(selector) as HTMLElement).click()
 
-it('answers Back across sections', async () => {
-  const { log } = studio()
-  click('pages')
-  const back = new Promise(resolve => window.addEventListener('popstate', resolve, { once: true }))
-  window.history.back()
-  await back
-  expect(window.location.pathname).toBe('/')
-  expect(log.at(-1)).toBe('start posts')
-})
+const type = (selector: string, value: string) => {
+  const input = document.querySelector(selector) as HTMLInputElement
+  input.value = value
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
 
-it('stops its section and lets go of links once taken down', () => {
-  const { log } = studio()
-  teardown()
-  teardown = () => {}
-  click('pages')
-  expect(log).toEqual(['start posts', 'stop posts'])
-  expect(reached).toEqual(['pages'])
+it('moves between sections in place, keeping the address and each section’s state', async () => {
+  // The shell reads its chair when its module loads, so the test sits in one chair throughout.
+  await mount('/', 'as=wren')
+  await expect.poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]')).toBe('Posts')
+  // Narrowing the worklist writes the address, as one application would.
+  type('input[aria-label="Search posts"]', 'milk')
+  await expect.poll(() => window.location.search).toContain('q=milk')
+
+  click('a[href="/pages?as=wren"]')
+  await expect.poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]')).toBe('Pages')
+  await expect.poll(() => text('#new')).toContain('New page')
+  // The posts section is hidden, not gone: its narrowing stays in the address.
+  expect(window.location.search).toContain('q=milk')
+
+  click('a[href="/?as=wren"]')
+  await expect.poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]')).toBe('Posts')
+  expect(
+    (document.querySelector('input[aria-label="Search posts"]') as HTMLInputElement).value,
+  ).toBe('milk')
 })
