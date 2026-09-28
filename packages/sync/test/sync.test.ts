@@ -787,6 +787,34 @@ describe('a paged exchange', () => {
     await close(replica)
   })
 
+  it('keeps an acknowledged operation in view until its committed copy arrives on a later page', async () => {
+    const replica = await open('a')
+    await submit(replica, created('mine'))
+    const log = [1, 2, 3].map(sequence =>
+      committed('b', sequence, sequence, created(`t${sequence}`)),
+    )
+    const seen: Array<Array<string>> = []
+    await sync(replica, {
+      exchange: async (cursor, pending) => {
+        seen.push(shared(replica).todos.map(todo => todo.id))
+        for (const sent of pending)
+          if (!log.some(operation => operation.opId === sent.opId))
+            log.push({ ...sent, serverSequence: toSequence(log.length + 1), actorId: 'owner' })
+        return {
+          operations: log.slice(cursor, cursor + 2),
+          acknowledged: pending.map(operation => operation.opId),
+          rejected: [],
+          more: cursor + 2 < log.length,
+        }
+      },
+    })
+    // Every page was asked for with the user's edit still showing.
+    expect(seen).toEqual([['mine'], ['t1', 't2', 'mine']])
+    expect(pending(replica)).toEqual([])
+    expect(shared(replica).todos.map(todo => todo.id)).toEqual(['t1', 't2', 't3', 'mine'])
+    await close(replica)
+  })
+
   it('stops when a round says there is more but moves the cursor nowhere', async () => {
     const replica = await open('a')
     let asked = 0

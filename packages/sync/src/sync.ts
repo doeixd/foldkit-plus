@@ -720,10 +720,14 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               cursor,
               ...(epoch === undefined ? {} : { epoch }),
               committedIds: [...ids].slice(-COMMITTED_ID_WINDOW),
+              // While the server has more to send, an acknowledged operation's committed
+              // copy may be on a later page, so it stays in the optimistic view until then.
+              // An acknowledged operation the replica is already past (committed before a
+              // checkpoint, say) never arrives, so it goes once there is no more to read.
               pending: current.pending.filter(
                 operation =>
                   !ids.has(operation.opId) &&
-                  !acknowledged.has(operation.opId) &&
+                  !(acknowledged.has(operation.opId) && response.more !== true) &&
                   !rejected.has(operation.opId),
               ),
             }

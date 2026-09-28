@@ -395,7 +395,9 @@ the replica validates the response and applies the protocol rules.
 
 An acknowledgement says an operation the replica sent is durably accepted, so
 it may leave the outbox even if its committed payload is not repeated in this
-response.
+response. While a paged response says there is `more`, an acknowledged operation
+stays pending, because its committed copy may be on a later page; it leaves once
+that copy arrives or the last page has been read.
 
 ### Rejections
 
