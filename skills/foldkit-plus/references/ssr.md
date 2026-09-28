@@ -97,7 +97,7 @@ SSR.hydrate(config, Editor, { buildId })
 - In the browser, `Resume.bindings(plan, document, root, model)` decodes the
   page's bindings, keeps them to what the active Surfaces list, and checks
   its markers (a `ResumeRefused` otherwise), then
-  `Resume.listen(root, { bindings, onAnswer })` gives each event one answer,
+  `Resume.listen(root, { bindings, onAnswer, events? })` gives each event one answer,
   `{ event, messages, unnamed? }`: the Messages its bindings dispatch in
   Foldkit's order, and at a `*` the element it stopped at. It returns the
   function that removes the listeners. `SSR.hydrate` uses both itself.

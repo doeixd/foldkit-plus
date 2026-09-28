@@ -43,9 +43,10 @@ describe('Optimistic layers', () => {
     })
     expect(name(visibleStore(base, optimistic))).toEqual(Option.some('C'))
 
-    const settled = settleSuccess(base, optimistic, emptyMutationState, 'l1', [
-      { entity: 'User', id: 'u1', values: { name: 'B' } },
-    ])
+    const settled = settleSuccess(base, optimistic, emptyMutationState, 'l1', {
+      entities: [{ entity: 'User', id: 'u1', values: { name: 'B' } }],
+      now: 0,
+    })
     expect(name(settled.store)).toEqual(Option.some('B'))
     expect(name(visibleStore(settled.store, settled.optimistic))).toEqual(Option.some('C'))
   })
@@ -150,7 +151,10 @@ describe('Optimistic layers', () => {
       id: 'l1',
       patches: [{ entity: 'User', id: 'u1', values: { name: 'B' } }],
     })
-    const settled = settleSuccess(base, optimistic, emptyMutationState, 'l1', [])
+    const settled = settleSuccess(base, optimistic, emptyMutationState, 'l1', {
+      entities: [],
+      now: 0,
+    })
     expect(name(settled.store)).toEqual(Option.some('A'))
     expect(settled.optimistic.layers).toEqual([])
   })

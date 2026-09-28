@@ -551,9 +551,12 @@ not at all.
   and U+2029, so no string in the Model can close the script.
 - **`SSR.inspect(plan, model)`**: the plan's coverage as data.
 - **`Resume.bindings(plan, document, root, model)`** decodes and checks a
-  page's bindings, and **`Resume.listen(root, { bindings, onAnswer })`**
+  page's bindings, and **`Resume.listen(root, { bindings, onAnswer, events? })`**
   answers events from the markers, one `{ event, messages, unnamed? }` per
-  event. `SSR.hydrate` uses both; they are there for a custom boot.
+  event. `events` is the envelope's list of every event the markers name;
+  without it `listen` reads every element's attributes to find them.
+  `SSR.hydrate` uses both, passing the list; they are there for a custom
+  boot.
 - **Attribute names**, for tools and tests: `RESUME_ATTRIBUTE` (the envelope
   script), `STATIC_ATTRIBUTE`, `BINDING_ATTRIBUTE` (a prefix, followed by the
   event), `SLOT_ATTRIBUTE` (a placement's root while the server renders) and

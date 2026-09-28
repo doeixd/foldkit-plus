@@ -133,6 +133,21 @@ describe('EntityStore', () => {
     )
   })
 
+  it('keeps the values object when a write brings equal data, and only then', () => {
+    const store = writeEntity(emptyStore, key, { name: 'ada', tags: ['a'] }, 1)
+    const values = store[key]!.values
+    expect(writeEntity(store, key, { tags: ['a'] }, 2)[key]!.values).toBe(values)
+
+    // A field the entity never had is new, even when its value is `undefined`,
+    // and a key that names a prototype is data like any other.
+    const added = writeEntity(store, key, { note: undefined }, 2)[key]!.values
+    expect(Object.hasOwn(added, 'note')).toBe(true)
+    const own = JSON.parse('{"__proto__":{}}') as Record<string, unknown>
+    const written = writeEntity(store, key, own, 2)[key]!.values
+    expect(Object.hasOwn(written, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(written)).toBe(Object.prototype)
+  })
+
   it('a tombstone discards values and presence', () => {
     const store = tombstone(writeEntity(emptyStore, key, { name: 'ada' }, 5), key)
 

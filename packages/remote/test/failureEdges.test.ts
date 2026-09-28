@@ -220,6 +220,7 @@ describe('Paths nothing else exercises', () => {
       failed(shown, [{ entity: 'Project', id: 'p1', fields: ['name'] }]),
       {
         _tag: 'MutationSucceeded',
+        now: 0,
         requestId: 'r1',
         entities: [],
         deleted: [{ entity: 'Project', id: 'p1' }],

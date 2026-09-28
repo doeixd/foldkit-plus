@@ -129,4 +129,8 @@ application.
   `hydrate` held to a later task, the click that boots the page counts once
   and a click before the first render is not lost, and a closure's event
   still reaches the live page. The manifest's size and decode time are
-  measured by `bench/manifest.ts`, not tested; the plan records the table.
+  measured by `bench/manifest.ts`, and in Chromium by `bench/manifestBrowser.ts`,
+  not tested; the plan records the tables. The envelope lists every event the
+  markers name, a `*`-only one included; `Resume.listen` given that list hears
+  those events with no marker to find them by, and a deferred page does too;
+  and each malformed shape of the bindings list is refused.

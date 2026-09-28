@@ -5,8 +5,13 @@
  * rebase for free.
  */
 import { type Connection, type Edge, edge, items } from './connection.js'
-import { reconcileMutation, type MutationState, type NormalizedPatch } from './mutation.js'
-import { entityKey, isTombstone, writeEntity, type EntityStore } from './store.js'
+import {
+  reconcileMutation,
+  type MutationAnswer,
+  type MutationState,
+  type NormalizedPatch,
+} from './mutation.js'
+import { entityKey, isTombstone, writeEntities, type EntityStore } from './store.js'
 
 export interface EntityLayer {
   readonly id: string
@@ -103,10 +108,14 @@ export const beginOptimistic = (
     (operation): operation is NormalizedPatch => !isConnectionChange(operation),
   )
   const changes = operations.filter(isConnectionChange)
+  if (patches.length === 0 && changes.length === 0) return optimistic
   return {
     layers:
       patches.length === 0 ? optimistic.layers : [...optimistic.layers, { id: requestId, patches }],
-    overlays: [...optimistic.overlays, ...toOverlays(requestId, changes)],
+    overlays:
+      changes.length === 0
+        ? optimistic.overlays
+        : [...optimistic.overlays, ...toOverlays(requestId, changes)],
   }
 }
 
@@ -121,8 +130,9 @@ const confirm = (
   id: string,
   changes: ReadonlyArray<ConnectionChange>,
 ): OptimisticState => {
-  const confirmed = toOverlays(id, changes)
   const at = optimistic.overlays.findIndex(overlay => overlay.id === requestId)
+  if (at === -1 && changes.length === 0) return optimistic
+  const confirmed = toOverlays(id, changes)
   const others = optimistic.overlays.filter(overlay => overlay.id !== requestId)
   return {
     ...optimistic,
@@ -146,10 +156,10 @@ export const addLayer = (optimistic: OptimisticState, layer: EntityLayer): Optim
   layers: [...optimistic.layers, layer],
 })
 
-export const removeLayer = (optimistic: OptimisticState, id: string): OptimisticState => ({
-  ...optimistic,
-  layers: optimistic.layers.filter(layer => layer.id !== id),
-})
+export const removeLayer = (optimistic: OptimisticState, id: string): OptimisticState => {
+  const layers = optimistic.layers.filter(layer => layer.id !== id)
+  return layers.length === optimistic.layers.length ? optimistic : { ...optimistic, layers }
+}
 
 export const addOverlay = (
   optimistic: OptimisticState,
@@ -159,20 +169,31 @@ export const addOverlay = (
   overlays: [...optimistic.overlays, overlay],
 })
 
-export const removeOverlay = (optimistic: OptimisticState, id: string): OptimisticState => ({
-  ...optimistic,
-  overlays: optimistic.overlays.filter(overlay => overlay.id !== id),
-})
+export const removeOverlay = (optimistic: OptimisticState, id: string): OptimisticState => {
+  const overlays = optimistic.overlays.filter(overlay => overlay.id !== id)
+  return overlays.length === optimistic.overlays.length ? optimistic : { ...optimistic, overlays }
+}
 
-/** Base store with every layer applied in order. Later layers win. */
+/**
+ * Base store with every layer applied in order. Later layers win. A patch is
+ * not news from the server, so it keeps the date of the value under it; an
+ * entity only a request holds (a temporary id) is not the server's to age, and
+ * is dated `Infinity`, so freshness never plans or times it.
+ */
 export const visibleStore = (base: EntityStore, optimistic: OptimisticState): EntityStore =>
-  optimistic.layers.reduce(
-    (store, layer) =>
-      layer.patches.reduce(
-        (current, patch) => writeEntity(current, entityKey(patch.entity, patch.id), patch.values),
-        store,
-      ),
+  writeEntities(
     base,
+    optimistic.layers.flatMap(layer =>
+      layer.patches.map(patch => {
+        const key = entityKey(patch.entity, patch.id)
+        const under = base[key]
+        return {
+          key,
+          values: patch.values,
+          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+        }
+      }),
+    ),
   )
 
 /**
@@ -186,14 +207,18 @@ export const pruneOverlays = (
   connection: string,
   covered: ReadonlySet<string>,
   pending: ReadonlySet<string>,
-): OptimisticState => ({
-  ...optimistic,
-  overlays: optimistic.overlays.flatMap(overlay => {
+): OptimisticState => {
+  let changed = false
+  const overlays = optimistic.overlays.flatMap(overlay => {
     if (overlay.connection !== connection || pending.has(overlay.id)) return [overlay]
     const edges = overlay.edges.filter(edge => !covered.has(edge.key))
+    // An overlay a live remove emptied goes too: it shows nothing.
+    if (edges.length > 0 && edges.length === overlay.edges.length) return [overlay]
+    changed = true
     return edges.length === 0 ? [] : [{ ...overlay, edges }]
-  }),
-})
+  })
+  return changed ? { ...optimistic, overlays } : optimistic
+}
 
 /** Everything a request owns: its layer and its overlays. */
 const release = (optimistic: OptimisticState, requestId: string): OptimisticState =>
@@ -209,15 +234,16 @@ export const settleSuccess = (
   optimistic: OptimisticState,
   state: MutationState,
   requestId: string,
-  entities: ReadonlyArray<NormalizedPatch>,
-  connections: ReadonlyArray<ConnectionChange> = [],
-  deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
+  answer: MutationAnswer & {
+    /** Connection changes the server confirmed; they replace the request's own. */
+    readonly connections?: ReadonlyArray<ConnectionChange> | undefined
+  },
 ): {
   readonly store: EntityStore
   readonly state: MutationState
   readonly optimistic: OptimisticState
 } => {
-  const reconciled = reconcileMutation(base, state, requestId, entities, deleted)
+  const reconciled = reconcileMutation(base, state, requestId, answer)
   return {
     store: reconciled.store,
     state: reconciled.state,
@@ -227,7 +253,7 @@ export const settleSuccess = (
           removeLayer(optimistic, requestId),
           requestId,
           `confirmed:${requestId}`,
-          connections,
+          answer.connections ?? [],
         ),
   }
 }

@@ -39,9 +39,11 @@ These wait on upstream Foldkit or Effect, not on work here.
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
 - [x] **G5.** Stop depending on when `hydrate` commits (`afterCommit`).
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G6.** One manifest entry per keyed placement: G4 measured the
-  manifest at a thousand rows at a fifth of the gzipped page and about 38 ms
-  to decode and listen, over both of its limits.
+- [x] **G6, time.** Decoding and listening at a thousand rows take 12 ms in
+  Chromium, from 22. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
+- [x] **G6, size.** Closed with the numbers: a fifth of the gzipped page at a
+  thousand bare rows, about 2.9 bytes per binding; the design's
+  keyed-placement fix is the answer if a real page shows the cost.
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
 
 ## Rich text

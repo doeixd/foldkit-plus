@@ -756,6 +756,24 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   `RunMark` imported for nothing, and seven more dead imports had built up in the
   richtext packages. After moving or deleting code, run
   `npx tsc -p packages/<name> --noEmit --noUnusedLocals` over the packages touched.
+- **Run a test from the repo root, not from its package.** The root
+  `vitest.config.ts` aliases every workspace package to its `src`; run from
+  `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
+  and a demo line that passed under `tsx` failed its test for no reason in the
+  change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest does not typecheck.** A demo line mapped over the dependencies of a
+  `Data.subscriptions` entry (typed `any`) passed its test and failed
+  `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
+  example, run the root typecheck, not only its test.
+- **Run a test from the repo root, not from its package.** The root
+  `vitest.config.ts` aliases every workspace package to its `src`; run from
+  `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
+  and a demo line that passed under `tsx` failed its test for no reason in the
+  change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest does not typecheck.** A demo line mapped over the dependencies of a
+  `Data.subscriptions` entry (typed `any`) passed its test and failed
+  `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
+  example, run the root typecheck, not only its test.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.

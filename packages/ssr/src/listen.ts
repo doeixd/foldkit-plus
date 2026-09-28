@@ -22,17 +22,57 @@ import { BINDING_ATTRIBUTE, EVENT_OF, UNNAMED_HANDLER } from './resumable.js'
  * Message, encoded through the application's Message Schema (for a hole, with
  * the hole filled by a placeholder); the fields the event fills, `depth`
  * placement wrappers down; and the attribute's options. Its ordinal is its
- * index. The page is read through this Schema, so a tampered list is refused.
+ * index.
  */
-const EncodedBinding = Schema.Struct({
-  attribute: Schema.String,
-  message: Schema.Unknown,
-  hole: Schema.optionalKey(Schema.Array(Schema.String)),
-  depth: Schema.optionalKey(Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
-  options: Schema.optionalKey(Schema.Unknown),
-})
-export type EncodedBinding = typeof EncodedBinding.Type
-export const EncodedBindings = Schema.Array(EncodedBinding)
+export interface EncodedBinding {
+  readonly attribute: string
+  readonly message: unknown
+  readonly hole?: ReadonlyArray<string>
+  readonly depth?: number
+  readonly options?: unknown
+}
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * The page's list of bindings, read as untrusted input: each entry checked,
+ * and only its known keys kept, or the reason the list is refused. Checked by
+ * hand rather than through a Schema, which at a thousand rows took most of a
+ * frame for a shape this plain; the Message inside each entry is still decoded
+ * through the application's Schema by `decodeBindings`.
+ */
+export const readBindings = (
+  value: unknown,
+): Result.Result<ReadonlyArray<EncodedBinding>, string> => {
+  if (!Array.isArray(value)) return Result.fail('the list is not an array')
+  const out: Array<EncodedBinding> = []
+  for (const [index, entry] of value.entries()) {
+    if (!isRecord(entry)) return Result.fail(`entry ${index} is not an object`)
+    if (typeof entry.attribute !== 'string') {
+      return Result.fail(`entry ${index} has no attribute`)
+    }
+    if (!Object.hasOwn(entry, 'message')) return Result.fail(`entry ${index} has no message`)
+    const { hole, depth } = entry
+    if (
+      hole !== undefined &&
+      !(Array.isArray(hole) && hole.every(field => typeof field === 'string'))
+    ) {
+      return Result.fail(`entry ${index} has a hole that is not a list of fields`)
+    }
+    if (depth !== undefined && !(Number.isInteger(depth) && (depth as number) >= 0)) {
+      return Result.fail(`entry ${index} has a depth that is not a count`)
+    }
+    out.push({
+      attribute: entry.attribute,
+      message: entry.message,
+      ...(hole === undefined ? {} : { hole: hole as ReadonlyArray<string> }),
+      ...(depth === undefined ? {} : { depth: depth as number }),
+      ...(Object.hasOwn(entry, 'options') ? { options: entry.options } : {}),
+    })
+  }
+  return Result.succeed(out)
+}
 
 /** A binding decoded from the page: its Message is one of the application's. */
 export interface DecodedBinding {
@@ -180,6 +220,13 @@ export interface Answer {
 export interface ListenOptions {
   readonly bindings: ReadonlyArray<DecodedBinding>
   readonly onAnswer: (answer: Answer) => void
+  /**
+   * Every event the page's markers name, as the envelope lists them. Given,
+   * `listen` needs no pass over the page to find the events a marker names
+   * with `*` alone; without it, it reads every element's attributes, which on
+   * a large page is most of its cost.
+   */
+  readonly events?: Iterable<string> | undefined
 }
 
 /**
@@ -190,9 +237,13 @@ export const listen = (root: Element, options: ListenOptions): (() => void) => {
   // The bindings name most events; a marker whose handlers the page could not
   // name is `*` alone, so the markers themselves say the rest.
   const events = new Set(options.bindings.map(binding => binding.event))
-  for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
-    for (const { name } of Array.from(element.attributes)) {
-      if (name.startsWith(BINDING_ATTRIBUTE)) events.add(name.slice(BINDING_ATTRIBUTE.length))
+  if (options.events !== undefined) {
+    for (const event of options.events) events.add(event)
+  } else {
+    for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
+      for (const { name } of Array.from(element.attributes)) {
+        if (name.startsWith(BINDING_ATTRIBUTE)) events.add(name.slice(BINDING_ATTRIBUTE.length))
+      }
     }
   }
   const handler = (event: Event) => {

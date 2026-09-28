@@ -58,6 +58,7 @@ describe('Remote.update', () => {
 
     const settled = updateRemote(withLayer, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [{ entity: 'User', id: 'u1', values: { name: 'server' } }],
     })
@@ -68,6 +69,7 @@ describe('Remote.update', () => {
 
     const reapplied = updateRemote(settled, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [{ entity: 'User', id: 'u1', values: { name: 'retry' } }],
     })
@@ -342,6 +344,7 @@ describe('Remote.update', () => {
     model = updateRemote(model, { _tag: 'MutationStarted', requestId: 'req-1' })
     model = updateRemote(model, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [],
     })
@@ -412,12 +415,15 @@ describe('Remote domain submodel', () => {
         RenameUser,
         { id: 'u1', name: 'ada' },
         'req-1',
+        { now: () => 42 },
       ).pipe(Effect.provide(FakeClient)),
     )
     expect(result.output).toEqual({ id: 'u1' })
     expect(readField(result.model.remote.entities, entityKey('User', 'u1'), 'name')).toEqual(
       Option.some('server'),
     )
+    // Dated by the clock it was given, which is how fresh a policy takes it to be.
+    expect(result.model.remote.entities[entityKey('User', 'u1')]?.updatedAt).toBe(42)
   })
 
   it('rejects a selection for an entity the domain did not register', () => {

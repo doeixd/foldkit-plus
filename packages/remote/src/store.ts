@@ -3,10 +3,11 @@
  *
  * Presence is tracked **separately** from values, so `undefined`/`null`/absent/
  * stale/not-found are distinct states and a missing field is never inferred from
- * `value === undefined`. Nothing here performs I/O; every operation returns a
- * new store.
+ * `value === undefined`. Nothing here performs I/O or mutates its input; an
+ * operation that changes nothing returns the store it was given.
  */
 import { Option } from 'effect'
+import { sameData } from './data.js'
 import { RELATION_ALIAS } from './relation.js'
 
 export type EntityKey = string
@@ -79,7 +80,15 @@ const written = (
         if (held.startsWith(`${field}${RELATION_ALIAS}`) && !(held in values)) stale.add(held)
   }
   return {
-    values: { ...previous.values, ...values },
+    // Equal data keeps the object it was, so what is derived from it by
+    // identity (a read's decoded row) survives a refetch that changed nothing.
+    // Comparing costs the size of the written data, less than decoding it again.
+    values: Object.keys(values).every(
+      field =>
+        Object.hasOwn(previous.values, field) && sameData(previous.values[field], values[field]),
+    )
+      ? previous.values
+      : { ...previous.values, ...values },
     present,
     stale,
     unavailable,
@@ -94,6 +103,8 @@ export interface EntityWrite {
   readonly values: Readonly<Record<string, unknown>>
   /** The canonical window each written relation field was fetched with. */
   readonly windows?: Readonly<Record<string, string>> | undefined
+  /** When this write dates the entity, instead of the batch's `now`. */
+  readonly updatedAt?: number | undefined
 }
 
 /**
@@ -109,7 +120,12 @@ export const writeEntities = (
   if (writes.length === 0) return store
   const next: Record<EntityKey, EntityEntry> = { ...store }
   for (const write of writes) {
-    next[write.key] = written(next[write.key] ?? emptyEntry, write.values, now, write.windows)
+    next[write.key] = written(
+      next[write.key] ?? emptyEntry,
+      write.values,
+      write.updatedAt ?? now,
+      write.windows,
+    )
   }
   return next
 }
@@ -200,15 +216,17 @@ export const isFieldUnavailable = (store: EntityStore, key: EntityKey, field: st
 
 /** Records that the entity is known to be absent, so it is not refetched. */
 export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
-  replace(store, key, {
-    values: {},
-    present: new Set(),
-    stale: new Set(),
-    unavailable: new Set(),
-    tombstone: true,
-    updatedAt: 0,
-    windows: {},
-  })
+  isTombstone(store, key)
+    ? store
+    : replace(store, key, {
+        values: {},
+        present: new Set(),
+        stale: new Set(),
+        unavailable: new Set(),
+        tombstone: true,
+        updatedAt: 0,
+        windows: {},
+      })
 
 /** Forgets everything known about the entity, including a tombstone. */
 export const remove = (store: EntityStore, key: EntityKey): EntityStore => {

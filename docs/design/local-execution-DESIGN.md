@@ -109,6 +109,10 @@ Before proposing anything, what is already true.
 field produces a new store, misses every memo, and re-assembles and
 re-`Schema.decode`s every visible row of every active connection.
 
+> Since 2026-09 a row whose entity's fields are equal keeps its decoded value,
+> so an unrelated write costs re-assembly but not a decode, and the row's view
+> does not re-run. §3.3's dependency-set memo is still not built.
+
 That is what "no incremental view maintenance" means concretely.
 
 ### 3.1 It is not obviously a problem
@@ -607,7 +611,8 @@ creates real callers** — not to argue the rule should bend.
 
 > **Status lives here**, not in a scratch plan file: **phases 0 through 7 are
 > built** — phase 4 in its decidable half — and M is measured and deliberately
-> not built. What each one actually changed, including every place the plan
+> not built as §3.3 proposed; the decode reuse and the read entry's plan reuse
+> that landed instead are recorded under M. What each one actually changed, including every place the plan
 > turned out to be wrong, is in the sections they point at.
 
 Phases are numbered by dependency, not by priority. **A → B** means B cannot
@@ -953,8 +958,14 @@ recompute is three orders of magnitude more expensive, which is the shape of a
 fix worth having.
 
 `Remote.plan` is the second cost and also scales — 130µs to 822µs — and it runs
-per Model change per active Surface. Not investigated further here; recorded so
-it is not mistaken for free.
+per Model change per active Surface.
+
+> Since 2026-09 two narrower fixes landed instead of §3.3. A row whose entity's
+> fields are equal keeps its decoded value, so re-assembly remains but re-decode
+> does not. And the read entry reuses its plan per Remote model and ask until
+> the next freshness deadline, so a change to the application alone costs about
+> 0.02ms instead of about 1ms at 400 rows (`read.bench.ts`, "the read entry,
+> after a change to the application alone").
 
 **What the numbers do not say** is that anyone is hurting. At 25 rows a write
 costs 156µs, and ten writes a second is 1.6ms — nothing. The cost becomes

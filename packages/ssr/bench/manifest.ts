@@ -14,86 +14,13 @@
  * Run: pnpm bench:manifest
  */
 import { gzipSync } from 'node:zlib'
-import { Effect, Result, Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
+import { Effect } from 'effect'
 import { JSDOM } from 'jsdom'
-import { Projection, Surface } from 'foldkit-surface'
-import { Resume, SSR } from 'foldkit-ssr'
-
-const Row = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
-const Model = Schema.Struct({ rows: Schema.Array(Row) })
-type Model = typeof Model.Type
-
-const Message = defineMessageUnion({
-  Toggled: { id: Schema.String },
-  Renamed: { id: Schema.String, title: Schema.String },
-  Focused: { id: Schema.String },
-})
-type Message = typeof Message.Type
-
-const initial: Model = { rows: [] }
-const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
-const List = App.surface('List', {
-  model: ({ model }) => ({ rows: model.rows }),
-  messages: [Message.Toggled, Message.Renamed, Message.Focused],
-})
-
-const configFor = (count: number) => ({
-  Model,
-  init: () => ({
-    model: {
-      rows: Array.from({ length: count }, (_, index) => ({
-        id: `row-${index}`,
-        title: `Row ${index}`,
-        done: index % 3 === 0,
-      })),
-    },
-  }),
-  update: (model: Model) => ({ model }),
-  view: (model: Model, h: HtmlBuilder<Message>) => {
-    const rh = Resume.builder(h)
-    return {
-      title: 'Manifest',
-      body: rh.ul(
-        [rh.Id('rows')],
-        model.rows.map(row =>
-          rh.keyed('li')(
-            row.id,
-            [rh.OnClick(Message.Toggled({ id: row.id }))],
-            [
-              rh.input([
-                rh.Value(row.title),
-                rh.OnInput(Message.Renamed, { id: row.id }),
-                rh.OnFocus(Message.Focused({ id: row.id })),
-              ]),
-              row.done ? 'done' : 'open',
-            ],
-          ),
-        ),
-      ),
-    }
-  },
-  container: null,
-})
-
-const plan = SSR.plan(App, {
-  id: 'manifest',
-  state: Projection.pick(App.model.rows),
-  surfaces: [Surface.at(List, undefined)],
-  start: 'on-interaction',
-})
-
-const template =
-  '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'
+import { SSR } from 'foldkit-ssr'
+import { configFor, median, plan, template, timeOnPage } from './manifestApp.js'
 
 const bytes = (text: string) => Buffer.byteLength(text, 'utf8')
 const gzipped = (text: string) => gzipSync(text).byteLength
-
-const median = (values: ReadonlyArray<number>): number => {
-  const sorted = [...values].sort((a, b) => a - b)
-  return sorted[Math.floor(sorted.length / 2)]!
-}
 
 /** The page loaded into a fresh jsdom, with the globals `Resume.listen` reads. */
 const loaded = (page: string) => {
@@ -112,26 +39,11 @@ const measure = async (count: number) => {
     JSON.parse(result.envelope.replace(/^<script[^>]*>/, '').replace(/<\/script>$/, '')).bindings,
   )
 
-  const decode: Array<number> = []
-  const listen: Array<number> = []
+  const runs: Array<{ readonly decode: number; readonly listen: number }> = []
   for (let run = 0; run < 12; run++) {
     const dom = loaded(page)
-    const document = dom.window.document
-    const root = document.querySelector('[data-foldkit-app]')!
-    const model = SSR.resume(plan, document)
-    if (Result.isFailure(model)) throw new Error(model.failure.message)
-    const startDecode = performance.now()
-    const bindings = Resume.bindings(plan, document, root, model.success)
-    const decoded = performance.now()
-    if (Result.isFailure(bindings)) throw new Error(bindings.failure.message)
-    const stop = Resume.listen(root, { bindings: bindings.success, onAnswer: () => {} })
-    const listened = performance.now()
-    stop()
+    runs.push(timeOnPage(dom.window.document))
     dom.window.close()
-    // The first two runs warm the JIT and are not counted.
-    if (run < 2) continue
-    decode.push(decoded - startDecode)
-    listen.push(listened - decoded)
   }
 
   return {
@@ -143,8 +55,8 @@ const measure = async (count: number) => {
     envelopeGz: gzipped(result.envelope),
     manifest: bytes(manifest),
     manifestGz: gzipped(manifest),
-    decodeMs: median(decode),
-    listenMs: median(listen),
+    decodeMs: median(runs.map(run => run.decode)),
+    listenMs: median(runs.map(run => run.listen)),
   }
 }
 
