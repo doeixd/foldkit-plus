@@ -1769,3 +1769,142 @@ The rule I'd write into the architecture document is:
 > **Foldkit Plus streams according to ownership. Server-owned presentation may stream as HTML. Browser-owned application behavior streams as semantic state changes and is rendered by Foldkit. Server topology transports both but interprets neither.**
 
 That gives you Affe's very useful **critical/deferred streaming** capability, but in a way that lines up much better with `SurfaceSource`, Remote normalization, Composition, `SSR.static`, resumability, and Foldkit's single explicit Model/update loop.
+
+---
+
+# 19. What the CMS example taught the server (2026-09-27)
+
+`examples/cms` is the first application here with a real server: a CMS over
+SQLite, published as a static demo whose server runs in each visitor's
+browser, and whose public site is rendered at build time. Nothing in it used a
+server graph, because there is none yet; so each of these is a need the graph
+has to meet, with the code that met it by hand.
+
+## 19.1 A server is a function before it is a route
+
+The example's server is one function, `answer(backend, chair, body)` in
+`endpoint.ts`: a decoded envelope (`{ operation, payload }`) in, an answer
+(`{ ok, result }` or `{ ok: false, error }`) out. Three hosts call it:
+
+- `http.ts`, over HTTP, for `pnpm dev`;
+- `browser.ts`, in the page, over SQLite compiled to WebAssembly, for the
+  published demo, where each visitor has a server of their own;
+- `prerender.ts`, at build time, to read every page's data before rendering it.
+
+So the graph must be runnable without a listener: `Server.handle(graph,
+request)` as an Effect, with Node's `http`, a Worker's `fetch`, an in-page
+transport and a build step as adapters around it. A graph that can only be
+served over HTTP would have ruled out two of the three.
+
+The same function took its clock and its database as arguments
+(`openServer(clock, sqlite)`), which is what let the build, the tests and the
+sandbox run it. The graph's Layers should keep both injectable, not read from
+the environment.
+
+## 19.2 Time is an input, and scheduled work is a node
+
+The CMS owns no timer: a scheduled post is published when a host asks what is
+due (`publishDue`). `http.ts` asks on an interval, and the in-page sandbox asks
+every five seconds. That is a scheduled job, and every host wrote its own.
+
+- `Server.every(name, interval, effect)` as a node beside routes, so the graph
+  lists it and each host maps it: an interval in Node and in the page, Cron
+  Triggers or a Durable Object alarm on Workers.
+- The job reads the clock through the graph's Layer, so a test moves it with
+  `TestClock` and a build runs none.
+
+## 19.3 A build is a host too
+
+The build ran the server over the seed, enumerated what exists from its data
+(every published post is a page), and wrote each page as a file. That is the
+server graph evaluated at build time: a document node rendered for a list of
+paths, where the paths come from a query ([router-DESIGN.md](./router-DESIGN.md)
+§33.9's `Site.paths`).
+
+- A document node declares how its paths are listed, and `Server.generate(graph,
+  { origin })` renders each through the same SSR node a request would reach.
+- What cannot be generated (an API, a live stream) stays a request-time node,
+  and the manifest (§16) says which is which, so a deploy knows whether it needs
+  a runtime at all.
+
+## 19.4 A static deploy has semantics the graph should emit
+
+Deploying the generated site to a static host needed rules that nothing
+produced; they were written by hand or left to the host's defaults:
+
+- **File layout.** `/site/blog/x` is served from `site/blog/x.html` on
+  Cloudflare Pages, and `/site/blog/x/` redirects to it with a 308. Another
+  host wants `x/index.html`. The layout is a property of the host adapter.
+- **Headers.** `public/_headers` makes `/assets/*` immutable for a year, by
+  hand. Generated HTML should be short-lived and revalidated; the adapter should
+  write both from the graph.
+- **Not found.** An address no page answers (`/site/missing`) is served the
+  studio's shell with a 200, because the host falls back to `index.html` for
+  the studio's own client routes. A crawler reads that as a page. The graph
+  knows which prefixes are client-routed (the studio) and which are generated
+  (the site), so it can emit a 404 page for the second and a fallback for the
+  first.
+- **Redirects** (a renamed slug, a moved page) belong in the same emitted
+  rules; the CMS's slug history (cms-DESIGN §14) is their source.
+
+## 19.5 Where a principal comes from, per host
+
+The demo names its reader in the address (`?as=edda`), sent as an `x-chair`
+header over HTTP and as an argument in the page. `RemoteServer` still refuses
+what the policy refuses: a writer who asks to publish is told "This author may
+not publish this entry", whichever host carried the request. That confirms
+§"Authentication should stay outside RemoteServer", and adds:
+
+- The principal function is per host, not per graph: a cookie session over
+  HTTP, the signed-in user in the page, nobody at build time.
+- A cookie-authenticated mutation, and SSR's `fallback: 'server'` form posts,
+  need CSRF protection (`SameSite` plus a token the page carries). That is the
+  graph's middleware, applied to every node that changes state.
+
+## 19.6 Answers that do not leak
+
+`answer` decodes its envelope with a Schema before anything runs, and reports
+every failure as `{ ok: false, error }` with a message, never a stack. The
+graph's nodes should share that shape: decode at the boundary, one error
+channel, internals logged and not returned.
+
+## 19.7 Inline content and a content security policy
+
+Each generated page carries inline JSON (the resume envelope, a post's
+JSON-LD) and inline styles (the foundations and the page's own). A strict
+content security policy refuses all of them unless it names their hashes, or a
+nonce per request. The document node knows every inline block it writes, so it
+can emit the policy: hashes for a generated page, a nonce for one rendered per
+request.
+
+## 19.8 Caching and the reader
+
+A generated page is the same for everyone, so it can be cached publicly. A
+page rendered for a signed-in reader is not. The demo met the static form of
+this: a visitor whose sandbox changed must not be shown the seed's page as
+theirs, so the browser draws afresh (ssr-PLAN Phase S5). The server form:
+
+- A document node declares whether it depends on the principal. If it does,
+  it is rendered per request with `Cache-Control: private` (or `Vary` on the
+  session), never generated.
+- Public data under a personal page (a post, and whether this reader saved it)
+  splits into a public generated page and a small private read.
+
+## 19.9 Locales at the edge
+
+A localized site (see [i18n-DESIGN.md](./i18n-DESIGN.md)) negotiates a locale
+once, at an entry with none in its address, from `Accept-Language` or a
+stored choice, and redirects to the localized address. Every other page has its
+locale in its route, so it is generated and cached per locale with no `Vary`.
+A static host does the negotiation with its redirect rules, which §19.4's
+emitted rules include.
+
+## 19.10 What to build first
+
+1. `Server.handle` in-process, with the Node, Worker, in-page and build
+   adapters (19.1). The example's three hosts become its first users.
+2. Scheduled jobs (19.2), which the CMS needs today.
+3. Static emission: files, headers, redirects and a 404 for generated prefixes
+   (19.3, 19.4), with SSR Phase S7's Vite step as its build adapter.
+4. Principal and CSRF middleware (19.5), then the content security policy
+   (19.7) and caching (19.8), as the first signed-in pages need them.

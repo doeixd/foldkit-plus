@@ -6946,7 +6946,8 @@ right while the visitor's data is the seed and wrong once it may not be
 ## 33.11 Locales are part of the route
 
 Nothing in the example is localized. A site that is makes the locale a route
-parameter at the top of the graph (`/fr/blog/...`), not a setting beside it:
+parameter at the top of the graph (`/fr/blog/...`), not a setting beside it
+([i18n-DESIGN.md](./i18n-DESIGN.md) has the rest):
 
 - Each locale is its own address and its own generated page; `lang` comes
   from the route in the Model.

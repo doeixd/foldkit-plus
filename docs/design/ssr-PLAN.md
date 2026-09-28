@@ -1083,7 +1083,8 @@ page cannot know, so the page paints the default and then flips.
 - Test: a page with a stored dark choice paints dark in its first frame.
 
 **S9. Localization.** Nothing in the example is localized; a site that is
-would need:
+would need the following. Who owns each part is decided in
+[i18n-DESIGN.md](./i18n-DESIGN.md).
 - The locale in the route (`/fr/blog/...`), so each locale is its own
   generated page and its own address, and `lang` in the `Document` from the
   Model.

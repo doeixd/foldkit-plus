@@ -186,6 +186,46 @@ the larger plan it amends.
   with alternates, and data sources that take the locale. §33.11
 - [ ] `foldkit-site` itself, and the rest of §31's sequence.
 
+## Server
+
+What the CMS example's server, run over HTTP, in the page and at build time,
+asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
+
+- [ ] **`Server.handle` in-process,** with Node, Worker, in-page and build
+  adapters; the example's `http.ts`, `browser.ts` and `prerender.ts` are its
+  first users. §19.1
+- [ ] **Scheduled jobs as nodes** (`Server.every`), reading the clock through a
+  Layer. The CMS's due publishing is polled by hand in two hosts. §19.2
+- [ ] **Static emission from the graph:** a document node's paths from a query,
+  the host's file layout, cache headers, redirects (from slug history) and a
+  real 404 for generated prefixes. The published demo serves a 200 with the
+  studio's shell for an unknown `/site/` address. §19.3, §19.4
+- [ ] **Principal and CSRF middleware** per host, for cookie-authenticated
+  mutations and SSR fallback posts. §19.5
+- [ ] **A content security policy** the document node emits: hashes for the
+  inline envelope, JSON-LD and styles of a generated page, a nonce per request.
+  §19.7
+- [ ] **Caching by whether a page depends on the principal.** §19.8
+
+## Internationalization
+
+Nothing is built. [i18n-DESIGN.md](./i18n-DESIGN.md) decides who owns what;
+the steps land in the packages that own them.
+
+- [ ] **The locale in the Model and the route,** with `lang` and `dir` from it,
+  in the CMS example with a second language. Routing: router-DESIGN §33.11.
+- [ ] **Word tables per locale** (`editWords.en`, and the form, list and view
+  words), with plural forms in `fillWords` and a check listing missing keys.
+- [ ] **`Format.of(locale)`** for dates, numbers and relative times, with an
+  explicit time zone; nothing reads the runtime's default.
+- [ ] **Per-locale CMS entries,** slugs and locale-aware reads. cms-DESIGN §14
+- [ ] **Schema labels per locale:** `Words.of(schema, { locale, table })` over a
+  keyed table.
+- [ ] **Right to left:** an audit of the remaining physical `left`/`right`
+  properties, and a check that keeps them out.
+- [ ] Generated pages per locale and negotiation at the edge: SSR Phase S9,
+  server-DESIGN §19.9.
+
 ## Mixins and styling
 
 - [ ] **Phase 10:** finish `foldkit-mixins-surface`.
