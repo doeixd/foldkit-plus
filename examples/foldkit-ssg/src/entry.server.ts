@@ -6,7 +6,7 @@
 import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 
-import { Model, init, plan, update, view } from './main.js'
+import { Model, init, plan, routing, update, view } from './main.js'
 import { STYLESHEET_ATTRIBUTE, stylesheet } from './style.js'
 
 export const prerenderPaths = ['/', '/about'] as const
@@ -35,9 +35,10 @@ const head = (rendered: { readonly html: string }): string =>
 
 /** Every page in `prerenderPaths`, in order, rendered into `template`. */
 export const generatePages = (template: string) =>
-  SSR.generate(
-    // A server render reads only that the application routes, not how.
-    { Model, init, update, view, container: null, routing: {} },
-    plan,
-    { buildId: buildIdOf(template), template, origin: ORIGIN, paths: prerenderPaths, head },
-  )
+  SSR.generate({ Model, init, update, view, container: null, routing }, plan, {
+    buildId: buildIdOf(template),
+    template,
+    origin: ORIGIN,
+    paths: prerenderPaths,
+    head,
+  })

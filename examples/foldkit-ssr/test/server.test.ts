@@ -114,8 +114,9 @@ describe('other methods', () => {
   test('a preflight is answered by the entry, allowing nothing', async () => {
     const response = await respond(pageRequest({ method: 'OPTIONS' }))
     expect(response.status).toBe(204)
-    expect(response.headers.get('allow')).toBe('GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS')
+    expect(response.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
     expect(response.headers.get('access-control-allow-origin')).toBeNull()
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
   })
 
   test('HEAD answers the page’s headers without its body', async () => {
@@ -128,6 +129,6 @@ describe('other methods', () => {
   test.each(['POST', 'PUT', 'DELETE'])('%s is refused: the page answers no form', async method => {
     const response = await respond(pageRequest({ method }))
     expect(response.status).toBe(405)
-    expect(response.headers.get('allow')).toBe('GET, HEAD')
+    expect(response.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
   })
 })

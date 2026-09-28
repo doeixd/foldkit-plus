@@ -37,6 +37,7 @@
       "foldkit-richtext-dom/toolbar": ["../richtext-dom/src/toolbar.ts"],
       "foldkit-richtext-dom/view": ["../richtext-dom/src/view.ts"],
       "foldkit-ssr": ["../ssr/src/index.ts"],
+      "foldkit-ssr/client": ["../ssr/src/client.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },

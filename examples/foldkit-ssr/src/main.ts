@@ -6,7 +6,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button } from 'foldkit-mixins-ui'
-import { SSR } from 'foldkit-ssr'
+import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { COUNT_COOKIE } from './cookie.js'

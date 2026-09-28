@@ -495,8 +495,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **A constant from `foldkit/experimental/server` brings the server along.**
   `client.ts` imported `FOLDKIT_APP_ATTRIBUTE` from it, and the browser bundle
   grew by the server renderer and its HTML parser (700 KB to 880 KB); so does
-  anything imported from `foldkit-ssr`. Check the bundle's size after adding an
-  import from a package that also runs on a server.
+  anything imported from `foldkit-ssr`; import `foldkit-ssr/client` in the
+  browser. Check the bundle's size after adding an import from a package that
+  also runs on a server.
 - **Foldkit fills head tags into the template; it adds none.** A view's
   `canonical` reached no generated page until the template had an empty
   `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.

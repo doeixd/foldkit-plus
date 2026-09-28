@@ -43,11 +43,11 @@ Both servers listen on `PORT` (3000) and take `ORIGIN` (default
 | The count, the Messages, `update`, the cookie write (`PersistCount`) | plain Foldkit | `src/main.ts` |
 | Reading the cookie (parsed, decoded to a safe integer, else 0) | plain Effect (`Cookies.parseHeader`), as upstream | `src/cookie.ts` |
 | What crosses to the browser (the Model, not the Flags) | `foldkit-ssr` (`SSR.plan`, over a `foldkit-surface` Projection) | `src/main.ts`, `// SSR` |
-| Rendering a request: `GET`/`HEAD` render, other methods `405`, a refused render `500` | `foldkit-ssr` (`SSR.entry`) inside Foldkit's `handleRequest` | `src/entry.server.ts` |
-| The preflight answer and the no-cache headers | the application's entry, as upstream | `src/entry.server.ts` |
+| Rendering a request: `GET`/`HEAD` render, `OPTIONS` `204`, other methods `405`, a refused render `500` | `foldkit-ssr` (`SSR.entry`) inside Foldkit's `handleRequest` | `src/entry.server.ts` |
+| The no-cache headers, on every answer, where a CORS policy would go too | the application, through `SSR.entry`'s `headers` | `src/entry.server.ts` |
 | Taking the page over without rerunning `init` | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
 | The build id both sides compare | the entry script's address | `buildIdOf` in `src/entry.server.ts`, `import.meta.url` in `src/entry.ts` |
-| Static files, the request target, host-refused methods | the `node:http` host (Foldkit's `resolveRequestUrl`, `resolvesToIndexHtml`, `isHostSettledMethod`) | `src/host.ts`, run by `src/serve.ts` |
+| Static files, the request target, host-refused methods | the host, on Effect's HTTP server and `@effect/platform-node` as upstream's (`HttpStaticServer`; Foldkit's `resolveRequestUrl`, `resolvesToIndexHtml`, `isHostSettledMethod`) | `src/host.ts`, run by `src/serve.ts` |
 | The accessible buttons | `@foldkit/ui` Button, styled through `foldkit-mixins-ui` | `src/main.ts`, `src/style.ts` |
 | Appearance, and the CSS in each page's head | `foldkit-mixins` (`Style.usedIn` for the page's classes) | `src/style.ts`, `head` in `src/entry.server.ts` |
 
@@ -56,15 +56,14 @@ Both servers listen on `PORT` (3000) and take `ORIGIN` (default
 
 ### What is not used, and why
 
-- **`@effect/platform-node`**, which upstream serves with, is not usable here
-  (only a build for another Effect release is installed). `src/host.ts` is the
-  same host on `node:http`: it resolves the target against the origin first,
-  answers files, and hands the rest to the page handler.
 - **`@foldkit/vite-plugin`** renders upstream's requests in development and
-  builds its server bundle; it is not installed. In development `src/host.ts`
-  runs Vite in middleware mode for the modules and renders each page itself;
-  in production it serves `vite build`'s `dist/`. The server's code runs under
-  tsx in both, unbundled.
+  builds its server bundle; it is not installed (it needs Vite 8). In
+  development `src/host.ts` puts Vite, in middleware mode, where upstream's
+  host serves `dist/client`: Vite answers the modules and the host renders
+  each page itself, and Vite's reload socket listens on a port of its own
+  (24678), since the Effect server answers every upgrade on its port. In
+  production the host serves `vite build`'s `dist/`. The server's code runs
+  under tsx in both, unbundled.
 - **Resumable pages** (`Resume.builder`, `start: 'on-interaction'`). The two
   buttons could answer before the runtime boots, but only after a Surface
   listed their Messages, and the cookie write still waits for the runtime. The
@@ -83,15 +82,19 @@ Both servers listen on `PORT` (3000) and take `ORIGIN` (default
 - **`POST`, `PUT`, `DELETE` and `PATCH` are answered `405`** (`SSR.entry`
   renders only `GET` and `HEAD`); upstream's entry renders the page for any
   method but `OPTIONS`.
-- **The no-cache headers are on every answer from the entry**, the `405` and a
-  failed render's `500` included; upstream sets them on the rendered page.
+- **The no-cache headers are on every answer from the entry**, the preflight,
+  the `405` and a failed render's `500` included; upstream sets them on the
+  rendered page. A missing asset's `404`, which Foldkit's `handleRequest`
+  answers before the entry, has none.
+- **The preflight's `allow` names what the page answers** (`GET, HEAD,
+  OPTIONS`), where upstream's names every method a host passes on.
 - **A page the server did not render is refused.** `entry.ts` throws, naming
   `pnpm dev`: without a render there is no Model to start from. Upstream never
   meets such a page, since its Vite plugin renders every request; running
   plain `vite` here shows the error.
-- **The browser bundle carries Foldkit's server renderer.** `foldkit-ssr` has
-  one entry, so `SSR.hydrate` brings `SSR.render` and the HTML parser along:
-  575 kB minified (183 kB gzip), as in `foldkit-ssg`.
+- **The browser imports `foldkit-ssr/client`,** which leaves Foldkit's server
+  renderer and HTML parser out: 372 kB minified (124 kB gzip), against 575 kB
+  (183 kB gzip) through `foldkit-ssr`'s main entry.
 - **Server code is not reloaded in development.** An edit to it needs a
   restart of `pnpm dev`; the browser's modules reload through Vite.
 - **The hidden select renders its first option selected.** That is Foldkit
@@ -115,7 +118,7 @@ From the repository root: `npx vitest run examples/foldkit-ssr`.
 - `test/runtime.test.ts`: the real `entry.ts` in jsdom over a rendered page:
   adopted in place, counts, writes the cookie the next request renders from;
   refuses a page from another build and a page the server did not render.
-- `test/host.test.ts`: the `node:http` host over a built `dist/` on a free
+- `test/host.test.ts`: the host over a built `dist/` on a free
   port: pages for `/` and `/index.html`, files, a missing asset's `404`,
   nothing served from outside `dist/`, an off-origin target's `400`, `TRACE`'s
   `405`, and a preflight handed to the entry.

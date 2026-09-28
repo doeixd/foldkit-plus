@@ -9,11 +9,11 @@
  * back exactly is refused, never half-restored.
  *
  * Rendering and hydrating stay Foldkit's own: this package adds only the
- * handover.
+ * handover. This module is the server's side and the browser's
+ * (`foldkit-ssr/client`) together.
  */
-import { Cause, Effect, Exit, Option, Result, Schema, Stream, type Layer } from 'effect'
+import { Cause, Effect, Exit, Option, Result, Schema } from 'effect'
 import {
-  FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
   Rendered,
   Responded,
@@ -24,37 +24,30 @@ import {
   type RenderError,
   type RenderedApplication,
 } from 'foldkit/experimental/server'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
-import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
-import * as Render from 'foldkit/render'
+import { Metadata, type MetadataSummary } from 'foldkit-surface'
+import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
+import { type EncodedBinding } from './listen.js'
+import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD } from './resumable.js'
+import { SSR as Client } from './client.js'
 import {
-  Metadata,
-  type ActiveSurface,
-  type MetadataSummary,
-  type WritableProjection,
-} from 'foldkit-surface'
-import {
-  current,
-  withContext,
-  type Binding,
-  type Region,
-  type RenderContext,
-  type UnnamedHandler,
-} from './context.js'
-import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, builder, view } from './resumable.js'
-import {
-  readBindings,
-  decodeBindings,
-  listen,
-  type DecodedBinding,
-  type EncodedBinding,
-} from './listen.js'
-
-/** The attribute on the script that carries a page's resume envelope. */
-export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
-
-/** The envelope format this package writes and reads. */
-const PROTOCOL = 1
+  PROTOCOL,
+  RESUME_ATTRIBUTE,
+  allowedTags,
+  codecOf,
+  modelFrom,
+  pathKey,
+  plan,
+  resume,
+  routeOf,
+  serving,
+  startingFrom,
+  staticRegion,
+  tagOf,
+  type Loadable,
+  type ResumableConfig,
+  type ResumePlan,
+  type RouteMatch,
+} from './shared.js'
 
 /**
  * JSON that is safe inside `<script type="application/json">`. Escaping `<`
@@ -70,171 +63,6 @@ export const serializeJsonScript = (value: unknown): string =>
     .replaceAll('<', '\\u003c')
     .replaceAll(LINE_SEPARATOR, '\\u2028')
     .replaceAll(PARAGRAPH_SEPARATOR, '\\u2029')
-
-/**
- * Which part of the Model the browser owns, and what it starts from.
- *
- * `state` is a writable projection of that part, from `Projection.pick` or
- * `Projection.compose`. `baseline` is the Model the browser sets it onto, by
- * default the application's own initial Model. `boot` names the Commands the
- * browser runs on load, since `init` does not run there.
- */
-export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands = unknown> {
-  readonly id: string
-  readonly state: WritableProjection<Model, Fields>
-  readonly baseline: Model
-  readonly boot?: ((model: Model) => Commands) | undefined
-  /** Model paths allowed to start from the baseline, as `ModelRef.dependency` gives them. */
-  readonly local: ReadonlyArray<ReadonlyArray<string>>
-  /** The Surfaces the browser may activate, which the plan must cover. */
-  readonly surfaces: ReadonlyArray<ActiveSurface<Model>>
-  /** State another package owns, each captured and restored by that package. */
-  readonly parts: ReadonlyArray<ResumePart<Model>>
-  /** The application's Message Schema, which encodes the page's bindings. */
-  readonly Message?: Schema.Top | undefined
-  /**
-   * When the browser boots the runtime: `now` on load, `idle` when the browser
-   * is idle or on the first interaction, `on-interaction` on the first only.
-   * Until then the page answers events from its bindings and queues the
-   * Messages, which the runtime runs through `update` before any other.
-   */
-  readonly start: Start
-  /** Subscription and Managed Resource keys that may start late (decision 10). */
-  readonly deferrable: ReadonlyArray<string>
-  /**
-   * `server`: a form whose `OnSubmit` names a Message also posts it to the
-   * page's own URL, and `SSR.handle` runs `update` there, so the form works
-   * with scripts off or not yet loaded.
-   */
-  readonly fallback?: 'server' | undefined
-}
-
-export type Start = 'now' | 'idle' | 'on-interaction'
-
-/**
- * A package's contribution to the envelope, for state the plan's slice cannot
- * carry, such as Remote's normalized store. On the server `capture` takes what
- * the active Surfaces' projections read and returns it as JSON; in the browser
- * `restore` sets it onto the Model, or says why it cannot. A part owns its
- * encoding: this package only carries the value.
- *
- * `covers` names the metadata keys whose reads the part resumes, so the
- * coverage check counts those reads as sent. `Remote.resume(Data)` is one.
- */
-export interface ResumePart<Model> {
-  readonly id: string
-  readonly covers: ReadonlyArray<string>
-  readonly capture: (
-    model: Model,
-    projections: ReadonlyArray<{ readonly metadata: Metadata }>,
-  ) => unknown
-  readonly restore: (model: Model, value: unknown) => Result.Result<Model, string>
-  /**
-   * Whether a Subscription or Managed Resource entry of this part's package
-   * may start late, when a deferred boot is asked for. A part knows its own
-   * entries; nothing is deferrable by default.
-   */
-  readonly deferrable?: ((key: string, entry: unknown) => boolean) | undefined
-}
-
-/** Why a page's resume envelope was refused. */
-export class ResumeRefused extends Schema.TaggedError<ResumeRefused>()('ResumeRefused', {
-  reason: Schema.Literals([
-    'Missing',
-    'Duplicate',
-    'Unreadable',
-    'Protocol',
-    'Plan',
-    'Invalid',
-    'Route',
-  ]),
-  message: Schema.String,
-}) {}
-
-const refuse = (reason: ResumeRefused['reason'], message: string) =>
-  Result.fail(new ResumeRefused({ reason, message }))
-
-/**
- * The slice's Schema as a codec needing no services. A resume plan's state is
- * plain data, so any field that needs one cannot cross a page anyway.
- */
-const codecOf = <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fields>) =>
-  schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>, unknown>
-
-/**
- * A resume plan for an application. The baseline defaults to the
- * application's initial Model. It is never written: a writable projection's
- * `set` returns a new Model, so a baseline Foldkit freezes in development is
- * safe to start from.
- *
- * `surfaces` are the Surfaces the browser may activate, and `local` the Model
- * fields allowed to start from the baseline, such as an open menu. Rendering
- * refuses a plan that leaves a Surface's read or activation in neither.
- */
-const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
-  application: {
-    readonly initial: Model
-    readonly owner?: object
-    readonly Message?: Schema.Top | undefined
-  },
-  config: {
-    readonly id: string
-    readonly state: WritableProjection<Model, Fields>
-    readonly baseline?: Model | undefined
-    readonly boot?: ((model: Model) => Commands) | undefined
-    readonly local?: ReadonlyArray<{ readonly dependency: ReadonlyArray<string> }> | undefined
-    readonly surfaces?: ReadonlyArray<ActiveSurface<Model>> | undefined
-    readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
-    readonly start?: Start | undefined
-    readonly deferrable?: ReadonlyArray<string> | undefined
-    readonly fallback?: 'server' | undefined
-  },
-): ResumePlan<Model, Fields, Commands> => {
-  const surfaces = config.surfaces ?? []
-  const parts = config.parts ?? []
-  const repeated = parts.find((part, index) => parts.findIndex(p => p.id === part.id) !== index)
-  if (repeated !== undefined) {
-    throw new Error(
-      `SSR.plan: two parts of plan "${config.id}" share the id "${repeated.id}"; give one an id of its own`,
-    )
-  }
-  const foreign = surfaces.find(
-    surface => application.owner !== undefined && surface.owner !== application.owner,
-  )
-  if (foreign !== undefined) {
-    throw new Error(
-      `SSR.plan: the Surface "${foreign.name}" belongs to another application than plan "${config.id}"`,
-    )
-  }
-  return {
-    id: config.id,
-    state: config.state,
-    baseline: config.baseline ?? application.initial,
-    ...(config.boot === undefined ? {} : { boot: config.boot }),
-    local: (config.local ?? []).map(place => place.dependency),
-    surfaces,
-    parts,
-    ...(application.Message === undefined ? {} : { Message: application.Message }),
-    start: config.start ?? 'now',
-    deferrable: config.deferrable ?? [],
-    ...(config.fallback === undefined ? {} : { fallback: config.fallback }),
-  }
-}
-
-/**
- * How a page's recorded route is compared with the browser's. `full` compares
- * path and query. `path` compares the path alone, ignoring a trailing slash or
- * `index.html`, for a page generated as a file: a static host serves one file
- * for every query, and for `/about` and `/about/` alike.
- */
-type RouteMatch = 'full' | 'path'
-
-/** A path as a `path` match compares it. */
-const pathKey = (route: string): string => {
-  const path = route.split(/[?#]/)[0] ?? ''
-  const trimmed = path.replace(/\/index\.html$/, '/').replace(/\/+$/, '')
-  return trimmed === '' ? '/' : trimmed
-}
 
 /** The projections of the plan's Surfaces that are active for `model`. */
 const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
@@ -263,41 +91,6 @@ const payloadOf = <Model, Fields extends Schema.Struct.Fields>(
     state,
     parts: Object.fromEntries(plan.parts.map(part => [part.id, part.capture(model, projections)])),
   }
-}
-
-/**
- * The Model a payload resumes: the baseline with the slice set onto it, then
- * each part restored, in order. Every part the plan names must be there and
- * restore, and no other may be: a page is never half-restored.
- */
-const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
-  plan: ResumePlan<Model, Fields>,
-  payload: { readonly state: unknown; readonly parts?: unknown },
-): Result.Result<Model, string> => {
-  const decoded = Schema.decodeUnknownResult(codecOf(plan.state.schema))(payload.state)
-  if (Result.isFailure(decoded)) {
-    return Result.fail(`the envelope's state does not decode: ${decoded.failure.message}`)
-  }
-  const given = payload.parts ?? {}
-  if (typeof given !== 'object' || Array.isArray(given)) {
-    return Result.fail("the envelope's parts are not an object of parts by id")
-  }
-  const parts = given as Readonly<Record<string, unknown>>
-  const unknown = Object.keys(parts).find(id => !plan.parts.some(part => part.id === id))
-  if (unknown !== undefined) {
-    return Result.fail(`the envelope carries a part "${unknown}" the plan does not name`)
-  }
-  let model = plan.state.set(plan.baseline, decoded.success)
-  for (const part of plan.parts) {
-    if (!Object.hasOwn(parts, part.id))
-      return Result.fail(`the envelope carries no "${part.id}" part`)
-    const restored = part.restore(model, parts[part.id])
-    if (Result.isFailure(restored)) {
-      return Result.fail(`the "${part.id}" part does not restore: ${restored.failure}`)
-    }
-    model = restored.success
-  }
-  return Result.succeed(model)
 }
 
 interface EnvelopeOptions {
@@ -339,63 +132,6 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
       : { events: options.events }),
   })
   return `<script type="application/json" ${RESUME_ATTRIBUTE}>${body}</script>`
-}
-
-/** The page's one envelope, parsed; refused when there is none, more than one, or not JSON. */
-const readEnvelope = (
-  page: ParentNode,
-): Result.Result<Readonly<Record<string, unknown>>, ResumeRefused> => {
-  const scripts = page.querySelectorAll(`script[${RESUME_ATTRIBUTE}]`)
-  if (scripts.length === 0) return refuse('Missing', 'the page holds no resume envelope')
-  if (scripts.length > 1) {
-    return refuse('Duplicate', `the page holds ${scripts.length} resume envelopes`)
-  }
-  try {
-    const parsed: unknown = JSON.parse(scripts[0]!.textContent ?? '')
-    return Result.succeed((parsed ?? {}) as Readonly<Record<string, unknown>>)
-  } catch (error) {
-    return refuse('Unreadable', `the resume envelope is not JSON: ${String(error)}`)
-  }
-}
-
-/**
- * The Model a page resumes from: the baseline with the envelope's slice set
- * onto it. Refused, with the reason, when the page holds no envelope or more
- * than one, when it is not this protocol or this plan, or when the slice does
- * not decode through the plan's Schema. A page is never half-restored.
- */
-const resume = <Model, Fields extends Schema.Struct.Fields>(
-  plan: ResumePlan<Model, Fields>,
-  page: ParentNode,
-  options: { readonly route?: string | undefined } = {},
-): Result.Result<Model, ResumeRefused> => {
-  const read = readEnvelope(page)
-  if (Result.isFailure(read)) return Result.fail(read.failure)
-  const parsed = read.success
-  const { v, plan: id, state, parts, route, match } = parsed
-  if (v !== PROTOCOL) {
-    return refuse('Protocol', `the envelope is protocol ${String(v)}, not ${PROTOCOL}`)
-  }
-  if (id !== plan.id) {
-    return refuse('Plan', `the envelope is for plan "${String(id)}", not "${plan.id}"`)
-  }
-  // The route the Model was made for. The runtime never reports the URL at
-  // boot, so a page resumed on another route would show one and be on the
-  // other.
-  if (route !== undefined && options.route !== undefined) {
-    const matches =
-      match === 'path' ? pathKey(String(route)) === pathKey(options.route) : route === options.route
-    if (!matches) {
-      return refuse(
-        'Route',
-        `the page was ${match === 'path' ? 'generated' : 'rendered'} for ${String(route)}, not ${options.route}`,
-      )
-    }
-  }
-  const resumed = modelFrom(plan, { state, parts })
-  return Result.isFailure(resumed)
-    ? refuse('Invalid', resumed.failure)
-    : Result.succeed(resumed.success)
 }
 
 /**
@@ -572,29 +308,6 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
   message: Schema.String,
 }) {}
 
-/** The tag a Message value carries, for naming it. */
-const tagOf = (message: unknown): string =>
-  typeof message === 'object' &&
-  message !== null &&
-  '_tag' in message &&
-  typeof message._tag === 'string'
-    ? message._tag
-    : 'an untagged Message'
-
-/**
- * The Message tags the plan's Surfaces active for `model` may send, which is
- * what a page's bindings may dispatch (the design's rule 3).
- */
-const allowedTags = <Model, Fields extends Schema.Struct.Fields>(
-  plan: ResumePlan<Model, Fields>,
-  model: Model,
-): ReadonlySet<string> =>
-  new Set(
-    plan.surfaces.flatMap(surface =>
-      Option.isSome(surface.projectionOf(model)) ? surface.messages : [],
-    ),
-  )
-
 /** Each binding whose Message no active Surface lists, one line each. */
 const unlistedBindings = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
@@ -610,142 +323,9 @@ const unlistedBindings = <Model, Fields extends Schema.Struct.Fields>(
     )
 }
 
-/** The attribute on a static region's element, naming the region. */
-export const STATIC_ATTRIBUTE = 'data-foldkit-plus-static'
-
-const boundary = (id: string, trusted: string | undefined, children: Region): Html =>
-  inertHtml.div(
-    [
-      inertHtml.Attribute(STATIC_ATTRIBUTE, id),
-      ...(trusted === undefined ? [] : [inertHtml.InnerHTML(trusted)]),
-    ],
-    children,
-  )
-
-/**
- * A region of the page the server owns for the life of the document. It is
- * rendered on the server with the inert builder, so it can dispatch no
- * Message. The browser adopts the server's markup as trusted `InnerHTML` and
- * never runs `render`, so the region reads nothing from the browser's Model
- * and a plan need not send what it reads.
- *
- * A region changes only with a new document. Content a Message should change
- * belongs in a Surface, not here.
- */
-const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Region): Html => {
-  const now = current()
-  if (now?.mode === 'resume') {
-    const snapshot = now.snapshots.get(id)
-    if (snapshot !== undefined) return boundary(id, snapshot, [])
-    if (!now.reported.has(id)) {
-      now.reported.add(id)
-      console.error(
-        `[foldkit-ssr] the static region "${id}" is not in the server's page, so it is rendered in the browser`,
-      )
-    }
-    return boundary(id, undefined, render(inertHtml))
-  }
-  const replayed = now?.mode === 'replay' ? now.regions.get(id) : undefined
-  if (replayed !== undefined) return boundary(id, undefined, replayed)
-  if (now?.mode !== 'collect') return boundary(id, undefined, render(inertHtml))
-  const outer = now.region
-  now.region = id
-  try {
-    const children = render(inertHtml)
-    if (now.regions.has(id)) now.duplicates.add(id)
-    else now.regions.set(id, children)
-    return boundary(id, undefined, children)
-  } finally {
-    now.region = outer
-  }
-}
-
-/**
- * Whether the view call in progress is the server rendering a page, rather than the browser: true
- * through both of `render`'s passes, false while the browser resumes and outside any render. For a
- * view that sends markup it will adopt in the browser rather than draw there, such as
- * `foldkit-richtext-dom`'s editor host, whose placement takes this as `serverRendered`.
- */
-const serving = (): boolean => {
-  const mode = current()?.mode
-  return mode === 'collect' || mode === 'replay'
-}
-
-/** Each static region's markup in the page, read before hydration touches it. */
-const snapshotsOf = (root: Element): ReadonlyMap<string, string> =>
-  new Map(
-    Array.from(root.querySelectorAll(`[${STATIC_ATTRIBUTE}]`), element => [
-      element.getAttribute(STATIC_ATTRIBUTE) ?? '',
-      element.innerHTML,
-    ]),
-  )
-
-/**
- * The part of a Foldkit application config a server render and a resumed
- * client need. The full `makeApplication` config fits.
- */
-export interface ResumableConfig<Model> {
-  readonly Model: Schema.Codec<Model, any, unknown, unknown>
-  readonly init: (...args: ReadonlyArray<any>) => {
-    readonly model: Model
-    readonly commands?: ReadonlyArray<{ readonly name: string }> | undefined
-  }
-  readonly update: (model: Model, message: any) => { readonly model: Model }
-  readonly view: (model: Model, h: any) => unknown
-  readonly container: HTMLElement | null
-  readonly Flags?: unknown
-  readonly routing?: unknown
-  readonly subscriptions?: Readonly<Record<string, unknown>> | undefined
-  readonly managedResources?: Readonly<Record<string, unknown>> | undefined
-  /** The services Commands need, as Foldkit's runtime provides them. */
-  readonly resources?: Layer.Layer<any, any, never> | undefined
-  /**
-   * Bundles whose bodies load on demand (`Bundle.lazy`). The server loads
-   * them before it renders; the browser loads them before it boots, answering
-   * from the markers meanwhile, so a page never shows a bundle's placeholder.
-   */
-  readonly lazy?: ReadonlyArray<Loadable> | undefined
-}
-
-/** What `SSR` needs of a lazy bundle: `Bundle.lazy` gives it. */
-export interface Loadable {
-  readonly name: string
-  readonly load: () => Promise<void>
-  readonly isLoaded: () => boolean
-}
-
 /** Loads every lazy bundle's bodies, so the view renders whole. */
 const loadLazy = (config: { readonly lazy?: ReadonlyArray<Loadable> | undefined }) =>
   Effect.promise(() => Promise.all((config.lazy ?? []).map(bundle => bundle.load())))
-
-/**
- * The build attribute on Foldkit's hydration root. Foldkit does not export it,
- * as it does the app and Flags attributes; a test pins it to what Foldkit's
- * server stamps.
- */
-const BUILD_ATTRIBUTE = 'data-foldkit-build'
-
-/**
- * The config without a `Flags` key at all. Deleted, never set to `undefined`:
- * Foldkit's server asks whether `Flags` is defined and its client whether the
- * key exists, so an `undefined` one renders and is then refused.
- */
-const withoutFlags = <Config extends { readonly Flags?: unknown }>(config: Config) => {
-  const { Flags: _flags, ...rest } = config
-  return rest
-}
-
-/** The config whose `init` returns this start, whatever arguments it is given. */
-const startingFrom = <Model>(
-  config: ResumableConfig<Model>,
-  start: { readonly model: Model; readonly commands?: ReadonlyArray<unknown> },
-) => ({ ...withoutFlags(config), init: () => start })
-
-/** A route as the envelope records it: the path and the query. */
-const routeOf = (url: string): string => {
-  const parsed = new URL(url, 'http://localhost')
-  return `${parsed.pathname}${parsed.search}`
-}
 
 /** Foldkit's own Flags script, which a resumed page never carries. */
 const FLAGS_SCRIPT = new RegExp(
@@ -861,8 +441,8 @@ export interface RenderedPage {
  * Foldkit would rebuild that part of the page silently, so this is the one
  * place it shows.
  */
-const render = <Model, Fields extends Schema.Struct.Fields>(
-  config: ResumableConfig<Model>,
+const render = <Model, Fields extends Schema.Struct.Fields, Message = any>(
+  config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
   options: {
     readonly buildId: string
@@ -1126,8 +706,9 @@ const generate = <
   Model,
   Fields extends Schema.Struct.Fields,
   const Paths extends ReadonlyArray<string>,
+  Message = any,
 >(
-  config: ResumableConfig<Model>,
+  config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
   options: {
     readonly buildId: string
@@ -1190,10 +771,12 @@ const generate = <
  * `GET` and `HEAD` render the page against the plan, with the request's URL
  * and, when the application has Flags, `flags(request)`. `POST` goes to
  * `SSR.handle` when the plan has a server fallback, and is answered `400` when
- * the post is unusable. Any other method is answered `405` (`handleRequest`
+ * the post is unusable. `OPTIONS` is answered `204`, and any other method
+ * `405`, each with the methods the entry answers in `allow` (`handleRequest`
  * passes every method through). A render that fails, or a plan the render
  * refuses, is answered `500` with the reason logged, never with a page the
- * browser cannot resume.
+ * browser cannot resume. `headers(request)` is set over the entry's own on
+ * every response it answers: a cache policy, or a CORS answer to a preflight.
  *
  * The page is answered whole, as `Responded`: a `Rendered` result is placed in
  * `handleRequest`'s one template, which has no place for a per-request
@@ -1202,8 +785,8 @@ const generate = <
  * injection are Foldkit's. `handleRequest` still classifies static misses and
  * answers `HEAD` without a body.
  */
-const entry = <Model, Fields extends Schema.Struct.Fields>(
-  config: ResumableConfig<Model>,
+const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
+  config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
   options: {
     readonly buildId: string
@@ -1211,278 +794,84 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
     readonly containerId?: string | undefined
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
     readonly head?: Head | undefined
+    readonly headers?: ((request: Request) => HeadersInit) | undefined
   },
 ): EntryModule => {
   // Checked once, when the entry is made, rather than failing every request.
   withEnvelope(options.template, '')
   if (options.head !== undefined) withHead(options.template, '<!-- head -->')
   const headOf = options.head
+  const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
+  const answer = async (request: Request): Promise<Response> => {
+    const method = request.method.toUpperCase()
+    const posting = method === 'POST' && plan.fallback === 'server'
+    if (method === 'OPTIONS') return new Response(null, { status: 204, headers: { allow } })
+    if (method !== 'GET' && method !== 'HEAD' && !posting) {
+      return new Response(null, { status: 405, headers: { allow } })
+    }
+    const flagsOf = options.flags
+    // `Effect.result` would miss a defect, such as a view that throws, and a
+    // `flags` that throws or rejects is not in the Effect at all: both would
+    // reject `renderPage` instead of answering it.
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const flags =
+          flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
+        const flagged = flagsOf === undefined ? {} : { flags }
+        const result = posting
+          ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
+          : yield* render(config, plan, {
+              buildId: options.buildId,
+              url: request.url,
+              ...flagged,
+            })
+        // In the Effect, so a `head` that throws is a defect, answered as a failed render is.
+        const head = headOf === undefined ? '' : headOf(result.rendered)
+        return { ...result, head }
+      }),
+    )
+    if (Exit.isFailure(exit)) {
+      const refused = Cause.findErrorOption(exit.cause).pipe(
+        Option.filter(error => error instanceof FallbackRefused),
+      )
+      if (Option.isSome(refused)) {
+        return plainText(400, `The form could not be handled: ${refused.value.message}`)
+      }
+      console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
+      return plainText(500, 'The page could not be rendered.')
+    }
+    warnUnnamed(config, plan, exit.value.unnamed)
+    const template = withHead(withEnvelope(options.template, exit.value.envelope), exit.value.head)
+    return toResponse(
+      template,
+      Rendered(exit.value.rendered),
+      options.containerId === undefined ? undefined : { containerId: options.containerId },
+    )
+  }
+  const headersOf = options.headers
   return {
     renderPage: async request => {
-      const method = request.method.toUpperCase()
-      const posting = method === 'POST' && plan.fallback === 'server'
-      if (method !== 'GET' && method !== 'HEAD' && !posting) {
-        const allow = plan.fallback === 'server' ? 'GET, HEAD, POST' : 'GET, HEAD'
-        return Responded(new Response(null, { status: 405, headers: { allow } }))
-      }
-      const flagsOf = options.flags
-      // `Effect.result` would miss a defect, such as a view that throws, and a
-      // `flags` that throws or rejects is not in the Effect at all: both would
-      // reject `renderPage` instead of answering it.
-      const exit = await Effect.runPromiseExit(
-        Effect.gen(function* () {
-          const flags =
-            flagsOf === undefined
-              ? undefined
-              : yield* Effect.tryPromise(async () => flagsOf(request))
-          const flagged = flagsOf === undefined ? {} : { flags }
-          const result = posting
-            ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
-            : yield* render(config, plan, {
-                buildId: options.buildId,
-                url: request.url,
-                ...flagged,
-              })
-          // In the Effect, so a `head` that throws is a defect, answered as a failed render is.
-          const head = headOf === undefined ? '' : headOf(result.rendered)
-          return { ...result, head }
-        }),
-      )
-      if (Exit.isFailure(exit)) {
-        const refused = Cause.findErrorOption(exit.cause).pipe(
-          Option.filter(error => error instanceof FallbackRefused),
+      if (headersOf === undefined) return Responded(await answer(request))
+      let extra: Headers
+      try {
+        extra = new Headers(headersOf(request))
+      } catch (error) {
+        console.error(
+          `[foldkit-ssr] ${request.url} was not answered: headers threw ${String(error)}`,
         )
-        if (Option.isSome(refused)) {
-          return Responded(
-            new Response(`The form could not be handled: ${refused.value.message}`, {
-              status: 400,
-              headers: { 'content-type': 'text/plain; charset=utf-8' },
-            }),
-          )
-        }
-        console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
-        return Responded(
-          new Response('The page could not be rendered.', {
-            status: 500,
-            headers: { 'content-type': 'text/plain; charset=utf-8' },
-          }),
-        )
+        return Responded(plainText(500, 'The page could not be rendered.'))
       }
-      warnUnnamed(config, plan, exit.value.unnamed)
-      const template = withHead(
-        withEnvelope(options.template, exit.value.envelope),
-        exit.value.head,
-      )
-      return Responded(
-        toResponse(
-          template,
-          Rendered(exit.value.rendered),
-          options.containerId === undefined ? undefined : { containerId: options.containerId },
-        ),
-      )
+      const response = await answer(request)
+      // Deleted and appended rather than set, which would keep one `set-cookie` of several.
+      for (const name of new Set(extra.keys())) response.headers.delete(name)
+      extra.forEach((value, name) => response.headers.append(name, value))
+      return Responded(response)
     },
   }
 }
 
-/**
- * Starts the browser from the page's resumed Model, without running `init`.
- *
- * In the order Foldkit checks a page: the build id first, before the payload
- * is read, then the envelope and its route. A page from another build is
- * refused by Foldkit itself. A page that cannot resume is refused and contained
- * by Foldkit's own refusal, and the reason is logged. A server page is never
- * rendered again on the client. A page with no server render at all, no
- * stamped root, is rendered on the client as usual.
- */
-const hydrate = <Model, Fields extends Schema.Struct.Fields>(
-  config: ResumableConfig<Model>,
-  plan: ResumePlan<Model, Fields>,
-  options: { readonly buildId: string },
-): void => {
-  const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
-  if (root === null) {
-    run(makeApplication(config as never))
-    return
-  }
-  const program = (start: { readonly model: Model; readonly commands?: ReadonlyArray<unknown> }) =>
-    makeApplication({ ...startingFrom(config, start), container: root } as never)
-  if (root.getAttribute(BUILD_ATTRIBUTE) !== options.buildId) {
-    adopt(program({ model: plan.baseline }), { buildId: options.buildId })
-    return
-  }
-  const resumed = resume(plan, document, { route: routeOf(window.location.href) })
-  if (Result.isFailure(resumed)) {
-    console.error(`[foldkit-ssr] the page cannot resume: ${resumed.failure.message}`)
-    // Foldkit refuses an empty build id and contains the page, so the page is
-    // refused the way Foldkit refuses one, with nothing copied here.
-    adopt(program({ model: plan.baseline }), { buildId: '' })
-    return
-  }
-  const model = resumed.success
-  const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
-  const resuming: RenderContext = {
-    mode: 'resume',
-    snapshots: snapshotsOf(root),
-    reported: new Set(),
-  }
-  // The runtime starts from the resumed Model, so its first render is the
-  // served markup and Foldkit adopts every node. The Messages the page
-  // answered before the live page listened wait in `answered`, and the first
-  // Message the runtime processes, whatever it is, runs them through `update`
-  // ahead of itself: they reach the Model before anything the live page
-  // answers, an event dispatched in the task that boots it included.
-  const answered: Array<unknown> = []
-  const update = (current: Model, message: unknown) => {
-    const handingOver = message === HANDOVER
-    if (answered.length === 0)
-      return handingOver ? { model: current } : config.update(current, message)
-    const returned: Array<unknown> = []
-    for (const next of [...answered.splice(0), ...(handingOver ? [] : [message])]) {
-      const step = config.update(current, next) as {
-        readonly model: Model
-        readonly commands?: ReadonlyArray<unknown> | undefined
-      }
-      current = step.model
-      returned.push(...(step.commands ?? []))
-    }
-    return { model: current, commands: returned }
-  }
-  const boot = (entries: Readonly<Record<string, unknown>> = {}) =>
-    adopt(
-      makeApplication({
-        ...withContext(startingFrom({ ...config, update }, { model, commands }), resuming),
-        container: root,
-        subscriptions: { ...config.subscriptions, ...entries },
-      } as never),
-      { buildId: options.buildId },
-    )
-  const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
-  if (plan.start === 'now' && pending.length === 0) {
-    boot()
-    return
-  }
-  const decoded = bindingsAndEvents(plan, document, root, model)
-  if (Result.isFailure(decoded)) {
-    console.error(`[foldkit-ssr] the page cannot resume: ${decoded.failure.message}`)
-    adopt(program({ model: plan.baseline }), { buildId: '' })
-    return
-  }
-  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending)
-}
-
-/**
- * The Message the handover entry sends so the runtime takes the answered
- * Messages when nothing else has asked it to. The wrapped `update` consumes
- * it; the application never sees it.
- */
-const HANDOVER: unknown = Object.freeze({ _tag: 'foldkit-ssr/Handover' })
-
-/**
- * Lets the page answer from its bindings until something asks for the
- * runtime, then boots it and hands over to the live page.
- *
- * Every Message the page answers goes to `answered`, which the runtime takes
- * before its first Message. An event only the live page can answer is kept
- * and sent again to where it first went once the live page listens. The page
- * stops listening as soon as the runtime's first render has committed: when
- * `hydrate` returns, which Foldkit does today, or else when a handover
- * Subscription entry starts, after `Render.afterCommit`. When lazy bundles
- * must load first, the boot waits for them and the page keeps answering.
- */
-const deferBoot = (
-  root: HTMLElement,
-  decoded: {
-    readonly bindings: ReadonlyArray<DecodedBinding>
-    readonly events: ReadonlyArray<string> | undefined
-  },
-  start: Start,
-  runtime: {
-    readonly boot: (entries: Readonly<Record<string, unknown>>) => void
-    readonly answered: Array<unknown>
-  },
-  pending: ReadonlyArray<Loadable>,
-): void => {
-  // Events only the live page can answer, met before it listened.
-  const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
-  // `waiting` for an interaction or idle, `loading` bodies, `starting` the
-  // runtime until its first render commits, then `live`.
-  let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
-  const stop = listen(root, {
-    bindings: decoded.bindings,
-    ...(decoded.events === undefined ? {} : { events: decoded.events }),
-    onAnswer: ({ event, messages, unnamed }) => {
-      // An answer the markers could not complete is left to the live page.
-      if (unnamed !== undefined) {
-        startNow()
-        // Once the live page listens, this event reaches it in the rest of
-        // its own dispatch; until then it is kept for the handover.
-        if (phase !== 'live' && event.target instanceof Element) {
-          unanswered.push({ event, element: event.target })
-        }
-        return
-      }
-      // Nothing answered it: it goes on to the page, a plain link to the
-      // router, as it would have.
-      if (messages.length === 0) {
-        startNow()
-        return
-      }
-      // Taken by the runtime before anything else. The live page must not
-      // answer this one as well.
-      runtime.answered.push(...messages)
-      event.stopPropagation()
-      startNow()
-    },
-  })
-  const handOver = () => {
-    if (phase === 'live') return
-    phase = 'live'
-    stop()
-    for (const { event, element } of unanswered.splice(0)) {
-      const Ctor = event.constructor as new (type: string, init: Event) => Event
-      element.dispatchEvent(new Ctor(event.type, event))
-    }
-  }
-  const commit = () => {
-    phase = 'starting'
-    runtime.boot({
-      'foldkit-ssr.handover': {
-        dependenciesSchema: Schema.Null,
-        modelToDependencies: () => null,
-        // Foldkit strips the root's stamp just before its first patch, so a
-        // stamped root still has a render to wait for.
-        dependenciesToStream: () =>
-          Stream.fromEffect(
-            Effect.as(
-              Effect.andThen(
-                root.hasAttribute(FOLDKIT_APP_ATTRIBUTE) ? Render.afterCommit : Effect.void,
-                Effect.sync(handOver),
-              ),
-              HANDOVER,
-            ),
-          ),
-      },
-    })
-    if (!root.hasAttribute(FOLDKIT_APP_ATTRIBUTE)) handOver()
-  }
-  const startNow = () => {
-    if (phase !== 'waiting') return
-    phase = 'loading'
-    if (pending.length === 0) {
-      commit()
-      return
-    }
-    void Promise.all(pending.map(bundle => bundle.load())).then(commit, (error: unknown) => {
-      console.error(`[foldkit-ssr] a bundle's bodies did not load: ${String(error)}`)
-      commit()
-    })
-  }
-  if (start === 'now') startNow()
-  else if (start === 'idle') {
-    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(startNow)
-    else setTimeout(startNow, 0)
-  }
-}
+const plainText = (status: number, body: string): Response =>
+  new Response(body, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } })
 
 /** How a form's Message is written into the page for the fallback, when the plan has one. */
 const fallbackEncoder = <Model, Fields extends Schema.Struct.Fields>(
@@ -1609,9 +998,9 @@ const startOf = <Model>(
  * Command it leads to, runs `update` with the Message and every Command that
  * follows, and renders the result as a fresh page.
  */
-const handle = <Model, Fields extends Schema.Struct.Fields>(
+const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   request: Request,
-  config: ResumableConfig<Model>,
+  config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
   options: { readonly buildId: string; readonly flags?: unknown },
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
@@ -1683,73 +1072,13 @@ const handle = <Model, Fields extends Schema.Struct.Fields>(
     })
   })
 
-/**
- * The page's bindings, decoded through the plan's Message Schema, kept to the
- * Messages the Surfaces active for `model` may send, and checked against
- * every marker in `root`. Refused, with the reason, when the page carries
- * none, an entry is not one of the application's Messages or one no active
- * Surface lists, or a marker names a binding the page does not carry: a page
- * is answered whole or not at all.
- */
-const bindings = <Model, Fields extends Schema.Struct.Fields>(
-  plan: ResumePlan<Model, Fields>,
-  page: ParentNode,
-  root: Element,
-  model: Model,
-): Result.Result<ReadonlyArray<DecodedBinding>, ResumeRefused> =>
-  Result.map(bindingsAndEvents(plan, page, root, model), read => read.bindings)
-
-const EnvelopeEvents = Schema.optional(Schema.Array(Schema.String))
-
-/**
- * `bindings`, and the events the envelope says the markers name, if it says:
- * a page from before the envelope listed them leaves `listen` to find them.
- */
-const bindingsAndEvents = <Model, Fields extends Schema.Struct.Fields>(
-  plan: ResumePlan<Model, Fields>,
-  page: ParentNode,
-  root: Element,
-  model: Model,
-): Result.Result<
-  {
-    readonly bindings: ReadonlyArray<DecodedBinding>
-    readonly events: ReadonlyArray<string> | undefined
-  },
-  ResumeRefused
-> => {
-  const parsed = readEnvelope(page)
-  if (Result.isFailure(parsed)) return Result.fail(parsed.failure)
-  const read = readBindings(parsed.success.bindings ?? [])
-  if (Result.isFailure(read)) {
-    return refuse('Invalid', `the page's bindings are malformed: ${read.failure}`)
-  }
-  const encoded = read.success
-  if (encoded.length > 0 && plan.surfaces.length === 0) {
-    return refuse(
-      'Invalid',
-      'the page has bindings and the plan declares no surfaces to allow them',
-    )
-  }
-  const events = Schema.decodeUnknownResult(EnvelopeEvents)(parsed.success.events)
-  if (Result.isFailure(events)) {
-    return refuse('Invalid', `the page's events are malformed: ${events.failure.message}`)
-  }
-  const decoded = decodeBindings(plan.Message, encoded, root, allowedTags(plan, model))
-  return Result.isFailure(decoded)
-    ? refuse('Invalid', decoded.failure)
-    : Result.succeed({ bindings: decoded.success, events: events.success })
-}
-
-/** The resumable track: bindings the server's markup names, so a page can answer before it boots. */
-export const Resume = { builder, view, bindings, listen }
-
 export const SSR = {
   plan,
   envelope,
   resume,
   render,
   page,
-  hydrate,
+  hydrate: Client.hydrate,
   inspect,
   static: staticRegion,
   serving,
@@ -1760,10 +1089,20 @@ export const SSR = {
 }
 
 export {
+  FOLDKIT_APP_ATTRIBUTE,
+  RESUME_ATTRIBUTE,
+  STATIC_ATTRIBUTE,
+  Resume,
+  ResumeRefused,
   BINDING_ATTRIBUTE,
   FALLBACK_FIELD,
   SLOT_ATTRIBUTE,
+  type DecodedBinding,
+  type Loadable,
   type ResumableBuilder,
-} from './resumable.js'
-export type { DecodedBinding } from './listen.js'
-export type { UnnamedHandler } from './context.js'
+  type ResumableConfig,
+  type ResumePart,
+  type ResumePlan,
+  type Start,
+  type UnnamedHandler,
+} from './client.js'

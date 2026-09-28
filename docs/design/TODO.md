@@ -327,10 +327,11 @@ its README the details.
 - [x] **Form: `Schema.optionalKey` is treated as required,** and `Blurred` on
   an empty optional key returns an equal copy of the Model. Fixed; an
   `Option`-typed key is also drawn now.
-- [ ] **SSR: `SSR.hydrate` rejects Foldkit's own application config type,**
-  contrary to its README; there is no browser-only entry, so a hydrated page's
-  bundle carries the server renderer (+231 kB minified); and `SSR.entry` cannot
-  add response headers or answer OPTIONS. `foldkit-ssg`, `foldkit-ssr`
+- [x] **SSR: hydrate's config type, a browser entry, entry headers and
+  OPTIONS.** Done: `foldkit-ssr/client` (about 200 kB minified off a hydrating
+  page), Foldkit's config types, `SSR.entry`'s `headers` and a 204 OPTIONS.
+  `examples/cms` could still move its hand-written root attribute and lazy plan
+  to `foldkit-ssr/client`.
 - [ ] **Mixins: no helper installs the stylesheet in the browser;** every entry
   hand-writes a `<style>`. `foldkit-counter`
 - [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**

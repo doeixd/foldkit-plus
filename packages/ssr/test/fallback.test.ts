@@ -136,7 +136,7 @@ describe('SSR.handle through handleRequest', () => {
       SSR.entry(config, eager, { buildId: 'b', template }),
     )
     expect(response.status).toBe(405)
-    expect(response.headers.get('allow')).toBe('GET, HEAD')
+    expect(response.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
   })
 
   it('still answers GET, and names POST among the allowed methods', async () => {
@@ -146,6 +146,6 @@ describe('SSR.handle through handleRequest', () => {
       new Request('https://example.test/todos', { method: 'PUT', headers: html }),
     )
     expect(other.status).toBe(405)
-    expect(other.headers.get('allow')).toBe('GET, HEAD, POST')
+    expect(other.headers.get('allow')).toBe('GET, HEAD, POST, OPTIONS')
   })
 })

@@ -10,6 +10,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@effect/platform-node": "4.0.0-rc.116",
     "@foldkit/ui": "0.163.0",
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",

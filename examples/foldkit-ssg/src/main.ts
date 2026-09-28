@@ -6,7 +6,7 @@ import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { SSR } from 'foldkit-ssr'
+import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { AppRoute, aboutRouter, homeRouter, urlToAppRoute } from './route.js'
@@ -88,6 +88,14 @@ export const update = (model: Model, message: Message) =>
     CompletedNavigateInternal: () => ({ model }),
     CompletedLoadExternal: () => ({ model }),
   })
+
+// ROUTING
+
+/** How links become Messages, the same for the build's render and the browser. */
+export const routing: Runtime.RoutingConfig<Message> = {
+  onUrlRequest: request => Message.ClickedLink({ request }),
+  onUrlChange: url => Message.ChangedUrl({ url }),
+}
 
 // SSR
 

@@ -38,7 +38,7 @@ const Editor = SSR.plan(App, {
 const result = await Effect.runPromise(SSR.render(config, Editor, { buildId, url }))
 const html = SSR.page(template, result) // before the template's last </body>; none is refused
 
-// browser, instead of Runtime.hydrate
+// browser, instead of Runtime.hydrate: import { SSR } from 'foldkit-ssr/client'
 SSR.hydrate(config, Editor, { buildId })
 ```
 
@@ -51,10 +51,13 @@ SSR.hydrate(config, Editor, { buildId })
   one before left, so a read that depends on another (a page's Blocks on its
   document) sees it. With a `foldkit-bundle` assembly, `init` must still return
   `placements.initial(...)`: pass the prepared fields to it.
-- **The package has one entry, and it carries Foldkit's server renderer.**
-  Importing anything from `foldkit-ssr`, or from `foldkit/experimental/server`,
-  in a browser module puts the renderer and its HTML parser in that bundle.
-  Import `SSR.hydrate` through a module loaded only for a page it takes over.
+- **Import `foldkit-ssr/client` in the browser.** It holds `plan`, `resume`,
+  `hydrate`, `static`, `serving` and the attribute names (including
+  `FOLDKIT_APP_ATTRIBUTE`) and imports nothing from the server, about 200 kB
+  minified less than `foldkit-ssr`, which carries Foldkit's renderer. Import
+  `foldkit-ssr` only in server code. `SSR.hydrate` takes the same
+  `makeApplication` config; `SSR.entry(..., { headers })` sets headers on every
+  response it answers and answers OPTIONS itself.
 
 - `init`'s Commands never run on a resumed page. `SSR.render` fails with
   `ResumeUnsafe` `UndeclaredStartup` until the plan names them in `boot`. A

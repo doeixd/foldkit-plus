@@ -3,7 +3,7 @@
  * visitor's cookie by `foldkit-ssr`, with its styles in the head. `serve.ts`
  * hosts it; `entry.ts` takes the page over in the browser.
  */
-import { HOST_METHOD_ANSWERS, handleRequest, varyWith } from 'foldkit/experimental/server'
+import { handleRequest } from 'foldkit/experimental/server'
 import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 
@@ -21,23 +21,19 @@ const flagsForRequest = (cookieHeader: string): Flags => ({
 // on the server. The page carries the Model `init` reached (the plan's state),
 // which the browser starts from without running `init` at all.
 
-// NOTE: a preflight reaches the entry in development and in production alike,
-// so this is where an application's CORS policy goes: it can allow one origin
-// for one route and refuse it for another, which no host-level setting could
-// express. This example allows nothing and only reports what it forwards.
-const preflightResponse = (): Response =>
-  new Response(null, {
-    status: 204,
-    headers: { allow: HOST_METHOD_ANSWERS.allow },
-  })
-
-/** Each page is one visitor's count, so no cache may keep it or share it. */
-const withPageHeaders = (response: Response): Response => {
-  const headers = new Headers(response.headers)
-  headers.set('cache-control', 'private, no-store')
-  headers.set('vary', varyWith(headers.get('vary') ?? undefined, 'cookie'))
-  headers.set('x-content-type-options', 'nosniff')
-  return new Response(response.body, { status: response.status, headers })
+/**
+ * Each page is one visitor's count, so no cache may keep it or share it.
+ *
+ * NOTE: a preflight reaches the entry in development and in production alike,
+ * which answers it with the methods it takes, and these headers are where an
+ * application's CORS policy goes: they see the request, so they can allow one
+ * origin for one route and refuse it for another, which no host-level setting
+ * could express. This example allows nothing.
+ */
+const pageHeaders = {
+  'cache-control': 'private, no-store',
+  vary: 'cookie',
+  'x-content-type-options': 'nosniff',
 }
 
 /**
@@ -61,10 +57,9 @@ const head = (rendered: { readonly html: string }): string =>
   `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
 
 /**
- * A Web `fetch` handler for the page requests no static file answered:
- * `OPTIONS` answered here, everything else through Foldkit's `handleRequest`
- * into `foldkit-ssr`'s entry, which renders `GET` and `HEAD` and refuses the
- * other methods with `405`.
+ * A Web `fetch` handler for the page requests no static file answered, through
+ * Foldkit's `handleRequest` into `foldkit-ssr`'s entry, which renders `GET` and
+ * `HEAD`, answers `OPTIONS`, and refuses the other methods with `405`.
  */
 export const makePageHandler = (options: {
   readonly template: string
@@ -74,10 +69,8 @@ export const makePageHandler = (options: {
     buildId: options.buildId,
     template: options.template,
     head,
+    headers: () => pageHeaders,
     flags: request => flagsForRequest(request.headers.get('cookie') ?? ''),
   })
-  return async request =>
-    request.method === 'OPTIONS'
-      ? preflightResponse()
-      : withPageHeaders(await handleRequest(request, { renderPage, template: options.template }))
+  return request => handleRequest(request, { renderPage, template: options.template })
 }

@@ -73,10 +73,10 @@ pnpm --filter foldkit-example-foldkit-ssg preview  # serves dist/ as a static ho
   hand the browser the Home page at `/missing`, which `SSR.hydrate` refuses
   (the route differs) and contains, where upstream's `Runtime.hydrate` reruns
   `init` for the address. The dev server still shows Not found.
-- **The browser bundle carries Foldkit's server renderer.** `foldkit-ssr` has
-  one entry, so `SSR.hydrate` brings its `SSR.render` and the HTML parser
-  along: 574 kB minified (183 kB gzip) against 343 kB (114 kB gzip) for the
-  same app on `Runtime.run`.
+- **The browser bundle is a little larger.** `src/entry.ts` imports
+  `foldkit-ssr/client`, which leaves Foldkit's server renderer out: 370 kB
+  minified (124 kB gzip) against 343 kB (114 kB gzip) for the same app on
+  `Runtime.run`, and 574 kB (183 kB gzip) through `foldkit-ssr`'s main entry.
 - **The About page says "The same generatePages call produced this route"**,
   where upstream names its `renderPage` function, which does not exist here.
 - **A `ChangedUrl` for the page already shown returns the same Model**

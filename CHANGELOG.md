@@ -36,6 +36,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-ssr/client`, a browser entry:** `SSR.plan`, `resume`,
+  `hydrate`, `static`, `serving`, `Resume` and the attribute names (including
+  `FOLDKIT_APP_ATTRIBUTE`), importing nothing from
+  `foldkit/experimental/server`: about 200 kB minified (60 kB gzip) less on a
+  hydrating page. `foldkit-ssr` still exports everything.
+
 - **`foldkit-mixins-ui`, `toView` on every adapter:**
   `X.toView(mixins, { h }, draw)` fills a component's `toView` slot and hands
   `draw` the bundles with the Mixins applied, in a component's `view` or a
@@ -517,6 +523,17 @@ version changed; `pnpm` skips versions already in the registry.
   and listening take 12 ms in Chromium, down from 22.
 
 ### Changed
+
+- **`foldkit-ssr`, Foldkit's config types:** `SSR.hydrate`, `render`,
+  `generate`, `entry` and `handle` accept Foldkit's `makeApplication` config
+  types; `routing`'s callbacks are checked against `update`'s Message, and
+  `resources` is `Layer<never, never, never>` (the old type rejected
+  Foldkit's own Layer).
+- **`foldkit-ssr`, `SSR.entry` answers OPTIONS (breaking):** `204` with
+  `allow: GET, HEAD[, POST], OPTIONS` instead of `405`, and a new
+  `headers: request => HeadersInit` sets headers on every response it answers.
+- **`examples/foldkit-ssr` serves as upstream does:** Effect's HTTP server on
+  `@effect/platform-node` instead of a hand-written `node:http` host.
 
 - **`foldkit-remote`, typed entry dependencies:** `Data.subscriptions` and
   `Remote.fold(...).subscriptions` type each entry's dependencies

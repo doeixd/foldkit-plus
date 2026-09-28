@@ -77,7 +77,58 @@ describe('SSR.entry through handleRequest', () => {
       new Request('https://example.test/', { method: 'POST', headers: html, body: 'x' }),
     )
     expect(response.status).toBe(405)
-    expect(response.headers.get('allow')).toBe('GET, HEAD')
+    expect(response.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
+  })
+
+  it('answers OPTIONS 204 with the methods it answers, rendering nothing', async () => {
+    const before = calls.init
+    const response = await serve(new Request('https://example.test/', { method: 'OPTIONS' }))
+    expect(response.status).toBe(204)
+    expect(response.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
+    expect(calls.init).toBe(before)
+  })
+
+  it('sets `headers(request)` over its own on every response, a preflight included', async () => {
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      template,
+      headers: request => {
+        const headers = new Headers({ 'cache-control': 'no-store', 'content-type': 'text/x-page' })
+        headers.append('set-cookie', 'a=1')
+        headers.append('set-cookie', 'b=2')
+        if (request.method === 'OPTIONS')
+          headers.set('access-control-allow-origin', 'https://a.test')
+        return headers
+      },
+    })
+    const page = await serve(new Request('https://example.test/', { headers: html }), entry)
+    expect(page.status).toBe(200)
+    expect(page.headers.get('cache-control')).toBe('no-store')
+    expect(page.headers.get('content-type')).toBe('text/x-page')
+    expect(page.headers.getSetCookie()).toEqual(['a=1', 'b=2'])
+    expect(page.headers.get('access-control-allow-origin')).toBeNull()
+    const preflight = await serve(
+      new Request('https://example.test/', { method: 'OPTIONS' }),
+      entry,
+    )
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://a.test')
+    expect(preflight.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
+    const refused = await serve(new Request('https://example.test/', { method: 'PUT' }), entry)
+    expect(refused.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('answers `headers` that throw 500, logging why', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      template,
+      headers: () => {
+        throw new Error('no policy today')
+      },
+    })
+    const response = await serve(new Request('https://example.test/', { headers: html }), entry)
+    expect(response.status).toBe(500)
+    expect(String(logged.mock.calls[0]?.[0])).toContain('no policy today')
   })
 
   it('leaves a hashed-asset miss to handleRequest, rendering nothing', async () => {

@@ -22,7 +22,7 @@ const Post = SSR.plan(App, {
 // Server: render, and write that slice into the page.
 const html = SSR.page(template, await Effect.runPromise(SSR.render(config, Post, { buildId, url })))
 
-// Browser: take the page over from the slice, without running init.
+// Browser (from 'foldkit-ssr/client'): take the page over from the slice, without running init.
 SSR.hydrate(config, Post, { buildId })
 ```
 
@@ -89,27 +89,50 @@ silently rebuilt in the browser.
 The examples in this README share one application, a post page, sketched [at
 the end](#the-application-in-these-examples). `App` is its Surface application
 from `foldkit-surface`, and `config` is what you would pass to
-`makeApplication`, the same object on both sides.
+`makeApplication`, the same object on both sides: any of its four shapes, with
+Flags or routing or neither, and `routing`'s callbacks typed from `update`'s
+Message as Foldkit types them.
+
+The code is in three modules, because the server and the browser import
+different things:
 
 ```ts
-import { Effect } from 'effect'
+// post.ts, read by both: the plan. Which part of the Model the browser owns;
+// the rest starts from the baseline, by default the application's initial Model.
 import { Projection } from 'foldkit-surface'
-import { SSR } from 'foldkit-ssr'
+import { SSR } from 'foldkit-ssr/client'
 
-// Which part of the Model the browser owns. The rest starts from the
-// baseline, by default the application's initial Model.
 export const Post = SSR.plan(App, {
   id: 'post',
   state: Projection.pick(App.model.route, App.model.draft),
 })
+```
 
-// On the server, per request.
+```ts
+// server.ts, per request.
+import { Effect } from 'effect'
+import { SSR } from 'foldkit-ssr'
+
 const result = await Effect.runPromise(SSR.render(config, Post, { buildId, url: request.url }))
 const html = SSR.page(template, result)
+```
 
-// In the browser, instead of Runtime.hydrate.
+```ts
+// client.ts, the page's script, instead of Runtime.hydrate.
+import { SSR } from 'foldkit-ssr/client'
+
 SSR.hydrate(config, Post, { buildId })
 ```
+
+`foldkit-ssr/client` is the browser's part: `SSR.plan`, `SSR.resume`,
+`SSR.hydrate`, `SSR.static`, `SSR.serving`, `Resume`, and the attribute names,
+Foldkit's root stamp (`FOLDKIT_APP_ATTRIBUTE`) among them. It imports nothing
+of `foldkit/experimental/server`, whose renderer and HTML parser `foldkit-ssr`
+brings along: about 200 kB minified (60 kB gzipped) off a page's script in the
+[SSR example](../../examples/foldkit-ssr). `foldkit-ssr` has all of it and the
+server's calls, the same functions, so a plan made from either works with
+both. Import `foldkit-ssr/client` in every module the page loads, the plan and
+the view included, and `foldkit-ssr` only where the server alone runs.
 
 What each call does:
 
@@ -201,10 +224,25 @@ export default {
 
 `GET` and `HEAD` render the page for the request's URL; an application with
 Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
-[server fallback](#forms-that-work-without-scripts), and any other method is
-answered `405`. A render that fails or throws, `flags` that reject, and a plan
-the render refuses are answered `500` with the reason logged, never with a page
+[server fallback](#forms-that-work-without-scripts). `OPTIONS` is answered
+`204` and any other method `405`, each with the methods the entry answers in
+`allow`. A render that fails or throws, `flags` that reject, and a plan the
+render refuses are answered `500` with the reason logged, never with a page
 the browser could not resume.
+
+`headers: request => ...` adds headers to every response the entry answers,
+set over its own: a cache policy for a page that is one visitor's, or the CORS
+answer to a preflight, which reaches the entry and not the host.
+
+```ts
+SSR.entry(config, Post, {
+  buildId,
+  template,
+  headers: () => ({ 'cache-control': 'private, no-store', vary: 'cookie' }),
+})
+```
+
+A `headers` that throws is answered `500`, as a failed render is.
 
 The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
 `toResponse`. A `Rendered` result has no room for the envelope, which is why

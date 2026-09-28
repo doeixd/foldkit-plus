@@ -134,3 +134,14 @@ application.
   markers name, a `*`-only one included; `Resume.listen` given that list hears
   those events with no marker to find them by, and a deferred page does too;
   and each malformed shape of the bindings list is refused.
+- **Found by porting Foldkit's examples:** a browser bundle of
+  `foldkit-ssr/client` reads no module of `foldkit/experimental/server`, while
+  the same bundle of `foldkit-ssr` does, and its root attribute is the one
+  Foldkit's server stamps (`client.test.ts`). `SSR.hydrate` and the server's
+  calls take each of Foldkit's config types, a config written in place with
+  `devTools` and unannotated `routing` callbacks, and refuse a routing callback
+  that returns no Message, an unknown key, `resources` that need services, and
+  a `routing` that is not Foldkit's (`types.test-d.ts`). The entry answers
+  `OPTIONS` `204` with its methods, and sets `headers(request)` over its own
+  on a page, a preflight and a `405`, every `set-cookie` kept; `headers` that
+  throw are answered `500`.

@@ -14,6 +14,7 @@
       "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
+      "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },

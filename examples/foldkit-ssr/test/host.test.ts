@@ -1,5 +1,5 @@
 /**
- * The `node:http` host over a built `dist/`, on a free port closed after each
+ * The host over a built `dist/`, on a free port closed after each
  * test: static files, the page for everything else, and the requests it
  * refuses before either.
  */
