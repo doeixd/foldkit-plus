@@ -254,10 +254,14 @@ const textBeforeOf = (model: EditorView): string => {
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
 
-/** The kinds of the node blocks around the caret's block, innermost first. */
+/**
+ * The kinds of the node blocks around the caret's block, innermost first; a range is read
+ * from its start, as `textBeforeOf` reads it.
+ */
 const withinOf = (model: EditorView): ReadonlyArray<string> => {
   if (model.selection?.type !== 'Range') return []
-  const run = RichText.locateRun(model.document, model.selection.anchor.node)
+  const start = RichText.rangeStart(model.document, model.selection)
+  const run = start === undefined ? undefined : RichText.locateRun(model.document, start.node)
   if (run === undefined) return []
   const kinds: Array<string> = []
   for (let depth = run.path.length - 1; depth > 0; depth--) {

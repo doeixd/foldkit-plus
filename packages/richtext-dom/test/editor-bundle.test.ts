@@ -708,6 +708,11 @@ describe('an input rule placed for the editor (§124 §4)', () => {
       version: 1,
       children: [
         {
+          type: 'Paragraph',
+          id: 'top',
+          children: [{ type: 'Text', id: 't', text: 'ab', marks: [] }],
+        },
+        {
           type: 'Node',
           kind: 'Quote',
           id: 'quote',
@@ -742,11 +747,16 @@ describe('an input rule placed for the editor (§124 §4)', () => {
       ],
     })
     const model = application.initial({ document: nested }).model
-    step(
-      { ...model, editor: { ...model.editor, selection: caret('n', 1), hostId: 'nested-editor' } },
-      typed('y'),
-    )
-    expect(seen).toEqual([['ListItem', 'List', 'Quote']])
+    const at = (selection: RichText.Selection) =>
+      step(
+        { ...model, editor: { ...model.editor, selection, hostId: 'nested-editor' } },
+        typed('y'),
+      )
+    at(caret('n', 1))
+    // A range dragged backwards is read from its start, as the text before it is: where what
+    // is typed over it lands.
+    at(range(['n', 1], ['t', 1]))
+    expect(seen).toEqual([['ListItem', 'List', 'Quote'], []])
   })
 
   it('leaves the text alone when the placement placed no rule', () => {
