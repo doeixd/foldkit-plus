@@ -31,7 +31,8 @@
     "foldkit-remote-server": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "foldkit-sync": "workspace:*"
+    "foldkit-sync": "workspace:*",
+    "fractional-indexing": "^4.0.0"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-rc.116",
