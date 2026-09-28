@@ -1,7 +1,7 @@
 import { Slots, Style, type StyleValue } from 'foldkit-mixins'
 import { Recipes, TabsSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
 export const TabsPageSlots = Slots.define({
@@ -15,7 +15,7 @@ export const TabsPageSlots = Slots.define({
   panelNote: container,
 })
 
-export const TabsPageStyle = Style.forSlots(TabsPageSlots)(
+export const TabsPageStyle = forSlots(TabsPageSlots)(
   {
     ...demoStyles,
     vertical: Style.self({ display: 'flex' }),
@@ -23,7 +23,7 @@ export const TabsPageStyle = Style.forSlots(TabsPageSlots)(
     panelEmphasis: Style.self({ color: t.text.overt }),
     panelNote: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
   },
-  { name: 'TabsPageStyle', layer: app },
+  { name: 'TabsPageStyle' },
 )
 
 const border = `${t.border.thin} solid ${t.outline.subtle}`
@@ -60,7 +60,7 @@ const folderTabs = Recipes.Tabs.extend({
   base: { tablist: Style.self({ gap: '0' }), tab: folderTab, panel: folderPanel },
 })
 
-export const HorizontalTabsStyle = Style.forSlots(TabsSlots)(
+export const HorizontalTabsStyle = forSlots(TabsSlots)(
   folderTabs.extend({
     base: {
       tab: Style.compose(
@@ -73,10 +73,10 @@ export const HorizontalTabsStyle = Style.forSlots(TabsSlots)(
       panel: Style.self({ borderRadius: `0 ${t.radius.lg} ${t.radius.lg} ${t.radius.lg}` }),
     },
   })({ variant: null }),
-  { name: 'HorizontalTabsStyle', layer: app },
+  { name: 'HorizontalTabsStyle' },
 )
 
-export const VerticalTabsStyle = Style.forSlots(TabsSlots)(
+export const VerticalTabsStyle = forSlots(TabsSlots)(
   folderTabs.extend({
     base: {
       tablist: Style.self({ flexDirection: 'column' }),
@@ -94,5 +94,5 @@ export const VerticalTabsStyle = Style.forSlots(TabsSlots)(
       }),
     },
   })({ variant: null }),
-  { name: 'VerticalTabsStyle', layer: app },
+  { name: 'VerticalTabsStyle' },
 )

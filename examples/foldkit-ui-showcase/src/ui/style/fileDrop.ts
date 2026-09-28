@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
 /**
@@ -22,7 +22,7 @@ export const FileDropPageSlots = Slots.define({
   removeButton: container,
 })
 
-export const FileDropPageStyle = Style.forSlots(FileDropPageSlots)(
+export const FileDropPageStyle = forSlots(FileDropPageSlots)(
   {
     ...demoStyles,
     demo: Style.self({
@@ -92,5 +92,5 @@ export const FileDropPageStyle = Style.forSlots(FileDropPageSlots)(
       Style.pseudo(':hover', { color: t.error.ink }),
     ),
   },
-  { name: 'FileDropPageStyle', layer: app },
+  { name: 'FileDropPageStyle' },
 )

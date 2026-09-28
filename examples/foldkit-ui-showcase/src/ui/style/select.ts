@@ -1,7 +1,7 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { SelectSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { demoColumn, field } from './field.js'
 import { container, demoSlots, demoStyles, icon, triggerLook } from './shared.js'
 
@@ -15,7 +15,7 @@ export const SelectPageSlots = Slots.define({
   chevronIcon: container,
 })
 
-export const SelectPageStyle = Style.forSlots(SelectPageSlots)(
+export const SelectPageStyle = forSlots(SelectPageSlots)(
   {
     ...demoStyles,
     demo: demoColumn,
@@ -32,14 +32,14 @@ export const SelectPageStyle = Style.forSlots(SelectPageSlots)(
     }),
     chevronIcon: icon('1rem'),
   },
-  { name: 'SelectPageStyle', layer: app },
+  { name: 'SelectPageStyle' },
 )
 
 /**
  * `foldkit-mixins-ui` ships no Select recipe, so the native control takes the
  * trigger look every other button on the page has.
  */
-export const DemoSelectStyle = Style.forSlots(SelectSlots)(
+export const DemoSelectStyle = forSlots(SelectSlots)(
   {
     select: Style.compose(
       triggerLook,
@@ -58,5 +58,5 @@ export const DemoSelectStyle = Style.forSlots(SelectSlots)(
     label: Style.self({ fontSize: t.size.sm, fontWeight: t.weight.medium, color: t.text.default }),
     description: Style.self({ fontSize: t.size.sm, color: t.text.muted }),
   },
-  { name: 'DemoSelectStyle', layer: app },
+  { name: 'DemoSelectStyle' },
 )

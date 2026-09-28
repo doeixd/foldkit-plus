@@ -1,7 +1,7 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { HoverIntentSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, floatingPanel, primaryLook } from './shared.js'
 
 export const HoverIntentPageSlots = Slots.define({
@@ -12,7 +12,7 @@ export const HoverIntentPageSlots = Slots.define({
   panelText: container,
 })
 
-export const HoverIntentPageStyle = Style.forSlots(HoverIntentPageSlots)(
+export const HoverIntentPageStyle = forSlots(HoverIntentPageSlots)(
   {
     ...demoStyles,
     intro: Style.self({
@@ -35,11 +35,11 @@ export const HoverIntentPageStyle = Style.forSlots(HoverIntentPageSlots)(
       color: t.text.muted,
     }),
   },
-  { name: 'HoverIntentPageStyle', layer: app },
+  { name: 'HoverIntentPageStyle' },
 )
 
 /** `foldkit-mixins-ui` ships no HoverIntent recipe; an accent trigger over a card. */
-export const DemoHoverIntentStyle = Style.forSlots(HoverIntentSlots)(
+export const DemoHoverIntentStyle = forSlots(HoverIntentSlots)(
   {
     trigger: Style.compose(primaryLook, Style.self({ fontSize: t.size.sm })),
     panel: Style.compose(
@@ -54,5 +54,5 @@ export const DemoHoverIntentStyle = Style.forSlots(HoverIntentSlots)(
       }),
     ),
   },
-  { name: 'DemoHoverIntentStyle', layer: app },
+  { name: 'DemoHoverIntentStyle' },
 )

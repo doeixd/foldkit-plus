@@ -1,7 +1,7 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { FieldsetSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { checkRow, field } from './field.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
@@ -13,7 +13,7 @@ export const FieldsetPageSlots = Slots.define({
   checkRow: container,
 })
 
-export const FieldsetPageStyle = Style.forSlots(FieldsetPageSlots)(
+export const FieldsetPageStyle = forSlots(FieldsetPageSlots)(
   {
     ...demoStyles,
     fields: Style.self({
@@ -26,11 +26,11 @@ export const FieldsetPageStyle = Style.forSlots(FieldsetPageSlots)(
     checkField: Style.self({ display: 'flex', flexDirection: 'column', gap: t.space['2xs'] }),
     checkRow,
   },
-  { name: 'FieldsetPageStyle', layer: app },
+  { name: 'FieldsetPageStyle' },
 )
 
 /** `foldkit-mixins-ui` ships no Fieldset recipe; this is upstream's bordered group. */
-export const DemoFieldsetStyle = Style.forSlots(FieldsetSlots)(
+export const DemoFieldsetStyle = forSlots(FieldsetSlots)(
   {
     fieldset: Style.self({
       margin: '0',
@@ -53,5 +53,5 @@ export const DemoFieldsetStyle = Style.forSlots(FieldsetSlots)(
       color: t.text.muted,
     }),
   },
-  { name: 'DemoFieldsetStyle', layer: app },
+  { name: 'DemoFieldsetStyle' },
 )

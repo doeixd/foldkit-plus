@@ -15,7 +15,6 @@ import {
   Menu,
   Popover,
 } from '@foldkit/ui'
-import { Style } from 'foldkit-mixins'
 import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
@@ -216,10 +215,6 @@ const unslotted = (root: Html): ReadonlyArray<string> => {
   return found
 }
 
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
-
 const treeNamed = (name: string): Html => {
   const tree = trees.get(name)
   if (tree === undefined) throw new Error(`no tree named ${name}`)
@@ -256,13 +251,9 @@ describe('the pages', () => {
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      [...trees.values()].flatMap(tree =>
-        [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const tree of [...trees.values()]) {
+      expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
+    }
   })
 })

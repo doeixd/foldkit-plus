@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app } from '../../style.js'
+import { forSlots } from '../../style.js'
 import { gaugeSlots, gaugeStyles } from './gauge.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
@@ -9,7 +9,7 @@ export const ProgressPageSlots = Slots.define({ ...demoSlots, ...gaugeSlots, fil
 const pulse = Style.keyframes({ '50%': { opacity: '0.5' } })
 
 /** The indeterminate bar, which has no value, is a third of the track and pulses. */
-export const ProgressPageStyle = Style.forSlots(ProgressPageSlots)(
+export const ProgressPageStyle = forSlots(ProgressPageSlots)(
   {
     ...demoStyles,
     ...gaugeStyles,
@@ -23,5 +23,5 @@ export const ProgressPageStyle = Style.forSlots(ProgressPageSlots)(
       }),
     ),
   },
-  { name: 'ProgressPageStyle', layer: app },
+  { name: 'ProgressPageStyle' },
 )

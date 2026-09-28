@@ -1,7 +1,7 @@
 import { Slots, Style, type StyleValue } from 'foldkit-mixins'
 import { DisclosureSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, icon, shadow } from './shared.js'
 
 export const DisclosurePageSlots = Slots.define({
@@ -24,7 +24,7 @@ export const DisclosurePageSlots = Slots.define({
 
 const border = `${t.border.thin} solid ${t.outline.default}`
 
-export const DisclosurePageStyle = Style.forSlots(DisclosurePageSlots)(
+export const DisclosurePageStyle = forSlots(DisclosurePageSlots)(
   {
     ...demoStyles,
     buttonContent: Style.self({
@@ -81,7 +81,7 @@ export const DisclosurePageStyle = Style.forSlots(DisclosurePageSlots)(
       paddingInline: t.space.md,
     }),
   },
-  { name: 'DisclosurePageStyle', layer: app },
+  { name: 'DisclosurePageStyle' },
 )
 
 const toggle: StyleValue = Style.compose(
@@ -105,7 +105,7 @@ const toggle: StyleValue = Style.compose(
 )
 
 /** A bordered toggle that squares its lower corners onto the panel below it while open. */
-export const BasicDisclosureStyle = Style.forSlots(DisclosureSlots)(
+export const BasicDisclosureStyle = forSlots(DisclosureSlots)(
   {
     button: Style.compose(
       toggle,
@@ -119,11 +119,11 @@ export const BasicDisclosureStyle = Style.forSlots(DisclosureSlots)(
       borderRadius: `0 0 ${t.radius.lg} ${t.radius.lg}`,
     }),
   },
-  { name: 'BasicDisclosureStyle', layer: app },
+  { name: 'BasicDisclosureStyle' },
 )
 
 /** Inside a bordered frame; `animatePanel` slides the panel's height. */
-export const AnimatedDisclosureStyle = Style.forSlots(DisclosureSlots)(
+export const AnimatedDisclosureStyle = forSlots(DisclosureSlots)(
   {
     button: Style.compose(
       toggle,
@@ -134,11 +134,11 @@ export const AnimatedDisclosureStyle = Style.forSlots(DisclosureSlots)(
     ),
     panel: Style.self({ padding: `${t.space.sm} ${t.space.md}`, borderTop: border }),
   },
-  { name: 'AnimatedDisclosureStyle', layer: app },
+  { name: 'AnimatedDisclosureStyle' },
 )
 
 /** A pill under a peek of the article, which makes room for the pill while open. */
-export const PreviewDisclosureStyle = Style.forSlots(DisclosureSlots)(
+export const PreviewDisclosureStyle = forSlots(DisclosureSlots)(
   {
     button: Style.compose(
       Style.self({
@@ -169,5 +169,5 @@ export const PreviewDisclosureStyle = Style.forSlots(DisclosureSlots)(
       Style.pseudo('[data-open]', { paddingBottom: '5rem' }),
     ),
   },
-  { name: 'PreviewDisclosureStyle', layer: app },
+  { name: 'PreviewDisclosureStyle' },
 )

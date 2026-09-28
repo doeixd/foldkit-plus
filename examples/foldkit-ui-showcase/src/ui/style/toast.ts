@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, icon, triggerLook } from './shared.js'
 
 /**
@@ -23,7 +23,7 @@ export const ToastPageSlots = Slots.define({
   dismissIcon: container,
 })
 
-export const ToastPageStyle = Style.forSlots(ToastPageSlots)(
+export const ToastPageStyle = forSlots(ToastPageSlots)(
   {
     ...demoStyles,
     page: Style.at(
@@ -101,5 +101,5 @@ export const ToastPageStyle = Style.forSlots(ToastPageSlots)(
     ),
     dismissIcon: icon('1rem'),
   },
-  { name: 'ToastPageStyle', layer: app },
+  { name: 'ToastPageStyle' },
 )

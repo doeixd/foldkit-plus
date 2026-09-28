@@ -1,6 +1,6 @@
 import { Slots, Style, type StyleValue } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import {
   backdrop,
   container,
@@ -47,7 +47,7 @@ const items: StyleValue = Style.compose(
   Style.nest('[role="menuitem"][data-disabled]', { opacity: '0.5', cursor: 'not-allowed' }),
 )
 
-export const MenuPageStyle = Style.forSlots(MenuPageSlots)(
+export const MenuPageStyle = forSlots(MenuPageSlots)(
   {
     ...demoStyles,
     menu: Style.self({ position: 'relative', display: 'inline-block' }),
@@ -69,5 +69,5 @@ export const MenuPageStyle = Style.forSlots(MenuPageSlots)(
       color: t.text.muted,
     }),
   },
-  { name: 'MenuPageStyle', layer: app },
+  { name: 'MenuPageStyle' },
 )

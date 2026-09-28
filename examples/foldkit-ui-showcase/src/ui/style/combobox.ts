@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { backdrop, container, demoSlots, demoStyles, floatingPanel, icon } from './shared.js'
 
 /**
@@ -90,7 +90,7 @@ export const ComboboxPageSlots = Slots.define({
   emptyTag: container,
 })
 
-export const ComboboxPageStyle = Style.forSlots(ComboboxPageSlots)(
+export const ComboboxPageStyle = forSlots(ComboboxPageSlots)(
   {
     ...demoStyles,
     ...comboboxStyles,
@@ -118,5 +118,5 @@ export const ComboboxPageStyle = Style.forSlots(ComboboxPageSlots)(
       color: t.text.muted,
     }),
   },
-  { name: 'ComboboxPageStyle', layer: app },
+  { name: 'ComboboxPageStyle' },
 )

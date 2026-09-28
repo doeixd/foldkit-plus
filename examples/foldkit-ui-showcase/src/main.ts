@@ -19,13 +19,7 @@ import { UiModel } from './ui/model.js'
 import * as UiSubscriptions from './ui/subscriptions.js'
 import { closeMobileMenu, openMobileMenu, uiUpdate } from './ui/update.js'
 import * as View from './ui/view/index.js'
-import {
-  MobileMenuDialogStyle,
-  MobileMenuSlots,
-  MobileMenuStyle,
-  ShellSlots,
-  ShellStyle,
-} from './style.js'
+import { MobileMenuDialogStyle, MobileMenuPage, ShellPage } from './style.js'
 
 // ROUTE
 
@@ -309,7 +303,7 @@ const componentNav = (currentRoute: AppRoute, toView: (render: Nav.RenderInfo) =
 
 /** The Slots a nav list draws with, which the sidebar and the mobile menu both publish. */
 type NavListSlots<Message> = SlotBuilders<
-  Pick<typeof ShellSlots, 'navList' | 'navItem' | 'navLink'>,
+  Pick<typeof ShellPage.slots, 'navList' | 'navItem' | 'navLink'>,
   Message
 >
 
@@ -330,11 +324,11 @@ const navListView = <Message>(
     ),
   )
 
-type Slots = SlotBuilders<typeof ShellSlots, Message>
+type Slots = SlotBuilders<typeof ShellPage.slots, Message>
 
 const brandView = <Message>(
   slots: SlotBuilders<
-    Pick<typeof ShellSlots, 'homeLink' | 'brand' | 'brandName' | 'brandTagline'>,
+    Pick<typeof ShellPage.slots, 'homeLink' | 'brand' | 'brandName' | 'brandTagline'>,
     Message
   >,
   h: HtmlBuilder<Message>,
@@ -369,7 +363,7 @@ type MobileMenuInput = Readonly<{
  * and Escape; its bundles take the page's look through the Dialog adapter.
  */
 const MobileMenu = SlotView.forMessages<UiMessage>()
-  .define(MobileMenuSlots, (input: MobileMenuInput, slots, h) =>
+  .define(MobileMenuPage.slots, (input: MobileMenuInput, slots, h) =>
     h.submodel({
       slotId: input.mobileMenuDialog.id,
       model: input.mobileMenuDialog,
@@ -410,7 +404,7 @@ const MobileMenu = SlotView.forMessages<UiMessage>()
       toParentMessage: message => UiMessage.GotMobileMenuDialogMessage({ message }),
     }),
   )
-  .pipe(Style.attach(MobileMenuStyle))
+  .pipe(Style.attach(MobileMenuPage.style))
 
 type MobileMenuViewInputs = Readonly<{
   currentRoute: AppRoute
@@ -510,7 +504,7 @@ const routeTitle = (route: Model['route']): string =>
   )
 
 const Shell = SlotView.forMessages<Message>()
-  .define(ShellSlots, (model: Model, slots, h) =>
+  .define(ShellPage.slots, (model: Model, slots, h) =>
     h.div(slots.layout.attrs(), [
       mobileHeaderView(model, slots, h),
       mobileMenuView(model, h),
@@ -518,7 +512,7 @@ const Shell = SlotView.forMessages<Message>()
       h.main(slots.main.attrs(), [contentView(model, slots, h)]),
     ]),
   )
-  .pipe(Style.attach(ShellStyle))
+  .pipe(Style.attach(ShellPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: routeTitle(model.route),

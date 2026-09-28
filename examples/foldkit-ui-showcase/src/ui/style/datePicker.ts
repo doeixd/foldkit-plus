@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { calendarGridSlots, calendarGridStyles } from './calendarGrid.js'
 import {
   backdrop,
@@ -30,7 +30,7 @@ export const DatePickerPageSlots = Slots.define({
   backdrop: container,
 })
 
-export const DatePickerPageStyle = Style.forSlots(DatePickerPageSlots)(
+export const DatePickerPageStyle = forSlots(DatePickerPageSlots)(
   {
     ...demoStyles,
     ...calendarGridStyles,
@@ -54,5 +54,5 @@ export const DatePickerPageStyle = Style.forSlots(DatePickerPageSlots)(
     ),
     backdrop,
   },
-  { name: 'DatePickerPageStyle', layer: app },
+  { name: 'DatePickerPageStyle' },
 )

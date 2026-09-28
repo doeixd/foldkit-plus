@@ -1,7 +1,7 @@
 import { Slots, Style, type StyleValue } from 'foldkit-mixins'
 import { RadioGroupSlots } from 'foldkit-mixins-ui'
 
-import { app, breakpoints, t } from '../../style.js'
+import { breakpoints, forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
 export const RadioGroupPageSlots = Slots.define({
@@ -23,7 +23,7 @@ const price = Style.self({
 
 const check = Style.self({ width: '1.25rem', height: '1.25rem', flexShrink: '0' })
 
-export const RadioGroupPageStyle = Style.forSlots(RadioGroupPageSlots)(
+export const RadioGroupPageStyle = forSlots(RadioGroupPageSlots)(
   {
     ...demoStyles,
     optionBody: Style.self({
@@ -38,7 +38,7 @@ export const RadioGroupPageStyle = Style.forSlots(RadioGroupPageSlots)(
     checkIcon: Style.compose(check, Style.self({ color: t.accent.default })),
     checkPlaceholder: check,
   },
-  { name: 'RadioGroupPageStyle', layer: app },
+  { name: 'RadioGroupPageStyle' },
 )
 
 /** `foldkit-mixins-ui` ships no RadioGroup recipe; these are upstream's plan cards. */
@@ -67,16 +67,16 @@ const plan = {
   description: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
 } as const
 
-export const VerticalRadioGroupStyle = Style.forSlots(RadioGroupSlots)(
+export const VerticalRadioGroupStyle = forSlots(RadioGroupSlots)(
   {
     ...plan,
     group: Style.self({ display: 'flex', flexDirection: 'column', gap: t.space.sm, width: '100%' }),
     option: card,
   },
-  { name: 'VerticalRadioGroupStyle', layer: app },
+  { name: 'VerticalRadioGroupStyle' },
 )
 
-export const HorizontalRadioGroupStyle = Style.forSlots(RadioGroupSlots)(
+export const HorizontalRadioGroupStyle = forSlots(RadioGroupSlots)(
   {
     ...plan,
     group: Style.compose(
@@ -85,5 +85,5 @@ export const HorizontalRadioGroupStyle = Style.forSlots(RadioGroupSlots)(
     ),
     option: Style.compose(card, Style.self({ flex: '1' })),
   },
-  { name: 'HorizontalRadioGroupStyle', layer: app },
+  { name: 'HorizontalRadioGroupStyle' },
 )

@@ -1,7 +1,7 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { TooltipSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, shadow, triggerLook } from './shared.js'
 
 export const TooltipPageSlots = Slots.define({
@@ -11,13 +11,13 @@ export const TooltipPageSlots = Slots.define({
   panelText: container,
 })
 
-export const TooltipPageStyle = Style.forSlots(TooltipPageSlots)(
+export const TooltipPageStyle = forSlots(TooltipPageSlots)(
   { ...demoStyles, wrapper: Style.self({ position: 'relative', display: 'inline-block' }) },
-  { name: 'TooltipPageStyle', layer: app },
+  { name: 'TooltipPageStyle' },
 )
 
 /** `foldkit-mixins-ui` ships no Tooltip recipe; this is upstream's dark label. */
-export const DemoTooltipStyle = Style.forSlots(TooltipSlots)(
+export const DemoTooltipStyle = forSlots(TooltipSlots)(
   {
     trigger: triggerLook,
     panel: Style.self({
@@ -29,5 +29,5 @@ export const DemoTooltipStyle = Style.forSlots(TooltipSlots)(
       boxShadow: shadow.lg,
     }),
   },
-  { name: 'DemoTooltipStyle', layer: app },
+  { name: 'DemoTooltipStyle' },
 )

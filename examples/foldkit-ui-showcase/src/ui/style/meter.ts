@@ -1,13 +1,13 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { gaugeSlots, gaugeStyles } from './gauge.js'
 import { demoSlots, demoStyles } from './shared.js'
 
 export const MeterPageSlots = Slots.define({ ...demoSlots, ...gaugeSlots })
 
 /** Upstream draws the health bar emerald and the storage bar amber, by the bar's `data-tone`. */
-export const MeterPageStyle = Style.forSlots(MeterPageSlots)(
+export const MeterPageStyle = forSlots(MeterPageSlots)(
   {
     ...demoStyles,
     ...gaugeStyles,
@@ -19,5 +19,5 @@ export const MeterPageStyle = Style.forSlots(MeterPageSlots)(
       ),
     ),
   },
-  { name: 'MeterPageStyle', layer: app },
+  { name: 'MeterPageStyle' },
 )

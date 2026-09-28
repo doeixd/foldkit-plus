@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import {
   backdrop,
   container,
@@ -37,7 +37,7 @@ export const ListboxPageSlots = Slots.define({
   groupHeading: container,
 })
 
-export const ListboxPageStyle = Style.forSlots(ListboxPageSlots)(
+export const ListboxPageStyle = forSlots(ListboxPageSlots)(
   {
     ...demoStyles,
     field: Style.self({
@@ -85,5 +85,5 @@ export const ListboxPageStyle = Style.forSlots(ListboxPageSlots)(
       color: t.text.muted,
     }),
   },
-  { name: 'ListboxPageStyle', layer: app },
+  { name: 'ListboxPageStyle' },
 )

@@ -7,7 +7,7 @@
 import { Style, type NamedStyle, type StyleValue } from 'foldkit-mixins'
 import { CalendarSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, icon } from './shared.js'
 
 export const calendarGridSlots = {
@@ -150,7 +150,7 @@ const calendarPieces = (root: StyleValue) =>
   }) as const
 
 /** `foldkit-mixins-ui` ships no Calendar recipe; this is upstream's card. */
-export const CardCalendarStyle: NamedStyle<typeof CalendarSlots> = Style.forSlots(CalendarSlots)(
+export const CardCalendarStyle: NamedStyle<typeof CalendarSlots> = forSlots(CalendarSlots)(
   calendarPieces(
     Style.self({
       display: 'inline-flex',
@@ -163,11 +163,11 @@ export const CardCalendarStyle: NamedStyle<typeof CalendarSlots> = Style.forSlot
       boxShadow: '0 1px 2px rgb(0 0 0 / 5%)',
     }),
   ),
-  { name: 'CardCalendarStyle', layer: app },
+  { name: 'CardCalendarStyle' },
 )
 
 /** Inside the Date Picker's panel, which is the card. */
-export const PanelCalendarStyle: NamedStyle<typeof CalendarSlots> = Style.forSlots(CalendarSlots)(
+export const PanelCalendarStyle: NamedStyle<typeof CalendarSlots> = forSlots(CalendarSlots)(
   calendarPieces(Style.self({ minWidth: '268px', minHeight: '284px' })),
-  { name: 'PanelCalendarStyle', layer: app },
+  { name: 'PanelCalendarStyle' },
 )

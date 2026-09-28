@@ -1,7 +1,7 @@
 import { type Declarations, Slots, Style, type StylePieces, type StyleValue } from 'foldkit-mixins'
 import { DialogSlots, Recipes } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { comboboxSlots, comboboxStyles } from './combobox.js'
 import { container, dangerLook, demoSlots, demoStyles, primaryLook, triggerLook } from './shared.js'
 
@@ -18,7 +18,7 @@ export const DialogPageSlots = Slots.define({
   dangerButton: container,
 })
 
-export const DialogPageStyle = Style.forSlots(DialogPageSlots)(
+export const DialogPageStyle = forSlots(DialogPageSlots)(
   {
     ...demoStyles,
     ...comboboxStyles,
@@ -30,7 +30,7 @@ export const DialogPageStyle = Style.forSlots(DialogPageSlots)(
     confirmButton: primaryLook,
     dangerButton: dangerLook,
   },
-  { name: 'DialogPageStyle', layer: app },
+  { name: 'DialogPageStyle' },
 )
 
 /** The shipped Dialog recipe, centered, with upstream's lighter title. */
@@ -69,17 +69,16 @@ const withoutCornerClose = ({
   ...pieces
 }: StylePieces<typeof DialogSlots>): StylePieces<typeof DialogSlots> => pieces
 
-export const DemoDialogStyle = Style.forSlots(DialogSlots)(
-  withoutCornerClose(centered({ size: 'md' })),
-  { name: 'DemoDialogStyle', layer: app },
-)
+export const DemoDialogStyle = forSlots(DialogSlots)(withoutCornerClose(centered({ size: 'md' })), {
+  name: 'DemoDialogStyle',
+})
 
-export const ConfirmDialogStyle = Style.forSlots(DialogSlots)(
+export const ConfirmDialogStyle = forSlots(DialogSlots)(
   withoutCornerClose(centered({ size: 'sm' })),
-  { name: 'ConfirmDialogStyle', layer: app },
+  { name: 'ConfirmDialogStyle' },
 )
 
-export const AnimatedDialogStyle = Style.forSlots(DialogSlots)(
+export const AnimatedDialogStyle = forSlots(DialogSlots)(
   withoutCornerClose(animated({ size: 'md' })),
-  { name: 'AnimatedDialogStyle', layer: app },
+  { name: 'AnimatedDialogStyle' },
 )

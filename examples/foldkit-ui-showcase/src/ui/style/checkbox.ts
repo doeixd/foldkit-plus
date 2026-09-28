@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { checkRow } from './field.js'
 import { container, demoSlots, demoStyles } from './shared.js'
 
@@ -12,7 +12,7 @@ export const CheckboxPageSlots = Slots.define({
   options: container,
 })
 
-export const CheckboxPageStyle = Style.forSlots(CheckboxPageSlots)(
+export const CheckboxPageStyle = forSlots(CheckboxPageSlots)(
   {
     ...demoStyles,
     field: Style.self({ display: 'flex', flexDirection: 'column', gap: t.space['2xs'] }),
@@ -25,5 +25,5 @@ export const CheckboxPageStyle = Style.forSlots(CheckboxPageSlots)(
       marginLeft: '1.75rem',
     }),
   },
-  { name: 'CheckboxPageStyle', layer: app },
+  { name: 'CheckboxPageStyle' },
 )

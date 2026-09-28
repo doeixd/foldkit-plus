@@ -1,7 +1,7 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { PopoverSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import {
   backdrop,
   container,
@@ -21,7 +21,7 @@ export const PopoverPageSlots = Slots.define({
   nestedBody: container,
 })
 
-export const PopoverPageStyle = Style.forSlots(PopoverPageSlots)(
+export const PopoverPageStyle = forSlots(PopoverPageSlots)(
   {
     ...demoStyles,
     wrapper: Style.self({ position: 'relative', display: 'inline-block' }),
@@ -34,7 +34,7 @@ export const PopoverPageStyle = Style.forSlots(PopoverPageSlots)(
     panelText: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
     nestedBody: Style.self({ display: 'flex', flexDirection: 'column', gap: t.space.md }),
   },
-  { name: 'PopoverPageStyle', layer: app },
+  { name: 'PopoverPageStyle' },
 )
 
 const popover = {
@@ -44,13 +44,12 @@ const popover = {
 } as const
 
 /** `foldkit-mixins-ui` ships no Popover recipe; a trigger over a card. */
-export const BasicPopoverStyle = Style.forSlots(PopoverSlots)(popover, {
+export const BasicPopoverStyle = forSlots(PopoverSlots)(popover, {
   name: 'BasicPopoverStyle',
-  layer: app,
 })
 
 /** The card fades and grows in while `@foldkit/ui` marks it `data-closed`. */
-export const AnimatedPopoverStyle = Style.forSlots(PopoverSlots)(
+export const AnimatedPopoverStyle = forSlots(PopoverSlots)(
   { ...popover, panel: Style.compose(popover.panel, fadeScale) },
-  { name: 'AnimatedPopoverStyle', layer: app },
+  { name: 'AnimatedPopoverStyle' },
 )

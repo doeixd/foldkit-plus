@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, triggerLook } from './shared.js'
 
 /**
@@ -18,7 +18,7 @@ export const AnimationPageSlots = Slots.define({
   contentText: container,
 })
 
-export const AnimationPageStyle = Style.forSlots(AnimationPageSlots)(
+export const AnimationPageStyle = forSlots(AnimationPageSlots)(
   {
     ...demoStyles,
     controls: Style.self({ display: 'flex', gap: t.space.sm }),
@@ -38,5 +38,5 @@ export const AnimationPageStyle = Style.forSlots(AnimationPageSlots)(
     ),
     contentText: Style.self({ margin: '0', color: t.accent.ink }),
   },
-  { name: 'AnimationPageStyle', layer: app },
+  { name: 'AnimationPageStyle' },
 )

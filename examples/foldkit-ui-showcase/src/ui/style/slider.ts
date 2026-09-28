@@ -1,7 +1,7 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { SliderSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, shadow } from './shared.js'
 
 export const SliderPageSlots = Slots.define({
@@ -11,7 +11,7 @@ export const SliderPageSlots = Slots.define({
   value: container,
 })
 
-export const SliderPageStyle = Style.forSlots(SliderPageSlots)(
+export const SliderPageStyle = forSlots(SliderPageSlots)(
   {
     ...demoStyles,
     row: Style.self({
@@ -30,7 +30,7 @@ export const SliderPageStyle = Style.forSlots(SliderPageSlots)(
     }),
     value: Style.self({ fontVariantNumeric: 'tabular-nums', color: t.text.muted }),
   },
-  { name: 'SliderPageStyle', layer: app },
+  { name: 'SliderPageStyle' },
 )
 
 /**
@@ -38,7 +38,7 @@ export const SliderPageStyle = Style.forSlots(SliderPageSlots)(
  * and round thumb. `@foldkit/ui` places the filled track and the thumb with
  * inline style, and marks the thumb `data-dragging` while it is held.
  */
-export const DemoSliderStyle = Style.forSlots(SliderSlots)(
+export const DemoSliderStyle = forSlots(SliderSlots)(
   {
     root: Style.self({
       position: 'relative',
@@ -75,5 +75,5 @@ export const DemoSliderStyle = Style.forSlots(SliderSlots)(
     ),
     label: Style.self({ fontWeight: t.weight.medium, cursor: 'pointer', userSelect: 'none' }),
   },
-  { name: 'DemoSliderStyle', layer: app },
+  { name: 'DemoSliderStyle' },
 )

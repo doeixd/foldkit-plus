@@ -6,7 +6,7 @@
 import { Style } from 'foldkit-mixins'
 import { CheckboxSlots, InputSlots, Recipes, TextareaSlots } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 
 const control = Style.self({ borderRadius: t.radius.lg })
 
@@ -14,24 +14,24 @@ const label = Style.self({ margin: '0', color: t.text.default })
 
 const description = Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted })
 
-export const FieldInputStyle = Style.forSlots(InputSlots)(
+export const FieldInputStyle = forSlots(InputSlots)(
   Recipes.Input.extend({ base: { input: control, label, description } })(),
-  { name: 'FieldInputStyle', layer: app },
+  { name: 'FieldInputStyle' },
 )
 
-export const FieldTextareaStyle = Style.forSlots(TextareaSlots)(
+export const FieldTextareaStyle = forSlots(TextareaSlots)(
   Recipes.Textarea.extend({ base: { textarea: control, label, description } })(),
-  { name: 'FieldTextareaStyle', layer: app },
+  { name: 'FieldTextareaStyle' },
 )
 
-export const FieldCheckboxStyle = Style.forSlots(CheckboxSlots)(
+export const FieldCheckboxStyle = forSlots(CheckboxSlots)(
   Recipes.Checkbox.extend({
     base: {
       label: Style.self({ fontSize: t.size.sm, color: t.text.overt, userSelect: 'none' }),
       description,
     },
   })({ size: 'lg' }),
-  { name: 'FieldCheckboxStyle', layer: app },
+  { name: 'FieldCheckboxStyle' },
 )
 
 /** The column a label, its control and its description stand in. */

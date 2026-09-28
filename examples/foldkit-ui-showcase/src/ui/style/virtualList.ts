@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, primaryLook } from './shared.js'
 
 /**
@@ -53,7 +53,7 @@ const avatarColors = {
 
 export type AvatarColor = keyof typeof avatarColors
 
-export const VirtualListPageStyle = Style.forSlots(VirtualListPageSlots)(
+export const VirtualListPageStyle = forSlots(VirtualListPageSlots)(
   {
     ...demoStyles,
     demos: Style.self({
@@ -155,5 +155,5 @@ export const VirtualListPageStyle = Style.forSlots(VirtualListPageSlots)(
       color: t.text.muted,
     }),
   },
-  { name: 'VirtualListPageStyle', layer: app },
+  { name: 'VirtualListPageStyle' },
 )

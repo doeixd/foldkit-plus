@@ -1,6 +1,6 @@
 import { Slots, Style } from 'foldkit-mixins'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, shadow } from './shared.js'
 
 /**
@@ -30,7 +30,7 @@ const card = Style.self({
   color: t.text.overt,
 })
 
-export const DragAndDropPageStyle = Style.forSlots(DragAndDropPageSlots)(
+export const DragAndDropPageStyle = forSlots(DragAndDropPageSlots)(
   {
     ...demoStyles,
     board: Style.self({ width: '100%', maxWidth: '28rem' }),
@@ -88,5 +88,5 @@ export const DragAndDropPageStyle = Style.forSlots(DragAndDropPageSlots)(
     }),
     ghost: Style.compose(card, Style.self({ borderColor: t.accent.default, boxShadow: shadow.lg })),
   },
-  { name: 'DragAndDropPageStyle', layer: app },
+  { name: 'DragAndDropPageStyle' },
 )

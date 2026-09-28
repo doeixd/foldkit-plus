@@ -1,12 +1,12 @@
 import { Slots, Style } from 'foldkit-mixins'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 
-import { app, t } from '../../style.js'
+import { forSlots, t } from '../../style.js'
 import { container, demoSlots, demoStyles, shadow } from './shared.js'
 
 export const ButtonPageSlots = Slots.define({ ...demoSlots, demo: container, count: container })
 
-export const ButtonPageStyle = Style.forSlots(ButtonPageSlots)(
+export const ButtonPageStyle = forSlots(ButtonPageSlots)(
   {
     ...demoStyles,
     demo: Style.self({
@@ -17,11 +17,11 @@ export const ButtonPageStyle = Style.forSlots(ButtonPageSlots)(
     }),
     count: Style.self({ fontSize: t.size.sm, color: t.text.muted }),
   },
-  { name: 'ButtonPageStyle', layer: app },
+  { name: 'ButtonPageStyle' },
 )
 
 /** The shipped Button recipe, a little rounder and heavier, as upstream's is. */
-export const DemoButtonStyle = Style.forSlots(ButtonSlots)(
+export const DemoButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
     base: {
       button: Style.self({
@@ -31,5 +31,5 @@ export const DemoButtonStyle = Style.forSlots(ButtonSlots)(
       }),
     },
   })({ tone: 'accent', variant: 'solid', size: 'md' }),
-  { name: 'DemoButtonStyle', layer: app },
+  { name: 'DemoButtonStyle' },
 )
