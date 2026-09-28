@@ -384,7 +384,11 @@ export const makeEditor =
             ]
           : []),
       ]
-      const result = { model: { ...model, form: next.model, edits }, commands }
+      // A form Message that changed nothing keeps this Model: Foldkit renders on its identity.
+      const result = {
+        model: next.model === model.form ? model : { ...model, form: next.model, edits },
+        commands,
+      }
       // A submit that went through is a publish: the form's rules and checks decided.
       return next.outMessage === undefined ? result : { ...result, outMessage: { _tag: 'Publish' } }
     }
@@ -415,7 +419,7 @@ export const makeEditor =
               ? { model }
               : { model: { ...model, previewing: true, previewedAs: null } }
           case 'PreviewHidden':
-            return { model: { ...model, previewing: false } }
+            return model.previewing ? { model: { ...model, previewing: false } } : { model }
           case 'RestoreAsked':
             return { model, outMessage: { _tag: 'Restore', revision: message.revision } }
           case 'ScheduleAsked':

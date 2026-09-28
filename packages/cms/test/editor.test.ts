@@ -152,6 +152,24 @@ describe('what starts a save', () => {
   })
 })
 
+describe('a Message that changes nothing', () => {
+  // Foldkit renders when the root Model changes identity, so an equal copy re-renders the page.
+  it.each([
+    [
+      'a check answering a draft the key no longer holds',
+      PostForm.Message.Checked({ key: 'title', draft: 'old', error: null }),
+    ],
+    [
+      'a search on a key that does not search',
+      PostForm.Message.Searched({ key: 'title', text: 'x' }),
+    ],
+    ['hiding a preview that is not shown', Editor.Message.PreviewHidden()],
+  ])('keeps the Model: %s', (_, message) => {
+    const { root } = world(undefined)
+    expect(Editor.bundle.update(root.editor, message, undefined).model).toBe(root.editor)
+  })
+})
+
 describe('the entry the server knows', () => {
   it('is none for something new until its first save, and the open entry otherwise', () => {
     const { placed, root } = world(undefined)
@@ -185,7 +203,7 @@ describe('a form control backed by a Bundle', () => {
     init: () => ({ model: { open: false, hex: '#000000' } }),
     update: (model, message) =>
       message._tag === 'Opened'
-        ? { model: { ...model, open: true } }
+        ? { model: model.open ? model : { ...model, open: true } }
         : { model: { ...model, hex: message.hex } },
     subscriptions: () =>
       Subscription.make<
@@ -257,6 +275,13 @@ describe('a form control backed by a Bundle', () => {
       undefined,
     )
     expect(rests(chosen.commands)).toBe(1)
+  })
+
+  it('keeps the Model when the control keeps its own, as the rich-text editor does', () => {
+    const opened = ColorEditor.bundle.update(open, color.send({ _tag: 'Opened' }), undefined).model
+    expect(ColorEditor.bundle.update(opened, color.send({ _tag: 'Opened' }), undefined).model).toBe(
+      opened,
+    )
   })
 
   it('runs the control’s Subscription while an entry is open, and not while closed', () => {
