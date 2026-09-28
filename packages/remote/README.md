@@ -1559,9 +1559,10 @@ imperatively and reduces their results into a new Model.
 
 `updateRemote(remote, message)` is the pure reducer over Remote facts;
 `Data.update` applies it to a bound Remote state and `Data.reduce` applies it to
-the application Model. A Message that changes nothing (a duplicate live event, a
-repeated `ReadStarted`) returns the Model it was given, so Foldkit neither
-renders nor recomputes Subscription dependencies.
+the application Model. The common Messages that change nothing (a duplicate live
+event, a repeated `ReadStarted`, an empty `Hydrated`, a retention pass that
+collects nothing) return the Model they were given, so Foldkit neither renders
+nor recomputes Subscription dependencies.
 
 Its Messages cover reads and refreshes, mutations, live events/gaps, query
 connections, retention, and hydration. `Remote.messages` is the case record for

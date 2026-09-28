@@ -612,9 +612,12 @@ const clearGap = (model: RemoteModel, stream: string): RemoteModel =>
 /**
  * The pure reducer all four producers share. A live event that arrives ahead of
  * its cursor is a gap: it is not applied, and the stream is recorded so the host
- * can resubscribe rather than silently miss facts. A Message that changes
- * nothing returns `model` itself, so the application's root keeps its identity
- * and Foldkit does not render.
+ * can resubscribe rather than silently miss facts. When every field a Message
+ * touches keeps its identity, `model` itself is returned, so the application's
+ * root keeps its identity and Foldkit does not render. The common no-ops do (a
+ * duplicate live event, a repeated `ReadStarted`); a repeated failure, or a
+ * `preserve-existing` restore of entities already held, still makes an equal
+ * copy.
  */
 export const updateRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
   const next = reduceRemote(model, message)

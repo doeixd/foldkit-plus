@@ -573,8 +573,9 @@ is for fields; `visible` is for rows.
   `Initial` as a spinner. Check `Data.plan` and your `Surface.at` wiring.
 - Give `update` an explicit `Update.Return<...>` / `{ model: Model }` return type;
   otherwise `App` and `Data` are mutually inferred and TypeScript errors.
-- `Data.refresh`, `Data.reduce` and `Data.lift` return the **same Model** when
-  they change nothing, so Foldkit does not render.
+- `Data.refresh`, `Data.lift`, and `Data.reduce` of the common no-op Messages
+  (a duplicate live event, a repeated `ReadStarted`) return the **same Model**,
+  so Foldkit does not render.
 - A row's decoded value keeps its identity while its entity's fields are equal,
   so key list rows and render them with a lazy view.
 - Selections must pick at least one field (`Selection.make` throws otherwise).

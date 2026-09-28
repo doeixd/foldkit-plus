@@ -252,8 +252,8 @@ version changed; `pnpm` skips versions already in the registry.
   row offsets per keys array and heights record. `MediaStream`'s `Started`
   while live no longer stays at `requesting`, and `Presence`'s `Hide` while
   hidden no longer shows the content for the hide duration.
-- **`foldkit-remote`: a Message that changes nothing returns the Model it
-  was given,** so `Data.reduce` and the wiring keep the application's root on a
+- **`foldkit-remote`: the common Messages that change nothing return the
+  Model they were given,** so `Data.reduce` and the wiring keep the application's root on a
   duplicate live event, a repeated `ReadStarted`, an empty `Hydrated`, or a
   retention pass that collects nothing. An entity's or list row's decoded
   value is the same object after a refetch or live patch that brought equal

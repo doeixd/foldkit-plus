@@ -82,6 +82,7 @@ const written = (
   return {
     // Equal data keeps the object it was, so what is derived from it by
     // identity (a read's decoded row) survives a refetch that changed nothing.
+    // Comparing costs the size of the written data, less than decoding it again.
     values: Object.keys(values).every(
       field =>
         Object.hasOwn(previous.values, field) && sameData(previous.values[field], values[field]),
