@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 'effect'
+import { Clock, Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 'effect'
 import { sequence } from './ids.js'
 import type { Operation, TransportClient } from './sync.js'
 
@@ -244,8 +244,10 @@ export const nativeSocket = (url: string): SocketLike => {
  * reply is answered rather than dropped and a late reply cannot resolve a newer
  * frame. It never stops reconnecting: after `maxRetries` consecutive failures
  * queued work fails with a `TransportError`, and exchanges fail fast while no
- * socket is up, until a socket opens (or answers, for a socket without
- * `onOpen`), which also resets the count. A queue over `maxQueue` fails new
+ * socket is up, until a socket opens. The count resets only when a connection
+ * proves healthy, by answering a frame or by staying open for `maxRetryDelay`:
+ * a server that accepts a socket and drops it at once is backed off like one
+ * that refuses it. A queue over `maxQueue` fails new
  * exchanges with backpressure. The socket is released when the layer's scope
  * ends.
  */
@@ -262,6 +264,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
       const maxRetryDelay = Duration.toMillis(
         Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'),
       )
+      const clock = yield* Clock.Clock
 
       interface Entry {
         readonly id: string
@@ -327,13 +330,14 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
             const next = makeSocket(options.url)
             socket = next
             ready = next.onOpen === undefined
+            let openedAt = ready ? clock.currentTimeMillisUnsafe() : undefined
             // A socket that just (re)connected may have missed notices, so opening is one.
             const opened = (): void => {
               PubSub.publishUnsafe(notices, undefined)
             }
             const offOpen = next.onOpen?.(() => {
               ready = true
-              healthy()
+              openedAt = clock.currentTimeMillisUnsafe()
               opened()
               flush()
             })
@@ -365,6 +369,11 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               offClose()
               socket = undefined
               ready = false
+              if (
+                openedAt !== undefined &&
+                clock.currentTimeMillisUnsafe() - openedAt >= maxRetryDelay
+              )
+                healthy()
               // Keep every unanswered frame for the next connection.
               requeue()
               reject(new Error('transport closed'))

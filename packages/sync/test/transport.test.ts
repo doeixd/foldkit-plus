@@ -1,4 +1,5 @@
 import { Effect, Fiber, Stream } from 'effect'
+import { TestClock } from 'effect/testing'
 import { describe, expect, it, vi } from 'vitest'
 import {
   layerFromPromise,
@@ -591,59 +592,163 @@ describe('the socket transport', () => {
     },
   )
 
-  it('counts only consecutive failures toward giving up queued work', async () => {
-    // Every socket answers one frame, then drops the connection on the next, so
-    // each exchange after the first costs one reconnect. With a budget of one
-    // retry, a lifetime count would give up on the second.
+  // An answer is what proves a connection healthy, whether or not the socket reports opening.
+  it.each([
+    ['that open', true],
+    ['with no open event', false],
+  ])(
+    'counts only consecutive failures toward giving up queued work, for sockets %s',
+    async (_, withOpen) => {
+      // Every socket answers one frame, then drops the connection on the next, so
+      // each exchange after the first costs one reconnect. With a budget of one
+      // retry, a lifetime count would give up on the second.
+      const makeSocket = (): SocketLike => {
+        const closes = new Set<() => void>()
+        const messages = new Set<(data: string) => void>()
+        let answered = false
+        return {
+          send: data => {
+            if (answered) {
+              for (const listener of [...closes]) listener()
+              return
+            }
+            answered = true
+            const frame = JSON.parse(data) as { id: string }
+            queueMicrotask(() => {
+              for (const listener of [...messages])
+                listener(JSON.stringify({ id: frame.id, result: { ok: true } }))
+            })
+          },
+          close: () => {},
+          ...(withOpen
+            ? {
+                onOpen: (listener: () => void) => {
+                  listener()
+                  return () => {}
+                },
+              }
+            : {}),
+          onMessage: listener => {
+            messages.add(listener)
+            return () => messages.delete(listener)
+          },
+          onClose: listener => {
+            closes.add(listener)
+            return () => closes.delete(listener)
+          },
+        }
+      }
+      const program = Effect.gen(function* () {
+        const transport = yield* Effect.service(Transport)
+        const results: Array<unknown> = []
+        for (let round = 0; round < 4; round++) results.push(yield* transport.exchange(round, []))
+        return results
+      })
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          program.pipe(
+            Effect.provide(
+              layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis', maxRetries: 1 }),
+            ),
+          ),
+        ),
+      )
+
+      expect(result).toEqual([{ ok: true }, { ok: true }, { ok: true }, { ok: true }])
+    },
+  )
+
+  /** Sockets that open and close when the test says, under a TestClock. */
+  const accepting = () => {
+    const sockets: Array<{ readonly open: () => void; readonly close: () => void }> = []
     const makeSocket = (): SocketLike => {
+      const opens = new Set<() => void>()
       const closes = new Set<() => void>()
-      const messages = new Set<(data: string) => void>()
-      let answered = false
-      return {
-        send: data => {
-          if (answered) {
-            for (const listener of [...closes]) listener()
-            return
-          }
-          answered = true
-          const frame = JSON.parse(data) as { id: string }
-          queueMicrotask(() => {
-            for (const listener of [...messages])
-              listener(JSON.stringify({ id: frame.id, result: { ok: true } }))
-          })
+      sockets.push({
+        open: () => {
+          for (const listener of [...opens]) listener()
         },
+        close: () => {
+          for (const listener of [...closes]) listener()
+        },
+      })
+      return {
+        send: () => {},
         close: () => {},
         onOpen: listener => {
-          listener()
-          return () => {}
+          opens.add(listener)
+          return () => opens.delete(listener)
         },
-        onMessage: listener => {
-          messages.add(listener)
-          return () => messages.delete(listener)
-        },
+        onMessage: () => () => {},
         onClose: listener => {
           closes.add(listener)
           return () => closes.delete(listener)
         },
       }
     }
+    // The reconnect loop runs on its own fiber; let it reach its next sleep.
+    const settle = Effect.gen(function* () {
+      for (let turn = 0; turn < 100; turn++) yield* Effect.yieldNow
+    })
+    const layer = layerSocket({
+      url: 'ws://test',
+      makeSocket,
+      retryBase: '10 millis',
+      maxRetryDelay: '1 second',
+    })
+    /** Opens and at once drops the newest socket, then waits out the longest jittered backoff. */
+    const acceptThenClose = (failures: number) =>
+      Effect.gen(function* () {
+        sockets.at(-1)!.open()
+        sockets.at(-1)!.close()
+        yield* settle
+        yield* TestClock.adjust(Math.ceil(12 * 2 ** (failures - 1)))
+        yield* settle
+      })
+    return { sockets, settle, layer, acceptThenClose }
+  }
+
+  it('backs off from a server that accepts each socket and drops it', async () => {
+    const { sockets, settle, layer, acceptThenClose } = accepting()
     const program = Effect.gen(function* () {
-      const transport = yield* Effect.service(Transport)
-      const results: Array<unknown> = []
-      for (let round = 0; round < 4; round++) results.push(yield* transport.exchange(round, []))
-      return results
+      yield* Effect.service(Transport)
+      yield* settle
+      for (let failures = 1; failures <= 5; failures++) yield* acceptThenClose(failures)
+      const reached = sockets.length
+      sockets.at(-1)!.open()
+      sockets.at(-1)!.close()
+      yield* settle
+      // The sixth close waits at least 0.8 * 10 * 2^5 = 256 ms, not the base delay.
+      yield* TestClock.adjust('200 millis')
+      yield* settle
+      return { reached, after: sockets.length }
     })
     const result = await Effect.runPromise(
-      Effect.scoped(
-        program.pipe(
-          Effect.provide(
-            layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis', maxRetries: 1 }),
-          ),
-        ),
-      ),
+      Effect.scoped(program.pipe(Effect.provide(layer))).pipe(Effect.provide(TestClock.layer())),
     )
+    expect(result).toEqual({ reached: 6, after: 6 })
+  })
 
-    expect(result).toEqual([{ ok: true }, { ok: true }, { ok: true }, { ok: true }])
+  it('treats a socket that stayed open for the longest backoff as healthy', async () => {
+    const { sockets, settle, layer, acceptThenClose } = accepting()
+    const program = Effect.gen(function* () {
+      yield* Effect.service(Transport)
+      yield* settle
+      for (let failures = 1; failures <= 3; failures++) yield* acceptThenClose(failures)
+      sockets.at(-1)!.open()
+      yield* TestClock.adjust('1 second')
+      sockets.at(-1)!.close()
+      yield* settle
+      const reached = sockets.length
+      // Back at the base delay; the fourth failure in a row would wait 64 ms or more.
+      yield* TestClock.adjust('12 millis')
+      yield* settle
+      return { reached, after: sockets.length }
+    })
+    const result = await Effect.runPromise(
+      Effect.scoped(program.pipe(Effect.provide(layer))).pipe(Effect.provide(TestClock.layer())),
+    )
+    expect(result).toEqual({ reached: 4, after: 5 })
   })
 
   it('ignores a late reply and frees the slot of an interrupted exchange', async () => {

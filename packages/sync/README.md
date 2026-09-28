@@ -800,8 +800,10 @@ The socket transport reconnects for as long as its layer lives, on an
 exponential, jittered backoff capped at `maxRetryDelay` (5 s by default), and
 keeps request identities stable when resending queued or in-flight exchanges.
 After `maxRetries` consecutive failed connections (5 by default) queued work
-fails and new exchanges fail fast rather than wait; the count resets once a
-socket opens. The queue is bounded by `maxQueue`. A server rejection is protocol data; only a wire failure is
+fails and new exchanges fail fast while no socket is open. The count resets
+only when a connection proves healthy, by answering a frame or by staying open
+for `maxRetryDelay`, so a server that accepts each socket and drops it is backed
+off like one that refuses it. The queue is bounded by `maxQueue`. A server rejection is protocol data; only a wire failure is
 a `TransportError`.
 
 The server can also tell a client that something changed. Pass `serve` a
