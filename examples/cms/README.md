@@ -4,6 +4,12 @@ A post's life, from its first keystroke to being taken off show, told from three
 chairs: a writer who may not publish, an editor who may, and a visitor who is
 nobody. One server, in process; each chair has its own Model.
 
+**Try it:** the published demo is at
+[foldkit-cms-demo.pages.dev](https://foldkit-cms-demo.pages.dev/): the studio
+at `/`, the page builder at `/pages`, and the public site at
+[`/site`](https://foldkit-cms-demo.pages.dev/site). Its server runs in your
+browser, so what you write stays there; `?reset` starts afresh.
+
 ```text
                           domain.ts
      Post · PostInput · PostForm · CreatePost · UpdatePost
