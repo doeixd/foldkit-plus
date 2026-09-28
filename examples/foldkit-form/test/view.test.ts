@@ -1,7 +1,7 @@
 import { FieldValidation } from 'foldkit'
 import { modifyFields } from 'foldkit/struct'
-import { SlotView, Style } from 'foldkit-mixins'
-import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
+import { SlotView } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
 import { type Message, type Model, Page, initialModel, view } from '../src/main.js'
@@ -27,10 +27,6 @@ const trees = [
   Inert.draw(Page, withSubmission({ _tag: 'SubmitError', error: 'Sorry.' })),
 ]
 
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
-
 describe('the waitlist page', () => {
   test('is titled as upstream is', () => {
     expect(view(initialModel, SlotView.inertBuilder<Message>()).title).toBe('Foldkit Form Example')
@@ -43,20 +39,16 @@ describe('the waitlist page', () => {
   test('colors a field by its state: blue while checked, green once valid', () => {
     const [, busy] = trees
     const [name, email] = Inert.byTag(busy!, 'input')
-    expect(cssOf([email!])).toContain('border-color:var(--fk-accent-default)')
-    expect(cssOf([name!])).toContain('border-color:var(--fk-success-default)')
+    expect(Inert.css([email!])).toContain('border-color:var(--fk-accent-default)')
+    expect(Inert.css([name!])).toContain('border-color:var(--fk-success-default)')
     const [idle] = Inert.byTag(trees[0]!, 'input')
-    expect(cssOf([idle!])).not.toMatch(/border-color:var\(--fk-(accent|success)-default\)/)
+    expect(Inert.css([idle!])).not.toMatch(/border-color:var\(--fk-(accent|success)-default\)/)
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      trees.flatMap(tree =>
-        [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const tree of trees) {
+      expect(Inert.css(Inert.all(tree!))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree!, stylesheet)).toEqual([])
+    }
   })
 })

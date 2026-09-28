@@ -1,38 +1,32 @@
 /**
- * The waitlist form's appearance, as `foldkit-mixins` data. `main.ts` publishes
- * the Slots and draws the markup; everything it looks like lives here.
+ * The waitlist form's appearance, as `foldkit-mixins` data. `main.ts` draws the
+ * markup through the Slots declared here; everything it looks like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped recipes and the `Layout`
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped recipes and the `Layout`
  * pieces by layer order rather than by specificity.
  */
-import { Capability, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Style, type StyleValue } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots, Recipes, TextareaSlots } from 'foldkit-mixins-ui'
 import * as FieldValidation from 'foldkit/fieldValidation'
 
-const L = Layers.standard
-const app = L.layer('app')
-
-// THEME
-
 /** Blue, as upstream's Tailwind `blue-500`, over near-neutral grey surfaces. */
-const palette = Theme.oklch({
-  accent: { h: 260, c: 0.21, l: '62%' },
-  surfaceSaturation: 0.003,
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.compose(
+    Theme.oklch({
+      accent: { h: 260, c: 0.21, l: '62%' },
+      surfaceSaturation: 0.003,
+    }),
+    Theme.define({ knob: { 'base-l': '100%' } }),
+  ),
+  colorScheme: 'light',
 })
 
-/** A white base, so the card stands out from the page's `surface.muted`. */
-const theme = Theme.compose(
-  Theme.compose(Theme.tokens, palette),
-  Theme.define({ knob: { 'base-l': '100%' } }),
-)
-
-const t = Theme.ref(theme)
-
-const container = Slot.make({ capability: Capability.Container })
+export { stylesheet }
 
 const banner = (tone: typeof t.success): StyleValue =>
   Style.self({
@@ -48,68 +42,56 @@ const spin = Style.keyframes({ to: { transform: 'rotate(360deg)' } })
 
 // PAGE
 
-export const PageSlots = Slots.define({
-  page: container,
-  card: container,
-  title: container,
-  form: container,
-  field: container,
-  fieldHeader: container,
-  /** Beside a label while the email is being checked. */
-  checkingMark: container,
-  /** Beside a label once its field is valid. */
-  validMark: container,
-  success: container,
-  failure: container,
-})
-
-export const PageStyle = Style.forSlots(PageSlots)(
+export const FormPage = slots(
   {
-    page: Style.self({
-      boxSizing: 'border-box',
-      minHeight: '100vh',
-      paddingBlock: t.space.xl,
-      paddingInline: t.space.md,
-      background: t.surface.muted,
-    }),
-    card: Style.self({
-      boxSizing: 'border-box',
-      maxWidth: '28rem',
-      marginInline: 'auto',
-      padding: t.space.lg,
-      borderRadius: t.radius.xl,
-      background: t.surface.base,
-      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)',
-    }),
-    title: Style.self({
-      margin: `0 0 ${t.space.xl}`,
-      textAlign: 'center',
-      fontSize: t.size['3xl'],
-      fontWeight: t.weight.bold,
-      color: t.text.default,
-    }),
+    page: [
+      U.py('xl'),
+      U.px('md'),
+      U.bg('surface.muted'),
+      { boxSizing: 'border-box', minHeight: '100vh' },
+    ],
+    card: [
+      U.p('lg'),
+      U.rounded('xl'),
+      U.bg('surface.base'),
+      {
+        boxSizing: 'border-box',
+        maxWidth: '28rem',
+        marginInline: 'auto',
+        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)',
+      },
+    ],
+    title: [
+      U.textCenter,
+      U.text('3xl'),
+      U.font('bold'),
+      U.color('text.default'),
+      { margin: `0 0 ${t.space.xl}` },
+    ],
     form: L.in('layouts', Layout.stack({ gap: t.space.md })),
-    field: Style.self({ marginBlockEnd: t.space.md }),
-    fieldHeader: Style.compose(
+    field: { marginBlockEnd: t.space.md },
+    fieldHeader: [
       L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
-      Style.self({ marginBlockEnd: t.space.xs }),
-    ),
+      { marginBlockEnd: t.space.xs },
+    ],
     // Upstream asks Tailwind to spin an inline span, which a transform leaves
     // still; an inline-block turns.
-    checkingMark: Style.compose(
+    // Beside a label while the email is being checked.
+    checkingMark: [
       spin.style,
-      Style.self({
+      U.text('sm'),
+      U.color('accent.default'),
+      {
         display: 'inline-block',
-        fontSize: t.size.sm,
-        color: t.accent.default,
         animation: `${spin.name} 1s linear infinite`,
-      }),
-    ),
-    validMark: Style.self({ fontSize: t.size.sm, color: t.success.default }),
+      },
+    ],
+    // Beside a label once its field is valid.
+    validMark: [U.text('sm'), U.color('success.default')],
     success: banner(t.success),
     failure: banner(t.error),
   },
-  { name: 'PageStyle', layer: app },
+  { name: 'PageStyle' },
 )
 
 // FIELDS
@@ -150,14 +132,14 @@ const description: StyleValue = Style.compose(
 )
 
 /** The shipped text-field recipes, their border and description following the field's state. */
-export const InputStyle = Style.forSlots(InputSlots)(
+export const InputStyle = forSlots(InputSlots)(
   Recipes.Input.extend({ base: { input: control, label, description } })(),
-  { name: 'InputStyle', layer: app },
+  { name: 'InputStyle' },
 )
 
-export const TextareaStyle = Style.forSlots(TextareaSlots)(
+export const TextareaStyle = forSlots(TextareaSlots)(
   Recipes.Textarea.extend({ base: { textarea: control, label, description } })(),
-  { name: 'TextareaStyle', layer: app },
+  { name: 'TextareaStyle' },
 )
 
 // BUTTON
@@ -165,35 +147,18 @@ export const TextareaStyle = Style.forSlots(TextareaSlots)(
 /** The shipped solid button, full width, and grey while it cannot submit. */
 const SubmitButton = Recipes.Button.extend({
   base: {
-    button: Style.compose(
-      Style.self({ width: '100%' }),
+    button: [
+      { width: '100%' },
       // `@foldkit/ui` marks a disabled button with `aria-disabled`, not `disabled`.
       Style.pseudo('[aria-disabled="true"]', {
         opacity: '1',
         background: t.surface.default,
         color: t.text.muted,
       }),
-    ),
+    ],
   },
 })
 
-export const SubmitButtonStyle = Style.forSlots(ButtonSlots)(SubmitButton(), {
+export const SubmitButtonStyle = forSlots(ButtonSlots)(SubmitButton(), {
   name: 'SubmitButtonStyle',
-  layer: app,
 })
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The slot styles' own classes are injected when a Slot
- * first draws them, so they are not repeated here. `colorScheme: 'light'`
- * keeps the page light in a dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
-)

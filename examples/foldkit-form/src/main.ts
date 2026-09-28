@@ -12,7 +12,7 @@ import { Form, Input as FormInput, type FormControl, type Submitted } from 'fold
 import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import { Button, Input, Textarea } from 'foldkit-mixins-ui'
 
-import { InputStyle, PageSlots, PageStyle, SubmitButtonStyle, TextareaStyle } from './style.js'
+import { InputStyle, FormPage, SubmitButtonStyle, TextareaStyle } from './style.js'
 
 const FAKE_API_DELAY_MS = 500
 
@@ -183,7 +183,7 @@ export const SubmitForm = Command.define('SubmitForm', {
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof FormPage.slots, Message>
 type Field = FieldValidation.Field<string>
 
 /**
@@ -332,7 +332,7 @@ const submitButton = (model: Model, h: HtmlBuilder<Message>): Html =>
   )
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(FormPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.div(slots.card.attrs(), [
         h.h1(slots.title.attrs(), ['Join Our Waitlist']),
@@ -359,7 +359,7 @@ export const Page = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(FormPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'Foldkit Form Example',
