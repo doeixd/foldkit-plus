@@ -74,6 +74,33 @@ first `foldkit-site` cut (TODO.md routing section), not later polish.
   adds only what topology knows (which container scrolls). Every multi-route
   app needs it; none should hand-roll it.
 
+## 1b. The studio should be one application, not two (the site stays separate)
+
+`client.ts` boots three applications: posts at `/`, pages at `/pages`
+(swapped in place by `mountStudio`), and the site at `/site`. The two studio
+sections are structural twins (same `EntryEditor`/`openNamed`/`beginMissing`
+machinery, same shell, same chair default) yet pay a full remount on every
+move between them: fresh init, re-fetch, one blank frame (§33.7). They should
+be one studio application:
+
+- Model: a section tag plus both editors' Models (initialized lazily from
+  the URL on first entry, as today — neither init fetches by itself).
+- Message: section-level `UrlChanged`/`UrlRequested` routed by pathname
+  into the addressed editor's wrapped messages; section switch as an
+  ordinary transition that also clears the other section's address params
+  (today the remount gets this for free from a fresh `init` — the fiddly
+  part to carry over explicitly).
+- View: switch on section inside the shared shell. `mountStudio`'s
+  embed/dispose dance goes away for the studio (its browser test with it).
+
+The site stays a separate application in the same entry: it is a different
+document (generated HTML, takeover via `sitePlan.ts`, visitor default,
+indexed vs `noindex`), and studio↔site moves stay full loads per §33.10.
+Net: three applications become two, and the studio merge is a manual
+prototype of the Site graph — route-driven section activation inside one
+`update`, which is what §31 step 5 builds properly. Tracks the TODO item
+"The studio's one blank frame between sections".
+
 ## 2. Server, transport, bootstrap, SSG
 
 - **`http.ts` (Node `POST /remote` + chair header + due loop).**
