@@ -997,7 +997,9 @@ const makeShape = <
       let epoch = state.epoch
       if (epoch === null) {
         yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
-        const rows = yield* sql<{ readonly epoch: string }>`SELECT epoch FROM epochs WHERE key = ${key}`
+        const rows = yield* sql<{
+          readonly epoch: string
+        }>`SELECT epoch FROM epochs WHERE key = ${key}`
         epoch = rows[0]!.epoch
       }
       const { snapshot, cursor, snapshotCursor } = state
