@@ -5,19 +5,13 @@ import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import type { Cart, Item } from '../domain/index.js'
 import { Message } from '../main.js'
 import { checkoutRouter, productsRouter } from '../route.js'
-import {
-  CartSlots,
-  CartStyle,
-  ClearCartButtonStyle,
-  QuantityButtonStyle,
-  RemoveButtonStyle,
-} from '../style.js'
+import { CartPart, ClearCartButtonStyle, QuantityButtonStyle, RemoveButtonStyle } from '../style.js'
 import { buttonView } from './button.js'
 import { cartTotal, formatPrice } from './price.js'
 
 // VIEW
 
-type Slots = SlotBuilders<typeof CartSlots, Message>
+type Slots = SlotBuilders<typeof CartPart.slots, Message>
 
 const emptyView = (slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
   h.p(slots.empty.attrs(), ['Your cart is empty']),
@@ -70,7 +64,7 @@ const filledView = (
 ]
 
 export const view = SlotView.forMessages<Message>()
-  .define(CartSlots, (cart: Cart.Cart, slots, h) =>
+  .define(CartPart.slots, (cart: Cart.Cart, slots, h) =>
     h.div(slots.content.attrs(), [
       h.h1(slots.heading.attrs(), ['Shopping Cart']),
       h.div(slots.card.attrs(), [
@@ -84,4 +78,4 @@ export const view = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(CartStyle))
+  .pipe(Style.attach(CartPart.style))

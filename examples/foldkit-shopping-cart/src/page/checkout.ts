@@ -7,18 +7,13 @@ import { Textarea } from 'foldkit-mixins-ui'
 import type { Item } from '../domain/index.js'
 import { Message, type Model } from '../main.js'
 import { cartRouter, productsRouter } from '../route.js'
-import {
-  CheckoutSlots,
-  CheckoutStyle,
-  DeliveryInstructionsStyle,
-  PlaceOrderButtonStyle,
-} from '../style.js'
+import { CheckoutPart, DeliveryInstructionsStyle, PlaceOrderButtonStyle } from '../style.js'
 import { buttonView } from './button.js'
 import { cartTotal, formatPrice, lineTotal } from './price.js'
 
 // VIEW
 
-type Slots = SlotBuilders<typeof CheckoutSlots, Message>
+type Slots = SlotBuilders<typeof CheckoutPart.slots, Message>
 
 export type ViewInput = Pick<Model, 'cart' | 'deliveryInstructions' | 'orderPlaced'>
 
@@ -120,7 +115,7 @@ const checkoutView = (
   ])
 
 export const view = SlotView.forMessages<Message>()
-  .define(CheckoutSlots, ({ cart, deliveryInstructions, orderPlaced }: ViewInput, slots, h) =>
+  .define(CheckoutPart.slots, ({ cart, deliveryInstructions, orderPlaced }: ViewInput, slots, h) =>
     orderPlaced ? orderPlacedView(slots, h) : checkoutView(cart, deliveryInstructions, slots, h),
   )
-  .pipe(Style.attach(CheckoutStyle))
+  .pipe(Style.attach(CheckoutPart.style))

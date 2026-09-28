@@ -1,8 +1,7 @@
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
-import { Style } from 'foldkit-mixins'
-import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
 import { products } from '../src/data/products.js'
@@ -36,10 +35,6 @@ const trees = [
   Inert.draw(ProductsPage, { model: productsPage, cart: filledCart }),
 ]
 
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
-
 const texts = (tree: Html | undefined, tag: string): ReadonlyArray<string> =>
   Inert.byTag(tree, tag).map(Inert.text)
 
@@ -49,14 +44,10 @@ describe('the pages', () => {
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      trees.flatMap(tree =>
-        [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const tree of trees) {
+      expect(Inert.css(Inert.all(tree!))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree!, stylesheet)).toEqual([])
+    }
   })
 
   // The Products route draws a Submodel, so its nav link is checked in `runtime.test.ts`.

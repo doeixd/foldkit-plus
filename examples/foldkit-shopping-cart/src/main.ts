@@ -11,7 +11,7 @@ import { products } from './data/products.js'
 import { Cart } from './domain/index.js'
 import { Cart as CartPage, Checkout, Products } from './page/index.js'
 import { AppRoute, cartRouter, checkoutRouter, productsRouter, urlToAppRoute } from './route.js'
-import { PageSlots, PageStyle } from './style.js'
+import { ShopPage } from './style.js'
 
 // MODEL
 
@@ -167,7 +167,7 @@ export const update = (model: Model, message: Message) =>
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof ShopPage.slots, Message>
 
 const NavSection = Schema.Literals(['Products', 'Cart', 'Checkout'])
 type NavSection = typeof NavSection.Type
@@ -228,7 +228,7 @@ const notFoundView = (path: string, slots: Slots, h: HtmlBuilder<Message>): Html
   ])
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(ShopPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.header(slots.header.attrs(), [
         navigationView(model.route, Cart.totalItems(model.cart), slots, h),
@@ -250,7 +250,7 @@ export const Page = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(ShopPage.style))
 
 export const routeTitle = (route: AppRoute): string =>
   AppRoute.match(route, {

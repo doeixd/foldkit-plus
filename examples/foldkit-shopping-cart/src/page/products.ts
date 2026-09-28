@@ -12,8 +12,7 @@ import { Cart, Item } from '../domain/index.js'
 import { cartRouter, productsRouter } from '../route.js'
 import {
   AddToCartButtonStyle,
-  ProductsSlots,
-  ProductsStyle,
+  ProductsPart,
   QuantityButtonStyle,
   SearchInputStyle,
 } from '../style.js'
@@ -108,7 +107,7 @@ export type ViewInputs = Readonly<{
   cart: Cart.Cart
 }>
 
-type Slots = SlotBuilders<typeof ProductsSlots, Message>
+type Slots = SlotBuilders<typeof ProductsPart.slots, Message>
 
 const matchingProducts = (
   products: ReadonlyArray<Item.Item>,
@@ -186,30 +185,32 @@ const searchView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
 
 /** The page, drawn through its own Slots: `h` here is the Submodel's, typed by the page's Message. */
 export const ProductsPage = SlotView.forMessages<Message>()
-  .define(ProductsSlots, ({ model, cart }: Readonly<{ model: Model } & ViewInputs>, slots, h) =>
-    h.div(slots.content.attrs(), [
-      h.h1(slots.heading.attrs(), ['Products']),
-      h.div(slots.card.attrs(), [
-        searchView(model, slots, h),
-        h.section(
-          slots.products.attrs(),
-          Array.map(matchingProducts(model.products, model.searchText), product =>
-            productView(product, cart, slots, h),
+  .define(
+    ProductsPart.slots,
+    ({ model, cart }: Readonly<{ model: Model } & ViewInputs>, slots, h) =>
+      h.div(slots.content.attrs(), [
+        h.h1(slots.heading.attrs(), ['Products']),
+        h.div(slots.card.attrs(), [
+          searchView(model, slots, h),
+          h.section(
+            slots.products.attrs(),
+            Array.map(matchingProducts(model.products, model.searchText), product =>
+              productView(product, cart, slots, h),
+            ),
           ),
-        ),
-        Array.match(cart, {
-          onEmpty: () => h.empty,
-          onNonEmpty: cart =>
-            h.div(slots.goToCart.attrs(), [
-              h.a(slots.goToCartLink.attrs([h.Href(cartRouter())]), [
-                `Go to Cart (${Cart.totalItems(cart)})`,
+          Array.match(cart, {
+            onEmpty: () => h.empty,
+            onNonEmpty: cart =>
+              h.div(slots.goToCart.attrs(), [
+                h.a(slots.goToCartLink.attrs([h.Href(cartRouter())]), [
+                  `Go to Cart (${Cart.totalItems(cart)})`,
+                ]),
               ]),
-            ]),
-        }),
+          }),
+        ]),
       ]),
-    ]),
   )
-  .pipe(Style.attach(ProductsStyle))
+  .pipe(Style.attach(ProductsPart.style))
 
 export const view = Submodel.defineView<Model, Message, ViewInputs>((model, { cart }, h) =>
   ProductsPage({ model, cart }, h),
