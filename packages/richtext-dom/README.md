@@ -405,13 +405,17 @@ that transition committed.
   composition, copy, cut, and paste, and reports each one it understands as intent. Everything
   it understands it prevents, so the browser never mutates the DOM behind the document; an
   event it cannot honor yet is prevented with no intent rather than allowed to drift.
-  `onSelection` reports a caret or range the application did not just commit, and nothing while
-  an IME owns the caret. A keystroke or a composition start reads the live selection first and
+  `onSelection` reports a caret or range inside the editor that the application did not just
+  commit, and nothing while an IME owns the caret. A selection elsewhere on the page is not
+  reported, so the editor keeps its own caret (or selected block) while another field has
+  focus. A keystroke, a composition start, a cut, or a paste reads the live selection first and
   reports it before its intent, because `selectionchange` is asynchronous and a click just
-  before typing would otherwise be missed. `keymap` adds or overrides chord bindings, checked
+  before would otherwise be missed. `keymap` adds or overrides chord bindings, checked
   before the built-in ones. `attachment.sync(state, changeSet)` patches and restores the
-  selection in one call; while an IME is composing, the latest state waits and is drawn when
-  composition ends, so another person's edit never rewrites the text under the IME.
+  selection in one call, but only while the browser's selection is inside the editor: a sync
+  never takes the caret from another editor or an input. While an IME is composing, the latest
+  state waits and is drawn when composition ends, so another person's edit never rewrites the
+  text under the IME.
   `detach()` removes the listeners.
 - **`patch(dom, content, changeSet, decorations?)`** removes what the change set removed,
   re-renders what it marked dirty, and places inserted or moved elements in document order.

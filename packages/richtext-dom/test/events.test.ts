@@ -659,6 +659,12 @@ describe('reporting a caret move', () => {
   it.each([
     ['a keystroke', (root: Element) => root.dispatchEvent(beforeInput('insertText', 'X'))],
     ['a composition', (root: Element) => root.dispatchEvent(composition('compositionstart'))],
+    ['a cut', (root: Element) => root.dispatchEvent(clipboardEvent('cut', fakeClipboard()))],
+    [
+      'a paste',
+      (root: Element) =>
+        root.dispatchEvent(clipboardEvent('paste', fakeClipboard({ 'text/plain': 'x' }))),
+    ],
   ])('reports a click the browser has not announced yet before %s', (_, act) => {
     const dom = mount(document, content())
     document.body.append(dom.root)
@@ -672,6 +678,17 @@ describe('reporting a caret move', () => {
     act(attachment.current().root)
     // The click comes first, so the edit lands where the person clicked.
     expect(heard[0]).toEqual(['b', 1, 'b', 1])
+    close(attachment)
+  })
+
+  it('keeps a selected block when a keystroke finds no range to report', () => {
+    const { dom, attachment, moves } = setup()
+    // The Model selects a whole block; the browser shows no range for it.
+    attachment.sync({ document: dom.content, selection: { type: 'Node', node: id('q') } }, noChange)
+    window.getSelection()!.removeAllRanges()
+    dom.root.dispatchEvent(key('Backspace'))
+    document.dispatchEvent(new Event('selectionchange'))
+    expect(moves).toEqual([])
     close(attachment)
   })
 
@@ -767,5 +784,99 @@ describe('chords an application binds', () => {
     dom.root.dispatchEvent(key('b', { meta: true }))
     expect(intents).toEqual([{ type: 'ToggleMark', mark: 'Custom' }])
     attachment.detach()
+  })
+})
+
+/** Where the browser's caret is, in the document's terms; affinity is derived, not kept. */
+const caretOf = (dom: EditorDom) => {
+  const selection = readSelection(dom)
+  return selection?.type === 'Range' ? [selection.focus.node, selection.focus.offset] : selection
+}
+
+describe('a selection elsewhere on the page', () => {
+  const noChange: RichText.ChangeSet = {
+    dirtyNodes: new Set(),
+    insertedNodes: new Set(),
+    removedNodes: new Set(),
+    textChanged: new Set(),
+    structureChanged: false,
+    selectionChanged: false,
+  }
+  /** Two editors on one page, with the browser's caret in the second. */
+  const setup = () => {
+    const decorations: { current: RichText.DecorationSet } = { current: [] }
+    const first = mount(document, content())
+    const second = mount(document, content())
+    document.body.append(first.root, second.root)
+    const moves: Array<RichText.Selection | null> = []
+    const attachment = attach(first, {
+      onIntent: () => {},
+      onSelection: selection => moves.push(selection),
+      decorate: () => decorations.current,
+    })
+    restoreSelection(second, caretAt(['c', 1]))
+    const live = window.getSelection()!
+    const close = () => {
+      attachment.detach()
+      first.root.remove()
+      second.root.remove()
+    }
+    return { attachment, second, live, moves, decorations, close }
+  }
+
+  it('is left where it is by a redraw of the decorations', () => {
+    const { attachment, second, live, decorations, close } = setup()
+    decorations.current = [{ from: at('a', 0), to: at('a', 1), kind: 'peer' }]
+    attachment.redecorate()
+    expect(attachment.current().root.querySelector('[data-decoration]')).not.toBeNull()
+    expect(caretOf(second)).toEqual(['c', 1])
+    expect(live.rangeCount).toBe(1)
+    close()
+  })
+
+  it('is left where it is by a sync, even one that carries a selection', () => {
+    const { attachment, second, close } = setup()
+    for (const selection of [caretAt(['a', 1]), null]) {
+      attachment.sync({ document: attachment.current().content, selection }, noChange)
+      expect(caretOf(second)).toEqual(['c', 1])
+    }
+    close()
+  })
+
+  it('is not reported as the editor losing its caret', () => {
+    const { attachment, moves, close } = setup()
+    attachment.sync(
+      { document: attachment.current().content, selection: caretAt(['a', 1]) },
+      noChange,
+    )
+    document.dispatchEvent(new Event('selectionchange'))
+    expect(moves).toEqual([])
+    close()
+  })
+})
+
+describe('a composition that ends without starting', () => {
+  it('leaves the caret where the application last put it', () => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    restoreSelection(dom, caretAt(['a', 1]))
+    const intents: Array<RichText.Command> = []
+    const attachment = attach(dom, { onIntent: command => intents.push(command) })
+    attachment.sync(
+      { document: dom.content, selection: caretAt(['a', 1]) },
+      {
+        dirtyNodes: new Set(),
+        insertedNodes: new Set(),
+        removedNodes: new Set(),
+        textChanged: new Set(),
+        structureChanged: false,
+        selectionChanged: false,
+      },
+    )
+    dom.root.dispatchEvent(composition('compositionend', 'x'))
+    expect(caretOf(attachment.current())).toEqual(['a', 1])
+    expect(intents).toEqual([{ type: 'InsertText', text: 'x' }])
+    attachment.detach()
+    dom.root.remove()
   })
 })
