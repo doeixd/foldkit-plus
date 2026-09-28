@@ -393,6 +393,9 @@ importers:
 
   examples/foldkit-job-application:
     dependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       '@foldkit/ui':
         specifier: 0.163.0
         version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
@@ -402,73 +405,19 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-agent:
-        specifier: workspace:*
-        version: link:../../packages/agent
-      foldkit-agent-webmcp:
-        specifier: workspace:*
-        version: link:../../packages/agent-webmcp
-      foldkit-bundle:
-        specifier: workspace:*
-        version: link:../../packages/bundle
-      foldkit-bundle-surface:
-        specifier: workspace:*
-        version: link:../../packages/bundle-surface
-      foldkit-composition:
-        specifier: workspace:*
-        version: link:../../packages/composition
-      foldkit-crud:
-        specifier: workspace:*
-        version: link:../../packages/crud
-      foldkit-durable:
-        specifier: workspace:*
-        version: link:../../packages/durable
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
-      foldkit-metadata:
-        specifier: workspace:*
-        version: link:../../packages/metadata
-      foldkit-mirror:
-        specifier: workspace:*
-        version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
-      foldkit-mixins-form:
-        specifier: workspace:*
-        version: link:../../packages/mixins-form
-      foldkit-mixins-surface:
-        specifier: workspace:*
-        version: link:../../packages/mixins-surface
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
-      foldkit-primitives:
-        specifier: workspace:*
-        version: link:../../packages/primitives
-      foldkit-remote:
-        specifier: workspace:*
-        version: link:../../packages/remote
-      foldkit-remote-server:
-        specifier: workspace:*
-        version: link:../../packages/remote-server
-      foldkit-ssr:
-        specifier: workspace:*
-        version: link:../../packages/ssr
-      foldkit-surface:
-        specifier: workspace:*
-        version: link:../../packages/surface
-      foldkit-sync:
-        specifier: workspace:*
-        version: link:../../packages/sync
     devDependencies:
-      '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -481,6 +430,9 @@ importers:
 
   examples/foldkit-kanban:
     dependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       '@foldkit/ui':
         specifier: 0.163.0
         version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
@@ -490,76 +442,22 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-agent:
-        specifier: workspace:*
-        version: link:../../packages/agent
-      foldkit-agent-webmcp:
-        specifier: workspace:*
-        version: link:../../packages/agent-webmcp
-      foldkit-bundle:
-        specifier: workspace:*
-        version: link:../../packages/bundle
-      foldkit-bundle-surface:
-        specifier: workspace:*
-        version: link:../../packages/bundle-surface
-      foldkit-composition:
-        specifier: workspace:*
-        version: link:../../packages/composition
-      foldkit-crud:
-        specifier: workspace:*
-        version: link:../../packages/crud
-      foldkit-durable:
-        specifier: workspace:*
-        version: link:../../packages/durable
-      foldkit-entity:
-        specifier: workspace:*
-        version: link:../../packages/entity
-      foldkit-form:
-        specifier: workspace:*
-        version: link:../../packages/form
-      foldkit-metadata:
-        specifier: workspace:*
-        version: link:../../packages/metadata
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
-      foldkit-mixins-form:
-        specifier: workspace:*
-        version: link:../../packages/mixins-form
-      foldkit-mixins-surface:
-        specifier: workspace:*
-        version: link:../../packages/mixins-surface
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
-      foldkit-primitives:
-        specifier: workspace:*
-        version: link:../../packages/primitives
-      foldkit-remote:
-        specifier: workspace:*
-        version: link:../../packages/remote
-      foldkit-remote-server:
-        specifier: workspace:*
-        version: link:../../packages/remote-server
-      foldkit-ssr:
-        specifier: workspace:*
-        version: link:../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
-      foldkit-sync:
-        specifier: workspace:*
-        version: link:../../packages/sync
       fractional-indexing:
         specifier: ^4.0.0
         version: 4.0.0
     devDependencies:
-      '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -572,6 +470,9 @@ importers:
 
   examples/foldkit-pixel-art:
     dependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       '@foldkit/ui':
         specifier: 0.163.0
         version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
@@ -581,73 +482,22 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-agent:
-        specifier: workspace:*
-        version: link:../../packages/agent
-      foldkit-agent-webmcp:
-        specifier: workspace:*
-        version: link:../../packages/agent-webmcp
-      foldkit-bundle:
-        specifier: workspace:*
-        version: link:../../packages/bundle
-      foldkit-bundle-surface:
-        specifier: workspace:*
-        version: link:../../packages/bundle-surface
-      foldkit-composition:
-        specifier: workspace:*
-        version: link:../../packages/composition
-      foldkit-crud:
-        specifier: workspace:*
-        version: link:../../packages/crud
-      foldkit-durable:
-        specifier: workspace:*
-        version: link:../../packages/durable
-      foldkit-entity:
-        specifier: workspace:*
-        version: link:../../packages/entity
-      foldkit-form:
-        specifier: workspace:*
-        version: link:../../packages/form
-      foldkit-metadata:
-        specifier: workspace:*
-        version: link:../../packages/metadata
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
-      foldkit-mixins-form:
-        specifier: workspace:*
-        version: link:../../packages/mixins-form
-      foldkit-mixins-surface:
-        specifier: workspace:*
-        version: link:../../packages/mixins-surface
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives
-      foldkit-remote:
-        specifier: workspace:*
-        version: link:../../packages/remote
-      foldkit-remote-server:
-        specifier: workspace:*
-        version: link:../../packages/remote-server
-      foldkit-ssr:
-        specifier: workspace:*
-        version: link:../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
-      foldkit-sync:
-        specifier: workspace:*
-        version: link:../../packages/sync
     devDependencies:
-      '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -861,69 +711,18 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-agent:
-        specifier: workspace:*
-        version: link:../../packages/agent
-      foldkit-agent-webmcp:
-        specifier: workspace:*
-        version: link:../../packages/agent-webmcp
-      foldkit-bundle:
-        specifier: workspace:*
-        version: link:../../packages/bundle
-      foldkit-bundle-surface:
-        specifier: workspace:*
-        version: link:../../packages/bundle-surface
-      foldkit-composition:
-        specifier: workspace:*
-        version: link:../../packages/composition
-      foldkit-crud:
-        specifier: workspace:*
-        version: link:../../packages/crud
-      foldkit-durable:
-        specifier: workspace:*
-        version: link:../../packages/durable
-      foldkit-entity:
-        specifier: workspace:*
-        version: link:../../packages/entity
-      foldkit-form:
-        specifier: workspace:*
-        version: link:../../packages/form
-      foldkit-metadata:
-        specifier: workspace:*
-        version: link:../../packages/metadata
-      foldkit-mirror:
-        specifier: workspace:*
-        version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
-      foldkit-mixins-form:
-        specifier: workspace:*
-        version: link:../../packages/mixins-form
-      foldkit-mixins-surface:
-        specifier: workspace:*
-        version: link:../../packages/mixins-surface
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
-      foldkit-primitives:
-        specifier: workspace:*
-        version: link:../../packages/primitives
-      foldkit-remote:
-        specifier: workspace:*
-        version: link:../../packages/remote
-      foldkit-remote-server:
-        specifier: workspace:*
-        version: link:../../packages/remote-server
       foldkit-ssr:
         specifier: workspace:*
         version: link:../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
-      foldkit-sync:
-        specifier: workspace:*
-        version: link:../../packages/sync
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -931,6 +730,9 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -986,69 +788,12 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-agent:
-        specifier: workspace:*
-        version: link:../../packages/agent
-      foldkit-agent-webmcp:
-        specifier: workspace:*
-        version: link:../../packages/agent-webmcp
-      foldkit-bundle:
-        specifier: workspace:*
-        version: link:../../packages/bundle
-      foldkit-bundle-surface:
-        specifier: workspace:*
-        version: link:../../packages/bundle-surface
-      foldkit-composition:
-        specifier: workspace:*
-        version: link:../../packages/composition
-      foldkit-crud:
-        specifier: workspace:*
-        version: link:../../packages/crud
-      foldkit-durable:
-        specifier: workspace:*
-        version: link:../../packages/durable
-      foldkit-entity:
-        specifier: workspace:*
-        version: link:../../packages/entity
-      foldkit-form:
-        specifier: workspace:*
-        version: link:../../packages/form
-      foldkit-metadata:
-        specifier: workspace:*
-        version: link:../../packages/metadata
-      foldkit-mirror:
-        specifier: workspace:*
-        version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
-      foldkit-mixins-form:
-        specifier: workspace:*
-        version: link:../../packages/mixins-form
-      foldkit-mixins-surface:
-        specifier: workspace:*
-        version: link:../../packages/mixins-surface
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
-      foldkit-primitives:
-        specifier: workspace:*
-        version: link:../../packages/primitives
-      foldkit-remote:
-        specifier: workspace:*
-        version: link:../../packages/remote
-      foldkit-remote-server:
-        specifier: workspace:*
-        version: link:../../packages/remote-server
-      foldkit-ssr:
-        specifier: workspace:*
-        version: link:../../packages/ssr
-      foldkit-surface:
-        specifier: workspace:*
-        version: link:../../packages/surface
-      foldkit-sync:
-        specifier: workspace:*
-        version: link:../../packages/sync
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
