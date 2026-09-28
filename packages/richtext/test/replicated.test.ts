@@ -1402,7 +1402,8 @@ describe('collecting tombstones', () => {
     }
     const mine = { continues: (id: string) => id.startsWith('e') }
     const [typed] = edit(view, { type: 'InsertText', text: 'abc' }, mine)
-    const id = (typed as { id: RichText.Replicated.ReplicatedId }).id
+    if (typed?.type !== 'Insert') throw new Error('expected an insert')
+    const id = typed.id
     edit(view, { type: 'DeleteBackward' }, mine)
     edit(view, { type: 'DeleteBackward' }, mine)
     view.state = Replicated.applyOps(view.state, [COLLECT, COLLECT])
@@ -1444,6 +1445,7 @@ describe('collecting tombstones', () => {
       (
         block: RichText.Replicated.ReplicatedId,
         id: RichText.Replicated.ReplicatedId,
+        start: RichText.Replicated.ReplicatedState,
       ) => ReadonlyArray<RichText.Replicated.ReplicatedOp>,
     ]
   >([
@@ -1465,11 +1467,25 @@ describe('collecting tombstones', () => {
         { type: 'DeleteBlock', id: block },
       ],
     ],
+    [
+      'a block split back out of a join',
+      (block, id, start) => [
+        {
+          type: 'Join',
+          into: idAt(start, [1]),
+          removed: block,
+          after: lastCharOf(start, [1]),
+        },
+        COLLECT,
+        { type: 'Unjoin', id: block, ranges: [{ id, from: 0, to: 4 }], children: [] },
+        { type: 'DeleteBlock', id: block },
+      ],
+    ],
   ])('keeps %s deleted again after coming back for a whole interval', (_, ops) => {
     const start = base()
     const block = idAt(start, [4])
     const next = Replicated.applyOps(start, [
-      ...ops(block, ReplicatedId.make(keyAt(start, [4]))),
+      ...ops(block, ReplicatedId.make(keyAt(start, [4])), start),
       COLLECT,
     ])
     expect(kept(next)).toBe(kept(start))
@@ -1486,6 +1502,121 @@ describe('collecting tombstones', () => {
       COLLECT,
     ])
     expect(gone.blocks[block]!.spans.map(span => span.text).join('')).toBe('t')
+  })
+
+  describe('ops from a replica offline across two collections', () => {
+    // Two paragraphs, `abc` and `def`; the second is joined into the first, and its
+    // characters deleted and collected. A replica that saw neither types into it.
+    const joined = () => {
+      const start = Replicated.fromDocument(
+        decode([paragraph('p', text('a', 'abc')), paragraph('q', text('d', 'def'))]),
+        'two:0',
+      )
+      const first = idAt(start, [0])
+      const second = idAt(start, [1])
+      const def = ReplicatedId.make(keyAt(start, [1]))
+      return {
+        start,
+        second,
+        def,
+        gone: Replicated.applyOps(start, [
+          { type: 'Join', into: first, removed: second, after: charAt(start, [0], 2) },
+          { type: 'Delete', ranges: [{ id: def, from: 0, to: 3 }] },
+          COLLECT,
+          COLLECT,
+        ]),
+      }
+    }
+    const insert = (
+      id: string,
+      block: RichText.Replicated.ReplicatedId,
+      after: RichText.Replicated.CharRef | null,
+      value: string,
+    ): RichText.Replicated.ReplicatedOp => ({
+      type: 'Insert',
+      id: ReplicatedId.make(id),
+      block,
+      after,
+      text: value,
+      marks: [],
+    })
+
+    it('keeps text typed into a block joined since, where that block went', () => {
+      const { gone, second, def } = joined()
+      const late = insert('late:0', second, Replicated.CharRef.make(`${def}.0`), 'Q')
+      expect(texts(Replicated.applyOps(gone, [late]))).toEqual(['abcQ'])
+    })
+
+    it('splits at the end when the character it split after is gone, keeping what follows', () => {
+      const { gone, second, def } = joined()
+      const into = ReplicatedId.make('late:1')
+      const next = Replicated.applyOps(gone, [
+        { type: 'Split', block: second, after: Replicated.CharRef.make(`${def}.1`), into },
+        insert('late:2', into, null, 'W'),
+      ])
+      expect(texts(next)).toEqual(['abc', 'W'])
+    })
+
+    it('finds a joined block’s start when the character it followed was collected', () => {
+      const { start, second } = joined()
+      const first = idAt(start, [0])
+      const abc = ReplicatedId.make(keyAt(start, [0]))
+      const gone = Replicated.applyOps(start, [
+        { type: 'Join', into: first, removed: second, after: charAt(start, [0], 2) },
+        { type: 'Delete', ranges: [{ id: abc, from: 1, to: 3 }] },
+        COLLECT,
+        COLLECT,
+      ])
+      // `c`, the joined block's anchor, is kept only as a marker; `b` is gone for good.
+      expect(texts(Replicated.applyOps(gone, [insert('late:3', second, null, 'Z')]))).toEqual([
+        'aZdef',
+      ])
+    })
+  })
+
+  it('places a caret at a joined block’s start whose anchor was collected at the end of where it went', () => {
+    const start = Replicated.fromDocument(
+      decode([paragraph('p', text('a', 'abc')), paragraph('q', text('d', 'def'))]),
+      'two:0',
+    )
+    const first = idAt(start, [0])
+    const second = idAt(start, [1])
+    const abc = ReplicatedId.make(keyAt(start, [0]))
+    const c = charAt(start, [0], 2)
+    const gone = Replicated.applyOps(start, [
+      { type: 'Join', into: first, removed: second, after: c },
+      // The insert carries on past `c`, so `c` is not its end and is collected outright.
+      { type: 'Insert', id: abc, block: first, after: c, text: 'X', marks: [], from: 3 },
+      { type: 'Delete', ranges: [{ id: abc, from: 2, to: 3 }] },
+      COLLECT,
+      COLLECT,
+    ])
+    const at = { block: second, after: null, affinity: 'after' as const }
+    expect(Replicated.resolve(gone, { type: 'Range', anchor: at, focus: at })).not.toBeNull()
+  })
+
+  it('never shows a character it kept only to hold an insert’s indexes, even on undo', () => {
+    const start = base()
+    const id = ReplicatedId.make(keyAt(start, [4]))
+    const remove: RichText.Replicated.ReplicatedOp = {
+      type: 'Delete',
+      ranges: [{ id, from: 2, to: 4 }],
+    }
+    const gone = Replicated.applyOps(Replicated.applyOps(start, [remove]), [COLLECT, COLLECT])
+    const undone = Replicated.applyOps(gone, Replicated.invert(start, [remove]))
+    expect(texts(undone).at(-1)).toBe('la')
+  })
+
+  it('leaves a block holding only kept characters alone', () => {
+    const start = base()
+    const id = ReplicatedId.make(keyAt(start, [4]))
+    const block = idAt(start, [4])
+    const gone = Replicated.applyOps(start, [
+      { type: 'Delete', ranges: [{ id, from: 0, to: 4 }] },
+      COLLECT,
+      COLLECT,
+    ])
+    expect(Replicated.applyOps(gone, [COLLECT]).blocks[block]).toBe(gone.blocks[block])
   })
 
   it('takes back nothing when inverted', () => {

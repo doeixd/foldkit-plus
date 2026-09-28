@@ -842,8 +842,9 @@ if (result.ok) {
   replica applies the same ops in the server's order and projects the same document.
 - `applyOps` never throws. An op that no longer fits changes nothing: a block already
   deleted, an id already taken, a move into the block's own subtree. Text typed into a block
-  another replica deleted is gone with it. An insert anchored on a character whose own
-  insert the server refused lands at the end of the block it was typed in.
+  another replica deleted is gone with it. An insert or split anchored on a character that
+  is gone (its insert was refused, or a `Collect` removed it) lands at the end of the block
+  it was typed in, or of the block that one was joined into.
 - A selection travels as anchors (`translate`'s `selection`, or `anchor(state, selection)`),
   and `resolve` places it again after other replicas' ops: after the same character, or the
   nearest one before it still shown.

@@ -75,6 +75,11 @@ const Span = Schema.Struct({
   deleted: Schema.Boolean,
   /** Deleted when a `Collect` ran, so the next one removes it. */
   swept: Schema.optionalKey(Schema.Boolean),
+  /**
+   * The last character of a collected stretch, kept only so its insert's indexes are never
+   * reused. It is never shown again, not even by an undo.
+   */
+  kept: Schema.optionalKey(Schema.Literal(true)),
 })
 type Span = typeof Span.Type
 
@@ -159,8 +164,8 @@ export const ReplicatedOp = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal('Retype'), id: ReplicatedId, to: RetypeTarget }),
   Schema.Struct({ type: Schema.Literal('SetProps'), id: ReplicatedId, props: Schema.JsonObject }),
-  // The inverses `invert` makes, for undo. Characters and blocks are never removed, only
-  // marked deleted, so each of these finds what it restores where it was.
+  // The inverses `invert` makes, for undo. Only `Collect` removes deleted text, so until
+  // then each of these finds what it restores where it was.
   Schema.Struct({ type: Schema.Literal('Undelete'), ranges: Schema.Array(CharRange) }),
   Schema.Struct({ type: Schema.Literal('UndeleteBlock'), id: ReplicatedId }),
   Schema.Struct({
@@ -425,7 +430,17 @@ const startOf = (work: Draft, block: ReplicatedId, seen = new Set<string>()): Pl
   seen.add(block)
   return entry.joined.after === null
     ? startOf(work, entry.joined.into, seen)
-    : afterChar(work, entry.joined.after, entry.joined.into)
+    : (afterChar(work, entry.joined.after, entry.joined.into) ?? endOf(work, entry.joined.into))
+}
+
+/**
+ * The end of a block, or of the block a joined one went into: where text whose anchor is
+ * gone (rejected, or collected) is kept, near where it was typed and shown.
+ */
+const endOf = (work: Draft, block: ReplicatedId): Place | undefined => {
+  const live = liveContainer(work, block)
+  if (live === undefined) return undefined
+  return { block: live, index: work.read(live)!.spans.length }
 }
 
 /** The place right after a character, cutting its span so a boundary falls there. */
@@ -529,15 +544,11 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
     case 'Insert': {
       const from = op.from ?? 0
       if (charsTaken(work.read, work.holding(op.id), op.id, from, from + op.text.length)) return
-      // A lost anchor (its insert was rejected) falls back to the end of the block the
-      // op was made in, so the text is kept close to where it was typed.
-      const fallback = (): Place | undefined => {
-        const entry = work.read(op.block)
-        return entry === undefined ? undefined : { block: op.block, index: entry.spans.length }
-      }
+      // A lost anchor (its insert was rejected, or collected) falls back to the end of the
+      // block the op was made in, or of the one that block was joined into.
       const place =
         (op.after === null ? startOf(work, op.block) : afterChar(work, op.after, op.block)) ??
-        fallback()
+        endOf(work, op.block)
       // A block that holds no text keeps the characters unshown, which is all a refusal
       // would do.
       if (place === undefined) return
@@ -602,8 +613,11 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
     }
     case 'Split': {
       if (taken(work, op.into)) return
+      // A lost anchor splits at the end, so the block the split made is there for what is
+      // typed into it next.
       const place =
-        op.after === null ? startOf(work, op.block) : afterChar(work, op.after, op.block)
+        (op.after === null ? startOf(work, op.block) : afterChar(work, op.after, op.block)) ??
+        endOf(work, op.block)
       if (place === undefined) return
       const source = work.read(place.block)!
       if (!holdsText(source.shape)) return
@@ -673,7 +687,11 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       return
     }
     case 'Undelete':
-      eachCovered(work, op.ranges, ({ swept: _, ...span }) => ({ ...span, deleted: false }))
+      eachCovered(work, op.ranges, span => {
+        if (span.kept === true) return span
+        const { swept: _, ...shown } = span
+        return { ...shown, deleted: false }
+      })
       return
     case 'UndeleteBlock': {
       // A joined block comes back by `Unjoin`, which returns what it held too.
@@ -693,6 +711,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       const into = entry.joined.into
       const restored = work.write(op.id)!
       restored.deleted = false
+      delete restored.swept
       delete restored.joined
       restored.spans = takeCovered(work, op.ranges)
       for (const child of op.children) {
@@ -735,7 +754,8 @@ const collect = (work: Draft): void => {
     const entry = work.read(block)
     if (entry === undefined) continue
     const blockGone = entry.deleted && entry.swept === true
-    const collected = (span: Span) => blockGone || (span.deleted && span.swept === true)
+    const collected = (span: Span) =>
+      span.kept !== true && (blockGone || (span.deleted && span.swept === true))
     const unmarked = (span: Span) => span.deleted && span.swept !== true
     if (!entry.spans.some(span => collected(span) || unmarked(span))) {
       if (entry.deleted && entry.swept !== true) work.write(block)!.swept = true
@@ -748,7 +768,7 @@ const collect = (work: Draft): void => {
         spans.push(unmarked(span) ? { ...span, swept: true } : span)
       } else if (end === ends.get(span.id)) {
         const last = span.text.slice(-1)
-        spans.push({ ...span, offset: end - 1, text: last, deleted: true, swept: true })
+        spans.push({ ...span, offset: end - 1, text: last, deleted: true, swept: true, kept: true })
       }
     }
     const written = work.write(block)!
@@ -764,8 +784,9 @@ const applied = new WeakMap<
 
 /**
  * Folds ops into the state in order. Total: an op whose target is gone, whose ids are
- * already taken, or that would make the tree cyclic changes nothing, and an insert anchored
- * on a character that never arrived lands at the end of the block it names. It trusts the
+ * already taken, or that would make the tree cyclic changes nothing, and an insert or split
+ * anchored on a character that is gone (never arrived, or collected) lands at the end of the
+ * block it names, or of the block that one was joined into. It trusts the
  * state to be one these functions made (the ops are the untrusted input): a state decoded
  * from elsewhere is not checked for a block listed twice or a cycle of parents.
  *
