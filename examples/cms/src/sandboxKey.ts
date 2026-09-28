@@ -11,7 +11,7 @@ const PREFIX = 'foldkit-cms-demo'
  * changes: a sandbox kept from an older edition is then let go, and everyone
  * starts from the new one rather than from what they kept.
  */
-export const SANDBOX_KEY = `${PREFIX}@3`
+export const SANDBOX_KEY = `${PREFIX}@4`
 
 const EDITED_KEY = `${SANDBOX_KEY}:edited`
 
