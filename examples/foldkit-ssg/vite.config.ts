@@ -1,7 +1,27 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 
-export default defineConfig({
+/**
+ * `vite preview` as a static host serves the build: `/about` is the page
+ * generated at `about/index.html`, and an address with no page is a 404. Vite
+ * would otherwise answer `/about` with `index.html`, the home page, which the
+ * browser refuses to take over at `/about`.
+ */
+const staticHost = (): Plugin => ({
+  name: 'static-host',
+  configurePreviewServer: server => {
+    server.middlewares.use((request, _response, next) => {
+      const [path = '/', query] = (request.url ?? '/').split('?')
+      if (!path.endsWith('/') && !path.split('/').at(-1)?.includes('.'))
+        request.url = `${path}/${query === undefined ? '' : `?${query}`}`
+      next()
+    })
+  },
+})
+
+export default defineConfig(({ isPreview }) => ({
   // Workspace packages resolve to their source, so an edit shows without a build.
   resolve: { conditions: ['foldkit-plus:source'] },
   server: { host: '127.0.0.1' },
-})
+  plugins: [staticHost()],
+  appType: isPreview === true ? 'mpa' : 'spa',
+}))
