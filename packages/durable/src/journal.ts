@@ -993,8 +993,14 @@ const makeShape = <
       }
       // A stored state that no longer loads is the server's failure, not this operation's:
       // it stays a `JournalError`, which a caller retries rather than rejecting the edit.
-      yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
-      const { snapshot, cursor, snapshotCursor, epoch } = yield* materialize(key, working)
+      const state = yield* materialize(key, working)
+      let epoch = state.epoch
+      if (epoch === null) {
+        yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
+        const rows = yield* sql<{ readonly epoch: string }>`SELECT epoch FROM epochs WHERE key = ${key}`
+        epoch = rows[0]!.epoch
+      }
+      const { snapshot, cursor, snapshotCursor } = state
       const validation = yield* Effect.try({
         try: () => options.validate?.({ key, principal, operation, snapshot, cursor }),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
