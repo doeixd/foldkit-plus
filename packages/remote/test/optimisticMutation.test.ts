@@ -88,6 +88,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
   it('success settles both by the request id and records the confirmed edge once', () => {
     const settled = updateRemote(start(withFeed(), 'req-1', 'tmp-1'), {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [{ entity: 'Comment', id: 'c9', values: { id: 'c9', body: 'draft tmp-1' } }],
       connections: [ConnectionChange.prepend(feed, Comment.ref('c9'))],
@@ -101,6 +102,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
     // A retried result neither re-writes entities nor duplicates the edge.
     const retried = updateRemote(settled, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [{ entity: 'Comment', id: 'c9', values: { body: 'retry' } }],
       connections: [ConnectionChange.prepend(feed, Comment.ref('c9'))],
@@ -126,6 +128,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
     expect(visible(two)).toEqual(['tmp-2', 'tmp-1', 'c1', 'c2'])
     const one = updateRemote(two, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [],
       connections: [ConnectionChange.prepend(feed, Comment.ref('c9'))],
@@ -136,6 +139,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
   it('a server page that includes the confirmed edge does not duplicate it', () => {
     const settled = updateRemote(start(withFeed(), 'req-1', 'tmp-1'), {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [],
       connections: [ConnectionChange.prepend(feed, Comment.ref('c9'))],
@@ -151,6 +155,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
   it('a live confirmation of the same edge does not duplicate it', () => {
     const settled = updateRemote(start(withFeed(), 'req-1', 'tmp-1'), {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-1',
       entities: [],
       connections: [ConnectionChange.prepend(feed, Comment.ref('c9'))],
@@ -181,6 +186,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
     expect(visible(failed)).toEqual(['c1', 'c2'])
     const confirmed = updateRemote(removing, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'req-3',
       entities: [],
       connections: [ConnectionChange.remove(feed, Comment.ref('c1'))],

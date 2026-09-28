@@ -1621,7 +1621,7 @@ them.
 
 ### Mutations by hand
 
-`Remote.mutateInto(bound, model, mutation, input, requestId, { optimistic })` is
+`Remote.mutateInto(bound, model, mutation, input, requestId, { optimistic, now })` is
 the one-step imperative start/run/settle form for SSR and tests.
 
 `Remote.mutate(mutation, input, requestId)` is the transport call itself. It
@@ -1629,7 +1629,10 @@ decodes the typed `Output` and returns normalized entity patches and confirmed
 connection changes for a caller to reduce through `updateRemote`.
 
 `MutationSucceeded` reconciles at most once per `requestId`; an unknown or
-already-applied settlement is a no-op.
+already-applied settlement is a no-op. It carries `now`, the clock reading of
+the answer, and the entities it writes are as fresh as that under a freshness
+policy, as a read's are. `Data.mutate` and `Remote.mutateInto` stamp it from
+their `now` option, `Date.now` by default.
 
 ### The transport seam
 

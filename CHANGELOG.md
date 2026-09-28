@@ -262,6 +262,14 @@ version changed; `pnpm` skips versions already in the registry.
   visible store on each overlay change. A list read now shows a live insert
   or an optimistic connection change that wrote no entity; it used to keep
   the list from before it. The unused `shouldWake` export is removed.
+- **`foldkit-remote`: `MutationSucceeded` carries `now`,** the clock reading of
+  the answer, and the entities it writes are dated by it. They were dated 0, so
+  under a freshness policy every value a mutation wrote was already expired and
+  read again at once, and one a read had just dated was set back. `Data.mutate`
+  and `Remote.mutateInto` take a `now` option (default `Date.now`), as
+  `ObserveOptions` and `LiveOptions` do, and `settleSuccess` and
+  `reconcileMutation` a trailing `now`. A hand-built `MutationSucceeded` adds
+  the field.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

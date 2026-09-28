@@ -128,7 +128,7 @@ describe('A Message that changes nothing', () => {
     ).toBe(base.optimistic.overlays)
     // A success with no connection changes confirms nothing.
     expect(
-      updateRemote(started, { _tag: 'MutationSucceeded', requestId: 'm1', entities: [] })
+      updateRemote(started, { _tag: 'MutationSucceeded', requestId: 'm1', entities: [], now: 0 })
         .optimistic,
     ).toBe(base.optimistic)
     // A failure of a request that showed nothing has nothing to release.

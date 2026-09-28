@@ -276,6 +276,7 @@ describe('What settles a failed field', () => {
   it('a mutation writing the field', () => {
     const written = Data.reduce(failedRead(initial), {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: 'r1',
       entities: [{ entity: 'Project', id: 'p1', values: { name: 'One' } }],
     })

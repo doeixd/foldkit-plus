@@ -168,3 +168,29 @@ describe('a value ageing out under staleWhileRevalidate', () => {
     expect(after.expires).toEqual({ at: 1_150, due: [request] })
   })
 })
+
+describe('a value a mutation answered', () => {
+  it('is as fresh as the answer, so the read entry does not ask for it again', () => {
+    let clock = 1_200
+    const read = Data.subscriptions(
+      { page: Page },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
+    )['page.read']
+    // Read at 0, so aged out by 1,200: the plan asks for it.
+    const aged = knownAt(0)
+    expect(read.modelToDependencies(aged).requirements).toEqual([request])
+
+    const answered = Data.reduce(Data.reduce(aged, { _tag: 'MutationStarted', requestId: 'm1' }), {
+      _tag: 'MutationSucceeded',
+      requestId: 'm1',
+      entities: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
+      now: 1_100,
+    })
+    expect(read.modelToDependencies(answered)).toMatchObject({
+      requirements: [],
+      expires: { at: 2_100, due: [request] },
+    })
+    clock = 2_101
+    expect(read.modelToDependencies(answered).requirements).toEqual([request])
+  })
+})

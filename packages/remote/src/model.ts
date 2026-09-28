@@ -262,6 +262,8 @@ export type RemoteMessage =
       readonly connections?: ReadonlyArray<ConnectionChange> | undefined
       /** Entities the mutation deleted: tombstoned, which hides them from every connection. */
       readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
+      /** Injected clock reading of the answer: how fresh the written entities are. */
+      readonly now: number
     }
   | { readonly _tag: 'MutationFailed'; readonly requestId: string; readonly error: RemoteError }
   /**
@@ -341,6 +343,7 @@ export const remoteMessageCases = {
     deleted: Schema.optional(
       Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
     ),
+    now: Schema.Number,
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
@@ -771,6 +774,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         message.entities,
         message.connections ?? [],
         message.deleted ?? [],
+        message.now,
       )
       return {
         ...model,

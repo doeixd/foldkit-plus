@@ -100,7 +100,8 @@ export interface Reconciled {
 /**
  * Applies a mutation result once and marks the request settled. A second call
  * with the same `requestId` (a retry, or a live event describing the same change)
- * does not re-apply the entities, but still clears `pending`.
+ * does not re-apply the entities, but still clears `pending`. The entities are
+ * stamped `now`, which is how fresh a freshness policy takes them to be.
  */
 export const reconcileMutation = (
   store: EntityStore,
@@ -108,6 +109,7 @@ export const reconcileMutation = (
   requestId: string,
   entities: ReadonlyArray<NormalizedPatch>,
   deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
+  now = 0,
 ): Reconciled => {
   // Patches first, then deletions: a mutation that names an entity both ways has deleted it.
   const next = state.applied.has(requestId)
@@ -116,7 +118,7 @@ export const reconcileMutation = (
         (current, gone) => tombstone(current, entityKey(gone.entity, gone.id)),
         entities.reduce(
           (current, entity) =>
-            writeEntity(current, entityKey(entity.entity, entity.id), entity.values),
+            writeEntity(current, entityKey(entity.entity, entity.id), entity.values, now),
           store,
         ),
       )

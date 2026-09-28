@@ -259,6 +259,8 @@ export interface DomainMutateOptions {
         readonly tempId: string
       }) => ReadonlyArray<OptimisticOperation>)
     | undefined
+  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`. */
+  readonly now?: (() => number) | undefined
 }
 
 /** A Foldkit Subscription entry of the Remote domain, emitting its Messages through `RemoteClient`. */
@@ -817,6 +819,8 @@ const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => 
 export interface MutateOptions {
   /** What the request changes before the server answers; released when it settles. */
   readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
+  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`. */
+  readonly now?: (() => number) | undefined
 }
 
 /** The default `toMessage`: the application reduces `RemoteMessage` itself. */
@@ -1966,6 +1970,7 @@ export const Remote = {
       entities: outcome.entities,
       connections: outcome.connections,
       deleted: outcome.deleted,
+      now: (options.now ?? Date.now)(),
     })
     return {
       output: outcome.output,
@@ -2596,6 +2601,7 @@ const bindDomain = <
                 entities: outcome.entities,
                 connections: outcome.connections,
                 deleted: outcome.deleted,
+                now: (options.now ?? Date.now)(),
               }),
             }),
           ),
