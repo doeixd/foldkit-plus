@@ -1,6 +1,7 @@
 import type { SliderAttributes } from '@foldkit/ui/slider'
 import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
-import { resolveFor, type MixinList, type ResolveContext } from './resolve.js'
+import type { Html } from 'foldkit/html'
+import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
  * Slider is a Submodel: each published bundle is a `ChildAttribute` group that
@@ -34,9 +35,22 @@ export const SliderSlots = Slots.define({
   }),
 })
 
+/** The slider's bundles with the attached Mixins applied. */
+export type ResolvedSlider<Message> = Resolved<SliderAttributes, typeof SliderSlots, Message>
+
 /** Resolves the slider's render groups; `value` and the rest pass through unchanged. */
 export const resolve = <Input, Message>(
   render: SliderAttributes,
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
-) => resolveFor(SliderSlots, mixins, context)(render)
+): ResolvedSlider<Message> => resolveFor(SliderSlots, mixins, context)(render)
+
+/** The slider's `toView`: `draw` receives its bundles with `mixins` applied. */
+export const toView =
+  <Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedSlider<Message>) => Html,
+  ) =>
+  (render: SliderAttributes): Html =>
+    draw(resolve(render, mixins, context))

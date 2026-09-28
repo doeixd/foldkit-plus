@@ -76,24 +76,18 @@ export const CoverLetterView = SlotView.forMessages<Message>()
         placeholder:
           'Tell us why you want to work on Foldkit and what excites you about the Elm Architecture...',
         isInvalid: length === 'Over',
-        toView: attributes => {
-          const resolved = Textarea.resolve<undefined, Message>(attributes, [TextareaStyle.mixin], {
-            input: undefined,
-            h,
-          })
-          return h.div(slots.letter.attrs(), [
-            h.label(resolved.label, ['Cover Letter']),
-            // A slot's attributes are typed for every element, and Foldkit's textarea
-            // excludes `InnerHTML`; nothing here sets one.
-            h.textarea(resolved.textarea as Parameters<typeof h.textarea>[0]),
+        toView: Textarea.toView([TextareaStyle.mixin], { h }, ({ label, textarea }) =>
+          h.div(slots.letter.attrs(), [
+            h.label(label, ['Cover Letter']),
+            h.textarea(textarea),
             h.div(slots.footer.attrs(), [
               h.p(slots.hint.attrs(), ['A strong cover letter helps your application stand out.']),
               h.span(slots.counter.attrs([h.DataAttribute('state', length)]), [
                 `${remaining} characters remaining`,
               ]),
             ]),
-          ])
-        },
+          ]),
+        ),
       },
       h,
     )

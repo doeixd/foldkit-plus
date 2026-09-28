@@ -213,10 +213,7 @@ export const StepLayout = SlotView.forMessages<Message>()
       h,
     ) => {
       const attentionStepSet = HashSet.fromIterable(attentionSteps)
-      const { tablist, tabs, activeIndex } = Tabs.resolve(render, [StepTabsStyle.mixin], {
-        input: undefined,
-        h,
-      })
+      const { tablist, tabs, activeIndex } = Tabs.resolve(render, [StepTabsStyle.mixin], { h })
 
       return h.div(slots.layout.attrs(), [
         h.div(slots.sidebar.attrs(), [

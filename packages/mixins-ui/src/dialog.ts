@@ -1,6 +1,7 @@
 import type { RenderInfo } from '@foldkit/ui/dialog'
 import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
-import { resolveFor, type MixinList, type ResolveContext } from './resolve.js'
+import type { Html } from 'foldkit/html'
+import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
  * Dialog is a Submodel: each published bundle is a `ChildAttribute` group that
@@ -30,9 +31,22 @@ export const DialogSlots = Slots.define({
   }),
 })
 
+/** The dialog's bundles with the attached Mixins applied. */
+export type ResolvedDialog<Message> = Resolved<RenderInfo, typeof DialogSlots, Message>
+
 /** Resolves the dialog's render groups; `isVisible` passes through unchanged. */
 export const resolve = <Input, Message>(
   render: RenderInfo,
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
-) => resolveFor(DialogSlots, mixins, context)(render)
+): ResolvedDialog<Message> => resolveFor(DialogSlots, mixins, context)(render)
+
+/** The dialog's `toView`: `draw` receives its bundles with `mixins` applied. */
+export const toView =
+  <Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedDialog<Message>) => Html,
+  ) =>
+  (render: RenderInfo): Html =>
+    draw(resolve(render, mixins, context))

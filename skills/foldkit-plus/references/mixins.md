@@ -220,8 +220,9 @@ const html = SurfaceView.render(TodoListView, TodoList, undefined, {
 ## 5. `foldkit-mixins-ui`
 
 `@foldkit/ui` keeps component state, accessibility and base attributes; the adapter names its
-`toView` attribute bundles as Slots and `X.resolve(attributes, mixins, { input, h })` returns the
-same shape with bundles resolved (non-slot data such as `activeIndex` passes through).
+`toView` attribute bundles as Slots. `X.toView(mixins, { h }, draw)` fills a component's `toView`
+and hands `draw` the bundles with the Mixins applied (non-slot data such as `activeIndex` passes
+through); add your own attributes beside them (`h.input([...input, h.Autocomplete('off')])`).
 
 ```ts
 import type { HtmlBuilder } from 'foldkit/html'
@@ -239,10 +240,7 @@ export const saveButton = (h: HtmlBuilder<Message>) =>
   UiButton.view(
     {
       onClick: Message.Saved({}),
-      toView: attributes => {
-        const slots = Button.resolve(attributes, [SaveStyle.mixin], { input: undefined, h })
-        return h.button(slots.button, ['Save'])
-      },
+      toView: Button.toView([SaveStyle.mixin], { h }, ({ button }) => h.button(button, ['Save'])),
     },
     h,
   )
@@ -252,6 +250,11 @@ Adapters: Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosur
 Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar (namespace + flat `XSlots`). Pass mixins as
 `style.mixin` / `behavior.mixin`. Other components (Menu, Listbox, ComboBox, Toast, ...) have no
 adapter.
+The same call goes in a Submodel's `viewInputs` (`toView: RadioGroup.toView(mixins, { h },
+({ group, options }) => …)`), with `Value` and `Message` inferred. `input` is optional: only what an
+input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays for bundles already in
+hand, such as a Calendar whose Mixins read `attributes._tag`. Result types: `ResolvedButton<M>`,
+`ResolvedRadioGroup<V, M>`, and so on.
 
 `Recipes.Button | Input | Textarea | Checkbox | Switch | Dialog | Tabs` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:

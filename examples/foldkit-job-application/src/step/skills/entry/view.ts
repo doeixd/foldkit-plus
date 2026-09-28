@@ -33,17 +33,13 @@ export const EntryView = SlotView.forMessages<Message>()
         options: ProficiencyLevel.all,
         orientation: 'Horizontal',
         ariaLabel: 'Proficiency level',
-        toView: render => {
-          const { group, options } = RadioGroup.resolve(render, [ProficiencyStyle.mixin], {
-            input: undefined,
-            h,
-          })
-          // The option is named by its label, which holds the level.
-          return h.div(
+        // The option is named by its label, which holds the level.
+        toView: RadioGroup.toView([ProficiencyStyle.mixin], { h }, ({ group, options }) =>
+          h.div(
             group,
             options.map(option => h.div(option.option, [h.span(option.label, [option.value])])),
-          )
-        },
+          ),
+        ),
       },
       toParentMessage: message => Message.GotProficiencyRadioGroupMessage({ message }),
     })

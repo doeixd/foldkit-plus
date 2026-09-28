@@ -20,11 +20,9 @@ export const view = <Message>(
   UiButton.view(
     {
       ...(config.onClick !== undefined && { onClick: config.onClick }),
-      toView: attributes =>
-        h.button(
-          Button.resolve(attributes, [config.style.mixin], { input: config.input, h }).button,
-          [config.label],
-        ),
+      toView: Button.toView([config.style.mixin], { input: config.input, h }, ({ button }) =>
+        h.button(button, [config.label]),
+      ),
     },
     h,
   )

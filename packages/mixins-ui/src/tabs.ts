@@ -1,6 +1,7 @@
 import type { RenderInfo, TabInfo } from '@foldkit/ui/tabs'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type SlotAttributes } from 'foldkit-mixins'
-import type { MixinList, ResolveContext } from './resolve.js'
+import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import type { Html } from 'foldkit/html'
+import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
  * Tabs is a nested Submodel: one `tablist` group plus a `tab`/`panel` pair per
@@ -38,7 +39,7 @@ export const resolve = <Value extends string, Input, Message>(
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
 ): ResolvedTabs<Value, Message> => {
-  const builders = SlotView.buildersFor(TabsSlots, mixins, context)
+  const builders = buildersOf(TabsSlots, mixins, context)
   return {
     tablist: builders.tablist.attrs(render.tablist),
     tabs: render.tabs.map(item => ({
@@ -49,3 +50,13 @@ export const resolve = <Value extends string, Input, Message>(
     activeIndex: render.activeIndex,
   }
 }
+
+/** The tabs' `toView`: `draw` receives their bundles with `mixins` applied. */
+export const toView =
+  <Value extends string, Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedTabs<Value, Message>) => Html,
+  ) =>
+  (render: RenderInfo<Value>): Html =>
+    draw(resolve(render, mixins, context))

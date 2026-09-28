@@ -1,6 +1,7 @@
-import type { RenderInfo } from '@foldkit/ui/radioGroup'
-import { Attr, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
-import type { MixinList, ResolveContext } from './resolve.js'
+import type { OptionInfo, RenderInfo } from '@foldkit/ui/radioGroup'
+import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import type { Html } from 'foldkit/html'
+import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
  * RadioGroup is a Submodel: each published bundle is a `ChildAttribute` group
@@ -30,13 +31,31 @@ export const RadioGroupSlots = Slots.define({
   }),
 })
 
+/** One option with the attached Mixins applied to its bundles. */
+export type ResolvedRadioOption<Value extends string, Message> = Omit<
+  OptionInfo<Value>,
+  'option' | 'label' | 'description'
+> & {
+  readonly option: SlotAttributes<Message>
+  readonly label: SlotAttributes<Message>
+  readonly description: SlotAttributes<Message>
+}
+
+/** The radio group's bundles with the attached Mixins applied. */
+export interface ResolvedRadioGroup<Value extends string, Message> {
+  readonly group: SlotAttributes<Message>
+  readonly options: ReadonlyArray<ResolvedRadioOption<Value, Message>>
+  readonly selectedValue: RenderInfo<Value>['selectedValue']
+  readonly hiddenInput: SlotAttributes<Message>
+}
+
 /** Resolves every option's bundles alongside the group and hidden input. */
 export const resolve = <Value extends string, Input, Message>(
   render: RenderInfo<Value>,
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
-) => {
-  const builders = SlotView.buildersFor(RadioGroupSlots, mixins, context)
+): ResolvedRadioGroup<Value, Message> => {
+  const builders = buildersOf(RadioGroupSlots, mixins, context)
   return {
     group: builders.group.attrs(render.group),
     options: render.options.map(option => ({
@@ -49,3 +68,13 @@ export const resolve = <Value extends string, Input, Message>(
     hiddenInput: builders.hiddenInput.attrs(render.hiddenInput),
   }
 }
+
+/** The radio group's `toView`: `draw` receives its bundles with `mixins` applied. */
+export const toView =
+  <Value extends string, Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedRadioGroup<Value, Message>) => Html,
+  ) =>
+  (render: RenderInfo<Value>): Html =>
+    draw(resolve(render, mixins, context))

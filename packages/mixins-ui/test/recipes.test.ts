@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { view as buttonView } from '@foldkit/ui/button'
-import { Layers, Style, type SlotAttributes, type StylePieces } from 'foldkit-mixins'
+import { Layers, Style, type SlotAttributes, type StyleValues } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
@@ -192,7 +192,7 @@ describe('Recipes', () => {
       base: { button: Style.class('brand-button') },
       variants: { tone: { accent: { button: Style.class('brand-accent') } } },
     })
-    const classes = (pieces: StylePieces<typeof ButtonSlots>) => pieces.button?.classes ?? []
+    const classes = (pieces: StyleValues<typeof ButtonSlots>) => pieces.button?.classes ?? []
     expect(classes(Brand())).toEqual(expect.arrayContaining(['brand-button', 'brand-accent']))
     expect(classes(Brand({ tone: 'danger' }))).toContain('brand-button')
     expect(classes(Brand({ tone: 'danger' }))).not.toContain('brand-accent')

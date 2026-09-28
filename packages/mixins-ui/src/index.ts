@@ -1,7 +1,8 @@
 /**
  * `foldkit-mixins-ui` — published slot contracts and mixin adapters for
  * `@foldkit/ui`. Components still lay out their own markup through `toView`;
- * `resolve` merges attached Mixins into the component's attribute bundles.
+ * each adapter's `toView` hands it the bundles with attached Mixins applied,
+ * and `resolve` applies them to bundles already in hand.
  */
 export * as Anchor from './anchor.js'
 export * as Button from './button.js'
@@ -41,8 +42,22 @@ export { TextareaSlots } from './textarea.js'
 export { TooltipSlots } from './tooltip.js'
 
 export { resolveFor as resolve } from './resolve.js'
-export type { MixinList, ResolveContext, ResolvedSlots } from './resolve.js'
+export type { MixinList, ResolveContext, Resolved, ResolvedSlots } from './resolve.js'
+export type { ResolvedButton } from './button.js'
+export type { ResolvedCheckbox } from './checkbox.js'
+export type { ResolvedDialog } from './dialog.js'
+export type { ResolvedDisclosure } from './disclosure.js'
+export type { ResolvedFieldset } from './fieldset.js'
+export type { ResolvedHoverIntent } from './hoverIntent.js'
+export type { ResolvedInput } from './input.js'
+export type { ResolvedPopover } from './popover.js'
+export type { ResolvedRadioGroup, ResolvedRadioOption } from './radioGroup.js'
+export type { ResolvedSelect } from './select.js'
+export type { ResolvedSlider } from './slider.js'
+export type { ResolvedSwitch } from './switch.js'
 export type { ResolvedTab, ResolvedTabs } from './tabs.js'
+export type { ResolvedTextarea } from './textarea.js'
+export type { ResolvedTooltip } from './tooltip.js'
 export type {
   ResolvedCalendar,
   ResolvedColumnHeader,

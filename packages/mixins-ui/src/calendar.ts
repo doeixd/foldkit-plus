@@ -9,8 +9,9 @@ import type {
   YearCell,
   YearsModeAttributes,
 } from '@foldkit/ui/calendar'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type SlotAttributes } from 'foldkit-mixins'
-import type { MixinList, ResolveContext } from './resolve.js'
+import { Attr, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import type { Html } from 'foldkit/html'
+import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 /**
  * Calendar is a nested Submodel whose shape depends on `model.viewMode`. The
@@ -133,7 +134,7 @@ export const resolve = <Input, Message>(
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
 ): ResolvedCalendar<Message> => {
-  const builders = SlotView.buildersFor(CalendarSlots, mixins, context)
+  const builders = buildersOf(CalendarSlots, mixins, context)
   const root = builders.root.attrs(render.root)
   const grid = builders.grid.attrs(render.grid)
   switch (render._tag) {
@@ -190,3 +191,16 @@ export const resolve = <Input, Message>(
       }
   }
 }
+
+/**
+ * The calendar's `toView`: `draw` receives its bundles with `mixins` applied.
+ * A Mixin that reads the mode needs `resolve`, whose `input` can be `_tag`.
+ */
+export const toView =
+  <Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedCalendar<Message>) => Html,
+  ) =>
+  (attributes: CalendarAttributes): Html =>
+    draw(resolve(attributes, mixins, context))

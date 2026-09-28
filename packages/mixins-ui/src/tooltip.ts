@@ -1,6 +1,7 @@
 import type { RenderInfo } from '@foldkit/ui/tooltip'
 import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
-import { resolveFor, type MixinList, type ResolveContext } from './resolve.js'
+import type { Html } from 'foldkit/html'
+import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
  * Tooltip is a Submodel; both bundles are `ChildAttribute` groups. `trigger`
@@ -16,9 +17,22 @@ export const TooltipSlots = Slots.define({
   panel: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
 })
 
+/** The tooltip's bundles with the attached Mixins applied. */
+export type ResolvedTooltip<Message> = Resolved<RenderInfo, typeof TooltipSlots, Message>
+
 /** Resolves the tooltip's render groups; `isVisible` passes through unchanged. */
 export const resolve = <Input, Message>(
   render: RenderInfo,
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
-) => resolveFor(TooltipSlots, mixins, context)(render)
+): ResolvedTooltip<Message> => resolveFor(TooltipSlots, mixins, context)(render)
+
+/** The tooltip's `toView`: `draw` receives its bundles with `mixins` applied. */
+export const toView =
+  <Message>(
+    mixins: MixinList<Message>,
+    context: ResolveContext<unknown, Message>,
+    draw: (resolved: ResolvedTooltip<Message>) => Html,
+  ) =>
+  (render: RenderInfo): Html =>
+    draw(resolve(render, mixins, context))

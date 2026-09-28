@@ -343,8 +343,8 @@ its README the details.
 - [ ] **Mixins-UI: missing adapters and recipes.** No adapter for FileDrop,
   Nav, DragAndDrop, Animation or VirtualList (each hands out attributes); no
   recipe for Select, Fieldset, Disclosure, Popover, Tooltip, HoverIntent,
-  Slider, RadioGroup or Calendar; `Textarea.resolve` and `SlotBuilder.attrs()`
-  return attributes `h.textarea` rejects; some adapters export no result type.
+  Slider, RadioGroup or Calendar; `SlotBuilder.attrs()` returns attributes
+  `h.textarea` rejects (`Textarea.resolve` and the result types are fixed).
   `foldkit-ui-showcase`
 - [x] **Mixins-form: its fixed layout cannot show a check in progress or a
   page-level submitting state.** Done: the `checking` Slot, `data-validation`,

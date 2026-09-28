@@ -68,8 +68,10 @@ export const input = <Message>(
     placeholder?: string
   }>,
   h: HtmlBuilder<Message>,
-): Html =>
-  UiInput.view(
+): Html => {
+  const context = { input: config.field, h }
+  const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], context)
+  return UiInput.view(
     {
       id: config.id,
       value: config.field.value,
@@ -78,22 +80,20 @@ export const input = <Message>(
       hasDescription: Option.isSome(errorOf(config.field)),
       ...(config.type !== undefined && { type: config.type }),
       ...(config.placeholder !== undefined && { placeholder: config.placeholder }),
-      toView: attributes => {
-        const context = { input: config.field, h }
-        const resolved = Input.resolve<FieldState, Message>(attributes, [InputStyle.mixin], context)
-        const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], context)
-        return h.keyed('div')(config.id, slots.field.attrs(), [
+      toView: Input.toView([InputStyle.mixin], context, ({ input, label, description }) =>
+        h.keyed('div')(config.id, slots.field.attrs(), [
           h.div(slots.header.attrs(), [
-            h.label(resolved.label, [config.label]),
+            h.label(label, [config.label]),
             statusMark(config.field, slots, h),
           ]),
-          h.input(resolved.input),
-          errorView(config.field, resolved.description, h),
-        ])
-      },
+          h.input(input),
+          errorView(config.field, description, h),
+        ]),
+      ),
     },
     h,
   )
+}
 
 export const checkbox = <Message>(
   config: Readonly<{
@@ -103,29 +103,21 @@ export const checkbox = <Message>(
     onToggle: (isChecked: boolean) => Message
   }>,
   h: HtmlBuilder<Message>,
-): Html =>
-  UiCheckbox.view(
+): Html => {
+  const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], { input: undefined, h })
+  return UiCheckbox.view(
     {
       id: config.id,
       isChecked: config.isChecked,
       onToggle: config.onToggle,
-      toView: attributes => {
-        const context = { input: undefined, h }
-        const resolved = Checkbox.resolve<undefined, Message>(
-          attributes,
-          [CheckboxStyle.mixin],
-          context,
-        )
-        const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], context)
-        // The recipe draws the check mark, so the control is empty.
-        return h.div(slots.checkboxRow.attrs(), [
-          h.div(resolved.checkbox, []),
-          h.label(resolved.label, [config.label]),
-        ])
-      },
+      // The recipe draws the check mark, so the control is empty.
+      toView: Checkbox.toView([CheckboxStyle.mixin], { h }, ({ checkbox, label }) =>
+        h.div(slots.checkboxRow.attrs(), [h.div(checkbox, []), h.label(label, [config.label])]),
+      ),
     },
     h,
   )
+}
 
 export const textarea = <Message>(
   config: Readonly<{
@@ -137,29 +129,19 @@ export const textarea = <Message>(
     placeholder?: string
   }>,
   h: HtmlBuilder<Message>,
-): Html =>
-  UiTextarea.view(
+): Html => {
+  const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], { input: undefined, h })
+  return UiTextarea.view(
     {
       id: config.id,
       value: config.value,
       onInput: config.onInput,
       rows: config.rows ?? 4,
       ...(config.placeholder !== undefined && { placeholder: config.placeholder }),
-      toView: attributes => {
-        const context = { input: undefined, h }
-        const resolved = Textarea.resolve<undefined, Message>(
-          attributes,
-          [TextareaStyle.mixin],
-          context,
-        )
-        const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], context)
-        return h.div(slots.field.attrs(), [
-          h.label(resolved.label, [config.label]),
-          // A slot's attributes are typed for every element, and Foldkit's textarea
-          // excludes `InnerHTML`; nothing here sets one.
-          h.textarea(resolved.textarea as Parameters<typeof h.textarea>[0]),
-        ])
-      },
+      toView: Textarea.toView([TextareaStyle.mixin], { h }, ({ label, textarea }) =>
+        h.div(slots.field.attrs(), [h.label(label, [config.label]), h.textarea(textarea)]),
+      ),
     },
     h,
   )
+}

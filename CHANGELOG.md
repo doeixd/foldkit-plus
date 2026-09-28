@@ -36,6 +36,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`, `toView` on every adapter:**
+  `X.toView(mixins, { h }, draw)` fills a component's `toView` slot and hands
+  `draw` the bundles with the Mixins applied, in a component's `view` or a
+  Submodel's `viewInputs`. `resolve` stays for bundles already in hand, and its
+  `input` is now optional. Every adapter exports its result type
+  (`ResolvedButton`, `ResolvedInput`, `ResolvedRadioGroup`, …), and
+  `Textarea`'s `textarea` bundle is typed for `h.textarea`, so no cast.
+
 - **`foldkit-form`, validating without submitting:**
   `Message.ValidatedAll()` validates every key and row as a submit would and
   submits nothing; `form.isValid(model)` says whether a submit now would hand

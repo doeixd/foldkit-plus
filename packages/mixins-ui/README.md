@@ -116,14 +116,7 @@ const saveButton = (h: HtmlBuilder<Message>) =>
   UiButton.view(
     {
       onClick: Message.Saved({}),
-      toView: attributes => {
-        const slots = Button.resolve(attributes, [SaveStyle.mixin], {
-          input: undefined,
-          h,
-        })
-
-        return h.button(slots.button, ['Save'])
-      },
+      toView: Button.toView([SaveStyle.mixin], { h }, ({ button }) => h.button(button, ['Save'])),
     },
     h,
   )
@@ -132,7 +125,7 @@ const saveButton = (h: HtmlBuilder<Message>) =>
 The important line is:
 
 ```ts
-Button.resolve(attributes, [SaveStyle.mixin], { input, h })
+toView: Button.toView(mixins, { h }, draw)
 ```
 
 Conceptually:
@@ -143,10 +136,10 @@ attributes from @foldkit/ui
 Style / Behavior mixins
           |
           v
-Button.resolve(...)
+Button.toView(...)
           |
           v
-resolved slot arrays
+draw(resolved slot arrays)
 ```
 
 The caller never copies Button's internal behavior and never has to know how to
@@ -154,16 +147,69 @@ merge its handlers/ARIA/structural attributes safely.
 
 ## Follow the click
 
-`UiButton.view` supplies the component's base attributes, including the click
-Message. `Button.resolve` merges the style into those attributes; `h.button`
-puts the result on the actual element. Clicking emits `Saved` to the parent
-update. The name `Saved` is just the example's Message name—it does not mean
-this adapter wrote anything to storage.
+`UiButton.view` builds the component's base attributes, including the click
+Message, and calls `toView` with them. `Button.toView` applies the style to
+those attributes and hands the result to `draw`, which puts it on the actual
+element with `h.button`. Clicking emits `Saved` to the parent update. The name
+`Saved` is just the example's Message name—it does not mean this adapter wrote
+anything to storage.
+
+`toView` performs no I/O and holds nothing: it is a pure function from the
+component's bundles to your markup, run on every render.
 
 Start by adding a class. Then add a non-conflicting attribute if needed.
 Do not install another `OnClick` to intercept the component: the resolver
-rejects competing event owners. Keep the original component's attributes in
-the call to `resolve`, including its child attributes and accessibility state.
+rejects competing event owners. Put every resolved bundle on its element,
+adding your own attributes beside it where you need them:
+
+```ts
+import * as UiInput from '@foldkit/ui/input'
+import { Input, InputSlots } from 'foldkit-mixins-ui'
+
+const ZipStyle = Style.forSlots(InputSlots)({ input: Style.class('zip') })
+
+const zipInput = (h: HtmlBuilder<Message>) =>
+  UiInput.view(
+    {
+      id: 'zip',
+      toView: Input.toView([ZipStyle.mixin], { h }, ({ input }) =>
+        h.input([...input, h.Autocomplete('off')]),
+      ),
+    },
+    h,
+  )
+```
+
+## `toView` and `resolve`
+
+Every component adapter (all but Anchor, which is a Behavior) has both:
+
+```text
+Adapter.toView(mixins, { h, input? }, draw)  ->  the component's toView
+Adapter.resolve(attributes, mixins, { h, input? })  ->  the resolved bundles
+```
+
+`toView` is `resolve` placed where the component calls back, and is the normal
+path. It fits a stateless component's `view` and a Submodel's `viewInputs`
+alike. The Message type comes from `h`, and a Submodel's value type (a
+RadioGroup's or Tabs' `Value`) from where the `toView` goes, so neither needs
+writing out.
+
+`resolve` is the seam underneath, for bundles already in hand: a view that
+receives a Tabs `render` as its input, or a Calendar whose Mixins read the
+mode it is showing, which is only known once the attributes arrive:
+
+```ts
+import type { CalendarAttributes } from '@foldkit/ui/calendar'
+import { Calendar, CalendarSlots } from 'foldkit-mixins-ui'
+
+const CalendarStyle = Style.forSlots(CalendarSlots)({
+  root: Style.whenInput<CalendarAttributes['_tag']>(mode => mode === 'Years', Style.class('years')),
+})
+
+const resolveCalendar = (attributes: CalendarAttributes, h: HtmlBuilder<Message>) =>
+  Calendar.resolve(attributes, [CalendarStyle.mixin], { input: attributes._tag, h })
+```
 
 ## What `resolve` does
 
@@ -188,11 +234,21 @@ For richer components, non-slot values pass through untouched. Values such as
 data rather than becoming Mixins slots.
 
 `input` is whatever attached Style/Behavior callbacks are allowed to read. In a
-feature view that is often the Surface's projected Model; for purely static
-styling it can be `undefined`.
+feature view that is often the Surface's projected Model; leave it out when no
+attached Mixin reads one.
 
-Every adapter is available as both a component namespace (`Button.resolve`,
-`Button.ButtonSlots`) and flat Slot exports such as `ButtonSlots`.
+What `resolve` returns (and `draw` receives) has a name for each adapter:
+`ResolvedButton<Message>`, `ResolvedInput<Message>`, `ResolvedDialog<Message>`,
+`ResolvedRadioGroup<Value, Message>` and `ResolvedRadioOption<Value, Message>`,
+`ResolvedTabs<Value, Message>`, `ResolvedCalendar<Message>`, and so on, so a
+helper that draws part of a component can be typed without `ReturnType`.
+`ResolvedTextarea`'s `textarea` bundle is typed for `h.textarea`, which refuses
+`InnerHTML`; the resolver refuses an `InnerHTML` from any Mixin, so no cast is
+needed.
+
+Every adapter is available as both a component namespace (`Button.toView`,
+`Button.resolve`, `Button.ButtonSlots`) and flat Slot exports such as
+`ButtonSlots`.
 
 ## What the resolver protects
 
@@ -302,7 +358,7 @@ export const sheet = Style.stylesheet(
 )
 ```
 
-`DeleteStyle.mixin` then goes to `Button.resolve` as in the first example.
+`DeleteStyle.mixin` then goes to `Button.toView` as in the first example.
 
 What a recipe assumes and does:
 

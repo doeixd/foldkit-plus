@@ -6,7 +6,7 @@ import { type Html, type HtmlBuilder, childAttributes } from 'foldkit/html'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
 import { Calendar } from 'foldkit-mixins-ui'
 
-import { CalendarStyle, DatePickerSlots, DatePickerStyle, type CalendarMode } from '../style.js'
+import { CalendarStyle, DatePickerSlots, DatePickerStyle } from '../style.js'
 import { fullDate } from './format.js'
 import * as Icon from './icon.js'
 
@@ -34,7 +34,7 @@ const calendarView = <Message>(
   slots: Slots<Message>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const calendar = Calendar.resolve<CalendarMode, Message>(attributes, [CalendarStyle.mixin], {
+  const calendar = Calendar.resolve(attributes, [CalendarStyle.mixin], {
     input: attributes._tag,
     h,
   })
