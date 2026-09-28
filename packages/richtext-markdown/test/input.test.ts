@@ -228,11 +228,7 @@ describe('the rules applied to a document, as the editor applies them', () => {
     ['nested', '- a\n  - [ ]b\n  - c\n- d\n', '- a\n  - [ ] b\n  - c\n- d\n'],
     ['sub-listed', '- [x]a\n  - b\n- c\n', '- [x] a\n  - b\n- c\n'],
   ])('makes the %s item a task where it stands', (_, source, expected) => {
-    // Against what the printer makes of the expected source, which is where it writes a
-    // nested list after a blank line.
-    let count = 0
-    const { document, style } = parse(expected, { mint: () => `x${++count}` })
-    expect(completeTask(source)).toBe(print(document, { style }).markdown)
+    expect(completeTask(source)).toBe(expected)
   })
 
   // The editor then types the space alone, so the marker stays text.

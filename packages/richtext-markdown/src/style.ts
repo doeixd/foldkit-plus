@@ -17,9 +17,17 @@ const blockFields = {
   rule: Schema.optionalKey(Schema.Literals(['-', '*', '_'])),
   /** `#` before a heading, or a setext underline beneath one (levels 1 and 2 only). */
   heading: Schema.optionalKey(Schema.Literals(['atx', 'setext'])),
+  /**
+   * Whether a list is CommonMark's loose kind, whose items a blank line separates and render
+   * as paragraphs, or its tight kind, which has no blank line between items or their blocks.
+   */
+  spacing: Schema.optionalKey(Schema.Literals(['tight', 'loose'])),
 }
 
-/** How one block was spelled: a list's marker, a heading's form, a fence, a rule (§146). */
+/**
+ * How one block was spelled: a list's marker and spacing, a heading's form, a fence, a rule
+ * (§146).
+ */
 export const BlockSpelling = Schema.Struct(blockFields)
 export type BlockSpelling = typeof BlockSpelling.Type
 
@@ -45,6 +53,7 @@ export const canonicalStyle: Required<MarkdownStyle> = {
   fence: '`',
   rule: '-',
   heading: 'atx',
+  spacing: 'tight',
   blocks: {},
 }
 
@@ -54,8 +63,9 @@ const sourceAt = (markdown: string, node: Nodes): string =>
 
 /**
  * How one block node was spelled, read from the source at its start: a list begins at its
- * first marker, a heading at `#` or its text, a fence and a rule at their characters. Undefined
- * for a node with no spelling to keep, including an indented code block, which has no fence.
+ * first marker (its spacing is the parser's), a heading at `#` or its text, a fence and a rule
+ * at their characters. Undefined for a node with no spelling to keep, including an indented
+ * code block, which has no fence.
  */
 export const blockSpelling = (markdown: string, node: Nodes): BlockSpelling | undefined => {
   const source = sourceAt(markdown, node)
@@ -67,9 +77,13 @@ export const blockSpelling = (markdown: string, node: Nodes): BlockSpelling | un
     case 'thematicBreak':
       return /^[-*_]/.test(source) ? { rule: source[0] as '-' | '*' | '_' } : undefined
     case 'list': {
-      if (/^[-*+]/.test(source)) return { bullet: source[0] as '-' | '*' | '+' }
+      // mdast's list `spread` is a blank line between items, an item's a blank line between
+      // its blocks; CommonMark calls the list loose for either.
+      const spacing =
+        node.spread === true || node.children.some(item => item.spread === true) ? 'loose' : 'tight'
+      if (/^[-*+]/.test(source)) return { bullet: source[0] as '-' | '*' | '+', spacing }
       const ordered = /^\d+([.)])/.exec(source)
-      return ordered === null ? undefined : { delimiter: ordered[1] as '.' | ')' }
+      return ordered === null ? undefined : { delimiter: ordered[1] as '.' | ')', spacing }
     }
     default:
       return undefined

@@ -99,8 +99,16 @@ describe('a Markdown source session', () => {
       minted(),
     )
     const { blocks: firstBlocks, ...firstConstructs } = first.style
-    expect(firstConstructs).toEqual({ heading: 'atx', emphasis: '_', bullet: '*' })
-    expect(Object.values(firstBlocks ?? {})).toEqual([{ heading: 'atx' }, { bullet: '*' }])
+    expect(firstConstructs).toEqual({
+      heading: 'atx',
+      emphasis: '_',
+      bullet: '*',
+      spacing: 'tight',
+    })
+    expect(Object.values(firstBlocks ?? {})).toEqual([
+      { heading: 'atx' },
+      { bullet: '*', spacing: 'tight' },
+    ])
     // Reopening with that style prints the document as it was written, not canonically.
     const again = openSource(first.document, { style: first.style })
     expect(again.draft).toBe('# Title\n\n_marked_ and\n\n* a\n')
@@ -112,6 +120,7 @@ describe('a Markdown source session', () => {
       heading: 'atx',
       emphasis: '_',
       bullet: '*',
+      spacing: 'tight',
       strong: '__',
       blocks: {},
     })

@@ -107,7 +107,10 @@ print(parsed.document, { style: parsed.style }).markdown // '_hello_\n\n* item\n
 Blocks also keep their own spelling. `style.blocks` maps the id `parse` gave each list, heading,
 fence, and rule to how that one was written, so a text with a `-` list and a `*` list, or a
 setext title over `##` sections, prints back as it was. A block the text did not have, such as
-a list added in the rich editor, takes its construct's spelling. Emphasis stays per construct,
+a list added in the rich editor, takes its construct's spelling. A list's spacing is kept the
+same way: a loose list, one with a blank line between its items or inside one, prints with a
+blank line between its items and their blocks, and a tight one with none, so a nested list sits
+right under its item's text. Without a style, lists print tight. Emphasis stays per construct,
 because runs split and merge as they are edited and their ids do not last.
 
 A spelling that would change what the text means somewhere — `_` does not open emphasis inside
