@@ -1,0 +1,6 @@
+export * as Attachments from './attachments/index.js'
+export * as CoverLetter from './coverLetter/index.js'
+export * as Education from './education/index.js'
+export * as PersonalInfo from './personalInfo/index.js'
+export * as Skills from './skills/index.js'
+export * as WorkHistory from './workHistory/index.js'
