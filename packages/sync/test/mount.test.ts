@@ -2,11 +2,13 @@
 import { Duration, Effect, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   documentId,
+  fact,
   forApplication,
   layerFromPromise,
   localSequence,
@@ -35,6 +37,13 @@ const Message = defineMessageUnion({
   RenamedTodo: { id: Schema.String, title: Schema.String },
   SelectedTodo: { id: Schema.String },
   RequestedRename: { id: Schema.String, title: Schema.String },
+  // A local intent whose fact needs an id only the current Model can mint.
+  AddedTodo: { title: Schema.String },
+  AddedAndSelected: { title: Schema.String },
+  // A fact a parent mapped, as `foldChild` maps a child's Commands.
+  MappedFact: {},
+  // A durable Message whose update returns a fact, which replay could not apply.
+  ImportedTodo: { id: Schema.String, title: Schema.String },
 })
 type Message = typeof Message.Type
 const initial: Model = { todos: [], selectedTodoId: null, lastError: null }
@@ -55,13 +64,38 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
       model,
       commands: [{ name: 'rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
     }),
+    AddedTodo: ({ title }) => ({
+      model,
+      commands: [fact(Message.CreatedTodo({ id: `t${model.todos.length}`, title }))],
+    }),
+    MappedFact: () => ({
+      model,
+      commands: [
+        Command.mapMessage(fact(Message.SelectedTodo({ id: 'raw' })), () =>
+          Message.SelectedTodo({ id: 'mapped' }),
+        ),
+      ],
+    }),
+    ImportedTodo: ({ id, title }) => ({
+      model: { ...model, todos: [...model.todos, { id, title }] },
+      commands: [fact(Message.SelectedTodo({ id }))],
+    }),
+    // Two facts in order, the second a local one, around an ordinary Command.
+    AddedAndSelected: ({ title }) => ({
+      model,
+      commands: [
+        fact(Message.CreatedTodo({ id: `t${model.todos.length}`, title })),
+        { name: 'noop', effect: Effect.succeed(Message.SelectedTodo({ id: 'noop' })) },
+        fact(Message.SelectedTodo({ id: `t${model.todos.length}` })),
+      ],
+    }),
   })
 
 const App = Surface.application({ Model: ModelSchema, Message, initial, update })
 const TodoSync = forApplication(App).make({
   documentId: documentId('todos'),
   shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo, Message.ImportedTodo]),
 })
 type Shared = { readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }> }
 
@@ -119,7 +153,10 @@ describe('Sync.mount', () => {
   let container: HTMLElement
   let replica: Replica<Message, Shared>
   let mounted: Mounted<Model, Message, Shared> | undefined
-  const open = async (storage: Storage = memoryStorage()) => {
+  const open = async (
+    storage: Storage = memoryStorage(),
+    onReinstall?: (next: Model, previous: Model) => Update.Return<Model, Message>,
+  ) => {
     replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), storage))
     mounted = mount(App, TodoSync, {
       replica,
@@ -139,6 +176,7 @@ describe('Sync.mount', () => {
         ),
       }),
       onPersistenceFailure: (model, error) => ({ ...model, lastError: error._tag }),
+      onReinstall,
     })
     return mounted
   }
@@ -184,13 +222,15 @@ describe('Sync.mount', () => {
 
     app.dispatch(Message.RequestedRename({ id: 'a', title: 'B' }))
     await vi.waitFor(() => expect(seen).toEqual(['RequestedRename', 'RenamedTodo']))
-    expect(transitions).toBeGreaterThanOrEqual(2)
+    const reported = transitions
+    expect(reported).toBeGreaterThan(0)
 
     stopModel()
     stopMessages()
     app.dispatch(Message.SelectedTodo({ id: 'a' }))
     await vi.waitFor(() => expect(text()).toContain('Selection: a'))
     expect(seen).toEqual(['RequestedRename', 'RenamedTodo'])
+    expect(transitions).toBe(reported)
   })
 
   it('lets a Command from update settle into a durable fact without wrapping', async () => {
@@ -199,6 +239,55 @@ describe('Sync.mount', () => {
     app.dispatch(Message.RequestedRename({ id: 'a', title: 'Oat milk' }))
     await vi.waitFor(() => expect(text()).toContain('Oat milk'))
     await vi.waitFor(() => expect(pending(replica)).toHaveLength(2))
+  })
+
+  it('applies a fact within the transition that returned it, before the next Message', async () => {
+    const app = await open()
+    // Dispatched back to back, so an ordinary Command's Message would reach update only
+    // after both: each intent would see no todos and mint the same id.
+    app.dispatch(Message.AddedTodo({ title: 'Milk' }))
+    app.dispatch(Message.AddedTodo({ title: 'Eggs' }))
+    await vi.waitFor(() => expect(app.model().todos).toHaveLength(2))
+    expect(app.model().todos.map(todo => todo.id)).toEqual(['t0', 't1'])
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(2))
+    expect(pending(replica).map(operation => operation.message)).toEqual([
+      { _tag: 'CreatedTodo', id: 't0', title: 'Milk' },
+      { _tag: 'CreatedTodo', id: 't1', title: 'Eggs' },
+    ])
+  })
+
+  it('treats a fact a parent mapped as the ordinary Command it now is', async () => {
+    const app = await open()
+    app.dispatch(Message.MappedFact())
+    await vi.waitFor(() => expect(app.model().selectedTodoId).toBe('mapped'))
+  })
+
+  it('does not apply a durable Message’s fact within its transition', async () => {
+    const app = await open()
+    const seen: string[] = []
+    const stop = app.observe(message => seen.push(message._tag))
+    // Replay would not apply the fact, so the live transition must not either: it arrives
+    // as an ordinary Command's Message, after one dispatched next.
+    app.dispatch(Message.ImportedTodo({ id: 'i', title: 'Imported' }))
+    app.dispatch(Message.SelectedTodo({ id: 'next' }))
+    await vi.waitFor(() => expect(seen).toHaveLength(3))
+    expect(seen).toEqual(['ImportedTodo', 'SelectedTodo', 'SelectedTodo'])
+    expect(app.model().selectedTodoId).toBe('i')
+    stop()
+  })
+
+  it('applies several facts in order, persisting only the durable ones', async () => {
+    const app = await open()
+    const seen: string[] = []
+    const stop = app.observe(message => seen.push(message._tag))
+    app.dispatch(Message.AddedAndSelected({ title: 'Milk' }))
+    await vi.waitFor(() => expect(app.model().selectedTodoId).toBe('noop'))
+    // Each fact applies to the Model the one before it left, and the ordinary Command's
+    // Message comes after both.
+    expect(app.model().todos).toEqual([{ id: 't0', title: 'Milk' }])
+    expect(seen).toEqual(['AddedAndSelected', 'CreatedTodo', 'SelectedTodo', 'SelectedTodo'])
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+    stop()
   })
 
   it('reverts a durable edit whose persist fails and reports the failure', async () => {
@@ -225,6 +314,68 @@ describe('Sync.mount', () => {
     await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
     await vi.waitFor(() => expect(text()).toContain('Remote'))
     expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }])
+  })
+
+  it('does not hand the application the status a mount starts with', async () => {
+    let calls = 0
+    const app = await open(memoryStorage(), next => {
+      calls += 1
+      return { model: next }
+    })
+    app.dispatch(Message.SelectedTodo({ id: 'a' }))
+    await vi.waitFor(() => expect(text()).toContain('Selection: a'))
+    // The replica's first status reaches the mount by now; it changed nothing shared.
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(calls).toBe(0)
+  })
+
+  it('hands an exchange’s reinstall to the application, which returns the transition', async () => {
+    const seen: Array<readonly [number, number]> = []
+    const app = await open(memoryStorage(), (next, previous) => {
+      seen.push([previous.todos.length, next.todos.length])
+      // Local state the application carries across, and a Command it returns.
+      return {
+        model: { ...next, selectedTodoId: next.todos.at(-1)?.id ?? null },
+        commands: [fact(Message.RenamedTodo({ id: 'r', title: 'Seen' }))],
+      }
+    })
+    const models: Array<Model> = []
+    const stop = app.subscribe(() => models.push(app.model()))
+    // Once the mount has the replica's first status, so the exchange is a change it hears of.
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await vi.waitFor(() => expect(app.model().selectedTodoId).toBe('r'))
+    stop()
+    expect(seen).toContainEqual([0, 1])
+    // A fact it returns is applied in the same transition, so no Model ever shows the
+    // selection without it, and is persisted like any other.
+    expect(app.model().todos).toEqual([{ id: 'r', title: 'Seen' }])
+    expect(
+      models.some(model => model.selectedTodoId === 'r' && model.todos[0]?.title === 'Remote'),
+    ).toBe(false)
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+  })
+
+  it('hands a failed persist’s revert to the application too', async () => {
+    const base = memoryStorage()
+    const seen: Array<readonly [number, number, string | null]> = []
+    const app = await open(
+      {
+        ...base,
+        save: (state, revision) =>
+          revision === null
+            ? base.save(state, revision)
+            : Effect.fail(new StorageError({ message: 'disk full' })),
+      },
+      (next, previous) => {
+        seen.push([previous.todos.length, next.todos.length, next.lastError])
+        return { model: next }
+      },
+    )
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(app.model().lastError).toBe('StorageError'))
+    // It sees the Model with the edit reverted and the failure already reported.
+    expect(seen).toContainEqual([1, 0, 'StorageError'])
   })
 
   it('exposes the committed slice, which a local edit leaves and an exchange advances', async () => {

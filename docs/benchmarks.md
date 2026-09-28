@@ -60,16 +60,48 @@ size again. Recorded on the same Windows/Node 22 machine:
 | after compacting all payloads | unchanged (520,192 bytes) |
 | heap / rss | 36 MB / 158 MB |
 
-Compaction drops payloads but does not shrink the file: identity rows remain and
-SQLite keeps freed pages, so storage tracks the number of operations, not the
-payload bytes compacted away. That matches the [retention policy](../packages/durable/README.md#retention) —
-bounding storage means rotating the journal. Append is a synchronous
+A second scenario appends 500 edits to a 2,000-item snapshot through a real Schema
+codec (Linux, Node 22, in this repository's container; these numbers came from
+different hardware than the table above, so compare within the scenario):
+
+| | ms/op |
+| --- | --- |
+| before the in-memory snapshot (decode + encode per append) | 2.99 |
+| snapshot kept in memory, written every commit | 1.95 |
+| snapshot kept in memory, written every 50 commits (`snapshotEvery: 50`) | 0.91 |
+
+Compaction drops payloads but does not shrink the file: SQLite keeps the pages
+they occupied. `journal.vacuum()` rebuilds the file and gives that space back,
+and `pnpm bench:storage` prints the size after it too. Identity rows remain
+either way, so storage tracks the number of operations, not the payload bytes
+compacted away. That matches the [retention policy](../packages/durable/README.md#retention). Append is a synchronous
 transaction, so the per-op time is the platform's fsync; CI's `ubuntu` runner is
 faster than this laptop.
 
 A long offline outbox is also exercised deterministically in CI: `sync.test.ts`'s
 `recovers a long offline outbox and converges on the committed order` submits 500
 operations offline and reconciles them in one exchange.
+
+## foldkit-richtext: pasting many blocks
+
+`packages/richtext/bench/replicated.bench.ts` pastes `n` paragraphs into the middle of a
+100-paragraph document: `RichText.run` for the `Paste`, `Replicated.translate` for its
+transaction, and `Replicated.applyOps` for the ops. Medians on Linux, Node 22.22.2:
+
+| blocks | `run`, before | `run`, after | `translate`, before | `translate`, after | `applyOps`, before | `applyOps`, after |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 73 ms | 10 ms | 64 ms | 7 ms | 1.6 ms | 1.5 ms |
+| 1000 | 214 ms | 11 ms | 211 ms | 11 ms | 8.4 ms | 2.2 ms |
+| 2000 | 801 ms | 26 ms | 841 ms | 24 ms | 17 ms | 6.9 ms |
+| 4000 | 3053 ms | 60 ms | 3004 ms | 44 ms | 66 ms | 10 ms |
+
+A paste is one `InsertNode` per block, and `apply` indexed the whole document again after
+each, so a paste was quadratic in its blocks; `translate` replays the transaction through
+`apply`, so it paid the same again. `apply` now indexes only the inserted block and the
+siblings after it, and keeps its copy of the container across a run of inserts rather than
+folding it back and copying it for each. `applyOps` looked up each `InsertBlock`'s sibling
+anchor with a scan of the list; it now tries the place of the previous insert first. The
+results are unchanged: the Replicated and transaction tests pass as before.
 
 ## Initial supported limits
 

@@ -1,8 +1,8 @@
-import { Effect } from 'effect'
+import { Effect, Fiber } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
 import { Sync } from 'foldkit-sync'
 import { WebSocket as WsClient } from 'ws'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { Message } from '../src/app.js'
 import { openJournal, type Principal } from '../src/journal.js'
 import { startSyncServer, type Authenticated, type SyncServer } from '../src/server.js'
@@ -75,6 +75,35 @@ it('converges two replicas over the wire', async () => {
   } finally {
     await Effect.runPromise(a.close)
     await Effect.runPromise(b.close)
+    journal.close()
+  }
+})
+
+it('pushes a commit to a replica that is only reading', async () => {
+  const journal = openJournal(':memory:')
+  const server = await startSyncServer({ journal, authenticate: () => ({ principal }) })
+  servers.push(server)
+  const reader = await openReplica('reader')
+  const writer = await openReplica('writer')
+  const loop = Effect.runFork(
+    reader.start.pipe(Effect.provide(Sync.transport.socket({ url: server.url }))),
+  )
+  try {
+    // The reader's own edit, exchanged, then a pause for the exchange its connecting
+    // triggers: after that it submits nothing, so only the server's notice can make it
+    // exchange again.
+    await Effect.runPromise(reader.submit(Message.CreatedTodo({ id: 'r', title: 'mine' })))
+    await vi.waitFor(() => expect(Effect.runSync(reader.cursor)).toBe(1))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await Effect.runPromise(writer.submit(Message.CreatedTodo({ id: 'a', title: 'pushed' })))
+    await sync(server.url, writer)
+    await vi.waitFor(() =>
+      expect(Effect.runSync(reader.shared).todos.map(todo => todo.id)).toEqual(['r', 'a']),
+    )
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(loop))
+    await Effect.runPromise(reader.close)
+    await Effect.runPromise(writer.close)
     journal.close()
   }
 })

@@ -1,0 +1,519 @@
+import { Effect, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import * as RichText from 'foldkit-richtext'
+import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
+import {
+  Editor,
+  overlay,
+  patchTo,
+  placeEditor,
+  type EditorView,
+} from 'foldkit-richtext-dom/editor-bundle'
+import { markdownInputRules } from 'foldkit-richtext-markdown'
+import { Sync } from 'foldkit-sync'
+
+const { Replicated } = RichText
+
+/**
+ * A page: its title, and its body as a replicated document, whose characters keep their
+ * identity so that two people's edits to it both land where they were made.
+ */
+export const Page = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  body: Replicated.ReplicatedState,
+  /**
+   * In the trash: hidden, but still edited by what arrives for it, so an edit made offline
+   * to a page someone else deleted is kept, and restoring the page shows it. Optional, so
+   * pages stored before the trash existed still decode.
+   */
+  trashed: Schema.optionalKey(Schema.Boolean),
+})
+export type Page = typeof Page.Type
+
+/** What every replica holds and the server orders: the pages. */
+export const Shared = Schema.Struct({ pages: Schema.Array(Page) })
+export type Shared = typeof Shared.Type
+
+/**
+ * Where someone else is, as their tab announces it through presence: a name, the page they
+ * have open, and their caret, held by the characters around it as this tab's own is.
+ */
+export const PeerPresence = Schema.Struct({
+  name: Schema.String,
+  page: Schema.NullOr(Schema.String),
+  selection: Schema.NullOr(Replicated.AnchoredSelection),
+})
+export type PeerPresence = typeof PeerPresence.Type
+export const Peer = Schema.Struct({ id: Schema.String, ...PeerPresence.fields })
+export type Peer = typeof Peer.Type
+
+/** One of this tab's edits, as the ops that take it back. */
+const UndoStep = Schema.Struct({ page: Schema.String, ops: Schema.Array(Replicated.ReplicatedOp) })
+type UndoStep = typeof UndoStep.Type
+
+/** How many steps undo keeps. */
+const UNDO_DEPTH = 200
+
+export const Model = Schema.Struct({
+  ...Shared.fields,
+  /** The page in the editor. */
+  open: Schema.NullOr(Schema.String),
+  /**
+   * What names this tab's edits: unique per load, so `session:n` never repeats, and
+   * `minted` is the `n` of the next one. Kept here because only an intent's own
+   * transition may mint, and it reads the Model it was dispatched against.
+   */
+  session: Schema.String,
+  minted: Schema.Number,
+  /** The caret, held by the characters around it rather than an offset another edit moves. */
+  selection: Schema.NullOr(Replicated.AnchoredSelection),
+  storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
+  menuIndex: Schema.Number,
+  /**
+   * This tab's own edits, newest last, each as the ops that take it back: undo applies
+   * them as a new edit, so it reverses only what this tab did and keeps everyone else's.
+   * Local to the tab, as an editor's undo is.
+   */
+  undo: Schema.Array(UndoStep),
+  redo: Schema.Array(UndoStep),
+  /** What the last step was, so a run of typing is one step. */
+  undoGroup: Schema.NullOr(Schema.String),
+  /** The other people presence reports, local to the tab and never shared. */
+  peers: Schema.Array(Peer),
+})
+export type Model = typeof Model.Type
+
+export const Message = defineMessageUnion({
+  // Durable: what replays on every replica, in the server's order.
+  CreatedPage: { id: Schema.String, title: Schema.String, key: Schema.String },
+  RenamedPage: { id: Schema.String, title: Schema.String },
+  DeletedPage: { id: Schema.String },
+  RestoredPage: { id: Schema.String },
+  EditedPage: { id: Schema.String, ops: Schema.Array(Replicated.ReplicatedOp) },
+  // Local: what this tab asked for.
+  AddedPage: { title: Schema.String },
+  OpenedPage: { id: Schema.String },
+  TrashedPage: { id: Schema.String },
+  GotEditor: { message: EditorMessage },
+  ToggledTask: {},
+  GotPeers: { peers: Schema.Array(Peer) },
+})
+export type Message = typeof Message.Type
+type Return = Update.Return<Model, Message>
+
+export const hostId = 'page-body'
+
+const nodes = RichText.nodeRegistry(RichText.standardNodes)
+
+placeEditor(hostId, {
+  rendering: RichText.standardRendering,
+  vocabulary: {
+    marks: RichText.markRegistry(RichText.standardMarks),
+    nodes,
+  },
+  inputRules: markdownInputRules,
+  placeholder: 'Type / for blocks, or start writing…',
+})
+
+const blank = RichText.decodeDocument({
+  version: 1,
+  children: [
+    { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: '', marks: [] }] },
+  ],
+})
+
+export const initialModel = (session: string): Model => ({
+  pages: [],
+  open: null,
+  session,
+  minted: 0,
+  selection: null,
+  storedMarks: null,
+  menuIndex: 0,
+  undo: [],
+  redo: [],
+  undoGroup: null,
+  peers: [],
+})
+
+/** A page opened: the caret and what the editor carried for the last one start afresh. */
+const opened = (model: Model, id: string): Model => ({
+  ...model,
+  open: id,
+  selection: null,
+  storedMarks: null,
+  menuIndex: 0,
+  undoGroup: null,
+})
+
+/** No page open: nothing of the last one is carried on. */
+const closed = (model: Model): Model => ({
+  ...model,
+  open: null,
+  selection: null,
+  storedMarks: null,
+  menuIndex: 0,
+  undoGroup: null,
+})
+
+/**
+ * One keystroke's inverse prepended to its typing group's step. Deleting what a run of typing
+ * inserted is one `Delete` whose touching ranges are merged, so a long run stays one small op
+ * rather than one per keystroke.
+ */
+const prepend = (
+  inverse: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+  ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+): ReadonlyArray<RichText.Replicated.ReplicatedOp> => {
+  const [added] = inverse
+  const [first, ...rest] = ops
+  if (inverse.length !== 1 || added?.type !== 'Delete' || first?.type !== 'Delete')
+    return [...inverse, ...ops]
+  const ranges = [...first.ranges]
+  for (const range of added.ranges) {
+    const touching = ranges.findIndex(
+      held => held.id === range.id && held.from <= range.to && range.from <= held.to,
+    )
+    if (touching === -1) ranges.push(range)
+    else {
+      const held = ranges[touching]!
+      ranges[touching] = {
+        id: held.id,
+        from: Math.min(held.from, range.from),
+        to: Math.max(held.to, range.to),
+      }
+    }
+  }
+  return [{ type: 'Delete', ranges }, ...rest]
+}
+
+/** Whether two anchored selections sit by the same characters, whatever their affinity. */
+const samePlace = (
+  left: RichText.Replicated.AnchoredSelection | null,
+  right: RichText.Replicated.AnchoredSelection | null,
+): boolean => {
+  if (left === null || right === null) return left === right
+  if (left.type !== 'Range' || right.type !== 'Range')
+    return JSON.stringify(left) === JSON.stringify(right)
+  const same = (a: RichText.Replicated.AnchoredPosition, b: RichText.Replicated.AnchoredPosition) =>
+    a.block === b.block && a.after === b.after
+  return same(left.anchor, right.anchor) && same(left.focus, right.focus)
+}
+
+/** The page with this id, unless it is in the trash. */
+export const pageOf = (model: Model, id: string | null): Page | undefined =>
+  id === null ? undefined : model.pages.find(page => page.id === id && page.trashed !== true)
+
+/** The Model with one page changed; the Model itself when that changes nothing. */
+const withPage = (model: Model, id: string, change: (page: Page) => Page): Model => {
+  const at = model.pages.findIndex(page => page.id === id)
+  if (at === -1) return model
+  const page = model.pages[at]!
+  const changed = change(page)
+  if (changed === page) return model
+  return { ...model, pages: model.pages.map((other, index) => (index === at ? changed : other)) }
+}
+
+/** The editor's view of the open page: the projected document, and the caret placed in it. */
+export const editorViewOf = (model: Model, page: Page): EditorView => ({
+  document: Replicated.project(page.body),
+  selection: Replicated.resolve(page.body, model.selection),
+  // The editor's own ids are placeholders: `translate` names what an edit made.
+  nextId: 0,
+  history: RichText.emptyHistory,
+  storedMarks: model.storedMarks,
+  menuIndex: model.menuIndex,
+  hostId,
+})
+
+/**
+ * Where the others on the open page are, drawn over it. A caret has no width, so it is drawn
+ * over the character before it, or at a run's start the one after. Their anchors are resolved
+ * against `body`, so they follow the characters they were held by.
+ */
+const peerCarets = (
+  model: Model,
+  page: string,
+  body: RichText.Replicated.ReplicatedState,
+): RichText.DecorationSet =>
+  model.peers.flatMap(peer => {
+    if (peer.page !== page || peer.selection === null) return []
+    const resolved = Replicated.resolve(body, peer.selection)
+    if (resolved?.type !== 'Range') return []
+    const at = resolved.focus
+    const [from, to] = at.offset > 0 ? [at.offset - 1, at.offset] : [0, 1]
+    return [
+      {
+        from: { ...at, offset: from },
+        to: { ...at, offset: to },
+        kind: at.offset > 0 ? 'peer' : 'peer-before',
+        data: { name: peer.name },
+      },
+    ]
+  })
+
+/** The Command that draws the others' carets over the open page, as `body` now is. */
+const carets = (
+  model: Model,
+  page: string,
+  body: RichText.Replicated.ReplicatedState,
+): Update.Commands<Message>[number] => toApp(overlay(hostId, peerCarets(model, page, body)))
+
+const toApp = (command: {
+  readonly name: string
+  readonly effect: Effect.Effect<EditorMessage>
+}): Update.Commands<Message>[number] => ({
+  ...command,
+  effect: Effect.map(command.effect, message => Message.GotEditor({ message })),
+})
+
+/**
+ * Applies ops to the open page as the durable fact, in this same transition, and draws what
+ * they project to. `keyed` is the document the editor's host is now keyed by: the editor's
+ * own result after an edit through it, which `patchTo` hands on to the projection.
+ */
+const applyEdit = (
+  model: Model,
+  page: Page,
+  ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+  keyed: RichText.Document,
+  commands: Update.Commands<Message>,
+): Return => {
+  // A Message's constructor copies its arrays, so the ops drawn here are the fact's own: the
+  // fact's update then applies the same array to the same body and gets back this state.
+  const fact = Message.EditedPage({ id: page.id, ops })
+  const body = Replicated.applyOps(page.body, fact.ops)
+  return {
+    model,
+    commands: [
+      // The editor's own patch would draw its placeholder ids, only for this one to replace
+      // them; this one patches from whatever is drawn, so it is the only one needed.
+      ...commands.filter(command => command.name !== 'RichText.patch'),
+      toApp(
+        patchTo(hostId, keyed, {
+          document: Replicated.project(body),
+          selection: Replicated.resolve(body, model.selection),
+        }),
+      ),
+      carets(model, page.id, body),
+      Sync.fact(fact),
+    ],
+  }
+}
+
+/**
+ * Commits an edit the editor made on the open page's projection: restates it as ops and
+ * applies them, and records the ops that take it back. `group` names what kind of edit it
+ * was, so a run of typing is one undo step.
+ */
+const commit = (
+  model: Model,
+  page: Page,
+  edit: Pick<Extract<RichText.TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
+  keyed: RichText.Document,
+  commands: Update.Commands<Message>,
+  group: string | null,
+): Return => {
+  // Only this tab's session mints under its prefix, so only this tab extends those inserts.
+  const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`, {
+    continues: id => id.startsWith(`${model.session}:`),
+  })
+  // A caret move translates to no ops and mints nothing, so its key is not spent. A caret
+  // put elsewhere ends a run of typing; the report of where typing left it does not.
+  if (translated.ops.length === 0) {
+    const moved = !samePlace(translated.selection, model.selection)
+    return {
+      model: {
+        ...model,
+        selection: translated.selection,
+        undoGroup: moved ? null : model.undoGroup,
+      },
+      commands,
+    }
+  }
+  const inverse = Replicated.invert(page.body, translated.ops)
+  const last = model.undo[model.undo.length - 1]
+  // Opening a page starts a new group, so a run of typing is always on one page.
+  const joins = last !== undefined && group !== null && group === model.undoGroup
+  const undo = joins
+    ? [...model.undo.slice(0, -1), { page: page.id, ops: prepend(inverse, last.ops) }]
+    : [...model.undo, { page: page.id, ops: inverse }].slice(-UNDO_DEPTH)
+  return applyEdit(
+    {
+      ...model,
+      minted: model.minted + 1,
+      selection: translated.selection,
+      undo,
+      redo: [],
+      undoGroup: group,
+    },
+    page,
+    translated.ops,
+    keyed,
+    commands,
+  )
+}
+
+/**
+ * Takes the last step of `from` for the open page and applies it, pushing the ops that take
+ * it back onto `to`: undo and redo are the same move in opposite directions.
+ */
+const replay = (model: Model, page: Page, direction: 'undo' | 'redo'): Return => {
+  const from = model[direction]
+  let at = from.length - 1
+  while (at >= 0 && from[at]!.page !== page.id) at--
+  const step = from[at]
+  if (step === undefined) return { model }
+  const back: UndoStep = { page: page.id, ops: Replicated.invert(page.body, step.ops) }
+  const other = direction === 'undo' ? 'redo' : 'undo'
+  return applyEdit(
+    {
+      ...model,
+      [direction]: from.filter((_, index) => index !== at),
+      [other]: [...model[other], back].slice(-UNDO_DEPTH),
+      undoGroup: null,
+    },
+    page,
+    step.ops,
+    Replicated.project(page.body),
+    [],
+  )
+}
+
+/** The editor Messages that are typing, so a run of them is one undo step. */
+const typing = new Set(['Typed', 'Backspace', 'DeletedForward'])
+
+const taskAround = (document: RichText.Document, selection: RichText.Selection | null) => {
+  if (selection?.type !== 'Range') return undefined
+  const run = RichText.locateRun(document, selection.anchor.node)
+  for (let depth = run?.path.length ?? 0; depth > 0; depth--) {
+    const block = RichText.blockAtPath(document, run!.path.slice(0, depth))
+    if (block?.type === 'Node' && block.kind === 'TaskItem') return block
+  }
+  return undefined
+}
+
+export const update = (model: Model, message: Message): Return =>
+  Message.match<Return>(message, {
+    CreatedPage: ({ id, title, key }) => ({
+      model: model.pages.some(page => page.id === id)
+        ? model
+        : {
+            ...model,
+            pages: [...model.pages, { id, title, body: Replicated.fromDocument(blank, key) }],
+          },
+    }),
+    RenamedPage: ({ id, title }) => ({
+      model: withPage(model, id, page => (page.title === title ? page : { ...page, title })),
+    }),
+    // Durable, so it changes the pages only: a tab showing the page finds it gone.
+    DeletedPage: ({ id }) => ({
+      model: withPage(model, id, page =>
+        page.trashed === true ? page : { ...page, trashed: true },
+      ),
+    }),
+    RestoredPage: ({ id }) => ({
+      model: withPage(model, id, page => {
+        if (page.trashed !== true) return page
+        const { trashed: _, ...restored } = page
+        return restored
+      }),
+    }),
+    EditedPage: ({ id, ops }) => ({
+      model: withPage(model, id, page => {
+        const body = Replicated.applyOps(page.body, ops)
+        return body === page.body ? page : { ...page, body }
+      }),
+    }),
+    AddedPage: ({ title }) => {
+      const id = `${model.session}:${model.minted}`
+      return {
+        model: { ...opened(model, id), minted: model.minted + 1 },
+        commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
+      }
+    },
+    // Closes the page here if it is open, then trashes it everywhere.
+    TrashedPage: ({ id }) => ({
+      model: model.open === id ? closed(model) : model,
+      commands: [Sync.fact(Message.DeletedPage({ id }))],
+    }),
+    OpenedPage: ({ id }) => {
+      if (id === model.open) return { model }
+      const page = pageOf(model, id)
+      const next = opened(model, id)
+      return { model: next, commands: page === undefined ? [] : [carets(next, id, page.body)] }
+    },
+    GotPeers: ({ peers }) => {
+      // Presence refreshes every few seconds with nothing new; that is not a render.
+      if (JSON.stringify(peers) === JSON.stringify(model.peers)) return { model }
+      const next = { ...model, peers }
+      const page = pageOf(next, next.open)
+      return { model: next, commands: page === undefined ? [] : [carets(next, page.id, page.body)] }
+    },
+    GotEditor: ({ message: incoming }) => {
+      const page = pageOf(model, model.open)
+      if (page === undefined) return { model }
+      // The editor's own undo restores a snapshot of this tab's document, which others'
+      // edits have moved on from; this one applies the ops that take this tab's edit back.
+      if (incoming._tag === 'Undone') return replay(model, page, 'undo')
+      if (incoming._tag === 'Redone') return replay(model, page, 'redo')
+      const view = editorViewOf(model, page)
+      const result = Editor.update(view, incoming, { hostId })
+      const interaction =
+        result.model.storedMarks === model.storedMarks && result.model.menuIndex === model.menuIndex
+          ? model
+          : { ...model, storedMarks: result.model.storedMarks, menuIndex: result.model.menuIndex }
+      const commands = (result.commands ?? []).map(toApp)
+      const out = result.outMessage
+      if (out?._tag !== 'Edited') return { model: interaction, commands }
+      return commit(
+        interaction,
+        page,
+        out,
+        out.state.document,
+        commands,
+        typing.has(incoming._tag) ? 'typing' : null,
+      )
+    },
+    ToggledTask: () => {
+      const page = pageOf(model, model.open)
+      if (page === undefined) return { model }
+      const view = editorViewOf(model, page)
+      const task = taskAround(view.document, view.selection)
+      if (task?.type !== 'Node') return { model }
+      const result = RichText.run(
+        { document: view.document, selection: view.selection },
+        { type: 'SetProps', node: task.id, props: { checked: task.props.checked !== true } },
+        { mint: () => 'unused' },
+        { nodes },
+      )
+      if (!result.ok) return { model }
+      return commit(model, page, result, view.document, [], null)
+    },
+  })
+
+/**
+ * When an exchange replaces the pages, the open editor is patched from what it shows to
+ * what the open page now projects to, the caret placed by its anchors, rather than
+ * mounted afresh; a page deleted elsewhere closes.
+ */
+export const reinstalled = (next: Model, previous: Model): Return => {
+  const before = pageOf(previous, previous.open)
+  const after = pageOf(next, next.open)
+  if (after === undefined) return { model: closed(next) }
+  if (before === undefined || before.body === after.body) return { model: next }
+  return {
+    model: next,
+    commands: [
+      toApp(
+        patchTo(hostId, Replicated.project(before.body), {
+          document: Replicated.project(after.body),
+          selection: Replicated.resolve(after.body, next.selection),
+        }),
+      ),
+      carets(next, after.id, after.body),
+    ],
+  }
+}

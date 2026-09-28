@@ -29,6 +29,209 @@ const success = (result: RichText.TransactionResult) => {
   return result
 }
 
+describe('the state boundary', () => {
+  // Every case is built from blocks that already passed validation in `initial()`, so a
+  // check that trusted a remembered block where it should not would let the case through.
+  const valid = initial()
+  const [paragraph, heading] = valid.document.children as [RichText.Block, RichText.Block]
+  const insert: RichText.Transaction = [{ type: 'InsertText', at: position(1), text: 'x' }]
+  const cases: ReadonlyArray<readonly [string, unknown]> = [
+    ['an excess key on the state', { ...valid, extra: 1 }],
+    ['an excess key on the document', { ...valid, document: { ...valid.document, extra: 1 } }],
+    ['another version', { ...valid, document: { ...valid.document, version: 2 } }],
+    [
+      'children that are not a list',
+      { ...valid, document: { version: 1, children: new Set([paragraph, heading]) } },
+    ],
+    [
+      'a remembered block twice',
+      { ...valid, document: { version: 1, children: [paragraph, heading, paragraph] } },
+    ],
+    [
+      'a block with an excess key',
+      { ...valid, document: { version: 1, children: [{ ...paragraph, extra: 1 }, heading] } },
+    ],
+    [
+      'a selection on a node that is not there',
+      { ...valid, selection: { type: 'Node', node: 'x' } },
+    ],
+    [
+      'a selection with an excess key',
+      { ...valid, selection: { type: 'Node', node: id('p'), extra: 1 } },
+    ],
+  ]
+
+  it.each(cases)('refuses %s, every time', (_, state) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // @ts-expect-error a state the schema refuses
+      expect(RichText.apply(state, insert)).toEqual({ ok: false, error: 'InvalidInput' })
+    }
+  })
+
+  it('accepts a new document made of blocks it has seen', () => {
+    const reordered = {
+      ...valid,
+      document: { version: 1 as const, children: [heading, paragraph] },
+    }
+    expect(RichText.apply(reordered, insert).ok).toBe(true)
+  })
+})
+
+describe('setting the selection inside a transaction', () => {
+  it('checks it against the text the transaction has made so far', () => {
+    const insert = { type: 'InsertText' as const, at: position(4), text: 'ef' }
+    const caret = (offset: number) => ({
+      type: 'SetSelection' as const,
+      selection: { type: 'Range' as const, anchor: position(offset), focus: position(offset) },
+    })
+    // 'abcd' has become 'abcdef', so 6 is its end and 7 is past it.
+    expect(RichText.apply(initial(), [insert, caret(6)]).ok).toBe(true)
+    expect(RichText.apply(initial(), [insert, caret(7)])).toEqual({
+      ok: false,
+      error: 'InvalidSelection',
+    })
+  })
+
+  it('accepts a node selection on a run as well as on a block', () => {
+    for (const node of ['t', 'p']) {
+      const select = {
+        type: 'SetSelection' as const,
+        selection: { type: 'Node' as const, node: id(node) },
+      }
+      expect(RichText.apply(initial(), [select]).ok).toBe(true)
+    }
+    const missing = {
+      type: 'SetSelection' as const,
+      selection: { type: 'Node' as const, node: id('x') },
+    }
+    expect(RichText.apply(initial(), [missing])).toEqual({ ok: false, error: 'InvalidSelection' })
+  })
+})
+
+describe('retyping a block', () => {
+  const nested = (): RichText.EditorState => ({
+    document: RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 't', text: 'code', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'qp',
+              children: [{ type: 'Text', id: 'qt', text: 'x', marks: [] }],
+            },
+          ],
+        },
+        { type: 'Unknown', id: 'u', originalType: 'Embed', props: {}, children: [] },
+      ],
+    }),
+    selection: null,
+  })
+  const toCode = { type: 'Node' as const, kind: 'CodeBlock', props: { language: 'ts' } }
+
+  it('makes a block of runs a node kind under its own identity, and back', () => {
+    const coded = RichText.apply(nested(), [RichText.Edit.retypeBlock(id('p'), toCode)])
+    if (!coded.ok) throw new Error(coded.error)
+    expect(coded.state.document.children[0]).toEqual({
+      type: 'Node',
+      kind: 'CodeBlock',
+      id: 'p',
+      props: { language: 'ts' },
+      children: [{ type: 'Text', id: 't', text: 'code', marks: [] }],
+    })
+    // The same kind with the same props again changes nothing; other props are a change.
+    const again = RichText.apply(coded.state, [RichText.Edit.retypeBlock(id('p'), toCode)])
+    expect(again.ok && again.state.document).toBe(coded.state.document)
+    const python = RichText.apply(coded.state, [
+      RichText.Edit.retypeBlock(id('p'), { ...toCode, props: { language: 'py' } }),
+    ])
+    expect(python.ok && python.state.document.children[0]).toMatchObject({
+      props: { language: 'py' },
+    })
+    const back = RichText.apply(coded.state, [
+      RichText.Edit.retypeBlock(id('p'), { type: 'Paragraph' }),
+    ])
+    expect(back.ok && back.state.document.children[0]).toMatchObject({ type: 'Paragraph', id: 'p' })
+  })
+
+  it('makes a node that holds blocks another node kind, keeping them, and nothing else', () => {
+    const aside = { type: 'Node' as const, kind: 'Aside', props: { tone: 'note' } }
+    const retyped = RichText.apply(nested(), [RichText.Edit.retypeBlock(id('q'), aside)])
+    if (!retyped.ok) throw new Error(retyped.error)
+    const quote = nested().document.children[1]!
+    expect(retyped.state.document.children[1]).toEqual({
+      ...quote,
+      kind: 'Aside',
+      props: { tone: 'note' },
+    })
+    expect(retyped.changeSet.dirtyNodes).toContain(id('q'))
+    // Its nested blocks would have nowhere to go in a block of runs.
+    expect(
+      RichText.apply(nested(), [RichText.Edit.retypeBlock(id('q'), { type: 'Paragraph' })]),
+    ).toEqual({ ok: false, error: 'InvalidRange' })
+  })
+
+  it('refuses preserved content', () => {
+    expect(RichText.apply(nested(), [RichText.Edit.retypeBlock(id('u'), toCode)])).toEqual({
+      ok: false,
+      error: 'InvalidRange',
+    })
+  })
+})
+
+describe('inserting blocks after other edits in one transaction', () => {
+  // A retype leaves a pending copy of the quote's block list; the inserts before the quote
+  // move it, so that copy has to be folded in before they land, or the retype is lost.
+  it('keeps an edit inside a container that later inserts move', () => {
+    const paragraph = (name: string) => ({
+      type: 'Paragraph' as const,
+      id: id(name),
+      children: [{ type: 'Text' as const, id: id(`${name}-t`), text: name, marks: [] }],
+    })
+    const state = {
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [
+          paragraph('first'),
+          {
+            type: 'Node',
+            kind: 'Quote',
+            id: 'q',
+            props: {},
+            children: [],
+            blocks: [paragraph('qp')],
+          },
+        ],
+      }),
+      selection: null,
+    }
+    const result = success(
+      RichText.apply(state, [
+        RichText.Edit.retypeBlock(id('qp'), { type: 'Heading', level: 2 }),
+        RichText.Edit.insertBlock(paragraph('a'), 0),
+        RichText.Edit.insertBlock(paragraph('b'), 1),
+        RichText.Edit.insertText(RichText.Node.make('qp-t').at(2, 'after'), '!'),
+      ]),
+    )
+    expect(result.state.document.children.map(block => block.id)).toEqual(['a', 'b', 'first', 'q'])
+    expect(RichText.blockAtPath(result.state.document, [3, 0])).toMatchObject({
+      type: 'Heading',
+      level: 2,
+      children: [{ text: 'qp!' }],
+    })
+  })
+})
+
 describe('text transactions', () => {
   it('applies sequential edits and maps backward selections in the same transition', () => {
     const state = initial()

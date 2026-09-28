@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { mount, patch, positionToRange, rangeToPosition, repair, toText } from '../src/index.js'
+import { replaceChangeSet } from '../src/editor-bundle.js'
 
 const id = RichText.NodeId.make
 const at = (
@@ -274,7 +275,60 @@ describe('positions map both ways', () => {
     document.body.append(outside)
     expect(rangeToPosition(dom, outside, 0)).toBeUndefined()
     outside.remove()
-    expect(rangeToPosition(dom, dom.root.children[0] as HTMLElement, 0)).toBeUndefined()
+  })
+
+  it('refuses a position outside its subtree, even one whose runs share its ids', () => {
+    // A page selection on the element around the editor would otherwise be read as a caret
+    // in it, and a second editor's caret as one in this editor's run of the same id.
+    const page = document.createElement('div')
+    const dom = mount(document, content())
+    const other = mount(document, content())
+    page.append(dom.root, other.root)
+    document.body.append(page)
+    try {
+      expect(rangeToPosition(dom, page, 0)).toBeUndefined()
+      const range = positionToRange(other, at('a', 1))!
+      expect(rangeToPosition(dom, range.startContainer, range.startOffset)).toBeUndefined()
+      expect(rangeToPosition(other, range.startContainer, range.startOffset)).toEqual(
+        at('a', 1, 'before'),
+      )
+    } finally {
+      page.remove()
+    }
+  })
+
+  it('reads a caret a browser puts on an element as the text boundary it stands at', () => {
+    // Chrome puts a click on an empty paragraph on the paragraph itself, never in its empty
+    // run's text node; without this a blank document could not be typed into.
+    const blank = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'e', children: [{ type: 'Text', id: 'x', text: '', marks: [] }] },
+        {
+          type: 'Paragraph',
+          id: 'f',
+          children: [
+            { type: 'Text', id: 'y', text: 'ab', marks: [] },
+            { type: 'Text', id: 'z', text: 'cd', marks: ['Bold'] },
+          ],
+        },
+      ],
+    })
+    const dom = mount(document, blank)
+    const [empty, full] = Array.from(dom.root.children) as Array<HTMLElement>
+    const cases: ReadonlyArray<readonly [Node, number, RichText.Position]> = [
+      [empty!, 0, at('x', 0, 'after')],
+      [dom.root, 0, at('x', 0, 'after')],
+      // Before a run is its start; past the last one is the end of that one.
+      [full!, 1, at('z', 0, 'before')],
+      [full!, 2, at('z', 2, 'after')],
+      [dom.root, 2, at('z', 2, 'after')],
+      // An offset past the last child reads as the end.
+      [full!, 9, at('z', 2, 'after')],
+    ]
+    for (const [node, offset, expected] of cases) {
+      expect(rangeToPosition(dom, node, offset)).toEqual(expected)
+    }
   })
 })
 
@@ -311,6 +365,176 @@ describe('patching only what changed', () => {
     expect(demoted.tagName.toLowerCase()).toBe('h3')
     expect(demoted).not.toBe(heading)
     expect(toText(after)).toBe('abcd\nTitle')
+  })
+
+  it('re-renders a block whose attributes changed, such as a ticked task', () => {
+    const tasks = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TaskItem',
+              id: 't',
+              props: { checked: false },
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'p',
+                  children: [{ type: 'Text', id: 'a', text: 'milk', marks: [] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const before = mount(document, tasks, RichText.standardRendering)
+    const result = success(
+      RichText.apply({ document: tasks, selection: null }, [
+        RichText.Edit.setProps(id('t'), { checked: true }),
+      ]),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    expect(after.elements.get(id('t'))?.getAttribute('data-task')).toBe('checked')
+    expect(after.root.querySelector('[data-task]')?.getAttribute('data-task')).toBe('checked')
+  })
+
+  it.each([
+    ['drops', 'warn', null, false],
+    ['adds', null, 'warn', true],
+  ] as const)(
+    're-renders a block whose renderer %s an attribute and keeps its tag',
+    (_, from, to, has) => {
+      const toned = RichText.rendering({
+        nodes: {
+          Callout: block => ({
+            tag: 'aside',
+            attributes:
+              typeof block.props.tone === 'string' ? { 'data-tone': block.props.tone } : {},
+          }),
+        },
+      })
+      const callout = RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'Callout',
+            id: 'c',
+            props: { tone: from },
+            children: [{ type: 'Text', id: 'a', text: 'careful', marks: [] }],
+          },
+        ],
+      })
+      const before = mount(document, callout, toned)
+      const result = success(
+        RichText.apply({ document: callout, selection: null }, [
+          RichText.Edit.setProps(id('c'), { tone: to }),
+        ]),
+      )
+      const after = patch(before, result.state.document, result.changeSet)
+      expect(after.elements.get(id('c'))?.hasAttribute('data-tone')).toBe(has)
+    },
+  )
+
+  it('moves a block into a container it is wrapped in, leaving no copy where it was', () => {
+    const flat = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'h',
+          children: [{ type: 'Text', id: 'a', text: 'head', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'b', text: 'milk', marks: [] }],
+        },
+      ],
+    })
+    const before = mount(document, flat, RichText.standardRendering)
+    const caret = { node: id('b'), offset: 2, affinity: 'after' as const }
+    let next = 0
+    const result = success(
+      RichText.run(
+        { document: flat, selection: { type: 'Range', anchor: caret, focus: caret } },
+        { type: 'WrapBlock', containers: [{ kind: 'List', props: {} }, { kind: 'ListItem' }] },
+        { mint: () => `w${next++}` },
+      ),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    expect(after.root.querySelectorAll('[data-block="p"]')).toHaveLength(1)
+    expect(
+      after.root.isEqualNode(
+        mount(document, result.state.document, RichText.standardRendering).root,
+      ),
+    ).toBe(true)
+  })
+
+  it('leaves a block in place when the block before it is wrapped', async () => {
+    const flat = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'b', text: 'milk', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'h',
+          children: [{ type: 'Text', id: 'a', text: 'tail', marks: [] }],
+        },
+      ],
+    })
+    const before = mount(document, flat, RichText.standardRendering)
+    const tail = before.elements.get(id('h'))
+    const moved: Array<Node> = []
+    const observer = new MutationObserver(records => {
+      for (const record of records) moved.push(...Array.from(record.removedNodes))
+    })
+    observer.observe(before.root, { childList: true })
+    const caret = { node: id('b'), offset: 2, affinity: 'after' as const }
+    let next = 0
+    const result = success(
+      RichText.run(
+        { document: flat, selection: { type: 'Range', anchor: caret, focus: caret } },
+        { type: 'WrapBlock', containers: [{ kind: 'List', props: {} }, { kind: 'ListItem' }] },
+        { mint: () => `w${next++}` },
+      ),
+    )
+    patch(before, result.state.document, result.changeSet)
+    await Promise.resolve()
+    observer.disconnect()
+    expect(moved).not.toContain(tail)
+  })
+
+  it('redraws preserved content whose type changed under the same id', () => {
+    const preserved = (originalType: string) =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [{ type: originalType, id: 'u', payload: 1 }],
+      })
+    const before = mount(document, preserved('Chart'))
+    const next = preserved('Map')
+    const after = patch(before, next, {
+      dirtyNodes: new Set(),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
+      textChanged: new Set(),
+      structureChanged: true,
+      selectionChanged: false,
+    })
+    expect(after.elements.get(id('u'))?.getAttribute('data-unknown')).toBe('Map')
   })
 
   it('drops elements for identities normalization retires', () => {
@@ -866,6 +1090,41 @@ describe('decorations over the editable subtree (§129)', () => {
     expect(decorated(patch(rekinded, rekinded.content, unchanged).root)).toEqual([])
   })
 
+  it('draws a decoration that starts in an empty run, and keeps its caret addressable', () => {
+    const lines = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'e', text: '', marks: [] }] },
+        { type: 'Paragraph', id: 'q', children: [{ type: 'Text', id: 'f', text: 'x', marks: [] }] },
+      ],
+    })
+    // Another person's caret on an empty line, as a one-character range past its end.
+    const dom = mount(document, lines, RichText.noRendering, [over('e', 0, 1, 'peer')])
+    expect(decorated(dom.elements.get(id('e')))).toEqual([['peer', '']])
+    const range = positionToRange(dom, at('e', 0))!
+    expect(rangeToPosition(dom, range.startContainer, range.startOffset)).toEqual(at('e', 0))
+    expect(repair(dom, lines)).toBe(dom)
+  })
+
+  it('carries the string fields of a decoration’s data, and redraws when they change', () => {
+    const named = (name: string): RichText.Decoration => ({
+      ...over('a', 0, 1, 'peer'),
+      data: { name, colour: '#f00', count: 1, 'Not A Name': 'x', 'on click': 'y' },
+    })
+    const dom = mount(document, content(), RichText.noRendering, [named('Ada')])
+    const wrapper = dom.root.querySelector('[data-decoration]')!
+    expect(wrapper.getAttributeNames().sort()).toEqual([
+      'data-decoration',
+      'data-decoration-colour',
+      'data-decoration-name',
+    ])
+    expect(wrapper.getAttribute('data-decoration-name')).toBe('Ada')
+    const renamed = patch(dom, dom.content, unchanged, [named('Grace')])
+    expect(
+      renamed.root.querySelector('[data-decoration]')!.getAttribute('data-decoration-name'),
+    ).toBe('Grace')
+  })
+
   it('leaves a decorated subtree alone, and redraws one the browser stripped', () => {
     const before = mount(document, content(), RichText.noRendering, [over('c', 1, 3)])
     expect(repair(before, before.content)).toBe(before)
@@ -875,5 +1134,155 @@ describe('decorations over the editable subtree (§129)', () => {
     const after = repair(before, before.content)
     expect(decorated(after.root)).toEqual([['search', 'it']])
     expect(toText(after)).toBe('abcd\nTitle')
+  })
+})
+
+describe('replacing the whole document', () => {
+  it('patches the DOM to exactly what a fresh render of the other document is', () => {
+    // What an undo of Enter restores: the split-off block gone, its text back in the first.
+    const split = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'ab', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'n',
+          children: [{ type: 'Text', id: 'm', text: 'cd', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'q',
+          children: [{ type: 'Text', id: 'c', text: 'ef', marks: [] }],
+        },
+      ],
+    })
+    const joined = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'abcd', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'q',
+          children: [{ type: 'Text', id: 'c', text: 'ef', marks: [] }],
+        },
+      ],
+    })
+    const changeSet = replaceChangeSet(split, joined)
+    expect(changeSet.removedNodes).toEqual(new Set([id('n'), id('m')]))
+    expect(changeSet.structureChanged).toBe(true)
+    const patched = patch(mount(document, split), joined, changeSet)
+    expect(patched.root.isEqualNode(mount(document, joined).root)).toBe(true)
+    expect(patched.elements.has(id('n'))).toBe(false)
+  })
+
+  it('redraws both blocks when a run moves between blocks the change keeps', () => {
+    const runs = (first: ReadonlyArray<string>, second: ReadonlyArray<string>) =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          ['a', first],
+          ['b', second],
+        ].map(([block, ids]) => ({
+          type: 'Paragraph',
+          id: block,
+          children: (ids as ReadonlyArray<string>).map(run => ({
+            type: 'Text',
+            id: run,
+            text: run,
+            marks: [],
+          })),
+        })),
+      })
+    for (const [before, after, dirty] of [
+      [runs(['r1', 'r2'], ['r3']), runs(['r1'], ['r2', 'r3']), ['a', 'b']],
+      // Reordered within one block: nothing else changes.
+      [runs(['r1', 'r2'], ['r3']), runs(['r2', 'r1'], ['r3']), ['a']],
+    ] as const) {
+      const changeSet = replaceChangeSet(before, after)
+      // No run's text or marks changed, so only where they stand says the blocks must redraw;
+      // a change set naming nothing is one `patchTo` skips.
+      expect([...changeSet.dirtyNodes].sort()).toEqual(dirty)
+      const patched = patch(mount(document, before), after, changeSet)
+      expect(patched.root.isEqualNode(mount(document, after).root)).toBe(true)
+    }
+  })
+
+  it('names a block whose props alone changed', () => {
+    const task = (checked: boolean) =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'Image',
+            id: 'i',
+            props: { src: '/a.png', alt: checked ? 'on' : 'off' },
+            children: [],
+          },
+        ],
+      })
+    const changeSet = replaceChangeSet(task(false), task(true))
+    expect([...changeSet.dirtyNodes]).toEqual(['i'])
+    expect(changeSet.structureChanged).toBe(false)
+  })
+
+  it('names a changed run inside a container, and leaves unchanged runs alone', () => {
+    const listed = (text: string, marks: ReadonlyArray<string> = []) =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [{ type: 'Text', id: 'a', text: 'same', marks: [] }],
+          },
+          {
+            type: 'Node',
+            kind: 'List',
+            id: 'l',
+            props: {},
+            children: [],
+            blocks: [
+              {
+                type: 'Node',
+                kind: 'ListItem',
+                id: 'i',
+                props: {},
+                children: [],
+                blocks: [
+                  {
+                    type: 'Paragraph',
+                    id: 'q',
+                    children: [{ type: 'Text', id: 'b', text, marks }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+    const changeSet = replaceChangeSet(listed('old'), listed('new'))
+    // As a transaction reports it: the run, and the block holding it.
+    expect([...changeSet.dirtyNodes].sort()).toEqual(['b', 'q'])
+    expect([...changeSet.textChanged]).toEqual(['b'])
+    expect(changeSet.structureChanged).toBe(false)
+    // Marks are what a run draws too, so a change to them alone makes it dirty, though its
+    // text did not change.
+    const marked = replaceChangeSet(listed('old'), listed('old', ['Bold']))
+    expect([...marked.dirtyNodes].sort()).toEqual(['b', 'q'])
+    expect(marked.textChanged.size).toBe(0)
+    const drawn = mount(document, listed('old'))
+    const kept = drawn.elements.get(RichText.NodeId.make('a'))
+    const patched = patch(drawn, listed('new'), changeSet)
+    expect(patched.root.isEqualNode(mount(document, listed('new')).root)).toBe(true)
+    expect(patched.elements.get(RichText.NodeId.make('a'))).toBe(kept)
   })
 })

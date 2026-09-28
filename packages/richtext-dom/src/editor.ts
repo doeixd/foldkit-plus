@@ -288,6 +288,23 @@ export const patchEditor = (
   return true
 }
 
+/** Draws the decorations of the editor at `hostId` again; false when none is attached there. */
+export const redecorateEditor = (hostId: string): boolean => {
+  const host = document.getElementById(hostId)
+  const attachment = host === null ? undefined : attachmentIn(host)
+  attachment?.redecorate()
+  return attachment !== undefined
+}
+
+/**
+ * The latest document the editor at `hostId` holds (`Attachment.held`), or undefined when none
+ * is attached there.
+ */
+export const heldDocument = (hostId: string): RichText.Document | undefined => {
+  const host = document.getElementById(hostId)
+  return host === null ? undefined : attachmentIn(host)?.held()
+}
+
 /** The editor's events as a mount: one attachment per element, released with it.
  *  The rendering registry is looked up by the host id the placement recorded
  *  (§122), so it reaches the mount without entering a Model or a mount's args. */

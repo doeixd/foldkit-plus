@@ -18,12 +18,14 @@ export interface InputMatch {
 }
 
 /**
- * A rule over the text before the caret. `match` is a pure read: it sees the text and
- * nothing else, so a rule cannot depend on a selection, a clock, or the Model.
+ * A rule over the text before the caret. `match` is a pure read: it sees the text and the
+ * kinds of the node blocks around the caret's block, innermost first (`['ListItem',
+ * 'List']` inside a bulleted item), and nothing else, so a rule cannot depend on a
+ * selection, a clock, or the Model.
  */
 export interface InputRule {
   readonly name: string
-  readonly match: (textBefore: string) => InputMatch | undefined
+  readonly match: (textBefore: string, within: ReadonlyArray<string>) => InputMatch | undefined
 }
 
 /** One edit to read a rule against, named so two strings cannot be handed over swapped. */
@@ -34,6 +36,8 @@ export interface InputContext {
   readonly text: string
   /** The insertion itself, which a matching rule then acts on. */
   readonly insertion: Command
+  /** The kinds of the node blocks around the caret's block, innermost first. Default none. */
+  readonly within?: ReadonlyArray<string>
 }
 
 /**
@@ -49,7 +53,7 @@ export interface InputContext {
 export const applyInputRules = (rules: ReadonlyArray<InputRule>, input: InputContext): Action => {
   const typed = `${input.textBefore}${input.text}`
   for (const rule of rules) {
-    const matched = rule.match(typed)
+    const matched = rule.match(typed, input.within ?? [])
     if (matched === undefined) continue
     if (!Number.isInteger(matched.remove) || matched.remove < 0 || matched.remove > typed.length) {
       throw new RangeError(

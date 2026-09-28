@@ -74,11 +74,18 @@ export type Command =
    */
   | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
   /**
-   * Replaces the text block the selection starts in with a node kind that holds text, such
-   * as a `CodeBlock`, carrying its text and marks. Identities are never reused, so the block
-   * and its runs get new ones and the selection moves onto them at the same offsets.
+   * Retypes the text block the selection starts in to a node kind that holds text, such as a
+   * `CodeBlock`. The block and its runs keep their identities, text, and marks.
    */
   | { readonly type: 'ConvertBlock'; readonly to: Container }
+  /**
+   * Retypes the container the selection starts in (the node block holding its block, such as
+   * a list item) to another node kind, where it stands: its identity and every block it holds
+   * are kept, so edits made inside it meanwhile survive. Only from the container's first block,
+   * which is where a marker for the container is typed. Given a vocabulary, the new kind must
+   * hold blocks, hold each block the container holds, and stand where the container does.
+   */
+  | { readonly type: 'RetypeContainer'; readonly to: Container }
   /**
    * Lifts the block the selection starts in out of its container, the inverse of a wrap:
    * repeated while the new parent's declaration refuses it, so a list item's paragraph leaves
@@ -92,6 +99,12 @@ export type Command =
    * the selection with them. A container the move leaves empty is deleted.
    */
   | { readonly type: 'MoveBlock'; readonly node: NodeId; readonly to: Beside }
+  /**
+   * Sets the named props of a node block, such as a task item's `checked`, keeping the rest.
+   * It addresses the block by identity, as `MoveBlock` does, so a checkbox sends it for its
+   * own item. Given a vocabulary, props that decode as the kind's must still decode after.
+   */
+  | { readonly type: 'SetProps'; readonly node: NodeId; readonly props: Schema.JsonObject }
 
 /** Where `MoveBlock` puts a block: before or after a sibling, named by identity. */
 export const Beside = Schema.Union([
@@ -802,47 +815,16 @@ const startingBlock = (
 }
 
 /**
- * Replaces a block with one that carries its runs under new identities, where it stood, and
- * moves the selection onto them: how text crosses between a text block and a node kind that
- * holds text. `apply` refuses an identity reused in one transaction, even one just deleted,
- * so the runs cannot keep theirs (§131).
+ * Retype, wrap, convert, retype a container, and lift: each reshapes the starting block, or
+ * the container holding it, where it stands.
  */
-const replaceCarryingText = (
-  state: EditorState,
-  { block, path, parent, selection }: StartingBlock,
-  ids: CommandIds,
-  make: (id: NodeId, children: ReadonlyArray<Run>) => Block,
-): TransactionResult => {
-  const runs = block.type === 'Unknown' ? [] : block.children
-  const renamed = new Map(runs.map(run => [run.id, NodeId.make(ids.mint())]))
-  const moved = (position: Position): Position => {
-    const node = renamed.get(position.node)
-    return node === undefined ? position : { ...position, node }
-  }
-  return apply(state, [
-    Edit.deleteBlock(block.id),
-    Edit.insertBlock(
-      make(
-        NodeId.make(ids.mint()),
-        runs.map(run => ({ ...run, id: renamed.get(run.id)! })),
-      ),
-      path[path.length - 1]!,
-      parent?.id,
-    ),
-    Edit.setSelection({
-      type: 'Range',
-      anchor: moved(selection.anchor),
-      focus: moved(selection.focus),
-    }),
-  ])
-}
-
-/** Retype, wrap, convert, and lift: each reshapes the starting block where it stands. */
 const runBlockCommand = (
   state: EditorState,
   command: Extract<
     Command,
-    { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'LiftBlock' }
+    {
+      readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'RetypeContainer' | 'LiftBlock'
+    }
   >,
   starting: StartingBlock,
   ids: CommandIds,
@@ -854,27 +836,46 @@ const runBlockCommand = (
     const lifted = liftOperations(state.document, block.id, ids, options.nodes)
     return lifted === undefined ? failure('InvalidInput') : apply(state, lifted)
   }
+  if (command.type === 'RetypeContainer') {
+    if (parent?.type !== 'Node' || parent.blocks === undefined || index !== 0) {
+      return failure('InvalidInput')
+    }
+    const { kind } = command.to
+    if (refusesProps(options.nodes, command.to)) return failure('InvalidInput')
+    const outerPath = parentPath.slice(0, -1)
+    const outer = outerPath.length === 0 ? undefined : blockAtPath(state.document, outerPath)
+    const declared = options.nodes?.definitionFor(kind)
+    const allowed =
+      holdsBlocks(options.nodes, kind) &&
+      acceptsChild(state.document, outerPath, kind, options.nodes) &&
+      standsWithin(declared, outer === undefined ? undefined : blockKind(outer)) &&
+      parent.blocks.every(
+        child =>
+          kindAccepts(options.nodes, kind, blockKind(child)) &&
+          standsWithin(options.nodes?.definitionFor(blockKind(child)), kind),
+      )
+    if (!allowed) return failure('UnexpectedChild')
+    return apply(state, [
+      Edit.retypeBlock(parent.id, { type: 'Node', kind, props: command.to.props ?? {} }),
+    ])
+  }
   if (command.type === 'RetypeBlock') {
     // A retype keeps the block where it is, so the parent's constraint decides whether
     // the new kind belongs there.
     if (!acceptsChild(state.document, parentPath, command.to.type, options.nodes)) {
       return failure('UnexpectedChild')
     }
-    if (block.type === 'Paragraph' || block.type === 'Heading') {
-      return apply(state, [Edit.retypeBlock(block.id, command.to)])
-    }
-    // Leaving a node kind that holds text — a code block back to a paragraph — is a replace,
-    // as entering one is. Only a vocabulary says a kind holds text: without one, a node
-    // could be an image, whose content a retype would destroy.
-    if (block.type !== 'Node' || !declaresText(options.nodes, block.kind)) {
+    // Leaving a node kind that holds text — a code block back to a paragraph — keeps the
+    // block and its runs, as entering one does. Only a vocabulary says a kind holds text:
+    // without one, a node could be an image, whose content a retype would destroy.
+    if (
+      block.type !== 'Paragraph' &&
+      block.type !== 'Heading' &&
+      (block.type !== 'Node' || !declaresText(options.nodes, block.kind))
+    ) {
       return failure('InvalidInput')
     }
-    const to = command.to
-    return replaceCarryingText(state, starting, ids, (id, children) =>
-      to.type === 'Heading'
-        ? { type: 'Heading', id, level: to.level, children }
-        : { type: 'Paragraph', id, children },
-    )
+    return apply(state, [Edit.retypeBlock(block.id, command.to)])
   }
 
   if (command.type === 'WrapBlock') {
@@ -953,14 +954,9 @@ const runBlockCommand = (
   ) {
     return failure('ForbiddenMark')
   }
-  const props = command.to.props ?? {}
-  return replaceCarryingText(state, starting, ids, (id, children) => ({
-    type: 'Node',
-    kind,
-    id,
-    props,
-    children,
-  }))
+  return apply(state, [
+    Edit.retypeBlock(block.id, { type: 'Node', kind, props: command.to.props ?? {} }),
+  ])
 }
 
 /**
@@ -978,6 +974,19 @@ export const run = (
   const declared = options.marks ?? shippedRegistry
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
+  }
+  if (command.type === 'SetProps') {
+    const target = locateBlock(state.document, command.node)?.block
+    if (target?.type !== 'Node') return failure('InvalidInput')
+    // Refused only when it makes valid props invalid: props already outside the kind's
+    // schema (a key from an older version, say) cannot be deleted, so refusing every change
+    // to them would leave the block uneditable.
+    const refuses = (props: Schema.JsonObject) =>
+      refusesProps(options.nodes, { kind: target.kind, props })
+    if (refuses({ ...target.props, ...command.props }) && !refuses(target.props)) {
+      return failure('InvalidInput')
+    }
+    return apply(state, [Edit.setProps(command.node, command.props)])
   }
   if (command.type === 'MoveBlock') {
     const moving = locateBlock(state.document, command.node)
@@ -1097,6 +1106,7 @@ export const run = (
     command.type === 'RetypeBlock' ||
     command.type === 'WrapBlock' ||
     command.type === 'ConvertBlock' ||
+    command.type === 'RetypeContainer' ||
     command.type === 'LiftBlock'
   ) {
     const target = startingBlock(state.document, selection)
@@ -1349,7 +1359,7 @@ export type Action = ReadonlyArray<Command>
  * one command retired and a later one restored appears in both sets, and a patch reads
  * that as "remove it, then render it", so it never under-invalidates.
  */
-const unionChangeSet = (left: ChangeSet, right: ChangeSet): ChangeSet => ({
+export const unionChangeSet = (left: ChangeSet, right: ChangeSet): ChangeSet => ({
   dirtyNodes: new Set([...left.dirtyNodes, ...right.dirtyNodes]),
   insertedNodes: new Set([...left.insertedNodes, ...right.insertedNodes]),
   removedNodes: new Set([...left.removedNodes, ...right.removedNodes]),
@@ -1378,12 +1388,14 @@ export const runAction = (
   let current = started.state
   let changeSet = started.changeSet
   let positionMap = started.positionMap
+  let transactions = started.transactions
   for (const command of rest) {
     const result = run(current, command, ids, options)
     if (!result.ok) return result
     current = result.state
     changeSet = unionChangeSet(changeSet, result.changeSet)
     positionMap = [...positionMap, ...result.positionMap]
+    transactions = [...transactions, ...result.transactions]
   }
-  return { ok: true, state: current, changeSet, positionMap }
+  return { ok: true, state: current, changeSet, positionMap, transactions }
 }

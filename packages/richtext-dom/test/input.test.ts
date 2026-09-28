@@ -46,6 +46,14 @@ describe('the editor as a form control', () => {
     expect(body.field(submitted)).toMatchObject({ _tag: 'Invalid', errors: ['Required'] })
   })
 
+  it.each<[string, Message]>([
+    ['the patch Command’s completion', Message.Patched()],
+    ['the same caret, reported again', Message.Selected({ selection: caret('blank-t', 0) })],
+  ])('keeps the form’s Model for %s', (_, message) => {
+    const placed = step(PostForm.initial, Message.Selected({ selection: caret('blank-t', 0) }))
+    expect(step(placed, message)).toBe(placed)
+  })
+
   it('keeps what is typed in its own Model, as the key’s value', () => {
     const placed = step(PostForm.initial, Message.Selected({ selection: caret('blank-t', 0) }))
     const typed = step(placed, Message.Typed({ text: 'Hello' }))

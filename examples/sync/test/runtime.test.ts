@@ -37,6 +37,12 @@ it('runs the application over Sync.mount: durable changes render at once and per
           if (revision !== null) yield* Effect.promise(() => held)
           yield* storage.save(state, revision)
         }),
+      // A submit appends its operation rather than saving the whole state.
+      append: (entry, revision) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => held)
+          yield* storage.append!(entry, revision)
+        }),
     }),
   )
   const container = document.createElement('div')

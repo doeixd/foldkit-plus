@@ -269,6 +269,15 @@ replica. If an application genuinely needs different replay semantics, `make`
 accepts a custom `replay`, but that custom replay does not get the derived
 guardrails.
 
+When the work between intent and fact needs nothing but the Model — an id minted
+from a local counter, say — return the fact as `Sync.fact(message)` instead of an
+ordinary Command. `Sync.mount` applies it straight after the intent's `update`,
+in the same transition, and persists it if it is durable. An ordinary Command's
+Message arrives later, so a second intent dispatched in the meantime would read
+the Model from before the fact and could mint the same id. Outside `mount`, or
+once a parent has mapped it, `Sync.fact` is an ordinary Command that yields the
+Message.
+
 ## Running a replica
 
 The low-level runtime is a `Replica`. It owns the local outbox, committed shared
@@ -340,18 +349,21 @@ operation may run many times as the authoritative base changes beneath it.
 
 ## Synchronization
 
-A replica exchanges two things with the server:
+A replica exchanges these with the server:
 
 ```text
 request
   current cursor
   pending operations
+  the server's epoch, once the replica has heard one
 
 response
   newly committed operations
   acknowledgements
   rejections
   optional checkpoint
+  optional more (the replica asks again at once)
+  optional epoch
 ```
 
 `replica.synchronize` performs one exchange through the `Transport` Effect
@@ -364,8 +376,12 @@ const once = replica.synchronize.pipe(
 ```
 
 `replica.start` is the long-running convenience loop. It exchanges once, then
-wakes after every submit. Transport failures are recorded in
-`status.lastError`; the loop survives and retries on the next wake.
+wakes after every submit and every notice the transport hears from the server
+(`Transport.changes`). A failed exchange, whether the wire failed or the
+response was refused, is recorded in `status.lastError` and announced on
+`statusChanges`; the loop survives and retries on a backoff from 0.5 s up to
+30 s, or at once on the next submit, so an outbox is delivered even if nobody
+types again.
 
 ```ts
 Effect.runFork(
@@ -383,7 +399,9 @@ the replica validates the response and applies the protocol rules.
 
 An acknowledgement says an operation the replica sent is durably accepted, so
 it may leave the outbox even if its committed payload is not repeated in this
-response.
+response. While a paged response says there is `more`, an acknowledged operation
+stays pending, because its committed copy may be on a later page; it leaves once
+that copy arrives or the last page has been read.
 
 ### Rejections
 
@@ -420,6 +438,31 @@ The replica adopts the checkpoint as its committed base, then rebases its local
 pending operations on top. A checkpoint behind the replica's current cursor is
 rejected with `CheckpointRegressionError` rather than silently moving history
 backwards.
+
+### Paged answers
+
+A server may answer with only part of what follows the cursor and set `more:
+true`. `synchronize` then exchanges again at once, until an answer has no
+`more` or a round moves the cursor nowhere. A replica that was offline for a
+long time therefore catches up in bounded steps within one `synchronize`. The
+example servers page with Durable's `read(key, cursor, { limit })`.
+
+### Coalescing a burst
+
+Typing makes one durable Message per keystroke. A contract can merge them while
+the server has not seen them. `make({ ..., coalesce: (last, next) => merged })`
+is offered each submitted Message together with the last one in the outbox. If
+it returns a Message, that Message replaces the last operation under the last
+operation's id; if it returns `undefined`, the new Message gets an operation of
+its own. Replaying the merged Message must give the same result as replaying
+`last` then `next`.
+
+An operation is merged into only while no exchange has carried it. Once one has,
+even an exchange that failed, the server may already have committed it as it
+was. An operation loaded from storage is never merged into either. So there is
+no timer to tune: a burst typed while an exchange is out becomes one operation,
+and a single keystroke goes out as quickly as it did before. The local sequence
+still advances on every submit.
 
 ## Replica status and UI state
 
@@ -580,6 +623,18 @@ await mounted.dispose()
 `dispose()` waits for in-flight persists started by the mount; the Replica itself
 remains separately owned and must be closed with its scope/lifecycle.
 
+The mount replaces the shared slice outside `update` in two cases: when an
+exchange changes what the replica holds (it commits, acknowledges or rejects
+something), and when a failed persist reverts its edit. A replica status that
+changes nothing the Model shows, such as the one a mount starts with, replaces
+nothing. `onReinstall(next, previous)` sees both cases and returns the
+transition, so local state that points into the shared slice (a selection) can
+be carried across the change, and a Command can take it where it has to go (a
+DOM that is patched rather than re-rendered). Omitted, the Model is simply
+`next`. A durable `Sync.fact` it returns is a new edit, so return one only for
+what changed: returned every time, it adds an edit per exchange, and while
+storage keeps failing, one per failure.
+
 ### URL, Mirror, and agents
 
 The optional `url` option routes navigation through the application:
@@ -690,9 +745,19 @@ const storage = yield* Sync.indexedDb('todos/tab-1')
 ```
 
 Stored replica state includes protocol/schema versions, document/replica
-identity, cursor, committed snapshot, local sequence, and pending operations.
+identity, cursor, the server's epoch, committed snapshot, local sequence, and
+pending operations.
 Persisted and remote operations are decoded strictly against the application
 Message Schema.
+
+A submit writes only its operation. A `Storage` may implement the optional
+`append(entry, expectedRevision)`, which records one operation with the
+replica's next revision and local sequence. `load` then returns the saved state
+with those operations added to its outbox. The IndexedDB adapter keeps them in an
+`outbox` store beside the state, so a keystroke costs the size of the operation,
+not of the document. An exchange changes the committed snapshot, so it still
+saves the whole state, which clears the appended rows. A storage without
+`append` saves the whole state on every submit, as before.
 
 Important recovery cases:
 
@@ -706,8 +771,26 @@ Important recovery cases:
   the application can offer an explicit reset/recovery path.
 - **Unsupported storage version.** `UnsupportedReplicaVersionError` names the
   persisted and supported versions so migration/reset can be explicit.
+- **Rolling back past the outbox store.** The IndexedDB adapter upgrades its
+  database to version 2, adding the `outbox` store. A release from before that
+  opens it as version 1, which the browser refuses with a `VersionError`, so a
+  rollback that far needs a new database name or a reset.
+- **Another tab blocks the upgrade.** Opening fails with a `StorageError`
+  rather than waiting; a connection the upgrade opens later is closed.
 - **Server compaction.** A checkpoint replaces history the replica can no longer
   replay and pending local work is rebased on it.
+- **Server reset.** A server that answers with an `epoch` (Durable's
+  `journal.epoch(key)`) names its history, and the replica stores it and sends
+  it back as `exchange`'s third argument. A server that finds another epoch
+  answers from sequence 0 of its own history, and should skip its
+  cursor-ahead check for that request. The replica then rebuilds its committed
+  state from that answer and keeps its outbox, which the same exchange delivers.
+  Everything the old server committed is gone, on every replica; only what was
+  still pending survives. The replica trusts a server that names a new epoch to
+  have answered from its start; it does not check. A replica that has never
+  heard an epoch takes the first one as its own, so a reset before that is not
+  recognized: such a replica fails every exchange (its cursor is ahead of the
+  server's) until its storage is cleared.
 
 Application Message/shared-state migrations remain application policy; Sync
 versioning protects its own persisted envelope.
@@ -726,10 +809,26 @@ Sync.transport.serve(...)
 Sync.transport.nativeSocket(...)
 ```
 
-The reconnecting socket transport uses bounded retries/queueing, exponential
-jittered backoff, and keeps request identities stable when resending queued or
-in-flight exchanges. A server rejection is protocol data; only a wire failure is
+The socket transport reconnects for as long as its layer lives, on an
+exponential, jittered backoff capped at `maxRetryDelay` (5 s by default), and
+keeps request identities stable when resending queued or in-flight exchanges.
+After `maxRetries` consecutive failed connections (5 by default) queued work
+fails and new exchanges fail fast while no socket is open. The count resets
+only when a connection proves healthy, by answering a frame or by staying open
+for `maxRetryDelay`, so a server that accepts each socket and drops it is backed
+off like one that refuses it. The queue is bounded by `maxQueue`. A server rejection is protocol data; only a wire failure is
 a `TransportError`.
+
+The server can also tell a client that something changed. Pass `serve` a
+`changes` subscription, a function that takes a listener and returns its
+unsubscribe, and it sends the socket a `{ notify: true }` frame after each
+commit. The client's socket transport exposes these notices, and every
+(re)connection, as the `Transport`'s optional `changes` stream, which
+`replica.start` wakes on as it does on a submit. A notice carries no data: the
+exchange that follows reads from the replica's own cursor, so a lost or repeated
+notice is harmless, and a replica that is only reading still sees others' edits
+without polling. With Durable, the subscription is `journal.subscribe` filtered
+to the document's key; `examples/sync/src/server.ts` wires it.
 
 Transport is deliberately below reconciliation. A custom transport can carry
 the same exchange without changing replica semantics.
@@ -742,7 +841,18 @@ next week.
 
 `Sync.presence.make` creates a TTL'd peer registry. Values are decoded before
 they enter the registry; a peer that stops refreshing is removed. Changes are
-available both as a callback subscription and as a Stream.
+available both as a callback subscription and as a Stream. A caret sets a new
+value on nearly every keystroke; with `throttle: '50 millis'` a value set after
+a quiet interval is sent at once, and those set within the interval wait, only
+the latest of them sent when it ends. The peer's own entry changes at once. A departure (`leave`) is sent immediately
+and cancels a value still waiting.
+
+Presence can share the socket transport's connection. `transport.socket` is a
+stable handle to it: a send goes to the socket that is open now and is dropped
+while none is, and messages from every socket the transport opens arrive
+through it. So `Sync.presence.socketChannel(transport.socket)` survives
+reconnects without being bound again. After a reconnect the server has
+forgotten the peer's value, so announce it again within the time to live.
 
 Presence can travel through:
 
@@ -973,7 +1083,8 @@ declared projection; treat any other write as a bug.
 - There is no operational transform / collaborative text algorithm.
 - Binding the socket transport and presence server to a platform WebSocket
   server remains application/platform glue. The sync example demonstrates a
-  `ws` transport binding; presence over that server is not wired there today.
+  `ws` transport binding. `examples/pages` serves presence over the same socket,
+  and shows remote carets.
 - Application schema migration remains application policy. Sync versions and
   validates its own persisted/wire envelope.
 

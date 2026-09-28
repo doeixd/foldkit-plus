@@ -60,7 +60,10 @@ it('commits a durable operation from an MCP tool call and converges a replica', 
       id: 1,
       result: { content: [{ type: 'text', text: 'Dispatched RenamedTodo' }] },
     })
-    expect(journal.read('todos', 0).at(-1)).toMatchObject({ replicaId: 'agent', actorId: 'owner' })
+    expect(journal.read('todos', 0).at(-1)).toMatchObject({
+      replicaId: 'agent-owner',
+      actorId: 'owner',
+    })
 
     // The browser replica converges on the committed operation.
     await replica.synchronize(journal.transport(principal))

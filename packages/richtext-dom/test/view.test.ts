@@ -394,6 +394,21 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(text(span ?? null)).toBe('plain')
   })
 
+  it('draws a decoration on an empty run as the editor does, with its data', () => {
+    const empty = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'e', text: '', marks: [] }] },
+      ],
+    })
+    const rendered = renderDocument(empty, RichText.noRendering, [
+      { ...decoration(['e', 0], ['e', 1], 'peer'), data: { name: 'Ada' } },
+    ]) as unknown as VNode
+    const span = decorated(rendered)
+    expect(attr(span ?? null, 'data-decoration')).toBe('peer')
+    expect(attr(span ?? null, 'data-decoration-name')).toBe('Ada')
+  })
+
   it('keeps a run’s marks on the pieces a decoration does not cover', () => {
     const content = RichText.decodeDocument({
       version: 1,

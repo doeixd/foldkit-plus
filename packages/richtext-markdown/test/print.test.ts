@@ -92,18 +92,6 @@ describe('printing a document as Markdown', () => {
     )
   })
 
-  it('keeps a second block inside its item, aligned under the marker', () => {
-    const document = decode([
-      node('List', 'l', {}, [
-        node('ListItem', 'li', {}, [
-          paragraph('p1', [text('t1', 'one', [])]),
-          node('List', 'inner', {}, [item('a', [text('a-t', 'nested', [])])]),
-        ]),
-      ]),
-    ])
-    expect(print(document).markdown).toBe('- one\n\n  - nested\n')
-  })
-
   it('prints a task item as GFM’s checkbox, checked or not', () => {
     const document = decode([
       node('List', 'l', {}, [
@@ -543,5 +531,97 @@ describe('reading Markdown a writer could type', () => {
       parsed.document.children.map(block => block.children.map(run => run.text).join('')),
     ).toEqual(['x'])
     expect(parsed.diagnostics.map(diagnostic => diagnostic.detail)).toContain('linkReference')
+  })
+})
+
+describe('a list’s spacing', () => {
+  const read = (markdown: string) => {
+    let n = 0
+    return parse(markdown, { mint: () => `m${n++}` })
+  }
+  const shape = (document: RichText.Document) =>
+    JSON.stringify(document, (key, value: unknown) => (key === 'id' ? undefined : value))
+  /** Prints the parse of `markdown` in its style, and checks that reads back as the same. */
+  const reprint = (markdown: string) => {
+    const first = read(markdown)
+    const printed = print(first.document, { style: first.style }).markdown
+    const second = read(printed)
+    expect(shape(second.document)).toBe(shape(first.document))
+    expect(Object.values(second.style.blocks ?? {})).toEqual(
+      Object.values(first.style.blocks ?? {}),
+    )
+    return printed
+  }
+
+  it.each([
+    ['a tight nested list', '- a\n  - b\n'],
+    ['a tight nested list before another item', '- a\n  - b\n- c\n'],
+    ['tight ordered lists', '1. a\n   1. b\n2. c\n'],
+    ['other markers', '* a\n  1) b\n  2) c\n'],
+    ['tight task items', '- [ ] a\n  - [x] b\n- [x] c\n'],
+    ['a loose list', '- a\n\n- b\n'],
+    ['a loose list holding a tight one', '- a\n\n  - b\n  - c\n\n- d\n'],
+    ['an item of paragraph, list, paragraph', '- a\n\n  - b\n\n  c\n'],
+    ['a loose ordered list', '1. a\n\n2. b\n'],
+  ])('prints %s as it was written', (_, markdown) => {
+    expect(reprint(markdown)).toBe(markdown)
+  })
+
+  // CommonMark calls a list loose for a blank line inside one item as well as between items.
+  it.each([
+    ['- a\n\n  b\n- c\n', '- a\n\n  b\n\n- c\n'],
+    ['- a\n  - b\n\n  c\n', '- a\n\n  - b\n\n  c\n'],
+  ])('keeps %j loose, blank lines between its items too', (markdown, printed) => {
+    expect(
+      Object.values(read(markdown).style.blocks ?? {}).map(spelling => spelling.spacing),
+    ).toContain('loose')
+    expect(reprint(markdown)).toBe(printed)
+  })
+
+  const itemOf = (...blocks: ReadonlyArray<unknown>) =>
+    decode([node('List', 'l', {}, [node('ListItem', 'li', {}, blocks)])])
+
+  it.each<[string, RichText.Document, string]>([
+    [
+      'a nested list right under the paragraph',
+      itemOf(
+        paragraph('p', [text('pt', 'a')]),
+        node('List', 'n', {}, [item('b', [text('bt', 'b')])]),
+      ),
+      '- a\n  - b\n',
+    ],
+    [
+      'a blank line before a list numbered from 3, which cannot interrupt a paragraph',
+      itemOf(
+        paragraph('p', [text('pt', 'a')]),
+        node('List', 'n', { ordered: true, start: 3 }, [item('b', [text('bt', 'b')])]),
+      ),
+      '- a\n\n  3. b\n',
+    ],
+    [
+      'a blank line before a list whose first item is empty',
+      itemOf(
+        paragraph('p', [text('pt', 'a')]),
+        node('List', 'n', {}, [node('ListItem', 'e', {}, [])]),
+      ),
+      '- a\n\n  - \n',
+    ],
+    [
+      'a blank line between two paragraphs',
+      itemOf(paragraph('p', [text('pt', 'a')]), paragraph('q', [text('qt', 'b')])),
+      '- a\n\n  b\n',
+    ],
+    [
+      'a blank line before a paragraph after a list',
+      itemOf(
+        paragraph('p', [text('pt', 'a')]),
+        node('List', 'n', {}, [item('b', [text('bt', 'b')])]),
+        paragraph('q', [text('qt', 'c')]),
+      ),
+      '- a\n  - b\n\n  c\n',
+    ],
+  ])('prints a document with no style tight, with %s', (_, document, printed) => {
+    expect(print(document).markdown).toBe(printed)
+    expect(shape(read(printed).document)).toBe(shape(document))
   })
 })

@@ -1384,15 +1384,16 @@ const Core = {
             if (inner._tag === 'Submitted') return submitted(model)
             const answered = plan.form.bundle.update(row.model, inner, undefined)
             const lifted = lift(message.key, row.id, answered.commands ?? [])
-            // A row left as it was leaves this form as it was.
-            if (answered.model === row.model) return { model, commands: lifted }
-            const next = withRows(
-              model,
-              message.key,
-              rowsOf(model)[message.key]!.map(held =>
-                held.id === row.id ? { id: row.id, model: answered.model } : held,
-              ),
-            )
+            const next =
+              answered.model === row.model
+                ? model
+                : withRows(
+                    model,
+                    message.key,
+                    rowsOf(model)[message.key]!.map(held =>
+                      held.id === row.id ? { id: row.id, model: answered.model } : held,
+                    ),
+                  )
             const edit =
               isEdit(inner) || plan.form.engine.authoredChanged(row.model, answered.model)
             return resume(edit ? edited(next) : next, lifted)

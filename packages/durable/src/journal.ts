@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as SqliteClient from '@effect/sql-sqlite-node/SqliteClient'
 import {
   Config,
@@ -41,7 +41,9 @@ import {
   UnsupportedJournalVersionError,
 } from './errors.js'
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 6
+/** How many documents' states a journal keeps decoded in memory. */
+const CACHED_DOCUMENTS = 256
 
 /** Counters an application can scrape; the default registry already collects them. */
 export const journalMetrics = {
@@ -118,6 +120,29 @@ export interface JournalOptions<
   readonly authorize?: (
     request: AuthorizationRequest<Operation, Snapshot, Principal>,
   ) => AuthorizationDecision | Effect.Effect<AuthorizationDecision, JournalError>
+  /**
+   * How many commits pass between writes of the snapshot; `load` replays the
+   * operations since the last one. Default 1, a write per commit. A larger value
+   * trades a short replay on load for not encoding a large snapshot per append.
+   * The journal keeps the snapshot in memory either way, so an append decodes it
+   * only after another connection changed the document.
+   */
+  readonly snapshotEvery?: number
+  /**
+   * The replica an operation came from, when operations carry one. The first commit from a
+   * replica binds it to the committing actor, per document, and an operation from that
+   * replica by any other actor is refused (`OperationRejectedError`) before `validate`
+   * runs, so the replica a committed operation names is one its actor holds. The first
+   * actor to use an id claims it, so ids should be unguessable or assigned per actor.
+   */
+  readonly replicaId?: (operation: Operation) => string
+  /**
+   * Recovers a replica from the id of a compacted operation written before schema 6.
+   * Required to enable `replicaId` on such a journal: its payload is gone, so the
+   * operation cannot be decoded. The journal refuses to open rather than let another
+   * actor claim an unrecognized replica.
+   */
+  readonly legacyReplicaId?: (opId: OpId) => string
 }
 
 /**
@@ -180,11 +205,28 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
   readonly load: (
     key: DocumentId,
   ) => Effect.Effect<{ readonly snapshot: Snapshot; readonly cursor: Cursor }, JournalError>
+  /**
+   * The sequence of the document's last commit; `0` if none. Unlike `load`, it
+   * decodes nothing, so an exchange can check a client's cursor before it
+   * appends anything.
+   */
+  readonly cursor: (key: DocumentId) => Effect.Effect<Cursor, JournalError>
+  /**
+   * The identity of the document's history: the same while its operations are kept, new
+   * after `reset` or on a new database file. A client that saw another epoch holds a
+   * cursor into history this journal does not have, and must start again from `0`.
+   */
+  readonly epoch: (key: DocumentId) => Effect.Effect<string, JournalError>
   /** The highest sequence whose payload has been compacted away; `0` if none. */
   readonly floor: (key: DocumentId) => Effect.Effect<Sequence, JournalError>
+  /**
+   * The committed operations after `after`, in order: at most `limit` of them when
+   * given, so a caller far behind can catch up in bounded steps.
+   */
   readonly read: (
     key: DocumentId,
     after: Cursor,
+    options?: { readonly limit?: number },
   ) => Effect.Effect<
     ReadonlyArray<Committed<Operation>>,
     InvalidCursorError | CompactedCursorError | JournalError
@@ -211,6 +253,13 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
     key: DocumentId,
     through: Sequence,
   ) => Effect.Effect<void, InvalidCompactionError | JournalError>
+  /**
+   * Rebuilds the database file, returning to the file system the space that
+   * `compact` freed: compaction empties payloads but leaves their pages allocated.
+   * It rewrites every table and holds the database while it runs, so it is
+   * maintenance, not something to run per commit.
+   */
+  readonly vacuum: () => Effect.Effect<void, JournalError>
   /** The document keys that have a snapshot or a committed operation. */
   readonly keys: () => Effect.Effect<ReadonlyArray<DocumentId>, JournalError>
   /** Every recorded effect that is not `succeeded`, for recovery. */
@@ -246,9 +295,10 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
     options: RecoveryOptions<Operation>,
   ) => Effect.Effect<Cursor, InvalidCursorError | CompactedCursorError | JournalError>
   /**
-   * Drops a document's snapshot and operations. Effect records are keyed by
-   * the application's own effect identity, not by document, so they are not
-   * scoped to a key; `clearEffect` removes one.
+   * Drops a document's snapshot and operations, and its epoch, so the next `epoch` differs.
+   * Replica bindings stay: they are who a replica is, not history. Effect records are keyed
+   * by the application's own effect identity, not by document, so they are not scoped to a
+   * key; `clearEffect` removes one.
    */
   readonly reset: (key: DocumentId) => Effect.Effect<void, JournalError>
   /**
@@ -450,6 +500,41 @@ const makeShapeEffect = <
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* migrate(sql)
+    if (options.replicaId !== undefined) {
+      const decode = resolveCodec(options.operation).decode
+      yield* sql
+        .withTransaction(
+          Effect.gen(function* () {
+            const legacy = yield* sql<{
+              readonly key: string
+              readonly op_id: string
+              readonly actor_id: string
+              readonly input: string | null
+            }>`SELECT key, op_id, actor_id, input FROM operations WHERE replica_id IS NULL`
+            for (const row of legacy) {
+              const replica = yield* Effect.try({
+                try: () => {
+                  if (row.input !== null) return options.replicaId!(decode(JSON.parse(row.input)))
+                  if (options.legacyReplicaId === undefined)
+                    throw new Error('A compacted operation needs legacyReplicaId')
+                  return options.legacyReplicaId(toOpId(row.op_id))
+                },
+                catch: cause => journalError('Could not recover a legacy replica', cause),
+              })
+              const bound = yield* sql<{
+                readonly actor_id: string
+              }>`SELECT actor_id FROM replicas WHERE key = ${row.key} AND replica_id = ${replica}`
+              if (bound.length > 0 && bound[0]!.actor_id !== row.actor_id)
+                return yield* Effect.fail(
+                  journalError(`Replica "${replica}" has operations from different actors`, row),
+                )
+              yield* sql`INSERT OR IGNORE INTO replicas (key, replica_id, actor_id) VALUES (${row.key}, ${replica}, ${row.actor_id})`
+              yield* sql`UPDATE operations SET replica_id = ${replica} WHERE key = ${row.key} AND op_id = ${row.op_id}`
+            }
+          }),
+        )
+        .pipe(Effect.catchTag('SqlError', asJournalError('Could not recover legacy replicas')))
+    }
     // A sliding change stream: publishing never blocks a commit, and a slow
     // subscriber drops the oldest keys instead of growing memory without bound.
     // A dropped key is a missed wake-up, not missed data; subscribers reconcile
@@ -533,18 +618,35 @@ const migrate = (
             { discard: true },
           )
         }
+        if (current < 4) {
+          // The snapshot may lag the cursor by up to `snapshotEvery` commits; this
+          // is the sequence it was written at. Every earlier snapshot was current.
+          yield* sql`ALTER TABLE documents ADD COLUMN snapshot_cursor INTEGER NOT NULL DEFAULT 0`
+          yield* sql`UPDATE documents SET snapshot_cursor = cursor`
+        }
+        if (current < 5) {
+          yield* sql`CREATE TABLE IF NOT EXISTS epochs (key TEXT PRIMARY KEY, epoch TEXT NOT NULL)`
+          yield* sql`CREATE TABLE IF NOT EXISTS replicas (
+            key TEXT NOT NULL, replica_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+            PRIMARY KEY (key, replica_id)
+          )`
+        }
+        if (current < 6) {
+          yield* sql`ALTER TABLE operations ADD COLUMN replica_id TEXT`
+          const documents = yield* sql<{ readonly key: string }>`SELECT key FROM documents`
+          yield* Effect.forEach(
+            documents,
+            row =>
+              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${row.key}, ${randomUUID()})`,
+            { discard: true },
+          )
+        }
         // A literal, not a bound parameter: SQLite rejects a placeholder in a
         // PRAGMA assignment. Built from SCHEMA_VERSION so the two cannot drift.
         yield* sql.unsafe(`PRAGMA user_version = ${SCHEMA_VERSION}`)
       }),
     )
   }).pipe(Effect.catchTag('SqlError', asJournalError('Could not migrate the journal')))
-
-interface DocumentRow {
-  readonly cursor: number
-  readonly snapshot: string
-  readonly compact_before: number
-}
 
 interface OperationRow {
   readonly actor_id: string
@@ -580,24 +682,129 @@ const makeShape = <
   const operationCodec: Codec<Operation, OperationEncoded> = resolveCodec(options.operation)
   const snapshotCodec: Codec<Snapshot, SnapshotEncoded> = resolveCodec(options.snapshot)
 
-  const decodeSnapshot = (row: DocumentRow | undefined): { snapshot: Snapshot; cursor: Cursor } =>
-    row === undefined
-      ? { snapshot: options.empty(), cursor: toCursor(0) }
-      : {
-          snapshot: snapshotCodec.decode(JSON.parse(String(row.snapshot))),
-          cursor: toCursor(Number(row.cursor)),
+  const snapshotEvery = options.snapshotEvery ?? 1
+  if (!Number.isSafeInteger(snapshotEvery) || snapshotEvery < 1)
+    throw new Error('Journal: snapshotEvery must be a positive integer')
+
+  /**
+   * A document's state at its cursor, the sequence its stored snapshot was written at, and
+   * the operation committed at the cursor.
+   */
+  interface Current {
+    readonly snapshot: Snapshot
+    readonly cursor: Cursor
+    readonly snapshotCursor: number
+    readonly last: string | null
+    readonly epoch: string | null
+  }
+  /**
+   * The state of each document this journal last read or committed, the most recent few
+   * hundred. A hit needs the stored cursor, snapshot cursor, last operation and epoch to
+   * match, so another connection's commit or reset invalidates it even if a new history
+   * reuses the same cursor and operation id.
+   */
+  const current = new Map<string, Current>()
+  const remember = (key: string, state: Current): void => {
+    current.delete(key)
+    current.set(key, state)
+    if (current.size > CACHED_DOCUMENTS) current.delete(current.keys().next().value!)
+  }
+
+  /**
+   * The document's state at its cursor: from `working` (commits of the transaction in
+   * progress), the cache, or the stored snapshot with the operations since replayed.
+   * Compaction never removes an operation the stored snapshot has not folded in.
+   */
+  const materialize = (key: DocumentId, working?: ReadonlyMap<string, Current>) =>
+    Effect.gen(function* () {
+      const pending = working?.get(key)
+      if (pending !== undefined) return pending
+      const rows = yield* sql<{
+        readonly cursor: number
+        readonly snapshot_cursor: number
+        readonly last: string | null
+        readonly epoch: string | null
+      }>`SELECT d.cursor, d.snapshot_cursor, o.op_id AS last, e.epoch FROM documents d LEFT JOIN operations o ON o.key = d.key AND o.sequence = d.cursor LEFT JOIN epochs e ON e.key = d.key WHERE d.key = ${key}`
+      const row = rows[0]
+      if (row === undefined)
+        return {
+          snapshot: options.empty(),
+          cursor: toCursor(0),
+          snapshotCursor: 0,
+          last: null,
+          epoch: null,
         }
+      const cursor = toCursor(Number(row.cursor))
+      const snapshotCursor = Number(row.snapshot_cursor)
+      const last = row.last === null ? null : String(row.last)
+      const epoch = row.epoch === null ? null : String(row.epoch)
+      const cached = current.get(key)
+      if (
+        cached !== undefined &&
+        cached.cursor === cursor &&
+        cached.snapshotCursor === snapshotCursor &&
+        cached.last === last &&
+        cached.epoch === epoch
+      )
+        return cached
+      const stored = yield* sql<{
+        readonly snapshot: string
+      }>`SELECT snapshot FROM documents WHERE key = ${key}`
+      const since =
+        snapshotCursor < cursor
+          ? yield* sql<{
+              readonly input: string
+            }>`SELECT input FROM operations WHERE key = ${key} AND sequence > ${snapshotCursor} ORDER BY sequence`
+          : []
+      const snapshot = yield* Effect.try({
+        try: () =>
+          since.reduce(
+            (state, operation) =>
+              options.reduce(state, operationCodec.decode(JSON.parse(String(operation.input)))),
+            snapshotCodec.decode(JSON.parse(String(stored[0]!.snapshot))),
+          ),
+        catch: cause => journalError('Could not load the snapshot', cause),
+      })
+      const found = { snapshot, cursor, snapshotCursor, last, epoch }
+      remember(key, found)
+      return found
+    })
 
   const load: Shape['load'] = Effect.fn('Journal.load')(function* (key: DocumentId) {
     yield* Effect.annotateCurrentSpan({ key })
-    const rows =
-      yield* sql<DocumentRow>`SELECT cursor, snapshot FROM documents WHERE key = ${key}`.pipe(
-        Effect.catchTag('SqlError', asJournalError('Could not load the snapshot')),
-      )
-    return yield* Effect.try({
-      try: () => decodeSnapshot(rows[0]),
-      catch: cause => journalError('Could not load the snapshot', cause),
-    })
+    const { snapshot, cursor } = yield* sql
+      .withTransaction(materialize(key))
+      .pipe(Effect.catchTag('SqlError', asJournalError('Could not load the snapshot')))
+    return { snapshot, cursor }
+  })
+
+  const cursor: Shape['cursor'] = Effect.fn('Journal.cursor')(function* (key: DocumentId) {
+    yield* Effect.annotateCurrentSpan({ key })
+    const rows = yield* sql<{
+      readonly cursor: number
+    }>`SELECT cursor FROM documents WHERE key = ${key}`.pipe(
+      Effect.catchTag('SqlError', asJournalError('Could not read the cursor')),
+    )
+    return toCursor(rows[0]?.cursor ?? 0)
+  })
+
+  const epoch: Shape['epoch'] = Effect.fn('Journal.epoch')(function* (key: DocumentId) {
+    yield* Effect.annotateCurrentSpan({ key })
+    const read = sql<{ readonly epoch: string }>`SELECT epoch FROM epochs WHERE key = ${key}`
+    // Read first: an exchange asks every time, and only the first ever needs to write.
+    const rows = yield* read.pipe(
+      Effect.flatMap(found =>
+        found.length > 0
+          ? Effect.succeed(found)
+          : sql.withTransaction(
+              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`.pipe(
+                Effect.andThen(read),
+              ),
+            ),
+      ),
+      Effect.catchTag('SqlError', asJournalError('Could not read the epoch')),
+    )
+    return String(rows[0]!.epoch)
   })
 
   const floor: Shape['floor'] = Effect.fn('Journal.floor')(function* (key: DocumentId) {
@@ -610,39 +817,49 @@ const makeShape = <
     return toSequence(rows[0]?.compact_before ?? 0)
   })
 
-  const read: Shape['read'] = Effect.fn('Journal.read')(function* (key: DocumentId, after: Cursor) {
+  const read: Shape['read'] = Effect.fn('Journal.read')(function* (
+    key: DocumentId,
+    after: Cursor,
+    options?: { readonly limit?: number },
+  ) {
+    const limit = options?.limit ?? -1
+    if (limit !== -1 && (!Number.isSafeInteger(limit) || limit < 1))
+      return yield* Effect.die(new Error('Journal.read: limit must be a positive integer'))
     yield* Effect.annotateCurrentSpan({ key, after })
-    const documents = yield* sql<{
-      readonly cursor: number
-      readonly compact_before: number
-    }>`SELECT cursor, compact_before FROM documents WHERE key = ${key}`.pipe(
-      Effect.catchTag('SqlError', asJournalError('Could not read the log')),
-    )
-    const cursor = toCursor(documents[0]?.cursor ?? 0)
-    if (!Number.isSafeInteger(after) || after < 0 || after > cursor)
-      return yield* Effect.fail(
-        new InvalidCursorError({
-          after,
-          cursor,
-          message: `Cursor ${after} is outside [0, ${cursor}]`,
+    // One transaction, so a compaction cannot land between the floor check and the read
+    // and leave a tail that starts late.
+    const rows = yield* sql
+      .withTransaction(
+        Effect.gen(function* () {
+          const documents = yield* sql<{
+            readonly cursor: number
+            readonly compact_before: number
+          }>`SELECT cursor, compact_before FROM documents WHERE key = ${key}`
+          const cursor = toCursor(documents[0]?.cursor ?? 0)
+          if (!Number.isSafeInteger(after) || after < 0 || after > cursor)
+            return yield* Effect.fail(
+              new InvalidCursorError({
+                after,
+                cursor,
+                message: `Cursor ${after} is outside [0, ${cursor}]`,
+              }),
+            )
+          // Compaction removes the payloads a cursor below the floor would need. Fail
+          // closed rather than returning a tail that silently starts late.
+          const floor = toSequence(documents[0]?.compact_before ?? 0)
+          if (after < floor)
+            return yield* Effect.fail(
+              new CompactedCursorError({
+                after,
+                floor,
+                cursor,
+                message: `Cursor ${after} is below the compaction floor ${floor}`,
+              }),
+            )
+          return yield* sql<OperationRow>`SELECT actor_id, op_id, sequence, input FROM operations WHERE key = ${key} AND sequence > ${after} AND input IS NOT NULL ORDER BY sequence LIMIT ${limit}`
         }),
       )
-    // Compaction removes the payloads a cursor below the floor would need. Fail
-    // closed rather than returning a tail that silently starts late.
-    const floor = toSequence(documents[0]?.compact_before ?? 0)
-    if (after < floor)
-      return yield* Effect.fail(
-        new CompactedCursorError({
-          after,
-          floor,
-          cursor,
-          message: `Cursor ${after} is below the compaction floor ${floor}`,
-        }),
-      )
-    const rows =
-      yield* sql<OperationRow>`SELECT actor_id, op_id, sequence, input FROM operations WHERE key = ${key} AND sequence > ${after} AND input IS NOT NULL ORDER BY sequence`.pipe(
-        Effect.catchTag('SqlError', asJournalError('Could not read the log')),
-      )
+      .pipe(Effect.catchTag('SqlError', asJournalError('Could not read the log')))
     return yield* Effect.try({
       try: () =>
         rows.map(row => ({
@@ -697,8 +914,16 @@ const makeShape = <
       return { operation, opId, actorId, encoded, payloadHash: hashPayload(encoded) }
     })
 
-  /** Commits one prepared operation. Runs inside a transaction and never publishes. */
-  const commitPrepared = (key: DocumentId, prepared: PreparedOperation, principal: Principal) =>
+  /**
+   * Commits one prepared operation. Runs inside a transaction and never publishes; the
+   * state it commits goes into `working`, for the cache once the transaction commits.
+   */
+  const commitPrepared = (
+    key: DocumentId,
+    prepared: PreparedOperation,
+    principal: Principal,
+    working: Map<string, Current>,
+  ) =>
     Effect.gen(function* () {
       const { operation, opId, actorId, encoded, payloadHash } = prepared
       const conflict = (): IdentityConflictError =>
@@ -747,12 +972,37 @@ const makeShape = <
           changed: false,
         }
       }
-      const documents =
-        yield* sql<DocumentRow>`SELECT cursor, snapshot FROM documents WHERE key = ${key}`
-      const { snapshot, cursor } = yield* Effect.try({
-        try: () => decodeSnapshot(documents[0]),
-        catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
-      })
+      let replica: string | null = null
+      if (options.replicaId !== undefined) {
+        replica = yield* Effect.try({
+          try: () => options.replicaId!(operation),
+          catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+        })
+        const bound = yield* sql<{
+          readonly actor_id: string
+        }>`SELECT actor_id FROM replicas WHERE key = ${key} AND replica_id = ${replica}`
+        if (bound.length === 0)
+          yield* sql`INSERT INTO replicas (key, replica_id, actor_id) VALUES (${key}, ${replica}, ${actorId})`
+        else if (String(bound[0]!.actor_id) !== actorId)
+          return yield* Effect.fail(
+            new OperationRejectedError({
+              opId,
+              message: `Operation "${opId}" names a replica another actor holds`,
+            }),
+          )
+      }
+      // A stored state that no longer loads is the server's failure, not this operation's:
+      // it stays a `JournalError`, which a caller retries rather than rejecting the edit.
+      const state = yield* materialize(key, working)
+      let epoch = state.epoch
+      if (epoch === null) {
+        yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
+        const rows = yield* sql<{
+          readonly epoch: string
+        }>`SELECT epoch FROM epochs WHERE key = ${key}`
+        epoch = rows[0]!.epoch
+      }
+      const { snapshot, cursor, snapshotCursor } = state
       const validation = yield* Effect.try({
         try: () => options.validate?.({ key, principal, operation, snapshot, cursor }),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
@@ -784,12 +1034,28 @@ const makeShape = <
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
       const sequence = toSequence(cursor + 1)
-      const encodedSnapshot = yield* Effect.try({
-        try: () => JSON.stringify(snapshotCodec.encode(reduced)),
-        catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+      const encodeSnapshot = (value: Snapshot) =>
+        Effect.try({
+          try: () => JSON.stringify(snapshotCodec.encode(value)),
+          catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+        })
+      yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash, replica_id) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${encoded}, ${payloadHash}, ${replica})`
+      const writes = sequence - snapshotCursor >= snapshotEvery
+      if (writes) {
+        const encodedSnapshot = yield* encodeSnapshot(reduced)
+        yield* sql`INSERT INTO documents (key, cursor, snapshot, snapshot_cursor) VALUES (${key}, ${sequence}, ${encodedSnapshot}, ${sequence}) ON CONFLICT(key) DO UPDATE SET cursor = excluded.cursor, snapshot = excluded.snapshot, snapshot_cursor = excluded.snapshot_cursor`
+      } else if (cursor === 0) {
+        // A first commit that does not write its snapshot starts the row from the empty one.
+        const encodedEmpty = yield* encodeSnapshot(snapshot)
+        yield* sql`INSERT INTO documents (key, cursor, snapshot, snapshot_cursor) VALUES (${key}, ${sequence}, ${encodedEmpty}, 0)`
+      } else yield* sql`UPDATE documents SET cursor = ${sequence} WHERE key = ${key}`
+      working.set(key, {
+        snapshot: reduced,
+        cursor: toCursor(sequence),
+        snapshotCursor: writes ? sequence : snapshotCursor,
+        last: opId,
+        epoch,
       })
-      yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${encoded}, ${payloadHash})`
-      yield* sql`INSERT INTO documents (key, cursor, snapshot) VALUES (${key}, ${sequence}, ${encodedSnapshot}) ON CONFLICT(key) DO UPDATE SET cursor = excluded.cursor, snapshot = excluded.snapshot`
       return {
         result: {
           _tag: 'Committed' as const,
@@ -821,9 +1087,11 @@ const makeShape = <
   ) {
     const prepared = yield* prepare(key, input, principal)
     yield* Effect.annotateCurrentSpan({ key, opId: prepared.opId })
+    const working = new Map<string, Current>()
     const outcome = yield* sql
-      .withTransaction(commitPrepared(key, prepared, principal))
+      .withTransaction(commitPrepared(key, prepared, principal, working))
       .pipe(Effect.catchTag('SqlError', asJournalError('Could not append the operation')))
+    for (const [document, state] of working) remember(document, state)
     yield* announce(key, outcome)
     return outcome.result
   })
@@ -836,13 +1104,15 @@ const makeShape = <
     if (inputs.length === 0) return []
     const prepared = yield* Effect.forEach(inputs, input => prepare(key, input, principal))
     // One transaction, so the batch commits atomically and in order.
+    const working = new Map<string, Current>()
     const outcomes = yield* sql
       .withTransaction(
-        Effect.forEach(prepared, entry => commitPrepared(key, entry, principal), {
+        Effect.forEach(prepared, entry => commitPrepared(key, entry, principal, working), {
           concurrency: 1,
         }),
       )
       .pipe(Effect.catchTag('SqlError', asJournalError('Could not append the operations')))
+    for (const [document, state] of working) remember(document, state)
     yield* Effect.forEach(outcomes, outcome => announce(key, outcome), { discard: true })
     return outcomes.map(outcome => outcome.result)
   })
@@ -870,6 +1140,17 @@ const makeShape = <
         )
       yield* sql.withTransaction(
         Effect.gen(function* () {
+          // The stored snapshot must hold everything compacted away, so a lagging one
+          // is written at the cursor first.
+          const state = yield* materialize(key)
+          if (state.snapshotCursor < through) {
+            const encoded = yield* Effect.try({
+              try: () => JSON.stringify(snapshotCodec.encode(state.snapshot)),
+              catch: cause => journalError('Could not compact', cause),
+            })
+            yield* sql`UPDATE documents SET snapshot = ${encoded}, snapshot_cursor = ${state.cursor} WHERE key = ${key}`
+            remember(key, { ...state, snapshotCursor: state.cursor })
+          }
           yield* sql`UPDATE operations SET input = NULL WHERE key = ${key} AND sequence <= ${through}`
           yield* sql`UPDATE documents SET compact_before = ${through} WHERE key = ${key}`
         }),
@@ -877,6 +1158,22 @@ const makeShape = <
     }).pipe(Effect.catchTag('SqlError', asJournalError('Could not compact')))
     yield* Metric.update(journalMetrics.compactions, 1)
     yield* Effect.logDebug('journal compact', { key, through })
+  })
+
+  const vacuum: Shape['vacuum'] = Effect.fn('Journal.vacuum')(function* () {
+    yield* Effect.gen(function* () {
+      yield* sql`VACUUM`
+      // The client runs in WAL mode, where the rebuilt pages sit in the log until a
+      // checkpoint writes them back and the file can be truncated. A reader elsewhere
+      // blocks that, which SQLite reports as a row rather than an error.
+      const [checkpoint] = yield* sql<{
+        readonly busy: number
+      }>`PRAGMA wal_checkpoint(TRUNCATE)`
+      if (checkpoint !== undefined && Number(checkpoint.busy) !== 0)
+        return yield* Effect.fail(
+          journalError('Could not vacuum: another connection is reading; try again', undefined),
+        )
+    }).pipe(Effect.catchTag('SqlError', asJournalError('Could not vacuum')))
   })
 
   const toEffectRecord = (row: EffectRow): EffectRecord => ({
@@ -940,9 +1237,11 @@ const makeShape = <
         Effect.gen(function* () {
           yield* sql`DELETE FROM operations WHERE key = ${key}`
           yield* sql`DELETE FROM documents WHERE key = ${key}`
+          yield* sql`DELETE FROM epochs WHERE key = ${key}`
         }),
       )
       .pipe(Effect.catchTag('SqlError', asJournalError('Could not reset the document')))
+    current.delete(key)
   })
 
   const record = (
@@ -1063,11 +1362,14 @@ const makeShape = <
 
   return {
     load,
+    cursor,
+    epoch,
     floor,
     read,
     append,
     appendAll,
     compact,
+    vacuum,
     keys,
     unfinished,
     effect,

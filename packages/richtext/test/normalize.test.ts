@@ -215,4 +215,35 @@ describe('run normalization', () => {
     expect(distinct.state.document.children[0]?.children.map(child => child.id)).toEqual(['a', 'b'])
     expect(distinct.changeSet.removedNodes).toEqual(new Set())
   })
+
+  it('merges inside nested blocks, leaving an untouched sibling as it was', () => {
+    // Two quoted paragraphs, each loaded with two equal runs: only the edited one merges.
+    const quoted = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            { type: 'Paragraph', id: 'p', children: [run('a', 'ab', []), run('b', 'cd', [])] },
+            { type: 'Paragraph', id: 'p2', children: [run('c', 'ef', []), run('d', 'gh', [])] },
+          ],
+        },
+      ],
+    })
+    const result = success(
+      RichText.apply({ document: quoted, selection: null }, [
+        RichText.Edit.insertText(RichText.Node.make('b').at(2, 'after'), '!'),
+      ]),
+    )
+    const edited = RichText.blockAtPath(result.state.document, [0, 0])
+    const untouched = RichText.blockAtPath(result.state.document, [0, 1])
+    expect(edited?.children).toEqual([{ type: 'Text', id: 'a', text: 'abcd!', marks: [] }])
+    expect(untouched?.children.map(child => child.id)).toEqual(['c', 'd'])
+    expect(result.changeSet.removedNodes).toEqual(new Set(['b']))
+    expect(result.positionMap).toContainEqual({ node: 'b', into: 'a', at: 0, base: 2 })
+  })
 })

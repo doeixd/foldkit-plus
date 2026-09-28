@@ -107,7 +107,10 @@ print(parsed.document, { style: parsed.style }).markdown // '_hello_\n\n* item\n
 Blocks also keep their own spelling. `style.blocks` maps the id `parse` gave each list, heading,
 fence, and rule to how that one was written, so a text with a `-` list and a `*` list, or a
 setext title over `##` sections, prints back as it was. A block the text did not have, such as
-a list added in the rich editor, takes its construct's spelling. Emphasis stays per construct,
+a list added in the rich editor, takes its construct's spelling. A list's spacing is kept the
+same way: a loose list, one with a blank line between its items or inside one, prints with a
+blank line between its items and their blocks, and a tight one with none, so a nested list sits
+right under its item's text. Without a style, lists print tight. Emphasis stays per construct,
 because runs split and merge as they are edited and their ids do not last.
 
 A spelling that would change what the text means somewhere — `_` does not open emphasis inside
@@ -121,7 +124,10 @@ document than the canonical text, the canonical text is what it returns.
 marker such as `1. ` or `3) ` wrap it in a quote or a list (`WrapBlock`), an ordered list
 numbered from the number typed, and a marker typed right after a list of the same kind adds an
 item to it; and a fence with an optional language, such as
-`` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). An editor
+`` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). `[ ] ` or `[x] ` at
+the start of a list item, which `- ` has made by then, makes the item a task where it stands,
+unticked or ticked (`RetypeContainer`), in a bulleted or an ordered list, with any list nested
+in it. Typed in a later paragraph of the item, the marker stays text, as Markdown reads it. An editor
 placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
 editor state and the editor holds no Markdown:
 

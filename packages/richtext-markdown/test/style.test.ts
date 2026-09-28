@@ -48,6 +48,7 @@ describe('the style a text was written in', () => {
       fence: '~',
       rule: '*',
       heading: 'setext',
+      spacing: 'tight',
     })
     expect(constructs(parse('*a* then _b_, **c** then __d__\n', minted()).style)).toEqual({
       emphasis: '*',
@@ -55,7 +56,7 @@ describe('the style a text was written in', () => {
     })
     expect(
       constructs(parse('- a\n\nb\n\n* c\n\n~~~\nd\n~~~\n\n```\ne\n```\n', minted()).style),
-    ).toEqual({ bullet: '-', fence: '~' })
+    ).toEqual({ bullet: '-', spacing: 'tight', fence: '~' })
   })
 
   it('leaves out what the text never spells, and an indented code block, which has no fence', () => {

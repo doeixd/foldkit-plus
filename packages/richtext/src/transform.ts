@@ -57,9 +57,9 @@ const mergeRunInto = (accumulator: Text, run: Text): Text => ({
 
 /**
  * Merges adjacent runs whose mark sets match, within the blocks the transaction
- * touched. Merging strictly reduces the run count, so one pass reaches a stable
- * state and a second pass finds nothing: the rule is idempotent, and only equal
- * mark sets merge, so an unknown mark never drops.
+ * touched, at any depth. Merging strictly reduces the run count, so one pass reaches
+ * a stable state and a second pass finds nothing: the rule is idempotent, and only
+ * equal mark sets merge, so an unknown mark never drops.
  */
 export const mergeAdjacentRuns: Transform = {
   name: 'mergeAdjacentRuns',
@@ -68,17 +68,9 @@ export const mergeAdjacentRuns: Transform = {
     const removedNodes = new Set<NodeId>()
     const dirtyNodes = new Set<NodeId>()
     const textChanged = new Set<NodeId>()
-    let next: Document = document
-    // One index for the whole pass: merging never adds or removes a block, so
-    // looking each dirty block up in a Map keeps this linear in the blocks the
-    // transaction touched instead of scanning the document per block.
-    const blockIndexes = new Map(document.children.map((block, index) => [block.id, index]))
-    for (const blockId of context.dirtyNodes) {
-      const blockIndex = blockIndexes.get(blockId)
-      if (blockIndex === undefined) continue
-      const block = next.children[blockIndex]!
+    const mergeRuns = (block: Block): Block => {
       const first = block.children[0]
-      if (first === undefined) continue
+      if (!context.dirtyNodes.has(block.id) || first === undefined) return block
       let accumulator = first
       let changed = false
       const kept: Array<Text> = [accumulator]
@@ -101,13 +93,26 @@ export const mergeAdjacentRuns: Transform = {
           kept.push(run)
         }
       }
-      if (!changed) continue
-      const blocks: Array<Block> = [...next.children]
-      blocks[blockIndex] = { ...block, children: kept }
-      next = { ...next, children: blocks }
+      return changed ? { ...block, children: kept } : block
     }
+    // Returns the same array when nothing inside changed, so untouched containers keep
+    // their identity and `apply` can tell that this transform found nothing.
+    const mergeWithin = (blocks: ReadonlyArray<Block>): ReadonlyArray<Block> => {
+      let changed = false
+      const next = blocks.map(block => {
+        let merged = mergeRuns(block)
+        if (merged.type === 'Node' && merged.blocks !== undefined) {
+          const nested = mergeWithin(merged.blocks)
+          if (nested !== merged.blocks) merged = { ...merged, blocks: nested }
+        }
+        if (merged !== block) changed = true
+        return merged
+      })
+      return changed ? next : blocks
+    }
+    const children = mergeWithin(document.children)
     return {
-      document: next,
+      document: children === document.children ? document : { ...document, children },
       steps,
       insertedNodes: new Set(),
       removedNodes,

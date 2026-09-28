@@ -19,7 +19,8 @@ prop schemas, unknown node preservation, bounded decode limits, Kits with
 vocabulary validation, a command layer resolving intent into transactions (and
 `runAction`, which commits an ordered command list as one step, so removing what a rule
 matched and acting on it is one transition), input rules (`InputRule` is
-`{ name, match(textBefore) }`, and `applyInputRules(rules, { textBefore, text, insertion })`
+`{ name, match(textBefore, within) }`, `within` the kinds around the caret's block,
+innermost first, and `applyInputRules(rules, { textBefore, text, insertion })`
 builds the action — the insertion, a backward delete per character the rule consumed, then
 its commands, so a marker and the change it made are one edit), reads for
 the marks a selection carries (`marksInRange`, for a toolbar's active button) and for
@@ -211,13 +212,19 @@ browser event means "make this block a heading" — and `editor-bundle` exposes
 `SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
 (`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
-`::before`, and the textbox root with `aria-placeholder`),
+`::before`, and the textbox root with `aria-placeholder`; `decorate` sees the document only,
+and `overlay(hostId, decorations)` is the Command for decorations from application state,
+such as other people's carets),
 `application`/`update`, and the Messages a host dispatches (the host is a `<foldkit-richtext>`
 custom element; with `serverRendered: SSR.serving` the server sends the document's markup in it,
 and the browser's editor adopts it); every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
 constraint is enforced at the intent rather than only reported by `validate` (§125).
+A document the parent replaces from outside gets a fresh host, unless the same transition
+returns `patchTo(hostId, previous, { document, selection })`, which keeps the host and patches
+the difference (`replaceChangeSet`); that is how another replica's change reaches an open
+editor. An `Edited` OutMessage carries the `transactions` the edit applied.
 `foldkit-richtext-dom/input`'s `richTextInput(hostId, placement)` is the editor as a
 `foldkit-form` control (`Input.bundle`): `EditorInput` holds the document in its own Model,
 a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
@@ -244,7 +251,9 @@ its tokens as decorations (a token outside the text throws; `foldkit-richtext-co
 highlighter into a tokenizer per loaded language, reading scopes into the same `syntax-*`
 kinds), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
-`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter draws the
+`span[data-decoration=<kind>]` with the run's marks inside, and each string field of `data`
+named in lowercase letters, digits, and hyphens as `data-decoration-<name>`; a decoration that
+starts or ends in an empty run is an empty span there. The editable adapter draws the
 same elements: `mount(…, decorations)` and `patch(dom, content, changeSet, decorations)`
 take the render's set, a run whose decorations changed is redrawn with no edit, and the
 position mapping reads across the pieces. An editor placed with
@@ -270,15 +279,20 @@ the caret survive; given a vocabulary, it also replaces a text-holding node kind
 `CodeBlock`) with a paragraph or heading carrying its text, and refuses any other node block.
 `WrapBlock` moves that block into new containers listed outermost first (`[{ kind: 'List',
 props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
-wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces
-a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
-new identities and moving the selection onto them. `MoveBlock { node, to: { before } | { after } }`
+wrap right after a list of the same props adds an item to it. `ConvertBlock` retypes
+a paragraph or heading to a text-holding kind such as `CodeBlock`, keeping the block's and its
+runs' identities, so the caret and other replicas' edits to it survive. `RetypeContainer`
+retypes the container around that block (a `ListItem` to a `TaskItem`) in place, keeping its
+identity and blocks, only from its first block and only to a kind the vocabulary lets hold
+those blocks and stand there. `MoveBlock { node, to: { before } | { after } }`
 moves a block and its subtree beside another block, by identity rather than the selection (a
 block handle's moves); across containers, the vocabulary decides: the container must hold the
 kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by `validate` as
 `MisplacedNode`, and refused by a wrap or a paste as by a move), it never leaves an `isolating`
 kind, and a container it empties is deleted;
-`moveTargets(document, node, nodes?)` lists where it may go. `LiftBlock` is the inverse of a wrap, and
+`moveTargets(document, node, nodes?)` lists where it may go. `SetProps { node, props }` sets
+the named props of a node block by identity and keeps the rest (a task item's `checked`); with a
+vocabulary, props that decode as the kind's must still decode after. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
 of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
 it to a paragraph; Enter in a list item starts a new item
@@ -314,8 +328,9 @@ The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
 `###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
-or a list (`WrapBlock`), and a fence such as `` ```ts `` converts it to a `CodeBlock`
-(`ConvertBlock`) — where the editor applies the rules its placement names
+or a list (`WrapBlock`), a fence such as `` ```ts `` converts it to a `CodeBlock`
+(`ConvertBlock`), and `[ ] ` or `[x] ` at the start of a list item's first block makes the
+item a task in place (`RetypeContainer`) — where the editor applies the rules its placement names
 (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A source session edits
 the Markdown itself: `openSource(document, { style?, selection? })` gives `{ printed, draft,
 unprintable, style, caret }` (a `SourceSession` schema the Model holds; `caret` is where the
@@ -323,10 +338,25 @@ selection's focus printed), and `closeSource(session, document, { mint })` retur
 document untouched when the draft was not edited, or the parsed draft with the diagnostics of
 what the edit loses, and in `selection` the session's caret placed in that document (null when
 it cannot be). `parse` also returns a `MarkdownStyle` (which spelling each
-construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id), `print(document, { style })` reuses it where it keeps the meaning, and a
+construct took, and in `blocks` each list's, heading's, fence's, and rule's own, by block id;
+a list's spelling includes its `spacing`, `'tight'` or `'loose'`, and printing without a style
+is tight), `print(document, { style })` reuses it where it keeps the meaning, and a
 session's `closeSource(...).style` is what to pass to the next `openSource(document, { style })`.
 
-Mobile keyboards, real-browser verification, and collaboration remain unfinished; the form
+`RichText.Replicated` is the pure core of collaborative editing: a state where every character
+has an identity, `project(state)` to the `Document` the editor edits, `translate(state, result,
+key)` to restate a command's result as ops that name characters and blocks, `applyOps(state,
+ops)` (total, deterministic: replicas applying the same ops in server order converge), and
+`anchor`/`resolve` for a selection that survives others' edits. `key` is unique per call,
+minted in a Command; `translate`'s `continues` option lets text typed at the end of this
+replica's own insert carry on that insert, and `coalesce(ops)` folds such a run into one op.
+A `Collect` op, committed through the log (the server's to issue), removes text deleted
+before the previous `Collect`. `invert(state, ops)` gives the ops that undo `ops` (against the state they
+were applied to) and leave others' edits alone: collaborative undo is applying them as a new
+edit. `applyOps` checks structure, not vocabulary: check `Retype` and `SetProps` ops from
+untrusted replicas against the Kit before committing them. `examples/pages` wires all of it to `foldkit-sync` and `foldkit-durable`.
+
+Mobile keyboards remain unfinished; the form
 control (`foldkit-richtext-dom/input`), drag and drop, and the editable adapter's decorations
 are built. Nested children are done: a node block may carry nested `blocks`,
 which decode, round-trip, count, and survive an unknown kind, and commands reach

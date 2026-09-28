@@ -1021,6 +1021,52 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  examples/pages:
+    dependencies:
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+      foldkit:
+        specifier: 0.163.0
+        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      foldkit-durable:
+        specifier: workspace:*
+        version: link:../../packages/durable
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../../packages/richtext
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../../packages/richtext-dom
+      foldkit-richtext-markdown:
+        specifier: workspace:*
+        version: link:../../packages/richtext-markdown
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../../packages/surface
+      foldkit-sync:
+        specifier: workspace:*
+        version: link:../../packages/sync
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.3
+    devDependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.1
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 5.4.21
+        version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
+
   examples/react:
     dependencies:
       foldkit-react:

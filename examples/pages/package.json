@@ -1,0 +1,30 @@
+{
+  "name": "foldkit-example-pages",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "server": "tsx src/server.ts",
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
+    "foldkit-durable": "workspace:*",
+    "foldkit-richtext": "workspace:*",
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-richtext-markdown": "workspace:*",
+    "foldkit-surface": "workspace:*",
+    "foldkit-sync": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.0-rc.116",
+    "@types/ws": "^8.5.12",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}

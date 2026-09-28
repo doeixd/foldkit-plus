@@ -117,6 +117,7 @@ const program = Effect.gen(function* () {
     // - snapshot codec
     // - empty snapshot
     // - replay reducer
+    // - the replica each operation came from, which binds a replica to its actor
     // - authorization rules, when the Sync contract declares them
     ...TodoSync.journalContract(),
 
@@ -158,6 +159,25 @@ Foldkit application
 `foldkit-sync` owns replication semantics. `foldkit-durable` owns authoritative
 storage, order, idempotency, compaction, and effect-recovery records. There is no
 second server reducer to keep aligned with the application.
+
+Durable does not speak Sync's exchange; the server's handler for
+`exchange(cursor, pending, epoch)` does, with these calls:
+
+- `epoch(key)` is returned with every answer. When the replica sent another, it
+  holds a cursor into history this journal lacks: answer from `0`, which the
+  cursor check below then passes.
+- `cursor(key)` refuses a cursor ahead of the journal before anything is
+  appended, so no commit loses its acknowledgement to a failed read.
+- `append` for each pending operation: acknowledge `Committed` and
+  `AlreadyCommitted`; reject an operation that does not decode,
+  `OperationRejectedError` (a refusal, or a replica another actor holds) and
+  `IdentityConflictError`, which fail the same way on every retry; fail the
+  exchange on a `JournalError`, so the replica keeps the edit and tries again.
+- `read(key, cursor, { limit })` for what is after the cursor, with `more: true`
+  when a whole page came back; a `CompactedCursorError` means sending a
+  checkpoint (`load`) instead.
+- `subscribe` tells connected replicas a commit happened (Sync's `notify`
+  frame), so a replica that only reads catches up.
 
 See [`examples/sync`](../../examples/sync) for the full path.
 
@@ -254,6 +274,18 @@ encoded operation
  Committed
 ```
 
+The snapshot is the expensive part of an append when the document is large.
+The journal keeps each document's current state in memory, so an append decodes
+the stored snapshot only when the row's cursor shows that another connection
+committed since. `snapshotEvery: n` writes the snapshot once every `n` commits
+instead of after each. `load` then replays the few operations committed since
+the snapshot, and `compact` writes a lagging snapshot before it removes any
+payload that snapshot has not folded in. The default is 1. The remembered state
+is checked against the stored cursor and the operation committed there, so a
+commit or a reset through another connection is noticed; a journal remembers
+the most recent 256 documents. `load` hands out that remembered snapshot itself,
+so treat it as read-only, as `reduce` must.
+
 The exact authority remains application-defined:
 
 - `reduce` says what the operation means for document state;
@@ -282,11 +314,19 @@ const later = yield* journal.read(documentId, cursor)
 ```
 
 A typical replica uses a checkpoint/snapshot when it is far behind, then replays
-later operations in authoritative order.
+later operations in authoritative order. `read(key, cursor, { limit })` returns
+at most `limit` operations, so a server can answer a replica that is far behind
+in pages. Sync's exchange carries `more` for this.
 
 `Sequence` and `Cursor` are separate branded types on purpose. A committed
 operation's sequence is not accidentally accepted where a read cursor is
 expected.
+
+A cursor only means something within one history. `epoch(key)` names the
+document's: it stays the same while the operations are kept, and is new after
+`reset(key)` or in a new database file. A server hands it to its clients; a
+client that comes back with another epoch holds a cursor into history this
+journal does not have, and has to start again from `0`.
 
 ## Idempotency and append results
 
@@ -340,6 +380,18 @@ const hooks: Pick<
 }
 ```
 
+When operations carry the replica that made them, `replicaId: operation =>
+operation.replicaId` binds each replica to the actor of its first commit, per
+document, and refuses any other actor's operation from it before `validate`
+runs, so the replica an operation names is one its actor holds. The first actor
+to commit from an unused replica id claims it, even across `reset`, so replica
+ids should be unguessable or assigned per actor. `foldkit-sync`'s
+`journalContract()` supplies it. On an existing journal, opening with `replicaId`
+recovers bindings from retained operations before accepting another commit. If
+older compacted operations have no payload, supply `legacyReplicaId` to recover
+their replica from their operation id; otherwise opening is refused.
+`journalContract()` supplies this callback for Sync's `replicaId:sequence` ids.
+
 Authorization may return `true` / `false`, a refusal carrying a reason, or an
 Effect producing either. A refusal becomes `OperationRejectedError`; a supplied
 reason is available on `.reason` and repeated in `.message` so a server can
@@ -353,8 +405,9 @@ snapshot.
 
 For one journal database and its authoritative writer:
 
-- **Atomic append:** a new operation, its resulting snapshot, and the new cursor
-  commit together.
+- **Atomic append:** a new operation, its resulting state, and the new cursor
+  commit together. With `snapshotEvery` above 1, the state is the last stored
+  snapshot plus the operations since it.
 - **Stable, gap-free order:** every committed operation has one authoritative
   sequence.
 - **Idempotent operation identity:** a retained `opId` cannot be applied twice;
@@ -582,6 +635,13 @@ database:
 Neither is garbage-collected automatically. Storage growth is therefore tied to
 the number of distinct operations/effects, not only to retained payload size.
 
+Compaction empties payloads, but SQLite keeps the pages they occupied, so the file
+does not shrink by itself. `journal.vacuum()` rebuilds the file and checkpoints
+its write-ahead log, which gives that space back. It holds the database while it
+runs, so it is maintenance to schedule, not a step of each compaction. A reader
+on another connection can keep the log from being truncated; `vacuum` then fails
+with a `JournalError`, and running it again later finishes the job.
+
 That retention is part of the retry guarantee. As long as an identity row
 exists, an old retransmission is recognized. If the application rotates or
 recreates the database, an operation whose identity disappeared is
@@ -661,9 +721,13 @@ EffectFailedError
 The Journal also exposes operational tooling:
 
 - `keys` enumerates documents;
-- `reset` removes one document's snapshot and operations;
+- `reset` removes one document's snapshot and operations, and its `epoch`, so
+  the next differs; replica bindings stay;
+- `epoch` names a document's history, for a server to hand to its clients;
 - `effect`, `unfinished`, and `clearEffect` inspect/manage effect records;
-- `compact` and `floor` manage retained operation payloads;
+- `compact` and `floor` manage retained operation payloads, and `vacuum` returns
+  the space compaction freed to the file system;
+- `cursor` reads a document's last sequence without decoding its snapshot;
 - `Journal.metrics` counts appends, compactions, owner effect runs, and coalesced
   effect runs.
 

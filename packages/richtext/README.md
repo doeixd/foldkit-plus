@@ -71,7 +71,8 @@ looks up that same ID there, without an ownership or authorization guarantee.
 `at` validates offset shape and affinity, but cannot prove the node exists, is
 text, or is long enough. `apply` checks those conditions against the current
 document. A Position remains a resolved offset and must still be mapped through
-edits; a Node reference does not turn it into a collaborative anchor. `read`
+edits; a Node reference does not turn it into a collaborative anchor (see
+[Shared documents](#shared-documents) for one that is). `read`
 performs a linear lookup, intended for application reads rather than bulk editing.
 
 ## Building operations
@@ -113,10 +114,13 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
-`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` names its
-blocks instead. Each emits a Transaction and applies it in one step; the returned `ChangeSet` and `positionMap`
-describe the effect. Nothing mints identity unless the caller's `mint` does, and
-replay applies transactions rather than commands.
+`WrapBlock`, `ConvertBlock`, `RetypeContainer`, `LiftBlock`) read the current selection; `MoveBlock` and `SetProps` name their
+blocks instead. Each resolves to transactions applied as one step, usually one (Enter over
+a range in a list item is two: the delete, then the split); the returned `ChangeSet` and
+`positionMap` describe the effect, and `transactions` holds what was applied, in order, an
+empty one for a command that changed nothing. Nothing mints
+identity unless the caller's `mint` does, and replay applies transactions rather than
+commands: folding `apply` over `transactions` from the starting state gives the same result.
 
 An *action* is an ordered list of those commands committed as one step:
 
@@ -134,9 +138,17 @@ An *input rule* turns what was just typed into such an action:
 ```ts
 interface InputRule {
   name: string
-  match: (textBefore: string) => { remove: number; commands: Action } | undefined
+  match: (
+    textBefore: string,
+    within: ReadonlyArray<string>,
+  ) => { remove: number; commands: Action } | undefined
 }
 ```
+
+`within` is the kinds of the node blocks around the caret's block, innermost first,
+so a rule can tell `[ ] ` typed at the start of a list item from the same text at the
+top level. `applyInputRules` takes it as `within`, defaulting to none, and the editor
+fills it in.
 
 `applyInputRules(rules, { textBefore, text, insertion })` builds the action — the insertion,
 one `DeleteBackward` per character the rule consumed, then the rule's commands. The deletes
@@ -150,9 +162,9 @@ way the range was made — since that is where what is typed over it lands.
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
 survive. Given a vocabulary that declares a node kind as holding text, it also takes a block
-of that kind back out — a `CodeBlock` to a paragraph — by replacing it, as `ConvertBlock`
-does going in: the text moves under new identities and the selection moves onto them. Any
-other node block, or preserved content, is refused, because its content is not runs.
+of that kind back out — a `CodeBlock` to a paragraph — the same way, keeping the block's and
+its runs' identities. Any other node block, or preserved content, is refused, because its
+content is not runs.
 
 `WrapBlock` puts that same block inside new containers, listed outermost first —
 `{ type: 'WrapBlock', containers: [{ kind: 'Quote' }] }`, or a `List` holding a `ListItem`
@@ -166,15 +178,24 @@ items (as `List` holds `ListItem`) and whose block sits right after a container 
 and those props joins it: the block becomes its last item instead of starting a second list,
 which Markdown would read back as the same one.
 
-`ConvertBlock` replaces a paragraph or heading with a node kind that holds text —
-`{ type: 'ConvertBlock', to: { kind: 'CodeBlock', props: { language: 'ts' } } }` — carrying
-its text and marks. It is a replace, not a retype: identities are never reused, so the block
-and every run get new ones from `mint`, and the selection moves onto the new runs at the same
-offsets. Anything that held the old run identities, such as a decoration or a remote cursor,
-has to find the new ones. Given a vocabulary, the kind must be declared to hold text and its
+`ConvertBlock` makes a paragraph or heading a node kind that holds text —
+`{ type: 'ConvertBlock', to: { kind: 'CodeBlock', props: { language: 'ts' } } }` — with its
+text and marks. It is a retype: the block and its runs keep their identities, so the
+selection, a decoration, a remote cursor, and another replica's edit to that text still
+find them. Given a vocabulary, the kind must be declared to hold text and its
 parent must accept it (`UnexpectedChild`), its props must decode as the kind declares them
 (`InvalidInput`), and a kind that forbids marks refuses a block that carries any
 (`ForbiddenMark`).
+
+`RetypeContainer` retypes the container around that block — the node holding it, such as a
+list item — to another node kind where it stands:
+`{ type: 'RetypeContainer', to: { kind: 'TaskItem', props: { checked: false } } }` makes the
+item a task without moving it, splitting its list, or touching what it holds, and the
+container keeps its identity, so another replica's edit inside it survives. It acts only from
+the container's first block, which is where a marker for the container is typed, and refuses
+elsewhere, or with no container, with `InvalidInput`. Given a vocabulary, the new kind must
+be declared to hold blocks, hold every block the container holds, and stand where the
+container stands (`UnexpectedChild`), and its props must decode (`InvalidInput`).
 
 `LiftBlock` is the inverse of a wrap: it moves the block the selection starts in out of its
 container — before it when it was first, after it when it was last, and between the two halves
@@ -197,6 +218,12 @@ the move leaves empty is deleted with it, as a lift deletes one: an item moved o
 one-item list takes the list too. A block that is not there is `InvalidInput`, and moving a
 block beside itself changes nothing. `moveTargets(document, node, nodes?)` lists the blocks it
 may move beside, in document order, which is what a drag offers.
+
+`SetProps` sets props on a node block by identity and keeps the ones it does not name:
+`{ type: 'SetProps', node: item, props: { checked: true } }` ticks a task item. Given a
+vocabulary, props that decode as the kind declares them must still decode after, or the
+command is refused with `InvalidInput`, as it is for a block that is not a node. Props that
+already fail (a key an older version wrote, which cannot be deleted) can still be changed.
 
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
@@ -441,6 +468,38 @@ The large formatting case is the one the change targets: it halves, and it now
 scales linearly (5× the runs costs 5.3× the time, where it used to cost 8.2×).
 Differences under a few percent in the other rows are within this machine's
 run-to-run noise, not a claim either way.
+
+`apply` validates its input once per block, not once per call. Blocks and
+documents are immutable and an edit copies only the blocks it touches, so a
+block or document that has passed validation is remembered, and the document's
+index is built once per document. Typing into a 4,000-paragraph document
+spent about 10 ms of each `apply` decoding the whole document; it now validates
+the one block the last edit replaced. The input is still refused exactly as the
+`EditorState` schema refuses it.
+
+The collaborative path (`bench/replicated.bench.ts`) types one character into
+the middle of a document of `n` paragraphs, as `examples/pages` does:
+`RichText.run`, then `Replicated.translate`, `applyOps`, `project` and
+`resolve`. The means below were measured back to back on one machine, before
+and after four changes:
+
+- `apply` validates by block (above).
+- `applyOps` keeps a layered index of which blocks hold each insert, instead of
+  scanning every block to find a character or to check an id is free.
+- `project` reuses a block's projection while its entry is unchanged.
+- `translate` builds its shadow only for the blocks the edit touches.
+
+```text
+paragraphs   before     after
+100          1.08 ms    0.17 ms
+1,000        8.70 ms    1.91 ms
+4,000       49.2  ms    9.61 ms
+```
+
+What remains grows with the document because each new document gets its own
+indexes: `apply`'s block and run paths, and the node index that `translate` and
+selection checks read. `project` also rebuilds its run table and walks every
+entry to reuse it.
 
 Two costs remain. A structural operation still rebuilds the document index, though
 a contiguous run of joins is now batched: deleting a range across B paragraphs
@@ -735,6 +794,107 @@ always allowed, so a preserved document that already carries one has a way back.
 diagnostic blocks publishing or shows a placeholder. The Kit does not drive parsing
 or `apply`.
 
+## Shared documents
+
+Several replicas can edit one document when the edits are ordered by a server, as
+`foldkit-sync` and `foldkit-durable` order any durable Message. The difficulty is only that
+an edit written as "insert at offset 12 of run `t`" means something else once another
+replica's edit lands first. `RichText.Replicated` gives every character an identity that
+outlives the edits around it, and restates each edit in those terms:
+
+```text
+shared state --project--> Document --command--> result --translate--> ops
+     ^                                                                  |
+     +------------------------------ applyOps --------------------------+
+```
+
+The editor, its commands and its renderers keep working on a plain `Document`. The state
+holds the blocks, every character typed (deleted ones stay, as tombstones, because a later
+op may be anchored on them, until a `Collect` removes them), and the marks on each:
+
+```ts
+import * as RichText from 'foldkit-richtext'
+
+const { Replicated } = RichText
+const seed = RichText.decodeDocument({
+  version: 1,
+  children: [
+    { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'hello', marks: [] }] },
+  ],
+})
+
+let shared = Replicated.fromDocument(seed, 'doc:seed')
+const shown = Replicated.project(shared)
+const caret = { node: shown.children[0]!.children[0]!.id, offset: 5, affinity: 'after' as const }
+const result = RichText.run(
+  { document: shown, selection: { type: 'Range', anchor: caret, focus: caret } },
+  { type: 'InsertText', text: '!' },
+  { mint: () => crypto.randomUUID() },
+)
+if (result.ok) {
+  const { ops, selection } = Replicated.translate(shared, result, 'edit:1')
+  shared = Replicated.applyOps(shared, ops)
+  const next = { document: Replicated.project(shared), selection: Replicated.resolve(shared, selection) }
+}
+```
+
+- `fromDocument(document, key)` and `translate(state, result, key)` mint new identities under
+  `key`, which has to be unique to that call among everything the state will see, such as a
+  random id minted in a Command. The ids the command minted itself are replaced, so its
+  `mint` needs no care.
+- `translate(state, result, key, { continues })` carries text typed right after the last
+  character of an insert that `continues` accepts on that insert, from its next index,
+  rather than starting a new one. `coalesce(ops)` then folds a run of such inserts into one
+  op, so a burst of typing sent together is one `Insert`. Accept only inserts this replica
+  minted: two replicas continuing one insert at once claim the same characters, and the
+  later-committed loses its text.
+- `translate` is pure and reads nothing but its arguments. The `ops` are what travels: every
+  replica applies the same ops in the server's order and projects the same document.
+- `applyOps` never throws. An op that no longer fits changes nothing: a block already
+  deleted, an id already taken, a move or an `Unjoin` that would put a block inside itself.
+  Text typed into a block another replica deleted is gone with it. An insert or split
+  anchored on a character that is gone (its insert was refused, or a `Collect` removed it)
+  lands at the end of the block it was typed in, or of the block that one was joined into.
+- `applyOps` checks structure, not vocabulary: a `Retype` or `SetProps` op takes any node
+  kind and any JSON props. An application applying ops from replicas it does not trust
+  checks those against its own Kit before committing them.
+- A selection travels as anchors (`translate`'s `selection`, or `anchor(state, selection)`),
+  and `resolve` places it again after other replicas' ops: after the same character, or the
+  nearest one before it still shown.
+- Two replicas' concurrent inserts at one place both survive, the later-committed first.
+  A mark covers the characters it named, so text another replica typed inside the range
+  before the mark arrived stays unmarked.
+- A `Collect` op removes deleted text, in two phases so a deletion is kept for one whole
+  interval: each removes what the previous one found deleted, then marks what is deleted
+  now. Commit it through the log like any op, so every replica removes the same text at
+  the same point. An op made by a replica offline across two collections, anchored on
+  removed text, takes the lost-anchor fallback, and an undo from before then finds less to
+  restore. An insert keeps one deleted character at its end, so its indexes are never
+  reused. Block records stay; only their text goes.
+- `invert(state, ops)` gives the ops that undo `ops`, computed against `state`, the state
+  `ops` were applied to. Applied later, after anything else, they take back only what
+  `ops` did:
+  - characters it inserted are deleted, and characters it deleted come back
+    (`Undelete`);
+  - marks, block types and props return to what they were;
+  - a split is joined, and a join is split out again (`Unjoin`), with its text and
+    nested blocks;
+  - a deleted block returns (`UndeleteBlock`), and a moved one goes back beside the
+    sibling it followed.
+
+  Everyone else's edits stay. Collaborative undo is applying these as a new edit, which
+  converges like any other. The text an undone split joins back goes at the end of the
+  first half as it is then (a `Join` with `at: 'end'`), so what was typed there since stays
+  before it: split `ab` at its start, type `x` in the empty first half, and undoing the
+  split gives `xab`. A redone join goes right after the character its text followed, or at
+  the block's end when its text ended the block. A restored mark goes last among its run's marks,
+  whose order carries no meaning. A prop an edit added where there was none stays, since `SetProps`
+  cannot delete one. Inverting the inverse, against the state it was applied to, gives
+  the redo.
+
+Run identities in the projection are the first character's, so they are stable while
+text is added after them; block identities are stable for a block's whole life.
+
 ## Current semantics
 
 - Documents contain paragraphs and headings (levels 1–6), each containing text
@@ -790,9 +950,14 @@ or `apply`.
   the same index is a no-op. Run identities and selections are untouched, so no
   position steps are emitted. An optional `parent` moves it into a node block's
   nested blocks (and back out), and a parent that cannot hold blocks is refused.
-- `RetypeBlock` changes a text block's type — a paragraph, or a heading at a level —
-  keeping its run values and identities. Same-shape sets are no-ops; a node block or
-  preserved content is refused, because their content is not runs.
+- `RetypeBlock` changes the type of a block whose content is its runs — to a paragraph,
+  a heading at a level, or a node kind with props (`RetypeTarget`) — keeping its run
+  values and identities. A node block holding nested blocks retypes only to another node
+  kind, keeping them. Same-shape sets are no-ops; retyping such a block to a paragraph or
+  heading, or retyping preserved content, is refused (`InvalidRange`).
+- `SetProps` sets the props it names on a node block and keeps the others. Setting a
+  prop to the value it has is a no-op; a text block or preserved content is refused
+  (`InvalidRange`). Props cannot be deleted, only set.
 - `InsertNode` splices a caller-built block at an explicit index, or into a node
   block's nested blocks when `parent` is given; every carried identity must be
   fresh within the transaction. Positions need no mapping (they address runs, not
@@ -853,12 +1018,14 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Nested children and collaboration are still
-pending. Retain rejected source content for
-recovery; do not replace it with an empty document.
+decoding untrusted payloads. `Replicated` is the pure core of collaboration;
+`examples/pages` wires it to `foldkit-sync` and `foldkit-durable`. Retain rejected
+source content for recovery; do not replace it with an empty document.
 
-Each transaction currently validates the whole input and indexes its text runs.
-Edits copy the affected arrays and preserve untouched nodes. The performance
-section records the measured cases; collaborative replay remains unmeasured.
+A transaction validates only the top-level blocks it has not seen validated before,
+so a container is checked again whenever anything inside it changes, and indexes its
+text runs. Edits copy the affected arrays and preserve untouched nodes. The
+performance section records the measured cases, the collaborative path included
+(`bench/replicated.bench.ts`).
 
 See the [design and phase status](../../docs/design/richtext-DESIGN.md#101-phase-1--pure-semantics-and-integration-feasibility).
