@@ -6,11 +6,11 @@ import { type Html, type HtmlBuilder, childAttributes } from 'foldkit/html'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
 import { Calendar } from 'foldkit-mixins-ui'
 
-import { CalendarStyle, DatePickerSlots, DatePickerStyle } from '../style.js'
+import { CalendarStyle, DatePickerPart } from '../style.js'
 import { fullDate } from './format.js'
 import * as Icon from './icon.js'
 
-type Slots<Message> = SlotBuilders<typeof DatePickerSlots, Message>
+type Slots<Message> = SlotBuilders<typeof DatePickerPart.slots, Message>
 
 const ANCHOR = { placement: 'bottom-start' as const, gap: 4, padding: 8 }
 
@@ -110,7 +110,7 @@ export const view = <Message>(
   }>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const slots = SlotView.buildersFor(DatePickerSlots, [DatePickerStyle.mixin], {
+  const slots = SlotView.buildersFor(DatePickerPart.slots, [DatePickerPart.style.mixin], {
     input: undefined,
     h,
   })

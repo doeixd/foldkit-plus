@@ -4,11 +4,11 @@ import { File, Submodel } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
-import { AttachmentSlots, AttachmentStyle, RemoveButtonStyle } from '../../style.js'
+import { AttachmentPart, RemoveButtonStyle } from '../../style.js'
 import { Button } from '../../view/index.js'
 import { Message, type Model } from './attachments.js'
 
-type Slots = SlotBuilders<typeof AttachmentSlots, Message>
+type Slots = SlotBuilders<typeof AttachmentPart.slots, Message>
 
 const BYTES_PER_KB = 1024
 const BYTES_PER_MB = BYTES_PER_KB * BYTES_PER_KB
@@ -74,7 +74,7 @@ const dropZone = (
   ])
 
 export const AttachmentsView = SlotView.forMessages<Message>()
-  .define(AttachmentSlots, (model: Model, slots, h) => {
+  .define(AttachmentPart.slots, (model: Model, slots, h) => {
     const { resumeDrop, maybeResume, additionalFilesDrop, additionalFiles } = model
 
     const resumeSection = h.div(slots.section.attrs(), [
@@ -134,6 +134,6 @@ export const AttachmentsView = SlotView.forMessages<Message>()
 
     return h.div(slots.attachments.attrs(), [resumeSection, additionalSection])
   })
-  .pipe(Style.attach(AttachmentStyle))
+  .pipe(Style.attach(AttachmentPart.style))
 
 export const view = Submodel.defineView<Model, Message>(AttachmentsView)

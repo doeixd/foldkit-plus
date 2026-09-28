@@ -5,10 +5,10 @@ import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import type { Message } from '../message.js'
 import type { Model } from '../model.js'
 import type { Education, Skills, WorkHistory } from '../step/index.js'
-import { PreviewSlots, PreviewStyle } from '../style.js'
+import { PreviewPart } from '../style.js'
 import { employmentRange } from './format.js'
 
-type Slots = SlotBuilders<typeof PreviewSlots, Message>
+type Slots = SlotBuilders<typeof PreviewPart.slots, Message>
 
 const COVER_LETTER_PREVIEW_MAX_CHARS = 200
 
@@ -168,7 +168,7 @@ const coverLetterSection = (content: string, slots: Slots, h: HtmlBuilder<Messag
 
 /** The application as a resume, built as it is filled in. */
 export const Preview = SlotView.forMessages<Message>()
-  .define(PreviewSlots, (model: Model, slots, h) => {
+  .define(PreviewPart.slots, (model: Model, slots, h) => {
     const { personalInfo, workHistory, education, skills, coverLetter } = model
     const { fields } = personalInfo.form
     const firstName = fields.firstName.value
@@ -204,4 +204,4 @@ export const Preview = SlotView.forMessages<Message>()
         : []),
     ])
   })
-  .pipe(Style.attach(PreviewStyle))
+  .pipe(Style.attach(PreviewPart.style))

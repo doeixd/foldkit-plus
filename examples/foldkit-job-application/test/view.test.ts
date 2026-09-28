@@ -9,7 +9,7 @@ import type { Tabs } from '@foldkit/ui'
 import { FieldValidation } from 'foldkit'
 import type { Html } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
-import { Slots, SlotView, Style } from 'foldkit-mixins'
+import { Slots, SlotView } from 'foldkit-mixins'
 import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
@@ -83,29 +83,21 @@ const trees = [
   ...Object.values(fields).map(field => Inert.draw(FieldAlone, field)),
 ]
 
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
-
-const byText = (tree: Html, text: string): ReadonlyArray<InertNode> =>
-  Inert.all(tree).filter(node => Inert.text(node) === text)
-
 describe('the application', () => {
   test('draws every element through a Slot, so a Style can reach all of it', () => {
     for (const tree of trees) expect(Inert.unslotted(tree)).toEqual([])
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      trees.flatMap(tree =>
-        [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const tree of trees) {
+      expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
+    }
   })
 })
+
+const byText = (tree: Html, text: string): ReadonlyArray<InertNode> =>
+  Inert.all(tree).filter(node => Inert.text(node) === text)
 
 describe('the step tabs', () => {
   test.each([
@@ -131,9 +123,9 @@ describe('the fields', () => {
   ] as const)('border a %s field and mark it as upstream does', (state, color, mark) => {
     const tree = Inert.draw(FieldAlone, fields[state])
     const [input] = Inert.byTag(tree, 'input')
-    expect(cssOf([input!])).toContain(`border-color:${color}`)
+    expect(Inert.css([input!])).toContain(`border-color:${color}`)
     const idle = Inert.byTag(Inert.draw(FieldAlone, fields.idle), 'input')
-    expect(cssOf(idle)).not.toContain(`border-color:${color}`)
+    expect(Inert.css(idle)).not.toContain(`border-color:${color}`)
     expect(['◐', '✓'].filter(glyph => byText(tree, glyph).length > 0)).toEqual(
       mark === undefined ? [] : [mark],
     )

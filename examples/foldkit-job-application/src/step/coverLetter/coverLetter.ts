@@ -6,12 +6,7 @@ import { modifyFields } from 'foldkit/struct'
 import { SlotView, Style } from 'foldkit-mixins'
 import { Textarea } from 'foldkit-mixins-ui'
 
-import {
-  CoverLetterSlots,
-  CoverLetterStyle,
-  type LetterLength,
-  TextareaStyle,
-} from '../../style.js'
+import { CoverLetterPart, type LetterLength, TextareaStyle } from '../../style.js'
 
 // MODEL
 
@@ -63,7 +58,7 @@ const letterLength = (remaining: number): LetterLength =>
   )
 
 export const CoverLetterView = SlotView.forMessages<Message>()
-  .define(CoverLetterSlots, (model: Model, slots, h) => {
+  .define(CoverLetterPart.slots, (model: Model, slots, h) => {
     const remaining = MAX_COVER_LETTER_LENGTH - model.content.length
     const length = letterLength(remaining)
 
@@ -92,6 +87,6 @@ export const CoverLetterView = SlotView.forMessages<Message>()
       h,
     )
   })
-  .pipe(Style.attach(CoverLetterStyle))
+  .pipe(Style.attach(CoverLetterPart.style))
 
 export const view = Submodel.defineView<Model, Message>(CoverLetterView)

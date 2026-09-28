@@ -8,10 +8,10 @@ import type { ResolvedTab } from 'foldkit-mixins-ui'
 import { Step } from '../domain/index.js'
 import type { Message } from '../message.js'
 import type { Model } from '../model.js'
-import { StepNavSlots, StepNavStyle } from '../style.js'
+import { StepNavPart } from '../style.js'
 import * as Icon from './icon.js'
 
-type Slots = SlotBuilders<typeof StepNavSlots, Message>
+type Slots = SlotBuilders<typeof StepNavPart.slots, Message>
 
 const StepMenu = Menu.create<Step.Step>()
 
@@ -53,7 +53,7 @@ const stepMarker = (
   ])
 
 const buildersFor = (h: HtmlBuilder<Message>): Slots =>
-  SlotView.buildersFor(StepNavSlots, [StepNavStyle.mixin], { input: undefined, h })
+  SlotView.buildersFor(StepNavPart.slots, [StepNavPart.style.mixin], { input: undefined, h })
 
 /** One step in the tab list: its marker and its name, its standing as data attributes. */
 export const stepTabButton = (

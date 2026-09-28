@@ -3,7 +3,7 @@ import { Option } from 'effect'
 import { type Html, type HtmlBuilder, childAttributes } from 'foldkit/html'
 import { SlotView } from 'foldkit-mixins'
 
-import { ChoiceSlots, ChoiceStyle } from '../style.js'
+import { ChoicePart } from '../style.js'
 import * as Icon from './icon.js'
 
 const ANCHOR = { placement: 'bottom-start' as const, gap: 4, padding: 8 }
@@ -24,7 +24,10 @@ export const view = <Message>(
   }>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const slots = SlotView.buildersFor(ChoiceSlots, [ChoiceStyle.mixin], { input: undefined, h })
+  const slots = SlotView.buildersFor(ChoicePart.slots, [ChoicePart.style.mixin], {
+    input: undefined,
+    h,
+  })
   return h.keyed('div')(config.model.id, slots.field.attrs(), [
     h.label(slots.label.attrs(), [config.label]),
     h.submodel({

@@ -1,7 +1,7 @@
 import { Submodel } from 'foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 
-import { RemoveButtonStyle, StepSlots, StepStyle } from '../../../style.js'
+import { RemoveButtonStyle, StepPart } from '../../../style.js'
 import { Button, DatePicker, Field } from '../../../view/index.js'
 import { Message, type Model, type Position, PositionForm } from './entry.js'
 
@@ -13,7 +13,7 @@ const changed =
     Message.GotFormMessage({ message: PositionForm.Message.Changed({ key, value }) })
 
 export const EntryView = SlotView.forMessages<Message>()
-  .define(StepSlots, (model: Model, slots, h) => {
+  .define(StepPart.slots, (model: Model, slots, h) => {
     const showEndDate = !model.isCurrentlyEmployed
 
     const startDatePicker = DatePicker.view(
@@ -94,6 +94,6 @@ export const EntryView = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(StepStyle))
+  .pipe(Style.attach(StepPart.style))
 
 export const view = Submodel.defineView<Model, Message>(EntryView)

@@ -3,7 +3,7 @@ import { FieldValidation, Submodel } from 'foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 
 import { PronounOption } from '../../domain/index.js'
-import { StepSlots, StepStyle } from '../../style.js'
+import { StepPart } from '../../style.js'
 import { Choice, DatePicker, Field } from '../../view/index.js'
 import {
   type Applicant,
@@ -21,7 +21,7 @@ const changed =
     Message.GotFormMessage({ message: PersonalInfoForm.Message.Changed({ key, value }) })
 
 export const PersonalInfoView = SlotView.forMessages<Message>()
-  .define(StepSlots, (model: Model, slots, h) => {
+  .define(StepPart.slots, (model: Model, slots, h) => {
     const { fields } = model.form
 
     const isOtherSelected = Option.exists(model.maybeSelectedPronoun, Equal.equals('Other'))
@@ -120,6 +120,6 @@ export const PersonalInfoView = SlotView.forMessages<Message>()
       ),
     ])
   })
-  .pipe(Style.attach(StepStyle))
+  .pipe(Style.attach(StepPart.style))
 
 export const view = Submodel.defineView<Model, Message>(PersonalInfoView)

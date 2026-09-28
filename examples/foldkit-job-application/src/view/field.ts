@@ -8,11 +8,11 @@ import type { FormControl } from 'foldkit-form'
 import { SlotView, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import { Checkbox, Input, Textarea } from 'foldkit-mixins-ui'
 
-import { CheckboxStyle, FieldSlots, FieldStyle, InputStyle, TextareaStyle } from '../style.js'
+import { CheckboxStyle, FieldPart, InputStyle, TextareaStyle } from '../style.js'
 
 type FieldState = FieldValidation.Field<string>
 
-type Slots<Message> = SlotBuilders<typeof FieldSlots, Message>
+type Slots<Message> = SlotBuilders<typeof FieldPart.slots, Message>
 
 /**
  * A form's controls by key, read once, so a view that lays its fields out by
@@ -55,7 +55,7 @@ const errorView = <Message>(
 
 /**
  * A labelled text input, marked `◐` while it is checked and `✓` once valid,
- * with its first error under it. Drawn through `FieldSlots` and the Input
+ * with its first error under it. Drawn through `FieldPart.slots` and the Input
  * recipe, from whichever view places it.
  */
 export const input = <Message>(
@@ -70,7 +70,7 @@ export const input = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const context = { input: config.field, h }
-  const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], context)
+  const slots = SlotView.buildersFor(FieldPart.slots, [FieldPart.style.mixin], context)
   return UiInput.view(
     {
       id: config.id,
@@ -104,7 +104,10 @@ export const checkbox = <Message>(
   }>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], { input: undefined, h })
+  const slots = SlotView.buildersFor(FieldPart.slots, [FieldPart.style.mixin], {
+    input: undefined,
+    h,
+  })
   return UiCheckbox.view(
     {
       id: config.id,
@@ -130,7 +133,10 @@ export const textarea = <Message>(
   }>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const slots = SlotView.buildersFor(FieldSlots, [FieldStyle.mixin], { input: undefined, h })
+  const slots = SlotView.buildersFor(FieldPart.slots, [FieldPart.style.mixin], {
+    input: undefined,
+    h,
+  })
   return UiTextarea.view(
     {
       id: config.id,

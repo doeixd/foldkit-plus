@@ -3,7 +3,7 @@ import { Submodel } from 'foldkit'
 import { type CalendarDate } from 'foldkit/calendar'
 import { SlotView, Style } from 'foldkit-mixins'
 
-import { RemoveButtonStyle, StepSlots, StepStyle } from '../../../style.js'
+import { RemoveButtonStyle, StepPart } from '../../../style.js'
 import { Button, Choice, Field } from '../../../view/index.js'
 import { type Degree, DegreeForm, GraduationYearListbox, Message, type Model } from './entry.js'
 
@@ -27,7 +27,7 @@ export type ViewInputs = Readonly<{
 }>
 
 export const EntryView = SlotView.forMessages<Message>()
-  .define(StepSlots, ({ model, today }: ViewInputs & { readonly model: Model }, slots, h) => {
+  .define(StepPart.slots, ({ model, today }: ViewInputs & { readonly model: Model }, slots, h) => {
     const showGraduationYear = !model.isCurrentlyEnrolled
 
     const graduationYearField = Choice.view(
@@ -98,7 +98,7 @@ export const EntryView = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(StepStyle))
+  .pipe(Style.attach(StepPart.style))
 
 export const view = Submodel.defineView<Model, Message, ViewInputs>((model, viewInputs, h) =>
   EntryView({ model, ...viewInputs }, h),

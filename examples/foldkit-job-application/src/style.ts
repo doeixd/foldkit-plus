@@ -1,23 +1,17 @@
 /**
  * The job application's appearance, as `foldkit-mixins` data. The views
- * publish the Slots and draw the markup; everything it looks like lives here.
+ * draw the markup through the Slots declared here; everything it looks
+ * like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped recipes and the `Layout`
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped recipes and the `Layout`
  * pieces by layer order rather than by specificity.
  */
-import {
-  Capability,
-  Layers,
-  Slot,
-  Slots,
-  Style,
-  type Declarations,
-  type StyleValue,
-} from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import {
   ButtonSlots,
   CalendarSlots,
@@ -30,13 +24,10 @@ import {
 } from 'foldkit-mixins-ui'
 import * as FieldValidation from 'foldkit/fieldValidation'
 
-const L = Layers.standard
-const app = L.layer('app')
-
 // THEME
 
 /** Indigo, as upstream's Tailwind `indigo-600`, over grey surfaces. */
-const palette = Theme.oklch({
+const oklchPalette = Theme.oklch({
   accent: { h: 277, c: 0.24, l: '51%' },
   surfaceSaturation: 0.004,
 })
@@ -47,7 +38,7 @@ const palette = Theme.oklch({
  * green or a red toward indigo: its success banner came out blue.
  */
 const wash = (family: 'success' | 'error'): string => {
-  const colors = Theme.ref(palette)
+  const colors = Theme.ref(oklchPalette)
   return `color-mix(in srgb, ${colors.surface.base} 88%, ${colors[family].default})`
 }
 
@@ -55,16 +46,19 @@ const wash = (family: 'success' | 'error'): string => {
  * A white base, so the cards stand out from the page's `surface.muted`, and the
  * feedback washes in their own hue.
  */
-const theme = Theme.compose(
-  Theme.compose(Theme.tokens, palette),
-  Theme.define({
-    knob: { 'base-l': '100%' },
-    success: { subtle: wash('success') },
-    error: { subtle: wash('error') },
-  }),
-)
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.compose(
+    oklchPalette,
+    Theme.define({
+      knob: { 'base-l': '100%' },
+      success: { subtle: wash('success') },
+      error: { subtle: wash('error') },
+    }),
+  ),
+  colorScheme: 'light',
+})
 
-const t = Theme.ref(theme)
+export { stylesheet }
 
 /**
  * The two widths the layout turns at, named once: the step tabs replace the
@@ -72,8 +66,6 @@ const t = Theme.ref(theme)
  */
 const wide = Theme.tokens.breakpoint.lg
 const wider = Theme.tokens.breakpoint.xl
-
-const container = Slot.make({ capability: Capability.Container })
 
 const shownFrom = (query: string, display: string): StyleValue =>
   Style.compose(Style.self({ display: 'none' }), Style.media(query, { display }))
@@ -123,70 +115,58 @@ const focusRing = Style.pseudo(':focus-visible', {
   outlineOffset: '0',
 })
 
+/** Hidden but still reachable by a label and a screen reader. */
+const visuallyHidden: Declarations = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
+}
+
 // PAGE
 
-export const PageSlots = Slots.define({
-  page: container,
-  container,
-  header: container,
-  title: container,
-  subtitle: container,
-  /** The step menu, shown until the tabs have room. */
-  stepMenu: container,
-  layout: container,
-  sidebar: container,
-  sticky: container,
-  stepHeading: container,
-  stepBody: container,
-  navigation: container,
-  previewSidebar: container,
-  previewHeading: container,
-  previewCard: container,
-  /** The preview toggle, shown until the preview sidebar has room. */
-  previewDock: container,
-  previewOverlay: container,
-})
-
-export const PageStyle = Style.forSlots(PageSlots)(
+export const JobPage = slots(
   {
-    page: Style.self({ minHeight: '100vh', background: t.surface.muted }),
-    container: Style.compose(
-      Style.self({
+    page: [U.bg('surface.muted'), { minHeight: '100vh' }],
+    container: [
+      {
         boxSizing: 'border-box',
         maxWidth: '80rem',
         marginInline: 'auto',
         paddingBlock: t.space.xl,
         paddingInline: t.space.md,
-      }),
+      },
       Style.media(Theme.tokens.breakpoint.sm, { paddingInline: t.space.lg }),
       Style.media(wide, { paddingInline: t.space.xl }),
-    ),
-    header: Style.self({ marginBlockEnd: t.space.lg }),
+    ],
+    header: { marginBlockEnd: t.space.lg },
     title: text(t.size['2xl'], t.text.overt, { fontWeight: t.weight.bold }),
     subtitle: text(t.size.sm, t.text.muted, { marginBlockStart: t.space['2xs'] }),
-    stepMenu: Style.compose(Style.self({ marginBlockEnd: t.space.lg }), hiddenFrom(wide)),
+    // The step menu, shown until the tabs have room.
+    stepMenu: [{ marginBlockEnd: t.space.lg }, hiddenFrom(wide)],
     layout: Style.media(wide, { display: 'flex', gap: t.space.xl }),
-    sidebar: Style.compose(
-      shownFrom(wide, 'block'),
-      Style.self({ width: '15rem', flexShrink: '0' }),
-    ),
+    sidebar: [shownFrom(wide, 'block'), { width: '15rem', flexShrink: '0' }],
     sticky: Style.self({ position: 'sticky', top: t.space.xl }),
     stepHeading: text(t.size.lg, t.text.overt, {
       marginBlockEnd: t.space.lg,
       fontWeight: t.weight.semibold,
     }),
     stepBody: Style.self({ minHeight: '400px' }),
-    navigation: Style.self({
-      display: 'flex',
-      justifyContent: 'space-between',
-      marginBlockStart: t.space.xl,
-      paddingBlockStart: t.space.lg,
-      borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
-    }),
-    previewSidebar: Style.compose(
-      shownFrom(wider, 'block'),
-      Style.self({ width: '20rem', flexShrink: '0' }),
-    ),
+    navigation: [
+      U.flex,
+      U.justify('between'),
+      {
+        marginBlockStart: t.space.xl,
+        paddingBlockStart: t.space.lg,
+        borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
+    previewSidebar: [shownFrom(wider, 'block'), { width: '20rem', flexShrink: '0' }],
     previewHeading: text(t.size.sm, t.text.subtle, {
       marginBlockEnd: t.space.xs,
       fontWeight: t.weight.semibold,
@@ -196,11 +176,17 @@ export const PageStyle = Style.forSlots(PageSlots)(
       borderRadius: t.radius.xl,
       boxShadow: '0 1px 2px 0 rgb(0 0 0 / 5%)',
     }),
-    previewDock: Style.compose(
-      Style.self({ position: 'fixed', top: t.space.md, right: t.space.md, zIndex: '20' }),
+    // The preview toggle, shown until the preview sidebar has room.
+    previewDock: [
+      {
+        position: 'fixed',
+        top: t.space.md,
+        right: t.space.md,
+        zIndex: '20',
+      },
       hiddenFrom(wider),
-    ),
-    previewOverlay: Style.compose(
+    ],
+    previewOverlay: [
       card({
         position: 'fixed',
         insetInline: t.space.md,
@@ -213,9 +199,9 @@ export const PageStyle = Style.forSlots(PageSlots)(
         boxShadow: '0 25px 50px -12px rgb(0 0 0 / 25%)',
       }),
       hiddenFrom(wider),
-    ),
+    ],
   },
-  { name: 'PageStyle', layer: app },
+  { name: 'PageStyle' },
 )
 
 // STEP NAVIGATION
@@ -236,11 +222,13 @@ const statusColors = (
     Style.pseudo('[data-attention]', colors.attention),
   )
 
-export const StepTabsStyle = Style.forSlots(TabsSlots)(
+export const StepTabsStyle = forSlots(TabsSlots)(
   {
     tablist: L.in('layouts', Layout.stack({ gap: '0.125rem' })),
-    tab: Style.compose(
-      Style.self({
+    tab: [
+      U.text('sm'),
+      U.font('medium'),
+      {
         boxSizing: 'border-box',
         display: 'flex',
         width: '100%',
@@ -252,11 +240,9 @@ export const StepTabsStyle = Style.forSlots(TabsSlots)(
         borderRadius: t.radius.md,
         background: 'transparent',
         font: 'inherit',
-        fontSize: t.size.sm,
-        fontWeight: t.weight.medium,
         textAlign: 'start',
         cursor: 'pointer',
-      }),
+      },
       Style.pseudo(':hover', { background: t.surface.subtle }),
       statusColors({
         Current: { background: t.accent.subtle, color: t.accent.ink, cursor: 'default' },
@@ -266,32 +252,17 @@ export const StepTabsStyle = Style.forSlots(TabsSlots)(
       }),
       Style.pseudo('[data-attention]:hover', { background: t.error.subtle }),
       focusRing,
-    ),
+    ],
     panel: Style.self({ flex: '1', minWidth: '0' }),
   },
-  { name: 'StepTabsStyle', layer: app },
+  { name: 'StepTabsStyle' },
 )
 
-export const StepNavSlots = Slots.define({
-  marker: container,
-  stepName: container,
-  menu: container,
-  menuButton: container,
-  menuTrigger: container,
-  menuTriggerText: container,
-  menuStepCount: container,
-  menuStepName: container,
-  menuItems: container,
-  menuItem: container,
-  menuBackdrop: container,
-  chevron: container,
-})
-
-export const StepNavStyle = Style.forSlots(StepNavSlots)(
+export const StepNavPart = slots(
   {
-    marker: Style.compose(
-      Style.self({
-        display: 'flex',
+    marker: [
+      U.flex,
+      {
         flexShrink: '0',
         width: '1.5rem',
         height: '1.5rem',
@@ -300,17 +271,17 @@ export const StepNavStyle = Style.forSlots(StepNavSlots)(
         borderRadius: t.radius.full,
         fontSize: '11px',
         fontWeight: t.weight.semibold,
-      }),
+      },
       statusColors({
         Current: { background: t.accent.default, color: t.accent['on-fill'] },
         Completed: { background: t.accent.subtle, color: t.accent.ink },
         Upcoming: { background: t.surface.subtle, color: t.text.muted },
         attention: { background: t.error.subtle, color: t.error.ink },
       }),
-    ),
+    ],
     stepName: Style.self({}),
-    menu: Style.self({ position: 'relative' }),
-    menuButton: Style.compose(
+    menu: { position: 'relative' },
+    menuButton: [
       card({
         display: 'flex',
         width: '100%',
@@ -324,20 +295,9 @@ export const StepNavStyle = Style.forSlots(StepNavSlots)(
       }),
       Style.pseudo(':hover', { borderColor: t.outline.default }),
       focusRing,
-    ),
-    menuTrigger: Style.self({
-      display: 'flex',
-      width: '100%',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: t.space.sm,
-    }),
-    menuTriggerText: Style.self({
-      display: 'flex',
-      minWidth: '0',
-      alignItems: 'center',
-      gap: t.space.xs,
-    }),
+    ],
+    menuTrigger: [U.flex, U.items('center'), U.justify('between'), U.gap('sm'), { width: '100%' }],
+    menuTriggerText: [U.flex, U.items('center'), U.gap('xs'), { minWidth: '0' }],
     menuStepCount: text(t.size.xs, t.text.muted, { flexShrink: '0', fontWeight: t.weight.medium }),
     menuStepName: text(t.size.sm, t.text.overt, {
       overflow: 'hidden',
@@ -347,7 +307,7 @@ export const StepNavStyle = Style.forSlots(StepNavSlots)(
     }),
     // `@foldkit/ui` Menu takes only a class name per item, so the items are
     // styled from their container, by the role and the `data-active` it writes.
-    menuItems: Style.compose(
+    menuItems: [
       card({
         zIndex: '10',
         width: 'var(--button-width)',
@@ -357,27 +317,27 @@ export const StepNavStyle = Style.forSlots(StepNavSlots)(
       }),
       Style.nest('[role="menuitem"]', { cursor: 'pointer' }),
       Style.nest('[data-active]', { background: t.surface.muted }),
-    ),
-    menuItem: Style.compose(
-      Style.self({
-        display: 'flex',
-        alignItems: 'center',
-        gap: t.space.sm,
+    ],
+    menuItem: [
+      U.flex,
+      U.items('center'),
+      U.gap('sm'),
+      U.text('sm'),
+      {
         paddingBlock: '0.625rem',
         paddingInline: t.space.md,
-        fontSize: t.size.sm,
-      }),
+      },
       statusColors({
         Current: { color: t.accent.ink, fontWeight: t.weight.semibold },
         Completed: { color: t.text.subtle },
         Upcoming: { color: t.text.muted },
         attention: { color: t.error.ink, fontWeight: t.weight.semibold },
       }),
-    ),
+    ],
     menuBackdrop: Style.self({ position: 'fixed', inset: '0' }),
     chevron,
   },
-  { name: 'StepNavStyle', layer: app },
+  { name: 'StepNavStyle' },
 )
 
 // FIELDS
@@ -398,35 +358,27 @@ const toneOf = (field: FieldState): Tone =>
 const whenTone = (tone: Tone, piece: StyleValue): StyleValue =>
   Style.whenInput<FieldState>(field => toneOf(field) === tone, piece)
 
-export const FieldSlots = Slots.define({
-  field: container,
-  header: container,
-  /** Beside a label while the email is being checked. */
-  checkingMark: container,
-  /** Beside a label once its field is valid. */
-  validMark: container,
-  checkboxRow: container,
-})
-
-export const FieldStyle = Style.forSlots(FieldSlots)(
+export const FieldPart = slots(
   {
     field: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     header: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
     // Upstream asks Tailwind to spin an inline span, which a transform leaves
     // still; an inline-block turns.
-    checkingMark: Style.compose(
+    // Beside a label while the email is being checked.
+    checkingMark: [
       spin.style,
-      Style.self({
+      U.text('sm'),
+      {
         display: 'inline-block',
-        fontSize: t.size.sm,
         color: t.info.ink,
         animation: `${spin.name} 1s linear infinite`,
-      }),
-    ),
+      },
+    ],
+    // Beside a label once its field is valid.
     validMark: text(t.size.sm, t.success.ink),
     checkboxRow: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
   },
-  { name: 'FieldStyle', layer: app },
+  { name: 'FieldStyle' },
 )
 
 /** The border follows the field, as upstream's `borderClass` does. */
@@ -440,12 +392,12 @@ const control: StyleValue = Style.compose(
 const error = text(t.size.sm, t.error.ink, { display: 'block' })
 
 /** The shipped text-field recipe, its border following the field's state. */
-export const InputStyle = Style.forSlots(InputSlots)(
+export const InputStyle = forSlots(InputSlots)(
   Recipes.Input.extend({ base: { input: control, label, description: error } })(),
-  { name: 'InputStyle', layer: app },
+  { name: 'InputStyle' },
 )
 
-export const TextareaStyle = Style.forSlots(TextareaSlots)(
+export const TextareaStyle = forSlots(TextareaSlots)(
   Recipes.Textarea.extend({
     // The reset sizes a textarea to its content; upstream's are as tall as their `rows`.
     base: {
@@ -453,58 +405,36 @@ export const TextareaStyle = Style.forSlots(TextareaSlots)(
       label,
     },
   })(),
-  { name: 'TextareaStyle', layer: app },
+  { name: 'TextareaStyle' },
 )
 
-export const CheckboxStyle = Style.forSlots(CheckboxSlots)(
+export const CheckboxStyle = forSlots(CheckboxSlots)(
   Recipes.Checkbox.extend({
     base: { label: text(t.size.sm, t.text.subtle, { cursor: 'pointer', userSelect: 'none' }) },
   })(),
-  { name: 'CheckboxStyle', layer: app },
+  { name: 'CheckboxStyle' },
 )
 
 // CHOICES
 
 /** A Listbox of choices: the pronouns and the graduation year. */
-export const ChoiceSlots = Slots.define({
-  field: container,
-  label: container,
-  choice: container,
-  button: container,
-  face: container,
-  placeholder: container,
-  value: container,
-  items: container,
-  option: container,
-  optionText: container,
-  /** Shown beside the option the Listbox marks `data-selected`. */
-  check: container,
-  backdrop: container,
-  chevron: container,
-})
-
-export const ChoiceStyle = Style.forSlots(ChoiceSlots)(
+export const ChoicePart = slots(
   {
     field: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     label,
-    choice: Style.self({ position: 'relative' }),
-    button: Style.compose(
+    choice: { position: 'relative' },
+    button: [
       box,
-      Style.self({ font: 'inherit', fontSize: t.size.sm, textAlign: 'start', cursor: 'pointer' }),
+      U.text('sm'),
+      { font: 'inherit', textAlign: 'start', cursor: 'pointer' },
       focusRing,
-    ),
-    face: Style.self({
-      display: 'flex',
-      width: '100%',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: t.space.xs,
-    }),
-    placeholder: Style.self({ color: t.text.muted }),
-    value: Style.self({ color: t.text.overt }),
+    ],
+    face: [U.flex, U.items('center'), U.justify('between'), U.gap('xs'), { width: '100%' }],
+    placeholder: { color: t.text.muted },
+    value: { color: t.text.overt },
     // `@foldkit/ui` Listbox takes only a class name per option, so the options
     // are styled from their container, by the role and the `data-active` it writes.
-    items: Style.compose(
+    items: [
       card({
         zIndex: '10',
         width: 'var(--button-width)',
@@ -523,57 +453,40 @@ export const ChoiceStyle = Style.forSlots(ChoiceSlots)(
       }),
       Style.nest('[data-active]', { background: t.accent.subtle }),
       Style.nest('[data-selected]', { color: t.accent.ink, fontWeight: t.weight.semibold }),
-    ),
-    option: Style.self({ display: 'flex', alignItems: 'center', gap: t.space.xs }),
-    optionText: Style.self({ overflow: 'hidden', textOverflow: 'ellipsis' }),
-    check: Style.compose(
-      Style.self({ width: '1rem', color: t.accent.ink, visibility: 'hidden' }),
+    ],
+    option: [U.flex, U.items('center'), U.gap('xs')],
+    optionText: { overflow: 'hidden', textOverflow: 'ellipsis' },
+    // Shown beside the option the Listbox marks `data-selected`.
+    check: [
+      {
+        width: '1rem',
+        color: t.accent.ink,
+        visibility: 'hidden',
+      },
       Style.nest('[data-selected] &', { visibility: 'visible' }),
-    ),
+    ],
     backdrop: Style.self({ position: 'fixed', inset: '0' }),
     chevron,
   },
-  { name: 'ChoiceStyle', layer: app },
+  { name: 'ChoiceStyle' },
 )
 
 // DATE PICKER
 
-export const DatePickerSlots = Slots.define({
-  field: container,
-  label: container,
-  picker: container,
-  trigger: container,
-  face: container,
-  placeholder: container,
-  value: container,
-  panel: container,
-  backdrop: container,
-  chevron: container,
-  /** The row of the calendar's heading and its paging buttons. */
-  calendarBar: container,
-  headingChevron: container,
-  yearsHeading: container,
-})
-
-export const DatePickerStyle = Style.forSlots(DatePickerSlots)(
+export const DatePickerPart = slots(
   {
     field: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     label,
-    picker: Style.self({ position: 'relative' }),
-    trigger: Style.compose(
+    picker: { position: 'relative' },
+    trigger: [
       box,
-      Style.self({ font: 'inherit', fontSize: t.size.sm, textAlign: 'start', cursor: 'pointer' }),
+      U.text('sm'),
+      { font: 'inherit', textAlign: 'start', cursor: 'pointer' },
       focusRing,
-    ),
-    face: Style.self({
-      display: 'flex',
-      width: '100%',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: t.space.xs,
-    }),
-    placeholder: Style.self({ color: t.text.muted }),
-    value: Style.self({ color: t.text.overt }),
+    ],
+    face: [U.flex, U.items('center'), U.justify('between'), U.gap('xs'), { width: '100%' }],
+    placeholder: { color: t.text.muted },
+    value: { color: t.text.overt },
     panel: card({
       zIndex: '10',
       padding: t.space.md,
@@ -583,19 +496,15 @@ export const DatePickerStyle = Style.forSlots(DatePickerSlots)(
     }),
     backdrop: Style.self({ position: 'fixed', inset: '0' }),
     chevron,
-    calendarBar: Style.self({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: t.space.xs,
-    }),
+    // The row of the calendar's heading and its paging buttons.
+    calendarBar: [U.flex, U.items('center'), U.justify('between'), U.gap('xs')],
     headingChevron: Style.self({ width: '0.75rem', height: '0.75rem' }),
     yearsHeading: text(t.size.sm, t.text.overt, {
       fontWeight: t.weight.semibold,
       fontVariantNumeric: 'tabular-nums',
     }),
   },
-  { name: 'DatePickerStyle', layer: app },
+  { name: 'DatePickerStyle' },
 )
 
 const calendarButton = Style.compose(
@@ -658,41 +567,37 @@ const calendarNavigation = Style.compose(
   Style.self({ width: '2rem', height: '2rem', color: t.text.subtle }),
 )
 
-export const CalendarStyle = Style.forSlots(CalendarSlots)(
+export const CalendarStyle = forSlots(CalendarSlots)(
   {
-    root: Style.self({
-      display: 'flex',
-      minWidth: '248px',
-      minHeight: '260px',
-      flexDirection: 'column',
-      gap: t.space.sm,
-      userSelect: 'none',
-    }),
+    root: [
+      U.column,
+      U.gap('sm'),
+      U.selectNone,
+      {
+        display: 'flex',
+        minWidth: '248px',
+        minHeight: '260px',
+      },
+    ],
     previousMonthButton: calendarNavigation,
     nextMonthButton: calendarNavigation,
     previousPageButton: calendarNavigation,
     nextPageButton: calendarNavigation,
-    headingButton: Style.compose(
+    headingButton: [
       calendarButton,
-      Style.self({
-        gap: t.space.xs,
-        paddingBlock: t.space['2xs'],
-        paddingInline: t.space.xs,
-        fontWeight: t.weight.semibold,
-      }),
-    ),
-    grid: Style.compose(
+      U.font('semibold'),
+      U.py('2xs'),
+      U.px('xs'),
+      { gap: t.space.xs },
+    ],
+    grid: [
       Style.whenInput<CalendarMode>(
         mode => mode === 'Days',
         Style.self({ display: 'flex', flexDirection: 'column', gap: t.space['2xs'] }),
       ),
       Style.whenInput<CalendarMode>(mode => mode !== 'Days', calendarGrid),
-    ),
-    headerRow: Style.self({
-      display: 'grid',
-      gridTemplateColumns: 'repeat(7, 1fr)',
-      gap: t.space['2xs'],
-    }),
+    ],
+    headerRow: [U.grid, U.gap('2xs'), { gridTemplateColumns: 'repeat(7, 1fr)' }],
     columnHeader: text(t.size.xs, t.text.muted, {
       paddingBlock: t.space['2xs'],
       textAlign: 'center',
@@ -700,11 +605,7 @@ export const CalendarStyle = Style.forSlots(CalendarSlots)(
       letterSpacing: '0.05em',
       textTransform: 'uppercase',
     }),
-    weekRow: Style.self({
-      display: 'grid',
-      gridTemplateColumns: 'repeat(7, 1fr)',
-      gap: t.space['2xs'],
-    }),
+    weekRow: [U.grid, U.gap('2xs'), { gridTemplateColumns: 'repeat(7, 1fr)' }],
     dayCell: calendarCell,
     dayButton: calendarChoice({ width: '2rem', height: '2rem', borderRadius: t.radius.full }),
     monthCell: calendarCell,
@@ -712,63 +613,48 @@ export const CalendarStyle = Style.forSlots(CalendarSlots)(
     yearCell: calendarCell,
     yearButton: calendarChoice({ width: '100%', height: '100%' }),
   },
-  { name: 'CalendarStyle', layer: app },
+  { name: 'CalendarStyle' },
 )
 
 // STEPS
 
-export const StepSlots = Slots.define({
-  step: container,
-  intro: container,
-  /** Two fields side by side. */
-  pair: container,
-  entries: container,
-  entry: container,
-  entryActions: container,
-  /** A labelled control that is not a text field: a picker, a choice. */
-  control: container,
-  controlLabel: container,
-})
-
-export const StepStyle = Style.forSlots(StepSlots)(
+export const StepPart = slots(
   {
     step: L.in('layouts', Layout.stack({ gap: t.space.md })),
     intro: text(t.size.sm, t.text.muted),
-    pair: Style.self({
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: t.space.sm,
-    }),
+    // Two fields side by side.
+    pair: [U.grid, U.gap('sm'), { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }],
     entries: Style.nest('& > * + *', {
       borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
     }),
-    entry: Style.compose(
+    entry: [
       L.in('layouts', Layout.stack({ gap: t.space.md })),
-      Style.self({ paddingBlock: t.space.lg }),
+      U.py('lg'),
       Style.pseudo(':first-child', { paddingBlockStart: '0' }),
-    ),
-    entryActions: Style.self({ display: 'flex', justifyContent: 'flex-end' }),
+    ],
+    entryActions: [U.flex, U.justify('end')],
+    // A labelled control that is not a text field: a picker, a choice.
     control: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     controlLabel: label,
   },
-  { name: 'StepStyle', layer: app },
+  { name: 'StepStyle' },
 )
 
 /** Each proficiency as a pill; the chosen one is `aria-checked`. */
-export const ProficiencyStyle = Style.forSlots(RadioGroupSlots)(
+export const ProficiencyStyle = forSlots(RadioGroupSlots)(
   {
     group: L.in('layouts', Layout.cluster({ gap: t.space.xs })),
-    option: Style.compose(
-      Style.self({
+    option: [
+      U.text('sm'),
+      U.color('text.muted'),
+      U.rounded('full'),
+      U.selectNone,
+      U.pointer,
+      {
         paddingBlock: t.space['2xs'],
         paddingInline: t.space.sm,
         border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.full,
-        fontSize: t.size.sm,
-        color: t.text.muted,
-        cursor: 'pointer',
-        userSelect: 'none',
-      }),
+      },
       Style.pseudo(':hover', { borderColor: t.outline.overt }),
       Style.pseudo('[aria-checked="true"]', {
         borderColor: t.accent.default,
@@ -776,10 +662,10 @@ export const ProficiencyStyle = Style.forSlots(RadioGroupSlots)(
         color: t.accent.ink,
       }),
       focusRing,
-    ),
+    ],
     label: Style.self({}),
   },
-  { name: 'ProficiencyStyle', layer: app },
+  { name: 'ProficiencyStyle' },
 )
 
 // COVER LETTER
@@ -787,21 +673,10 @@ export const ProficiencyStyle = Style.forSlots(RadioGroupSlots)(
 /** How close the letter is to its limit, as `data-state` on the counter. */
 export type LetterLength = 'Plenty' | 'Nearly' | 'Over'
 
-export const CoverLetterSlots = Slots.define({
-  letter: container,
-  footer: container,
-  hint: container,
-  counter: container,
-})
-
-export const CoverLetterStyle = Style.forSlots(CoverLetterSlots)(
+export const CoverLetterPart = slots(
   {
     letter: L.in('layouts', Layout.stack({ gap: t.space.xs })),
-    footer: Style.self({
-      display: 'flex',
-      justifyContent: 'space-between',
-      fontSize: t.size.sm,
-    }),
+    footer: [U.flex, U.justify('between'), U.text('sm')],
     hint: text(t.size.sm, t.text.muted),
     counter: Style.states({
       Plenty: { color: t.text.muted },
@@ -809,57 +684,28 @@ export const CoverLetterStyle = Style.forSlots(CoverLetterSlots)(
       Over: { color: t.error.ink, fontWeight: t.weight.medium },
     }),
   },
-  { name: 'CoverLetterStyle', layer: app },
+  { name: 'CoverLetterStyle' },
 )
 
 // ATTACHMENTS
 
-export const AttachmentSlots = Slots.define({
-  attachments: container,
-  section: container,
-  sectionHeading: container,
-  /** A file drop zone; `@foldkit/ui` marks it `data-drag-over` under a drag. */
-  dropZone: container,
-  dropTitle: container,
-  dropHint: container,
-  files: container,
-  file: container,
-  fileInfo: container,
-  fileIcon: container,
-  fileText: container,
-  fileName: container,
-  fileSize: container,
-})
-
-/** Hidden but still reachable by a label and a screen reader. */
-const visuallyHidden: Declarations = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: '0',
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  border: '0',
-}
-
-export const AttachmentStyle = Style.forSlots(AttachmentSlots)(
+export const AttachmentPart = slots(
   {
     attachments: L.in('layouts', Layout.stack({ gap: t.space.lg })),
     section: L.in('layouts', Layout.stack({ gap: t.space.xs })),
     sectionHeading: text(t.size.sm, t.text.subtle, { fontWeight: t.weight.medium }),
-    dropZone: Style.compose(
-      Style.self({
+    // A file drop zone; `@foldkit/ui` marks it `data-drag-over` under a drag.
+    dropZone: [
+      U.textCenter,
+      U.px('md'),
+      U.py('lg'),
+      U.rounded('lg'),
+      U.pointer,
+      {
         position: 'relative',
         display: 'block',
-        paddingBlock: t.space.lg,
-        paddingInline: t.space.md,
         border: `${t.border.thick} dashed ${t.outline.default}`,
-        borderRadius: t.radius.lg,
-        textAlign: 'center',
-        cursor: 'pointer',
-      }),
+      },
       Style.pseudo(':hover', {
         borderColor: t.accent.default,
         background: `color-mix(in oklch, ${t.accent.subtle} 50%, transparent)`,
@@ -870,7 +716,7 @@ export const AttachmentStyle = Style.forSlots(AttachmentSlots)(
       }),
       // Upstream's Tailwind reads the `sr-only` class `@foldkit/ui` gives the file input.
       Style.nest('input[type="file"]', visuallyHidden),
-    ),
+    ],
     dropTitle: text(t.size.sm, t.text.subtle),
     dropHint: text(t.size.xs, t.text.muted, { marginBlockStart: t.space['2xs'] }),
     files: L.in('layouts', Layout.stack({ gap: t.space.xs })),
@@ -882,45 +728,17 @@ export const AttachmentStyle = Style.forSlots(AttachmentSlots)(
       paddingInline: t.space.sm,
     }),
     fileInfo: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
-    fileIcon: Style.self({ fontSize: t.size.lg }),
-    fileText: Style.self({ minWidth: '0' }),
+    fileIcon: U.text('lg'),
+    fileText: { minWidth: '0' },
     fileName: text(t.size.sm, t.text.subtle),
     fileSize: text(t.size.xs, t.text.muted),
   },
-  { name: 'AttachmentStyle', layer: app },
+  { name: 'AttachmentStyle' },
 )
 
 // REVIEW
 
-export const ReviewSlots = Slots.define({
-  review: container,
-  section: container,
-  sectionTitle: container,
-  rows: container,
-  row: container,
-  rowLabel: container,
-  rowValue: container,
-  entries: container,
-  entry: container,
-  entryTitle: container,
-  entryMeta: container,
-  chips: container,
-  chip: container,
-  letter: container,
-  /** What was left out: no cover letter, no resume. */
-  missing: container,
-  attachment: container,
-  attachmentIcon: container,
-  attachmentName: container,
-  submission: container,
-  blockedNotice: container,
-  success: container,
-  successTitle: container,
-  successText: container,
-  failure: container,
-})
-
-export const ReviewStyle = Style.forSlots(ReviewSlots)(
+export const ReviewPart = slots(
   {
     review: L.in('layouts', Layout.stack({ gap: t.space.md })),
     section: card({ padding: t.space.md }),
@@ -931,16 +749,11 @@ export const ReviewStyle = Style.forSlots(ReviewSlots)(
     rows: Style.nest('& > * + *', {
       borderBlockStart: `${t.border.thin} solid ${t.surface.subtle}`,
     }),
-    row: Style.self({
-      display: 'flex',
-      justifyContent: 'space-between',
-      gap: t.space.md,
-      paddingBlock: t.space['2xs'],
-    }),
+    row: [U.flex, U.justify('between'), U.gap('md'), U.py('2xs')],
     rowLabel: text(t.size.sm, t.text.muted),
     rowValue: text(t.size.sm, t.text.overt, { overflowWrap: 'anywhere', textAlign: 'end' }),
     entries: L.in('layouts', Layout.stack({ gap: t.space.xs })),
-    entry: Style.self({ paddingBlock: t.space['2xs'] }),
+    entry: U.py('2xs'),
     entryTitle: text(t.size.sm, t.text.overt, { fontWeight: t.weight.bold }),
     entryMeta: text(t.size.xs, t.text.muted),
     chips: L.in('layouts', Layout.cluster({ gap: '0.375rem' })),
@@ -952,14 +765,15 @@ export const ReviewStyle = Style.forSlots(ReviewSlots)(
       fontWeight: t.weight.medium,
     }),
     letter: text(t.size.sm, t.text.subtle, { whiteSpace: 'pre-wrap' }),
+    // What was left out: no cover letter, no resume.
     missing: text(t.size.sm, t.text.muted, { fontStyle: 'italic' }),
     attachment: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
     attachmentIcon: Style.self({}),
     attachmentName: text(t.size.sm, t.text.subtle),
-    submission: Style.compose(
+    submission: [
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      Style.self({ paddingBlockStart: t.space.md }),
-    ),
+      { paddingBlockStart: t.space.md },
+    ],
     blockedNotice: text(t.size.sm, t.error.ink, { textAlign: 'center' }),
     success: card({
       marginBlockStart: t.space.md,
@@ -978,47 +792,30 @@ export const ReviewStyle = Style.forSlots(ReviewSlots)(
       color: t.error.ink,
     }),
   },
-  { name: 'ReviewStyle', layer: app },
+  { name: 'ReviewStyle' },
 )
 
 // PREVIEW
 
-export const PreviewSlots = Slots.define({
-  preview: container,
-  header: container,
-  name: container,
-  pronouns: container,
-  contacts: container,
-  section: container,
-  /** The cover letter, the last section, with no space after it. */
-  lastSection: container,
-  sectionHeading: container,
-  entry: container,
-  entryTitle: container,
-  entryText: container,
-  entryMeta: container,
-  entryDescription: container,
-  skillGroup: container,
-  skillLevel: container,
-  letter: container,
-})
-
-export const PreviewStyle = Style.forSlots(PreviewSlots)(
+export const PreviewPart = slots(
   {
-    preview: Style.self({ fontFamily: 'ui-serif, Georgia, Cambria, "Times New Roman", serif' }),
-    header: Style.self({
-      marginBlockEnd: t.space.md,
-      paddingBlockEnd: t.space.md,
-      borderBlockEnd: `${t.border.thin} solid ${t.outline.subtle}`,
-      textAlign: 'center',
-    }),
+    preview: { fontFamily: 'ui-serif, Georgia, Cambria, "Times New Roman", serif' },
+    header: [
+      U.textCenter,
+      {
+        marginBlockEnd: t.space.md,
+        paddingBlockEnd: t.space.md,
+        borderBlockEnd: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
     name: text(t.size.xl, t.text.overt, { fontFamily: 'inherit', fontWeight: t.weight.bold }),
     pronouns: text(t.size.xs, t.text.muted, { fontStyle: 'italic' }),
     contacts: text(t.size.xs, t.text.muted, {
       marginBlockStart: t.space['2xs'],
       overflowWrap: 'break-word',
     }),
-    section: Style.self({ marginBlockEnd: t.space.md }),
+    section: { marginBlockEnd: t.space.md },
+    // The cover letter, the last section, with no space after it.
     lastSection: Style.self({}),
     sectionHeading: text(t.size.xs, t.text.muted, {
       marginBlockEnd: t.space.xs,
@@ -1029,16 +826,16 @@ export const PreviewStyle = Style.forSlots(PreviewSlots)(
       letterSpacing: '0.05em',
       textTransform: 'uppercase',
     }),
-    entry: Style.self({ marginBlockEnd: t.space.sm }),
+    entry: { marginBlockEnd: t.space.sm },
     entryTitle: text(t.size.sm, t.text.overt, { display: 'block', fontWeight: t.weight.bold }),
     entryText: text(t.size.xs, t.text.subtle),
     entryMeta: text(t.size.xs, t.text.muted, { marginBlockStart: '0.125rem' }),
     entryDescription: text(t.size.xs, t.text.subtle, { marginBlockStart: t.space['2xs'] }),
     skillGroup: text(t.size.xs, t.text.subtle, { marginBlockEnd: t.space['2xs'] }),
-    skillLevel: Style.self({ color: t.text.overt }),
+    skillLevel: { color: t.text.overt },
     letter: text(t.size.xs, t.text.subtle, { whiteSpace: 'pre-wrap' }),
   },
-  { name: 'PreviewStyle', layer: app },
+  { name: 'PreviewStyle' },
 )
 
 // BUTTONS
@@ -1048,9 +845,8 @@ const recipeButton = (
   selection: Parameters<typeof Recipes.Button>[0],
   button: StyleValue = Style.self({}),
 ) =>
-  Style.forSlots(ButtonSlots)(Recipes.Button.extend({ base: { button } })(selection), {
+  forSlots(ButtonSlots)(Recipes.Button.extend({ base: { button } })(selection), {
     name,
-    layer: app,
   })
 
 /** Next, and submitting the application. */
@@ -1092,10 +888,14 @@ export const SubmittingButtonStyle = recipeButton(
 )
 
 /** "+ Add Position" and its kind: a dashed box the width of the step. */
-export const AddEntryButtonStyle = Style.forSlots(ButtonSlots)(
+export const AddEntryButtonStyle = forSlots(ButtonSlots)(
   {
-    button: Style.compose(
-      Style.self({
+    button: [
+      U.text('sm'),
+      U.font('medium'),
+      U.color('text.muted'),
+      U.pointer,
+      {
         boxSizing: 'border-box',
         width: '100%',
         paddingBlock: t.space.sm,
@@ -1104,77 +904,57 @@ export const AddEntryButtonStyle = Style.forSlots(ButtonSlots)(
         borderRadius: t.radius.lg,
         background: 'transparent',
         font: 'inherit',
-        fontSize: t.size.sm,
-        fontWeight: t.weight.medium,
-        color: t.text.muted,
-        cursor: 'pointer',
-      }),
+      },
       Style.pseudo(':hover', { borderColor: t.accent.default, color: t.accent.ink }),
       focusRing,
-    ),
+    ],
   },
-  { name: 'AddEntryButtonStyle', layer: app },
+  { name: 'AddEntryButtonStyle' },
 )
 
 /** "Remove": grey text that turns red. */
-export const RemoveButtonStyle = Style.forSlots(ButtonSlots)(
+export const RemoveButtonStyle = forSlots(ButtonSlots)(
   {
-    button: Style.compose(
-      Style.self({
+    button: [
+      U.text('sm'),
+      U.color('text.muted'),
+      U.pointer,
+      {
         padding: '0',
         border: '0',
         background: 'transparent',
         font: 'inherit',
-        fontSize: t.size.sm,
-        color: t.text.muted,
-        cursor: 'pointer',
-      }),
+      },
       Style.pseudo(':hover', { color: t.error.ink }),
       focusRing,
-    ),
+    ],
   },
-  { name: 'RemoveButtonStyle', layer: app },
+  { name: 'RemoveButtonStyle' },
 )
 
 /** The preview toggle: a floating pill, dark while the preview is open. */
-export const PreviewToggleStyle = Style.forSlots(ButtonSlots)(
+export const PreviewToggleStyle = forSlots(ButtonSlots)(
   {
-    button: Style.compose(
-      Style.self({
+    button: [
+      U.text('sm'),
+      U.font('medium'),
+      U.color('accent.on-fill'),
+      U.pointer,
+      {
         paddingBlock: t.space.xs,
         paddingInline: t.space.md,
         border: '0',
         borderRadius: t.radius.full,
         background: t.accent.default,
         font: 'inherit',
-        fontSize: t.size.sm,
-        fontWeight: t.weight.medium,
-        color: t.accent['on-fill'],
         boxShadow: floating,
-        cursor: 'pointer',
-      }),
+      },
       Style.whenInput<boolean>(
         isPreviewVisible => isPreviewVisible,
         Style.self({ background: t.text.default, color: t.surface.base }),
       ),
       focusRing,
-    ),
+    ],
   },
-  { name: 'PreviewToggleStyle', layer: app },
-)
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The slot styles' own classes are injected when a Slot
- * first draws them, so they are not repeated here. `colorScheme: 'light'`
- * keeps the page light in a dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
+  { name: 'PreviewToggleStyle' },
 )

@@ -16,8 +16,7 @@ import {
   WorkHistory,
 } from '../step/index.js'
 import {
-  PageSlots,
-  PageStyle,
+  JobPage,
   PreviewToggleStyle,
   PrimaryButtonStyle,
   SecondaryButtonStyle,
@@ -28,7 +27,7 @@ import { Preview } from './preview.js'
 import { Review } from './review.js'
 import { stepMenu, stepTabButton } from './stepNav.js'
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof JobPage.slots, Message>
 
 const StepTabs = UiTabs.create<Step.Step>()
 
@@ -128,7 +127,7 @@ const isLastStep = (model: Model): boolean =>
 
 /** Previous and Next, under every step but Review. */
 export const Navigation = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(JobPage.slots, (model: Model, slots, h) =>
     h.div(slots.navigation.attrs(), [
       ...(isFirstStep(model)
         ? [h.empty]
@@ -152,7 +151,7 @@ export const Navigation = SlotView.forMessages<Message>()
           ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(JobPage.style))
 
 const stepContentPanel = (
   model: Model,
@@ -198,7 +197,7 @@ const previewOverlay = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Ht
  */
 export const StepLayout = SlotView.forMessages<Message>()
   .define(
-    PageSlots,
+    JobPage.slots,
     (
       {
         model,
@@ -235,10 +234,10 @@ export const StepLayout = SlotView.forMessages<Message>()
       ])
     },
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(JobPage.style))
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) => {
+  .define(JobPage.slots, (model: Model, slots, h) => {
     const attentionSteps = stepsNeedingAttention(model)
     return h.div(slots.page.attrs(), [
       h.div(slots.container.attrs(), [
@@ -272,7 +271,7 @@ export const Page = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(JobPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'Job Application',

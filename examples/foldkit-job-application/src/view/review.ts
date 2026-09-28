@@ -7,11 +7,11 @@ import { Step } from '../domain/index.js'
 import { Message } from '../message.js'
 import { type Model, Submission } from '../model.js'
 import { Education, PersonalInfo, Skills, WorkHistory } from '../step/index.js'
-import { ReviewSlots, ReviewStyle, SubmitButtonStyle, SubmittingButtonStyle } from '../style.js'
+import { ReviewPart, SubmitButtonStyle, SubmittingButtonStyle } from '../style.js'
 import * as Button from './button.js'
 import { employmentRange, pluralize } from './format.js'
 
-type Slots = SlotBuilders<typeof ReviewSlots, Message>
+type Slots = SlotBuilders<typeof ReviewPart.slots, Message>
 
 const reviewSection = (title: string, content: Html, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.section(slots.section.attrs(), [h.h3(slots.sectionTitle.attrs(), [title]), content])
@@ -233,7 +233,7 @@ const submissionSection = (
 
 export const Review = SlotView.forMessages<Message>()
   .define(
-    ReviewSlots,
+    ReviewPart.slots,
     (
       {
         model,
@@ -270,4 +270,4 @@ export const Review = SlotView.forMessages<Message>()
       ])
     },
   )
-  .pipe(Style.attach(ReviewStyle))
+  .pipe(Style.attach(ReviewPart.style))

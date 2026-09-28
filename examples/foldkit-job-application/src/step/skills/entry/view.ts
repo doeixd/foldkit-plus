@@ -4,14 +4,14 @@ import { SlotView, Style } from 'foldkit-mixins'
 import { RadioGroup } from 'foldkit-mixins-ui'
 
 import { ProficiencyLevel } from '../../../domain/index.js'
-import { ProficiencyStyle, RemoveButtonStyle, StepSlots, StepStyle } from '../../../style.js'
+import { ProficiencyStyle, RemoveButtonStyle, StepPart } from '../../../style.js'
 import { Button, Field } from '../../../view/index.js'
 import { Message, type Model, ProficiencyRadioGroup, SkillForm } from './entry.js'
 
 const controls = Field.controlsOf(SkillForm.controls)
 
 export const EntryView = SlotView.forMessages<Message>()
-  .define(StepSlots, (model: Model, slots, h) => {
+  .define(StepPart.slots, (model: Model, slots, h) => {
     const nameView = Field.input(
       {
         id: `${model.id}-name`,
@@ -62,6 +62,6 @@ export const EntryView = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(StepStyle))
+  .pipe(Style.attach(StepPart.style))
 
 export const view = Submodel.defineView<Model, Message>(EntryView)

@@ -3,7 +3,7 @@ import type { CalendarDate } from 'foldkit/calendar'
 import { type Html, type HtmlBuilder, createKeyedLazy } from 'foldkit/html'
 import { SlotView, Style } from 'foldkit-mixins'
 
-import { AddEntryButtonStyle, StepSlots, StepStyle } from '../../style.js'
+import { AddEntryButtonStyle, StepPart } from '../../style.js'
 import { Button } from '../../view/index.js'
 import { Message, type Model } from './education.js'
 import * as Entry from './entry/index.js'
@@ -20,7 +20,7 @@ const entryView = (entry: Entry.Model, today: CalendarDate, h: HtmlBuilder<Messa
   })
 
 export const EducationView = SlotView.forMessages<Message>()
-  .define(StepSlots, (model: Model, slots, h) =>
+  .define(StepPart.slots, (model: Model, slots, h) =>
     h.div(slots.step.attrs(), [
       h.p(slots.intro.attrs(), ['Add your educational background.']),
       h.div(
@@ -37,6 +37,6 @@ export const EducationView = SlotView.forMessages<Message>()
       ),
     ]),
   )
-  .pipe(Style.attach(StepStyle))
+  .pipe(Style.attach(StepPart.style))
 
 export const view = Submodel.defineView<Model, Message>(EducationView)

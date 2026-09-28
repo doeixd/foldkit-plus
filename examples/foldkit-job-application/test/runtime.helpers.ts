@@ -1,4 +1,5 @@
 import { Runtime } from 'foldkit'
+import { Style } from 'foldkit-mixins'
 import { expect, vi } from 'vitest'
 
 import { Flags, Model, flags, init, update, view } from '../src/main.js'
@@ -13,9 +14,7 @@ export const start = async (): Promise<void> => {
     setTimeout(() => callback(performance.now()), 16),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-  const styles = document.createElement('style')
-  styles.textContent = stylesheet
-  document.head.append(styles)
+  Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'root'
   document.body.append(container)

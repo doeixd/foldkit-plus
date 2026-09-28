@@ -1,13 +1,13 @@
 import { Submodel } from 'foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 
-import { AddEntryButtonStyle, StepSlots, StepStyle } from '../../style.js'
+import { AddEntryButtonStyle, StepPart } from '../../style.js'
 import { Button } from '../../view/index.js'
 import * as Entry from './entry/index.js'
 import { Message, type Model } from './workHistory.js'
 
 export const WorkHistoryView = SlotView.forMessages<Message>()
-  .define(StepSlots, (model: Model, slots, h) =>
+  .define(StepPart.slots, (model: Model, slots, h) =>
     h.div(slots.step.attrs(), [
       h.p(slots.intro.attrs(), [
         'Add your relevant work experience, starting with the most recent.',
@@ -29,6 +29,6 @@ export const WorkHistoryView = SlotView.forMessages<Message>()
       ),
     ]),
   )
-  .pipe(Style.attach(StepStyle))
+  .pipe(Style.attach(StepPart.style))
 
 export const view = Submodel.defineView<Model, Message>(WorkHistoryView)
