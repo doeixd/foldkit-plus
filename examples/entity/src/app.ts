@@ -4,7 +4,7 @@
  * that is `server.ts`. The trace in `demo.ts`, the drawn page in `view.ts`, and
  * the browser entry in `client.ts` all run this one application.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Option } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
@@ -137,7 +137,7 @@ export const Data = Remote.make({
 export const PostList = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
 export const Posts = PostList.at({
   data: Data,
-  input: (model: Model) => ({ search: model.postSearch, sort: model.postSort }),
+  input: (model: Model) => Option.some({ search: model.postSearch, sort: model.postSort }),
 })
 export const Authors = Crud.list('Authors', {
   query: AuthorsQuery,
@@ -147,7 +147,8 @@ export const Authors = Crud.list('Authors', {
 }).at({
   data: Data,
   // The picker's search text is the form's; here it becomes the query's input.
-  input: (model: Model) => ({ search: EditPostForm.search(model.editPost.form, 'editorId') }),
+  input: (model: Model) =>
+    Option.some({ search: EditPostForm.search(model.editPost.form, 'editorId') }),
 })
 
 // Where the editor lives: its slice of the Model, and the domain it saves through.
@@ -192,8 +193,7 @@ export const update = PostEditor.after(
       case 'ClosedEditor':
         return EditForm.helpers.close()(model)
       case 'RequestedMorePosts': {
-        const more = Posts.more(model)
-        return more === undefined ? { model } : { model, commands: [more] }
+        return { model: Option.getOrElse(Posts.more(model), () => model), commands: [] }
       }
       // A failed read is not asked for again on its own; this is the asking.
       // The button leaves the page once the refresh starts, so focus goes to

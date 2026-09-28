@@ -360,9 +360,11 @@ const url = wiring.url(url => Message.UrlChanged({ url }))
 
 `Filters.wiring('UrlChanged')` routes the application's URL Message into
 `Filters.reduce` and reads the URL at startup; `Prefs.wiring()` routes its own
-`MirrorRestored` into `Prefs.reduce` and runs `Prefs.restore` at startup. Two
-key-value mirrors share the `MirrorRestored` tag, so each wiring routes only
-its own mirror's Message and the assembly accepts both.
+`MirrorRestored` into `Prefs.reduce` and runs `Prefs.restore` at startup. Both
+tags are shared: two key-value mirrors each read only their own
+`MirrorRestored`, several URL mirrors each read their keys from one
+`UrlChanged`, and the application's own `update` sees `UrlChanged` after them,
+so it can route on the URL over the slices they have already read.
 
 ## Slice = field refs or a writable Projection
 

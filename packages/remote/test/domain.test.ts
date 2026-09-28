@@ -331,6 +331,42 @@ describe('Data.overlay shows a change nobody has made', () => {
   it('lifting what was never shown is the same Model', () => {
     expect(Data.lift(known, 'nothing')).toBe(known)
   })
+
+  it('says what a preview of an unsaved entity lacks, rather than waiting for it', () => {
+    const detail = Data.get(
+      Project.select({ name: true, owner: User.select({ name: true }) }),
+      'draft',
+    )
+    const shown = Data.overlay(known, 'preview', [Project.patch('draft', { name: 'Draft' })])
+    expect(detail.read(shown)).toEqual({
+      _tag: 'Failed',
+      error: {
+        _tag: 'Overlaid',
+        message:
+          'Project draft is shown only by an overlay, which does not hold owner; the server has not seen it, so nothing will fetch them.',
+      },
+    })
+    // Everything the Selection reads is overlaid: the preview reads.
+    expect(Data.get(summary, 'draft').read(shown)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'Draft' },
+    })
+    // A known entity's missing field is the server's to answer, and a request's
+    // layer is settled by its answer: either is waited for.
+    const overKnown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    expect(
+      Data.get(Project.select({ owner: User.select({ name: true }) }), 'p1').read(overKnown),
+    ).toEqual({
+      _tag: 'Initial',
+    })
+    const creating = Data.mutate(
+      known,
+      Rename,
+      { id: 'draft', name: 'Draft' },
+      { optimistic: [Project.patch('draft', { name: 'Draft' })] },
+    )
+    expect(detail.read(creating.model)).toEqual({ _tag: 'Initial' })
+  })
 })
 
 describe('Data.confirmed reads past what is only pending', () => {
@@ -446,7 +482,9 @@ describe('Data.live and Data.subscriptions', () => {
   })
   const Home = App.surface('Home', { model: () => ({ project: Data.get(summary, 'p1') }) })
   const subscriptions = Data.subscriptions({
-    page: Surface.at(Page, model => (model.route === '' ? undefined : { projectId: model.route })),
+    page: Surface.at(Page, model =>
+      model.route === '' ? Option.none() : Option.some({ projectId: model.route }),
+    ),
     home: Home,
   })
   const at = (route: string): Model => ({ route, remote: Remote.initial })
@@ -706,7 +744,7 @@ describe('what runs on every Model change is built once', () => {
     })
     const subscriptions = Data.subscriptions({
       counted: Surface.at(Counted, model =>
-        model.route === '' ? undefined : { projectId: model.route },
+        model.route === '' ? Option.none() : Option.some({ projectId: model.route }),
       ),
     })
     const model: Model = { route: 'p1', remote: Remote.initial }
@@ -800,6 +838,24 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
     expect(Unowned.contract.owner).toBeUndefined()
     const unownedData = Remote.make({ model: Unowned.store, entities: [Project] })
     expect(Object.keys(unownedData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
+    // A read of its own names no application either, so it is refused, not made up.
+    expect(() => unownedData.active('Detail', () => Option.none())).toThrow(
+      'whose Model field is a raw optic that names no application',
+    )
+  })
+
+  it('makes a read of the domain an active Surface of its application', () => {
+    const detail = Data.get(Project.select({ name: true }), 'p1')
+    const active = Data.active('Detail', (model: Model) =>
+      model.route === '' ? Option.none() : Option.some(detail),
+    )
+    expect(active).toMatchObject({ name: 'Detail', owner: App.owner, messages: [] })
+    expect(Option.isNone(active.projectionOf({ route: '', remote: Remote.initial }))).toBe(true)
+    expect(active.projectionOf({ route: 'p1', remote: Remote.initial })).toEqual(
+      Option.some(detail),
+    )
+    // It is taken as any of the application's Surfaces is.
+    expect(Object.keys(Data.subscriptions({ detail: active }))).toContain('detail.read')
   })
 })
 
@@ -1090,18 +1146,14 @@ describe('Data.query reads a connection as a page of selected items', () => {
     })
 
     it.each([
-      { change: 'removes an item', server: ['p2', 'p3', 'p4', 'p5'], items: ['p2', 'p3'] },
-      { change: 'reorders items', server: ['p2', 'p1', 'p3', 'p4'], items: ['p2', 'p1'] },
+      { change: 'removes an item', server: ['p2', 'p3', 'p4', 'p5'] },
+      { change: 'reorders items', server: ['p2', 'p1', 'p3', 'p4'] },
     ])(
-      'follows the server when it $change, dropping the pages past the first',
-      async ({ server, items }) => {
+      'follows the server when it $change, over the window the list grew to',
+      async ({ server }) => {
         const first = await observe(initial, projects, paging(['p1', 'p2', 'p3', 'p4']).layer)
-        const next = Data.next(first, projects)
-        if (next === undefined) throw new Error('the first page has a next page')
-        const page = await Effect.runPromise(
-          Data.fetch(next).effect.pipe(Effect.provide(paging(['p1', 'p2', 'p3', 'p4']).layer)),
-        )
-        const loaded = await observe(Data.reduce(first, page), projects, paging([]).layer)
+        const grown = Option.getOrThrow(Data.more(first, projects))
+        const loaded = await observe(grown, projects, paging(['p1', 'p2', 'p3', 'p4']).layer)
         expect(projects.read(loaded)).toMatchObject({
           _tag: 'Ready',
           value: { items: ['p1', 'p2', 'p3', 'p4'].map(id => ({ name: `name of ${id}` })) },
@@ -1113,11 +1165,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
           paging(server).layer,
         )
 
+        // One query for the four rows the window shows, not a page of two.
         expect(projects.read(settled)).toEqual({
           _tag: 'Ready',
           value: {
-            items: items.map(id => ({ name: `name of ${id}` })),
-            hasNext: true,
+            items: server.map(id => ({ name: `name of ${id}` })),
+            hasNext: false,
             hasPrevious: false,
           },
         })
@@ -1539,58 +1592,49 @@ describe('Data.query reads a connection as a page of selected items', () => {
     expect(Data.plan(foreign, projects)).toEqual([])
   })
 
-  it('next and previous page from the loaded boundaries, keeping the page size', () => {
-    expect(Data.next(initial, projects)).toBeUndefined()
-    expect(Data.previous(initial, projects)).toBeUndefined()
-    const known = merged(initial, ['p1', 'p2'])
-    expect(Data.next(known, projects)).toEqual({
-      ...projects.ref,
-      window: { first: 2, after: 'after:p2' },
+  it('a read shows at most its window, whatever else loaded the connection', () => {
+    const wide = read(merged(initial, ['p1', 'p2', 'p3', 'p4']), ['p1', 'p2', 'p3', 'p4'])
+    expect(projects.read(wide)).toEqual({
+      _tag: 'Ready',
+      value: {
+        items: [{ name: 'name of p1' }, { name: 'name of p2' }],
+        hasNext: true,
+        hasPrevious: false,
+      },
     })
-    expect(Data.previous(known, projects)).toBeUndefined()
-    expect(Data.next(merged(initial, ['p1', 'p2'], terminal), projects)).toBeUndefined()
-    expect(Data.next(merged(initial, ['p1'], { _tag: 'Unknown' }), projects)).toBeUndefined()
-
-    const backwards = Data.reduce(initial, {
-      _tag: 'ConnectionMerged',
-      connection: identity,
-      page: { edges: [edge('p9')], start: cursor('before:p9'), end: terminal },
+    // A `last` window is cut from the end, and says there is more before it.
+    const last = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, last: 1 })
+    expect(last.read(wide)).toMatchObject({
+      value: { items: [{ name: 'name of p4' }], hasPrevious: true },
     })
-    expect(Data.previous(backwards, projects)).toEqual({
-      ...projects.ref,
-      window: { last: 2, before: 'before:p9' },
-    })
-    const unknownStart = Data.reduce(initial, {
-      _tag: 'ConnectionMerged',
-      connection: identity,
-      page: { edges: [edge('p9')], start: { _tag: 'Unknown' }, end: terminal },
-    })
-    expect(Data.previous(unknownStart, projects)).toBeUndefined()
-    const whole = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary })
-    expect(Data.next(known, whole)).toEqual({ ...whole.ref, window: { after: 'after:p2' } })
-    const last = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, last: 5 })
-    expect(Data.next(known, last)).toEqual({ ...last.ref, window: { first: 5, after: 'after:p2' } })
+    // A window the connection fills exactly cuts nothing and says what the connection says.
+    const exact = read(merged(initial, ['p1', 'p2'], terminal), ['p1', 'p2'])
+    expect(projects.read(exact)).toMatchObject({ value: { hasNext: false } })
   })
 
-  it('fetch is a Command that merges the page, or reports the failure', async () => {
+  it('more grows the window by a page, and the read entry asks only for the rows it lacks', async () => {
     const known = read(merged(initial, ['p1', 'p2'], cursor('p2')), ['p1', 'p2'])
-    const next = Data.next(known, projects)!
-    const command = Data.fetch(next)
-    expect(command.name).toBe('Remote.query(ProjectsByOwner)')
-    expect(command.args).toEqual({ connection: identity, window: { first: 2, after: 'p2' } })
+    expect(Option.isNone(Data.more(initial, projects))).toBe(true)
+    const grown = Option.getOrThrow(Data.more(known, projects))
+    // Nothing is held past p2 yet, so the read is as it was, with more to come.
+    expect(projects.read(grown)).toEqual(projects.read(known))
+    const List = App.surface('List', { model: () => ({ projects }) })
+    const entry = Data.subscriptions({ list: List })['list.read']
+    expect(entry.modelToDependencies(grown).queries).toEqual([
+      {
+        identity,
+        window: { first: 2, after: 'p2' },
+        select: { entity: 'Project', fields: ['name'] },
+      },
+    ])
     const client = paging(['p1', 'p2', 'p3', 'p4', 'p5'])
-    const merge = await Effect.runPromise(command.effect.pipe(Effect.provide(client.layer)))
-    expect(merge).toMatchObject({ _tag: 'ConnectionMerged', connection: identity })
-    expect(client.queries).toEqual([
-      { input: { ownerId: 'u1' }, window: { first: 2, after: 'p2' } },
-    ])
-    const more = Data.reduce(known, merge)
-    // The new page's items are what the read entry plans next.
-    expect(Data.plan(more, projects)).toEqual([
-      { entity: 'Project', id: 'p3', fields: ['name'] },
-      { entity: 'Project', id: 'p4', fields: ['name'] },
-    ])
-    expect(projects.read(read(more, ['p3', 'p4']))).toEqual({
+    const messages = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(grown))).pipe(
+        Effect.provide(client.layer),
+      ),
+    )
+    const more = read(messages.reduce(Data.reduce, grown), ['p3', 'p4'])
+    expect(projects.read(more)).toEqual({
       _tag: 'Ready',
       value: {
         items: ['p1', 'p2', 'p3', 'p4'].map(id => ({ name: `name of ${id}` })),
@@ -1598,14 +1642,39 @@ describe('Data.query reads a connection as a page of selected items', () => {
         hasPrevious: false,
       },
     })
-    const failed = await Effect.runPromise(
-      command.effect.pipe(Effect.provide(paging([], { fail: true }).layer)),
-    )
-    expect(failed).toEqual({
-      _tag: 'QueryFailed',
-      connection: identity,
-      error: { _tag: 'RemoteQueryError', message: 'boom' },
+    // Another window of the same query does not grow with it.
+    const three = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 3 })
+    expect(three.read(more)).toMatchObject({ value: { items: { length: 3 } } })
+    // Everything shown and the connection at its end: there is no more.
+    const whole = read(merged(initial, ['p1', 'p2'], terminal), ['p1', 'p2'])
+    expect(Option.isNone(Data.more(whole, projects))).toBe(true)
+  })
+
+  it('forgets how far a window grew when retention drops its connection', () => {
+    const known = read(merged(initial, ['p1', 'p2'], cursor('p2')), ['p1', 'p2'])
+    const grown = Option.getOrThrow(Data.more(known, projects))
+    const keep = { identity, select: { entity: 'Project', fields: ['name'] } }
+    const kept = Data.reduce(grown, {
+      _tag: 'RetentionChanged',
+      roots: { requirements: [], connections: [keep] },
     })
+    expect(kept.remote.grown).toEqual(grown.remote.grown)
+    const dropped = Data.reduce(grown, {
+      _tag: 'RetentionChanged',
+      roots: { requirements: [], connections: [] },
+    })
+    expect(dropped.remote.grown).toEqual({})
+  })
+
+  it('a wider window than the connection holds asks for the rows it lacks', () => {
+    const known = read(merged(initial, ['p1', 'p2'], cursor('p2')), ['p1', 'p2'])
+    const wider = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 5 })
+    expect(Remote.planQueries(Data, known, wider)).toEqual([
+      { ...wider.ref, window: { first: 3, after: 'p2' } },
+    ])
+    // At its end, or already holding enough, it asks for nothing.
+    expect(Remote.planQueries(Data, merged(initial, ['p1', 'p2'], terminal), wider)).toEqual([])
+    expect(Remote.planQueries(Data, known, projects)).toEqual([])
   })
 
   it('prefetch runs the pending queries, then one read for their items, and returns the Model', async () => {
@@ -1683,10 +1752,10 @@ describe('Data.query reads a connection as a page of selected items', () => {
     expect(Data.plan(merged(initial, ['p1']), literal)).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name', 'id'] },
     ])
-    // Another window of the same connection is another query.
+    // Two windows of one connection are one query, for the wider: it covers both.
     const wider = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 50 })
     expect(Remote.planQueries(Data, initial, Projection.struct({ a: projects, b: wider }))).toEqual(
-      [projects.ref, wider.ref],
+      [wider.ref],
     )
   })
 })

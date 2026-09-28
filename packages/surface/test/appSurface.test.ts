@@ -1,7 +1,7 @@
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
-import { Projection, Surface } from '../src/index.js'
+import { Projection, Surface, type ActiveSurface } from '../src/index.js'
 
 const Model = Schema.Struct({ route: Schema.String, count: Schema.Number })
 const Message = defineMessageUnion({ Ping: {}, Bump: { by: Schema.Number } })
@@ -69,25 +69,28 @@ describe('Surface.at makes activation a Model fact', () => {
   })
 
   it('a value activates the Surface with those params', () => {
-    expect(Surface.at(Page, { id: 'p9' }).projectionOf(root)?.read(root)).toBe('p9')
+    expect(
+      Option.map(Surface.at(Page, { id: 'p9' }).projectionOf(root), shown => shown.read(root)),
+    ).toEqual(Option.some('p9'))
     expect(Surface.at(Page, { id: 'p9' }).name).toBe('Page')
   })
 
-  it('a function reads the params from the Model, and undefined means inactive', () => {
+  it('a function reads the params from the Model, and none means inactive', () => {
     const active = Surface.at(Page, model =>
-      model.route.startsWith('/') ? { id: model.route.slice(1) } : undefined,
+      model.route.startsWith('/') ? Option.some({ id: model.route.slice(1) }) : Option.none(),
     )
-    expect(active.projectionOf(root)?.read(root)).toBe('p1')
-    expect(active.projectionOf({ ...root, route: 'home' })).toBeUndefined()
+    expect(Option.map(active.projectionOf(root), shown => shown.read(root))).toEqual(
+      Option.some('p1'),
+    )
+    expect(Option.isNone(active.projectionOf({ ...root, route: 'home' }))).toBe(true)
   })
 
-  it('a Surface without params is active whatever the function returns', () => {
+  it('a Surface without params is active as a value, and its function says when', () => {
     const Home = App.surface('Home', { model: ({ model }) => ({ count: model.count }) })
-    expect(Surface.at(Home, undefined).projectionOf(root)?.read(root)).toEqual({ count: 3 })
-    expect(
-      Surface.at(Home, () => undefined)
-        .projectionOf(root)
-        ?.read(root),
-    ).toEqual({ count: 3 })
+    const read = (active: ActiveSurface<typeof root>) =>
+      Option.map(active.projectionOf(root), shown => shown.read(root))
+    expect(read(Surface.at(Home, undefined))).toEqual(Option.some({ count: 3 }))
+    expect(read(Surface.at(Home, () => Option.some(undefined)))).toEqual(Option.some({ count: 3 }))
+    expect(read(Surface.at(Home, () => Option.none()))).toEqual(Option.none())
   })
 })

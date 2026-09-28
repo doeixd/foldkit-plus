@@ -7,8 +7,9 @@
 
 ---
 
-> **Status: not started here, and it cannot start here.** Checked against both
-> sides.
+> **Status: Phase 1's package-view form is built here (see the 2026-09-26
+> result below); the rest is not started, and cannot start here.** Checked
+> against both sides.
 >
 > Nothing in this repository implements any of it: there is no
 > `packages/reactivity` and no `packages/reactivity-html`.
@@ -35,6 +36,31 @@
 >
 > **This is the one item in the deferred-work plan that belongs to a different
 > repository**, and it should be tracked there rather than here.
+>
+> **Revised 2026-09-26: Phase 1 can start here.** The block above applies to
+> Phases 2 and later, which need core's primitives. Phase 1 (§14) needs none:
+> it is `createLazy` driven by Projection dependencies, which exist. Building
+> the page builder found the need concrete, since a hover or a keystroke redrew
+> every panel, row and node. [dx-and-builder-PLAN.md](./dx-and-builder-PLAN.md)
+> §3c adopts Phase 1 with one decision this document leaves open: a boundary's
+> view is given only its selection, so dependencies are explicit **and**
+> cannot drift. Proxy tracking is not built. A development check samples cache
+> hits instead, as a safety net.
+>
+> **Phase 1 result, 2026-09-26: the package-view form.** Three boundaries,
+> each on Foldkit's own lazy slots:
+>
+> - `Renderer.render` memoizes each page node on its node object, marks and data;
+> - `SlotView.parts` gives a part only the input keys it names and memoizes it on them;
+> - `slots.x.lazy` memoizes an item on its arguments and on what the Mixins gave
+>   its Slots, compared by value.
+>
+> Over 1,000 nodes in the page builder, in headless Chromium, from the event to
+> the next frame, a hover went from about 50 ms to 16 ms, a selection from 48 ms
+> to 17 ms, and a keystroke in the inspector from 49 ms to 17 ms. Each now lands
+> in the next frame. The application-view form (`Reactive.view` over a
+> Projection) and the development check that samples hits are **not built**:
+> nothing needed them yet, since a part cannot read outside its selection.
 
 # 1. Purpose
 

@@ -82,6 +82,13 @@ const clear = <Value>(model: HistoryModel<Value>): HistoryModel<Value> =>
     ? model
     : start(model.present)
 
+const close = <Value>(model: HistoryModel<Value>): HistoryModel<Value> =>
+  model.group === null ? model : { ...model, group: null }
+
+const revert = <Value>(model: HistoryModel<Value>, group: string): HistoryModel<Value> =>
+  // The group is ended even where there is nothing to take back (capacity 0).
+  model.group === group ? { ...undo(model), future: [], group: null } : model
+
 const checkCapacity = (name: string, capacity: number): number => {
   // A negative or fractional capacity would silently keep a wrong-sized past;
   // fail where it is given, naming the caller, instead.
@@ -108,6 +115,17 @@ export const History = {
   redo,
   /** Nothing to undo or redo, the present kept. */
   clear,
+  /** The next push starts a step of its own, whatever its group: a group ends here. */
+  close,
+  /**
+   * The step `group` is making taken back, and not redoable: what a cancelled
+   * edit, or one that ended where it began, leaves. The Model as it was when
+   * the last push was not of `group`. What the group's first push dropped
+   * stays dropped: the redo future it cleared, and an entry capacity evicted;
+   * with a capacity of 0 nothing was kept, so the present stays and only the
+   * group ends.
+   */
+  revert,
   canUndo,
   canRedo,
 }

@@ -119,6 +119,19 @@ With one replica per document, from the recorded run:
 - These are `foldkit-sync`'s local costs and one `foldkit-durable` append/storage
   reading.
 
+## The page builder over 1,000 nodes
+
+How long a hover, a selection and a keystroke in the inspector take to reach
+the screen, in headless Chromium, as medians:
+
+```sh
+VITE_MEASURE=1 pnpm exec vitest run --project browser examples/cms/test/builder.browser.test.ts
+```
+
+It is skipped without `VITE_MEASURE`, since a timing is not a gate. The results,
+and what memoizing the editor changed, are in
+[pagebuilder-DESIGN.md](./design/pagebuilder-DESIGN.md) §25.
+
 ## foldkit-bundle: type-checking cost of placements
 
 A generated parent with `n` placements of one bundle, each with its own

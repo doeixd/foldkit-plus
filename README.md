@@ -20,6 +20,12 @@ reconciled by `update`. Replicas replay the same Messages through the same
 one. Views are styled from outside without forking. Each package answers one
 question, and they compose because they meet at explicit application boundaries.
 
+**See it running:** [foldkit-cms-demo.pages.dev](https://foldkit-cms-demo.pages.dev/)
+is a blog studio and its public site built with these packages: a CMS with
+drafts and revisions, a page builder, forms, lists, and pages rendered at build
+time. Its server runs in your browser, so nothing you write leaves it. The code
+is [`examples/cms`](./examples/cms).
+
 ## Choose who owns the state
 
 | What you are adding | Authoritative owner | Extension |
@@ -167,15 +173,17 @@ const AssistantAgent = AgentBuilder.make({
       name: 'add_todo',
       description: 'Add a todo with the given title',
 
-      // The protocol input can be smaller than the internal Message.
+      // The protocol input can be smaller than the internal Message. The call's
+      // invocation id rides on the intent, and the Command copies it onto the fact.
       input: Schema.Struct({ title: Schema.String }),
-      toMessage: ({ title }) => ({ title }),
+      toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
 
       // RequestedTodo is an intent. The tool call completes when update later
-      // applies the correlated durable fact produced by the application's Command.
+      // applies the durable fact that carries this call's id: two calls adding
+      // "Milk" each finish on their own todo, which a title could not tell apart.
       completion: {
         success: Message.SubmittedTodo,
-        correlate: (request, result) => request.title.trim() === result.title,
+        correlate: (_, result, { invocation }) => result.requestId === invocation.id,
       },
     }),
     ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },

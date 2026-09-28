@@ -122,7 +122,8 @@ What each call does:
   fix each.
 - **`SSR.page`** is pure: the template with the application and the envelope in
   it. The envelope goes before the template's last `</body>`, and a template
-  without one is refused, by `SSR.page` and by `SSR.entry` when it is made.
+  without one is refused, by `SSR.page` and by `SSR.entry` when it is made. An
+  optional `head` adds markup before `</head>`, given what was rendered.
 - **`SSR.hydrate`** reads the envelope, starts Foldkit's runtime from the
   resumed Model, and runs the plan's `boot` Commands. `init` does not run. A
   page with no server render at all starts on the client as usual.
@@ -150,6 +151,26 @@ Commands, which is where a `Mirror.kv` restores what the user saved:
 ```ts
 boot: model => assembly.init(model).commands ?? []
 ```
+
+### Styles in the first paint
+
+A page styled with `foldkit-mixins` can ship the CSS its markup uses in the
+head, so it is styled before any script runs. `head` is given the rendered
+application; `Style.usedIn` returns the CSS of every compiled class the markup
+carries. In the browser, Styles bring their rules as they draw and skip what
+this sheet already carries, so nothing is added twice.
+
+```ts
+import { Style } from 'foldkit-mixins'
+
+const html = SSR.page(template, result, {
+  head: rendered => `<style>${Style.usedIn(rendered.html)}</style>`,
+})
+```
+
+`SSR.entry` and `SSR.generate` take the same `head`. `SSR.entry` refuses a
+template with no `</head>` when it is made, and answers a `head` that throws
+`500`, as it does a render that fails.
 
 ### The head is part of the view
 

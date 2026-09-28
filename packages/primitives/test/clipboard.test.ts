@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 /**
- * Clipboard copy: success writes through the fake and yields Copied, denial
- * yields CopyFailed, and no clipboard API yields CopyFailed without throwing.
+ * The clipboard: success goes through the fake, denial yields the failure,
+ * and no clipboard API yields the failure without throwing.
  */
 import { Effect } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ClipboardMessage, copyText } from '../src/dom/index.js'
+import { ClipboardMessage, ClipboardReadMessage, copyText, readText } from '../src/dom/index.js'
 
 const written: Array<string> = []
+let held = ''
 let denied = false
 
 const installClipboard = () => {
@@ -20,6 +21,7 @@ const installClipboard = () => {
         written.push(text)
         return Promise.resolve()
       },
+      readText: () => (denied ? Promise.reject(new Error('denied')) : Promise.resolve(held)),
     },
     configurable: true,
   })
@@ -51,6 +53,28 @@ describe('copyText', () => {
     vi.stubGlobal('navigator', {})
     expect(await Effect.runPromise(copyText('hi').effect)).toEqual(
       ClipboardMessage.CopyFailed({ message: 'clipboard is unavailable' }),
+    )
+  })
+})
+
+describe('readText', () => {
+  it('yields what the clipboard holds', async () => {
+    installClipboard()
+    held = 'copied elsewhere'
+    expect(await Effect.runPromise(readText().effect)).toEqual(
+      ClipboardReadMessage.Read({ text: 'copied elsewhere' }),
+    )
+  })
+
+  it('yields ReadFailed on denial, and without a clipboard API', async () => {
+    installClipboard()
+    denied = true
+    expect(await Effect.runPromise(readText().effect)).toEqual(
+      ClipboardReadMessage.ReadFailed({ message: 'denied' }),
+    )
+    vi.stubGlobal('navigator', {})
+    expect(await Effect.runPromise(readText().effect)).toEqual(
+      ClipboardReadMessage.ReadFailed({ message: 'clipboard is unavailable' }),
     )
   })
 })

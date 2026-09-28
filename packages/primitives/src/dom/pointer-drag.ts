@@ -32,12 +32,20 @@ export type DragStarted = typeof DragStarted.Type
 export const DraggedOver = Schema.TaggedStruct('DraggedOver', {
   /** Where the pointer is, or `null` over nothing marked, or over what is dragged. */
   over: Schema.NullOr(DragPlace),
+  /**
+   * For a drag onto `targets`: whether the pointer is inside the region they
+   * are in, so `over: null` with `region: true` is its empty space (an empty
+   * page, the space below the last node). Absent for a drag among its own.
+   */
+  region: Schema.optionalKey(Schema.Boolean),
 })
 export type DraggedOver = typeof DraggedOver.Type
 
 export const DragDropped = Schema.TaggedStruct('DragDropped', {
   id: Schema.String,
   over: Schema.NullOr(DragPlace),
+  /** As `DraggedOver`'s: released inside the `targets` region. */
+  region: Schema.optionalKey(Schema.Boolean),
 })
 export type DragDropped = typeof DragDropped.Type
 
@@ -86,16 +94,40 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
   args: {
     /** The attribute that marks a descendant, holding its id. */
     attribute: Schema.String,
+    /**
+     * Where a drag may land, when not on the element's own marked descendants:
+     * the elements marked by `attribute` inside the one `within` selects, such
+     * as a palette's Blocks dragged onto a page. A drop's `over` is then one of
+     * those; what is dragged is still one of the element's own. `within` is
+     * looked for nearest first, under the element's closest ancestor that holds
+     * a match, so two editors on one page each drop onto their own.
+     */
+    targets: Schema.optionalKey(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
   },
-  execute: ({ element, attribute }) =>
+  execute: ({ element, attribute, targets }) =>
     Stream.callback<DragFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const owner = element.ownerDocument
-          const find = (from: EventTarget | null): Element | null => {
-            if (!(from instanceof Element)) return null
-            const marked = from.closest(`[${attribute}]`)
-            return marked !== null && element.contains(marked) ? marked : null
+          // What a drop lands on: the element's own marked descendants, or those of `targets`.
+          const landsOn = targets?.attribute ?? attribute
+          // Looked for at each move, so a redraw that replaced it is followed.
+          const regionOf = (within: string): Element | null => {
+            for (let at = element.parentElement; at !== null; at = at.parentElement) {
+              const found = at.querySelector(within)
+              if (found !== null) return found
+            }
+            return null
+          }
+          const find = (from: EventTarget | null) => {
+            if (!(from instanceof Element)) return { marked: null, inRegion: false }
+            const region = targets === undefined ? element : regionOf(targets.within)
+            const marked = from.closest(`[${landsOn}]`)
+            return {
+              marked: marked !== null && region !== null && region.contains(marked) ? marked : null,
+              // Only a drag onto `targets` tells its region's empty space from elsewhere.
+              inRegion: targets !== undefined && region !== null && region.contains(from),
+            }
           }
           // A press not yet a drag, or a drag under way: one pointer's, the first down.
           let pressed: {
@@ -106,21 +138,28 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           } | null = null
           let dragging: string | null = null
           let over: DragPlace | null = null
+          let inRegion = false
           // The click that ends a drag is not a press on what it ends over.
           let swallowClick = false
 
-          const placeAt = (event: Positioned): DragPlace | null => {
+          const placeAt = (event: Positioned) => {
             // Touch and pen capture the pointer to where it went down, so the
             // event's target is the dragged element: ask what is under it instead.
             const under =
               typeof owner.elementFromPoint === 'function' && event.clientX !== undefined
                 ? owner.elementFromPoint(event.clientX, event.clientY ?? 0)
                 : null
-            const marked = find(under ?? event.target)
-            const id = marked?.getAttribute(attribute) ?? null
-            if (marked === null || id === null || id === dragging) return null
-            return { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
+            const { marked, inRegion: region } = find(under ?? event.target)
+            const id = marked?.getAttribute(landsOn) ?? null
+            // Over itself is over nothing, where what is dragged is among what it lands on.
+            const place: DragPlace | null =
+              marked === null || id === null || (targets === undefined && id === dragging)
+                ? null
+                : { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
+            return { place, region }
           }
+          /** The region flag a fact carries: only for a drag onto `targets`. */
+          const withRegion = (region: boolean) => (targets === undefined ? {} : { region })
           const ours = (event: Positioned) =>
             pressed !== null &&
             (pressed.pointer === undefined || event.pointerId === pressed.pointer)
@@ -130,13 +169,17 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             pressed = null
             dragging = null
             const last = over
+            const lastRegion = inRegion
             over = null
+            inRegion = false
             release()
             if (id === null) return
             swallowClick = dropped && inside
             Queue.offerUnsafe(
               queue,
-              dropped ? DragDropped.make({ id, over: last }) : DragCancelled.make({ id }),
+              dropped
+                ? DragDropped.make({ id, over: last, ...withRegion(lastRegion) })
+                : DragCancelled.make({ id }),
             )
           }
 
@@ -159,10 +202,12 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   owner.getSelection()?.removeAllRanges()
                   Queue.offerUnsafe(queue, DragStarted.make({ id: dragging }))
                 }
-                const place = placeAt(positioned)
-                if (place?.id === over?.id && place?.zone === over?.zone) return
+                const { place, region } = placeAt(positioned)
+                if (place?.id === over?.id && place?.zone === over?.zone && region === inRegion)
+                  return
                 over = place
-                Queue.offerUnsafe(queue, DraggedOver.make({ over: place }))
+                inRegion = region
+                Queue.offerUnsafe(queue, DraggedOver.make({ over: place, ...withRegion(region) }))
               },
             ],
             [
@@ -179,26 +224,28 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                 if (ours(event as Positioned)) end(false)
               },
             ],
-            [
-              'keydown',
-              event => {
-                if (pressed === null || (event as Positioned).key !== 'Escape') return
-                event.preventDefault()
-                end(false)
-              },
-            ],
           ]
+          // Heard on the way down, and kept there: an Escape that ends a drag is the
+          // drag's, not also the focused element's (a canvas that would deselect).
+          const onEscape = (event: Event) => {
+            if (pressed === null || (event as Positioned).key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            end(false)
+          }
           // The document is listened to only while a press is under way.
           let listening = false
           const listen = () => {
             if (listening) return
             listening = true
             for (const [type, listener] of onDocument) owner.addEventListener(type, listener)
+            owner.addEventListener('keydown', onEscape, true)
           }
           const release = () => {
             if (!listening) return
             listening = false
             for (const [type, listener] of onDocument) owner.removeEventListener(type, listener)
+            owner.removeEventListener('keydown', onEscape, true)
           }
 
           const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [
@@ -211,6 +258,12 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                 // A second pointer while one is down is not a new drag.
                 if (pressed !== null) return
                 if ((positioned.button ?? 0) !== 0) return
+                // A press in text being edited selects text: it is no drag.
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest('[contenteditable]:not([contenteditable="false"])') !== null
+                )
+                  return
                 const id = targetOf(element, event.target, attribute)
                 if (id === null) return
                 pressed = {

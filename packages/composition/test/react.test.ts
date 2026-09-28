@@ -4,7 +4,7 @@
  * any Foldkit Html, so it may be a `foldkit-react` island, and the React
  * component's event runs the node's action like a Foldkit button's would.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -59,7 +59,10 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
     return ReactButton.view(
       {
         props: { label: props.label },
-        messages: pressed === undefined ? {} : { onPress: () => pressed },
+        messages: Option.match(pressed, {
+          onNone: () => ({}),
+          onSome: message => ({ onPress: () => message }),
+        }),
       },
       h,
     )

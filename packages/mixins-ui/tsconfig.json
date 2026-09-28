@@ -8,9 +8,19 @@
     "noEmit": false,
     "paths": {
       "foldkit-mixins": ["../mixins/src/index.ts"],
-      "foldkit-mixins/*": ["../mixins/src/*.ts"]
+      "foldkit-mixins-ui": ["./src/index.ts"],
+      "foldkit-mixins/defaults": ["../mixins/src/defaults.ts"],
+      "foldkit-mixins/layers": ["../mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../mixins/src/layout.ts"],
+      "foldkit-mixins/prose": ["../mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../mixins/src/testing.ts"],
+      "foldkit-mixins/theme": ["../mixins/src/theme.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
-  "references": [{ "path": "../mixins/tsconfig.build.json" }]
+  "references": [
+    {
+      "path": "../mixins/tsconfig.build.json"
+    }
+  ]
 }

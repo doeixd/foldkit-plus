@@ -156,7 +156,7 @@ whether a page is a rich-text document with layout nodes. It is not:
 | --- | --- | --- |
 | Address of an edit | a position: node, run, text offset | a node and a Region index |
 | Children | text runs, sometimes blocks | Blocks in named Regions |
-| Editing surface | a `contenteditable` subtree the browser mutates | a canvas the application renders; nothing is `contenteditable` |
+| Editing surface | a `contenteditable` subtree the browser mutates | a canvas the application renders; only the one text field being edited is `contenteditable` |
 | A unit of content | prose | a configured component |
 
 Forcing layout into text positions, or prose into Regions, makes each worse. So
@@ -176,6 +176,13 @@ runs `RichText.validate` on the body and reports its findings by path (§6). On
 the canvas, the selected Text node's body is edited by `foldkit-richtext-dom`'s
 editor Bundle, placed at the selection: one live editor at a time, committing a
 `setProp` when the selection leaves it (§13).
+
+> **2026-09-26: plain text is edited on the canvas in place.** A view draws a
+> text prop with `field(key)`; the one being edited is `contenteditable`,
+> frozen at the text it had when editing began, so no redraw rewrites the
+> element under the caret. That is the one exception to "nothing is
+> `contenteditable`", and it holds text, not a document. See
+> [`dx-and-builder-PLAN.md` §5e](./dx-and-builder-PLAN.md).
 
 What Composition adopts from rich text, because rich text paid for these lessons:
 
@@ -888,6 +895,23 @@ R9 remainder is, rather than silently accepted.
 > thrown and caught lookup of the current dispatch, about 20 µs, which a
 > running application does not. Per-row laziness waits for a measurement in a
 > running application that asks for it.
+
+> **Measured (view plan 3c), 2026-09-26,** in the browser tier (headless
+> Chromium) over a Section of 1,000 Headings, from the event to the next
+> frame, medians of 20 hovers and 5 selections: memoizing the canvas's nodes
+> took a hover from 48 ms to 35 ms and a selection from 45 ms to 36 ms. The
+> canvas was about a quarter of the redraw; the rest is the root pass and the
+> Layers rows, which the per-part and per-row boundaries of plan 3d address.
+
+> **Measured (view plan 3d), 2026-09-26,** the same way, with the editor cut
+> into parts that each redraw only when the Model fields they read change, and
+> each layer row drawn again only when what it shows changed. With every memo
+> off, then on: a hover 50 ms, then 16 ms; a selection 48 ms, then 17 ms; a
+> keystroke in the inspector 49 ms, then 17 ms. Each lands in the next frame. A
+> first selection costs about 90 ms, once, while each row learns which Slots it
+> uses. The Layers budget above ("only the changed rows") is met. To measure
+> again: `VITE_MEASURE=1 pnpm exec vitest run --project browser
+> examples/cms/test/builder.browser.test.ts`, which prints the medians.
 
 ## 26. Packages
 

@@ -231,6 +231,23 @@ describe('rendering the owned subtree', () => {
 })
 
 describe('positions map both ways', () => {
+  it('refuses text the run the document names does not hold', () => {
+    const dom = mount(document, content())
+    // What a mutation can leave: a second element claiming a run's identity, holding text
+    // that is not that run's.
+    const impostor = document.createElement('span')
+    impostor.setAttribute('data-run', 'a')
+    impostor.append(document.createTextNode('ab'))
+    dom.root.append(impostor)
+    expect(rangeToPosition(dom, impostor.firstChild as Text, 0)).toBeUndefined()
+    expect(rangeToPosition(dom, impostor.firstChild as Text, 1)).toBeUndefined()
+    // And text appended inside the run itself: an offset into what the document never had
+    // is not a position in the run.
+    const stray = document.createTextNode('drift')
+    ;(dom.elements.get(id('a')) as HTMLElement).append(stray)
+    expect(rangeToPosition(dom, stray, 1)).toBeUndefined()
+  })
+
   it('round-trips node and offset, deriving affinity from the run boundary', () => {
     const dom = mount(document, content())
     // A DOM caret carries no affinity, so mapping back yields `after` only at

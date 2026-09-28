@@ -16,7 +16,7 @@ imports.
 | A placed slice: match, count, page, value, selection, locale, scroll position, heights | the parent Model | bundle, placed like any other |
 | Key presses, pointer moves, scroll positions, focus identity | the parent Model, if kept | entry mapped to the parent's Message |
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
-| A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
+| A clipboard write or read, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
 | The current item of a roving tab stop, a typeahead query, or both for a list; whether an element is pressed; the open dismissable layers; the selected items; the live-region text | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
@@ -48,14 +48,15 @@ stiffness, damping }`), `Pagination` (`{ perPage }`), `Locale` (`{ default
 }`), `SelectionSet` (no args), `Geolocation` (no args), `Idle` (`{
 timeoutMs }`), `Presence` (`{ durationMs }`), `Virtual` (`{
 estimatedHeight, overscan, gap, paddingStart, paddingEnd }`, plus optional
-restore and settle options), and `history({ name, value })` (a `Push` may name a `group`, joining consecutive steps; `History.push`/`undo`/`redo` are the same steps as pure functions)
+restore and settle options), and `history({ name, value })` (a `Push` may name a `group`, joining consecutive steps; `History.push`/`undo`/`redo` are the same steps as pure functions; `History.close` ends a group,
+`History.revert(model, group)` takes a group's step back unredoably)
 place the same way. `sse({
 name })`, `websocket({ name })`, `mediaDevices({ name })`, `mediaStream({
 name })`, and `permissions({ name })` are factories over a resource tag;
 `debounce({ name, value })` is a factory whose settled value surfaces as an
 OutMessage the placement handles with `onOut` — required, so it cannot be
 dropped. `Throttle` pairs leading-edge against that trailing edge.
-`chat.helpers.send('hi')` sends on a placed socket; `copyText`, `share`,
+`chat.helpers.send('hi')` sends on a placed socket; `copyText`, `readText`, `share`,
 `loadScript`, `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
@@ -92,10 +93,20 @@ into a chord answer. Slices that must survive reload persist through
   `TreeNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, rows: model => [{ id, parent, branch, disabled? }], domId?, direction? })`,
   rows in tree order. Model `{ current, toggled }` (toggled away from the default);
   `TreeNavigation.shown(rows, model, args)` is what shows, with level and place.
-  Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes.
+  Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes
+  and `--fk-tree-level` (1 at the top) for indenting: `calc(var(--fk-tree-level) * 1rem)`.
+  Focus in the tree follows its tab stop when an edit elsewhere moves it or removes the
+  focused row (`FollowTabStop` Mount, `/dom`).
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.
+- **Text typed in place** (a heading edited on the page): `EditableText.behavior(Slots)<Input, Message>({ container,
+  attribute: 'data-field', toMessage })` (Mount `EditableText({ attribute })` in `/dom`) over the marked
+  field that is `contenteditable`: `TextEdited { field, text }` per change (not while an input method
+  composes), `TextCommitted` on Enter or blur, `TextCancelled { initial }` on Escape (the DOM gets
+  `initial` back), `EditAsked { field }` on a double-click of one not editable yet. Text only;
+  one line unless `aria-multiline="true"`. Focus returns to the (tabbable) container when the
+  field an Enter or Escape ended goes away.
 - **Dragging one item onto another** (reorder a tree or a canvas):
   `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
   (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px
@@ -103,7 +114,10 @@ into a chord answer. Slices that must survive reload persist through
   `DragDropped { id, over }`, `DragCancelled { id }` (Escape, `pointercancel`, a
   button found released). One pointer; touch and pen work by position (give the
   marked elements `touch-action: none`). No roles or keys: give the keyboard
-  its own way. Swallows the click a drop ends with.
+  its own way. Swallows the click a drop ends with. Onto another region (a palette onto a
+  page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
+  found nearest the container first, and each fact carries `region: boolean`, so `over: null`
+  with `region: true` is the region's empty space.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
@@ -120,6 +134,11 @@ into a chord answer. Slices that must survive reload persist through
   ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
+- **Keep the selection in view:** the `KeepInView({ selector })` Mount (`foldkit-primitives/dom`) on a
+  scrolling list or canvas scrolls whatever newly matches `selector` into view (`nearest`); no Message.
+- **Draw over a marked element:** the `Measure({ targets: { selected: selector } })` Mount writes
+  `--fk-selected-x/-y/-w/-h/-display` on its element, relative to its scroll box; place an overlay
+  absolutely from them. No Message, nothing in the Model.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
 - **Focus ring for keyboard users only:** place `InputModality` (`events`; `{ modality }` from window keydown and pointerdown)

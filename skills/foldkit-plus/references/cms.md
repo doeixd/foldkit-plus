@@ -84,10 +84,15 @@ Placed.helpers.create(Cms.newEntryId()) // make the id in a Command or handler, 
 Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked, RestoreAsked({ revision }), UnpublishAsked,
 // ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Saving Saved Conflict SaveFailed
-// Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
-PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
-PostEditor.pageId(model) // row id, else the entry's: what the app's own pages and a preview use
-PostEditor.storedEntry(model) // null until something new is first saved: what a link may name
+// Publishing (sent, or waiting on a check) Published PublishFailed
+// Incomplete (the form's checks stopped it; until the next edit)
+// Scheduling Scheduled ScheduleFailed
+PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model) // each an Option
+PostEditor.may(model, 'publish') // `allow`'s answer for this principal, read with the entry; false until then.
+// Hide what would be refused: EditorSlot.view(model, h, { submits: PostEditor.may(model, 'publish') })
+PostEditor.pageId(model) // Option: row id, else the entry's: what the app's own pages and a preview use
+PostEditor.entry(model) // Option: the entry open, none while closed
+PostEditor.storedEntry(model) // Option: none until something new is first saved; what a link may name
 Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(form, view)))), 'editor')
 ```
 
@@ -161,6 +166,9 @@ RemoteServer.make({
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
   queue: the package owns no timer). A failed one stays scheduled with its error
   (state reads overdue) and is not retried until the draft changes.
+- Seeding or migrating: `cms.import({ type, values, as, at?, entry? })` (an Effect needing the
+  database) publishes content that exists already by the publish path (your `create` writes the
+  row; entry and revision 1 follow), in one transaction. Never insert into the CMS tables by hand.
 - A publish refused for a taken slug lands on the slug's field (`Form.Refused`);
   no wiring. There is no while-typing check: a check cannot know which row it edits.
 - `CmsRestore { entry, revision }` makes that revision's value the draft (replacing

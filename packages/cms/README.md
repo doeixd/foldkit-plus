@@ -155,15 +155,20 @@ Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, D
 // RestoreAsked({ revision }), UnpublishAsked, ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 
 PostEditor.status(model) // Opened | Editing | Saving | Saved | Conflict | Publishing | Published | ...
-PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
-PostEditor.pageId(model) // the row's id, or the entry's until there is a row: what a preview shows under
-PostEditor.storedEntry(model) // the entry the server knows: null until something new is first saved
+PostEditor.state(model) // Option: the entry's lifecycle state, as the server last derived it
+PostEditor.may(model, 'publish') // whether the server's `allow` lets this principal ask it; false until read
+PostEditor.pageId(model) // Option: the row's id, or the entry's until there is a row: what a preview shows under
+PostEditor.storedEntry(model) // Option: the entry the server knows, none until something new is first saved
 ```
 
 - **Saving is automatic and is not publishing.** Each edit starts a rest (`rest`,
   one second by default), and the edit that is still the last one when its rest
   ends saves the form as it stands, valid or not. There is no Save button to
   forget, and a validation error never costs an author their work.
+- **A publish the form's own checks stop is `Incomplete`**, not whatever the
+  last save said: nothing was sent, the failing fields say why, and the next
+  edit clears it. One waiting for a check still running (an address being
+  looked up) is `Publishing` until the check answers.
 - **What counts as an edit is the form's answer, not a Message tag.** The editor
   asks `form.authoredChanged(before, after)`, so a blur, a refusal, or a repeated
   value starts no rest, while a control the editor has never heard of — a
@@ -237,9 +242,9 @@ EntryTable({ page, renderers: Cms.displayRenderers() }, h)
 
 | Kind | What it is |
 | --- | --- |
-| `Cms.Input.Slug` | Text shown after the address it completes. `Cms.slug(from, { prefix?, through? })` makes one that follows `from` through `Cms.slugify`. A form filled with a published slug does not follow: an address must not move because its title did. |
+| `Cms.Input.Slug` | Text shown after the address it completes. `Cms.slug(from, { prefix?, through? })` makes one that follows `from` through `Cms.slugify`. A form filled with a published slug does not follow: an address must not move because its title did. Drawn as the prefix in `FieldSlots.affix` and the input in `text`, together in `group`. |
 | `Cms.Input.DateTime` | A moment. Text that is none is `Invalid`, not submitted. |
-| `Cms.Display.State` | An entry's state as words: `Changed, scheduled`, `New, overdue`. `of({ words })` takes yours. Its renderer is a `span` with `data-cms-state` and `data-cms-schedule` to style. |
+| `Cms.Display.State` | An entry's state as words: `Changed, scheduled`, `New, overdue`. `of({ words })` takes yours, text with blanks as every words object is: each state, `scheduled`, `overdue`, and `withSchedule` (`'{state}, {schedule}'`). Its renderer is a `span` with `data-cms-state` and `data-cms-schedule` to style. |
 | `Cms.Display.Moment` | A time. `of({ now })` reads relative to that clock (`3 days ago`), and you decide how often it moves; without one it is the date and time. Its renderer is a `time`. |
 
 `Cms.Entities` already say how they are shown: an entry's `state` is a `State`,

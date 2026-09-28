@@ -1,12 +1,42 @@
-import { Result, Schema } from 'effect'
-import { Composition, NodeId, type Document } from 'foldkit-composition'
+import { Effect, Option, Result, Schema, Stream } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Renderer, fieldName } from 'foldkit-composition/foldkit'
+import * as ManagedResource from 'foldkit/managedResource'
+import * as Subscription from 'foldkit/subscription'
+import {
+  Block,
+  Catalog,
+  Composition,
+  Content,
+  NodeId,
+  Region,
+  type Document,
+} from 'foldkit-composition'
 import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
-import { Form } from 'foldkit-form'
+import { Form, Input } from 'foldkit-form'
+import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
-import { Builder, Layers, Message, Model } from 'foldkit-builder'
+import {
+  Builder,
+  Layers,
+  Message,
+  Model,
+  inputOf,
+  type DragSource,
+  type DropZone,
+} from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
-import { PageBuilder, Site, SiteRenderer, answer, isTimer } from './fixture.js'
+import {
+  ColorMessage,
+  PageBuilder,
+  Site,
+  SiteRenderer,
+  Stat,
+  Subscribe,
+  answer,
+  isTimer,
+} from './fixture.js'
 
 const { update } = PageBuilder.bundle
 const step = (model: Model, message: Message) => update(model, message, undefined)
@@ -17,6 +47,10 @@ const required = <A>(value: A | undefined, what: string): A => {
   return value
 }
 
+/** What an Option holds, or a failed test saying what was missing. */
+const some = <A>(value: Option.Option<A>, what: string): A =>
+  Option.getOrThrowWith(value, () => new Error(`expected ${what}`))
+
 /** Sends a Message, and the Message each Command answers with, until none is left. */
 const send = (model: Model, message: Message): Model => {
   const result = step(model, message)
@@ -26,7 +60,7 @@ const send = (model: Model, message: Message): Model => {
 }
 type Offered = 'Section' | 'Heading'
 const at = (model: Model, block: Offered) =>
-  required(PageBuilder.placeFor(model.page.present, model.selected, block), `a place for ${block}`)
+  some(PageBuilder.placeFor(model.page.present, model.selected, block), `a place for ${block}`)
 const insert = (model: Model, block: Offered) =>
   send(model, Message.InsertAsked({ block, at: at(model, block) }))
 const only = (document: Document, block: string): NodeId =>
@@ -52,7 +86,7 @@ describe('the Builder, headless', () => {
     )
     const section = only(withSection.page.present, 'Section')
     expect(withSection.page.present.roots).toEqual([section])
-    expect(withSection.selected).toBe(section)
+    expect(withSection.selected).toEqual(Option.some(section))
     expect(withSection.page.past).toEqual([PageBuilder.initial.page.present])
   })
 
@@ -69,7 +103,17 @@ describe('the Builder, headless', () => {
     expect(second.page.present.nodes[section]?.regions['body']).toHaveLength(2)
     // A Section cannot go inside a Section or among its Flow: it goes after the root.
     expect(PageBuilder.placeFor(second.page.present, second.selected, 'Section')).toEqual(
-      Composition.root(1),
+      Option.some(Composition.root(1)),
+    )
+  })
+
+  it('takes no name Object has for a Block with starting props', () => {
+    const refused = step(
+      PageBuilder.initial,
+      Message.InsertAsked({ block: 'constructor', at: Composition.root(0) }),
+    ).model
+    expect(Option.map(refused.refused, ({ code }) => code)).toEqual(
+      Option.some('composition:unknown-block'),
     )
   })
 
@@ -78,10 +122,10 @@ describe('the Builder, headless', () => {
       PageBuilder.initial,
       Message.InsertAsked({ block: 'Button', at: Composition.root(0) }),
     ).model
-    expect(refused.refused?.message).toBe(
-      '"Button" has no starting props, so it cannot be inserted',
+    expect(Option.map(refused.refused, ({ message }) => message)).toEqual(
+      Option.some('"Button" has no starting props, so it cannot be inserted'),
     )
-    expect(insert(refused, 'Section').refused).toBeNull()
+    expect(insert(refused, 'Section').refused).toEqual(Option.none())
   })
 
   it('undoes typing a prop as one step, and redoes it', () => {
@@ -104,11 +148,11 @@ describe('the Builder, headless', () => {
     const body = required(model.page.present.nodes[section]?.regions['body'], 'the body')
     const first = required(body[0], 'the first heading')
     const second = required(body[1], 'the second heading')
-    expect(PageBuilder.moveBy(model.page.present, second, 1)).toBeUndefined()
+    expect(PageBuilder.moveBy(model.page.present, second, 1)).toEqual(Option.none())
     model = send(
       model,
       Message.Applied({
-        op: required(PageBuilder.moveBy(model.page.present, second, -1), 'a move'),
+        op: some(PageBuilder.moveBy(model.page.present, second, -1), 'a move'),
       }),
     )
     expect(model.page.present.nodes[section]?.regions['body']).toEqual([second, first])
@@ -116,12 +160,12 @@ describe('the Builder, headless', () => {
     model = send(model, Message.DuplicateAsked({ id: section, at: Composition.root(1) }))
     expect(model.page.present.roots).toHaveLength(2)
     const copy = required(model.page.present.roots[1], 'the copy')
-    expect(model.selected).toBe(copy)
+    expect(model.selected).toEqual(Option.some(copy))
     expect(model.page.present.nodes[copy]?.regions['body']).toHaveLength(2)
     expect(Composition.validate(Site, model.page.present)).toEqual([])
 
     model = send(model, Message.Applied({ op: Composition.Op.remove(copy) }))
-    expect(model.selected).toBeNull()
+    expect(model.selected).toEqual(Option.none())
     expect(model.page.present.roots).toEqual([section])
   })
 
@@ -129,10 +173,10 @@ describe('the Builder, headless', () => {
     const edited = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
     const replaced = PageBuilder.replace(edited, Composition.empty())
     expect(replaced.page.past).toEqual([])
-    expect(replaced.selected).toBeNull()
+    expect(replaced.selected).toEqual(Option.none())
     const settled = PageBuilder.settle({ ...edited, hovered: edited.selected })
     expect(settled.page.past).toEqual([])
-    expect(settled.hovered).toBeNull()
+    expect(settled.hovered).toEqual(Option.none())
     expect(settled.page.present).toBe(edited.page.present)
   })
 
@@ -212,8 +256,10 @@ describe('the keyboard, the layers and the announcer', () => {
   const alt = { ...plain, altKey: true }
   const ctrl = { ...plain, ctrlKey: true }
   const press = (model: Model, key: string, modifiers = plain): Model => {
-    const message = PageBuilder.keyCommand(model, key, modifiers)
-    return message === undefined ? model : send(model, message)
+    return Option.match(PageBuilder.keyCommand(model, key, modifiers), {
+      onNone: () => model,
+      onSome: message => send(model, message),
+    })
   }
   // Two sections: the first holds two headings.
   const twoSections = () => {
@@ -238,9 +284,11 @@ describe('the keyboard, the layers and the announcer', () => {
     // Out of the Section is refused: a heading cannot be a root, and nothing changes.
     const out = press(raised, 'ArrowLeft', alt)
     expect(out.page.present).toBe(raised.page.present)
-    expect(out.refused?.code).toBe('composition:root-rejects')
+    expect(Option.map(out.refused, ({ code }) => code)).toEqual(
+      Option.some('composition:root-rejects'),
+    )
     // Into the node above: the upper heading holds nothing, so nothing to move into.
-    expect(PageBuilder.keyCommand(selectedLower, 'ArrowRight', alt)).toBeUndefined()
+    expect(PageBuilder.keyCommand(selectedLower, 'ArrowRight', alt)).toEqual(Option.none())
   })
 
   it('moves a node into the node above it, last in a Region that takes it, and back out', () => {
@@ -288,7 +336,7 @@ describe('the keyboard, the layers and the announcer', () => {
     const second = required(model.page.present.roots[1], 'the second section')
     const selected = send(model, Message.Selected({ id: second }))
     // A Section body takes Flow, and a Section is not Flow.
-    expect(PageBuilder.keyCommand(selected, 'ArrowRight', alt)).toBeUndefined()
+    expect(PageBuilder.keyCommand(selected, 'ArrowRight', alt)).toEqual(Option.none())
   })
 
   it('duplicates with Mod+D, removes with Delete, and undoes and redoes with Mod+Z and Mod+Y', () => {
@@ -304,24 +352,102 @@ describe('the keyboard, the layers and the announcer', () => {
       removed.page.present,
     )
     expect(press(press(removed, 'z', ctrl), 'y', ctrl).page.present).toBe(removed.page.present)
-    expect(PageBuilder.keyCommand({ ...removed, selected: null }, 'Delete', plain)).toBeUndefined()
-    expect(PageBuilder.keyCommand(removed, 'a', plain)).toBeUndefined()
+    expect(
+      PageBuilder.keyCommand({ ...removed, selected: Option.none() }, 'Delete', plain),
+    ).toEqual(Option.none())
+    expect(PageBuilder.keyCommand(removed, 'a', plain)).toEqual(Option.none())
+    // Escape lets go of the selection, and with none there is nothing to let go.
+    const released = press(removed, 'Escape')
+    expect(released.selected).toEqual(Option.none())
+    expect(PageBuilder.keyCommand(released, 'Escape', plain)).toEqual(Option.none())
+  })
+
+  it('runs a key through the command table, which an application may change', () => {
+    const { model } = twoSections()
+    const second = required(model.page.present.roots[1], 'the second section')
+    const selected = send(model, Message.Selected({ id: second }))
+    // Undo has nothing to do on a fresh page, so its key is not taken.
+    expect(PageBuilder.keyCommand(PageBuilder.initial, 'z', ctrl)).toEqual(Option.none())
+    // Shift is matched only where a key says: Delete takes it, undo does not.
+    expect(PageBuilder.keyCommand(selected, 'Delete', { ...plain, shiftKey: true })).toEqual(
+      Option.some(Message.Applied({ op: Composition.Op.remove(second) })),
+    )
+    // Delete by Mod+Backspace only, and no duplicating at all.
+    const Rebound = Builder.make('Rebound', {
+      catalog: Site,
+      renderer: SiteRenderer,
+      starters: { Section: {}, Heading: { text: 'New heading' } },
+      commands: built =>
+        built
+          .filter(command => command.id !== 'duplicate')
+          .map(command =>
+            command.id === 'delete'
+              ? { ...command, keys: [{ key: 'Backspace', mod: true }] }
+              : command,
+          ),
+    })
+    expect(Rebound.commands.map(command => command.id)).not.toContain('duplicate')
+    expect(Rebound.keyCommand(selected, 'Delete', plain)).toEqual(Option.none())
+    expect(Rebound.keyCommand(selected, 'd', ctrl)).toEqual(Option.none())
+    expect(Rebound.keyCommand(selected, 'Backspace', ctrl)).toEqual(
+      Option.some(Message.Applied({ op: Composition.Op.remove(second) })),
+    )
+    // A later command on the same key runs where the first has nothing to do.
+    const Closing = Builder.make('Closing', {
+      catalog: Site,
+      renderer: SiteRenderer,
+      starters: { Section: {} },
+      commands: built => [
+        ...built,
+        {
+          id: 'close-panel',
+          label: 'Close panel',
+          keys: [{ key: 'Escape' }],
+          placement: ['keyboard'],
+          run: () => Option.some(Message.PanelChosen({ panel: 'insert' })),
+        },
+      ],
+    })
+    expect(Closing.keyCommand(Closing.initial, 'Escape', plain)).toEqual(
+      Option.some(Message.PanelChosen({ panel: 'insert' })),
+    )
+    expect(Closing.keyCommand(selected, 'Escape', plain)).toEqual(Option.some(Message.Deselected()))
   })
 
   it('selects the node the layers’ keyboard focus moves to', () => {
     const { model, first } = twoSections()
     const focused = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: first })))
-    expect(focused.selected).toBe(first)
+    expect(focused.selected).toEqual(Option.some(first))
     expect(focused.layers.current).toBe(first)
     const stray = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: 'gone' })))
-    expect(stray.selected).toBe(model.selected)
+    expect(stray.selected).toEqual(model.selected)
+  })
+
+  it('keeps the layers’ keys where a removed node was: after it, else before, else its holder', () => {
+    const { model, first } = twoSections()
+    const [one, two] = body(model, first)
+    const removed = (from: Model, id: NodeId | undefined) =>
+      press(send(from, Message.Selected({ id: required(id, 'a heading') })), 'Delete')
+    // The first of two: the one after it.
+    expect(removed(model, one).layers.current).toBe(two)
+    // The last of three: the one just before it.
+    const three = insert(
+      send(model, Message.Selected({ id: required(two, 'a heading') })),
+      'Heading',
+    )
+    expect(removed(three, body(three, first)[2]).layers.current).toBe(two)
+    // The last: the one before it; then the only one left: its Section.
+    const lastGone = removed(model, two)
+    expect(lastGone.layers.current).toBe(one)
+    expect(removed(lastGone, one).layers.current).toBe(first)
+    expect(removed(lastGone, one).selected).toEqual(Option.none())
   })
 
   it('starts the layers’ keys from a selection made anywhere else', () => {
     const { model, first } = twoSections()
     const selected = send(model, Message.Selected({ id: first }))
     expect(selected.layers.current).toBe(first)
-    const cleared = send(selected, Message.Selected({ id: null }))
+    const cleared = send(selected, Message.Deselected())
     expect(cleared.layers.current).toBe(first)
   })
 
@@ -331,9 +457,10 @@ describe('the keyboard, the layers and the announcer', () => {
       Message.InsertAsked({ block: 'Heading', at: Composition.root(0) }),
     )
     const minted = send(edited.model, answer(required(edited.commands?.[0], 'the mint')))
-    expect(minted.refused?.code).toBe('composition:root-rejects')
+    const refusal = some(minted.refused, 'the refusal')
+    expect(refusal.code).toBe('composition:root-rejects')
     expect(minted.announcer.pending).toEqual({
-      message: minted.refused?.message,
+      message: refusal.message,
       politeness: 'assertive',
     })
     const added = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
@@ -366,45 +493,48 @@ describe('dragging a node', () => {
     }),
   )
   const document = page.page.present
+  /** Where the node `dragged`, dragged over `target` in `zone`, would go. */
+  const drop = (document: Document, dragged: NodeId, target: NodeId, zone: DropZone) =>
+    PageBuilder.dropAt(document, { _tag: 'Existing', id: dragged }, target, zone)
 
   it('drops before, after or inside a node, counting places without the node dragged', () => {
-    const drop = PageBuilder.dropAt
     expect(drop(document, id('h1'), id('h2'), 'after')).toEqual(
-      Composition.region(id('s1'), 'body', 2),
+      Option.some(Composition.region(id('s1'), 'body', 2)),
     )
     expect(drop(document, id('h2'), id('h1'), 'before')).toEqual(
-      Composition.region(id('s1'), 'body', 0),
+      Option.some(Composition.region(id('s1'), 'body', 0)),
     )
     expect(drop(document, id('h1'), id('g'), 'inside')).toEqual(
-      Composition.region(id('g'), 'items', 0),
+      Option.some(Composition.region(id('g'), 'items', 0)),
     )
-    expect(drop(document, id('s2'), id('s1'), 'before')).toEqual(Composition.root(0))
+    expect(drop(document, id('s2'), id('s1'), 'before')).toEqual(Option.some(Composition.root(0)))
   })
 
   it('drops inside a node that takes nothing as after it, and nowhere the page refuses', () => {
-    const drop = PageBuilder.dropAt
     expect(drop(document, id('h1'), id('h2'), 'inside')).toEqual(
-      Composition.region(id('s1'), 'body', 2),
+      Option.some(Composition.region(id('s1'), 'body', 2)),
     )
     // A Section fits neither in a Group nor among a Section's Flow.
-    expect(drop(document, id('s2'), id('g'), 'inside')).toBeUndefined()
-    expect(drop(document, id('h1'), id('h1'), 'after')).toBeUndefined()
-    expect(drop(document, id('h1'), id('gone'), 'after')).toBeUndefined()
+    expect(drop(document, id('s2'), id('g'), 'inside')).toEqual(Option.none())
+    expect(drop(document, id('h1'), id('h1'), 'after')).toEqual(Option.none())
+    expect(drop(document, id('h1'), id('gone'), 'after')).toEqual(Option.none())
   })
 
   it('selects what it drags, and moves it on the drop as one undoable, announced edit', () => {
-    const started = send(page, Message.DragStarted({ id: id('h1') }))
-    expect(started.selected).toBe(id('h1'))
-    const over = send(started, Message.DraggedOver({ over: { id: id('g'), zone: 'inside' } }))
-    expect(over.drag).toEqual({
-      id: id('h1'),
-      over: { id: id('g'), zone: 'inside' },
-      at: Composition.region(id('g'), 'items', 0),
-    })
+    const started = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } }))
+    expect(started.selected).toEqual(Option.some(id('h1')))
+    const over = send(started, Message.DraggedOver({ id: id('g'), zone: 'inside' }))
+    expect(over.drag).toEqual(
+      Option.some({
+        source: { _tag: 'Existing', id: id('h1') },
+        over: Option.some({ id: id('g'), zone: 'inside' }),
+        at: Option.some(Composition.region(id('g'), 'items', 0)),
+      }),
+    )
     // Nothing moves until the drop.
     expect(over.page).toBe(page.page)
     const dropped = send(over, Message.DragDropped())
-    expect(dropped.drag).toBeNull()
+    expect(dropped.drag).toEqual(Option.none())
     expect(dropped.page.present.nodes[id('g')]?.regions['items']).toEqual([id('h1')])
     expect(dropped.announcer.pending?.message).toBe('Moved Heading, 1 of 1 in Group items')
     expect(send(dropped, Message.Undid()).page.present).toBe(document)
@@ -412,34 +542,156 @@ describe('dragging a node', () => {
 
   it('moves nothing on a drop the page refuses, or a cancel, and says so', () => {
     const refused = send(
-      send(page, Message.DragStarted({ id: id('s2') })),
-      Message.DraggedOver({ over: { id: id('g'), zone: 'inside' } }),
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('s2') } })),
+      Message.DraggedOver({ id: id('g'), zone: 'inside' }),
     )
-    expect(refused.drag?.at).toBeNull()
+    expect(Option.flatMap(refused.drag, drag => drag.at)).toEqual(Option.none())
     // Over a Heading, which takes nothing inside, the drop is marked where it lands.
     const beside = send(
-      send(page, Message.DragStarted({ id: id('h1') })),
-      Message.DraggedOver({ over: { id: id('h2'), zone: 'inside' } }),
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } })),
+      Message.DraggedOver({ id: id('h2'), zone: 'inside' }),
     )
-    expect(beside.drag?.over).toEqual({ id: id('h2'), zone: 'after' })
+    expect(Option.flatMap(beside.drag, drag => drag.over)).toEqual(
+      Option.some({ id: id('h2'), zone: 'after' }),
+    )
     const dropped = send(refused, Message.DragDropped())
     expect(dropped.page).toBe(page.page)
-    expect(dropped.drag).toBeNull()
+    expect(dropped.drag).toEqual(Option.none())
     expect(dropped.announcer.pending?.message).toBe('Not moved')
     const cancelled = send(refused, Message.DragCancelled())
     expect(cancelled.page).toBe(page.page)
-    expect(cancelled.drag).toBeNull()
+    expect(cancelled.drag).toEqual(Option.none())
     expect(cancelled.announcer.pending?.message).toBe('Not moved')
+  })
+
+  it('lands a new Block from the palette as an insert would, and never where the page refuses it', () => {
+    const heading = { _tag: 'New', block: 'Heading' } as const
+    // Nothing is taken out first: before h2 is its place, the third of three.
+    expect(PageBuilder.dropAt(document, heading, id('h2'), 'before')).toEqual(
+      Option.some(Composition.region(id('s1'), 'body', 2)),
+    )
+    expect(PageBuilder.dropAt(document, heading, id('g'), 'inside')).toEqual(
+      Option.some(Composition.region(id('g'), 'items', 0)),
+    )
+    // A Section fits nowhere inside a Group, nor after it among a Section's Flow:
+    // it lands by the nearest holder that takes it, after the Section, a root.
+    const section = { _tag: 'New', block: 'Section' } as const
+    expect(PageBuilder.dropAt(document, section, id('g'), 'inside')).toEqual(
+      Option.some(Composition.root(1)),
+    )
+    expect(PageBuilder.dropAt(document, section, id('h1'), 'before')).toEqual(
+      Option.some(Composition.root(0)),
+    )
+    expect(PageBuilder.dropAt(document, section, id('s2'), 'after')).toEqual(
+      Option.some(Composition.root(2)),
+    )
+    // Tried with an id the page does not hold, whatever its nodes are called.
+    const withDragged = Composition.Document.make({
+      ...document,
+      roots: [...document.roots, id('dragged')],
+      nodes: {
+        ...document.nodes,
+        [id('dragged')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    })
+    expect(PageBuilder.dropAt(withDragged, heading, id('h2'), 'before')).toEqual(
+      Option.some(Composition.region(id('s1'), 'body', 2)),
+    )
+  })
+
+  it('adds a new Block where it is dropped, selected, and starts no drag of one with no starting props', () => {
+    const selected = send(page, Message.Selected({ id: id('h1') }))
+    const started = send(
+      selected,
+      Message.DragStarted({ source: { _tag: 'New', block: 'Heading' } }),
+    )
+    // What was selected stays so until the new node is there.
+    expect(started.selected).toEqual(Option.some(id('h1')))
+    const over = send(started, Message.DraggedOver({ id: id('h2'), zone: 'after' }))
+    const dropped = send(over, Message.DragDropped())
+    const body = required(dropped.page.present.nodes[id('s1')]?.regions['body'], 'a body')
+    expect(body).toHaveLength(4)
+    const added = required(body[3], 'the new heading')
+    expect(dropped.page.present.nodes[added]).toEqual({
+      block: 'Heading',
+      props: { text: 'New heading' },
+      regions: {},
+    })
+    expect(dropped.selected).toEqual(Option.some(added))
+    expect(dropped.drag).toEqual(Option.none())
+    // Buttons have no starting props, so the palette does not offer them to drag.
+    expect(
+      send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Button' } })).drag,
+    ).toEqual(Option.none())
+  })
+
+  it('adds a tile dropped on the page’s own space last where the page takes it, and moves no node', () => {
+    const dragged = (model: Model, source: DragSource) =>
+      send(send(model, Message.DragStarted({ source })), Message.DraggedOverPage())
+    // An empty page takes a Section as its first root.
+    const empty = send(
+      dragged(PageBuilder.initial, { _tag: 'New', block: 'Section' }),
+      Message.DragDropped(),
+    )
+    expect(empty.page.present.roots).toHaveLength(1)
+    // A Heading, no root, goes last in the last Region that takes one: the empty Section.
+    const heading = send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DragDropped())
+    expect(heading.page.present.nodes[id('s2')]?.regions['body']).toHaveLength(1)
+    // Over the page's space, a node on it goes nowhere.
+    const node = send(dragged(page, { _tag: 'Existing', id: id('h1') }), Message.DragDropped())
+    expect(node.page).toBe(page.page)
+    // Over nothing at all, a tile is not added.
+    const off = send(
+      send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DraggedOff()),
+      Message.DragDropped(),
+    )
+    expect(off.page).toBe(page.page)
+  })
+
+  it('marks a drop its holder takes on the holder, and climbs no further than what is dragged', () => {
+    const over = send(
+      send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Section' } })),
+      Message.DraggedOver({ id: id('h2'), zone: 'after' }),
+    )
+    expect(Option.map(over.drag, drag => [drag.over, drag.at])).toEqual(
+      Option.some([Option.some({ id: id('s1'), zone: 'after' }), Option.some(Composition.root(1))]),
+    )
+    // Groups in a Group: ga holds gb and x; gb holds gc, which holds h.
+    const nested = Composition.Document.make({
+      format: 1,
+      roots: [id('s')],
+      nodes: {
+        [id('s')]: { block: 'Section', props: {}, regions: { body: [id('ga')] } },
+        [id('ga')]: { block: 'Group', props: {}, regions: { items: [id('gb'), id('x')] } },
+        [id('gb')]: { block: 'Group', props: {}, regions: { items: [id('gc')] } },
+        [id('gc')]: { block: 'Group', props: {}, regions: { items: [id('h')] } },
+        [id('h')]: { block: 'Heading', props: { text: 'H' }, regions: {} },
+        [id('x')]: { block: 'Heading', props: { text: 'X' }, regions: {} },
+      },
+    })
+    // Over what it holds, a node goes no higher than itself, though its holder would take it.
+    expect(drop(nested, id('gc'), id('h'), 'after')).toEqual(Option.none())
+    // Onto its own place is no move, and its holder's place is not meant instead.
+    expect(drop(nested, id('gb'), id('x'), 'before')).toEqual(Option.none())
+  })
+
+  it('says a new Block dragged away and let go was not added', () => {
+    const started = send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Heading' } }))
+    const cancelled = send(started, Message.DragCancelled())
+    expect(cancelled.announcer.pending?.message).toBe('Not added')
+    expect(cancelled.page).toBe(page.page)
   })
 
   it('counts a drop onto a node’s own place as no move, and drops where the page is now', () => {
     // h1 is first; before g is where it already is.
-    expect(PageBuilder.dropAt(document, id('h1'), id('g'), 'before')).toBeUndefined()
+    expect(drop(document, id('h1'), id('g'), 'before')).toEqual(Option.none())
     const over = send(
-      send(page, Message.DragStarted({ id: id('h2') })),
-      Message.DraggedOver({ over: { id: id('h1'), zone: 'before' } }),
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h2') } })),
+      Message.DraggedOver({ id: id('h1'), zone: 'before' }),
     )
-    expect(over.drag?.at).toEqual(Composition.region(id('s1'), 'body', 0))
+    expect(Option.flatMap(over.drag, drag => drag.at)).toEqual(
+      Option.some(Composition.region(id('s1'), 'body', 0)),
+    )
     // h1 goes before the drop. First in the body is still a place, but not the one
     // aimed at: before h1, which is not there.
     const gone = send(over, Message.Applied({ op: Composition.Op.remove(id('h1')) }))
@@ -456,13 +708,431 @@ describe('dragging a node', () => {
   })
 
   it('ignores a drag of no node, drag news with no drag, and settles with none', () => {
-    expect(send(page, Message.DragStarted({ id: id('gone') })).drag).toBeNull()
-    expect(send(page, Message.DraggedOver({ over: null }))).toBe(page)
+    expect(
+      send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('gone') } })).drag,
+    ).toEqual(Option.none())
+    expect(send(page, Message.DraggedOff())).toBe(page)
     expect(send(page, Message.DragDropped())).toBe(page)
     expect(send(page, Message.DragCancelled())).toBe(page)
-    const dragging = send(page, Message.DragStarted({ id: id('h1') }))
-    expect(PageBuilder.settle(dragging).drag).toBeNull()
-    expect(PageBuilder.replace(dragging, document).drag).toBeNull()
+    const dragging = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } }))
+    expect(PageBuilder.settle(dragging).drag).toEqual(Option.none())
+    expect(PageBuilder.replace(dragging, document).drag).toEqual(Option.none())
+  })
+})
+
+describe('copy, cut and paste', () => {
+  const id = NodeId.make
+  // A Section holding a Heading and a Card titled by a Heading; an empty Section after it.
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1'), id('s2')],
+      nodes: {
+        [id('s1')]: { block: 'Section', props: {}, regions: { body: [id('h1'), id('c')] } },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('c')]: { block: 'Card', props: {}, regions: { title: [id('t')] } },
+        [id('t')]: { block: 'Heading', props: { text: 'Title' }, regions: {} },
+        [id('s2')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    }),
+  )
+  const document = page.page.present
+  const clip = (tree: unknown) => JSON.stringify({ format: 'foldkit-composition', tree })
+  /** A paste of `text` read from the system clipboard, with `selected` selected. */
+  const paste = (model: Model, text: string) =>
+    send(model, Message.ClipboardRead({ text: Option.some(text) }))
+
+  it('pastes a copy of a node and all it holds under new ids, by the selection', () => {
+    const copied = send(
+      send(page, Message.Selected({ id: id('c') })),
+      Message.CopyAsked({ id: id('c') }),
+    )
+    expect(copied.page).toBe(page.page)
+    expect(copied.announcer.pending?.message).toBe('Copied Card')
+    // Into the empty Section: with it selected, the copy goes inside it.
+    const into = send(copied, Message.Selected({ id: id('s2') }))
+    // No system clipboard here, so the paste takes the Builder's own copy.
+    const pasted = send(into, Message.PasteAsked())
+    const body = required(pasted.page.present.nodes[id('s2')]?.regions['body'], 'a body')
+    const card = required(body[0], 'the pasted Card')
+    expect(card).not.toBe(id('c'))
+    const title = required(pasted.page.present.nodes[card]?.regions['title']?.[0], 'its title')
+    expect(title).not.toBe(id('t'))
+    expect(pasted.page.present.nodes[title]?.props).toEqual({ text: 'Title' })
+    expect(pasted.selected).toEqual(Option.some(card))
+    // The original is where it was, and a second paste mints ids again.
+    expect(pasted.page.present.nodes[id('s1')]).toEqual(document.nodes[id('s1')])
+    const twice = send(pasted, Message.PasteAsked())
+    expect(Object.keys(twice.page.present.nodes)).toHaveLength(
+      Object.keys(document.nodes).length + 4,
+    )
+  })
+
+  it('pastes what the system clipboard holds over its own copy', () => {
+    const copied = send(page, Message.CopyAsked({ id: id('c') }))
+    const selected = send(copied, Message.Selected({ id: id('h1') }))
+    const pasted = paste(
+      selected,
+      clip({
+        root: 'x',
+        nodes: { x: { block: 'Heading', props: { text: 'Elsewhere' }, regions: {} } },
+      }),
+    )
+    // After the selected Heading, among the Section's body.
+    const body = required(pasted.page.present.nodes[id('s1')]?.regions['body'], 'a body')
+    expect(body).toHaveLength(3)
+    expect(pasted.page.present.nodes[required(body[1], 'the pasted Heading')]?.props).toEqual({
+      text: 'Elsewhere',
+    })
+  })
+
+  it('refuses a paste whole when any of it does not hold together or fit the Catalog', () => {
+    const heading = (text: unknown) => ({ block: 'Heading', props: { text }, regions: {} })
+    const refusals: ReadonlyArray<readonly [string, string]> = [
+      [
+        clip({ root: 'x', nodes: { x: { block: 'Carousel', props: {}, regions: {} } } }),
+        'Carousel',
+      ],
+      [
+        clip({
+          root: 'g',
+          nodes: {
+            g: { block: 'Group', props: {}, regions: { items: ['a', 'b'] } },
+            a: heading('A'),
+            b: heading(7),
+          },
+        }),
+        'text',
+      ],
+      // A child it names but does not hold.
+      [
+        clip({
+          root: 'g',
+          nodes: {
+            g: { block: 'Group', props: {}, regions: { items: ['a', 'gone'] } },
+            a: heading('A'),
+          },
+        }),
+        'gone',
+      ],
+      [
+        clip({ root: 'x', nodes: { x: heading('A') } }).replace('}}}}', '}}},"extra":1}'),
+        'no part of a page',
+      ],
+      ['just some text', 'no part of a page'],
+      // Named by the ids copied, not by those a paste would mint.
+      [
+        clip({ root: 'x', nodes: { x: heading('A'), stray: heading('B') } }),
+        '"stray", which its root does not reach',
+      ],
+    ]
+    for (const [text, why] of refusals) {
+      const refused = paste(page, text)
+      expect(refused.page).toBe(page.page)
+      expect(some(refused.refused, `a refusal of ${text}`).message).toContain(why)
+    }
+  })
+
+  it('says so when nothing was copied and the system clipboard cannot be read', () => {
+    const refused = send(page, Message.PasteAsked())
+    expect(some(refused.refused, 'a refusal')).toEqual({
+      code: 'builder:nothing-to-paste',
+      message: 'Nothing has been copied',
+    })
+  })
+
+  it('cuts a node into the clipboard, and does not cut one its Region needs', () => {
+    const cut = send(page, Message.CutAsked({ id: id('c') }))
+    expect(cut.page.present.nodes[id('c')]).toBeUndefined()
+    expect(cut.announcer.pending?.message).toBe('Cut Card')
+    const back = send(send(cut, Message.Selected({ id: id('h1') })), Message.PasteAsked())
+    expect(Object.keys(back.page.present.nodes)).toHaveLength(Object.keys(document.nodes).length)
+    // A Card's title is all it holds: it stays, and what was copied before stays copied.
+    const copied = send(page, Message.CopyAsked({ id: id('h1') }))
+    const kept = send(copied, Message.CutAsked({ id: id('t') }))
+    expect(kept.page).toBe(page.page)
+    expect(kept.clipboard).toBe(copied.clipboard)
+    expect(some(kept.refused, 'a refusal').code).toBe('composition:region-cardinality')
+  })
+
+  it('pastes a cut node back with nothing selected, last where the page takes it', () => {
+    // The cut leaves nothing selected; a Heading is no root, so it goes last in a body.
+    const cut = send(
+      send(page, Message.Selected({ id: id('h1') })),
+      Message.CutAsked({ id: id('h1') }),
+    )
+    expect(cut.selected).toEqual(Option.none())
+    const pasted = send(cut, Message.PasteAsked())
+    expect(pasted.refused).toEqual(Option.none())
+    const body = required(pasted.page.present.nodes[id('s2')]?.regions['body'], 'a body')
+    expect(pasted.page.present.nodes[required(body[0], 'the pasted Heading')]?.props).toEqual({
+      text: 'One',
+    })
+  })
+
+  it('refuses a paste the page has no place for before it mints an id', () => {
+    const result = step(
+      PageBuilder.initial,
+      Message.ClipboardRead({
+        text: Option.some(
+          clip({
+            root: 'x',
+            nodes: { x: { block: 'Heading', props: { text: 'A' }, regions: {} } },
+          }),
+        ),
+      }),
+    )
+    // The refusal is said, and nothing is minted.
+    expect((result.commands ?? []).map(command => command.name)).toEqual(['PageBuilder.announce'])
+    expect(some(result.model.refused, 'a refusal')).toEqual({
+      code: 'builder:no-place',
+      message: 'There is no place on this page for a Heading',
+    })
+  })
+
+  it('offers no duplicate where the Region holds all it may', () => {
+    const inTitle = send(page, Message.Selected({ id: id('t') }))
+    expect(PageBuilder.commands.find(each => each.id === 'duplicate')?.run(inTitle)).toEqual(
+      Option.none(),
+    )
+    const inBody = send(page, Message.Selected({ id: id('h1') }))
+    expect(
+      Option.isSome(
+        required(
+          PageBuilder.commands.find(each => each.id === 'duplicate'),
+          'duplicate',
+        ).run(inBody),
+      ),
+    ).toBe(true)
+  })
+
+  it('runs copy, cut and paste from their keys', () => {
+    const selected = send(page, Message.Selected({ id: id('h1') }))
+    const key = (key: string) =>
+      PageBuilder.keyCommand(selected, key, {
+        ctrlKey: true,
+        metaKey: false,
+        altKey: false,
+        shiftKey: false,
+      })
+    expect(key('c')).toEqual(Option.some(Message.CopyAsked({ id: id('h1') })))
+    expect(key('x')).toEqual(Option.some(Message.CutAsked({ id: id('h1') })))
+    expect(key('v')).toEqual(Option.some(Message.PasteAsked()))
+  })
+})
+
+describe('patterns', () => {
+  const id = NodeId.make
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1'), id('s2')],
+      nodes: {
+        [id('s1')]: { block: 'Section', props: {}, regions: { body: [id('h1')] } },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('s2')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    }),
+  )
+
+  it('adds a pattern under new ids where its root’s Block would go, and selects it', () => {
+    const selected = send(page, Message.Selected({ id: id('s1') }))
+    // A Section goes beside a Section: just after the selected one, not last.
+    const at = some(
+      PageBuilder.patternAt(selected.page.present, selected.selected, 'Intro'),
+      'a place',
+    )
+    expect(at).toEqual(Composition.root(1))
+    const added = send(selected, Message.PatternAsked({ pattern: 'Intro', at }))
+    const intro = required(added.page.present.roots[1], 'the new Section')
+    expect(intro).not.toBe(id('intro'))
+    const title = required(added.page.present.nodes[intro]?.regions['body']?.[0], 'its heading')
+    expect(added.page.present.nodes[title]).toEqual({
+      block: 'Heading',
+      props: { text: 'Welcome' },
+      regions: {},
+    })
+    expect(added.selected).toEqual(Option.some(intro))
+    expect(added.announcer.pending?.message).toBe('Added Section, 2 of 3 in the page')
+    // One undo step takes it all away.
+    expect(send(added, Message.Undid()).page.present).toBe(page.page.present)
+  })
+
+  it('refuses a pattern the Catalog lacks, and finds no place for one', () => {
+    const refused = send(page, Message.PatternAsked({ pattern: 'Outro', at: Composition.root(1) }))
+    expect(some(refused.refused, 'a refusal').code).toBe('composition:unknown-pattern')
+    expect(refused.page).toBe(page.page)
+    expect(PageBuilder.patternAt(page.page.present, page.selected, 'Outro')).toEqual(Option.none())
+  })
+})
+
+describe('text edited in place', () => {
+  const id = NodeId.make
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1')],
+      nodes: {
+        [id('s1')]: {
+          block: 'Section',
+          props: {},
+          regions: { body: [id('h1'), id('h2'), id('st')] },
+        },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('h2')]: { block: 'Heading', props: { text: 'Two' }, regions: {} },
+        // Text its view draws as plain text, not as a field.
+        [id('st')]: {
+          block: 'Stat',
+          props: {
+            value: 3,
+            caption: 'Wins',
+            frame: { width: 1 },
+            rank: '1',
+            note: null,
+            source: null,
+          },
+          regions: {},
+        },
+      },
+    }),
+  )
+  const title = fieldName(id('h1'), 'text')
+  const textOf = (model: Model) => model.page.present.nodes[id('h1')]?.props['text']
+  const plain = { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }
+  /** The heading selected, editing begun by Enter, and `texts` typed one after another. */
+  const typed = (model: Model, texts: ReadonlyArray<string>) => {
+    const selected = send(model, Message.Selected({ id: id('h1') }))
+    const begun = send(selected, some(PageBuilder.keyCommand(selected, 'Enter', plain), 'Enter'))
+    return texts.reduce(
+      (next, text) => send(next, Message.FieldTyped({ field: title, text })),
+      begun,
+    )
+  }
+
+  it('begins on Enter with the text as it was, and keeps each change as one undo step', () => {
+    const begun = typed(page, [])
+    expect(begun.editing).toEqual(
+      Option.some({ id: id('h1'), key: 'text', initial: 'One', typed: false }),
+    )
+    const done = send(
+      typed(page, ['One!', 'One!!']),
+      Message.EditingCommitted({ field: title, text: 'One!!' }),
+    )
+    expect(textOf(done)).toBe('One!!')
+    expect(done.editing).toEqual(Option.none())
+    expect(textOf(send(done, Message.Undid()))).toBe('One')
+    // A second session of the same prop is a step of its own.
+    const again = send(
+      typed(done, ['One!!?']),
+      Message.EditingCommitted({ field: title, text: 'One!!?' }),
+    )
+    expect(textOf(send(again, Message.Undid()))).toBe('One!!')
+  })
+
+  it('puts the text back on Escape, and leaves no step, as it does for text that ends where it began', () => {
+    const cancelled = send(typed(page, ['On', 'O']), Message.EditingCancelled({ field: title }))
+    expect(cancelled.page.present).toBe(page.page.present)
+    expect(History.canUndo(cancelled.page)).toBe(false)
+    expect(History.canRedo(cancelled.page)).toBe(false)
+    const back = send(
+      typed(page, ['On', 'One']),
+      Message.EditingCommitted({ field: title, text: 'One' }),
+    )
+    expect(History.canUndo(back.page)).toBe(false)
+    expect(back.editing).toEqual(Option.none())
+  })
+
+  it('takes a commit whose text no change had reported', () => {
+    const done = send(typed(page, []), Message.EditingCommitted({ field: title, text: 'Uno' }))
+    expect(textOf(done)).toBe('Uno')
+    expect(textOf(send(done, Message.Undid()))).toBe('One')
+  })
+
+  it('leaves the keys to the text while it is edited', () => {
+    const editing = typed(page, ['On'])
+    expect(PageBuilder.keyCommand(editing, 'Delete', plain)).toEqual(Option.none())
+    expect(PageBuilder.keyCommand(editing, 'z', { ...plain, ctrlKey: true })).toEqual(Option.none())
+    // Not editing, Delete removes the selected node.
+    const selected = send(page, Message.Selected({ id: id('h1') }))
+    expect(Option.isSome(PageBuilder.keyCommand(selected, 'Delete', plain))).toBe(true)
+  })
+
+  it('edits only a field the page draws, and hears only the field being edited', () => {
+    // A Section draws no text; a name that is not a field, or a prop that is not text, is no field.
+    const onSection = send(page, Message.Selected({ id: id('s1') }))
+    expect(PageBuilder.keyCommand(onSection, 'Enter', plain)).toEqual(Option.none())
+    for (const field of [
+      'h1',
+      fieldName(id('h1'), 'colour'),
+      fieldName(id('gone'), 'text'),
+      fieldName(id('st'), 'caption'),
+    ])
+      expect(send(page, Message.EditingAsked({ field })).editing).toEqual(Option.none())
+    const editing = typed(page, [])
+    const other = send(
+      editing,
+      Message.FieldTyped({ field: fieldName(id('h2'), 'text'), text: 'X' }),
+    )
+    expect(other.page).toBe(editing.page)
+  })
+
+  it('ends when the selection moves to another node', () => {
+    const moved = send(typed(page, ['On']), Message.Selected({ id: id('h2') }))
+    expect(moved.editing).toEqual(Option.none())
+  })
+
+  it('ends at an undo, which changes the page under the field', () => {
+    const undone = send(typed(page, ['On!']), Message.Undid())
+    expect(undone.editing).toEqual(Option.none())
+    expect(textOf(undone)).toBe('One')
+  })
+
+  it('puts the text back on Escape when another edit came between', () => {
+    const between = send(
+      typed(page, ['On!']),
+      Message.Applied({ op: Composition.Op.setProp(id('h1'), 'text', 'On!') }),
+    )
+    const cancelled = send(between, Message.EditingCancelled({ field: title }))
+    expect(textOf(cancelled)).toBe('One')
+    expect(cancelled.editing).toEqual(Option.none())
+  })
+
+  it('leaves another edit alone when the field is left as it was shown', () => {
+    const between = send(
+      typed(page, []),
+      Message.Applied({ op: Composition.Op.setProp(id('h1'), 'text', 'Z') }),
+    )
+    for (const ended of [
+      Message.EditingCancelled({ field: title }),
+      Message.EditingCommitted({ field: title, text: 'One' }),
+    ]) {
+      const left = send(between, ended)
+      expect(textOf(left)).toBe('Z')
+      expect(left.page).toBe(between.page)
+      expect(left.editing).toEqual(Option.none())
+    }
+  })
+
+  it('records no empty step for a commit the page already holds', () => {
+    const between = send(
+      typed(page, ['On!']),
+      Message.Applied({ op: Composition.Op.setProp(id('h1'), 'text', 'On!') }),
+    )
+    const done = send(between, Message.EditingCommitted({ field: title, text: 'On!' }))
+    expect(done.page.past).toHaveLength(between.page.past.length)
+  })
+
+  it('keeps the session when asked again for the field being edited', () => {
+    const again = send(typed(page, ['On!']), Message.EditingAsked({ field: title }))
+    const cancelled = send(
+      send(again, Message.FieldTyped({ field: title, text: 'On!!' })),
+      Message.EditingCancelled({ field: title }),
+    )
+    expect(textOf(cancelled)).toBe('One')
+    expect(History.canUndo(cancelled.page)).toBe(false)
   })
 })
 
@@ -483,8 +1153,546 @@ describe('previewing the page', () => {
     expect(member.preview).toEqual({ audience: 'member' })
     const flagged = send(member, Message.PreviewChosen({ key: 'beta', value: true }))
     expect(flagged.preview).toEqual({ audience: 'member', beta: true })
-    expect(send(flagged, Message.PreviewChosen({ key: 'audience', value: null })).preview).toEqual({
+    expect(send(flagged, Message.PreviewCleared({ key: 'audience' })).preview).toEqual({
       beta: true,
     })
+    // A context value may itself be null, which is not the key unset.
+    expect(send(flagged, Message.PreviewChosen({ key: 'audience', value: null })).preview).toEqual({
+      audience: null,
+      beta: true,
+    })
+  })
+})
+
+describe('a control of the application’s own in the inspector', () => {
+  it('edits a prop through the Bundle behind it, with no Builder code', () => {
+    const swatch = NodeId.make('swatch')
+    const s = NodeId.make('s')
+    const page = send(
+      PageBuilder.replace(
+        PageBuilder.initial,
+        Composition.Document.make({
+          format: 1,
+          roots: [s],
+          nodes: {
+            [s]: { block: 'Section', props: {}, regions: { body: [swatch] } },
+            [swatch]: { block: 'Swatch', props: { tint: '#000000' }, regions: {} },
+          },
+        }),
+      ),
+      Message.Selected({ id: swatch }),
+    )
+    const { props } = some(PageBuilder.inspecting(page), 'the swatch inspected')
+    const chose = props.settings.control('tint', ColorMessage.Chose({ hex: '#ff0000' }))
+    const picked = send(
+      page,
+      Message.Inspected({
+        id: swatch,
+        form: props.key,
+        message: props.settings.encodeMessage(chose),
+      }),
+    )
+    expect(picked.page.present.nodes[swatch]?.props).toEqual({ tint: '#ff0000' })
+  })
+
+  // A color picker's Model and Messages, and what else it may run.
+  const HexModel = Schema.Struct({ hex: Schema.String })
+  type HexModel = typeof HexModel.Type
+  const Hexes = ManagedResource.tag<string>()('hexes')
+  const running = {
+    Subscriptions: {
+      subscriptions: () =>
+        Subscription.make<HexModel, typeof ColorMessage.Type>()(entry => ({
+          tick: entry(
+            { hex: Schema.String },
+            {
+              modelToDependencies: model => ({ hex: model.hex }),
+              dependenciesToStream: () => Stream.empty,
+            },
+          ),
+        })),
+    },
+    Resources: {
+      resources: () =>
+        ManagedResource.make<HexModel, typeof ColorMessage.Type>()(entry => ({
+          hexes: entry(Schema.Option(Schema.String), {
+            resource: Hexes,
+            modelToMaybeRequirements: model => Option.some(model.hex),
+            acquire: hex => Effect.succeed(hex),
+            release: () => Effect.void,
+            onAcquired: () => ColorMessage.Opened(),
+            onReleased: () => ColorMessage.Opened(),
+            onAcquireError: () => ColorMessage.Opened(),
+          }),
+        })),
+    },
+  }
+
+  it.each(Object.entries(running))(
+    'refuses one with %s where the Builder is made, as the inspector cannot run them',
+    (_, runs) => {
+      const Picker = Bundle.make({
+        name: 'Picker',
+        Model: HexModel,
+        Message: ColorMessage,
+        init: () => ({ model: { hex: '#000000' } }),
+        update: (model: HexModel) => ({ model }),
+        ...runs,
+      })
+      const Tinted = Block.define('Tinted', {
+        Props: Schema.Struct({ tint: Schema.String }),
+        provides: [Content.Section],
+      }).pipe(
+        Block.annotate(
+          Builder.controls({
+            tint: Input.bundle('Picker', {
+              bundle: Picker,
+              value: model => model.hex,
+              fill: (model, hex) => ({ ...model, hex }),
+            }),
+          }),
+        ),
+      )
+      const Tints = Catalog.make({ blocks: [Tinted], roots: [Content.Section] })
+      expect(() =>
+        Builder.make('Tints', {
+          catalog: Tints,
+          renderer: Renderer.make(Tints, { Tinted: ({ props, h }) => h.p([], [props.tint]) }),
+          starters: {},
+        }),
+      ).toThrow('"TintedSettings" has a control with Subscriptions or Resources')
+    },
+  )
+})
+
+describe('the inspector, a form over each action an event runs', () => {
+  const s = NodeId.make('s')
+  const stat = NodeId.make('stat')
+  const props = {
+    value: 3,
+    caption: 'posts',
+    frame: { width: 2 },
+    rank: '1',
+    note: '',
+    source: null,
+  }
+  const running = { action: 'subscribe', input: { list: 'news', times: 1, note: 'hi' } }
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [s],
+      nodes: {
+        [s]: { block: 'Section', props: {}, regions: { body: [stat] } },
+        [stat]: { block: 'Stat', props, actions: { press: running }, regions: {} },
+      },
+    }),
+  )
+  const selected = send(page, Message.Selected({ id: stat }))
+  const inspected = (model: Model) => some(PageBuilder.inspecting(model), 'a node inspected')
+  const press = (model: Model) => required(inspected(model).on['press'], 'the press input')
+  /** Types `value` into `key` of the press's input. */
+  const type = (model: Model, key: string, value: string): Model => {
+    const { key: form, settings } = press(model)
+    return send(
+      model,
+      Message.Inspected({
+        id: stat,
+        form,
+        message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
+      }),
+    )
+  }
+  const field = (model: Model, key: string) => {
+    const { settings, model: form } = press(model)
+    return settings.form.field(form, key)
+  }
+  const actions = (model: Model) => model.page.present.nodes[stat]?.actions
+
+  it('draws a form for the input of each event that runs an action, and none for one that does not', () => {
+    const { on } = inspected(selected)
+    expect(Object.keys(on)).toEqual(['press'])
+    expect(
+      press(selected).settings.form.controls.map(each => [each.key, each.control.kind]),
+    ).toEqual([
+      ['list', 'Select'],
+      ['times', 'Number'],
+      ['note', 'Text'],
+    ])
+    expect(field(selected, 'note').value).toBe('hi')
+  })
+
+  it('sets the action again with the changed input over the rest', () => {
+    const typed = type(selected, 'times', '4')
+    expect(actions(typed)).toEqual({
+      press: { action: 'subscribe', input: { list: 'news', times: 4, note: 'hi' } },
+    })
+    expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
+  })
+
+  it('sets nothing from an input field that does not decode, and says why at the field', () => {
+    const typed = type(selected, 'times', 'many')
+    expect(typed.page).toBe(selected.page)
+    expect(field(typed, 'times')).toEqual({
+      _tag: 'Invalid',
+      value: 'many',
+      errors: ['Enter a number'],
+    })
+  })
+
+  it('starts a newly chosen action’s input from its fields’ empty values, as stored', () => {
+    expect(inputOf(Stat, 'hold', Subscribe).seed()).toEqual({ list: 'news', times: 0, note: '' })
+    // A field drawn as an `Option` starts as the `null` it is stored as, not left out.
+    const Tagged = {
+      ...Subscribe,
+      name: 'tagged',
+      input: Schema.Struct({ tag: Schema.OptionFromNullOr(Schema.String) }),
+    }
+    expect(inputOf(Stat, 'hold', Tagged).seed()).toEqual({ tag: null })
+  })
+
+  it('names each event’s form for its event, so two that run one action draw apart', () => {
+    const { settings } = press(selected)
+    const both = send(
+      selected,
+      Message.Applied({ op: Composition.Op.setAction(stat, 'hold', running) }),
+    )
+    const hold = required(inspected(both).on['hold'], 'the hold input')
+    expect([settings.form.bundle.name, hold.settings.form.bundle.name]).toEqual([
+      'Stat-press-subscribe',
+      'Stat-hold-subscribe',
+    ])
+  })
+
+  it('refills an input field when the action changes another way, and forgets one it no longer runs', () => {
+    const typed = type(selected, 'note', 'there')
+    expect(field(send(typed, Message.Undid()), 'note').value).toBe('hi')
+    const stopped = send(
+      typed,
+      Message.Applied({ op: Composition.Op.setAction(stat, 'press', null) }),
+    )
+    expect(inspected(stopped).on).toEqual({})
+    // It held only that form, so it holds nothing now.
+    expect(stopped.inspector).toEqual(Option.none())
+  })
+})
+
+describe('the inspector, a form over the selected node', () => {
+  // A Section holding a Stat and a Heading, the Stat selected.
+  const s = NodeId.make('s')
+  const stat = NodeId.make('stat')
+  const heading = NodeId.make('heading')
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [s],
+      nodes: {
+        [s]: { block: 'Section', props: {}, regions: { body: [stat, heading] } },
+        [stat]: {
+          block: 'Stat',
+          props: {
+            value: 3,
+            caption: 'posts',
+            frame: { width: 2 },
+            rank: '1',
+            note: '',
+            source: null,
+          },
+          regions: {},
+        },
+        [heading]: { block: 'Heading', props: { text: 'Hello' }, regions: {} },
+      },
+    }),
+  )
+  const selected = send(page, Message.Selected({ id: stat }))
+  /** The selected node's id and its props form. */
+  const inspecting = (model: Model) => {
+    const { id, props } = some(PageBuilder.inspecting(model), 'a node inspected')
+    return { id, ...props }
+  }
+  /** Types `value` into the selected node's `key` field. */
+  const type = (model: Model, key: string, value: string): Model => {
+    const { id, settings } = inspecting(model)
+    return send(
+      model,
+      Message.Inspected({
+        id,
+        form: 'props',
+        message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
+      }),
+    )
+  }
+  /** What the selected node's `key` field shows, and whether it is in error. */
+  const field = (model: Model, key: string) => {
+    const { settings, model: form } = inspecting(model)
+    return settings.form.field(form, key)
+  }
+  const props = (model: Model, id: NodeId) => model.page.present.nodes[id]?.props
+
+  it('fills its fields from the node, labelled, with the controls the Block asks for', () => {
+    // A prop no control fits is shown as stored, not edited.
+    expect(inspecting(selected).settings.shown(props(selected, stat) ?? {})).toEqual([
+      { key: 'frame', label: 'Frame', value: { width: 2 } },
+    ])
+    const { settings } = inspecting(selected)
+    expect(settings.form.controls.map(each => [each.key, each.control.kind, each.label])).toEqual([
+      ['value', 'Number', 'Value'],
+      ['caption', 'Multiline', 'What it counts'],
+      ['rank', 'Text', 'Rank'],
+      ['note', 'Text', 'Note'],
+      ['source', 'Text', 'Source'],
+    ])
+    // Its words are the prop's, which its stored side does not carry.
+    expect(settings.form.controls.find(each => each.key === 'source')?.description).toBe(
+      'Where the number comes from',
+    )
+    expect(field(selected, 'value').value).toBe('3')
+    expect(field(selected, 'caption').value).toBe('posts')
+  })
+
+  it('keeps every prop two control hints ask for, the later one winning a prop', () => {
+    const annotated = Block.annotate(
+      Builder.controls({ caption: Input.text(), value: Input.hidden() }),
+    )(Stat)
+    expect(Metadata.summarize(annotated.metadata)).toEqual([
+      { name: 'foldkit-builder/controls', entries: ['caption: Text, value: Hidden'] },
+    ])
+  })
+
+  it('sets a prop from a field that decodes, typing a word as one undo step', () => {
+    const typed = type(type(selected, 'caption', 'po'), 'caption', 'people')
+    expect(props(typed, stat)).toEqual({
+      value: 3,
+      caption: 'people',
+      frame: { width: 2 },
+      rank: '1',
+      note: '',
+      source: null,
+    })
+    expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
+    expect(props(type(selected, 'value', '12'), stat)).toEqual({
+      value: 12,
+      caption: 'posts',
+      frame: { width: 2 },
+      rank: '1',
+      note: '',
+      source: null,
+    })
+  })
+
+  it('sets nothing from a field that does not decode, and says why at the field', () => {
+    const typed = type(selected, 'value', 'abc')
+    expect(typed.page).toBe(selected.page)
+    expect(field(typed, 'value')).toEqual({
+      _tag: 'Invalid',
+      value: 'abc',
+      errors: ['Enter a number'],
+    })
+    // Typed back to what the node holds: nothing to set, so no step to undo.
+    expect(type(typed, 'value', '3').page).toBe(selected.page)
+    // What the prop's own Schema checks is said at the field too.
+    const long = type(selected, 'caption', 'posts and comments')
+    expect(long.page).toBe(selected.page)
+    expect(field(long, 'caption')).toMatchObject({ _tag: 'Invalid', value: 'posts and comments' })
+    expect(JSON.stringify(field(long, 'caption'))).toContain('Keep it short')
+    // A check past a transformation too: the rank is stored as text, and checked as a number.
+    const negative = type(selected, 'rank', '-1')
+    expect(negative.page).toBe(selected.page)
+    expect(JSON.stringify(field(negative, 'rank'))).toContain('Above zero')
+    expect(props(type(selected, 'rank', '4'), stat)?.['rank']).toBe('4')
+  })
+
+  it('refills a field when the node changes another way, but keeps text that does not decode', () => {
+    const typed = type(selected, 'caption', 'people')
+    const undone = send(typed, Message.Undid())
+    expect(field(undone, 'caption').value).toBe('posts')
+
+    const held = type(type(selected, 'caption', 'people'), 'value', 'abc')
+    const undoneHeld = send(held, Message.Undid())
+    expect(field(undoneHeld, 'caption').value).toBe('posts')
+    expect(field(undoneHeld, 'value').value).toBe('abc')
+  })
+
+  it('shows a stored prop that no longer decodes, with its error, and fills the rest', () => {
+    // Stored before the Block's Schema changed, say: the page no longer holds it that way.
+    const stored = PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [s],
+        nodes: {
+          [s]: { block: 'Section', props: {}, regions: { body: [stat] } },
+          [stat]: {
+            block: 'Stat',
+            props: {
+              value: 'many',
+              caption: 'posts',
+              frame: { width: 2 },
+              rank: '1',
+              note: '',
+              source: null,
+            },
+            regions: {},
+          },
+        },
+      }),
+    )
+    const shown = send(stored, Message.Selected({ id: stat }))
+    expect(field(shown, 'value')).toEqual({
+      _tag: 'Invalid',
+      value: 'many',
+      errors: ['Enter a number'],
+    })
+    expect(field(shown, 'caption').value).toBe('posts')
+  })
+
+  it('reads a Builder saved before it held anything, and saves what it holds', () => {
+    const { inspector: _, ...before } = Schema.encodeSync(Model)(selected)
+    expect(Schema.decodeUnknownSync(Model)(before).inspector).toEqual(Option.none())
+    const held = type(selected, 'value', 'abc')
+    const saved = JSON.parse(JSON.stringify(Schema.encodeSync(Model)(held)))
+    expect(field(Schema.decodeUnknownSync(Model)(saved), 'value').value).toBe('abc')
+  })
+
+  it('ignores a form Message for a node no longer selected', () => {
+    const { settings } = inspecting(selected)
+    const late = Message.Inspected({
+      id: heading,
+      form: 'props',
+      message: settings.encodeMessage(settings.form.Message.Changed({ key: 'value', value: '9' })),
+    })
+    expect(send(selected, late)).toEqual(selected)
+  })
+
+  it('forgets what it held when the selection moves', () => {
+    const held = type(selected, 'value', 'abc')
+    const moved = send(held, Message.Selected({ id: heading }))
+    expect(moved.inspector).toEqual(Option.none())
+    expect(field(moved, 'text').value).toBe('Hello')
+    // Back on the Stat, its field shows the node again.
+    expect(field(send(moved, Message.Selected({ id: stat })), 'value').value).toBe('3')
+  })
+})
+
+describe('the inspector, where a value is cleared or refused', () => {
+  const Sheet = Block.define('Sheet', {
+    Props: Schema.Struct({}),
+    regions: { body: Region.many({ accepts: [Content.Flow] }) },
+    provides: [Content.Section],
+  })
+  const Range = Block.define('Range', {
+    Props: Schema.Struct({
+      min: Schema.Number,
+      max: Schema.Number,
+      step: Schema.optional(Schema.Number),
+    }).check(Schema.makeFilter(range => (range.min <= range.max ? undefined : 'min above max'))),
+    provides: [Content.Flow],
+    events: ['press'],
+  })
+  const Notify = {
+    name: 'notify',
+    description: 'Send a note',
+    input: Schema.Struct({ to: Schema.String, times: Schema.optional(Schema.Number) }),
+    toMessage: (input: { readonly to: string; readonly times?: number | undefined }) => input,
+  }
+  const catalog = Catalog.make({
+    blocks: [Sheet, Range],
+    actions: [Notify],
+    roots: [Content.Section],
+  })
+  const Ranges = Builder.make('Ranges', {
+    catalog,
+    renderer: Renderer.make(catalog, {
+      Sheet: ({ regions, h }) => h.section([], [...regions.body]),
+      Range: ({ h }) => h.div([], []),
+    }),
+    starters: { Sheet: {} },
+  })
+  const s = NodeId.make('s')
+  const r = NodeId.make('r')
+  const page = Ranges.replace(
+    Ranges.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [s],
+      nodes: {
+        [s]: { block: 'Sheet', props: {}, regions: { body: [r] } },
+        [r]: {
+          block: 'Range',
+          props: { min: 1, max: 5, step: 2 },
+          // `old` is a key the action's input no longer names.
+          actions: { press: { action: 'notify', input: { to: 'ann', times: 3, old: true } } },
+          regions: {},
+        },
+      },
+    }),
+  )
+  /** Ranges has no Commands this needs answered: a refusal's timer is left unrun. */
+  const send = (model: Model, message: Message): Model =>
+    Ranges.bundle.update(model, message, undefined).model
+  const selected = send(page, Message.Selected({ id: r }))
+  const inspected = (model: Model) => some(Ranges.inspecting(model), 'the range inspected')
+  const formOf = (model: Model, form: string) =>
+    form === 'props'
+      ? inspected(model).props
+      : required(inspected(model).on['press'], 'the press input')
+  const type = (model: Model, form: string, key: string, value: string): Model => {
+    const { key: named, settings } = formOf(model, form)
+    return send(
+      model,
+      Message.Inspected({
+        id: r,
+        form: named,
+        message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
+      }),
+    )
+  }
+  const node = (model: Model) => required(model.page.present.nodes[r], 'the range')
+
+  it('shows what the node holds again when the node refuses a value', () => {
+    const refused = type(selected, 'props', 'min', '9')
+    expect(Option.isSome(refused.refused)).toBe(true)
+    expect(node(refused).props).toEqual({ min: 1, max: 5, step: 2 })
+    const { settings, model } = formOf(refused, 'props')
+    expect(settings.form.field(model, 'min').value).toBe('1')
+    // Typing on is not refused again: the field keeps what is typed while the refusal still shows.
+    const typedOn = type(refused, 'props', 'min', '1.0')
+    expect(Option.isSome(typedOn.refused)).toBe(true)
+    const again = formOf(typedOn, 'props')
+    expect(again.settings.form.field(again.model, 'min').value).toBe('1.0')
+  })
+
+  it('takes away an optional prop, and an optional input, whose field is emptied', () => {
+    const cleared = type(selected, 'props', 'step', '')
+    expect(node(cleared).props).toEqual({ min: 1, max: 5 })
+    const input = type(selected, 'press', 'times', '')
+    expect(node(input).actions?.['press']).toEqual({ action: 'notify', input: { to: 'ann' } })
+  })
+
+  it('takes nothing away for a required field emptied: the field says it is required', () => {
+    const emptied = type(selected, 'props', 'min', '')
+    expect(emptied.page).toBe(selected.page)
+    expect(emptied.refused).toEqual(Option.none())
+    const { settings, model } = formOf(emptied, 'props')
+    expect(settings.form.field(model, 'min')).toMatchObject({ _tag: 'Invalid', value: '' })
+  })
+
+  it('keeps only the keys the action’s input names when it writes the input', () => {
+    const typed = type(selected, 'press', 'to', 'bo')
+    expect(node(typed).actions?.['press']).toEqual({
+      action: 'notify',
+      input: { to: 'bo', times: 3 },
+    })
+  })
+
+  it('takes no held form Message with a key its variant lacks', () => {
+    const { settings } = formOf(selected, 'props')
+    expect(
+      settings.decodeMessage({ _tag: 'Changed', key: 'min', value: '2', extra: true }),
+    ).toEqual(Option.none())
+    expect(Option.isSome(settings.decodeMessage({ _tag: 'Changed', key: 'min', value: '2' }))).toBe(
+      true,
+    )
   })
 })

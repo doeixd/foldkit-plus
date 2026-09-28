@@ -11,7 +11,7 @@ import { Block } from './block.js'
 import { Catalog } from './catalog.js'
 import { check as checkWhen } from './condition.js'
 import { accepts } from './content.js'
-import { nodeIds, type Document, type NodeId } from './document.js'
+import { nodeAt, nodeIds, type Document, type NodeId } from './document.js'
 import { bounds } from './region.js'
 
 export type DiagnosticCode =
@@ -64,7 +64,7 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
     at: ReadonlyArray<string | number>,
     ancestors: ReadonlySet<NodeId>,
   ): void => {
-    const node = document.nodes[id]
+    const node = nodeAt(document, id)
     if (node === undefined)
       return void say(
         'composition:missing-node',
@@ -138,7 +138,7 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
             `"${id}"'s ${name} holds ${children.length}, and takes ${bounds(region)}`,
           )
         children.forEach((child, index) => {
-          const placed = document.nodes[child]
+          const placed = nodeAt(document, child)
           const childBlock = placed === undefined ? undefined : Catalog.block(catalog, placed.block)
           if (childBlock !== undefined && !accepts(region.accepts, childBlock.provides))
             say(
@@ -164,7 +164,7 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
   }
 
   document.roots.forEach((id, index) => {
-    const node = document.nodes[id]
+    const node = nodeAt(document, id)
     const block = node === undefined ? undefined : Catalog.block(catalog, node.block)
     if (block !== undefined && !accepts(catalog.roots, block.provides))
       say(
@@ -195,5 +195,6 @@ export const valid = (catalog: Catalog) =>
         path: diagnostic.path,
         issue: diagnostic.message,
       })),
-    { title: 'fits the Catalog' },
+    // What it expects, as Effect's own checks say it: a `title` would name the form key it is on.
+    { expected: 'a Document that fits the Catalog' },
   )

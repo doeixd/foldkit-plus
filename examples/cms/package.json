@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/dev.ts",
     "demo": "tsx src/main.ts",
+    "build:sandbox": "vite build --mode sandbox && tsx src/generate.ts dist",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -19,20 +20,25 @@
     "foldkit-crud": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-mirror": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-builder": "workspace:*",
     "foldkit-mixins-crud": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-dom": "workspace:*",
     "foldkit-richtext-markdown": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-ssr": "workspace:*",
+    "foldkit-surface": "workspace:*",
+    "sql.js": "1.13.0"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-rc.116",
+    "@types/sql.js": "1.4.11",
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",
     "typescript": "5.9.3",

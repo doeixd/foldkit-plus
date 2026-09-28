@@ -17,7 +17,7 @@
  * page Builder, that is circular: a Block there names what it reads, as a
  * Query Block does, rather than holding it.
  */
-import type { Schema } from 'effect'
+import { Option, type Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { Projection, Surface, type ActiveSurface } from 'foldkit-surface'
 import { Block, type AnyBlock } from '../block.js'
@@ -30,8 +30,23 @@ import type { Region } from '../region.js'
 export interface PageReads<AppModel> extends ActiveSurface<AppModel> {
   readonly projectionOf: (
     model: AppModel,
-  ) => Projection<AppModel, Readonly<Record<string, unknown>>> | undefined
+  ) => Option.Option<Projection<AppModel, Readonly<Record<string, unknown>>>>
+  /**
+   * Each node's value by node id, as a Renderer's `data` takes it: what the
+   * Model holds of the page's reads, and nothing while it is inactive.
+   */
+  readonly data: (model: AppModel) => Readonly<Record<string, unknown>>
 }
+
+/** A page's reads as a Renderer's `data`: each node's value, or nothing while inactive. */
+export const dataOf =
+  <AppModel>(
+    projectionOf: (
+      model: AppModel,
+    ) => Option.Option<Projection<AppModel, Readonly<Record<string, unknown>>>>,
+  ) =>
+  (model: AppModel): Readonly<Record<string, unknown>> =>
+    Option.match(projectionOf(model), { onNone: () => ({}), onSome: reads => reads.read(model) })
 
 /** What a Surface Block reads, from its decoded props. */
 interface Read {
@@ -51,8 +66,8 @@ export type SurfaceBlock<
   Regions extends Readonly<Record<string, Region>>,
   Model,
 > = Block<Name, Props, Regions> & {
-  /** A node's Surface Model, from the `data` a Renderer hands its view; `undefined` without it. */
-  readonly value: (data: unknown) => Model | undefined
+  /** A node's Surface Model, from the `data` a Renderer hands its view; none without it. */
+  readonly value: (data: unknown) => Option.Option<Model>
 }
 
 export const SurfaceBlock = {
@@ -92,19 +107,19 @@ export const SurfaceBlock = {
       ...block,
       pipe: block.pipe,
       // The Renderer hands a node what `reads` read for it, which is this Surface's Model.
-      value: (data: unknown) => data as Model | undefined,
+      value: (data: unknown) => Option.fromUndefinedOr(data as Model | undefined),
     })
   },
 
   /**
    * Every Surface Block on the page as one Projection over the Model, keyed by
-   * node id, or `undefined` when there is none. A node whose props do not
-   * decode, or whose Block the Catalog lacks, reads nothing.
+   * node id; none when the page has none. A node whose props do not decode, or
+   * whose Block the Catalog lacks, reads nothing.
    */
   reads: <Root>(
     catalog: Catalog,
     document: Document,
-  ): Projection<Root, Readonly<Record<string, unknown>>> | undefined => {
+  ): Option.Option<Projection<Root, Readonly<Record<string, unknown>>>> => {
     const entries: Record<string, Projection<Root, unknown>> = {}
     for (const id of index(document).keys()) {
       const node = document.nodes[id]
@@ -118,8 +133,10 @@ export const SurfaceBlock = {
       entries[id] = read.surface.projection(read.params(props.success)) as Projection<Root, unknown>
     }
     return Object.keys(entries).length === 0
-      ? undefined
-      : (Projection.struct(entries) as Projection<Root, Readonly<Record<string, unknown>>>)
+      ? Option.none()
+      : Option.some(
+          Projection.struct(entries) as Projection<Root, Readonly<Record<string, unknown>>>,
+        )
   },
 
   /**
@@ -132,7 +149,7 @@ export const SurfaceBlock = {
     name: string,
     owner: object,
     catalog: Catalog,
-    documentOf: (model: Root) => Document | undefined,
+    documentOf: (model: Root) => Option.Option<Document>,
   ): PageReads<Root> => {
     const surfaces = catalog.blocks
       .flatMap(block => readKey.get(block.metadata))
@@ -144,18 +161,21 @@ export const SurfaceBlock = {
       )
     // The reads change only with the page, not with every Model the page is in.
     const byDocument = new WeakMap<Document, ReturnType<typeof SurfaceBlock.reads<Root>>>()
+    const projectionOf = (model: Root) =>
+      Option.flatMap(documentOf(model), document => {
+        const known = byDocument.get(document)
+        if (known !== undefined) return known
+        const reads = SurfaceBlock.reads<Root>(catalog, document)
+        byDocument.set(document, reads)
+        return reads
+      })
     return {
       name,
       owner,
       // What the features on a page may send, as each Surface lists it.
       messages: [...new Set(surfaces.flatMap(surface => Surface.at(surface, undefined).messages))],
-      projectionOf: model => {
-        const document = documentOf(model)
-        if (document === undefined) return undefined
-        if (!byDocument.has(document))
-          byDocument.set(document, SurfaceBlock.reads<Root>(catalog, document))
-        return byDocument.get(document)
-      },
+      projectionOf,
+      data: dataOf(projectionOf),
     }
   },
 }

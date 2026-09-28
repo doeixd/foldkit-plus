@@ -41,11 +41,13 @@ export const AppAgent = TodoAgent.make({
       // An agent supplies a title and nothing else; the id and the timestamp
       // are minted by the Command that `RequestedTodo` runs.
       input: Schema.Struct({ title: Schema.String }),
-      toMessage: ({ title }) => ({ title }),
+      // The invocation goes with the intent, and the Command puts it on the fact.
+      toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
       completion: {
         success: Message.SubmittedTodo,
-        // Two adds can be in flight; the fact that finishes this one carries its title.
-        correlate: (request, result) => request.title.trim() === result.title,
+        // Two adds can be in flight, even for one title: the fact that finishes
+        // this call is the one that carries its invocation.
+        correlate: (_, result, { invocation }) => result.requestId === invocation.id,
       },
     }),
 

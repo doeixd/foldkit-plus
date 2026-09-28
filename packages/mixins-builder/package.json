@@ -25,6 +25,7 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     }
@@ -47,15 +48,14 @@
     "foldkit-composition": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
-    "foldkit-metadata": "workspace:*",
     "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",
     "foldkit-bundle": "workspace:*",
-    "foldkit-mixins-form": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

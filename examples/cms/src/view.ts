@@ -1,271 +1,388 @@
 /**
- * The page. A visitor gets the public site and nothing else. An author gets the
- * worklist, the editor, the application's own page for the post (which is where
- * a preview shows), its history, and the public site to compare against.
+ * The posts, in the browser. With nothing open, the list: a heading, the active
+ * posts or the archive, and a search. With a post open, the editor fills the
+ * screen: a bar with the way back, where the post stands and Publish; the page
+ * to write on; and beside it the post's settings, schedule and history. A
+ * visitor is sent to the site.
  *
  * The form is `foldkit-mixins-form`'s and the table `foldkit-mixins-crud`'s, each
- * with the CMS's renderers beside its own. What is here is the status line and
- * the buttons, which are this application's to word.
+ * with the CMS's renderers beside its own. What is here is the layout, the
+ * words, and which of the CMS's transitions this reader is offered.
  */
-import type { Html, HtmlBuilder } from 'foldkit/html'
-import { Cms, type EditorStatus } from 'foldkit-cms'
+import { Option } from 'effect'
+import type { Document, Html, HtmlBuilder } from 'foldkit/html'
+import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
+import type { Selected } from 'foldkit-entity'
+import { SlotView, Style } from 'foldkit-mixins'
 import { ListView } from 'foldkit-mixins-crud'
 import {
   Editor,
   EditorSlot,
   Message,
   PostEditor,
-  Site,
   Worklist,
   WorklistList,
   history,
   postPage,
   type Model,
 } from './app.js'
-import { SlotView, Style } from 'foldkit-mixins'
-import { PageSlots, PostsPageStyle } from './style.js'
-import { chairOf, chairs } from './transport.js'
+import { PostForm, type PostPreview } from './domain.js'
+import { icon } from './icons.js'
+import {
+  badge,
+  chair,
+  failed,
+  historyCard,
+  intro,
+  moreCard,
+  shell,
+  stateIs,
+  statusLine,
+  statusText,
+  type RevisionRow,
+} from './shell.js'
+import { article, postHref } from './site.js'
+import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from './style.js'
 
-const chair = chairOf(window.location.search)
+type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
+
 const ask = (message: typeof Editor.Message.Type) => Message.GotEditorMessage({ message })
 
-const WorklistTable = ListView.forMessages<Message>().define(WorklistList)
+const WorklistTable = ListView.forMessages<Message>()
+  .define(WorklistList)
+  .pipe(Style.attach(ListStyle))
 
-/** The editor's status, in words: the posts' editor and the pages' say the same. */
-export const statusLine: Readonly<Record<EditorStatus, string>> = {
-  Closed: '',
-  Loading: 'Loading…',
-  NotFound: 'That entry does not exist.',
-  LoadFailed: 'The entry could not be read.',
-  Opened: '',
-  Editing: 'Unsaved changes…',
-  Saving: 'Saving…',
-  Saved: 'Draft saved.',
-  Conflict: 'Someone else saved this since you opened it. Your text is still here.',
-  SaveFailed: 'Not saved',
-  Publishing: 'Publishing…',
-  Published: 'Published.',
-  PublishFailed: 'Not published',
-  Scheduling: 'Scheduling…',
-  Scheduled: 'Scheduled.',
-  ScheduleFailed: 'Not scheduled',
-}
+// --- the list ---------------------------------------------------------------------
 
-/** Who is looking, and the two applications: posts and pages. */
-export const chairsNav = <M>(h: HtmlBuilder<M>): Html =>
-  h.nav(
-    [h.AriaLabel('Who is looking')],
-    [
-      h.a([h.Href(`/?as=${chair}`)], ['Posts']),
-      ' · ',
-      h.a([h.Href(`/pages?as=${chair}`)], ['Pages']),
-      h.span([h.Class('muted')], [' — ']),
-      ...chairs.flatMap((name, at) => [
-        ...(at === 0 ? [] : [h.span([h.Class('muted')], [' · '])]),
-        h.a(
-          [h.Href(`?as=${name}`), ...(name === chair ? [h.AriaCurrent('page')] : [])],
-          [name === 'wren' ? 'Wren, a writer' : name === 'edda' ? 'Edda, an editor' : 'A visitor'],
-        ),
+const list = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
+  const tab = (label: string, archive: boolean): Html =>
+    h.button(
+      slots.tab.attrs([
+        h.AriaPressed(String(model.archived === archive)),
+        ...(model.archived === archive ? [] : [h.OnClick(Message.ToggledArchive())]),
       ]),
-    ],
-  )
-
-const site = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const page = Site.page(model)
-  const found =
-    page._tag === 'Ready' || page._tag === 'Refreshing' ? page.value.items[0] : undefined
-  return h.section(
-    [h.Id('site')],
-    [
-      h.h2([], ['The public site']),
-      // A row that was just published joins this connection when the query is asked
-      // again, which for a visitor is loading the page.
-      h.button([h.Id('look'), h.OnClick(Message.LookedAgain())], ['Look again']),
-      h.label(
+      [label],
+    )
+  return h.div(slots.screen.attrs([h.Id('worklist')]), [
+    h.header(slots.screenHead.attrs(), [
+      h.div(
         [],
         [
-          '/blog/',
-          h.input([
-            h.Id('address'),
-            h.Type('text'),
-            h.Value(model.visiting),
-            h.OnInput(slug => Message.Visited({ slug })),
-          ]),
+          h.h1(slots.screenTitle.attrs(), ['Posts']),
+          h.p(slots.muted.attrs(), ['Write, schedule and publish the journal’s posts.']),
         ],
       ),
-      found === undefined
-        ? h.p(
-            [h.Class('muted')],
-            [page._tag === 'Loading' ? 'Looking…' : '404: nothing is published here.'],
-          )
-        : h.article([], [h.h3([], [found.title]), h.p([], [found.body])]),
-    ],
-  )
+      h.button(slots.primary.attrs([h.Id('new'), h.OnClick(Message.AskedForPost())]), [
+        icon(h, 'plus'),
+        'New post',
+      ]),
+    ]),
+    intro(slots, h),
+    h.div(slots.filters.attrs(), [
+      h.div(slots.tabs.attrs([h.Role('group'), h.AriaLabel('Which posts')]), [
+        tab('Active', false),
+        tab('Archive', true),
+      ]),
+      h.label(slots.searchBox.attrs(), [
+        icon(h, 'search'),
+        h.input(
+          slots.search.attrs([
+            h.Type('search'),
+            h.Placeholder('Search posts'),
+            h.AriaLabel('Search posts'),
+            h.Value(model.search),
+            h.OnInput(text => Message.Searched({ text })),
+          ]),
+        ),
+      ]),
+    ]),
+    WorklistTable(
+      {
+        page: Worklist.page(model),
+        onOpen: row => Message.OpenedEntry({ entry: row.id }),
+        renderers: Cms.displayRenderers(),
+        words: {
+          empty:
+            model.search !== ''
+              ? 'No post matches that.'
+              : model.archived
+                ? 'Nothing is archived.'
+                : 'Nothing yet. Start a post.',
+        },
+      },
+      h,
+    ),
+  ])
 }
 
-const pagePane = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const id = PostEditor.pageId(model)
-  const read = id === null ? undefined : postPage(id).read(model)
-  const post = read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value : undefined
-  return h.section(
-    [h.Id('page')],
-    [
-      h.h3([], [PostEditor.previewing(model) ? 'The post’s page, previewing' : 'The post’s page']),
-      post === undefined
-        ? h.p([h.Class('muted')], ['There is no row to read yet. Turn preview on.'])
-        : h.article(
-            [],
-            [
-              h.h4([], [post.title]),
-              h.p([h.Class('muted')], [`/blog/${post.slug}`]),
-              h.p([], [post.body]),
-            ],
-          ),
-    ],
-  )
+// --- the editor -------------------------------------------------------------------
+
+/** The post as its page will read: the site's own article, in the site's look. */
+const Preview = SlotView.define(
+  SiteSlots,
+  (post: Selected<typeof PostPreview>, slots, h: HtmlBuilder<Message>) =>
+    article({ slots, h, post, publishedAt: Option.none(), after: [] }),
+).pipe(Style.attach(SiteStyle))
+
+const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
+  const post = Option.flatMap(PostEditor.pageId(model), id => {
+    const read = postPage(id).read(model)
+    return read._tag === 'Ready' || read._tag === 'Refreshing'
+      ? Option.some(read.value)
+      : Option.none()
+  })
+  return Option.match(post, {
+    onNone: () => h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.']),
+    onSome: post => h.div(slots.preview.attrs(), [Preview(post, h)]),
+  })
 }
 
-const historyPane = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const read = history(model)?.read(model)
-  const revisions =
-    read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value.revisions : []
-  return h.section(
-    [h.Id('history')],
-    [
-      h.h3([], ['History']),
-      h.button([h.OnClick(Message.AskedForHistory())], ['Refresh']),
-      revisions.length === 0
-        ? h.p([h.Class('muted')], ['Nothing has been published yet.'])
-        : h.ol(
-            [],
-            revisions.map(revision =>
-              h.li(
-                [],
-                [
-                  `Revision ${revision.n}, ${Display.show(Cms.Display.Moment.of({}), revision.publishedAt)}`,
-                  revision.publishedBy === null ? '' : ` by ${revision.publishedBy} `,
-                  h.button(
-                    [h.OnClick(ask(Editor.Message.RestoreAsked({ revision: revision.n })))],
-                    ['Restore as a draft'],
-                  ),
-                ],
-              ),
-            ),
-          ),
-    ],
-  )
-}
+/** The open post's published revisions, as they have been read. */
+const revisionsOf = (model: Model): ReadonlyArray<RevisionRow> =>
+  Option.match(history(model), {
+    onNone: () => [],
+    onSome: projection => {
+      const read = projection.read(model)
+      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
+    },
+  })
 
-const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
+const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PostEditor.status(model)
-  if (status === 'Closed') return h.p([h.Class('muted')], ['Choose an entry, or start a post.'])
   const state = PostEditor.state(model)
   const error = PostEditor.error(model)
   const loaded = !['Loading', 'NotFound', 'LoadFailed'].includes(status)
+  const may = (transition: Parameters<typeof PostEditor.may>[1]) =>
+    PostEditor.may(model, transition)
+  const live = stateIs(state, 'Published')
   const at = new Date(model.scheduleAt)
-  const button = (id: string, label: string, message: Message, enabled = true): Html =>
-    h.button([h.Id(id), h.OnClick(message), h.Disabled(!enabled)], [label])
+  const action = (id: string, label: string, message: Message, enabled = true): Html =>
+    h.button(slots.button.attrs([h.Id(id), h.OnClick(message), h.Disabled(!enabled)]), [label])
+  // Where the post is read once it is on the site.
+  const address = Option.flatMap(PostEditor.pageId(model), id => {
+    const read = postPage(id).read(model)
+    return read._tag === 'Ready' || read._tag === 'Refreshing'
+      ? Option.some(read.value.slug)
+      : Option.none()
+  })
 
-  return h.section(
-    [h.Id('editor')],
-    [
-      h.p(
-        [h.Id('status'), h.Role('status')],
-        [
-          state === undefined ? '' : `${Display.show(Cms.Display.State.of({}), state)}. `,
-          // The state and the status are two facts, and sometimes one word: say it once.
-          state?._tag === statusLine[status]?.replace('.', '') ? '' : statusLine[status],
-          error === undefined ? '' : `: ${error.message}`,
-          PostEditor.resumed(model) === 'Lost'
-            ? ' A draft was here that no longer fits this form; what is published is shown.'
-            : '',
-        ],
-      ),
-      ...(loaded
+  const bar = h.div(slots.editorBar.attrs(), [
+    h.button(slots.ghost.attrs([h.Id('close'), h.OnClick(Message.ClosedEditor())]), [
+      icon(h, 'back'),
+      'Posts',
+    ]),
+    // An entry still being read is not New: no badge until its state is known.
+    ...(status === 'Loading' ? [] : [badge(slots, h, state)]),
+    h.p(
+      slots.status.attrs([
+        h.Id('status'),
+        h.Role('status'),
+        ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
+        ...(status === 'Loading' ? [h.AriaBusy(true)] : []),
+      ]),
+      [
+        statusText(status, state),
+        Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
+      ],
+    ),
+    h.div(slots.barActions.attrs(), [
+      ...(loaded && PostEditor.canPreview
         ? [
-            // The form's own submit is the publish: publishing submits the form, so
-            // its rules and checks decide, and an invalid form publishes nothing.
-            EditorSlot.view(model, h, { words: { submit: 'Publish' } }),
-            h.div(
-              [h.Class('actions')],
-              [
-                h.input([
-                  h.Id('at'),
-                  h.Type('datetime-local'),
-                  h.AriaLabel('Publish at'),
-                  h.Value(model.scheduleAt),
-                  h.OnInput(text => Message.TypedSchedule({ text })),
-                ]),
-                button(
-                  'schedule',
-                  'Schedule',
+            h.button(
+              slots.ghost.attrs([
+                h.Id('preview'),
+                h.AriaPressed(String(PostEditor.previewing(model))),
+                h.OnClick(
                   ask(
-                    Editor.Message.ScheduleAsked({
-                      at: Number.isNaN(at.getTime()) ? '' : at.toISOString(),
-                    }),
+                    PostEditor.previewing(model)
+                      ? Editor.Message.PreviewHidden()
+                      : Editor.Message.PreviewShown(),
                   ),
-                  !Number.isNaN(at.getTime()),
                 ),
-                ...(state?.schedule == null
-                  ? []
-                  : [button('unschedule', 'Unschedule', ask(Editor.Message.UnscheduleAsked()))]),
-                ...(PostEditor.canPreview
-                  ? [
-                      PostEditor.previewing(model)
-                        ? button('preview', 'Stop previewing', ask(Editor.Message.PreviewHidden()))
-                        : button('preview', 'Preview', ask(Editor.Message.PreviewShown())),
-                    ]
-                  : []),
-                button('discard', 'Discard draft', ask(Editor.Message.DiscardAsked())),
-                ...(state?._tag === 'Published' || state?._tag === 'Changed'
-                  ? [button('unpublish', 'Unpublish', ask(Editor.Message.UnpublishAsked()))]
-                  : []),
-                state?._tag === 'Archived'
-                  ? button('unarchive', 'Unarchive', ask(Editor.Message.UnarchiveAsked()))
-                  : button('archive', 'Archive', ask(Editor.Message.ArchiveAsked())),
-                ...(status === 'Conflict'
-                  ? [
-                      button('reload', 'Take theirs', ask(Editor.Message.ReloadAsked())),
-                      button('overwrite', 'Keep mine', ask(Editor.Message.OverwriteAsked())),
-                    ]
-                  : []),
-              ],
+              ]),
+              [icon(h, 'eye'), 'Preview'],
             ),
-            pagePane(model, h),
-            historyPane(model, h),
           ]
         : []),
-      button('close', 'Close', Message.ClosedEditor()),
-    ],
-  )
+      // Publishing submits the form, so its rules and checks decide. Drawn only when
+      // there is something to publish: the badge already says it is live, and an
+      // archived post is unarchived first, from the aside.
+      ...(loaded && may('publish') && !live && !stateIs(state, 'Archived')
+        ? [
+            h.button(
+              slots.primary.attrs([h.Id('publish'), h.OnClick(ask(Editor.Message.PublishAsked()))]),
+              ['Publish'],
+            ),
+          ]
+        : []),
+    ]),
+  ])
+
+  if (!loaded)
+    return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
+      bar,
+      h.div(slots.canvas.attrs(), [
+        h.p(slots.muted.attrs([...(status === 'Loading' ? [h.AriaBusy(true)] : [])]), [
+          statusLine[status],
+        ]),
+      ]),
+    ])
+
+  const scheduled = Option.exists(state, known => known.schedule !== null)
+  return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
+    bar,
+    h.div(slots.editorBody.attrs(), [
+      h.div(slots.canvas.attrs(), [
+        PostEditor.previewing(model)
+          ? previewing(model, slots, h)
+          : EditorSlot.view(model, h, {
+              words: { submit: 'Publish' },
+              // Published from the bar; the form draws no button of its own.
+              submits: false,
+            }),
+      ]),
+      h.aside(slots.aside.attrs([h.AriaLabel('Post settings')]), [
+        ...(status === 'Conflict'
+          ? [
+              h.section(slots.card.attrs(), [
+                h.h2(slots.cardTitle.attrs(), ['Saved elsewhere']),
+                h.p(slots.muted.attrs(), [
+                  'Someone saved this post since you opened it. Keep your version, or take theirs.',
+                ]),
+                h.div(slots.toolbar.attrs(), [
+                  action('overwrite', 'Keep mine', ask(Editor.Message.OverwriteAsked())),
+                  action('reload', 'Take theirs', ask(Editor.Message.ReloadAsked())),
+                ]),
+              ]),
+            ]
+          : []),
+        h.section(slots.card.attrs(), [
+          h.h2(slots.cardTitle.attrs(), ['Publishing']),
+          ...Option.match(
+            Option.filter(address, () => stateIs(state, 'Published', 'Changed')),
+            {
+              onNone: () => [h.p(slots.muted.attrs(), ['Not on the site yet.'])],
+              onSome: slug => [
+                h.a(slots.ghost.attrs([h.Href(`${postHref(slug)}?as=${chair}`)]), [
+                  icon(h, 'external', 14),
+                  `/blog/${slug}`,
+                ]),
+              ],
+            },
+          ),
+          // A writer cannot publish: say who can, rather than leave the button
+          // missing. A post not yet saved has no permissions to read.
+          ...(Option.isNone(state) || may('publish')
+            ? []
+            : [h.p(slots.muted.attrs(), ['An editor publishes it when it is ready.'])]),
+          // Put away, it is brought back before anything else: say how, rather than
+          // offer a publish that would be refused.
+          ...(stateIs(state, 'Archived')
+            ? [h.p(slots.muted.attrs(), ['Archived. Unarchive it, below, to publish it again.'])]
+            : []),
+          // When it goes live, in words: the input alone did not say it was taken.
+          ...Option.match(
+            Option.flatMap(state, known => Option.fromNullOr(known.schedule)),
+            {
+              onNone: () => [],
+              onSome: ({ at: when, overdue, error }) => {
+                const time = new Date(when).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })
+                return [
+                  h.p(
+                    slots.status.attrs(error === null ? [] : [h.DataAttribute('tone', 'error')]),
+                    [
+                      error !== null
+                        ? `Was to go live ${time}: ${error}`
+                        : overdue
+                          ? `Due since ${time}; it goes live at the next check.`
+                          : `Goes live ${time}.`,
+                    ],
+                  ),
+                ]
+              },
+            },
+          ),
+          ...(may('schedule') && !stateIs(state, 'Archived')
+            ? [
+                h.label(slots.muted.attrs([h.For('at')]), ['Publish later']),
+                h.div(slots.toolbar.attrs(), [
+                  h.input(
+                    slots.search.attrs([
+                      h.Id('at'),
+                      h.Type('datetime-local'),
+                      h.Value(model.scheduleAt),
+                      h.OnInput(text => Message.TypedSchedule({ text })),
+                      h.Style({ paddingInlineStart: '0.7rem' }),
+                    ]),
+                  ),
+                  action(
+                    'schedule',
+                    'Schedule',
+                    ask(
+                      Editor.Message.ScheduleAsked({
+                        at: Number.isNaN(at.getTime()) ? '' : at.toISOString(),
+                      }),
+                    ),
+                    !Number.isNaN(at.getTime()),
+                  ),
+                ]),
+              ]
+            : []),
+          ...(scheduled && may('unschedule')
+            ? [action('unschedule', 'Cancel the schedule', ask(Editor.Message.UnscheduleAsked()))]
+            : []),
+        ]),
+        historyCard(slots, h, revisionsOf(model), {
+          state,
+          restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
+        }),
+        ...moreCard(slots, h, {
+          state,
+          may,
+          asks: {
+            discard: ask(Editor.Message.DiscardAsked()),
+            unpublish: ask(Editor.Message.UnpublishAsked()),
+            archive: ask(Editor.Message.ArchiveAsked()),
+            unarchive: ask(Editor.Message.UnarchiveAsked()),
+          },
+        }),
+      ]),
+    ]),
+  ])
 }
 
-export const view = SlotView.define(PageSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
-  h.main(slots.root.attrs(), [
-    h.h1([], ['A small CMS']),
-    chairsNav(h),
-    ...(chair === 'visitor'
-      ? []
-      : [
-          h.section(
-            [h.Id('worklist')],
-            [
-              h.h2([], ['Worklist']),
-              h.button([h.Id('new'), h.OnClick(Message.AskedForPost())], ['New post']),
-              WorklistTable(
-                {
-                  page: Worklist.page(model),
-                  onOpen: row => Message.OpenedEntry({ entry: row.id }),
-                  renderers: Cms.displayRenderers(),
-                  words: { empty: 'Nothing yet. Start a post.' },
-                },
-                h,
-              ),
-            ],
-          ),
-          editor(model, h),
-        ]),
-    site(model, h),
-  ]),
-).pipe(Style.attach(PostsPageStyle))
+const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
+  shell(
+    slots,
+    h,
+    'posts',
+    chair === 'visitor'
+      ? [
+          h.div(slots.screen.attrs(), [
+            h.h1(slots.screenTitle.attrs(), ['Posts']),
+            h.p(slots.muted.attrs(), [
+              'A visitor reads the site. Choose a writer or an editor in the sidebar to write.',
+            ]),
+            h.a(slots.primary.attrs([h.Href('/site?as=visitor')]), [
+              icon(h, 'site'),
+              'Go to the site',
+            ]),
+          ]),
+        ]
+      : [PostEditor.status(model) === 'Closed' ? list(model, slots, h) : editor(model, slots, h)],
+  ),
+).pipe(Style.attach(AdminStyle))
+
+/** The studio's posts, titled in the tab by the post open, if one is. */
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+  const typed = PostForm.field(model.editor.form, 'title').value
+  const title =
+    PostEditor.status(model) === 'Closed' || typeof typed !== 'string' || typed.trim() === ''
+      ? 'Posts'
+      : typed.trim()
+  return { title: `${title} · Journal Studio`, body: Studio(model, h) }
+}

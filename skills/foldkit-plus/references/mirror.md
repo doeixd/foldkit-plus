@@ -161,6 +161,11 @@ for (const command of start.commands ?? []) {
 - Without `...Mirror.messages` and the restore, the KV value never returns.
 - Don't mirror Sync or Remote state, or route path segments. Keys that differ
   from `route.query(schema)` coexist with it.
+- A mirror installs top-level fields; it cannot run a transition. State a
+  child owns (an editor's preview, a Builder's panel, which entry is open)
+  goes through the owner's Messages from the application's own `UrlChanged`
+  branch. The wired `update` hands `UrlChanged` to every URL mirror and then
+  to that branch, so routing sees the slices the mirrors have already read.
 - Kernel: `Mirror.make(App, store, config)` over any `MirrorStore`
   (`read`/`write`). Built-in stores are `MirrorStore.url`, `.kv`, and `.memory`.
 

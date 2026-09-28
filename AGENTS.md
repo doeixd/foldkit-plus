@@ -34,6 +34,8 @@ When re-reading a commit, check each of these deliberately:
 
 Fix what the review finds in a follow-up commit rather than letting it sit.
 
+AFTER EVERTY BOUT OF WORK/COMMIT, DOUBLE CHECK AND REVIEW!!!
+
 ## Jev preference review
 
 After a substantial bout of implementation work, run:
@@ -140,6 +142,11 @@ Slop is also code that looks finished and is wrong. Look for these too:
     moved and applied on release).
   - A positional parameter list that callers must count.
   - A cast that makes a type promise nothing enforces.
+  - Markup a package draws outside a Slot. A stylist reaches only Slots, so a
+    bare `span` leaves a data-attribute selector into the package as the only
+    handle (the CMS slug's prefix did). A structural fact a stylist needs, such
+    as depth, state or position, goes on a Slot, as a custom property
+    (`--fk-tree-level`) or a data attribute.
 - **Bad performance.**
   - Work repeated for every row that depends only on the whole (every row
     recomputing the tree).
@@ -155,6 +162,16 @@ Slop is also code that looks finished and is wrong. Look for these too:
   - A function whose name no longer says what it does.
   - Comments separated from the thing they document.
   - State threaded through closures where a value would do.
+  - `null` or `undefined` standing for "nothing here". A value that may be
+    absent is an Effect `Option`: `Option.none()`, `Option.some(x)`,
+    `Option.match`, and `Schema.Option` in a Model that is never stored.
+    `T | null` and
+    `T | undefined` make every reader remember to check, and a forgotten check
+    type-checks as long as the value is only passed along. Keep `null` only at
+    a boundary that speaks it (JSON, a database column, the DOM, a foreign
+    API), and convert there: `Schema.OptionFromNullOr` for stored data. An
+    optional config field (`?:`) is not a value that may be absent; it is
+    fine.
 
 Prefer deleting code to adding it. The smallest version that a reader
 understands on one pass wins.
@@ -428,6 +445,54 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Library behaviour**
 
+- **An embedded runtime draws in place of its container.** A test that kept
+  the container element and read `container.querySelector(...)` saw an empty
+  page for good, and it looked like the view never ran. Read the page from
+  `document`, as the other runtime tests do.
+- **Foldkit's lazy slots throw outside a runtime render.** `createLazy` and
+  `createKeyedLazy` read the current frame and throw when there is none (an
+  inert test, a server's first pass), and Foldkit offers no way to ask first.
+  The Renderer tries the slot and draws uncached when it throws. A memoized
+  drawing is also reused at one position only: key it, or a move patches it
+  into its neighbour.
+- **`inertHtml` is every view's `h`.** It is Foldkit's one builder, inert only
+  when no runtime frame exists. A check `h === inertHtml` meant as "drawn
+  inert" was true in a running app too, so the inspector drew its form without
+  `h.submodel` and every form Message went unwrapped to the Builder, which
+  ignored it. Ask a lazy slot, which throws only for a missing frame: a catch
+  around `h.submodel` also caught its duplicate-slot error and drew a dead form.
+- **A form checks a draft against its key's type side.** `planOf` decodes
+  with `Schema.toType(schema)`, so a key typed `Option` (`OptionFromNullOr`)
+  cannot be drawn: no picker makes an `Option`. Edit such a value on its
+  encoded side. And `Schema.toEncoded` keeps inner checks but drops one made
+  after a transformation: `NumberFromString.check(isGreaterThan(0))` accepted
+  `'-1'`. Re-check against the whole Schema.
+- **A Mount's acquire that throws halfway fails silently and leaks.** `Measure`
+  attached a MutationObserver, then `new ResizeObserver` threw in jsdom; the
+  Mount's stream neither ended nor reported, and the observer it left called
+  `measure` later ("Cannot access 'sizes' before initialization"). Make every
+  observer before any observes, and test with the constructor stubbed away.
+- **A view input may hold no nested function.** `h.submodel` throws on a
+  function below the top level of `viewInputs`. The plan's sketch made each
+  word that takes a value a function, and the Builder's words, a nested
+  object, would have crashed it drawn through `BuilderView.submodel`, as the
+  CMS draws it; a test drawing it directly passed. `fillWords`' doc comment
+  already said why words are text with blanks. Read the convention in the
+  code before a plan's sketch, and test a view input through a submodel.
+- **A constant from `foldkit/experimental/server` brings the server along.**
+  `client.ts` imported `FOLDKIT_APP_ATTRIBUTE` from it, and the browser bundle
+  grew by the server renderer and its HTML parser (700 KB to 880 KB); so does
+  anything imported from `foldkit-ssr`. Check the bundle's size after adding an
+  import from a package that also runs on a server.
+- **Foldkit fills head tags into the template; it adds none.** A view's
+  `canonical` reached no generated page until the template had an empty
+  `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.
+- **An application names its starting address twice.** `makeApplication`
+  with routing sends `onUrlChange` for the starting URL after `init` has
+  already read it; `makeElement`, which the tests embed, sends nothing. A
+  new-entry reload cleared its pending state on that repeat and showed "That
+  entry does not exist." while every test passed. A `UrlChanged` handler must
+  be a no-op for the address the Model already shows, pending work included.
 - **A Mount reads its args once.** `OnMount` acquires on snabbdom's `insert` and releases on
   `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
   passes new args to the same element changes nothing, so a block handle's anchor stayed beside
@@ -501,7 +566,27 @@ and `Stream.mapAccum` take their seed as a thunk; a plain value type-checks
 against `LazyArg<unknown>` and fails at runtime with "initial is not a
 function". Check the installed `.d.ts` before reaching for a remembered API.
 
+A checked schema resolves to its **last check's** annotations, which carry
+what the check expects and no `title`: `Schema.String.annotate({ title })
+.check(…)` resolved directly has lost its title, and a check that set `title`
+of its own named a form field "fits the Catalog". Read words with
+`Words.of(schema)` from `foldkit-entity`, never `resolveAnnotations(…)?.title`.
+
 **Types**
+
+- **An `Option` compared with `undefined` or `null` type-checks and is always
+  unequal.** Moving `projectionOf` to `Option` left `projection === undefined`
+  in a test helper; it compiled, never matched, and failed 27 cms-drizzle
+  tests far from the change. Interpolating one in a template string compiles
+  too, and made a picker id of `[object Object]`. After changing a return to
+  `Option`, grep its callers for `=== undefined`, `=== null`, `?.` and `${`.
+- **`Schema.Option`'s encoded side is an Option, not JSON.** A Builder Model
+  with `Schema.Option` fields failed to round-trip through a saved CMS draft
+  ("Expected Option"). A Model that is stored or sent uses
+  `Schema.OptionFromNullOr`: `Option` in code, `null` on the wire.
+- **`tsc -p` in a project with references reads the stale `.d.ts`.** It checks
+  one project against whatever the referenced packages last emitted, so it
+  passes code that the change it depends on broke. Use `tsc -b`.
 
 - **Capability names can be object prototype keys.** `__proto__` passes name
   validation but assigning it to `{}` loses the registry entry. Use a `Map` or
@@ -595,6 +680,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
 - **Ask what else can run while you are suspended.** Moving bookkeeping after
   an await fixed a false-success bug and introduced double registration;
   overlapping passes had to be serialized.
+- **Foldkit draws the next screen before a Navigate Command runs.** A scroll
+  offset recorded on `navigate` or `popstate` was already clamped to the new,
+  shorter page, and a restore made when the entry changed was undone by the
+  loading state drawn after it. Record at the reader's action, and hold a
+  restore until the screen settles (`examples/cms/src/scroll.ts`).
 - **Subscribe before the action that can produce the event.** `update` can emit a
   completing Message synchronously, so a listener attached after the dispatch
   misses it and then waits for its timeout.
@@ -659,6 +749,42 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   container on unmount made a `FoldkitComponent` that never called `dispose`
   look identical to one that did. Assert on something only a live runtime does,
   such as a Subscription finalizer running.
+- **A memo test needs a second change.** A per-item memo learns which Slots an
+  item used on its first draw, so the first change after mounting always
+  misses. A nested-item test passed with the guard deleted until a second
+  move was added. Assert after two transitions, not one.
+- **A lazy slot compares its function too.** Passing an arrow made inline to
+  `createLazy` never hits, since the function is new every render; so does an
+  array rebuilt per render (`flatMap`) among its arguments. Pass a function
+  defined once, and values that keep their identity.
+- **One layout decision written twice drifts apart.** The page builder
+  stacked its panels below 64rem of its own width but showed the tabs that
+  choose one only below 52rem, so between the two (a 1280px window) every
+  panel stood above the page and New page looked broken. Name the width once
+  and pass it to every query that decides the same thing, and test at a width
+  between the old values.
+- **A layout test that checks what shows passes a broken layout.** The
+  narrow editor's test asserted which panels were visible at 600px; the
+  example's grid still had three columns, collapsing only by the window, and
+  the panel it showed was squeezed to 50px. Assert geometry (a width, a
+  position) when the claim is about layout, and take a screenshot once.
+- **A session that spans Messages meets every other Message in between.**
+  Editing in place was tested begun, typed, committed; a review put an undo,
+  a redo, an agent's edit and a second double-click between, and Escape no
+  longer restored the text, a commit made an empty undo step, and a second
+  ask restarted the session. For state held across transitions, test each
+  transition that can land in the middle.
+- **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
+  and a `keydown` sent to an element leave focus where it was, so a jsdom test
+  of the Builder kept focus in the layers through a crumb click and a key on
+  the canvas, and a focus-following Mount "broke" it. Focus what a user would
+  press, and test a focus claim in a browser with `userEvent`: four focus
+  bugs (Enter, Delete, a disabled button, a narrow panel) passed every test.
+- **A routing test that checks who may claim proves nothing about delivery.**
+  `Bundle.assemble` allowed a shared tag and its tests stopped there; routing
+  took the first claimant, so a second URL mirror never read the URL and the
+  application never saw its own `UrlChanged`. Assert what each claimant and
+  the parent receive.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
@@ -682,6 +808,13 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   three sections headed *done*. A stale claim is worse than no claim because it
   reads as current, and this recurred four sections after I committed that
   sentence.
+
+- **The changelog is a document the commit list does not remind you of.**
+  About fifty commits of the page builder updated each README and the skill
+  but not `CHANGELOG.md`, which the plan requires in every change, and its
+  unreleased entries went on naming APIs since removed. Before committing a
+  public change, add its entry under Unreleased, and fix an unreleased entry
+  the change makes wrong rather than logging a removal of it.
 
 - **A declared option nothing reads is worse evidence of demand than no
   option.** `LivePolicy` was typed, documented, carried on the descriptor and
@@ -714,7 +847,7 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
 - **A `\u` escape written into source by a script can become the character.**
   Writing `.replaceAll('<', '\\u003c')` through a heredoc left one backslash in
   the file, and `'<'` in TypeScript is `<` itself: the escape replaced `<`
-  with `<`, silently. The same route turned a ` ` regex into a literal line
+  with `<`, silently. The same route turned a `` regex into a literal line
   separator, which ends the regex. Build such characters with
   `String.fromCharCode`, and check the bytes with `repr` before trusting the
   file. (The commit that met this, `9d395e1`, says a test caught it; reading the
@@ -810,23 +943,27 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   subscription retries" in three places. Before writing that something
   happens again, find the condition that makes it happen and check the
   failure path meets it.
-- **`extends` does not carry `references`.** `foldkit-richtext-markdown`'s
-  `tsconfig.build.json` extended a `tsconfig.json` that referenced the core, and had none of
-  its own; nothing noticed until a second project referenced it, which failed with `TS6059`
-  and `TS6307` and wrote `.d.ts` files beside the core's sources. Give every
-  `tsconfig.build.json` its own `references`, and delete stray emitted files after a failed
-  build.
-- **Map every workspace dep in a composite example's `paths`.** A package's
-  `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
-  import through `exports` fails on a clean checkout; a stale local `dist` hides
-  it and only CI's `typecheck:force` goes red. `examples/kitchen-sink` omitted
-  `foldkit-remote-drizzle` and failed with `Cannot find module` plus cascading
-  `unknown` types. Diff the example's `paths` against the specifiers its
-  sources import, not against its `workspace:` deps: a subpath like
-  `foldkit-primitives/time` needs its own entry (and a vitest alias), and
-  `examples/entity` failed CI this way with the dependency declared. To
-  reproduce locally, move the package's `dist` aside and run
-  `npx tsc -b --force <example>`.
+- **Workspace packages resolve to source; `paths` are generated.** Every
+  export has a `foldkit-plus:source` condition, which Vite, Vitest and the
+  examples resolve through, so nothing reads a stale `dist`. TypeScript keeps
+  `paths`, derived by `pnpm paths` from the packages a project references;
+  never edit them by hand. `pnpm paths:check` refuses an import of a package
+  the project does not reference, which otherwise compiles against that
+  package's last build (`mixins-richtext` did, for `foldkit-primitives`). A
+  `tsconfig.build.json` does not inherit `references` from the config it
+  extends: `richtext-code` and `richtext-markdown` had none.
+- **Vitest's resolve conditions are its own, not Vite's.** Adding the source
+  condition to Vite's defaults brought in `module`, which loaded
+  `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave
+  `ws` its stub. `vitest.shared.ts` starts from Vitest's server defaults.
+- **A tab left open across a dev-server restart hangs.** The page waits on the
+  old server, and every browser tool times out against it ("page is busy").
+  Close it and open a fresh tab rather than retrying.
+- **A hidden browser tab shows its first frame for good.** Foldkit renders on
+  `requestAnimationFrame`, which a hidden tab never runs, so a page driven by
+  the browser tools sat on "Loading…" while its Model had long filled, and an
+  hour went to a bug that was not there. Before calling a screen stuck, check
+  `document.visibilityState` and read the Model, not the DOM.
 
 ## Repository
 

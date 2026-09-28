@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Result, Schema } from 'effect'
+import { Result, Schema, Option } from 'effect'
 import { Entity } from 'foldkit-entity'
 import * as RichText from 'foldkit-richtext'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
@@ -74,6 +74,41 @@ const PublishPage = Entity.input(
 expectTypeOf(PublishPage.schema.Type.document).toEqualTypeOf<Document>()
 expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
 
+// Patterns
+{
+  const Site = Catalog.make({
+    blocks: [Heading, Section],
+    roots: [Content.Section],
+    patterns: [
+      {
+        name: 'Intro',
+        description: 'A section that opens with a heading',
+        tree: {
+          root: 'intro',
+          nodes: {
+            intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+            title: { block: 'Heading', props: { text: 'Welcome', level: 1 }, regions: {} },
+          },
+        },
+      },
+    ],
+  })
+
+  const { Op, root } = Composition
+  Composition.apply(
+    Site,
+    page,
+    Op.usePattern({
+      pattern: 'Intro',
+      ids: {
+        [NodeId.make('intro')]: NodeId.make('intro-2'),
+        [NodeId.make('title')]: NodeId.make('title-2'),
+      },
+      at: root(1),
+    }),
+  )
+}
+
 // Editing: Operations
 {
   const { Op, region } = Composition
@@ -117,11 +152,15 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
 // Drawing a page
 {
   const SiteRenderer = Renderer.make(Site, {
-    Heading: ({ props, h }) => h.h2([], [props.text]),
+    Heading: ({ field, h }) => h.h2([], [field('text')]),
     Section: ({ props, regions, h }) =>
       h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
   })
   expectTypeOf(Renderer.render(SiteRenderer, page, inertHtml)).toEqualTypeOf<ReadonlyArray<Html>>()
+  // A Renderer that sends nothing draws with the application's own builder, whatever its Messages.
+  const appBuilder = (h: HtmlBuilder<{ readonly _tag: 'Opened' }>) =>
+    Renderer.render(SiteRenderer, page, h)
+  void appBuilder
 
   // URLs
   const Image = Block.define('Image', {
@@ -134,6 +173,9 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
   const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
   const Text = RichTextBlock.define('Text', { kit: ArticleKit, provides: [Content.Flow] })
   expectTypeOf<PropsOf<typeof Text>['body']>().toEqualTypeOf<RichText.Document>()
+  // "Reading a Document": a Block another package defined, worded by the application.
+  const Worded = Text.pipe(Block.words({ group: 'Text' }))
+  expectTypeOf(Worded).toEqualTypeOf<typeof Text>()
 }
 
 {
@@ -205,7 +247,10 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     Section: ({ regions, h }) => h.section([], [...regions.body]),
     Button: ({ props, on, h }) => {
       const pressed = on('press')
-      return h.button(pressed === undefined ? [] : [h.OnClick(pressed)], [props.label])
+      return h.button(
+        Option.match(pressed, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }),
+        [props.label],
+      )
     },
   })
   void op
@@ -280,6 +325,11 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     Renderer.render(SiteRenderer, after, h, {
       data: Stateful.views(Placed, Site, Carousel, after, model, h),
     })
+  // One that sends Messages draws only with a builder of those Messages.
+  const other = (h: HtmlBuilder<{ readonly _tag: 'Elsewhere' }>) =>
+    // @ts-expect-error the page's Messages are not this builder's
+    Renderer.render(SiteRenderer, after, h)
+  void other
   void step
   void draw
 }
@@ -299,7 +349,9 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     params: props => ({ caption: props.caption }),
   })
   const Shop = Catalog.make({ blocks: [Section, Cart], roots: [Content.Section] })
-  const features = SurfaceBlock.active('Features', App.owner, Shop, () => Composition.empty())
-  expectTypeOf(Cart.value).returns.toEqualTypeOf<{ readonly count: number } | undefined>()
+  const features = SurfaceBlock.active('Features', App.owner, Shop, () =>
+    Option.some(Composition.empty()),
+  )
+  expectTypeOf(Cart.value).returns.toEqualTypeOf<Option.Option<{ readonly count: number }>>()
   void features
 }

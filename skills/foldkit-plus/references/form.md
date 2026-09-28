@@ -72,7 +72,8 @@ const RenameForm = Page.at(Slot, {
   its key (`name=<key>`; a relation picker's checkboxes also carry `value`), so
   a plain form post carries the drafts.
 - **Draw it:** `Rename.controls` is the keys in order, each with `control`
-  (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options`,
+  (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options` (string or number
+  literals; the value is the option itself),
   `RelationOne` / `RelationMany` with `target`), `label`, `description`,
   `required`, and the Entity `member`. Read a key's state from
   `model.rename.fields[key]` with `foldkit/fieldValidation` (`match`,
@@ -179,9 +180,11 @@ const Drawn = Rename.bundle.pipe(Bundle.withView(FormView.submodel(Rename, View)
 Render the placement with `placed.view(model, h, { options, words: { submit: 'Save' } })`.
 `options` is keyed by the form's keys and supplies each relation picker's
 choices (`{ value, label }`); loading them is the application's query.
-`FormView.define(Rename)` alone is a complete unstyled form. `FieldSlots`: `root`,
+`FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
+blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, and one per control kind (`text`, `multiline`,
-`number`, `toggle`, `select`, `choices`, `choice`). `FormSlots`: `root`, `errors`,
+`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
+`group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
 `submit`. The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
 those throws a two-owners conflict at render.

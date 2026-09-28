@@ -172,11 +172,11 @@ reference, so overriding a knob anywhere re-derives the rest in the browser.
 | `knob` | `accent-h`, `accent-c`, `accent-l`, `secondary-shift`, `tertiary-shift`, `surface-c`, `surface-contrast`, `contrast-factor`, `success-h`, `warning-h`, `error-h`, `info-h`, `base-l` | literals from the knobs; `base-l` is `light-dark(97.5%, 12%)` |
 | `hue` | `accent`, `secondary`, `tertiary`, `neutral` | `var(--fk-knob-accent-h)`, `calc(var(--fk-knob-accent-h) + var(--fk-knob-secondary-shift))`, … |
 | `surface` | `base`, `muted`, `subtle`, `default`, `overt`, `bedrock` | `oklch(var(--fk-knob-base-l) calc(var(--fk-knob-surface-c) * 0.9) var(--fk-hue-neutral))`; steps are `color-mix(in oklch, base, target var(--fk-knob-surface-contrast))` as css-tags does |
-| `text` | `default`, `muted`, `subtle`, `overt`, `on-accent`, `link`, `link-hover` | `oklch(light-dark(20%, 90%) calc(var(--fk-knob-surface-c) * 2 * var(--fk-knob-contrast-factor)) var(--fk-hue-neutral))` |
+| `text` | `default`, `muted`, `subtle`, `overt`, `link`, `link-hover` | `oklch(light-dark(20%, 90%) calc(var(--fk-knob-surface-c) * 2 * var(--fk-knob-contrast-factor)) var(--fk-hue-neutral))` |
 | `outline` | `subtle`, `default`, `overt`, `focus` | derived from text with alpha |
-| `accent` | `default`, `hover`, `active`, `subtle`, `text` | `oklch(var(--fk-knob-accent-l) var(--fk-knob-accent-c) var(--fk-hue-accent))`, hover `oklch(from … calc(l - 0.06) c h)` |
-| `secondary`, `tertiary` | same five names | same shapes over their hues |
-| `success`, `warning`, `error`, `info` | `default`, `subtle`, `text`, `outline` | over the feedback hues; `text` is the contrast pair css-tags guarantees for every feedback surface |
+| `accent` | `default`, `hover`, `active`, `subtle`, `on-fill`, `ink` | `oklch(var(--fk-knob-accent-l) var(--fk-knob-accent-c) var(--fk-hue-accent))`, hover `oklch(from … calc(l - 0.06) c h)` |
+| `secondary`, `tertiary` | same six names | same shapes over their hues |
+| `success`, `warning`, `error`, `info` | `default`, `subtle`, `on-fill`, `ink`, `outline` | over the feedback hues; `on-fill` is the contrast pair css-tags guarantees for every feedback surface, `ink` the color as text on the base |
 
 Things it does *not* generate: the fourteen-step lightness and chroma scales
 and the named-family palettes (brown, gold, olive, magenta). Those exist in

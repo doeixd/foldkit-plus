@@ -11,13 +11,13 @@
  * refuse an edit because of something already wrong elsewhere in the Document,
  * so an author keeps working around content the deployment no longer knows.
  */
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { ActionRef, checkActions } from './action.js'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
 import { When, check as checkWhen } from './condition.js'
 import { accepts } from './content.js'
-import { Node, NodeId, index, type Document, type Place } from './document.js'
+import { Node, NodeId, empty, index, type Document, type Place } from './document.js'
 import { bounds } from './region.js'
 
 /** Where a node goes: among the roots, or in a parent's Region, at an index. */
@@ -47,6 +47,12 @@ const Duplicate = Schema.TaggedStruct('Duplicate', {
   ids: Schema.Record(NodeId, NodeId),
   at: Position,
 })
+const UsePattern = Schema.TaggedStruct('UsePattern', {
+  pattern: Schema.String,
+  /** A new id for each of the pattern's nodes, by the id it has in the pattern. */
+  ids: Schema.Record(NodeId, NodeId),
+  at: Position,
+})
 const SetProp = Schema.TaggedStruct('SetProp', {
   id: NodeId,
   prop: Schema.String,
@@ -70,6 +76,7 @@ type Single =
   | typeof Remove.Type
   | typeof Move.Type
   | typeof Duplicate.Type
+  | typeof UsePattern.Type
   | typeof SetProp.Type
   | typeof UnsetProp.Type
   | typeof SetWhen.Type
@@ -84,6 +91,7 @@ const Singles = [
   Remove,
   Move,
   Duplicate,
+  UsePattern,
   SetProp,
   UnsetProp,
   SetWhen,
@@ -112,16 +120,38 @@ export const Operation: Schema.Codec<Operation, unknown> = Schema.Union([
  * misspelled prop is dropped rather than refused.
  */
 export const operationSchema = (catalog: Catalog): Schema.Codec<Operation, unknown> => {
-  const inserts = catalog.blocks.map(block =>
-    Schema.TaggedStruct('Insert', {
+  const inserts = catalog.blocks.map(block => {
+    const insert = Schema.TaggedStruct('Insert', {
       id: NodeId,
       block: Schema.Literal(block.name),
       props: Schema.toEncoded(block.Props),
       at: Position,
-    }),
-  )
+    })
+    // Said in the tool's input schema, so an agent knows what each Block is for.
+    return Option.match(block.words.description, {
+      onNone: () => insert,
+      onSome: description => insert.annotate({ description }),
+    })
+  })
+  // A pattern's ids are named one by one, so the schema says which it needs.
+  const patterns = catalog.patterns.map(pattern => {
+    const use = Schema.TaggedStruct('UsePattern', {
+      pattern: Schema.Literal(pattern.name),
+      ids: Schema.Struct(
+        Object.fromEntries(Object.keys(pattern.tree.nodes).map(id => [id, NodeId] as const)),
+      ),
+      at: Position,
+    })
+    return use.annotate({
+      description: Option.match(pattern.words.description, {
+        onNone: () => pattern.words.label,
+        onSome: description => `${pattern.words.label}: ${description}`,
+      }),
+    })
+  })
   const Edit: Schema.Codec<Operation, unknown> = Schema.Union([
     ...inserts,
+    ...patterns,
     Remove,
     Move,
     Duplicate,
@@ -162,6 +192,7 @@ export type RefusalCode =
   | 'composition:unknown-context'
   | 'composition:invalid-action'
   | 'composition:unknown-action'
+  | 'composition:unknown-pattern'
 
 /** Why an Operation was refused. The Document is as it was. */
 export interface Refusal {
@@ -389,13 +420,16 @@ const drop = (draft: Draft, ids: ReadonlyArray<NodeId>): void => {
  */
 const checkTree = (catalog: Catalog, draft: Draft, tree: Tree): ReadonlyArray<NodeId> => {
   const ids = Object.keys(tree.nodes) as unknown as ReadonlyArray<NodeId>
-  if (tree.nodes[tree.root] === undefined)
+  // A tree's ids are anyone's text: a node is an own entry, never `Object`'s `toString`.
+  const nodeAt = (id: NodeId): Node | undefined =>
+    Object.hasOwn(tree.nodes, id) ? tree.nodes[id] : undefined
+  if (nodeAt(tree.root) === undefined)
     refuse('composition:malformed-tree', `the tree's root "${tree.root}" is not one of its nodes`)
   const reached = new Set<NodeId>()
   const visit = (id: NodeId): void => {
     if (reached.has(id)) refuse('composition:malformed-tree', `the tree reaches "${id}" twice`)
     const node =
-      tree.nodes[id] ??
+      nodeAt(id) ??
       refuse('composition:malformed-tree', `the tree names "${id}", which it does not hold`)
     reached.add(id)
     for (const children of Object.values(node.regions)) for (const child of children) visit(child)
@@ -407,7 +441,7 @@ const checkTree = (catalog: Catalog, draft: Draft, tree: Tree): ReadonlyArray<No
     if (draft.nodes[id] !== undefined) refuse('composition:id-taken', `"${id}" is already a node`)
   }
   for (const id of ids) {
-    const node = tree.nodes[id]!
+    const node = nodeAt(id)!
     const block = blockOf(catalog, node, id)
     checkProps(catalog, id, node)
     for (const name of Object.keys(node.regions))
@@ -424,7 +458,7 @@ const checkTree = (catalog: Catalog, draft: Draft, tree: Tree): ReadonlyArray<No
           `"${id}"'s ${name} holds ${children.length}, and takes ${bounds(region)}`,
         )
       for (const child of children) {
-        const childBlock = blockOf(catalog, tree.nodes[child]!, child)
+        const childBlock = blockOf(catalog, nodeAt(child)!, child)
         if (!accepts(region.accepts, childBlock.provides))
           refuse(
             'composition:region-rejects',
@@ -455,6 +489,7 @@ export const takeTree = (document: Document, id: NodeId): Tree => {
 /**
  * The same subtree under new ids: every id in it, and every reference between
  * them, renamed through `ids`, which must name each node once and nothing else.
+ * A reference to a node the tree does not hold is kept, for `apply` to refuse.
  */
 export const rekey = (tree: Tree, ids: Readonly<Record<NodeId, NodeId>>): Tree => {
   const held = Object.keys(tree.nodes)
@@ -472,7 +507,7 @@ export const rekey = (tree: Tree, ids: Readonly<Record<NodeId, NodeId>>): Tree =
   const fresh = Object.values(ids)
   if (new Set(fresh).size !== fresh.length)
     refuse('composition:malformed-tree', 'two nodes of the tree are given the same new id')
-  const rename = (id: NodeId): NodeId => ids[id]!
+  const rename = (id: NodeId): NodeId => (Object.hasOwn(ids, id) ? ids[id]! : id)
   return {
     root: rename(tree.root),
     nodes: Object.fromEntries(
@@ -492,7 +527,8 @@ export const rekey = (tree: Tree, ids: Readonly<Record<NodeId, NodeId>>): Tree =
 const start = (document: Document): Draft => ({
   base: document,
   roots: document.roots,
-  nodes: { ...document.nodes },
+  // No prototype: an id such as `constructor` is looked up, and `__proto__` written, as any other.
+  nodes: Object.assign(Object.create(null) as Draft['nodes'], document.nodes),
   changed: new Set(),
   removed: new Set(),
   places: undefined,
@@ -550,6 +586,13 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
       addTree(catalog, draft, tree, op.at)
       return
     }
+    case 'UsePattern': {
+      const pattern = Option.getOrElse(Catalog.pattern(catalog, op.pattern), () =>
+        refuse('composition:unknown-pattern', `the Catalog has no pattern "${op.pattern}"`),
+      )
+      addTree(catalog, draft, rekey(pattern.tree, op.ids), op.at)
+      return
+    }
     case 'SetProp':
     case 'UnsetProp': {
       const node = nodeOf(draft, op.id)
@@ -603,6 +646,20 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
 }
 
 /**
+ * Why a tree could not go into any page, checked alone: none when it holds
+ * together and every node fits the Catalog. Where it would go is not checked.
+ */
+export const treeRefusal = (catalog: Catalog, tree: Tree): Option.Option<Refusal> => {
+  try {
+    checkTree(catalog, start(empty()), tree)
+    return Option.none()
+  } catch (error) {
+    if (error instanceof Refused) return Option.some(error.refusal)
+    throw error
+  }
+}
+
+/**
  * Applies an Operation. Pure: the Document given is unchanged, and a refusal
  * returns no partial result, a batch's included.
  */
@@ -619,7 +676,12 @@ export const apply = (
     throw error
   }
   return Result.succeed({
-    document: { format: 1, roots: draft.roots, nodes: draft.nodes },
+    // A plain object again, as a decoded Document is; each id stays an own key.
+    document: {
+      format: 1,
+      roots: draft.roots,
+      nodes: Object.fromEntries(Object.entries(draft.nodes)),
+    },
     changed: [...draft.changed],
     removed: [...draft.removed],
   })
@@ -645,6 +707,10 @@ export const Op = {
   move: (id: NodeId, to: Position): Operation => ({ _tag: 'Move', id, to }),
   duplicate: (fields: Omit<typeof Duplicate.Type, '_tag'>): Operation => ({
     _tag: 'Duplicate',
+    ...fields,
+  }),
+  usePattern: (fields: Omit<typeof UsePattern.Type, '_tag'>): Operation => ({
+    _tag: 'UsePattern',
     ...fields,
   }),
   setProp: (id: NodeId, prop: string, value: Schema.Json): Operation => ({

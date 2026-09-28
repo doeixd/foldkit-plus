@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
@@ -118,7 +118,10 @@ Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
     query: AuthorsQuery,
     selection: Entity.select(Blog.Author, { id: true, name: true }),
   })
-  const AuthorList = Authors.at({ data: Data, input: model => ({ search: model.search }) })
+  const AuthorList = Authors.at({
+    data: Data,
+    input: model => Option.some({ search: model.search }),
+  })
 
   const model: typeof OpeningModel.Type = { remote: Remote.initial, search: '' }
   expectTypeOf(AuthorList.page(model)).toEqualTypeOf<
@@ -152,7 +155,7 @@ Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
 
   const AuthorList = Authors.at({
     data: Data,
-    input: model => (model.search === null ? undefined : { search: model.search }),
+    input: model => (model.search === null ? Option.none() : Option.some({ search: model.search })),
   })
 
   const subscriptions = Data.subscriptions({ authors: AuthorList.active })

@@ -6,7 +6,7 @@
  * its name, its encoded props and its children. The name is the persisted
  * identity, so renaming a Block is a content migration, not a refactor.
  */
-import { Pipeable, type Result, Schema } from 'effect'
+import { Option, Pipeable, type Result, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import type { Content } from './content.js'
 import type { Region } from './region.js'
@@ -24,7 +24,9 @@ export interface Block<
   readonly regions: Regions
   /** The Content this Block is, which decides the Regions and roots that accept it. */
   readonly provides: ReadonlyArray<Content>
-  /** What interpreters attached: a palette category, an agent description. */
+  /** What people and agents call it and are told of it: see `Block.words`. */
+  readonly words: BlockWords
+  /** What interpreters attached, such as the control an editor draws a prop with. */
   readonly metadata: Metadata
   /** The appearance choices a node may store, by axis: none unless a look is attached. */
   readonly appearance: AppearanceAxes
@@ -47,6 +49,22 @@ export interface Block<
   check(props: Props['Type']): ReadonlyArray<PropsFinding>
 }
 
+/** What a Block is called and what it is for, for a person choosing one and an agent told of it. */
+export interface BlockWords {
+  /** Its name for people. Default: its name, spaced (`PostList` is "Post list"). */
+  readonly label: string
+  /** What it is for, in a sentence. */
+  readonly description: Option.Option<string>
+  /** Which of an editor's groups it belongs to, such as "Layout". */
+  readonly group: Option.Option<string>
+}
+
+/** A name as words: `PostList` is "Post list". */
+export const spaced = (name: string): string => {
+  const words = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
 /**
  * One appearance choice a node may store: the names it takes. A `variant` is
  * one of a recipe's values; a `token` is the name of a theme token, and a name
@@ -54,6 +72,8 @@ export interface Block<
  */
 export interface AppearanceAxis {
   readonly values: ReadonlyArray<string>
+  /** A value's name for people, where its own does not say it (`lg` is "Large"). Default: the value, spaced. */
+  readonly labels?: Readonly<Record<string, string>>
   readonly kind: 'variant' | 'token'
   /**
    * The breakpoints a choice may change at, by name: a node may then store
@@ -84,6 +104,12 @@ export type AnyBlock = Block<string, Schema.Top, Readonly<Record<string, Region>
 
 /** The decoded props of a Block. */
 export type PropsOf<B> = B extends Block<any, infer Props, any> ? Props['Type'] : never
+
+/**
+ * A Block's props as a Document stores them: the Props Schema's encoded side.
+ * A view gets `PropsOf<B>`; an editing tool reads and writes these.
+ */
+export type StoredPropsOf<B> = B extends Block<any, infer Props, any> ? Props['Encoded'] : never
 
 const make = <
   Name extends string,
@@ -133,6 +159,7 @@ const define = <
     Props: config.Props,
     regions: Object.freeze({ ...regions }),
     provides: Object.freeze([...config.provides]),
+    words: Object.freeze({ label: spaced(name), description: Option.none(), group: Option.none() }),
     metadata: Metadata.empty,
     appearance: Object.freeze({ ...config.appearance }),
     stateful: config.stateful ?? false,
@@ -266,6 +293,27 @@ const strict = { onExcessProperty: 'error' } as const
 export const Block = {
   define,
 
+  /**
+   * Pipe step: what the Block is called and what it is for, each given word in
+   * place of what it had, as
+   * `Hero.pipe(Block.words({ label: 'Hero', description: 'The big opening of a page', group: 'Layout' }))`.
+   * An application words a Block another package defined the same way.
+   */
+  words:
+    (given: { readonly label?: string; readonly description?: string; readonly group?: string }) =>
+    <B extends AnyBlock>(block: B): B =>
+      make({
+        ...block,
+        words: Object.freeze({
+          label: given.label ?? block.words.label,
+          description:
+            given.description === undefined
+              ? block.words.description
+              : Option.some(given.description),
+          group: given.group === undefined ? block.words.group : Option.some(given.group),
+        }),
+      }) as B,
+
   /** Pipe step: attaches an interpreter's metadata, beside what the Block already has. */
   annotate:
     (metadata: Metadata) =>
@@ -299,4 +347,17 @@ export const Block = {
     props: PropsOf<B>,
   ): Result.Result<unknown, Schema.SchemaError> =>
     Schema.encodeUnknownResult(block.Props as Schema.Codec<PropsOf<B>, unknown>)(props),
+
+  /**
+   * How one prop is stored: its field's encoded side, for a tool that edits
+   * the Document. A prop drawn as an `Option` (`Schema.OptionFromNullOr`) is
+   * stored as `null`, which only this side says. None for a key the Block's
+   * props do not declare.
+   */
+  stored: (block: AnyBlock, key: string): Option.Option<Schema.Top> => {
+    const fields = fieldsOf(block.Props)
+    return Object.hasOwn(fields, key)
+      ? Option.fromUndefinedOr(fields[key]).pipe(Option.map(Schema.toEncoded))
+      : Option.none()
+  },
 }

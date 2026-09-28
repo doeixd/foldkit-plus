@@ -5,12 +5,14 @@
  * `--fk-prose-*` variables, so every prose container shares the class and
  * options only write variables. Belongs in the `components` layer.
  */
-import { compose, inline, nest } from './styleValue.js'
+import { compose, inline, nest, self } from './styleValue.js'
 import type { StyleValue } from './styleValue.js'
 
 export interface ProseOptions {
   /** The line length, e.g. `'65ch'`. */
   readonly measure?: string
+  /** The line height, e.g. `'1.75'`. Default: the theme's relaxed leading. */
+  readonly leading?: string
   /** The space before an element, by what it follows. */
   readonly rhythm?: Partial<{
     /** Between flowing blocks: paragraph after paragraph, list after paragraph. */
@@ -65,7 +67,7 @@ const rules: StyleValue = compose(
   nest('mark', {
     padding: '0 0.2em',
     background: 'var(--fk-accent-subtle, Mark)',
-    color: 'var(--fk-accent-text, MarkText)',
+    color: 'var(--fk-accent-ink, MarkText)',
   }),
   nest('abbr[title]', { textDecorationStyle: 'dotted', cursor: 'help' }),
   nest(':not(pre) > code', { overflowWrap: 'anywhere' }),
@@ -75,6 +77,7 @@ const rules: StyleValue = compose(
 
 const variables = (options: ProseOptions): Readonly<Record<`--${string}`, string>> => ({
   ...(options.measure === undefined ? {} : { '--fk-prose-measure': options.measure }),
+  ...(options.leading === undefined ? {} : { '--fk-prose-leading': options.leading }),
   ...(options.rhythm?.paragraph === undefined
     ? {}
     : { '--fk-prose-paragraph': options.rhythm.paragraph }),
@@ -85,14 +88,18 @@ const variables = (options: ProseOptions): Readonly<Record<`--${string}`, string
   ...(options.rhythm?.figure === undefined ? {} : { '--fk-prose-figure': options.rhythm.figure }),
 })
 
-/** The prose container: one class for every caller, options as variables on it. */
+/**
+ * The prose container: one class for every caller, options as variables on it.
+ * The measure and leading are a rule reading those variables, not inline
+ * declarations, so a later layer can override either.
+ */
 export const style = (options: ProseOptions = {}): StyleValue =>
   compose(
-    inline({
+    self({
       maxInlineSize: 'var(--fk-prose-measure, 65ch)',
-      lineHeight: 'var(--fk-leading-relaxed, 1.6)',
-      ...variables(options),
+      lineHeight: 'var(--fk-prose-leading, var(--fk-leading-relaxed, 1.6))',
     }),
+    inline(variables(options)),
     rules,
   )
 

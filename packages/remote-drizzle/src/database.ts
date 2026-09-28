@@ -11,8 +11,8 @@
  * this tag lets an application provide a Drizzle database today and swap in the
  * Effect driver when the two versions agree.
  */
-import type { AnyColumn, SQL, Table } from 'drizzle-orm'
-import { Context, Layer } from 'effect'
+import type { AnyColumn, InferInsertModel, SQL, Table } from 'drizzle-orm'
+import { Context, Effect, Layer } from 'effect'
 
 export interface DrizzleStatement extends PromiseLike<ReadonlyArray<Record<string, unknown>>> {
   where(condition: SQL | undefined): DrizzleStatement
@@ -41,3 +41,30 @@ export class DrizzleDatabase extends Context.Service<DrizzleDatabase, DrizzleDat
  */
 export const databaseLayer = (database: unknown): Layer.Layer<DrizzleDatabase> =>
   Layer.succeed(DrizzleDatabase, database as DrizzleDatabaseService)
+
+/** A write statement: awaited for its effect, or asked for the columns it wrote. */
+export interface DrizzleWrite extends PromiseLike<unknown> {
+  returning(columns: Record<string, AnyColumn>): PromiseLike<ReadonlyArray<Record<string, unknown>>>
+}
+
+/** The writes any Drizzle database for SQLite or Postgres offers, typed by each table's columns. */
+export interface DrizzleWrites {
+  insert<T extends Table>(table: T): { values(values: InferInsertModel<T>): DrizzleWrite }
+  update<T extends Table>(
+    table: T,
+  ): {
+    set(values: Partial<InferInsertModel<T>>): { where(condition: SQL | undefined): DrizzleWrite }
+  }
+  delete(table: Table): { where(condition: SQL | undefined): DrizzleWrite }
+}
+
+/**
+ * The provided database's writes. `DrizzleDatabaseService` names only the reads a
+ * source makes, so a test can fake it with `select`; a Drizzle database has
+ * these too, and the cast that says so is confined here, as `databaseLayer`'s is.
+ */
+export const drizzleWrites: Effect.Effect<DrizzleWrites, never, DrizzleDatabase> = Effect.gen(
+  function* () {
+    return (yield* DrizzleDatabase) as unknown as DrizzleWrites
+  },
+)

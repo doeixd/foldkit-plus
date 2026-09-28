@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
-import { Derived, Entity, Relation } from '../src/index.js'
+import { Derived, Entity, Relation, type Selected } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 
@@ -77,3 +77,12 @@ Relation.one(Schema.String)
 Post.pipe(Entity.annotateMembers({ subtitle: Tags.of('x') }))
 // @ts-expect-error an entry must be the key's declared type
 Post.pipe(Entity.annotate(Tags.of(1)))
+
+// A Selection's value has a name.
+{
+  const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, body: Schema.String }))
+  const NoteBody = Entity.select(Note, { body: true })
+  expectTypeOf<Selected<typeof NoteBody>>().toEqualTypeOf<{ readonly body: string }>()
+  // @ts-expect-error an Entity is not a Selection
+  type _Entity = Selected<typeof Note>
+}

@@ -1,7 +1,8 @@
-import { Effect } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { describe, expect, it } from 'vitest'
-import { AppAgent } from '../src/agent.js'
+import { AppAgent, bindAgent } from '../src/agent.js'
+import { makeStore } from '../src/store.js'
 import { Message, initialModel, visibleTodos } from '../src/app.js'
 import { update } from '../src/surface.js'
 import { runDemo } from '../src/demo.js'
@@ -60,6 +61,30 @@ describe('the todo app', () => {
 
     expect(completion('add_todo')).toEqual({ kind: 'message', success: ['SubmittedTodo'] })
     expect(completion('rename_list')).toEqual({ kind: 'state', observes: ['listTitle'] })
+  })
+
+  it('completes two adds of one title each on its own todo, by the call, not the title', async () => {
+    const store = makeStore()
+    const agent = bindAgent({
+      definition: AppAgent,
+      host: { ...store.host, principal: () => ({ actorId: 'owner' }) },
+    })
+    const add = () =>
+      Effect.runPromise(agent.messages.dispatch(Message.RequestedTodo, { title: 'Milk' }))
+    const [first, second] = await Promise.all([add(), add()])
+    // Read back through the app's own Messages: the completion knows only it is one.
+    const created = (result: typeof first) =>
+      Option.getOrUndefined(
+        Option.filter(
+          Schema.decodeUnknownOption(Message)(result.completion?.message),
+          (message): message is typeof Message.SubmittedTodo.Type =>
+            message._tag === 'SubmittedTodo',
+        ),
+      )
+    expect(created(first)?.requestId).toBe(first.invocation.id)
+    expect(created(second)?.requestId).toBe(second.invocation.id)
+    expect(created(first)?.id).not.toBe(created(second)?.id)
+    expect(store.model().todos.map(todo => todo.title)).toEqual(['Milk', 'Milk'])
   })
 
   it('mints the fact in a Command and keeps local state out of it', () => {

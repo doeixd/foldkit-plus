@@ -1,0 +1,19 @@
+{
+  "name": "foldkit-example-form",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
+    "typescript": "5.9.3"
+  }
+}

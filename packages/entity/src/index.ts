@@ -238,6 +238,9 @@ export interface Selection<
 
 type AnySelection<Name extends string = string> = Selection<Name, any, any>
 
+/** The value a Selection reads: `Selected<typeof PostCard>` is one card's fields. */
+export type Selected<S extends Selection<string, unknown, Schema.Constraint>> = S['schema']['Type']
+
 /** `true` for any member; a relation also takes a Selection of its target. */
 /**
  * Which part of a `many` relation to read: the first or last so many, from a
@@ -979,6 +982,7 @@ export const Derived = {
 }
 
 export * from './expr.js'
+export * from './words.js'
 // The reference semantics of the IR above. The conformance suite that proves
 // an interpreter agrees with it is `foldkit-entity/conformance`, kept out of
 // this entry because it is fixture data every form and admin screen would

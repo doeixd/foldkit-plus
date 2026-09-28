@@ -31,7 +31,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Subscription from 'foldkit/subscription'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
-import type { State } from './lifecycle.js'
+import type { State, Transition } from './lifecycle.js'
 import { slugTaken } from './slug.js'
 
 /** How the form came to hold what it holds. */
@@ -64,6 +64,11 @@ export type EditorStatus =
   | 'Publishing'
   | 'Published'
   | 'PublishFailed'
+  /**
+   * A publish or a schedule the form's own checks stopped before anything was
+   * sent: the fields that fail say why. Until the next edit.
+   */
+  | 'Incomplete'
   | 'Scheduling'
   /** Promised for later. The entry's `state` says for when, and whether it happened. */
   | 'Scheduled'
@@ -86,6 +91,11 @@ export interface EditorModel<FormModel> {
   readonly saveWanted: boolean
   readonly publishId: string | null
   readonly publishWanted: boolean
+  /**
+   * The last publish or schedule asked, as the form took it: waiting for a
+   * check still running, or stopped by one and not edited since; else idle.
+   */
+  readonly submit: 'idle' | 'waiting' | 'stopped'
   /** When the publish that is wanted, under way or last settled is a promise for later: for when. */
   readonly scheduleAt: string | null
   /** The discard or unpublish in progress or last settled. */
@@ -112,7 +122,8 @@ export type EditorOut =
   | { readonly _tag: 'Overwrite' }
 
 /** The parts of a `Form.make` result the editor drives. */
-export interface EditorForm<FormModel, FormMessage, Value, Resources = {}> {
+/** `Services` is what the form's Commands and Subscriptions require, which the editor's then do. */
+export interface EditorForm<FormModel, FormMessage, Value, Resources = {}, Services = never> {
   readonly name: string
   readonly input: { readonly schema: Schema.Struct<any> }
   readonly bundle: {
@@ -122,9 +133,11 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}> {
       model: FormModel,
       message: FormMessage,
       args: void,
-    ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, any>
+    ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, Services>
     /** The Subscriptions of the form's controls backed by a Bundle, which the editor runs while open. */
-    readonly subscriptions?: (args: void) => Subscription.Subscriptions<FormModel, FormMessage, any>
+    readonly subscriptions?: (
+      args: void,
+    ) => Subscription.Subscriptions<FormModel, FormMessage, Services>
     /** Their Resources, which the editor holds while open. */
     readonly resources?: (args: void) => Resources
   }
@@ -146,6 +159,8 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}> {
    * same way a text field does, and a blur or a refused edit does not.
    */
   authoredChanged(before: FormModel, after: FormModel): boolean
+  /** Whether a check is still running, which a submit waits for. */
+  readonly engine: { readonly isValidating: (model: FormModel) => boolean }
   readonly field: (
     model: FormModel,
     key: never,
@@ -169,13 +184,17 @@ export interface EditorDomain<Root> {
   refresh(model: Root, target: any): Root
   overlay(model: Root, id: string, optimistic: ReadonlyArray<OptimisticOperation>): Root
   lift(model: Root, id: string): Root
-  readonly contract: { readonly owner?: object | undefined }
+  /** `Data.active`: a read of the domain as an active Surface of its application. */
+  active(
+    name: string,
+    projectionOf: (model: Root) => Option.Option<Projection<Root, any>>,
+  ): ActiveSurface<Root>
 }
 
-export interface EditorContent<FormModel, FormMessage, Value, Resources = {}> {
+export interface EditorContent<FormModel, FormMessage, Value, Resources = {}, Services = never> {
   readonly name: string
   readonly entity: AnyEntity
-  readonly form: EditorForm<FormModel, FormMessage, Value, Resources>
+  readonly form: EditorForm<FormModel, FormMessage, Value, Resources, Services>
   readonly roles: {
     readonly label: { readonly key: string } | undefined
     readonly slug: { readonly key: string } | undefined
@@ -264,10 +283,11 @@ export const makeEditor =
     FormMessage extends { readonly _tag: string },
     Value,
     Resources = {},
+    Services = never,
   >(
     name: Name,
     config: {
-      readonly content: EditorContent<FormModel, FormMessage, Value, Resources>
+      readonly content: EditorContent<FormModel, FormMessage, Value, Resources, Services>
       /** How long after the last edit the draft is saved. Default: one second. */
       readonly rest?: Duration.Input
       /** Bumped when the form changes so that a saved Model no longer fits it. */
@@ -294,6 +314,7 @@ export const makeEditor =
       saveWanted: false,
       publishId: null,
       publishWanted: false,
+      submit: 'idle',
       scheduleAt: null,
       otherId: null,
       previewing: false,
@@ -312,6 +333,7 @@ export const makeEditor =
       saveWanted: Schema.Boolean,
       publishId: Schema.NullOr(Schema.String),
       publishWanted: Schema.Boolean,
+      submit: Schema.Literals(['idle', 'waiting', 'stopped']),
       scheduleAt: Schema.NullOr(Schema.String),
       otherId: Schema.NullOr(Schema.String),
       previewing: Schema.Boolean,
@@ -364,7 +386,7 @@ export const makeEditor =
       OverwriteAsked: { _tag: 'Overwrite' },
     }
 
-    type Returned = Update.ReturnWithOutMessage<Model, Message, EditorOut, any>
+    type Returned = Update.ReturnWithOutMessage<Model, Message, EditorOut, Services>
 
     const viaForm = (model: Model, message: FormMessage): Returned => {
       const next = form.bundle.update(model.form, message, undefined)
@@ -372,24 +394,40 @@ export const makeEditor =
       // not start a save, and a control the editor does not know about does.
       const edited = form.authoredChanged(model.form, next.model)
       const edits = edited ? model.edits + 1 : model.edits
-      const commands: ReadonlyArray<Command<Message, never, any>> = [
-        ...((next.commands ?? []) as ReadonlyArray<Command<Message, never, any>>),
+      const commands: ReadonlyArray<Command<Message, never, Services>> = [
+        // A form Message is one of the editor's, so the form's Commands are the editor's.
+        ...((next.commands ?? []) as ReadonlyArray<Command<Message, never, Services>>),
         ...(edited
           ? [
               {
                 name: `${name}.rest`,
                 args: { edit: edits },
                 effect: Effect.sleep(rest).pipe(Effect.as(Own.Rested({ edit: edits }))),
-              } as Command<Message, never, any>,
+              } satisfies Command<Message, never, never>,
             ]
           : []),
       ]
+      // A submit the form stopped is said until the next edit: stopped at once, or once
+      // the check it waited for answered without letting it go.
+      const validating = form.engine.isValidating(next.model)
+      const submit: Model['submit'] =
+        next.outMessage !== undefined || edited
+          ? 'idle'
+          : message._tag === 'Submitted'
+            ? validating
+              ? 'waiting'
+              : 'stopped'
+            : model.submit === 'waiting' && !validating
+              ? 'stopped'
+              : model.submit
       // A form Message that changed nothing keeps this Model: Foldkit renders on its identity.
       const result = {
-        model: next.model === model.form ? model : { ...model, form: next.model, edits },
+        model:
+          next.model === model.form && submit === model.submit
+            ? model
+            : { ...model, form: next.model, edits, submit },
         commands,
       }
-      // A submit that went through is a publish: the form's rules and checks decided.
       return next.outMessage === undefined ? result : { ...result, outMessage: { _tag: 'Publish' } }
     }
 
@@ -479,7 +517,10 @@ export const makeEditor =
         archivedAt: true,
       } as never,
     )
-    const EntryState = Entity.select(cms.Entities.Entry as never, { state: true } as never)
+    const EntryState = Entity.select(
+      cms.Entities.Entry as never,
+      { state: true, may: true } as never,
+    )
     const DraftRead = Entity.select(
       cms.Entities.Draft as never,
       {
@@ -525,28 +566,27 @@ export const makeEditor =
             ? undefined
             : entry
         }
+        /** What the editor reads of the open entry: each none while there is none to read. */
         const projections = {
-          entry: (root: Root) => {
-            const entry = entryOf(root)
-            return entry === undefined ? undefined : data.get(EntryRead, entry)
-          },
-          state: (root: Root) => {
-            const entry = entryOf(root)
-            return entry === undefined ? undefined : data.get(EntryState, entry)
-          },
-          draft: (root: Root) => {
-            const entry = entryOf(root)
-            return entry === undefined ? undefined : data.get(DraftRead, entry)
-          },
-          row: (root: Root) => {
-            const target = held<{ readonly targetId: string | null }>(
-              projections.entry(root)?.read(root),
-            )?.targetId
-            return target == null ? undefined : data.get(RowRead, target)
-          },
+          entry: (root: Root) =>
+            Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(EntryRead, entry)),
+          state: (root: Root) =>
+            Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(EntryState, entry)),
+          draft: (root: Root) =>
+            Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(DraftRead, entry)),
+          row: (root: Root) =>
+            Option.map(
+              Option.fromNullishOr(
+                held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId,
+              ),
+              target => data.get(RowRead, target),
+            ),
         }
+        // The editor's own reasoning reads these as plain values, with `held`.
         const read = (root: Root, part: keyof typeof projections): RemoteData<any> | undefined =>
-          projections[part](root)?.read(root)
+          Option.getOrUndefined(
+            Option.map(projections[part](root), projection => projection.read(root)),
+          )
 
         const statusOf = (root: Root, requestId: string | null): MutationStatus =>
           requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
@@ -624,7 +664,9 @@ export const makeEditor =
             type: content.name,
             label: label === '' ? (config.untitled ?? 'Untitled') : label,
             values,
-            model: encodeModel(editor.form),
+            // Settled, as it is shown again: nothing in flight is stored, such as a Builder's
+            // undo history, which made a big page's draft too large to save.
+            model: encodeModel(form.settled(editor.form)),
             form: formTag,
             basedOn,
           })
@@ -830,22 +872,17 @@ export const makeEditor =
           return { model: root, commands }
         }
 
-        const failure = (root: Root): RemoteError | undefined => {
+        const failure = (root: Root): Option.Option<RemoteError> => {
           const editor = slice.get(root)
           for (const id of [editor.publishId, editor.saveId, editor.otherId]) {
             const status = statusOf(root, id)
-            if (status._tag === 'Failed') return status.error
+            if (status._tag === 'Failed') return Option.some(status.error)
           }
-          return undefined
+          return Option.none()
         }
 
-        const active = (part: keyof typeof projections): ActiveSurface<Root> => ({
-          name: `${name}.${part}`,
-          owner: data.contract.owner ?? {},
-          // A requirement, not a sender: the page's own Surfaces list its Messages.
-          messages: [],
-          projectionOf: projections[part],
-        })
+        const active = (part: keyof typeof projections): ActiveSurface<Root> =>
+          data.active(`${name}.${part}`, projections[part])
 
         return {
           /** For the placement: what the editor asked becomes the mutation, or waits its turn. */
@@ -871,10 +908,14 @@ export const makeEditor =
                 case 'Unarchive':
                   return simple('Unarchive')(root)
                 case 'Reload': {
-                  const refreshed = (['entry', 'draft', 'row'] as const).reduce((next, part) => {
-                    const projection = projections[part](next)
-                    return projection === undefined ? next : data.refresh(next, projection)
-                  }, root)
+                  const refreshed = (['entry', 'draft', 'row'] as const).reduce(
+                    (next, part) =>
+                      Option.match(projections[part](next), {
+                        onNone: () => next,
+                        onSome: projection => data.refresh(next, projection),
+                      }),
+                    root,
+                  )
                   return {
                     model: slice.set(refreshed, {
                       ...closed,
@@ -885,8 +926,10 @@ export const makeEditor =
                   }
                 }
                 case 'Overwrite': {
-                  const projection = projections.draft(root)
-                  const refreshed = projection === undefined ? root : data.refresh(root, projection)
+                  const refreshed = Option.match(projections.draft(root), {
+                    onNone: () => root,
+                    onSome: projection => data.refresh(root, projection),
+                  })
                   return {
                     model: slice.set(refreshed, { ...slice.get(refreshed), settling: 'overwrite' }),
                   }
@@ -950,21 +993,34 @@ export const makeEditor =
            * The id the application's own pages know this content by: the row's, or
            * the entry's while there is no row. It is what a preview is shown under.
            */
-          pageId: (root: Root): string | null =>
-            held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
-            slice.get(root).entry,
-          /** The entry being edited; `null` while closed. */
-          entry: (root: Root): string | null => slice.get(root).entry,
+          pageId: (root: Root): Option.Option<string> =>
+            Option.fromNullishOr(
+              held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
+                slice.get(root).entry,
+            ),
+          /** The entry being edited; none while closed. */
+          entry: (root: Root): Option.Option<string> => Option.fromNullOr(slice.get(root).entry),
           /**
-           * The entry as the server knows it: `null` while closed, and while
+           * The entry as the server knows it: none while closed, and while
            * something new is not saved yet, so a link naming it would find nothing.
            */
-          storedEntry: (root: Root): string | null => entryOf(root) ?? null,
+          storedEntry: (root: Root): Option.Option<string> => Option.fromUndefinedOr(entryOf(root)),
           /** How the form came to hold what it holds; `Lost` is worth telling the author. */
-          resumed: (root: Root): Resumed | null => slice.get(root).resumed,
-          /** The entry's lifecycle state, as the server last derived it. */
-          state: (root: Root): State | undefined =>
-            held<{ readonly state: State }>(read(root, 'state'))?.state,
+          resumed: (root: Root): Option.Option<Resumed> =>
+            Option.fromNullOr(slice.get(root).resumed),
+          /** The entry's lifecycle state, as the server last derived it; none until it is read. */
+          state: (root: Root): Option.Option<State> =>
+            Option.fromUndefinedOr(held<{ readonly state: State }>(read(root, 'state'))?.state),
+          /**
+           * Whether the signed-in principal may ask this transition of the open
+           * entry, by the server's `allow`, as the server said with the entry: false
+           * until it is read. Whether the entry offers it now is its `state`'s to
+           * say. For hiding what would be refused; the server still decides.
+           */
+          may: (root: Root, transition: Transition): boolean =>
+            held<{ readonly may: ReadonlyArray<Transition> }>(read(root, 'state'))?.may.includes(
+              transition,
+            ) === true,
           /** Why the last publish, save, discard or unpublish failed. */
           error: failure,
 
@@ -983,8 +1039,11 @@ export const makeEditor =
             const publish = statusOf(root, editor.publishId)
             const save = statusOf(root, editor.saveId)
             const later = editor.scheduleAt !== null
-            if (publish._tag === 'Pending') return later ? 'Scheduling' : 'Publishing'
+            // A submit waiting for a check is on its way, as one sent is.
+            if (publish._tag === 'Pending' || editor.submit === 'waiting')
+              return later ? 'Scheduling' : 'Publishing'
             if (save._tag === 'Pending' || editor.settling === 'overwrite') return 'Saving'
+            if (editor.submit === 'stopped') return 'Incomplete'
             const conflicted = (status: MutationStatus) =>
               status._tag === 'Failed' && status.error.message.includes('CmsConflict')
             if (editor.edits > editor.savedEdit) return 'Editing'

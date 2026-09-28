@@ -216,6 +216,35 @@ describe('completion tracking', () => {
     expect((await second).completion?.message).toMatchObject({ todos: [{ id: 'todo-2' }] })
   })
 
+  it('tells two calls that ask for the same thing apart by their invocation', async () => {
+    const { host, emit } = makeHost()
+    // The fact carries the invocation it answers, as a toMessage would pass it on.
+    const answering = (invocation: string) =>
+      MessageUnion.ReceivedTodos({ todos: [{ id: 'same', title: invocation, completed: true }] })
+    const runtime = Agent.bind({
+      definition: contractOf({
+        success: MessageUnion.ReceivedTodos,
+        correlate: (_, result, { invocation }) =>
+          result._tag === 'ReceivedTodos' && result.todos[0]?.title === invocation.id,
+        timeout: Duration.seconds(1),
+      }),
+      host,
+    })
+
+    // The same input twice: only the invocation tells them apart.
+    const first = Effect.runPromise(
+      runtime.messages.dispatch('delete_todo', { id: 'same' }, { id: 'call-1' }),
+    )
+    const second = Effect.runPromise(
+      runtime.messages.dispatch('delete_todo', { id: 'same' }, { id: 'call-2' }),
+    )
+    emit(answering('call-2'))
+    emit(answering('call-1'))
+
+    expect((await first).completion?.message).toMatchObject({ todos: [{ title: 'call-1' }] })
+    expect((await second).completion?.message).toMatchObject({ todos: [{ title: 'call-2' }] })
+  })
+
   it('keeps the first matching Message when two arrive before it resumes', async () => {
     // Both are emitted synchronously inside dispatch, so the waiter sees the
     // second while still holding the first. First match wins.

@@ -38,6 +38,8 @@ export interface DisplayContext<Message> {
   readonly row: unknown
   readonly words: ViewWords
   readonly h: HtmlBuilder<Message>
+  /** The Slot a renderer draws a value as a label of its own in, such as a state. */
+  readonly badge: SlotView.SlotBuilder<Message>
 }
 
 /**
@@ -91,6 +93,10 @@ export const ListSlots = Slots.define({
   /** Loading, failed, or empty: what is said in place of rows. */
   status: Slot.make({ capability: Capability.Base }),
   table: Slot.make({ capability: Capability.Container }),
+  /** The table's `thead`, its one row, and its `tbody`. */
+  head: Slot.make({ capability: Capability.Container }),
+  headRow: Slot.make({ capability: Capability.Container }),
+  body: Slot.make({ capability: Capability.Container }),
   headCell: Slot.make({ capability: Capability.Base }),
   /** The button in the header of a column that sorts. */
   sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
@@ -105,6 +111,8 @@ export const ListSlots = Slots.define({
   }),
   /** The button that asks again after a failed read. */
   retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** A value a renderer draws as a label of its own, such as a state. */
+  badge: Slot.make({ capability: Capability.Base }),
 })
 
 /** A detail: each selected member as a term and its value. */
@@ -118,6 +126,8 @@ export const DetailSlots = Slots.define({
   value: Slot.make({ capability: Capability.Base }),
   /** The button that asks again after a failed read. */
   retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** A value a renderer draws as a label of its own, such as a state. */
+  badge: Slot.make({ capability: Capability.Base }),
 })
 
 const shown = <Key extends string>(
@@ -156,9 +166,12 @@ const list = <Message>() => ({
                 ]),
               ]),
         ]
-        const status = (text: string): Html =>
+        // Busy while the first answer is awaited, so loading is told from empty.
+        const status = (text: string, busy = false): Html =>
           h.div(slots.root.attrs([h.Id(listed.name)]), [
-            h.p(slots.status.attrs([h.Role('status')]), [text]),
+            h.p(slots.status.attrs([h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]), [
+              text,
+            ]),
           ])
 
         const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
@@ -168,6 +181,7 @@ const list = <Message>() => ({
             row,
             words: words ?? {},
             h,
+            badge: slots.badge,
           }) ?? Display.show(column.display, value, words)
 
         // `notice` goes above the rows: a failure that left them on screen.
@@ -189,35 +203,30 @@ const list = <Message>() => ({
           return h.div(slots.root.attrs([h.Id(listed.name)]), [
             ...notice,
             h.table(slots.table.attrs(refreshing ? [h.AriaBusy(true)] : []), [
-              h.thead(
-                [],
-                [
-                  h.tr(
-                    [],
-                    columns.map(column => {
-                      const sorting = input.sort?.[column.key]
-                      return h.th(
-                        slots.headCell.attrs([
-                          h.Scope('col'),
-                          ...(sorting === undefined
-                            ? []
-                            : [h.AriaSort(ariaSort(sorting.direction))]),
-                        ]),
-                        [
-                          sorting === undefined
-                            ? column.label
-                            : h.button(
-                                slots.sort.attrs([h.Type('button'), h.OnClick(sorting.message)]),
-                                [column.label],
-                              ),
-                        ],
-                      )
-                    }),
-                  ),
-                ],
-              ),
+              h.thead(slots.head.attrs(), [
+                h.tr(
+                  slots.headRow.attrs(),
+                  columns.map(column => {
+                    const sorting = input.sort?.[column.key]
+                    return h.th(
+                      slots.headCell.attrs([
+                        h.Scope('col'),
+                        ...(sorting === undefined ? [] : [h.AriaSort(ariaSort(sorting.direction))]),
+                      ]),
+                      [
+                        sorting === undefined
+                          ? column.label
+                          : h.button(
+                              slots.sort.attrs([h.Type('button'), h.OnClick(sorting.message)]),
+                              [column.label],
+                            ),
+                      ],
+                    )
+                  }),
+                ),
+              ]),
               h.tbody(
-                [],
+                slots.body.attrs(),
                 page.items.map((row, position) => {
                   const values = row as Readonly<Record<string, unknown>>
                   const key =
@@ -262,7 +271,7 @@ const list = <Message>() => ({
         switch (page._tag) {
           case 'Initial':
           case 'Loading':
-            return status(words?.loading ?? 'Loading…')
+            return status(words?.loading ?? 'Loading…', true)
           case 'Failed':
             // A failed refresh keeps the rows it had: they are still the best
             // answer there is, and the failure is said above them.
@@ -307,9 +316,12 @@ const detail = <Message>() => ({
                 ]),
               ]),
         ]
-        const status = (text: string): Html =>
+        // Busy while the first answer is awaited, so loading is told from empty.
+        const status = (text: string, busy = false): Html =>
           h.div(slots.root.attrs([h.Id(detailed.name)]), [
-            h.p(slots.status.attrs([h.Role('status')]), [text]),
+            h.p(slots.status.attrs([h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]), [
+              text,
+            ]),
           ])
         // `notice` goes above the list: a failure that left the value on screen.
         // The root is the same `div` whatever the state, as a list's is, so a
@@ -331,6 +343,7 @@ const detail = <Message>() => ({
                         row: value,
                         words: words ?? {},
                         h,
+                        badge: slots.badge,
                       }) ??
                       Display.show(
                         field.display,
@@ -347,7 +360,7 @@ const detail = <Message>() => ({
         switch (read._tag) {
           case 'Initial':
           case 'Loading':
-            return status(words?.loading ?? 'Loading…')
+            return status(words?.loading ?? 'Loading…', true)
           case 'Failed':
             // A failed refresh keeps the value it had, with the failure above it.
             return read.previous === undefined

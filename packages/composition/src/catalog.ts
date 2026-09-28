@@ -5,12 +5,22 @@
  * and forms do not go in it. A Block that needs data says so in its own code.
  * Like a rich-text Kit, it is a module-level value, never Model state.
  */
-import { Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 import type { CatalogAction } from './action.js'
-import { fieldsOf, type AnyBlock } from './block.js'
+import { fieldsOf, spaced, type AnyBlock } from './block.js'
 import type { Content } from './content.js'
+import { Tree, treeRefusal } from './operation.js'
 import { bounds } from './region.js'
+
+/** A ready-made arrangement of Blocks, inserted as one: a hero with its button, a row of cards. */
+export interface Pattern {
+  readonly name: string
+  /** Its name for people, and what it is for. */
+  readonly words: { readonly label: string; readonly description: Option.Option<string> }
+  /** Its nodes, under ids of its own; each use gives them new ones. */
+  readonly tree: Tree
+}
 
 /**
  * `ActionMessage` is the Messages its actions make, so a Renderer whose views
@@ -29,6 +39,8 @@ export interface Catalog<Blocks extends AnyBlock = AnyBlock, ActionMessage = unk
   readonly context: Schema.Struct<Schema.Struct.Fields> | undefined
   /** The actions a node's events may run, by name: `foldkit-surface` Actions. */
   readonly actions: ReadonlyArray<CatalogAction<ActionMessage>>
+  /** Arrangements of these Blocks an author inserts as one. */
+  readonly patterns: ReadonlyArray<Pattern>
 }
 
 /** A Block's name, from a Catalog. */
@@ -37,6 +49,10 @@ export type BlockName<C> = C extends Catalog<infer Blocks> ? Blocks['name'] : ne
 /** One Block as a person or a tool reads it. */
 export interface BlockDescription {
   readonly name: string
+  /** Its name for people, and, when given, its purpose and its group: `Block.words`. */
+  readonly label: string
+  readonly description?: string
+  readonly group?: string
   readonly provides: ReadonlyArray<string>
   /** The keys of its props, when they are a struct. */
   readonly props: ReadonlyArray<string>
@@ -56,6 +72,18 @@ export const Catalog = {
     readonly context?: Schema.Struct<Schema.Struct.Fields>
     /** The actions a node's events may run: `[AddToCart, Subscribe]`. */
     readonly actions?: ReadonlyArray<CatalogAction<ActionMessage>>
+    /**
+     * Arrangements an author inserts as one, each a tree of these Blocks as a
+     * Document stores them. Each is checked here: one that does not hold
+     * together or fit the Catalog throws.
+     */
+    readonly patterns?: ReadonlyArray<{
+      readonly name: string
+      /** Default: its name, spaced. */
+      readonly label?: string
+      readonly description?: string
+      readonly tree: typeof Tree.Encoded
+    }>
   }): Catalog<Blocks, ActionMessage> => {
     if (config.roots.length === 0)
       throw new Error('Catalog.make: `roots` names no Content, so no Document could have a root')
@@ -71,15 +99,44 @@ export const Catalog = {
         throw new Error(`Catalog.make: two actions are named "${action.name}"`)
       actionNames.add(action.name)
     }
-    return Object.freeze({
+    const catalog: Catalog<Blocks, ActionMessage> = {
       _tag: 'Catalog',
       blocks: Object.freeze([...config.blocks]),
       roots: Object.freeze([...config.roots]),
       byName,
       context: config.context,
       actions: Object.freeze([...(config.actions ?? [])]),
-    })
+      patterns: [],
+    }
+    const patterns: Array<Pattern> = []
+    const patternNames = new Set<string>()
+    for (const pattern of config.patterns ?? []) {
+      if (patternNames.has(pattern.name))
+        throw new Error(`Catalog.make: two patterns are named "${pattern.name}"`)
+      patternNames.add(pattern.name)
+      const tree = Schema.decodeUnknownResult(Tree, { onExcessProperty: 'error' })(pattern.tree)
+      if (Result.isFailure(tree))
+        throw new Error(`Catalog.make: pattern "${pattern.name}" is not a tree: ${tree.failure}`)
+      const refusal = treeRefusal(catalog, tree.success)
+      if (Option.isSome(refusal))
+        throw new Error(
+          `Catalog.make: pattern "${pattern.name}" does not fit the Catalog: ${refusal.value.message}`,
+        )
+      patterns.push({
+        name: pattern.name,
+        words: {
+          label: pattern.label ?? spaced(pattern.name),
+          description: Option.fromUndefinedOr(pattern.description),
+        },
+        tree: tree.success,
+      })
+    }
+    return Object.freeze({ ...catalog, patterns: Object.freeze(patterns) })
   },
+
+  /** The pattern a name resolves to; none when this Catalog has none. */
+  pattern: (catalog: Catalog, name: string): Option.Option<Pattern> =>
+    Option.fromUndefinedOr(catalog.patterns.find(each => each.name === name)),
 
   /** The Block a stored name resolves to, or `undefined` when this Catalog has none. */
   block: <Blocks extends AnyBlock>(catalog: Catalog<Blocks>, name: string): Blocks | undefined =>
@@ -89,6 +146,12 @@ export const Catalog = {
   describe: (catalog: Catalog): ReadonlyArray<BlockDescription> =>
     catalog.blocks.map(block => ({
       name: block.name,
+      label: block.words.label,
+      ...Option.match(block.words.description, {
+        onNone: () => ({}),
+        onSome: description => ({ description }),
+      }),
+      ...Option.match(block.words.group, { onNone: () => ({}), onSome: group => ({ group }) }),
       provides: block.provides.map(content => content.name),
       props: Object.keys(fieldsOf(block.Props)),
       regions: Object.fromEntries(

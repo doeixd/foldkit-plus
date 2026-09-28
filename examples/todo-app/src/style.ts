@@ -295,9 +295,9 @@ const badge = Style.recipe({
   ),
   variants: {
     priority: {
-      high: Style.inline({ color: t.warning.default }),
+      high: Style.inline({ color: t.warning.ink }),
       normal: Style.inline({ color: t.text.muted }),
-      low: Style.inline({ color: t.info.default }),
+      low: Style.inline({ color: t.info.ink }),
     },
   },
   defaults: { priority: 'normal' },
@@ -343,7 +343,7 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
         lineHeight: '1',
         cursor: 'pointer',
       }),
-      Style.pseudo(':hover', { color: t.error.default }),
+      Style.pseudo(':hover', { color: t.error.ink }),
     ),
     editor: Style.compose(
       control,
@@ -391,7 +391,7 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
         border: `1px solid ${t.outline.overt}`,
         borderRadius: '50%',
         background: 'transparent',
-        color: t.accent.default,
+        color: t.accent.ink,
         cursor: 'pointer',
         padding: '0',
       }),
@@ -442,7 +442,7 @@ export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
         cursor: 'pointer',
       }),
       Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
-      Style.pseudo(':not(:disabled):hover', { color: t.error.default }),
+      Style.pseudo(':not(:disabled):hover', { color: t.error.ink }),
     ),
   },
   { name: 'ClearButtonStyle', layer: app },

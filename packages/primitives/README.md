@@ -97,11 +97,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, PointerDrag, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, PointerDrag, EditableText, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Measure, Move, Targets, PointerDrag, EditableText, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -363,7 +363,10 @@ owns fullscreen state.
 `copyText` copies text as a Command: use it in `update` beside any bundle.
 It yields `Copied` on success and `CopyFailed` otherwise — denial, insecure
 context, or no clipboard API (SSR) all become the failure Message instead of
-throwing. No Model involved: the clipboard is not application state.
+throwing. `readText()` reads it the same way, yielding a
+`ClipboardReadMessage`: `Read { text }`, or `ReadFailed` when the browser
+refuses. No Model involved: the clipboard is not
+application state.
 
 `share(data)` posts `{ title?, text?, url? }` to the platform sheet: `Shared`
 on success, `Dismissed` on sheet cancel (its own outcome, not a failure),
@@ -378,6 +381,26 @@ masks a field against `#`/`A`/`*` placeholders with literal separators,
 rewrites the field with approximate caret restore, and emits
 `Input { value, raw }` with masked and unmasked text. The parent owns the
 state, like any controlled input.
+
+`KeepInView({ selector })` keeps what is marked in view: whenever an element in
+its subtree newly matches `selector` (the row just selected, the node just
+inserted), it is scrolled into view the least amount that shows it. It sends no
+Message and redraws nothing, so a focused row stays focused. Where there is no
+layout (jsdom), it scrolls nothing.
+
+`Measure({ targets: { selected: '[aria-selected="true"]' } })` measures, for
+each named target, the first element in its subtree that matches, relative to
+its scroll box, and writes `--fk-selected-x`, `-y`, `-w`, `-h` (pixels) and
+`--fk-selected-display` (`block`, or `none` while nothing matches) on the
+element (`measured('selected')` names them). A child placed absolutely from
+them, such as an editor's selection outline, sits over the target and scrolls
+with it. Where an element is, is presentation: it sends no Message and keeps
+nothing in the Model. It measures again when the subtree changes, as the
+records arrive, so the box moves in the frame the change is drawn in; and, at
+most once a frame, when the element scrolls, when it or a target changes size,
+when the window resizes, when an image or a font inside loads, and on each
+frame of a transition or an animation inside. Anything else that moves a
+target without resizing it (a stylesheet added) is seen at the next of these.
 
 ## State: `foldkit-primitives/state`
 
@@ -399,7 +422,10 @@ while keeping the present. A `Push` may name a `group`: consecutive pushes of
 the same group are one step, so typing a word undoes as a whole, with no clock.
 The steps are also pure functions, `History.start`, `push`, `undo`, `redo` and
 `clear`, for a parent that records an edit in the same transition that makes it
-(the page Builder keeps its page this way). The past holds at most `capacity` entries (default 100);
+(the page Builder keeps its page this way). Two more are only functions:
+`History.close(model)` ends the group, so the same group pushed again is a step
+of its own, and `History.revert(model, group)` takes back the step `group` is
+making with nothing left to redo, which is what a cancelled edit leaves. The past holds at most `capacity` entries (default 100);
 a negative or fractional capacity throws at the factory, naming it. The
 factory attaches the Message union, so placements dispatch
 `EditHistory.Message.Push(...)`. `canUndo`/`canRedo` read the edges:
@@ -644,7 +670,12 @@ closed are one bundle with a different arg. The Behavior writes each showing
 row's `id` (through `domId`, by default the row's own), `role="treeitem"`,
 `aria-level`, `aria-posinset`, `aria-setsize`, `aria-expanded` on a branch,
 `aria-disabled`, a roving `tabindex` and `OnFocus`; the container's keys move
-focus by id, or open and close the current row in place.
+focus by id, or open and close the current row in place. Focus in the tree
+follows its stop when a transition it did not see moves it or removes the
+focused row (the `FollowTabStop` Mount, in `foldkit-primitives/dom`, which
+never takes focus from outside the container). The level is also the
+custom property `--fk-tree-level`, 1 at the top, so one rule indents any depth:
+`padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 
 ```ts
 const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')
@@ -736,6 +767,38 @@ preventDefault })` in `foldkit-primitives/dom`; `Targets.behavior(Slots)<Input,
 Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
 `targetOf(container, from, attribute)` is the pure lookup.
 
+`EditableText` is text typed into a marked descendant of a container while it
+is `contenteditable`, as one Mount on the container. The view decides which
+field is editable; the Mount focuses it as it becomes so (made editable, or
+drawn editable), with the caret at its end, and at no other time: a field
+editable all along, or another going away, moves no focus. It reads what is
+typed:
+
+- **Text, never markup.** It reads `innerText`. A field is one line unless it
+  carries `aria-multiline="true"`, and in one line a line break becomes a
+  space. Where the browser lacks `contenteditable="plaintext-only"`, a paste is
+  inserted as its text.
+- **`TextEdited { field, text }`** on each change, `field` being the marking
+  attribute's value. Nothing is reported while an input method composes; the
+  composed text arrives once.
+- **`TextCommitted { field, text }`** on Enter (Shift+Enter breaks a line in a
+  multiline field) or on leaving the field; **`TextCancelled { field, initial }`**
+  on Escape, which also puts the text the field had when the edit began (on
+  focus, or on the first keystroke after an edit ended) back in the DOM, the
+  caret at its end. A view that stopped redrawing the field while it was edited
+  would not. An edit ends once: the blur after Enter commits nothing more.
+- **Focus comes back to the container** when Enter or Escape ended an edit and
+  the view then removes the field or makes it no longer editable, which leaves
+  focus on nothing; give the container a `tabindex`, and the next key (an
+  undo) reaches it. A field left by the author keeps no such claim.
+- **`EditAsked { field }`** on a double-click over a marked field that is not
+  editable yet: the view's cue to make it so.
+
+The Mount is `EditableText({ attribute })` in `foldkit-primitives/dom`;
+`EditableText.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
+attaches it. What a change means (a prop set, an undo group) is the parent's
+`update`.
+
 `PointerDrag` is dragging one marked descendant onto another, marked the way
 `Targets` marks them. A primary press on one that moves more than
 `DRAG_THRESHOLD` (4px) starts a drag (`DragStarted { id }`); then, once per
@@ -743,11 +806,14 @@ change, `DraggedOver { over }` says which other marked descendant the pointer
 is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
 'after' }`, or `null`. Releasing is `DragDropped { id, over }`, and Escape, a
 cancelled pointer, or a button found released mid-drag is `DragCancelled { id }`.
+An Escape that cancels is heard on the way down and goes no further, so the
+focused element's own Escape (a canvas's deselect) does not also run.
 It follows the pointer that pressed and ignores a second one; the element under
 it is found by position, so a touch or a pen, which the browser captures to
 where it went down, drags too, once the marked elements have `touch-action:
 none` so a finger drags rather than scrolls. The click a drop ends with is
-swallowed, so a `Targets` on the same container does not also press. It writes
+swallowed, so a `Targets` on the same container does not also press. A press
+in `contenteditable` text selects text and starts no drag. It writes
 no roles, `tabindex` or keys, so it sits beside a tree's or a listbox's own;
 the keyboard's way to do what a drag does is yours to give. Boxes are measured
 as the pointer moves and never kept; an element drawn as `display: contents`
@@ -755,6 +821,18 @@ is measured by its first child (`boxOf`). The Mount is
 `PointerDrag({ attribute })` in `foldkit-primitives/dom`;
 `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
 attaches it, and `zoneOf(box, y)` is the pure split.
+
+A drag may also land somewhere other than among its own: with
+`targets: { attribute: 'data-composition-node', within: '#page' }`, what is
+dragged is still one of the container's marked descendants (a palette's
+tiles), and `over` is an element marked by that attribute inside the one
+`within` selects (the page's nodes). Its own tiles, and a matching element
+outside that one, are then over nothing. `within` is looked for nearest
+first, under the container's closest ancestor that holds a match, so two
+editors on one page each drop onto their own page. Such a drag's
+`DraggedOver` and `DragDropped` also carry `region`: whether the pointer is
+inside that element, so `over: null` with `region: true` is its empty space
+(an empty page, the space below its last node), and with `false`, elsewhere.
 
 `FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
 in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,

@@ -4,7 +4,7 @@
  * node, which Remote fetches like any other; a Renderer hands each node its
  * rows, typed by what the Block selects.
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { inertHtml, type Html } from 'foldkit/html'
 import { Entity, Query, Remote, RemoteClient, type Page, type RemoteData } from 'foldkit-remote'
@@ -109,8 +109,7 @@ const text = (nodes: ReadonlyArray<Html>): string =>
 
 describe('a Query Block', () => {
   it('reads the page’s Query Blocks as one Projection, which Remote fetches', async () => {
-    const reads = QueryBlock.reads(Data, Site, page)
-    if (reads === undefined) throw new Error('no reads')
+    const reads = Option.getOrThrow(QueryBlock.reads(Data, Site, page))
     expect(reads.read(initial)).toEqual({ mine: { _tag: 'Initial' } })
     const { asked, layer } = server()
     const loaded = await Effect.runPromise(
@@ -129,9 +128,38 @@ describe('a Query Block', () => {
     })
   })
 
+  it('hands a node its own window, though another read of the query loaded more', async () => {
+    const reads = Option.getOrThrow(QueryBlock.reads(Data, Site, page))
+    // A picker, say, reading three of the same list: one connection holds all three.
+    const wider = Data.query(
+      ProjectsByOwner,
+      { ownerId: 'u1' },
+      {
+        select: Project.select({ name: true }),
+        first: 3,
+      },
+    )
+    const { layer } = server()
+    const loaded = await Effect.runPromise(
+      Data.prefetch(initial, wider).pipe(
+        Effect.flatMap(model => Data.prefetch(model, reads)),
+        Effect.provide(layer),
+      ),
+    )
+    expect(reads.read(loaded)).toEqual({
+      mine: {
+        _tag: 'Ready',
+        value: {
+          items: [{ name: 'Project p1' }, { name: 'Project p2' }],
+          hasNext: true,
+          hasPrevious: false,
+        },
+      },
+    })
+  })
+
   it('draws a node’s rows from the data it is handed, and waits without them', async () => {
-    const reads = QueryBlock.reads(Data, Site, page)
-    if (reads === undefined) throw new Error('no reads')
+    const reads = Option.getOrThrow(QueryBlock.reads(Data, Site, page))
     const loaded = await Effect.runPromise(
       Data.prefetch(initial, reads).pipe(Effect.provide(server().layer)),
     )
@@ -142,11 +170,21 @@ describe('a Query Block', () => {
   })
 
   it('is an active Surface of its application, reading once per page', () => {
-    const active = QueryBlock.active('PageReads', App.owner, Data, Site, (model: Model) => page)
+    const active = QueryBlock.active('PageReads', App.owner, Data, Site, (model: Model) =>
+      Option.some(page),
+    )
     expect(active.owner).toBe(App.owner)
     const first = active.projectionOf(initial)
-    expect(first?.read(initial)).toEqual({ mine: { _tag: 'Initial' } })
+    expect(Option.map(first, read => read.read(initial))).toEqual(
+      Option.some({ mine: { _tag: 'Initial' } }),
+    )
+    // The same page reads through the same Projection, whatever Model it is in.
     expect(active.projectionOf({ remote: Remote.initial })).toBe(first)
+    // As a Renderer's `data`: each node's value, and nothing while there is no page.
+    expect(active.data(initial)).toEqual({ mine: { _tag: 'Initial' } })
+    const idle = QueryBlock.active('PageReads', App.owner, Data, Site, () => Option.none())
+    expect(Option.isNone(idle.projectionOf(initial))).toBe(true)
+    expect(idle.data(initial)).toEqual({})
   })
 
   it('reads nothing on a page with no Query Block', () => {
@@ -155,7 +193,7 @@ describe('a Query Block', () => {
       roots: ['s'],
       nodes: { s: { block: 'Section', props: {}, regions: { body: [] } } },
     })
-    expect(QueryBlock.reads(Data, Site, empty)).toBeUndefined()
+    expect(Option.isNone(QueryBlock.reads(Data, Site, empty))).toBe(true)
   })
 
   it('types its rows by what it selects', () => {

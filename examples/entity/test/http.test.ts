@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
@@ -29,7 +29,9 @@ describe('the HTTP transport the browser uses', () => {
     const run = <A, E>(effect: Effect.Effect<A, E, RemoteClient>) =>
       Effect.runPromise(effect.pipe(Effect.provide(client)))
 
-    const listed = await run(Data.prefetch(initial(), Posts.active.projectionOf(initial())!))
+    const listed = await run(
+      Data.prefetch(initial(), Option.getOrThrow(Posts.active.projectionOf(initial()))),
+    )
     const page = Posts.page(listed)
     expect(page._tag === 'Ready' && page.value.items.map(row => row.title)).toEqual([
       'Notes on the Engine',
@@ -38,7 +40,7 @@ describe('the HTTP transport the browser uses', () => {
 
     const opened = EditForm.helpers.open(PostId.make('p2'))(listed).model
     const loaded = PostEditor.sync(
-      await run(Data.prefetch(opened, PostEditor.active.projectionOf(opened)!)),
+      await run(Data.prefetch(opened, Option.getOrThrow(PostEditor.active.projectionOf(opened)))),
     ).model
     const form = (model: typeof loaded, message: typeof EditPostForm.Message.Type) =>
       update(model, Message.GotEditPostMessage({ message }))
@@ -58,7 +60,9 @@ describe('the HTTP transport the browser uses', () => {
     const client = Remote.clientLayer(httpClient(server.url))
     const titles = async (model: ReturnType<typeof initial>) => {
       const read = await Effect.runPromise(
-        Data.prefetch(model, Posts.active.projectionOf(model)!).pipe(Effect.provide(client)),
+        Data.prefetch(model, Option.getOrThrow(Posts.active.projectionOf(model))).pipe(
+          Effect.provide(client),
+        ),
       )
       const page = Posts.page(read)
       return page._tag === 'Ready' ? page.value.items.map(row => row.title) : page._tag
@@ -94,7 +98,7 @@ describe('the HTTP transport the browser uses', () => {
   it('turns a failure on the server into the client’s own error', async () => {
     const client = Remote.clientLayer(httpClient(server.url.replace('/remote', '/nowhere')))
     const failed = await Effect.runPromise(
-      Data.prefetch(initial(), Posts.active.projectionOf(initial())!).pipe(
+      Data.prefetch(initial(), Option.getOrThrow(Posts.active.projectionOf(initial()))).pipe(
         Effect.provide(client),
         Effect.flip,
       ),

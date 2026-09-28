@@ -1,0 +1,39 @@
+/**
+ * How the browser takes over a site page the build rendered (`foldkit-ssr`).
+ * A module of its own, loaded only for a page it takes over: `foldkit-ssr`
+ * carries Foldkit's server renderer too, which neither the studio nor a page
+ * drawn afresh should load.
+ */
+import { Remote } from 'foldkit-remote'
+import { SSR } from 'foldkit-ssr'
+import { Projection } from 'foldkit-surface'
+import type { siteConfig } from './siteConfig.js'
+import * as Site from './siteApp.js'
+
+/**
+ * How a page the build rendered is taken over in the browser (`foldkit-ssr`):
+ * the route and the reader cross as they are, and Remote sends what the
+ * page's reads hold, so the browser asks for none of it again.
+ */
+export const plan = SSR.plan(
+  {
+    owner: Site.App.owner,
+    Message: Site.Message,
+    // What crosses replaces the route and the reader; the rest starts here.
+    initial: Site.placements.initial({
+      remote: Remote.initial,
+      route: { _tag: 'Blog' },
+      reader: 'visitor',
+    }).model,
+  },
+  {
+    id: 'site',
+    state: Projection.pick(Site.App.model.route, Site.App.model.reader),
+    surfaces: Object.values(Site.actives),
+    parts: [Remote.resume(Site.Data)],
+  },
+)
+
+/** Takes the page over from what it carries, asking the server for none of it again. */
+export const takeOver = (config: ReturnType<typeof siteConfig<HTMLElement>>, buildId: string) =>
+  SSR.hydrate(config, plan, { buildId })

@@ -29,38 +29,47 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
     "./editor": {
+      "foldkit-plus:source": "./src/editor.ts",
       "types": "./dist/editor.d.mts",
       "import": "./dist/editor.mjs"
     },
     "./editor-bundle": {
+      "foldkit-plus:source": "./src/editor-bundle.ts",
       "types": "./dist/editor-bundle.d.mts",
       "import": "./dist/editor-bundle.mjs"
     },
     "./events": {
+      "foldkit-plus:source": "./src/events.ts",
       "types": "./dist/events.d.mts",
       "import": "./dist/events.mjs"
     },
     "./host": {
+      "foldkit-plus:source": "./src/host.ts",
       "types": "./dist/host.d.mts",
       "import": "./dist/host.mjs"
     },
     "./input": {
+      "foldkit-plus:source": "./src/input.ts",
       "types": "./dist/input.d.mts",
       "import": "./dist/input.mjs"
     },
     "./html": {
+      "foldkit-plus:source": "./src/html.ts",
       "types": "./dist/html.d.mts",
       "import": "./dist/html.mjs"
     },
     "./toolbar": {
+      "foldkit-plus:source": "./src/toolbar.ts",
       "types": "./dist/toolbar.d.mts",
       "import": "./dist/toolbar.mjs"
     },
     "./view": {
+      "foldkit-plus:source": "./src/view.ts",
       "types": "./dist/view.d.mts",
       "import": "./dist/view.mjs"
     }

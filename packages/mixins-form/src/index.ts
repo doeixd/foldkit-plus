@@ -38,6 +38,8 @@ export interface FormViewWords {
   readonly submit?: string | undefined
   /** Before the label on a picker's search box (`Search Author`). Default `Search`. */
   readonly search?: string | undefined
+  /** The choice of nothing, in a picker that may be left empty. Default: blank. */
+  readonly none?: string | undefined
   /** On the button that adds a row to a nested key. Default `Add {label}`. */
   readonly add?: string | undefined
   /** On the button that removes a row; `{position}` counts from 1. Default `Remove {label} {position}`. */
@@ -65,6 +67,12 @@ export interface FormViewInputs<Key extends string = string> {
   readonly controls?: Readonly<Record<string, unknown>> | undefined
   /** The view's own words, for wording and for translation. */
   readonly words?: FormViewWords | undefined
+  /**
+   * Whether the form is drawn with its submit button. Default: it is. `false`
+   * for someone who may not submit it, such as a writer where submitting
+   * publishes, so what would be refused is not offered.
+   */
+  readonly submits?: boolean | undefined
 }
 
 /** What a field's Style and Behavior attachments may read. */
@@ -78,6 +86,8 @@ export interface FieldInput<Key extends string = string> {
   readonly id: string
   /** The word before the label on its search box: the view's `words.search`. */
   readonly searchWord?: string | undefined
+  /** The choice of nothing in a picker: the view's `words.none`. */
+  readonly noneWord?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
@@ -145,11 +155,19 @@ export const FieldSlots = Slots.define({
     events: [Event.Change, Event.Blur],
     attributes: [Attr.AriaInvalid, Attr.AriaDescribedby],
   }),
+  /** One choice of a `select`. */
+  option: Slot.make({ capability: Capability.Base }),
   /** Around the view of a control backed by a Bundle, when it is drawn with the Bundle's own view. */
   control: Slot.make({ capability: Capability.Container }),
+  /** Around a control and its affixes, such as an address's prefix and its input. */
+  group: Slot.make({ capability: Capability.Container }),
+  /** Text beside a control, before or after it: a prefix, or a unit. */
+  affix: Slot.make({ capability: Capability.Base }),
   /** A `RelationMany` picker: the group, and each thing in it. */
   choices: Slot.make({ capability: Capability.Collection }),
   choice: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** Around one choice's checkbox and its words. */
+  choiceLabel: Slot.make({ capability: Capability.Base }),
   /** Over a relation picker that searches: where the user types to find a choice. */
   search: Slot.make({ capability: Capability.TextInput, events: [Event.Input] }),
 })
@@ -342,6 +360,24 @@ export type Renderers<Message> = Readonly<Record<string, Renderer<Message>>>
  * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
  * its own beside them.
  */
+/**
+ * The choices, and after them each chosen value they lack, as `? value`: a
+ * stored id whose row is gone, or a value the choices have not loaded yet,
+ * stays shown and can be let go, rather than dropped from sight.
+ */
+const withChosen = (
+  options: ReadonlyArray<Option>,
+  chosen: ReadonlyArray<string>,
+): ReadonlyArray<Option> => {
+  const known = new Set(options.map(option => option.value))
+  return [
+    ...options,
+    ...chosen
+      .filter(value => value !== '' && !known.has(value))
+      .map(value => ({ value, label: `? ${value}` })),
+  ]
+}
+
 const defaultRenderers = <Message>(): Renderers<Message> => {
   const typed = ({ state, draft, change, blurred, h }: RenderContext<Message>) => [
     ...state,
@@ -352,14 +388,22 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
   // A blank option whenever nothing is chosen, required or not: without one the
   // browser shows its first option as chosen while the draft is still empty.
   const pick = (
-    { state, draft, change, blurred, slots, h }: RenderContext<Message>,
+    { state, draft, change, blurred, input, slots, h }: RenderContext<Message>,
     options: ReadonlyArray<Option>,
     blank: boolean,
   ): Html =>
     h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
-      ...(blank || draft === '' ? [h.option([h.Value(''), h.Selected(draft === '')], [''])] : []),
-      ...options.map(option =>
-        h.option([h.Value(option.value), h.Selected(draft === option.value)], [option.label]),
+      ...(blank || draft === ''
+        ? [
+            h.option(slots.option.attrs([h.Value(''), h.Selected(draft === '')]), [
+              input.noneWord ?? '',
+            ]),
+          ]
+        : []),
+      ...withChosen(options, typeof draft === 'string' ? [draft] : []).map(option =>
+        h.option(slots.option.attrs([h.Value(option.value), h.Selected(draft === option.value)]), [
+          option.label,
+        ]),
       ),
     ])
   return {
@@ -394,39 +438,37 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
     [Input.Select.kind]: context =>
       pick(
         context,
-        (Input.Select.is(context.control) ? context.control.data.options : []).map(value => ({
-          value,
-          label: value,
+        (Input.Select.is(context.control) ? context.control.data.options : []).map(option => ({
+          value: String(option),
+          label: String(option),
         })),
         !context.input.control.required,
       ),
     [Input.RelationOne.kind]: context => pick(context, context.input.options, true),
     [Input.RelationMany.kind]: ({ input, draft, change, slots, h }) => {
       const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
+      const isChosen = new Set(chosen)
       return h.div(
         slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
-        input.options.map(option =>
-          h.label(
-            [],
-            [
-              h.input(
-                slots.choice.attrs([
-                  h.Type('checkbox'),
-                  h.Name(input.control.key),
-                  h.Value(option.value),
-                  h.Checked(chosen.includes(option.value)),
-                  h.OnClick(
-                    change(
-                      chosen.includes(option.value)
-                        ? chosen.filter(value => value !== option.value)
-                        : [...chosen, option.value],
-                    ),
+        withChosen(input.options, chosen).map(option =>
+          h.label(slots.choiceLabel.attrs(), [
+            h.input(
+              slots.choice.attrs([
+                h.Type('checkbox'),
+                h.Name(input.control.key),
+                h.Value(option.value),
+                h.Checked(isChosen.has(option.value)),
+                h.OnClick(
+                  change(
+                    isChosen.has(option.value)
+                      ? chosen.filter(value => value !== option.value)
+                      : [...chosen, option.value],
                   ),
-                ]),
-              ),
-              option.label,
-            ],
-          ),
+                ),
+              ]),
+            ),
+            option.label,
+          ]),
         ),
       )
     },
@@ -586,6 +628,7 @@ export const FormView = {
                     search: walk.search(key),
                     following: walk.following(key),
                     searchWord: input.words?.search,
+                    noneWord: input.words?.none,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),
@@ -654,9 +697,13 @@ export const FormView = {
           ...(input.errors.length === 0
             ? []
             : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
-          h.button(slots.submit.attrs([h.Type('submit'), h.Disabled(!input.canSubmit)]), [
-            input.words?.submit ?? 'Submit',
-          ]),
+          ...(input.submits === false
+            ? []
+            : [
+                h.button(slots.submit.attrs([h.Type('submit'), h.Disabled(!input.canSubmit)]), [
+                  input.words?.submit ?? 'Submit',
+                ]),
+              ]),
         ])
       },
       { name: form.bundle.name },

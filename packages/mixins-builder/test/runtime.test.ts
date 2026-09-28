@@ -11,6 +11,8 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
+import { Message as BuilderMessage, Model as BuilderModel } from 'foldkit-builder'
+import { Composition, NodeId } from 'foldkit-composition'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView } from './fixture.js'
 
@@ -30,12 +32,18 @@ const Editor = Page.at(Slot)
 const placements = Page.assemble(Editor)
 
 const buttonNamed = (name: string): HTMLButtonElement | undefined =>
-  Array.from(document.querySelectorAll('button')).find(button => button.textContent === name)
+  Array.from(document.querySelectorAll('button')).find(
+    button => (button.getAttribute('aria-label') ?? button.textContent) === name,
+  )
 const rows = () => Array.from(document.querySelectorAll('[role="treeitem"]'))
-const rowNamed = (name: string) => rows().find(row => row.textContent === name)
+/** The row of the one node of a Block. */
+const rowNamed = (block: string) => rows().find(row => row.getAttribute('data-block') === block)
 const selectedRow = () => rows().find(row => row.getAttribute('aria-selected') === 'true')
-const key = (target: Element | undefined, name: string, init: KeyboardEventInit = {}) =>
-  target?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, ...init }))
+/** A key pressed on `target`, focused first, as a key reaches only what has focus. */
+const key = (target: Element | undefined, name: string, init: KeyboardEventInit = {}) => {
+  if (target instanceof HTMLElement) target.focus()
+  return target?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, ...init }))
+}
 const canvasText = () =>
   Array.from(document.querySelectorAll('[aria-label="Page"] h2, [aria-label="Page"] .banner')).map(
     element => element.textContent,
@@ -68,20 +76,31 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
       }),
     ),
   )
+  // jsdom lays nothing out; recording what is scrolled into view is what can be asserted.
+  const scrolled: Element[] = []
+  const scroll = Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = function (this: Element) {
+    scrolled.push(this)
+  }
   try {
     await vi.waitFor(() => expect(buttonNamed('Add Section')).toBeDefined())
     buttonNamed('Add Section')?.click()
     await vi.waitFor(() => expect(rowNamed('Section')).toBeDefined())
     buttonNamed('Add Heading')?.click()
     await vi.waitFor(() => expect(rowNamed('Heading')).toBeDefined())
-    buttonNamed('Add Banner')?.click()
+    buttonNamed('Add Promo banner')?.click()
     await vi.waitFor(() => expect(canvasText()).toEqual(['New heading', 'Hello']))
-    expect(selectedRow()?.textContent).toBe('Banner')
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Banner')
+    // What was inserted is selected, and brought into view in the layers and on the page.
+    await vi.waitFor(() => {
+      expect(scrolled).toContain(rowNamed('Banner'))
+      expect(scrolled).toContain(document.querySelector('[aria-label="Page"] .banner'))
+    })
 
     // Up in the tree moves focus to the Heading, and the selection follows.
     key(rowNamed('Banner'), 'ArrowUp')
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))
-    expect(document.activeElement?.textContent).toBe('Heading')
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Heading'))
+    expect(document.activeElement?.getAttribute('data-block')).toBe('Heading')
 
     // Alt+Down moves the Heading after the Banner, and the live region says so.
     key(rowNamed('Heading'), 'ArrowDown', { altKey: true })
@@ -92,13 +111,59 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
       ),
     )
 
+    // The Section's toggle closes it, hiding what it holds, and opens it again.
+    const toggle = () => rowNamed('Section')?.querySelector('[aria-hidden="true"]')
+    toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(rowNamed('Heading')).toBeUndefined())
+    expect(rowNamed('Section')?.getAttribute('aria-expanded')).toBe('false')
+    toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(rowNamed('Heading')).toBeDefined())
+
+    // The page's crumb lets go of the selection; Escape on the page does too.
+    const crumb = (name: string) =>
+      Array.from(document.querySelectorAll('[aria-label="Where the selection is"] button')).find(
+        button => button.textContent === name,
+      )
+    // A press on a button focuses it, as a real one does.
+    const press = (button: Element | undefined) => {
+      if (button instanceof HTMLElement) button.focus()
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    }
+    press(crumb('Section'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))
+    press(crumb('Page'))
+    await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
+    rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(selectedRow()).toBeDefined())
+    key(document.querySelector('[aria-label="Page"]') ?? undefined, 'Escape')
+    await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
+
+    // A pattern's tile adds its Section and the Heading it opens with, last on the page.
+    buttonNamed('Add Intro')?.click()
+    await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading', 'Welcome']))
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Section')
+    key(document.querySelector('[aria-label="Page"]') ?? undefined, 'z', { ctrlKey: true })
+    await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading']))
+
+    // Pointing at a row marks its node on the page; leaving it lets go.
+    const hovered = () =>
+      document
+        .querySelector('[data-composition-mark="hovered"]')
+        ?.getAttribute('data-composition-node')
+    rowNamed('Section')?.dispatchEvent(new MouseEvent('mouseenter'))
+    await vi.waitFor(() =>
+      expect(hovered()).toBe(rowNamed('Section')?.getAttribute('data-builder-row')),
+    )
+    rowNamed('Section')?.dispatchEvent(new MouseEvent('mouseleave'))
+    await vi.waitFor(() => expect(hovered()).toBeUndefined())
+
     // A click on a row selects it.
     rowNamed('Section')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Section'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))
 
     // A click on the page selects the node it lands on.
     document.querySelector<HTMLElement>('[aria-label="Page"] .banner')?.click()
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Banner'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Banner'))
 
     // Dragging the Banner's row onto the Heading's lands it after the Heading
     // (jsdom has no boxes, so the pointer is inside a Heading, which takes
@@ -122,7 +187,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     pointer(rowNamed('Heading'), 'pointerup', 20)
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(canvasText()).toEqual(['New heading', 'Hello']))
-    expect(selectedRow()?.textContent).toBe('Banner')
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Banner')
     expect(document.querySelector('[data-builder-drop]')).toBeNull()
 
     // A drag on the page itself: the Heading onto the Banner lands it after,
@@ -133,25 +198,20 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     pointer(onPage('.banner'), 'pointermove', 20)
     pointer(onPage('.banner'), 'pointerup', 20)
     await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading']))
-    expect(selectedRow()?.textContent).toBe('Heading')
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Heading')
 
     // Choosing the Banner's tone in the inspector redraws it; choosing the blank
     // goes back to the default.
-    const tone = () =>
-      document.querySelector<HTMLSelectElement>(
-        `[aria-label="Properties"] select[id$="-appearance-tone"]`,
-      )
-    const choose = (value: string) => {
-      const select = tone()
-      if (select === null) throw new Error('no tone select')
-      select.value = value
-      select.dispatchEvent(new Event('change', { bubbles: true }))
-    }
+    const tone = () => document.querySelector('[aria-label="Properties"] [aria-label="Tone"]')
+    const choose = (text: string) =>
+      Array.from(tone()?.querySelectorAll('button') ?? [])
+        .find(button => button.textContent === text)
+        ?.click()
     rowNamed('Banner')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(tone()).not.toBeNull())
-    choose('loud')
+    choose('Loud')
     await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('loud'))
-    choose('')
+    choose('Default')
     await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('plain'))
     // A responsive axis: a name at a breakpoint, then a base, is a name per
     // point; with only the base left it is one name again.
@@ -171,6 +231,14 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     space('', '')
     await vi.waitFor(() => expect(stored()).toBeUndefined())
 
+    // A number-literal prop is chosen as text and stored as the number.
+    const columns = () => {
+      const now = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
+      return Object.values(now?.nodes ?? {}).find(node => node.block === 'Banner')?.props['columns']
+    }
+    pick('[aria-label="Properties"] select[id$="-columns"]', '2')
+    await vi.waitFor(() => expect(columns()).toBe(2))
+
     // The Banner's press runs an action: its input starts from empty values, is
     // edited field by field, and choosing nothing removes it.
     const actions = () => {
@@ -183,7 +251,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
         press: { action: 'subscribe', input: { list: 'news', note: '' } },
       }),
     )
-    pick('[aria-label="Properties"] select[id$="-on-press-list"]', 'offers')
+    pick('[aria-label="Properties"] select[id="Banner-press-subscribe-list"]', 'offers')
     await vi.waitFor(() =>
       expect(actions()).toEqual({
         press: { action: 'subscribe', input: { list: 'offers', note: '' } },
@@ -220,7 +288,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     await vi.waitFor(() => expect(bannerWhen()).toBeUndefined())
 
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Heading'))
 
     // Delete on the layers removes the selected node.
     key(rowNamed('Heading'), 'Delete')
@@ -228,5 +296,153 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     expect(rowNamed('Heading')).toBeUndefined()
   } finally {
     handle.dispose()
+    Element.prototype.scrollIntoView = scroll
+  }
+})
+
+// Two inspectors of one Builder name share a slot. That is an error to see, not an
+// inspector drawn without the runtime, whose changes would reach nothing.
+it('says so when one Builder is drawn twice, rather than drawing a dead inspector', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const crashes: Array<string> = []
+  const spy = vi
+    .spyOn(console, 'error')
+    .mockImplementation((...args) => crashes.push(args.map(String).join(' ')))
+  const container = document.createElement('div')
+  container.id = 'twice'
+  document.body.appendChild(container)
+  const section = NodeId.make('s')
+  const heading = NodeId.make('h')
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [section],
+      nodes: {
+        [section]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [heading] } },
+        [heading]: { block: 'Heading', props: { text: 'Hi' }, regions: {} },
+      },
+    }),
+  )
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: BuilderModel,
+      container,
+      init: () => ({
+        model: PageBuilder.bundle.update(page, BuilderMessage.Selected({ id: heading }), undefined)
+          .model,
+      }),
+      update: (model: BuilderModel, message: BuilderMessage) =>
+        PageBuilder.bundle.update(model, message, undefined),
+      view: (model: BuilderModel, h: HtmlBuilder<BuilderMessage>) =>
+        h.div([], [PageView(model, h), PageView(model, h)]),
+    }),
+  )
+  try {
+    await vi.waitFor(() =>
+      expect(crashes.join('\n')).toContain('duplicate h.submodel slotId "PageBuilder-settings"'),
+    )
+  } finally {
+    handle.dispose()
+    spy.mockRestore()
+  }
+})
+
+// A control of the application's own, backed by a Bundle, works in the inspector
+// with no Builder code: its view is drawn there, and what it sends is an edit.
+it('draws a color picker a prop asks for, and takes what it chooses', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'picker'
+  document.body.appendChild(container)
+  const section = NodeId.make('s')
+  const swatch = NodeId.make('w')
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [section],
+      nodes: {
+        [section]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [swatch] } },
+        [swatch]: { block: 'Swatch', props: { tint: '#000000' }, regions: {} },
+      },
+    }),
+  )
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: BuilderModel,
+      container,
+      init: () => ({
+        model: PageBuilder.bundle.update(page, BuilderMessage.Selected({ id: swatch }), undefined)
+          .model,
+      }),
+      update: (model: BuilderModel, message: BuilderMessage) =>
+        PageBuilder.bundle.update(model, message, undefined),
+      view: (model: BuilderModel, h: HtmlBuilder<BuilderMessage>) => PageView(model, h),
+    }),
+  )
+  const inInspector = (selector: string) =>
+    document.querySelector(`[aria-label="Properties"] ${selector}`)
+  try {
+    await vi.waitFor(() => expect(inInspector('.picker .hex')?.textContent).toBe('#000000'))
+    buttonNamed('Red')?.click()
+    await vi.waitFor(() =>
+      expect(document.querySelector('[aria-label="Page"] .swatch')?.textContent).toBe('#ff0000'),
+    )
+    expect(inInspector('.picker .hex')?.textContent).toBe('#ff0000')
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('draws in the words its view inputs give it, through a submodel as an application places it', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const crashes: Array<string> = []
+  const spy = vi
+    .spyOn(console, 'error')
+    .mockImplementation((...args) => crashes.push(args.map(String).join(' ')))
+  const container = document.createElement('div')
+  container.id = 'worded'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      placements.complete({
+        Model,
+        container,
+        init: () => placements.initial({}),
+        update: placements.update(),
+        view: (model: Model, h: HtmlBuilder<Message>) =>
+          h.main(
+            [],
+            [
+              Editor.view(
+                model,
+                h,
+                BuilderView.inputs({
+                  words: { palette: 'Bloque nuevo', addBlock: 'Añadir {label}' },
+                }),
+              ),
+            ],
+          ),
+        subscriptions: placements.subscriptions(),
+      }),
+    ),
+  )
+  try {
+    await vi.waitFor(() => expect(buttonNamed('Añadir Section')).toBeDefined())
+    expect(document.querySelector('[aria-label="Bloque nuevo"]')).not.toBeNull()
+    expect(crashes).toEqual([])
+  } finally {
+    handle.dispose()
+    spy.mockRestore()
   }
 })

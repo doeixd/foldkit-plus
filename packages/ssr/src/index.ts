@@ -240,11 +240,7 @@ const pathKey = (route: string): string => {
 const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
-) =>
-  plan.surfaces.flatMap(surface => {
-    const projection = surface.projectionOf(model)
-    return projection === undefined ? [] : [projection]
-  })
+) => plan.surfaces.flatMap(surface => Option.toArray(surface.projectionOf(model)))
 
 /** What the envelope carries of a Model: the encoded slice, and each part's capture. */
 interface Payload {
@@ -507,7 +503,7 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
     local: plan.local.map(pathOf),
     parts: plan.parts.map(part => part.id),
     surfaces: plan.surfaces.map(surface => {
-      const served = surface.projectionOf(model)
+      const served = Option.getOrUndefined(surface.projectionOf(model))
       return {
         name: surface.name,
         active: served !== undefined,
@@ -527,7 +523,8 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
           served === undefined
             ? []
             : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
-        sameInBrowser: readsKey(served) === readsKey(surface.projectionOf(browser)),
+        sameInBrowser:
+          readsKey(served) === readsKey(Option.getOrUndefined(surface.projectionOf(browser))),
       }
     }),
   }
@@ -594,7 +591,7 @@ const allowedTags = <Model, Fields extends Schema.Struct.Fields>(
 ): ReadonlySet<string> =>
   new Set(
     plan.surfaces.flatMap(surface =>
-      surface.projectionOf(model) === undefined ? [] : surface.messages,
+      Option.isSome(surface.projectionOf(model)) ? surface.messages : [],
     ),
   )
 
@@ -1034,14 +1031,38 @@ const withEnvelope = (template: string, envelope: string): string => {
 }
 
 /**
+ * What a page adds to its head, given what it rendered: such as a stylesheet
+ * of the classes the markup uses (`Style.usedIn` in `foldkit-mixins`).
+ */
+export type Head = (rendered: RenderedApplication) => string
+
+/**
+ * The template with `extra` before its last `</head>`, as a slice for the same
+ * reason as the envelope. Nothing to add leaves it as it is; something to add
+ * and no `</head>` is refused, rather than dropped.
+ */
+const withHead = (template: string, extra: string): string => {
+  if (extra === '') return template
+  const at = template.search(/<\/head>(?![\s\S]*<\/head>)/i)
+  if (at === -1) throw new Error('foldkit-ssr: the template has no </head> to put the head in')
+  return `${template.slice(0, at)}${extra}${template.slice(at)}`
+}
+
+/**
  * The page to serve: the rendered application in the template, with the
- * envelope before `</body>`. Not in the rendered HTML, which
- * `injectIntoTemplate` requires to hold only the root and Foldkit's payload.
+ * envelope before `</body>` and `head`'s markup, if any, before `</head>`. Not
+ * in the rendered HTML, which `injectIntoTemplate` requires to hold only the
+ * root and Foldkit's payload.
  */
 const page = (
   template: string,
   result: { readonly rendered: RenderedApplication; readonly envelope: string },
-): string => injectIntoTemplate(withEnvelope(template, result.envelope), result.rendered)
+  options: { readonly head?: Head | undefined } = {},
+): string =>
+  injectIntoTemplate(
+    withHead(withEnvelope(template, result.envelope), options.head?.(result.rendered) ?? ''),
+    result.rendered,
+  )
 
 /** A page generated at build time, and the file a static host serves it from. */
 export interface GeneratedPage {
@@ -1114,6 +1135,7 @@ const generate = <
     readonly origin: string
     readonly paths: Paths
     readonly flags?: ((path: string) => unknown) | undefined
+    readonly head?: Head | undefined
   },
 ): Effect.Effect<GeneratedPages<Paths>, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
@@ -1148,7 +1170,11 @@ const generate = <
         ),
         result => {
           warnUnnamed(config, plan, result.unnamed)
-          return { path, file: fileOf(path), html: page(options.template, result) }
+          return {
+            path,
+            file: fileOf(path),
+            html: page(options.template, result, { head: options.head }),
+          }
         },
       ),
     )
@@ -1184,10 +1210,13 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
     readonly template: string
     readonly containerId?: string | undefined
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
+    readonly head?: Head | undefined
   },
 ): EntryModule => {
   // Checked once, when the entry is made, rather than failing every request.
   withEnvelope(options.template, '')
+  if (options.head !== undefined) withHead(options.template, '<!-- head -->')
+  const headOf = options.head
   return {
     renderPage: async request => {
       const method = request.method.toUpperCase()
@@ -1207,13 +1236,16 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
               ? undefined
               : yield* Effect.tryPromise(async () => flagsOf(request))
           const flagged = flagsOf === undefined ? {} : { flags }
-          return posting
+          const result = posting
             ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
             : yield* render(config, plan, {
                 buildId: options.buildId,
                 url: request.url,
                 ...flagged,
               })
+          // In the Effect, so a `head` that throws is a defect, answered as a failed render is.
+          const head = headOf === undefined ? '' : headOf(result.rendered)
+          return { ...result, head }
         }),
       )
       if (Exit.isFailure(exit)) {
@@ -1237,7 +1269,10 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
         )
       }
       warnUnnamed(config, plan, exit.value.unnamed)
-      const template = withEnvelope(options.template, exit.value.envelope)
+      const template = withHead(
+        withEnvelope(options.template, exit.value.envelope),
+        exit.value.head,
+      )
       return Responded(
         toResponse(
           template,

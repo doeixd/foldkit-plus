@@ -7,11 +7,13 @@ import { Query } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import {
   databaseLayer,
+  drizzleWrites,
   entity,
   many,
   manyToMany,
   one,
   query,
+  returning,
   source,
   type AnyEntityBinding,
   sortTerms,
@@ -408,6 +410,53 @@ describe('review: windowed relation boundaries', () => {
       })
       expect(first[0]!.values.comments).toMatchObject({ refs: ['Comment:c1'], hasNext: true })
       expect(second[0]!.values.comments).toMatchObject({ refs: ['Comment:c2'], hasNext: false })
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it('writes through the typed writes, and returns every column of the row it wrote', async () => {
+    const { sqlite, database } = setup()
+    try {
+      const patches = await Effect.runPromise(
+        Effect.gen(function* () {
+          const writes = yield* drizzleWrites
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes
+                .insert(projects)
+                .values({ id: 'p9', name: 'Nine', ownerId: 'u1', createdAt: '2020-02-02' }),
+            ),
+          )
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes.update(projects).set({ name: 'Renamed' }).where(eq(projects.id, 'p9')),
+            ),
+          )
+          // @ts-expect-error a column the table does not have
+          writes.update(projects).set({ title: 'x' })
+          return yield* returning.row(ProjectBinding, 'p9')
+        }).pipe(Effect.provide(databaseLayer(database))),
+      )
+      // The name the update wrote, beside what the insert did, with the owner as its ref.
+      expect(patches).toEqual([
+        {
+          entity: 'Project',
+          id: 'p9',
+          values: {
+            id: 'p9',
+            name: 'Renamed',
+            ownerId: 'u1',
+            createdAt: '2020-02-02',
+            owner: 'User:u1',
+          },
+        },
+      ])
+      expect(
+        await Effect.runPromise(
+          returning.row(ProjectBinding, 'nobody').pipe(Effect.provide(databaseLayer(database))),
+        ),
+      ).toEqual([])
     } finally {
       sqlite.close()
     }

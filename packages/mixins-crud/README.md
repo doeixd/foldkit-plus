@@ -150,7 +150,9 @@ PostTable(
 - `cells` draws one column specially, and gets the whole row, so a link can use
   the id. `renderers` draws every column of a Display **kind**, a shipped one or
   your own, in any list or detail:
-  `renderers: { Badge: ({ display, value, h }) => h.span([...], [String(value)]) }`.
+  `renderers: { Badge: ({ value, h, badge }) => h.span(badge.attrs(), [String(value)]) }`.
+  `badge` is the list's (or detail's) `badge` Slot, so what a renderer draws is
+  styled like any other part.
   A column's `cells` entry wins over its kind's renderer, and a kind with neither
   says `Display.show`.
 - `words` is text, with `{message}` a blank in `failed`; it shares no key with a
@@ -177,9 +179,10 @@ A `dl` with a `dt` per shown field and its value in a `dd`. It takes `cells` and
 | Part | Element | Slot |
 | --- | --- | --- |
 | The list | `div` with the list's name as its `id` | `root` |
-| Loading, failed, or empty | `p role="status"`, or `role="alert"` for a failure | `status` |
+| Loading, failed, or empty | `p role="status"`, `aria-busy` while loading, or `role="alert"` for a failure | `status` |
 | Asking again after a failure | `button type="button"`, when `onRetry` is given | `retry` |
 | The rows | `table`, `aria-busy` while refreshing | `table` |
+| The header and the body | `thead`, its `tr`, and `tbody` | `head`, `headRow`, `body` |
 | A column header | `th scope="col"`, with `aria-sort` when it sorts | `headCell` |
 | A header that sorts | `button type="button"` | `sort` |
 | A row | `tr`, keyed by `rowKey`, else the row's `id`, else its position | `row` |

@@ -212,8 +212,10 @@ Composition.Op.setAction(id, 'press', { action: 'addToCart', input: { productId:
 
 const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
   Button: ({ props, on, h }) => {
-    const pressed = on('press') // the Message addToCart makes, or undefined
-    return h.button(pressed === undefined ? [] : [h.OnClick(pressed)], [props.label])
+    const pressed = on('press') // the Message addToCart makes, or none
+    return h.button(Option.match(pressed, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }), [
+      props.label,
+    ])
   },
 })
 ```
@@ -222,7 +224,7 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
   have or input the action's Schema refuses is `composition:invalid-action`,
   and an action the Catalog lacks is `composition:unknown-action`.
 - **Nothing stored runs.** `on(event)` decodes the stored input by the action's
-  Schema and makes its Message, or gives `undefined`; `update` stays the only
+  Schema and makes its Message, an `Option`, none when there is none; `update` stays the only
   place a Message has effects.
 - The same Action is an agent's capability through `Agent.action`, declared
   once for both.
@@ -248,9 +250,13 @@ Agent.expose(Message, {
 - An insert names one of the Catalog's Blocks, as a literal, with that Block's
   props as they are stored, so a Block outside the Catalog is refused by the
   tool's own input schema before `apply` sees it. `apply` checks the rest.
+- Each insert carries its Block's description, when it has one
+  (`Block.words`), so the tool's schema says what each Block is for.
 - The agent mints the ids of what it adds (`composition:id-taken` for one in
   use), and reads the page as `Composition.describe(Site, document)`, ids and
   props included.
+- A pattern (see [Patterns](#patterns)) goes in by `UsePattern`, whose `ids`
+  name exactly the pattern's nodes.
 - `examples/cms` has one, `pageAgent.ts`.
 
 ## Reading a Document
@@ -259,14 +265,22 @@ Agent.expose(Message, {
   Region and index. It is derived, never stored, and computed once per Document
   value.
 - `Composition.describe(catalog, document)` writes the Document as indented
-  text, one node per line, with a Block the Catalog does not know marked `?`.
-- `Catalog.describe(catalog)` lists each Block's props, Regions, Content and
-  metadata, for a person, a tool or an agent.
+  text, one node per line, with a Block the Catalog does not know marked `?`
+  and a label that says more than the name after it (`Banner "Promo banner"`).
+- `Catalog.describe(catalog)` lists each Block's words, props, Regions, Content
+  and metadata, for a person, a tool or an agent.
+- `Block.words({ label, description, group })` says what a Block is called and
+  what it is for, each word in place of the one before; the label defaults to
+  the name spaced (`PostList` is "Post list"). It is a pipe step, so an
+  application words a Block another package defined:
+  `Text.pipe(Block.words({ group: 'Text' }))`. An editor's palette and an
+  agent's tool both read it. An appearance axis names its values the same
+  way, with `labels: { lg: 'Large' }`.
 - `Block.decode(block, props)` decodes stored props to the Block's typed props,
   and `PropsOf<typeof Heading>` is their type.
 - `Block.annotate(metadata)` attaches an interpreter's
-  [`foldkit-metadata`](../metadata/README.md), such as a palette category. The
-  Block knows no annotation's meaning.
+  [`foldkit-metadata`](../metadata/README.md), such as the control an editor
+  draws a prop with. The Block knows no annotation's meaning.
 
 ## Editing: Operations
 
@@ -322,7 +336,67 @@ const result = Composition.apply(
   agent's tool or a replay.
 - `Composition.takeTree(document, id)` takes a subtree, and
   `Composition.rekey(tree, ids)` renames every id in it, which is how a paste
-  is inserted twice without a collision.
+  is inserted twice without a collision. A reference to a node the tree does
+  not hold is kept as it is, for `apply` to refuse by name.
+  `Composition.treeRefusal(catalog, tree)` checks a tree alone, by its own ids,
+  before it is rekeyed: what a paste should say is wrong with it.
+- **Any text is an id,** `constructor` and `__proto__` included: `apply`,
+  `validate`, `index` and the Renderer read nodes by own key only, so a stored
+  Document naming one it lacks is `composition:missing-node`, not a crash.
+
+## Patterns
+
+A pattern is an arrangement of Blocks an author inserts as one: a section that
+opens with a heading, a hero with its button. The Catalog holds it as a tree,
+in the form a Document stores, under ids of its own:
+
+```ts
+const Site = Catalog.make({
+  blocks: [Heading, Section],
+  roots: [Content.Section],
+  patterns: [
+    {
+      name: 'Intro',
+      description: 'A section that opens with a heading',
+      tree: {
+        root: 'intro',
+        nodes: {
+          intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+          title: { block: 'Heading', props: { text: 'Welcome', level: 1 }, regions: {} },
+        },
+      },
+    },
+  ],
+})
+
+const { Op, root } = Composition
+Composition.apply(
+  Site,
+  page,
+  Op.usePattern({
+    pattern: 'Intro',
+    ids: {
+      [NodeId.make('intro')]: NodeId.make('intro-2'),
+      [NodeId.make('title')]: NodeId.make('title-2'),
+    },
+    at: root(1),
+  }),
+)
+```
+
+- **Checked where the Catalog is made:** a tree that does not decode, does
+  not hold together, or names a Block, a prop or a Region the Catalog refuses
+  throws there, not when an author first uses it. Where it may go is checked
+  by each use, as any insert is.
+- **`usePattern` carries a new id for each of its nodes**, by the id it has in
+  the pattern, like `duplicate`, so a replay makes the same nodes. A pattern
+  the Catalog lacks is `composition:unknown-pattern`.
+- **An agent's tool takes it too.** `operationSchema` has one `UsePattern` per
+  pattern, its name a literal and its `ids` a struct of exactly its nodes'
+  ids, described by its label and description: an agent inserts structure
+  the Catalog vouches for without being trusted with an arbitrary tree.
+- `Catalog.pattern(catalog, name)` finds one (an `Option`); its `words` are
+  its label, by default its name spaced, and its description.
 
 ## Undo
 
@@ -341,7 +415,8 @@ props and its Regions' drawn children to `Html`:
 import { Renderer } from 'foldkit-composition/foldkit'
 
 const SiteRenderer = Renderer.make(Site, {
-  Heading: ({ props, h }) => h.h2([], [props.text]),
+  // `field` draws a text prop: the text for a visitor, editable in place for an author.
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
   Section: ({ props, regions, h }) =>
     h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
 })
@@ -355,24 +430,56 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   props do not decode, that is missing or reached twice, or whose view throws
   is a placeholder: nothing for a visitor, a labelled box in edit mode.
 - **The builder is a parameter,** so one Renderer draws in the browser, in a
-  test with `inertHtml`, and on the server.
+  test with `inertHtml`, and on the server. A Renderer made with
+  `Renderer.make` sends nothing, so it takes any application's builder, the
+  view's own `h`; one made with `Renderer.forMessages<Message>()` takes a
+  builder of those Messages only.
 - **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
   element carrying `data-composition-node`, so an editor's canvas draws the
   page a visitor sees. The wrapper also carries the editor's marks, from the
-  options `selected`, `hovered` and `drop` (`data-composition-selected`,
-  `-hovered`, `-drop`), and a node whose `when` fails is drawn anyway, marked
-  `data-composition-hidden`.
+  options `selected`, `hovered` and `drop`, each an `Option` as the editor's
+  Model holds it: `data-composition-mark` is
+  `selected` or `hovered` (a node that is both is `selected`), and
+  `data-composition-drop` says where a drop lands. A node whose `when` fails is
+  drawn anyway, marked `data-composition-hidden`.
+- **Text edited in place.** A view draws a text prop with `field(key)`, which
+  takes only a prop whose type is exactly `string`: one of a few names
+  (`'plain' | 'accent'`), a branded string or one that may be absent is no
+  field, since typing could not keep it valid. For a visitor it is the text. In edit
+  mode it is a span marked `data-composition-field`, whose value names the node
+  and the prop as JSON (`fieldOf(value)` reads it back). While the option
+  `editing` (an `Option` of `{ id, key, initial }`) names it, the span is
+  `contenteditable="plaintext-only"`, a `textbox` named by `label` (default: the
+  prop's name spaced), multiline when asked, and it shows `initial`, the text
+  when editing began, however the page has changed since. That freezing is what
+  keeps a redraw from rewriting the element under the author's caret; the span
+  is keyed apart from the one drawn otherwise, so the element the browser
+  changed is replaced when editing ends. The Renderer draws; reading what is
+  typed is `EditableText` in `foldkit-primitives`, and what it changes is the
+  editor's `update`. `Renderer.fields(renderer, document, id)` says which text
+  props a node's view draws as fields, in order, by drawing it inert: what an
+  editor may offer to edit. It draws with no data and no context, so a view
+  that draws a field only once its data has arrived lists none.
 - **The other options** are what the page is drawn for: `context`, which
   conditions read ([Conditions](#conditions)), and `data`, each node's read by
   id, which Query, Surface and stateful Blocks draw from. A page with all three
   spreads them into one record:
   `{ ...queries.read(model), ...features.read(model), ...Stateful.views(...) }`.
 - **`Renderer.make`'s views dispatch nothing**, so their `on(event)` gives
-  `undefined`: an editor's canvas draws a page without running its actions.
+  none: an editor's canvas draws a page without running its actions.
   `Renderer.forMessages<Message>()` requires every Message the Catalog's
   actions make to be one of `Message`.
-- It adds no reconciler, no component runtime and no per-node state. It needs
-  `foldkit` installed; the core does not.
+- **A node is drawn again only when what it reads changed.** Inside a
+  runtime-driven render, each node's drawing is memoized with Foldkit's
+  `createKeyedLazy` on its node object, its drawn children, its read, whether
+  it shows, its marks, and the field being edited in it. `apply` shares every node it does not change, so an
+  edit redraws the node it touched and the nodes holding it, and a change
+  elsewhere in the Model redraws none. Each node is keyed by its id (the edit
+  wrapper, or in view mode the Block's own root, unless it set a key), so a
+  moved node moves with its drawing. Drawn outside a runtime (a test with
+  `inertHtml`, a server's first pass), nothing is memoized.
+- It adds no reconciler and no component runtime. It needs `foldkit`
+  installed; the core does not.
 
 ### URLs
 
@@ -464,6 +571,13 @@ const SiteRenderer = Renderer.make(Site, {
   matches wins; a view's `appearance` then holds the record. A variant is one
   value for every viewport: its pieces may be classes, which no media query
   can hold.
+- **Measure the page, not the window.** Breakpoints written
+  `Theme.inContainer(PAGE_CONTAINER, Theme.tokens.breakpoint)` are container
+  queries on the page (`PAGE_CONTAINER`, from `foldkit-composition/foldkit`),
+  and `cqi` units in a look are its width: an editor's narrow preview then
+  draws a look as a phone would, in a wide window. The Renderer draws no
+  container; the page's host is one (`containerType: 'inline-size',
+  containerName: PAGE_CONTAINER`), as the Builder's frame is.
 - **A layout Block is a Mixins layout.** Its look's base is the layout, and
   the layout's parameters are its axes:
 
@@ -558,14 +672,16 @@ const SiteRenderer = Renderer.make(Site, {
 ```
 
 - **`QueryBlock.reads(Data, catalog, document)`** is every Query Block on the
-  page as one Projection over the application's Model, keyed by node id, or
-  `undefined` when there is none. A node whose props do not decode reads
-  nothing.
-- **`QueryBlock.active(name, App.owner, Data, catalog, model => document)`** is that read
-  as an active Surface, for `Data.wiring`, `Data.subscriptions` or an SSR
-  plan's `surfaces`: Remote fetches, caches and authorizes it like any read,
-  and `Remote.resume(Data)` carries exactly what it selected into a
-  server-rendered page.
+  page as one Projection over the application's Model, keyed by node id, an
+  `Option`: none when the page has none. A node whose props do not decode
+  reads nothing.
+- **`QueryBlock.active(name, App.owner, Data, catalog, model => Option.some(document))`**
+  is that read as an active Surface, for `Data.wiring`, `Data.subscriptions` or
+  an SSR plan's `surfaces`: Remote fetches, caches and authorizes it like any
+  read, and `Remote.resume(Data)` carries exactly what it selected into a
+  server-rendered page. `documentOf` returns none while there is no page.
+  **`reads.data(model)`** is each node's value, as a Renderer's `data` takes
+  it, and `{}` while there is nothing to read.
 - **`Renderer.render(..., { data: reads.read(model) })`** hands each node its
   value as `data`, and **`LatestPages.rows(data)`** reads it typed by what the
   Block selects, `Initial` while there is nothing.
@@ -589,11 +705,11 @@ const Cart = SurfaceBlock.define('Cart', {
   surface: CartSummary,
   params: props => ({ caption: props.caption }),
 })
-// In the Renderer: Cart: ({ data, h }) => { const cart = Cart.value(data); ... }
+// In the Renderer: Cart: ({ data, h }) => Option.match(Cart.value(data), { ... })
 ```
 
 `SurfaceBlock.reads(catalog, document)` and `SurfaceBlock.active(name,
-App.owner, catalog, model => document)` are the page's Surface Blocks as one
+App.owner, catalog, model => Option.some(document))` are the page's Surface Blocks as one
 Projection, or an active Surface, exactly as a Query Block's are, and their
 values reach the Renderer the same way, through `data`. The active Surface may
 send what each placed Surface lists in its `messages`, and refuses a Surface of

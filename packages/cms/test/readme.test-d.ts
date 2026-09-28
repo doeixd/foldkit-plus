@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
@@ -100,7 +100,7 @@ Placed.helpers.open('an entry id')
 Placed.helpers.create(Cms.newEntryId())
 Editor.Message.PublishAsked()
 expectTypeOf(PostEditor.status(model)).toEqualTypeOf<EditorStatus>()
-expectTypeOf(PostEditor.state(model)).toEqualTypeOf<State | undefined>()
+expectTypeOf(PostEditor.state(model)).toEqualTypeOf<Option.Option<State>>()
 // The editor's form is the content type's own, typed.
 expectTypeOf(model.editor.form.fields.title.value).toEqualTypeOf<string>()
 

@@ -444,7 +444,9 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
   is a policy, not a second read path.
 - **Slug history.** Old slugs kept, and `bySlug` answering with a redirect.
 - **Localization.** A locale as part of an entry's identity: one entry, a draft
-  and a revision log per locale.
+  and a revision log per locale. [i18n-DESIGN.md](./i18n-DESIGN.md) decides
+  the rest: a page is one Document per locale, slugs are per locale, and reads
+  take the locale as input.
 - **Workflows with more states.** `allow` covers "only an editor publishes". A
   review state that content sits in is a fact that would need storing (who asked
   for review, when), and should be designed from a real case.

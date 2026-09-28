@@ -7,9 +7,14 @@
     "composite": true,
     "noEmit": false,
     "paths": {
-      "foldkit-agent": ["../agent/src/index.ts"]
+      "foldkit-agent": ["../agent/src/index.ts"],
+      "foldkit-agent-webmcp": ["./src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
-  "references": [{ "path": "../agent/tsconfig.build.json" }]
+  "references": [
+    {
+      "path": "../agent/tsconfig.build.json"
+    }
+  ]
 }

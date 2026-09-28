@@ -11,8 +11,8 @@
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
-      "foldkit-remote-server": ["../remote-server/src/index.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-remote-drizzle": ["./src/index.ts"],
+      "foldkit-remote-server": ["../remote-server/src/index.ts"]
     }
   },
   "include": [
@@ -23,9 +23,17 @@
     "tsdown.config.ts"
   ],
   "references": [
-    { "path": "../entity/tsconfig.build.json" },
-    { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../remote/tsconfig.build.json" },
-    { "path": "../remote-server/tsconfig.build.json" }
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-server/tsconfig.build.json"
+    }
   ]
 }

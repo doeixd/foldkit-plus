@@ -60,6 +60,8 @@ import {
   initialRemoteModel,
   isFieldFailed,
   isLoadingThrough,
+  onlyOverlaid,
+  windowGrowthKey,
   isQueryLoading,
   isRemoteMessage,
   forgetRemote,
@@ -101,7 +103,7 @@ import {
   type Page,
 } from './selection.js'
 import { sameData } from './data.js'
-import { entityKey, isTombstone, type EntityStore } from './store.js'
+import { entityKey, isTombstone, missingFields, type EntityStore } from './store.js'
 import {
   QueryRequest,
   QueryResult,
@@ -348,16 +350,16 @@ export interface RemoteDomain<
     input: QueryInput<Q>,
     options: QueryOptions<Value, Entity, QueryEntity<Q>>,
   ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>>
-  /** The `QueryRef` for the page after the loaded end (same page size), or `undefined` when there is none or its cursor is unknown. */
-  next<Name extends string, Input>(
+  /**
+   * "Load more": the Model with the read's window grown by one page, so it
+   * shows that many more rows; the read entry fetches what the connection
+   * lacks. None when the read shows everything there is (or is not a sized
+   * window). Called from `update`.
+   */
+  more<Name extends string, Input>(
     model: AppModel,
     projection: QueryProjection<AppModel, any, Name, Input>,
-  ): QueryRef<Name, Input> | undefined
-  /** The `QueryRef` for the page before the loaded start, or `undefined`. */
-  previous<Name extends string, Input>(
-    model: AppModel,
-    projection: QueryProjection<AppModel, any, Name, Input>,
-  ): QueryRef<Name, Input> | undefined
+  ): Option.Option<AppModel>
   /**
    * What a query read is and what it currently is, as one serializable value —
    * data-query-DESIGN §29.1: the domain, the definition and its input, the
@@ -421,13 +423,13 @@ export interface RemoteDomain<
     by: Q & Registered<Q['name'], QueryName<Queries[number]>, 'Query'>,
     input: QueryInput<Q>,
   ): Matched<Value>
-  /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
-  fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
   /**
    * Shows operations over the store with no request behind them, as a mutation's
    * `optimistic` ones show while it is in flight: every Selection and view draws
    * them. For a preview of a change nobody has made. They stay until `lift`;
-   * showing an id again replaces what it showed. Called from `update`.
+   * showing an id again replaces what it showed. Called from `update`. A read
+   * of an entity only overlays show, lacking a field it selects, is `Failed`
+   * (`Overlaid`): nothing will fetch that field.
    */
   overlay(model: AppModel, id: string, optimistic: ReadonlyArray<OptimisticOperation>): AppModel
   /** Lifts what `overlay` showed under this id. Lifting nothing returns the same Model. */
@@ -439,6 +441,17 @@ export interface RemoteDomain<
   ): AppModel
   /** `Remote.forget`: the Model with every server-derived fact gone, for a change of principal. */
   forget(model: AppModel): AppModel
+  /**
+   * A read of this domain as an active Surface, for `subscriptions` and
+   * `wiring`: `projectionOf` is what it reads for a Model, none while it
+   * reads nothing. It belongs to the domain's application, and lists no
+   * Messages: it is a requirement, not a sender. A domain made from a raw
+   * optic names no application, so this throws for one.
+   */
+  active<Value>(
+    name: string,
+    projectionOf: (model: AppModel) => Option.Option<Projection<AppModel, Value>>,
+  ): ActiveSurface<AppModel>
   /**
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
@@ -561,8 +574,6 @@ export interface RemoteFold<
     model: AppModel,
     message: RemoteMessage | RemoteMessageInput,
   ): Update.Return<AppModel, ParentMessage>
-  /** `Data.fetch`, lifted. */
-  readonly fetch: (ref: QueryRef<string, unknown>) => Command<ParentMessage, never, RemoteClient>
   /** `Data.mutate`, its Command lifted. */
   readonly mutate: (
     ...args: Parameters<Domain['mutate']>
@@ -937,10 +948,14 @@ interface Asked {
 
 const nothingAsked: Asked = { requirements: [], connections: [] }
 
-const askedOf = (projection: Projection<any, unknown> | undefined): Asked =>
-  projection === undefined
-    ? nothingAsked
-    : { requirements: requirementsOf(projection), connections: connectionsOf(projection) }
+const askedOf = (projection: Projection<any, unknown>): Asked => ({
+  requirements: requirementsOf(projection),
+  connections: connectionsOf(projection),
+})
+
+/** What an active Surface asks for: nothing while it is inactive. */
+const askedWhile = (projection: Option.Option<Projection<any, unknown>>): Asked =>
+  Option.match(projection, { onNone: () => nothingAsked, onSome: askedOf })
 
 /**
  * Whether `outer` asks for everything `inner` does of one entity: each field,
@@ -1002,20 +1017,93 @@ interface Planned {
  * failure is what its read shows, and retrying is `Remote.refresh`'s to ask
  * for. The rows it already holds are still planned, since they are on screen.
  */
+/**
+ * One requirement per connection and direction: of the sized windows reading
+ * a connection from its start (or end), the widest, which covers the rest.
+ * Windows with a cursor are pages of their own and stay as they are.
+ */
+const widest = (
+  remote: RemoteModel,
+  connections: ReadonlyArray<QueryRequirement>,
+): ReadonlyArray<QueryRequirement> => {
+  const kept = new Map<string, QueryRequirement>()
+  const rest: QueryRequirement[] = []
+  for (const connection of connections) {
+    const size = windowSize(remote, connection)
+    if (size === undefined) {
+      rest.push(connection)
+      continue
+    }
+    const key = `${connection.identity}${String.fromCharCode(0)}${connection.window.first === undefined ? 'last' : 'first'}`
+    const current = kept.get(key)
+    if (current === undefined) kept.set(key, connection)
+    else if (size > (windowSize(remote, current) ?? 0))
+      kept.set(key, {
+        ...connection,
+        select: Requirement.mergeRelation(current.select, connection.select),
+      })
+    else
+      kept.set(key, {
+        ...current,
+        select: Requirement.mergeRelation(current.select, connection.select),
+      })
+  }
+  return [...kept.values(), ...rest]
+}
+
+const withWindow = (connection: QueryRequirement, window: QueryWindow): QueryRequirement => ({
+  ...connection,
+  window,
+  ref: { ...connection.ref, window },
+})
+
+/**
+ * The page a connection lacks for a window of `size` from its start (or end):
+ * the rows after its first segment's end cursor (or before its last's start).
+ * Undefined when it holds enough, reaches the end, or does not know where it
+ * starts.
+ */
+const missingRows = (
+  known: Connection,
+  window: QueryWindow,
+  size: number,
+): QueryWindow | undefined => {
+  const forward = window.first !== undefined
+  const segment = forward ? known.segments[0] : known.segments[known.segments.length - 1]
+  if (segment === undefined) return undefined
+  const [from, to] = forward ? [segment.start, segment.end] : [segment.end, segment.start]
+  if (from._tag !== 'Terminal' || to._tag !== 'Cursor' || segment.edges.length >= size)
+    return undefined
+  const lacking = size - segment.edges.length
+  return forward ? { first: lacking, after: to.cursor } : { last: lacking, before: to.cursor }
+}
+
 const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Planned => {
   const queries: QueryRequirement[] = []
   const items: Requirement[] = []
   const connections = Requirement.mergeConnections(
     asked.connections,
   ) as ReadonlyArray<QueryRequirement>
-  for (const connection of connections) {
+  for (const connection of widest(remote, connections)) {
     const known = remote.connections[connection.identity]
     const failed = options.force !== true && connection.identity in remote.failures.connections
+    const size = windowSize(remote, connection)
     if (!failed && (known === undefined || known.stale || options.force === true)) {
-      queries.push(connection)
+      queries.push(
+        size === undefined
+          ? connection
+          : withWindow(
+              connection,
+              connection.window.first === undefined ? { last: size } : { first: size },
+            ),
+      )
       continue
     }
     if (known === undefined) continue
+    // A wider window than the connection holds asks for the rows it lacks.
+    const tail =
+      failed || size === undefined ? undefined : missingRows(known, connection.window, size)
+    if (tail !== undefined) queries.push(withWindow(connection, tail))
     const edges = visibleItems(
       known,
       connection.identity,
@@ -1440,12 +1528,12 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
         ),
 })
 
-/** The projection an active Surface has for this Model, if it is active. */
+/** The projection an active Surface has for this Model; none while it is inactive. */
 const projectionOf = <AppModel>(
   entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
   model: AppModel,
-): Projection<AppModel, unknown> | undefined =>
-  'projectionOf' in entry ? entry.projectionOf(model) : entry.projection()
+): Option.Option<Projection<AppModel, unknown>> =>
+  'projectionOf' in entry ? entry.projectionOf(model) : Option.some(entry.projection())
 
 /**
  * `projectionOf` computed once per Model: the read, live, and retain entries
@@ -1455,12 +1543,13 @@ const projectionOf = <AppModel>(
  */
 const memoizedProjectionOf = <AppModel>(
   entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
-): ((model: AppModel) => Projection<AppModel, unknown> | undefined) => {
-  const cache = new WeakMap<object, Projection<AppModel, unknown> | undefined>()
+): ((model: AppModel) => Option.Option<Projection<AppModel, unknown>>) => {
+  const cache = new WeakMap<object, Option.Option<Projection<AppModel, unknown>>>()
   return model => {
     const key: unknown = model
     if (typeof key !== 'object' || key === null) return projectionOf(entry, model)
-    if (cache.has(key)) return cache.get(key)
+    const known = cache.get(key)
+    if (known !== undefined) return known
     const projection = projectionOf(entry, model)
     cache.set(key, projection)
     return projection
@@ -1518,7 +1607,6 @@ export const Remote = {
       model: domain.reduce(model, message),
     })
     return Object.assign(fold, {
-      fetch: (ref: QueryRef<string, unknown>) => mapMessage(domain.fetch(ref), toParentMessage),
       mutate: (...args: Parameters<Domain['mutate']>) => {
         const started = domain.mutate(
           ...(args as Parameters<RemoteDomain<AppModel, any, any, any, any>['mutate']>),
@@ -1658,9 +1746,24 @@ export const Remote = {
             : present
         }
         if (isLoadingThrough(remote, selection.entity, id, relation)) return { _tag: 'Loading' }
-        // Nothing is fetching this. Either its read failed, which is said, or no
-        // active Surface observes it, which is usually a wiring mistake.
-        return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
+        if (failure !== undefined) return { _tag: 'Failed', error: failure }
+        // A preview of something the server has not seen: what the overlay
+        // leaves out will never arrive, so waiting would be `Initial` for good.
+        if (onlyOverlaid(remote, selection.entity, id)) {
+          const lacking = missingFields(store, key, relation.fields)
+          return {
+            _tag: 'Failed',
+            error: {
+              _tag: 'Overlaid',
+              message: `${selection.entity} ${id} is shown only by an overlay, which does not hold ${
+                lacking.length === 0 ? 'what its relations select' : lacking.join(', ')
+              }; the server has not seen it, so nothing will fetch them.`,
+            },
+          }
+        }
+        // Nothing is fetching this: no active Surface observes it, which is
+        // usually a wiring mistake.
+        return { _tag: 'Initial' }
       },
     })
   },
@@ -2153,10 +2256,19 @@ const bindDomain = <
         ),
       }
     },
+    active: (name, projectionOf) => {
+      const { owner } = bound.contract
+      if (owner === undefined)
+        throw new Error(
+          `Remote: "${name}" reads domain "${bound.contract.name}", whose Model field is a raw optic that names no application; make the domain from an application's field (App.model.remote) to give it reads`,
+        )
+      return { name, owner, messages: [], projectionOf }
+    },
     subscriptions: (active, options = {}) => {
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
-      const projections: Array<(model: AppModel) => Projection<AppModel, unknown> | undefined> = []
+      const projections: Array<(model: AppModel) => Option.Option<Projection<AppModel, unknown>>> =
+        []
       for (const [key, entry] of Object.entries(active)) {
         // Two applications can have the same Model type; the owner token tells them apart.
         if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
@@ -2166,7 +2278,7 @@ const bindDomain = <
         }
         const projectionAt = memoizedProjectionOf(entry)
         projections.push(projectionAt)
-        const asked = (model: AppModel) => askedOf(projectionAt(model))
+        const asked = (model: AppModel) => askedWhile(projectionAt(model))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
           bound,
@@ -2179,10 +2291,7 @@ const bindDomain = <
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model =>
           rootsOf(
-            projections.flatMap(projectionAt => {
-              const projection = projectionAt(model)
-              return projection === undefined ? [] : [projection]
-            }),
+            projections.flatMap(projectionAt => Option.toArray(projectionAt(model))),
             options,
           ),
         dependenciesToStream: (current: RetentionRoots) =>
@@ -2257,6 +2366,15 @@ const bindDomain = <
       }
       const { ref, relation, requirement } = readContract(query.ref(input), select, window)
       const relationKey = stableStringify(relation)
+      // A read shows at most its window, whatever else loaded the connection:
+      // a picker's `first: 50` and a Block's `first: 3` of one query share it.
+      const sizeOf = (remote: RemoteModel) => windowSize(remote, ref)
+      const shown = (remote: RemoteModel, connection: Connection) =>
+        cutToWindow(
+          visibleItems(connection, ref.identity, remote.optimistic.overlays, remote.entities),
+          ref.window,
+          sizeOf(remote),
+        )
       // The first failed field among the rows a list shows, if any. Decided
       // outside the memo, which is keyed on what the rows are read from: a
       // failure can arrive without any of it changing.
@@ -2265,12 +2383,7 @@ const bindDomain = <
         connection: Connection,
       ): { readonly _tag: 'Failed'; readonly error: RemoteError } | undefined => {
         if (Object.keys(remote.failures.fields).length === 0) return undefined
-        for (const edge of visibleItems(
-          connection,
-          ref.identity,
-          remote.optimistic.overlays,
-          remote.entities,
-        )) {
+        for (const edge of shown(remote, connection).edges) {
           if (edge.ref.entity !== relation.entity) continue
           const error = failureOf(remote, edge.ref.entity, edge.ref.id, relation)
           if (error !== undefined) return { _tag: 'Failed', error }
@@ -2284,12 +2397,7 @@ const bindDomain = <
         connection: Connection,
       ): { readonly _tag: 'Loading' } | undefined => {
         if (remote.loading.size === 0) return undefined
-        for (const edge of visibleItems(
-          connection,
-          ref.identity,
-          remote.optimistic.overlays,
-          remote.entities,
-        )) {
+        for (const edge of shown(remote, connection).edges) {
           if (edge.ref.entity !== relation.entity) continue
           if (isLoadingThrough(remote, edge.ref.entity, edge.ref.id, relation)) {
             return { _tag: 'Loading' }
@@ -2306,16 +2414,11 @@ const bindDomain = <
         const visible = visibleStoreOf(remote.entities, remote.optimistic)
         return memoRead<RemoteData<Page<Value>> | undefined>(
           [visible, connection, remote.optimistic.overlays],
-          `${ref.identity}\u0000${relationKey}`,
+          `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`,
           () => {
             const items: Value[] = []
             let refreshing = connection.stale
-            const edges = visibleItems(
-              connection,
-              ref.identity,
-              remote.optimistic.overlays,
-              remote.entities,
-            )
+            const { edges, cutBefore, cutAfter } = shown(remote, connection)
             for (const edge of edges) {
               const key = entityKey(edge.ref.entity, edge.ref.id)
               const assembled = assemble(visible, key, relation)
@@ -2332,8 +2435,8 @@ const bindDomain = <
             }
             const page = {
               items,
-              hasNext: hasNext(connection),
-              hasPrevious: hasPrevious(connection),
+              hasNext: cutAfter || hasNext(connection),
+              hasPrevious: cutBefore || hasPrevious(connection),
             }
             return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
           },
@@ -2384,24 +2487,28 @@ const bindDomain = <
         },
       }
     },
-    next: (model, projection) => {
-      const segments = store.get(model).connections[projection.ref.identity]?.segments ?? []
-      const end = segments[segments.length - 1]?.end
-      return end?._tag === 'Cursor'
-        ? {
-            ...projection.ref,
-            window: { ...pageSize(projection.ref.window, 'first'), after: end.cursor },
-          }
-        : undefined
-    },
-    previous: (model, projection) => {
-      const start = store.get(model).connections[projection.ref.identity]?.segments[0]?.start
-      return start?._tag === 'Cursor'
-        ? {
-            ...projection.ref,
-            window: { ...pageSize(projection.ref.window, 'last'), before: start.cursor },
-          }
-        : undefined
+    more: (model, projection) => {
+      const remote = store.get(model)
+      const { ref } = projection
+      const size = windowSize(remote, ref)
+      const page = ref.window.first ?? ref.window.last
+      if (size === undefined || page === undefined || page === 0) return Option.none()
+      const read = projection.read(model)
+      const beyond =
+        (read._tag === 'Ready' || read._tag === 'Refreshing') &&
+        (ref.window.first === undefined ? read.value.hasPrevious : read.value.hasNext)
+      return beyond
+        ? Option.some(
+            bound.store.set(
+              model,
+              updateRemote(remote, {
+                _tag: 'WindowGrown',
+                window: windowGrowthKey(ref.identity, stableStringify(ref.window)),
+                size: size + page,
+              }) as Store,
+            ),
+          )
+        : Option.none()
     },
     explain: (model, projection, options) => {
       const { ref } = projection
@@ -2409,12 +2516,10 @@ const bindDomain = <
       // than of the projection: a Surface's projection is rebuilt per Model, so
       // the only honest comparison is by connection identity.
       const reading = Object.values(options?.surfaces ?? {}).filter(active => {
-        const active_ = active.projectionOf(model)
         // An inactive Surface reads nothing, which is not the same as reading
         // something else.
-        return (
-          active_ !== undefined &&
-          connectionsOf(active_).some(connection => connection.identity === ref.identity)
+        return Option.exists(active.projectionOf(model), shown =>
+          connectionsOf(shown).some(connection => connection.identity === ref.identity),
         )
       })
       // The body lives on the descriptor, and a projection keeps only its
@@ -2453,8 +2558,9 @@ const bindDomain = <
           ? undefined
           : Object.values(options.surfaces)
               .filter(active => {
-                const shown = active.projectionOf(model)
-                return shown !== undefined && covers(askedOf(shown), asked)
+                return Option.exists(active.projectionOf(model), shown =>
+                  covers(askedOf(shown), asked),
+                )
               })
               .map(active => active.name)
       const withSurfaces = reading === undefined ? {} : { surfaces: reading }
@@ -2484,7 +2590,9 @@ const bindDomain = <
                 ? `What the server sent does not decode against the Selection: ${state.error.message}`
                 : state.error._tag === 'Unavailable'
                   ? `${state.error.message} Select without it, or Data.refresh asks again.`
-                  : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
+                  : state.error._tag === 'Overlaid'
+                    ? `${state.error.message} Overlay every field the Selection reads, or select fewer.`
+                    : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
             ...withSurfaces,
           }
         case 'Initial':
@@ -2573,20 +2681,6 @@ const bindDomain = <
     forget: model => Remote.forget(bound, model),
     overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
     lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),
-    fetch: ref => ({
-      name: `Remote.query(${ref.query})`,
-      args: { connection: ref.identity, window: ref.window },
-      effect: Remote.query(ref).pipe(
-        Effect.match({
-          onFailure: (error): RemoteMessage => ({
-            _tag: 'QueryFailed',
-            connection: ref.identity,
-            error: remoteError(error),
-          }),
-          onSuccess: (page): RemoteMessage => pageMessage(ref.identity, page, false, ref.window),
-        }),
-      ),
-    }),
     mutate: (model, mutation, input, options = {}) => {
       assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
       const remote = store.get(model)
@@ -2647,15 +2741,44 @@ const bindDomain = <
 }
 
 /** The window keys of a `QueryOptions`, and only those, without the undefined ones. */
+/**
+ * How many rows a read of `ref` shows: its window's `first` or `last`, as
+ * `Data.more` has grown it. `undefined` for a window with a cursor or no size,
+ * which shows whatever the connection holds.
+ */
+const windowSize = (
+  remote: RemoteModel,
+  ref: { readonly identity: string; readonly window: QueryWindow },
+): number | undefined => {
+  const { first, last, after, before } = ref.window
+  if (after !== undefined || before !== undefined) return undefined
+  const size = first ?? last
+  return size === undefined
+    ? undefined
+    : (remote.grown[windowGrowthKey(ref.identity, stableStringify(ref.window))] ?? size)
+}
+
+/** The edges a window of `size` shows, from the start (`first`) or the end (`last`), and which end it cut. */
+const cutToWindow = (
+  edges: ReadonlyArray<Edge>,
+  window: QueryWindow,
+  size: number | undefined,
+): {
+  readonly edges: ReadonlyArray<Edge>
+  readonly cutBefore: boolean
+  readonly cutAfter: boolean
+} => {
+  if (size === undefined || edges.length <= size) {
+    return { edges, cutBefore: false, cutAfter: false }
+  }
+  return window.first === undefined
+    ? { edges: edges.slice(edges.length - size), cutBefore: true, cutAfter: false }
+    : { edges: edges.slice(0, size), cutBefore: false, cutAfter: true }
+}
+
 const pickWindow = (window: QueryWindowOptions): QueryWindow => ({
   ...(window.first === undefined ? {} : { first: window.first }),
   ...(window.last === undefined ? {} : { last: window.last }),
   ...(window.after === undefined ? {} : { after: window.after }),
   ...(window.before === undefined ? {} : { before: window.before }),
 })
-
-/** The page size of a window, carried onto the next or previous page's window under `key`. */
-const pageSize = (window: QueryWindow, key: 'first' | 'last'): QueryWindow => {
-  const size = window.first ?? window.last
-  return size === undefined ? {} : { [key]: size }
-}

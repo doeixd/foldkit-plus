@@ -464,6 +464,10 @@ describe('publishing', () => {
     const result = await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
     expect(result.output).toEqual({ entry: 'e1', targetId: 'p1', revision: 2 })
     expect(rows(`select title from posts where id = 'p1'`)).toEqual([{ title: 'Live, revised' }])
+    // The row as the handler left it goes to the client, though the handler returned no patch.
+    expect(
+      result.entities.find(patch => patch.entity === 'Post' && patch.id === 'p1')?.values,
+    ).toMatchObject({ title: 'Live, revised' })
     expect(
       rows(`select n, "values", published_by from cms_revisions where entry_id = 'e1' order by n`),
     ).toEqual([

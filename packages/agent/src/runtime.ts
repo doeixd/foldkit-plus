@@ -422,6 +422,7 @@ export const bind = <
             : awaitCompletion({
                 completion: compiled,
                 input: decoded,
+                invocation,
                 observe: host.observe!,
               })
 

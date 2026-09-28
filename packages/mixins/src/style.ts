@@ -15,11 +15,13 @@ import type { Any as AnySlot, HiddenOf } from './slot.js'
 import type { Placement } from './layers.js'
 import type { SlotItem } from './slotItem.js'
 import * as SlotView from './slotView.js'
+import { register, usedIn } from './inject.js'
 import * as Rules from './styleRules.js'
 import {
   allowDiscrete,
   classPiece,
   compose,
+  at,
   container,
   empty,
   enter,
@@ -109,11 +111,12 @@ export const stagger = (options: {
   readonly stepMs: number
   readonly property?: 'transitionDelay' | 'animationDelay'
 }): StyleValue =>
-  perItem(item =>
-    inline({
-      '--fk-index': String(item.index),
+  compose(
+    // The delay is a rule; only the index is the item's own, inline.
+    self({
       [options.property ?? 'transitionDelay']: `calc(var(--fk-index) * ${options.stepMs}ms)`,
     }),
+    perItem(item => inline({ '--fk-index': String(item.index) })),
   )
 
 /** Fold every active condition and item piece (recursively) into a plain style. */
@@ -160,8 +163,11 @@ const compileTree = (
 ): StyleValue => {
   const rules = style.rules ?? []
   const generated = rules.length === 0 ? undefined : Rules.className(rules)
-  if (generated !== undefined)
-    collected.push({ className: generated, css: Rules.css(generated, rules) })
+  if (generated !== undefined) {
+    const css = Rules.css(generated, rules)
+    register(generated, css)
+    collected.push({ className: generated, css })
+  }
   const conditions = (style.conditions ?? []).map(condition => ({
     predicate: condition.predicate,
     piece: compileTree(condition.piece, collected),
@@ -385,7 +391,8 @@ export interface RecipeCompound<Variants extends Readonly<Record<string, RecipeV
 
 export interface RecipeDef<Variants extends Readonly<Record<string, RecipeVariantDef>>> {
   readonly base?: StyleValue
-  readonly variants: Variants
+  /** Absent for a recipe that is only its base. */
+  readonly variants?: Variants
   readonly defaults?: { readonly [K in keyof Variants]?: keyof Variants[K] & string }
   readonly compound?: ReadonlyArray<RecipeCompound<Variants>>
 }
@@ -393,19 +400,19 @@ export interface RecipeDef<Variants extends Readonly<Record<string, RecipeVarian
 export type AnyRecipeDef = RecipeDef<Record<string, RecipeVariantDef>>
 
 export type RecipeSelection<D extends AnyRecipeDef> = {
-  readonly [K in keyof D['variants']]?: keyof D['variants'][K] & string
+  readonly [K in keyof NonNullable<D['variants']>]?: keyof NonNullable<D['variants']>[K] & string
 }
 
 /** A recipe is just Style data: base, one piece per selected variant, then any
  *  matching compound. `compound.when` is keyed by the recipe's variants, so a
  *  typo is a compile error rather than a silently dead combination. */
 export const recipe =
-  <Variants extends Readonly<Record<string, RecipeVariantDef>>>(def: RecipeDef<Variants>) =>
+  <Variants extends Readonly<Record<string, RecipeVariantDef>> = {}>(def: RecipeDef<Variants>) =>
   (selection: RecipeSelection<RecipeDef<Variants>>): StyleValue => {
     const pieces: Array<StyleValue> = []
     if (def.base !== undefined) pieces.push(def.base)
     const effective: Record<string, string> = {}
-    for (const [variant, values] of Object.entries(def.variants)) {
+    for (const [variant, values] of Object.entries(def.variants ?? {})) {
       const chosen =
         (selection as Record<string, string | undefined>)[variant] ??
         (def.defaults as Record<string, string | undefined> | undefined)?.[variant]
@@ -428,7 +435,8 @@ export type SlotRecipeVariants<Slots> = Readonly<
 
 export interface SlotRecipeDef<Slots, Variants extends SlotRecipeVariants<Slots>> {
   readonly base?: StylePieces<Slots>
-  readonly variants: Variants
+  /** Absent for a recipe that is only its base. */
+  readonly variants?: Variants
   readonly defaults?: { readonly [K in keyof Variants]?: keyof Variants[K] & string }
   readonly compound?: ReadonlyArray<{
     readonly when: Partial<{ readonly [K in keyof Variants]: keyof Variants[K] & string }>
@@ -452,7 +460,8 @@ export interface SlotRecipePatch<Slots, Variants extends SlotRecipeVariants<Slot
 
 export interface SlotRecipe<Slots, Variants extends SlotRecipeVariants<Slots>> {
   (selection?: SlotRecipeSelection<Variants>): StylePieces<Slots>
-  readonly def: SlotRecipeDef<Slots, Variants>
+  /** The definition, with `variants` present (`{}` when none was given). */
+  readonly def: SlotRecipeDef<Slots, Variants> & { readonly variants: Variants }
   /**
    * The same recipe with `patch` merged in: base pieces compose per slot, a
    * variant's pieces compose over the base recipe's, compounds append,
@@ -502,11 +511,14 @@ const assertKnownSlots = <Slots>(
  */
 export const recipeFor =
   <Slots>(slots: Slots) =>
-  <Variants extends SlotRecipeVariants<Slots>>(
+  <Variants extends SlotRecipeVariants<Slots> = {}>(
     def: SlotRecipeDef<Slots, Variants>,
   ): SlotRecipe<Slots, Variants> => {
+    // Absent variants are none; `{}` is what the default type argument names.
+    const full = { ...def, variants: def.variants ?? ({} as Variants) }
+    const axes: SlotRecipeVariants<Slots> = full.variants
     assertKnownSlots(slots, def.base, 'base')
-    for (const [axis, values] of Object.entries(def.variants)) {
+    for (const [axis, values] of Object.entries(axes)) {
       for (const [value, pieces] of Object.entries(values)) {
         assertKnownSlots(slots, pieces as StylePieces<Slots>, `variants.${axis}.${value}`)
       }
@@ -515,7 +527,7 @@ export const recipeFor =
     const select = (selection: SlotRecipeSelection<Variants> = {}): StylePieces<Slots> => {
       let pieces = def.base ?? ({} as StylePieces<Slots>)
       const effective: Record<string, string> = {}
-      for (const [axis, values] of Object.entries(def.variants)) {
+      for (const [axis, values] of Object.entries(axes)) {
         const picked = (selection as Record<string, string | null | undefined>)[axis]
         const chosen =
           picked === null
@@ -535,7 +547,7 @@ export const recipeFor =
     }
     const extend = (patch: SlotRecipePatch<Slots, Variants>): SlotRecipe<Slots, Variants> => {
       const variants: Record<string, Record<string, StylePieces<Slots>>> = {}
-      for (const [axis, values] of Object.entries(def.variants)) {
+      for (const [axis, values] of Object.entries(axes)) {
         variants[axis] = { ...(values as Record<string, StylePieces<Slots>>) }
       }
       for (const [axis, values] of Object.entries(patch.variants ?? {})) {
@@ -556,7 +568,7 @@ export const recipeFor =
         compound: [...(def.compound ?? []), ...(patch.compound ?? [])],
       })
     }
-    return Object.assign(select, { def, extend })
+    return Object.assign(select, { def: full, extend })
   }
 
 /**
@@ -590,6 +602,7 @@ export const Style = {
   self,
   media,
   supports,
+  at,
   container,
   nest,
   states,
@@ -610,4 +623,5 @@ export const Style = {
   recipe,
   recipeFor,
   stylesheet,
+  usedIn,
 } as const

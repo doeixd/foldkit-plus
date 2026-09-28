@@ -58,31 +58,52 @@ const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageE
 
 Place `Drawn` as you would any Bundle. Its view draws:
 
-- a **palette**: one `Add <Block>` button per Block with starting props, each
-  disabled where the selection leaves no place for it;
+- a **palette**: one button per Block with starting props, named
+  "Add <label>" and grouped, each titled with where it would go ("Adds it
+  inside the Section") or disabled, saying why, where the selection leaves no
+  place for it (by `aria-disabled`, as every button of the editor is, so a
+  button stays focusable when its own press leaves it nothing to do; style
+  `[aria-disabled="true"]`, not `:disabled`); the Catalog's patterns follow
+  in a group of their own,
+  "Patterns", each placed where its root's Block would go;
 - the **layers**: a `role="tree"` of the page's nodes, one `treeitem` row each,
-  with a roving tab stop on the selected row;
-- the selected node's **actions** (move up, down, out and in; duplicate;
-  delete) and its props in an **inspector**;
-- **undo** and **redo**, a **viewport** picker, and the reason the last edit
-  was refused, as a `role="alert"`;
-- the **canvas**: the page in edit mode, in a frame as wide as the viewport;
+  with a roving tab stop on the selected row; a row shows its Block's label and
+  the node's first text in brief, and one that holds others has a toggle that
+  opens and closes it; pointing at a row marks its node on the page, as
+  pointing at the page does;
+- an **inspector**: the selected node's Block, what it is for, and its
+  **actions** (move up, down, out and in; duplicate; delete; each titled with
+  its shortcut), then its settings under Content, Style, Visibility and
+  Interactions; with nothing selected, how to begin and the shortcuts;
+- **undo** and **redo**, a **breadcrumb** of where the selection is (the
+  page, then each node holding it; a press selects that one), a **viewport**
+  picker, and the reason the last edit was refused, as a `role="alert"`;
+- the **canvas**: the page in edit mode, in a frame as wide as the viewport,
+  saying how to begin (the `empty` Slot) while the page holds nothing;
 - a **live region** the Builder's announcements are read from.
 
 ## The keyboard and the pointer
 
-Four Behaviors are attached, each from `foldkit-primitives`:
+Five Behaviors are attached, each from `foldkit-primitives`:
 
 | Where | Behavior | What it does |
 | --- | --- | --- |
 | `tree`, `row` | `TreeNavigation` | Up, Down, Home and End move focus between rows; Right opens a row, then moves to its first child; Left closes it, then moves to its parent. Focus moving selects the row's node. |
-| `layers` | the Builder's `keyCommand` | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo. |
+| `layers`, `canvas` | the Builder's `keyCommand`, from its commands | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo; Escape deselects. |
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
+| `canvas` | `EditableText` | A double-click on text the page draws as a field, or Enter on its node, edits it where it is: typing sets the prop, Enter or leaving commits, Escape puts it back. A press in it selects text rather than dragging the node. |
+| `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
 | `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
+| `palette` | `PointerDrag`, onto the canvas | A Block's tile dragged onto the page lands the same way and adds a new node of it there; a press without a drag adds it where its title says. A pattern's tile is pressed, not dragged. |
 
-The shortcuts are on the layers panel, not the whole editor, so Delete in a
-text box edits the text. The action buttons send the same Messages the
-shortcuts do. A drag is the pointer's way to do what Alt with an arrow does;
+The shortcuts are on the layers panel and the canvas, not the whole editor,
+so Delete in a text box edits the text. The canvas is focusable, so a press on
+the page leaves focus where the shortcuts are. The node's action buttons, the
+toolbar's and the list of shortcuts are all drawn from the Builder's commands
+(`PageBuilder.commands`), so a command given another key or left out there
+changes each of them, and a button sends what its key does. Keys are written
+for the author's platform, given as a view input
+(`BuilderView.inputs({ platform: 'mac' })` writes ⌘D, else Ctrl+D). A drag is the pointer's way to do what Alt with an arrow does;
 it adds no roles or keys to the tree, and a drop is announced like a key's
 move.
 
@@ -108,22 +129,135 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 )
 ```
 
+`define` draws the panels in four regions, so a layout places four things,
+and a new panel lands in its region without moving the rest:
+
+```text
+root                 the container `builder`
+├── panelTabs        a narrow editor's tabs (see below)
+├── regions
+│   ├── start        palette, layers
+│   ├── bar          toolbar, crumbs, viewports, preview
+│   ├── stage        alert, canvas
+│   └── end          inspector
+└── live
+```
+
+`root` is a container (`container: builder / inline-size`, the Builder's
+default Style), so the regions may be laid out by the editor's own width,
+`@container builder (max-width: 64rem)`, rather than the window's: an editor
+in a narrow column stacks in a wide window. The example lays `regions` out as
+a grid of `start`, `bar` over `stage`, and `end`. A layout of your own
+(`assemble`) draws none of these. An inline-size container takes no width from
+what it holds, so give the editor one: as a flex item that does not grow, an
+`auto` grid column, `inline-block` or `fit-content`, it is 0 wide.
+
+A node's props are drawn by its Block's settings form, a `foldkit-mixins-form`
+view the Builder makes. Give its Styles to `define` (or `parts`), and they are
+attached to every Block's settings form:
+
+```ts
+import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
+
+const PageEditing = BuilderView.define(PageBuilder, {
+  settings: {
+    field: Style.attach(Style.forSlots(FieldSlots)({ label: Style.class('setting-label') })),
+    form: Style.attach(Style.forSlots(FormSlots)({ root: Style.class('settings') })),
+  },
+})
+```
+
+A control kind of the application's own (`Input.kind`) is drawn by the
+renderers the application gives, the same ones its form views take. Each
+Block's settings form has Messages of its own, so they are given as a
+function of the Message, as `Cms.controlRenderers` is:
+`BuilderView.define(PageBuilder, { settings: { renderers: Cms.controlRenderers } })`.
+Without one, the inspector says which renderer is missing.
+
 The page on the canvas is the site's own markup, so it is styled by the site's
-CSS. The editor's marks are data attributes on each node's wrapper:
-`data-composition-selected`, `data-composition-hovered`, and
-`data-composition-drop` (`before`, `inside` or `after`) on the node a drop
-would land at. A wrapper is `display: contents` and draws nothing, so style
-the element inside it. The layer rows carry `data-builder-drop` and
-`data-builder-dragging` the same way.
+CSS, and the editor marks it by drawing over it: the `selectionBox` Slot sits
+over the selected node, with its Block's label in `selectionLabel`, and the
+`hoverBox` Slot over the node under the pointer. They are placed from where
+the nodes are measured to be (`Measure`, from `foldkit-primitives/dom`),
+scroll with the page, and take no pointer; the Builder places them, and a
+Style says how they look:
+
+```ts
+Style.forSlots(BuilderSlots)({
+  selectionBox: Style.self({ outline: '2px solid Highlight', outlineOffset: '3px' }),
+  selectionLabel: Style.self({ background: 'Highlight', color: 'HighlightText', fontSize: '0.75rem' }),
+  hoverBox: Style.self({ outline: '1px dashed GrayText', outlineOffset: '3px' }),
+})
+```
+
+A node's wrapper still carries `data-composition-mark` (`selected`, or
+`hovered`; a node that is both is `selected`), which is what the boxes are
+measured from, and `data-composition-drop` (`before`, `inside` or `after`) on
+the node a drop would land at. A wrapper is `display: contents` and draws
+nothing, so style the element inside it. The layer rows carry
+`data-builder-drop` and `data-builder-dragging` the same way.
 
 ```css
-[data-composition-selected] > * { outline: 2px solid Highlight; }
-[data-composition-hovered] > * { outline: 1px dashed GrayText; }
 [data-composition-drop='before'] > * { box-shadow: 0 -3px 0 Highlight; }
 [data-composition-drop='after'] > * { box-shadow: 0 3px 0 Highlight; }
 [data-composition-drop='inside'] > * { outline: 2px dashed Highlight; }
 [data-builder-dragging] { opacity: 0.5; }
 ```
+
+## Your own layout
+
+`BuilderView.define` places every part of the editor. To leave some out, move
+them, or draw your own elements among them, take the parts and assemble them:
+
+```ts
+const parts = BuilderView.parts(PageBuilder)
+const Compact = BuilderView.assemble((_model, slots, h, draw) =>
+  h.div(slots.root.attrs(), [
+    h.h1([], ['Home page']),
+    draw(parts.Palette),
+    draw(parts.Canvas),
+    draw(parts.Inspector),
+  ]),
+)
+```
+
+The parts are `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
+`Viewports`, `Preview`, `Alert`, `Canvas` and `Live`. Each brings its own
+Behaviors: `Layers` its tree keyboard and dragging, `Canvas` the pointer, and
+both the shortcuts. A layout without `Layers` has no tree keyboard. Styles
+attach to `Compact` as to `define`'s view.
+
+Each part names the Model fields it reads and is drawn again only when one of
+them changed: a hover redraws the canvas and nothing else. A Style that reads
+the Model (`Style.whenInput`) attached to the whole view makes every part it
+reaches redraw on every change. It is still correct, just not cached.
+
+## A narrow editor
+
+Where the editor is narrow, it can show one of its three panels at a time:
+
+```ts
+const PageEditing = BuilderView.define(PageBuilder).pipe(
+  Style.attach(BuilderView.narrow('52rem')),
+)
+```
+
+- **The width is the editor's own, not the window's.** Below `width` of the
+  container `builder`, the Builder's root, the `Panels` part shows: a
+  `role="group"` of three buttons (Add, Layers, Settings), the chosen one
+  `aria-pressed`, as the viewports are, and only the panel the Builder's
+  `panel` names shows. Wider, the buttons are hidden (the Builder's default
+  Style) and every panel shows. They are not ARIA tabs, which would promise
+  arrow keys and a roving tab stop.
+- **The Builder chooses the panel as it always has:** a button sends
+  `PanelChosen`, and selecting a node on the page chooses Settings; a row
+  clicked in the layers selects its node and keeps the layers showing. Each panel carries its
+  `id`, `data-panel` and `data-panel-shown`, and each button `aria-controls`
+  it; a layout of your own that draws `Panels` should draw the three panels.
+- **It is in the `app` layer**, so it outranks an application's placing of
+  the panels in `app` or an earlier layer; an unlayered style outranks every
+  layer, and would show a hidden panel. `narrow(width, { layer })` puts it
+  elsewhere.
 
 ## As a form key
 
@@ -152,7 +286,7 @@ inputs; the Builder keeps no copy:
 ```ts
 EditorSlot.view(model, h, {
   controls: {
-    document: BuilderView.inputs({ data: reads.projectionOf(model)?.read(model) }),
+    document: BuilderView.inputs({ data: reads.data(model) }),
   },
 })
 ```
@@ -164,18 +298,25 @@ canvas draws with `Renderer.make`, so a Block's actions do not run there.
 
 ## What the inspector draws
 
-Each field of the selected Block's props Schema is resolved as a form would
-resolve it:
+The selected node's props are its Block's settings form, a `foldkit-form` form
+that `foldkit-builder` makes (see its README), drawn by `foldkit-mixins-form`'s
+`FormView`. So each prop gets the control a form would give it, and its fields
+are styled through `FieldSlots` and `FormSlots`, as any form's are:
 
 | Prop Schema | Control |
 | --- | --- |
 | `Schema.Boolean` | `input type="checkbox"` |
-| `Schema.Literals([...])` | `select` of the literals |
-| `Schema.Number` | `input`; text that is not a number is kept, and the page refuses it |
-| `Schema.String`, and a brand of it such as `Url` | `input` |
+| `Schema.Literals([...])` | `select` of the literals, text or numbers; a number is stored as a number |
+| `Schema.Number` | `input type="text"`, so "1." is kept while it is typed |
+| `Schema.String`, and a brand of it such as `Url` | `input type="text"` |
 | anything else | its JSON, shown and not edited |
 
-A field is labelled with its Schema's `title`, else its prop key.
+A control of the application's own, such as a color picker given with
+`Builder.controls({ tint: Input.bundle(...) })`, is drawn with its Bundle's
+view, as any form draws it. A field is labelled with its Schema's `title`,
+else its prop key, spaced. A change that decodes is one `setProp`, and typing
+a word is one undo step. One that does not (`abc` for a number, an address its
+brand refuses) shows its error at its field and changes nothing.
 
 Where the Schema alone does not say, the Block asks for a control through
 metadata. `Input.multiline()` draws a `textarea`, and `Input.hidden()` leaves
@@ -184,8 +325,8 @@ the prop out:
 ```ts
 import { Schema } from 'effect'
 import { Block, Content } from 'foldkit-composition'
+import { Builder } from 'foldkit-builder'
 import { Input } from 'foldkit-form'
-import { BuilderView } from 'foldkit-mixins-builder'
 
 const Quote = Block.define('Quote', {
   Props: Schema.Struct({
@@ -193,12 +334,28 @@ const Quote = Block.define('Quote', {
     ref: Schema.String,
   }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+}).pipe(Block.annotate(Builder.controls({ text: Input.multiline(), ref: Input.hidden() })))
 ```
 
-The hint is the inspector's, kept on the Block beside any other package's
+The hint is `foldkit-builder`'s, kept on the Block beside any other package's
 metadata; `foldkit-composition` does not read it. A later annotation's prop
 replaces an earlier one's.
+
+### What the editor calls a Block
+
+A Block's `label`, `description` and palette `group` are its words, from
+`foldkit-composition`, which an agent's tool reads too:
+
+```ts
+const Described = Quote.pipe(Block.words({ group: 'Text', description: 'Words someone said' }))
+```
+
+The label defaults to the Block's name spaced (`PostList` is "Post list"), and
+Blocks given no group share one, "Blocks"; a group is headed only when there is
+more than one. The palette shows the label and the description, and a layer row
+the label and the node's first text prop, cut to forty characters. Palette
+buttons and layer rows carry `data-block` with the Block's name, so a Style can
+give each an icon; a pattern's button carries `data-pattern` with its name.
 
 ### A prop that points at the application's things
 
@@ -213,7 +370,7 @@ options are; the page's parent gives them in the Builder's view inputs, keyed
 const Featured = Block.define('Featured', {
   Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ category: Input.relationOne(Category) })))
+}).pipe(Block.annotate(Builder.controls({ category: Input.relationOne(Category) })))
 
 EditorSlot.view(model, h, {
   controls: {
@@ -224,37 +381,74 @@ EditorSlot.view(model, h, {
 })
 ```
 
-A `relationOne` offers a blank, stored as `null`, when its Schema admits
-`null`, and otherwise only while nothing is chosen. A chosen id the choices lack
-(a row since deleted, or choices not loaded yet) is shown as `? id`; in a
-`relationMany` it stays chosen until it is unchecked. The inspector lists the
-choices it is given and has no search box.
+A `relationOne` always offers "none", stored as `null` where the Schema admits
+it; choosing it for a prop that needs an id says so at the field. A chosen id
+the choices lack (a row since deleted, or choices not loaded yet) is shown as
+`? id`; in a `relationMany` it stays chosen until it is unchecked. The
+inspector lists the choices it is given and has no search box.
 
-Each edit is one `setProp`, checked by the Block's Schema; a refused edit shows
-in the alert and changes nothing. A node whose Block the Catalog does not know
-is shown, with its props, but not edited. A stored value a `select` does not
-offer, such as a choice an older version made, is shown as `? value` and
-chosen, rather than as the blank.
+A node whose Block the Catalog does not know is shown, with its props, but not
+edited. A stored value a `select` does not offer, such as a choice an older
+version made, is shown as `? value` and chosen, with its error, rather than as
+the blank.
 
-After the props, each appearance axis the Block offers is a `select` of its
-values, with a blank for the default; a choice is one `setAppearance`, and
-clearing the last one removes the node's `appearance`. A responsive token axis
-adds one `select` per breakpoint (`space at md`), blank for unchanged; with
-only the base chosen, one name is stored.
+The props are under Content, labelled by their Schema's `title`, else their
+key spaced (`text` is "Text"). Under Style, each appearance axis the Block
+offers: one of up to four values is a row of buttons, "Default" and each value,
+the chosen one pressed (a stored value the axis lacks is shown pressed as
+`? value`); one with more values is a `select`, with a blank for the default. A
+choice is one `setAppearance`, and choosing the default for the last one
+removes the node's `appearance`. A responsive token axis is a `select` per
+breakpoint (`Space at md`), blank for unchanged; with only the base chosen, one
+name is stored.
 
-Then, when the Catalog declares a `context`, one field per context key says
-when the node shows: `when audience` is a `select` of the key's literals (a
+Then, under Visibility, when the Catalog declares a `context`, one field per
+context key says when the node shows: `Shown when audience is` is a `select` of
+the key's literals (a
 flag's is `true` and `false`, other keys are typed in), with a blank for
 always. A choice is one `setWhen` holding an `eq` condition for that key;
 conditions of other kinds are kept as they are, and clearing the last removes
 the node's `when`.
 
-Last, each event the Block names says what it runs: `on press` is a `select`
+Last, under Interactions, each event the Block names says what it runs:
+`On press` is a `select`
 of the Catalog's actions, blank for nothing, and under it the chosen action's
-input, one field each, drawn as a prop would be. Choosing an action starts its
-input from empty values (the first choice of a select); a start the action's
-Schema still refuses is refused and shown in the alert. Each change is one
-`setAction`, and choosing nothing removes it.
+input as a form of its own, drawn and styled as the props are; its ids are
+`<Block>-<event>-<action>-<key>`. Choosing an action starts its input from
+each field's empty value as stored (`''`, `null`, `false`), else zero or a
+select's first choice (`inputOf(block, event, action).seed()` in
+`foldkit-builder`); a start the action's Schema still refuses is refused and
+shown in the alert. Each change to the input is one
+`setAction` with the changed keys over the rest, and choosing nothing removes
+it.
+
+The looks and the conditions stay the Builder's own controls, drawn through
+`BuilderSlots`: each is a choice from a fixed list, which a form would draw no
+better.
+
+## The editor's words
+
+Every word the editor shows of its own, from "Add a block" to the shortcut
+list's headings, is one of `BuilderWords`, English by default
+(`builderWords`). Give any of them as a view input:
+
+```ts
+BuilderView.inputs({
+  words: { palette: 'Bloque nuevo', addBlock: 'Añadir {label}' },
+})
+```
+
+Keep the words in one value made once, not built in the view: each part that
+draws words is drawn again when the object it is given is another one.
+
+Words are text: a word that takes a value names it as a blank (`'Add {label}'`),
+so a translation puts it where its language does. They are not functions,
+because they are a view input, and Foldkit throws on a function nested in
+one; being text, one object can hold a form's words and these. The Catalog's
+words (a Block's label and description, its group) and the command table's
+labels are the application's already, and are not among them; so are key
+names, but for the named keys (Enter, Delete), which `keyNames` words. A test draws the editor with every word replaced by a marker
+and finds nothing else of its own left.
 
 ## Previewing a context
 
@@ -272,7 +466,15 @@ the page for that context: a node hidden there is still drawn, marked
 - Rich text on the canvas is not edited in place: its Block's props are shown
   in the inspector.
 - A drag moves one node, the selected one; there is no multiple selection.
+- Two Builders on one page need different names: the inspector's form is placed
+  under the Builder's name, and one drawn twice is a crash that says so. Its
+  fields' ids are `<Block>Settings-<prop>`, so two Builders over one Catalog
+  showing the same Block also share ids.
 - A drag does not scroll the layers or the canvas when the pointer nears an
   edge.
-- The viewport frame sets a width. It does not load the page in an iframe, so
-  the page's media queries see the editor's width.
+- The viewport frame sets a width: `--fk-frame-width` on the frame, read by
+  the Builder's one default rule (in `components`, so any application style
+  overrides it). It does not load the page in an iframe, so the page's media
+  queries see the editor's width. The frame is the page's container
+  (`PAGE_CONTAINER`), so a look written with container queries or `cqi` units
+  follows the frame: see `Theme.inContainer`.

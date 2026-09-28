@@ -5,6 +5,7 @@ import type {
   AnyCompletion,
   AnyMessage,
   CompletionOutcome,
+  Correlation,
   DispatchResult,
   Invocation,
   StateCompletion,
@@ -86,7 +87,8 @@ export interface CompiledMessageCompletion {
   readonly _tag: 'Message'
   readonly success: ReadonlySet<string>
   readonly failure: ReadonlySet<string>
-  readonly correlate: ((request: unknown, result: AnyMessage) => boolean) | undefined
+  readonly correlate:
+    ((request: unknown, result: AnyMessage, call: Correlation) => boolean) | undefined
   readonly timeout: Duration.Duration
 }
 
@@ -189,9 +191,10 @@ interface CompletionWaiter {
 export const awaitCompletion = (options: {
   readonly completion: CompiledMessageCompletion
   readonly input: unknown
+  readonly invocation: Invocation
   readonly observe: (listener: (message: AnyMessage) => void) => () => void
 }): CompletionWaiter => {
-  const { completion, input, observe } = options
+  const { completion, input, invocation, observe } = options
 
   let settle: ((outcome: CompletionOutcome) => void) | undefined
   let settled: CompletionOutcome | undefined
@@ -206,7 +209,7 @@ export const awaitCompletion = (options: {
   }
 
   const owns = (message: AnyMessage): boolean =>
-    completion.correlate === undefined || completion.correlate(input, message)
+    completion.correlate === undefined || completion.correlate(input, message, { invocation })
 
   unsubscribe = observe(message => {
     // A settled invocation never settles twice: a second matching Message, or

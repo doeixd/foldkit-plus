@@ -404,6 +404,18 @@ carries `dispatched: false`, and the audit records `decision: 'unknown'`.
 
 Give `correlate` whenever two invocations of a capability can be in flight at
 once. Without it the first matching Message wins, whichever invocation caused it.
+Its third argument is the call, `{ invocation }`. Where the input cannot tell
+two calls apart (two todos titled "Milk"), pass `invocation.id` into the Message
+from `toMessage`, carry it onto the fact the Command produces, and correlate on
+it:
+
+```ts
+toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
+completion: {
+  success: Message.SubmittedTodo,
+  correlate: (_, result, { invocation }) => result.requestId === invocation.id,
+},
+```
 
 #### Completing on state
 

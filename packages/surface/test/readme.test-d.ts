@@ -57,9 +57,7 @@ const ById = App.surface('ById', {
 declare const root: typeof Model.Type
 Surface.read(TodoDetail, root)
 Surface.read(ById, root, { id: 't1' })
-Surface.at(ById, model =>
-  Option.match(model.selectedTodoId, { onNone: () => undefined, onSome: id => ({ id }) }),
-)
+Surface.at(ById, model => Option.map(model.selectedTodoId, id => ({ id })))
 
 // The explicit form
 const Explicit = Surface.make(App, 'TodoDetailExplicit', {

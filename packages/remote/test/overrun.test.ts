@@ -15,12 +15,12 @@
  * the connection. What does reach the Model is the failure, so a view reading
  * the connection sees `Failed` with the protocol error rather than `Initial`.
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, RemoteClient } from '../src/index.js'
+import { Query, Remote, RemoteClient, type RemoteMessage } from '../src/index.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -66,22 +66,42 @@ const serverReturning = (count: number) =>
     live: () => Stream.empty,
   } as never)
 
-/** The Message the fetch Command yields for a window of `first`, given a server. */
-const fetched = (first: number, returns: number) =>
-  Effect.runPromise(
-    Data.fetch(projects(first).ref).effect.pipe(Effect.provide(serverReturning(returns))) as never,
-  ) as Promise<{ readonly _tag: string; readonly error?: { readonly message: string } }>
+/**
+ * The Message that settles the list's query when the read entry runs it from
+ * `model`, against a server that returns `returns` edges.
+ */
+const fetched = async (
+  projection: ReturnType<typeof projects>,
+  returns: number,
+  model: Model = initial,
+): Promise<RemoteMessage> => {
+  const entry = Data.subscriptions({
+    list: Data.active('List', () => Option.some(projection)),
+  })['list.read']
+  const messages = await Effect.runPromise(
+    Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(model))).pipe(
+      Effect.provide(serverReturning(returns)),
+    ),
+  )
+  const settled = [...messages].find(
+    message => message._tag === 'ConnectionMerged' || message._tag === 'QueryFailed',
+  )
+  if (settled === undefined) throw new Error('the read entry ran no query')
+  return settled
+}
+const errorOf = (message: RemoteMessage) =>
+  message._tag === 'QueryFailed' ? message.error.message : undefined
 
 describe('A page within its window', () => {
   it('merges, as every page always has', async () => {
-    const message = await fetched(25, 25)
+    const message = await fetched(projects(25), 25)
 
     expect(message._tag).toBe('ConnectionMerged')
   })
 
   it('merges when the server returns fewer than were asked for', async () => {
     // Fewer is ordinary: it is the last page.
-    const message = await fetched(25, 3)
+    const message = await fetched(projects(25), 3)
 
     expect(message._tag).toBe('ConnectionMerged')
   })
@@ -89,20 +109,20 @@ describe('A page within its window', () => {
 
 describe('A page that overruns its window', () => {
   it('fails rather than merging', async () => {
-    const message = await fetched(25, 26)
+    const message = await fetched(projects(25), 26)
 
     expect(message._tag).toBe('QueryFailed')
   })
 
   it('names both numbers, so the disagreement can be diagnosed', async () => {
-    const message = await fetched(25, 1000)
+    const message = await fetched(projects(25), 1000)
 
-    expect(message.error?.message).toBe('the server returned 1000 edges for a window of 25')
+    expect(errorOf(message)).toBe('the server returned 1000 edges for a window of 25')
   })
 
   it('keeps the rows out of the Model, which is the point of refusing them', async () => {
     const projection = projects(2)
-    const model = Data.reduce(initial, (await fetched(2, 5)) as never)
+    const model = Data.reduce(initial, await fetched(projection, 5))
 
     expect(Remote.inspect(model.remote).connections).toEqual([])
     expect(Remote.inspect(model.remote).entities).toEqual([])
@@ -118,8 +138,9 @@ describe('A page that overruns its window', () => {
   it('leaves a connection it already held exactly as it was', async () => {
     // A refresh that overruns must not replace good rows with a rejected page.
     const projection = projects(2)
-    const loaded = Data.reduce(initial, (await fetched(2, 2)) as never)
-    const after = Data.reduce(loaded, (await fetched(2, 9)) as never)
+    const loaded = Data.reduce(initial, await fetched(projection, 2))
+    const refreshed = Data.refresh(loaded, projection)
+    const after = Data.reduce(refreshed, await fetched(projection, 9, refreshed))
 
     expect(Remote.inspect(after.remote).connections).toEqual(
       Remote.inspect(loaded.remote).connections,
@@ -129,22 +150,26 @@ describe('A page that overruns its window', () => {
   })
 
   it('bounds a backward window by `last`, not only a forward one by `first`', async () => {
-    const backward = Query.last(2)(ProjectsByOwner.ref({ ownerId: 'u1' }))
-    const message = (await Effect.runPromise(
-      Data.fetch(backward).effect.pipe(Effect.provide(serverReturning(9))) as never,
-    )) as { readonly _tag: string; readonly error?: { readonly message: string } }
+    const backward = Data.query(
+      ProjectsByOwner,
+      { ownerId: 'u1' },
+      { select: ProjectSummary, last: 2 },
+    )
+    const message = await fetched(backward, 9)
 
     expect(message._tag).toBe('QueryFailed')
-    expect(message.error?.message).toContain('window of 2')
+    expect(errorOf(message)).toContain('window of 2')
   })
 
   it('bounds nothing when no size was asked for', async () => {
     // `after`/`before` with no `first`/`last` says where to start, not how much
     // to take, so any number of edges is within it.
-    const unbounded = Query.after('c1')(ProjectsByOwner.ref({ ownerId: 'u1' }))
-    const message = (await Effect.runPromise(
-      Data.fetch(unbounded).effect.pipe(Effect.provide(serverReturning(500))) as never,
-    )) as { readonly _tag: string }
+    const unbounded = Data.query(
+      ProjectsByOwner,
+      { ownerId: 'u1' },
+      { select: ProjectSummary, after: 'c1' },
+    )
+    const message = await fetched(unbounded, 500)
 
     expect(message._tag).toBe('ConnectionMerged')
   })

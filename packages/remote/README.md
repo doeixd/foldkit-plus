@@ -283,14 +283,15 @@ what it needs, and something else decides whether to ask.
 ### 4. Let the active screen drive the fetching
 
 ```ts
+import { Option } from 'effect'
 import * as Subscription from 'foldkit/subscription'
 
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   foldData.subscriptions({
     project: Surface.at(ProjectPage, model =>
       model.route._tag === 'project'
-        ? { projectId: model.route.projectId }
-        : undefined,
+        ? Option.some({ projectId: model.route.projectId })
+        : Option.none(),
     ),
   }),
 )
@@ -300,6 +301,21 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
 page, Remote sees its requirements, diffs them against the cache, and fetches
 only what is missing. When the page is inactive, it creates no read work. This
 is the one step that causes I/O, and it does so only while the screen is on.
+
+A read that is not a Surface's, such as the record a detail pane shows, is made
+active with `Data.active`: its function of the Model returns the read, or none
+while there is nothing to read.
+
+```ts
+const detail = Data.active('ProjectDetail', model =>
+  Option.map(model.openProjectId, id => Data.get(Project.select({ name: true }), id)),
+)
+foldData.subscriptions({ detail })
+```
+
+It belongs to the domain's application and sends no Messages. A domain bound
+to a raw optic (`ModelRef.fromOptic`) names no application, so `Data.active`
+throws for one rather than guess.
 
 ### 5. Provide a client
 
@@ -381,7 +397,7 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
 ```
 
 The rest of this guide uses the fold. With the spread, read `Data.subscriptions`
-for `foldData.subscriptions` and `Data.fetch` for `foldData.fetch`.
+for `foldData.subscriptions` and `Data.mutate` for `foldData.mutate`.
 
 ### One value with `foldkit-bundle`: `Data.wiring`
 
@@ -395,7 +411,9 @@ const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(
   Data.wiring({
     project: Surface.at(ProjectPage, model =>
-      model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+      model.route._tag === 'project'
+        ? Option.some({ projectId: model.route.projectId })
+        : Option.none(),
     ),
   }),
 )
@@ -781,9 +799,9 @@ since stale data is planned again under every policy, so the page is requested
 once. The Projection must be observed, as it is while it is on screen; for data
 nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
 
-- A refreshed connection's first page replaces its loaded pages, so items the
-  server removed or reordered follow it; later pages are fetched again with
-  `Data.next`.
+- A refreshed connection is asked for again as one page the size of the widest
+  window reading it (including what "load more" grew), which replaces what it
+  held, so items the server removed or reordered follow it.
 - A read already in flight restarts instead of landing after the refresh.
 - Refreshing what is already refreshing, or nothing, returns the same Model.
 
@@ -890,11 +908,10 @@ const projects = Data.query(
 )
 
 projects.read(model)
-// RemoteData<Page<ProjectSummary>>
+// RemoteData<Page<ProjectSummary>>: at most 25 items
 
-Data.next(model, projects)      // QueryRef | undefined
-Data.previous(model, projects)  // QueryRef | undefined
-Data.fetch(ref)                 // Command whose Message merges the page
+Data.more(model, projects)
+// Option<Model>: "load more", the window grown to 50; none when all are shown
 ```
 
 The connection stores entity references and explicit boundaries rather than one
@@ -906,10 +923,24 @@ A query Projection is `Initial` until the page **and every selected field of its
 visible items** are present. Once a page lands, those items become ordinary
 entity requirements and can be fulfilled in the same planning loop.
 
-Two Projections of the same connection plan one query and select the union of
-their required fields. `Data.next` / `Data.previous` preserve the page size and
-use the loaded boundaries; `hasNext` / `hasPrevious` come from those boundaries,
-not from guessing based on row counts.
+**A read shows at most its window.** Remote keeps one connection per query and
+input, whatever window asks for it, so a picker's `first: 50` and a card's
+`first: 3` of the same query share the rows, and each read is cut to its own
+window: `first` from the start, `last` from the end. `hasNext` / `hasPrevious`
+are true when the read cut rows or the connection's boundary says there are
+more; they are never guessed from a row count.
+
+Two Projections of the same connection plan one query, for the wider window,
+and select the union of their fields. When a connection holds fewer rows than a
+window asks for, the read entry asks only for the rows it lacks, after the
+loaded end (or before the loaded start).
+
+**"Load more" grows the window.** `Data.more(model, projection)` is the Model
+with that read's window one page larger, called from `update`; the read entry
+then fetches what the connection lacks. It is kept in Remote's store, under the
+query, input and window first asked for, so a list holds no state of its own,
+and it is forgotten when retention drops the connection. Another window of the
+same query does not grow with it.
 
 ### Filtering a loaded list without asking the server
 
@@ -1208,6 +1239,11 @@ const back = Data.lift(previewed, 'post-preview')
   returns the same Model.
 - An overlay's id is apart from every request's, so a mutation that settles does
   not take a preview with it.
+- A preview of an entity the server has not seen, such as an unsaved post, has
+  only the fields the overlay holds. A Selection that reads more reads
+  `Failed`, with an `Overlaid` error naming what is missing, since nothing will
+  fetch it. Overlay every field the Selection reads, or preview through a
+  smaller Selection.
 
 ### Reading past what is only pending
 

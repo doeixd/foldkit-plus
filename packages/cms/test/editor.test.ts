@@ -3,7 +3,7 @@
  * editor is driven end to end against a real server in `foldkit-cms-drizzle`;
  * this is the part that needs a failure arranged, so the domain is a stub.
  */
-import { Option, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
@@ -23,7 +23,11 @@ const Post = Entity.define(
   }),
 ).pipe(Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }))
 
-const PostInput = Schema.Struct({ title: Schema.String, slug: Schema.String })
+// A title is required, so the form can stop a publish on its own.
+const PostInput = Schema.Struct({
+  title: Schema.String.check(Schema.isMinLength(1)),
+  slug: Schema.String,
+})
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   inputs: { slug: Cms.slug('title') },
   debounce: 0,
@@ -69,7 +73,12 @@ const world = (failure: string | undefined) => {
     refresh: (model: Root) => model,
     overlay: (model: Root) => model,
     lift: (model: Root) => model,
-    contract: {},
+    active: (name: string, projectionOf: unknown) => ({
+      name,
+      owner: {},
+      messages: [],
+      projectionOf,
+    }),
   }
   const slice = {
     get: (root: Root) => root.editor,
@@ -176,10 +185,14 @@ describe('the entry the server knows', () => {
     const editor = (patch: Partial<Root['editor']>): Root => ({
       editor: { ...root.editor, ...patch },
     })
-    expect(placed.storedEntry(root)).toBe('e1')
-    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: null }))).toBeNull()
-    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: 's1' }))).toBe('e2')
-    expect(placed.storedEntry(editor({ mode: 'closed', entry: null }))).toBeNull()
+    expect(placed.storedEntry(root)).toEqual(Option.some('e1'))
+    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: null }))).toEqual(
+      Option.none(),
+    )
+    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: 's1' }))).toEqual(
+      Option.some('e2'),
+    )
+    expect(placed.storedEntry(editor({ mode: 'closed', entry: null }))).toEqual(Option.none())
   })
 })
 
@@ -291,5 +304,136 @@ describe('a form control backed by a Bundle', () => {
     expect(keys?.modelToDependencies(open)).toEqual({
       maybeDependencies: Option.some({ maybeDependencies: Option.some({ open: false }) }),
     })
+  })
+})
+
+describe('a publish the form stops', () => {
+  it('says so until the next edit, where the last save would have said "saved"', () => {
+    const { placed, root } = world(undefined)
+    const status = (editor: Root['editor']) => placed.status({ ...root, editor })
+    const blank = Editor.bundle.update(
+      root.editor,
+      PostForm.Message.Changed({ key: 'title', value: '' }),
+      undefined,
+    ).model
+    const asked = Editor.bundle.update(blank, Editor.Message.PublishAsked(), undefined)
+    expect(asked.outMessage).toBeUndefined()
+    expect(status(asked.model)).toBe('Incomplete')
+    const typed = Editor.bundle.update(
+      asked.model,
+      PostForm.Message.Changed({ key: 'title', value: 'Fixed' }),
+      undefined,
+    ).model
+    expect(status(typed)).toBe('Editing')
+    // Asked again with the field filled, it goes out, and is no longer said to be stopped.
+    const again = Editor.bundle.update(typed, Editor.Message.PublishAsked(), undefined)
+    expect(again.outMessage).toEqual({ _tag: 'Publish' })
+    expect(again.model.submit).toBe('idle')
+  })
+})
+
+describe('a publish that waits for a check', () => {
+  // An address is taken where it is "taken": answered by a check, not the schema.
+  const CheckedForm = Form.make('CheckedForm', Entity.input(Post, PostInput), {
+    checks: {
+      slug: (slug: string) => Effect.succeed(slug === 'taken' ? 'is taken' : undefined),
+    },
+    debounce: 0,
+  })
+  const Checked = Cms.editor('CheckedEditor', {
+    content: Cms.content('checked', { ...Posts, form: CheckedForm }),
+    rest: 0,
+  })
+  type CheckedModel = ReturnType<typeof Checked.bundle.init>['model']
+  type Step = ReturnType<typeof Checked.bundle.update>
+  /** The Messages the check's Commands answer with, the rest left alone. */
+  const answers = (step: Step) =>
+    Promise.all(
+      (step.commands ?? [])
+        .filter(command => !command.name.endsWith('.rest'))
+        .map(command => Effect.runPromise(command.effect)),
+    )
+  const typed = (model: CheckedModel, slug: string) =>
+    Checked.bundle.update(
+      Checked.bundle.update(
+        model,
+        CheckedForm.Message.Changed({ key: 'title', value: 'T' }),
+        undefined,
+      ).model,
+      CheckedForm.Message.Changed({ key: 'slug', value: slug }),
+      undefined,
+    )
+
+  it('is on its way while the check runs, and stopped only once it fails', async () => {
+    const opened = { ...Checked.bundle.init(undefined).model, mode: 'new' as const, entry: 'e2' }
+    for (const [slug, settled] of [
+      ['taken', 'stopped'],
+      ['free', 'idle'],
+    ] as const) {
+      const edited = typed(opened, slug)
+      const asked = Checked.bundle.update(edited.model, Checked.Message.PublishAsked(), undefined)
+      expect(asked.outMessage).toBeUndefined()
+      expect(asked.model.submit).toBe('waiting')
+      // The check answers; the submit that waited goes out, or is stopped.
+      const answered = (await answers(edited)).reduce<Step>(
+        (step, message) => Checked.bundle.update(step.model, message, undefined),
+        asked,
+      )
+      expect(answered.model.submit).toBe(settled)
+      expect(answered.outMessage).toEqual(settled === 'idle' ? { _tag: 'Publish' } : undefined)
+    }
+  })
+})
+
+describe('a saved draft', () => {
+  it('stores the form settled, as it is shown again: nothing in flight', () => {
+    const CheckedForm = Form.make('SavedForm', Entity.input(Post, PostInput), {
+      checks: { slug: () => Effect.never },
+      debounce: 0,
+    })
+    const Saving = Cms.editor('SavingEditor', {
+      content: Cms.content('saving', { ...Posts, form: CheckedForm }),
+      rest: 0,
+    })
+    type SavingRoot = { readonly editor: ReturnType<typeof Saving.bundle.init>['model'] }
+    const sent: Array<{ readonly model: unknown }> = []
+    const data = {
+      get: () => ({ read: () => ({ _tag: 'NotFound' as const }) }),
+      mutation: (): MutationStatus => ({ _tag: 'Unknown' }),
+      mutate: (model: SavingRoot, _mutation: unknown, input: { readonly model: unknown }) => {
+        sent.push(input)
+        return { model, requestId: 'r1', command: { name: 'save', args: {}, effect: Effect.never } }
+      },
+      refresh: (model: SavingRoot) => model,
+      overlay: (model: SavingRoot) => model,
+      lift: (model: SavingRoot) => model,
+      active: (name: string, projectionOf: unknown) => ({
+        name,
+        owner: {},
+        messages: [],
+        projectionOf,
+      }),
+    }
+    const slice = {
+      get: (root: SavingRoot) => root.editor,
+      set: (root: SavingRoot, editor: SavingRoot['editor']) => ({ ...root, editor }),
+    }
+    const placed = Saving.at<SavingRoot>({ data: data as never, model: slice as never })
+    const opened = {
+      ...Saving.bundle.init(undefined).model,
+      mode: 'new' as const,
+      entry: 'e3',
+      filled: true,
+    }
+    // The address is being looked up, and never answers: in flight when it is saved.
+    const typed = Saving.bundle.update(
+      opened,
+      CheckedForm.Message.Changed({ key: 'slug', value: 'looking' }),
+      undefined,
+    ).model
+    expect(CheckedForm.field(typed.form, 'slug')._tag).toBe('Validating')
+    placed.onOut({ _tag: 'Save' })({ editor: typed })
+    const stored = Schema.decodeUnknownSync(CheckedForm.bundle.Model)(sent[0]?.model)
+    expect(CheckedForm.field(stored, 'slug')).toEqual({ _tag: 'NotValidated', value: 'looking' })
   })
 })

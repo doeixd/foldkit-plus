@@ -200,8 +200,8 @@ query page: Ready p1 Apollo; next page: none
 Projection. This one reads a normalized connection as a `Page<ProjectSummary>`.
 
 `Data.prefetch` first resolves the connection, then fetches any entity fields the
-page references but the cache still lacks. `Data.next` returns the next page's
-query reference when one exists.
+page references but the cache still lacks. The read shows at most its `first`
+rows; `Data.more` is the Model with one page more, when there is more.
 
 ### 5. The cache is inspectable
 

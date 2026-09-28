@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
@@ -13,7 +13,11 @@ const Author = Entity.define(
 )
 const Post = Entity.define(
   'Post',
-  Schema.Struct({ id: Schema.String, title: Schema.String.annotate({ title: 'Title' }) }),
+  // A title before a check, which Effect 4 resolves past.
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String.annotate({ title: 'Title' }).check(Schema.isMinLength(1)),
+  }),
 )
 const Blog = Entity.relate({ Author, Post }, { Post: { author: Relation.one(Author) } })
 const Labelled = Blog.Post.pipe(Entity.annotateMembers({ author: Form.label('Written by') }))
@@ -43,7 +47,7 @@ const Data = Remote.make({
 const AuthorList = Authors.at({
   data: Data,
   // Shown while there is a search; `null` means the list is not on screen.
-  input: model => (model.search === null ? undefined : { search: model.search }),
+  input: model => (model.search === null ? Option.none() : Option.some({ search: model.search })),
 })
 
 const names = ['Ada', 'Alan', 'Annie', 'Grace']
@@ -82,7 +86,8 @@ const initial: Model = { remote: Remote.initial, search: null }
 const run = <A>(effect: Effect.Effect<A, unknown, RemoteClient>) =>
   Effect.runPromise(effect.pipe(Effect.provide(Client)))
 /** What Remote's read Subscription does for the active Surface. */
-const load = (model: Model) => run(Data.prefetch(model, AuthorList.active.projectionOf(model)!))
+const load = (model: Model) =>
+  run(Data.prefetch(model, Option.getOrThrow(AuthorList.active.projectionOf(model))))
 const shown = (model: Model) => {
   const page = AuthorList.page(model)
   return page._tag === 'Ready' ? page.value.items.map(row => row.name) : page._tag
@@ -106,9 +111,9 @@ describe('Crud.list', () => {
   })
 
   it('requires nothing, and shows nothing, while it has no input', () => {
-    expect(AuthorList.active.projectionOf(initial)).toBeUndefined()
+    expect(Option.isNone(AuthorList.active.projectionOf(initial))).toBe(true)
     expect(AuthorList.page(initial)).toEqual({ _tag: 'Initial' })
-    expect(AuthorList.more(initial)).toBeUndefined()
+    expect(Option.isNone(AuthorList.more(initial))).toBe(true)
   })
 
   it('reads a page of rows through the Selection, and follows the input', async () => {
@@ -122,14 +127,10 @@ describe('Crud.list', () => {
 
   it('loads the next page onto the first, and has none to load after the last', async () => {
     const first = await load({ ...initial, search: 'a' })
-    const more = AuthorList.more(first)
-    expect(more).toBeDefined()
-
-    const merged = Data.reduce(first, await run(more!.effect))
-    // The new rows are referenced but not read yet; the read entry fetches them.
-    const second = await load(merged)
+    // One page more is asked of the Model; the read entry fetches it.
+    const second = await load(Option.getOrThrow(AuthorList.more(first)))
     expect(shown(second)).toEqual(['Ada', 'Alan', 'Annie'])
-    expect(AuthorList.more(second)).toBeUndefined()
+    expect(Option.isNone(AuthorList.more(second))).toBe(true)
   })
 
   it('offers its loaded rows as a picker choices, read through `choice`', async () => {
@@ -171,7 +172,7 @@ describe('Crud.list', () => {
     expect(options(searched)).toEqual({ authorId: [{ value: 'a1', label: 'Alan' }] })
 
     // Being chosen is a requirement, so Remote reads her.
-    const required = options.active.projectionOf(searched)!
+    const required = Option.getOrThrow(options.active.projectionOf(searched))
     const read = await run(Data.prefetch(searched, required))
     expect(options(read)).toEqual({
       authorId: [
@@ -186,8 +187,10 @@ describe('Crud.list', () => {
 
     // With nothing held there is nothing to require.
     const empty = Crud.options(EditPost, [AuthorList], { chosen: () => EditPost.initial })
-    expect(empty.active.projectionOf(searched)).toBeUndefined()
-    expect(Crud.options(EditPost, [AuthorList]).active.projectionOf(searched)).toBeUndefined()
+    expect(Option.isNone(empty.active.projectionOf(searched))).toBe(true)
+    expect(Option.isNone(Crud.options(EditPost, [AuthorList]).active.projectionOf(searched))).toBe(
+      true,
+    )
   })
 
   it('gathers the requirement of every piece handed over, by the names given', () => {
@@ -218,7 +221,7 @@ describe('Crud.list', () => {
     const Bare = Crud.list('Bare', {
       query: AuthorsQuery,
       selection: Entity.select(Blog.Author, { id: true }),
-    }).at({ data: Data, input: () => ({ search: '' }) })
+    }).at({ data: Data, input: () => Option.some({ search: '' }) })
     expect(() => Bare.choices(initial)).toThrow('give it a "choice"')
     // Caught when the page is wired, not when the picker is first drawn.
     expect(() => Crud.options(EditPost, [Bare])).toThrow(

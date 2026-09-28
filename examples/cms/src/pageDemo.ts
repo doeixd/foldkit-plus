@@ -6,7 +6,7 @@
  * entry. The Builder adds no CMS state: every save, revision and publish is the
  * CMS's, with the page as one form key's value.
  */
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Clock, Effect, Layer, Option, Schema, Stream } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage, type Model as BuilderModel } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
@@ -25,7 +25,6 @@ import {
   Message,
   PageEditor,
   actives,
-  blockReads,
   editing,
   initial,
   pageView,
@@ -37,6 +36,7 @@ import {
 import { PageAgent } from './pageAgent.js'
 import { PageForm, Pages } from './pageDomain.js'
 import { openServer, type Principal } from './server.js'
+import { memorySqlite } from './sqlite-node.js'
 import { PageBuilder, PageEditing, Site, SiteRenderer } from './site.js'
 
 /**
@@ -79,7 +79,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   const say = (line: string) => lines.push(line)
 
   let now = new Date('2026-03-01T09:00:00.000Z')
-  const backend = openServer(() => now)
+  const backend = openServer(() => now, memorySqlite())
 
   const chair = (principal: Principal) => {
     const handlers = RemoteServer.handlers(backend.server, principal)
@@ -99,8 +99,22 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     let model: Model = initial
 
     /** A Command as the runtime runs it: with a Remote client that asks as this chair. */
+    // A clock whose sleeps end at once: the editor's rest before a save is a pause in
+    // someone's typing, and this story has no one typing to wait for.
     const run = (effect: Effect.Effect<Message, never, RemoteClient>): Promise<Message> =>
-      Effect.runPromise(effect.pipe(Effect.provide(client)))
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const clock = yield* Clock.Clock
+          return yield* effect.pipe(
+            Effect.provide(client),
+            // Its other methods are on its prototype, which a spread would drop.
+            Effect.provideService(
+              Clock.Clock,
+              Object.assign(Object.create(clock) as Clock.Clock, { sleep: () => Effect.void }),
+            ),
+          )
+        }),
+      )
     const send = async (message: Message): Promise<void> => {
       const next = update(model, message)
       model = next.model
@@ -116,9 +130,9 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       for (let round = 0; round < 2; round++) {
         for (const active of Object.values(actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }).pipe(
+            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
               Effect.provide(client),
             ),
           )
@@ -148,14 +162,19 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     const build = (message: BuilderMessage) => editor(document.send(message))
     /** Sets a prop of the selected Block, as typing in the inspector does. */
     const set = (prop: string, value: string) => {
-      const selected = builder().selected
-      return selected === null
-        ? Promise.resolve()
-        : build(BuilderMessage.Applied({ op: Composition.Op.setProp(selected, prop, value) }))
+      return Option.match(builder().selected, {
+        onNone: () => Promise.resolve(),
+        onSome: selected =>
+          build(BuilderMessage.Applied({ op: Composition.Op.setProp(selected, prop, value) })),
+      })
     }
     /** The options of the inspector's select for a prop of the selected Block, drawn as the editor draws it. */
     const pickerOf = (prop: string) => {
-      const selected = builder().selected
+      // The inspector's fields are its Block's settings form's: `<Block>Settings-<prop>`.
+      const block = Option.match(builder().selected, {
+        onNone: () => '',
+        onSome: id => builder().page.present.nodes[id]?.block ?? '',
+      })
       const drawn = elements(
         PageEditing(
           { ...builder(), ...builderInputs(model) },
@@ -163,9 +182,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
         ),
       )
       const picker = drawn.find(
-        node =>
-          node.sel === 'select' &&
-          String(node.data?.props?.['id']).endsWith(`-${selected}-${prop}`),
+        node => node.sel === 'select' && node.data?.props?.['id'] === `${block}Settings-${prop}`,
       )
       return elements(picker ?? null)
         .filter(node => node.sel === 'option')
@@ -184,10 +201,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       title: (value: string) => editor(PageForm.Message.Changed({ key: 'title', value })),
       /** Adds a Block where the Builder's palette would, and selects it. */
       add: (block: 'Section' | 'Heading' | 'Button' | 'LatestPages') => {
-        const at = PageBuilder.placeFor(builder().page.present, builder().selected, block)
-        return at === undefined
-          ? Promise.resolve()
-          : build(BuilderMessage.InsertAsked({ block, at }))
+        return Option.match(
+          PageBuilder.placeFor(builder().page.present, builder().selected, block),
+          {
+            onNone: () => Promise.resolve(),
+            onSome: at => build(BuilderMessage.InsertAsked({ block, at })),
+          },
+        )
       },
       set,
       /** What the inspector's picker for a prop of the selected Block offers, as drawn. */
@@ -211,12 +231,17 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       builder,
       /** The Block a link named that has not been selected yet. */
-      waiting: () => model.linked,
+      waiting: () =>
+        Option.getOrElse(
+          Option.flatMap(model.linked, ({ block }) => block),
+          () => 'nothing waits',
+        ),
       /** The Block the Builder has selected, by its kind. */
-      selected: () => {
-        const id = selectedOf(model)
-        return id === null ? 'nothing' : (builder().page.present.nodes[id]?.block ?? id)
-      },
+      selected: () =>
+        Option.match(selectedOf(model), {
+          onNone: () => 'nothing',
+          onSome: id => builder().page.present.nodes[id]?.block ?? id,
+        }),
       build,
       /** One call of the agent's `edit_page` tool: done, or why it was refused. */
       agent: async (op: unknown): Promise<string> => {
@@ -236,20 +261,22 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       idOf: (block: string) =>
         Object.entries(builder().page.present.nodes).find(([, node]) => node.block === block)?.[0],
       /** The page being edited, drawn with what its Query Blocks have read so far. */
-      drawn: () => read(editing(model), blockReads(model)?.read(model)),
+      drawn: () => read(editing(model), actives.blocks.data(model)),
       outline: () => outline(builder().page.present),
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => PageEditor.status(model),
       state: () => {
-        const state = PageEditor.state(model)
-        return state === undefined ? '?' : Display.show(Cms.Display.State.of({}), state)
+        return Option.match(PageEditor.state(model), {
+          onNone: () => '?',
+          onSome: state => Display.show(Cms.Display.State.of({}), state),
+        })
       },
-      resumed: () => PageEditor.resumed(model),
+      resumed: () => Option.getOrElse(PageEditor.resumed(model), () => 'not opened'),
       /** The page as this chair's own site reads it: what a preview is drawn through. */
       page: async (): Promise<string> => {
         const id = PageEditor.pageId(model)
-        if (id === null) return 'no page'
-        const projection = pageView(id)
+        if (Option.isNone(id)) return 'no page'
+        const projection = pageView(id.value)
         const held = projection.read(model)
         if (held._tag !== 'Ready' && held._tag !== 'Refreshing')
           model = await Effect.runPromise(
@@ -402,7 +429,14 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   )
   await linked.send(Message.UrlChanged({ url: gone }))
   say(
-    `a link to a Block the page lacks is let go: ${linked.waiting() ?? 'nothing waits'}; ${linked.selected()} selected`,
+    `a link to a Block the page lacks is let go: ${linked.waiting()}; ${linked.selected()} selected`,
+  )
+  const shown = Option.getOrThrow(
+    fromString('https://cms.example/pages?as=edda&page=page-entry-1&panel=layers&view=narrow'),
+  )
+  await linked.send(Message.UrlChanged({ url: shown }))
+  say(
+    `a link shows the layers, at a phone’s width: ${linked.builder().panel}, ${linked.builder().viewport}`,
   )
 
   say('— an agent edits the page, as a person does —')

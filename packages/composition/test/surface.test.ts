@@ -2,7 +2,7 @@
  * Surface Blocks: a Block shows a Surface's feature with params its props
  * give; the page's Surface Blocks read as one Projection keyed by node.
  */
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -50,22 +50,24 @@ describe('a Surface Block', () => {
   it('reads its Surface for each node, skipping one whose props do not decode', () => {
     const document = page({ a: { name: 'Ada' }, b: { name: 7 } })
     const model: Model = { greeting: 'Hi', page: document }
-    const reads = SurfaceBlock.reads<Model>(Site, document)
-    expect(reads?.read(model)).toEqual({ a: { greeting: 'Hi', to: 'Ada' } })
-    expect(Hello.value(reads?.read(model)['a'])).toEqual({ greeting: 'Hi', to: 'Ada' })
-    expect(Hello.value(undefined)).toBeUndefined()
+    const reads = Option.getOrThrow(SurfaceBlock.reads<Model>(Site, document))
+    expect(reads.read(model)).toEqual({ a: { greeting: 'Hi', to: 'Ada' } })
+    expect(Hello.value(reads.read(model)['a'])).toEqual(Option.some({ greeting: 'Hi', to: 'Ada' }))
+    expect(Hello.value(undefined)).toEqual(Option.none())
   })
 
   it('is active while there is a page with one, may send what its Surfaces list, once per page', () => {
-    const active = SurfaceBlock.active('Features', App.owner, Site, (model: Model) => model.page)
+    const active = SurfaceBlock.active('Features', App.owner, Site, (model: Model) =>
+      Option.some(model.page),
+    )
     expect(active.owner).toBe(App.owner)
     expect(active.messages).toEqual(['Noted'])
-    expect(active.projectionOf({ greeting: 'Hi', page: page({}) })).toBeUndefined()
+    expect(Option.isNone(active.projectionOf({ greeting: 'Hi', page: page({}) }))).toBe(true)
     const document = page({ a: { name: 'Ada' } })
     const first = active.projectionOf({ greeting: 'Hi', page: document })
-    expect(first?.read({ greeting: 'Hi', page: document })).toEqual({
-      a: { greeting: 'Hi', to: 'Ada' },
-    })
+    expect(Option.map(first, read => read.read({ greeting: 'Hi', page: document }))).toEqual(
+      Option.some({ a: { greeting: 'Hi', to: 'Ada' } }),
+    )
     // Another Model with the same page reads through the same Projection.
     expect(active.projectionOf({ greeting: 'Hello', page: document })).toBe(first)
   })
@@ -80,7 +82,7 @@ describe('a Surface Block', () => {
     })
     const Mixed = Catalog.make({ blocks: [Section, Stranger], roots: [Content.Section] })
     expect(() =>
-      SurfaceBlock.active('Features', App.owner, Mixed, (model: Model) => model.page),
+      SurfaceBlock.active('Features', App.owner, Mixed, (model: Model) => Option.some(model.page)),
     ).toThrow('"Elsewhere" belongs to another application than "Features"')
   })
 })

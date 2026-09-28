@@ -36,6 +36,25 @@ describe('SSR.page', () => {
   })
 })
 
+describe('SSR.page with a head', () => {
+  it('puts what `head` returns before </head>, given what was rendered', async () => {
+    const result = await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' }))
+    const page = SSR.page(template, result, {
+      head: rendered => `<style id="used">${rendered.html.length}</style>`,
+    })
+    expect(page).toMatch(/<style id="used">\d+<\/style><\/head>/)
+  })
+
+  it('refuses a template with no </head> only when there is a head to put in it', async () => {
+    const result = await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' }))
+    const headless = template.replace('</head>', '')
+    expect(() => SSR.page(headless, result, { head: () => '<style></style>' })).toThrow(
+      'the template has no </head> to put the head in',
+    )
+    expect(SSR.page(headless, result, { head: () => '' })).toBe(SSR.page(headless, result))
+  })
+})
+
 describe('SSR.entry', () => {
   it('refuses a template with no </body> when it is made, not per request', () => {
     expect(() =>

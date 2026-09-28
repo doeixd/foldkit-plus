@@ -21,7 +21,7 @@ import {
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
-import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
+import { Transitions, offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { editorView, makeEditor } from './editor.js'
 import { addressFree, slugTaken } from './slug.js'
 import { Display } from 'foldkit-crud'
@@ -113,8 +113,12 @@ const Entry = Entity.define(
     revision: Schema.NullOr(Schema.Number),
   }),
 ).pipe(
-  // Derived by the server, with its clock, so a list can show and filter by it.
-  Entity.derived({ state: Derived.make(StateSchema) }),
+  // Derived by the server, with its clock, so a list can show and filter by it;
+  // `may` is what the principal reading it may do now, by the server's `allow`.
+  Entity.derived({
+    state: Derived.make(StateSchema),
+    may: Derived.make(Schema.Array(Transitions)),
+  }),
   // How a list or a detail shows them, with nothing said where it is declared.
   Entity.annotateMembers({
     // An entry's id is how it is opened, not something to read in a list.
@@ -424,6 +428,8 @@ export const Cms = {
 
   /** The state of an entry, from what is known of it and a clock. */
   state: (facts: Facts, now: Date): State => state(facts, now),
+  /** Every transition an author may ask, in order: what `allow` is asked about. */
+  transitions: Transitions.literals,
   /** The transitions an entry offers now, before anyone asks who is asking. */
   offers: (
     facts: Facts,

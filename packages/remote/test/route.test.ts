@@ -95,7 +95,7 @@ const OwnerPage = App.surface('OwnerPage', {
 
 /** Params when the route is an owner's, and inactivity otherwise. */
 const active = Surface.at(OwnerPage, (model: Model) =>
-  model.route._tag === 'Owner' ? { ownerId: model.route.ownerId } : undefined,
+  model.route._tag === 'Owner' ? Option.some({ ownerId: model.route.ownerId }) : Option.none(),
 )
 
 const at = (path: string): Model => ({ route: routeOf(path), remote: Remote.initial })

@@ -88,6 +88,7 @@ const PostRow = Entity.select(Blog.Post, {
 
 PostRow.schema   // Struct: title, commentCount, author {id,name}, editor {..} | null, comments EntityRef[]
 PostRow.members  // what was selected, for an interpreter to walk
+type Row = Selected<typeof PostRow> // the value it reads (import type { Selected } from 'foldkit-entity')
 ```
 
 **Read an operation's input against an Entity** (experimental). The operation
@@ -298,6 +299,9 @@ Query.dependencies(recent)     // every predicate and ordering term at once
 - There is no "one-to-many" vocabulary: `Relation.one` on one side and
   `Relation.many` on the other is that relationship.
 - IDs are untyped and no field is marked as the identifier yet.
+- A schema's label and help text are `Words.of(schema)` (`title`, `description`, each an
+  `Option`). Never `Schema.resolveAnnotations(schema)?.title`: under Effect 4 a checked
+  schema resolves to its last check's annotations, so a title given before a check is lost.
 - An `Expr.input(...)` is a **placeholder**, not the value. A query body is
   built once, so `input.archived ? a : b` over one is always truthy and decides
   itself forever. Ask with a comparison over the placeholder, never a branch

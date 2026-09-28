@@ -142,6 +142,8 @@ const WithCompletion = DeleteAgent.make({
         success: Messages2.DeletedTodo,
         failure: Messages2.FailedDeleteTodo,
         correlate: (request, result) => request.id === result.id, // needed if calls can overlap
+        // Where the input cannot tell calls apart, carry invocation.id to the fact:
+        // correlate: (_, result, { invocation }) => result.requestId === invocation.id
         timeout: '10 seconds', // default 30s, measured from host.dispatch
       },
     }),

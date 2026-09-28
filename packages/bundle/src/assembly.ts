@@ -96,14 +96,18 @@ export interface Assembly<
   Services = never,
 > {
   readonly placements: Ps
-  /** The update of the placement or wiring a Message belongs to; `None` for the parent's own Messages. */
+  /**
+   * The update of the placement or wiring a Message belongs to; `None` for the
+   * parent's own Messages. A shared tag is every sharing wiring's, folded in order.
+   */
   readonly route: (
     model: Model,
     message: Message,
   ) => Option.Option<Update.Return<Model, Message, RequirementsOf<Ps[number]>>>
   /**
    * The parent's update: a placement's or wiring's Message goes there, and every
-   * other Message to `own`. Without `own`, other Messages leave the Model unchanged.
+   * other Message to `own`. A shared tag goes to each wiring sharing it and then
+   * to `own` as well. Without `own`, other Messages leave the Model unchanged.
    */
   // Deliberately not generic: a generic call written inline in `complete`'s config
   // stops TypeScript inferring that config, so the parent's services are stated once
@@ -168,7 +172,10 @@ type CompletenessChecks<Config, Message, Ps extends ReadonlyArray<unknown>> = (C
   ? [Message] extends [Accepted]
     ? unknown
     : {
-        readonly update: Invalid<"update does not accept every placement's Messages; spread each Link.wrapper(...).cases into the parent Message">
+        // A callback with an unannotated parameter written inline in the config keeps
+        // TypeScript from inferring the config at all, so it falls back to the
+        // constraint and this check fails first, whatever `update` accepts.
+        readonly update: Invalid<"update does not accept every placement's Messages; spread each Link.wrapper(...).cases into the parent Message. If it does, annotate the parameters of the callbacks written inline in this config (init's and routing's url): unannotated, they keep TypeScript from inferring it">
       }
   : unknown) &
   (Config extends { readonly subscriptions: { readonly [Wired]: true } }
@@ -261,6 +268,8 @@ export const assemble =
     // wiring that declares the tag shared and routes only its own values. A
     // placement takes every Message of its wrapper, so it never shares.
     const claims = new Map<string, { readonly owner: string; readonly shares: boolean }>()
+    // Wirings in list order, by each tag they share.
+    const sharers = new Map<string, Array<AnyWiring>>()
     const claim = (tag: string, owner: string, shares: boolean) => {
       const other = claims.get(tag)
       if (other !== undefined && !(other.shares && shares)) {
@@ -276,6 +285,11 @@ export const assemble =
     for (const wiring of wirings) {
       const shared = new Set(wiring.shared ?? [])
       for (const tag of wiring.handles) claim(tag, wiring.key, shared.has(tag))
+      for (const tag of shared) {
+        const observers = sharers.get(tag)
+        if (observers === undefined) sharers.set(tag, [wiring])
+        else observers.push(wiring)
+      }
     }
 
     const resourceUsers = [
@@ -296,8 +310,24 @@ export const assemble =
       ),
       ...wirings,
     ]
+    // A shared tag is observed, not claimed: the first claimant must not keep it
+    // from the others, so each folds it in turn.
+    const shared = (message: Message) =>
+      Option.map(Option.fromUndefinedOr(sharers.get(message._tag)), observers =>
+        Update.combine(
+          observers.map(
+            wiring => (model: Model) =>
+              Option.getOrElse(wiring.route?.(model, message) ?? Option.none(), () => ({ model })),
+          ),
+        ),
+      )
     // Each item's own types were checked where it was built; the list holds them erased.
     const route = (model: Model, message: Message) =>
+      Option.match(shared(message), {
+        onSome: fold => Option.some(fold(model)),
+        onNone: () => routeClaimed(model, message),
+      }) as Option.Option<Update.Return<Model, Message, RequirementsOf<Ps[number]>>>
+    const routeClaimed = (model: Model, message: Message) =>
       pipe(
         byMessageDepth,
         Array.findFirst(item =>
@@ -320,10 +350,13 @@ export const assemble =
       placements: items,
       route,
       update: ((own?: (model: Model, message: Message) => Update.Return<Model, Message, unknown>) =>
-        (model: Model, message: Message) =>
-          Option.getOrElse(route(model, message), () =>
-            own === undefined ? { model } : own(model, message),
-          )) as Assembly<Model, Message, Ps, Services>['update'],
+        (model: Model, message: Message) => {
+          const rest = (next: Model) => (own === undefined ? { model: next } : own(next, message))
+          return Option.match(shared(message), {
+            onSome: fold => Update.combine(model, [fold, rest]),
+            onNone: () => Option.getOrElse(routeClaimed(model, message), () => rest(model)),
+          })
+        }) as Assembly<Model, Message, Ps, Services>['update'],
       init,
       initial: rest => {
         // Collections at a top-level field start as their Link's empty storage. A

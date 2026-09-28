@@ -19,6 +19,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
 import { Behavior, Capability, type SlotItem } from 'foldkit-mixins'
+import { FollowTabStop } from '../dom/follow-tab-stop.js'
 import { idSelector } from './roving-tabindex.js'
 import { perInput } from '../internal.js'
 
@@ -214,7 +215,8 @@ interface Prepared {
 /**
  * Wires a placed `TreeNavigation` to the slots. The container's keys move focus
  * to the row they pick, or open or close the current row with focus left where
- * it is. Each showing row gets its id, `role="treeitem"`, `aria-level`,
+ * it is. Each showing row gets its id, `role="treeitem"`, `aria-level` (and
+ * the same level as `--fk-tree-level`, so one `calc` indents any depth),
  * `aria-posinset`, `aria-setsize`, `aria-expanded` when it has children,
  * `aria-disabled` when disabled, a roving `tabindex`, and `OnFocus` reporting
  * it current. Every handled key is default-prevented.
@@ -246,6 +248,8 @@ export const behavior =
       {
         [options.container]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          // Focus in the tree stays on its stop when an edit elsewhere moves or removes it.
+          mount: () => FollowTabStop(),
           attributes: ({
             input,
             h,
@@ -293,6 +297,7 @@ export const behavior =
               h.Id(domId(row.id)),
               h.Role('treeitem'),
               h.AriaLevel(row.level),
+              h.Style({ '--fk-tree-level': String(row.level) }),
               h.AriaPosinset(row.position),
               h.AriaSetsize(row.siblings),
               ...(row.branch ? [h.AriaExpanded(isOpen(model, args, row.id))] : []),

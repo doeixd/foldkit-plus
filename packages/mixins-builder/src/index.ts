@@ -14,60 +14,218 @@
  * a node), and the Builder's `keyCommand` shortcuts on the layers panel.
  */
 import { Option, Schema } from 'effect'
-import { Layers, Message, layersArgs, type ContextValue, type Model } from 'foldkit-builder'
+import {
+  Layers,
+  controlOf,
+  inputOf,
+  Message,
+  layersArgs,
+  type ContextValue,
+  type BuilderCommand,
+  type CommandKey,
+  type DragSource,
+  type DropZone,
+  type InspectedForm,
+  type Inspecting,
+  type Model,
+  type Settings,
+} from 'foldkit-builder'
 import {
   Catalog,
   Composition,
   NodeId,
   fieldsOf,
-  type AnyBlock,
+  spaced,
   type Document,
   type Position,
 } from 'foldkit-composition'
-import { NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
+import {
+  FIELD_ATTRIBUTE,
+  MARK_ATTRIBUTE,
+  NODE_ATTRIBUTE,
+  PAGE_CONTAINER,
+  Renderer,
+} from 'foldkit-composition/foldkit'
 import { Entity } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
-import { Metadata } from 'foldkit-metadata'
-import { Behavior, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
-import { History } from 'foldkit-primitives/state'
+import {
+  Behavior,
+  Capability,
+  Layers as StyleLayers,
+  type Placement,
+  Slot,
+  Slots,
+  SlotView,
+  Style,
+} from 'foldkit-mixins'
+import { FormView, type FormViewInputs, type Renderers } from 'foldkit-mixins-form'
+import { KeepInView, Measure, measured } from 'foldkit-primitives/dom'
+import {
+  EditableText,
+  LiveAnnounce,
+  PointerDrag,
+  Targets,
+  TreeNavigation,
+} from 'foldkit-primitives/interaction'
 import type { KeyboardModifiers } from 'foldkit/html'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import { createLazy, inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
+import { builderWords, say, wordsOf, type BuilderWords } from './words.js'
+
+export { builderWords, type BuilderWords } from './words.js'
 
 /** The Builder's public customization contract: every element the editor draws. */
 export const BuilderSlots = Slots.define({
+  /** The editor: the container `builder`, so a Style may follow the editor's own width. */
   root: Slot.make({ capability: Capability.Container }),
-  /** The Blocks a page may gain, one button each. */
+  /**
+   * The default layout's four regions, and what holds them, which a stylist
+   * lays out rather than each panel: `start` holds the palette and the layers,
+   * `bar` the toolbar, the crumbs, the viewports and the preview, `stage` the
+   * alert and the canvas, and `end` the inspector. Inside `root`, so their
+   * layout may change with `@container builder (…)`. A layout of your own
+   * draws none of them.
+   */
+  regions: Slot.make({ capability: Capability.Container }),
+  start: Slot.make({ capability: Capability.Container }),
+  bar: Slot.make({ capability: Capability.Container }),
+  stage: Slot.make({ capability: Capability.Container }),
+  end: Slot.make({ capability: Capability.Container }),
+  /**
+   * A group of three pressed-state buttons, one per panel, Add, Layers and Settings, for a
+   * narrow layout that shows one at a time (`BuilderView.narrow`); hidden
+   * otherwise. One `panelTab` each, with `data-panel`.
+   */
+  panelTabs: Slot.make({ capability: Capability.Container }),
+  panelTab: Slot.make({ capability: Capability.Interactive }),
+  /** The Blocks a page may gain, in groups, one button each. */
   palette: Slot.make({ capability: Capability.Container }),
+  /** One group of the palette, and its heading, drawn when there is more than one. */
+  paletteGroup: Slot.make({ capability: Capability.Container }),
+  paletteHeading: Slot.make({ capability: Capability.Base }),
+  /** A Block to add: its label, and the line describing it. Carries `data-block`. */
   paletteItem: Slot.make({ capability: Capability.Interactive }),
+  paletteLabel: Slot.make({ capability: Capability.Base }),
+  paletteHint: Slot.make({ capability: Capability.Base }),
   /** The layers panel: it takes the editor's keyboard shortcuts. */
   layers: Slot.make({ capability: Capability.Interactive }),
-  /** The `role="tree"` element, and one `treeitem` row per node showing. */
+  /** The `role="tree"` element, and one `treeitem` row per node showing. Rows carry `data-block`. */
   tree: Slot.make({ capability: Capability.Container }),
   row: Slot.make({ capability: Capability.Focusable }),
-  /** Move, duplicate and delete for the selected node. */
+  /** On a row that holds others: opens or closes it, as Right and Left do. */
+  rowToggle: Slot.make({ capability: Capability.Interactive }),
+  /** A row's Block, and what its node says, in brief. */
+  rowLabel: Slot.make({ capability: Capability.Base }),
+  rowSummary: Slot.make({ capability: Capability.Base }),
+  /** Move, duplicate and delete for the selected node, in the inspector's head. Each carries `data-action`. */
   actions: Slot.make({ capability: Capability.Container }),
   action: Slot.make({ capability: Capability.Interactive }),
-  /** The selected node's props, one field each. */
+  /** The selected node's settings, or, with nothing selected, how to begin and the shortcuts. */
   inspector: Slot.make({ capability: Capability.Container }),
+  /** The selected node's Block: its label, what it is for, and its actions. */
+  inspectorHead: Slot.make({ capability: Capability.Container }),
+  inspectorTitle: Slot.make({ capability: Capability.Base }),
+  inspectorHint: Slot.make({ capability: Capability.Base }),
+  /** One part of the settings, such as Content or Style, and its heading. */
+  inspectorSection: Slot.make({ capability: Capability.Container }),
+  inspectorSectionTitle: Slot.make({ capability: Capability.Base }),
   field: Slot.make({ capability: Capability.Container }),
+  /** A field's name: a `label`, or a `span` naming a group of controls. */
+  label: Slot.make({ capability: Capability.Base }),
   control: Slot.make({ capability: Capability.Interactive }),
-  history: Slot.make({ capability: Capability.Container }),
-  undo: Slot.make({ capability: Capability.Interactive }),
-  redo: Slot.make({ capability: Capability.Interactive }),
+  /** One choice of a many-choice picker: its checkbox and its words. */
+  option: Slot.make({ capability: Capability.Base }),
+  /** One choice of a `select`. */
+  selectOption: Slot.make({ capability: Capability.Base }),
+  /** A look's few values as buttons, one pressed: drawn in place of a select. */
+  choices: Slot.make({ capability: Capability.Container }),
+  choice: Slot.make({ capability: Capability.Interactive }),
+  /** The editor's shortcuts, as a list of keys and what they do. */
+  shortcuts: Slot.make({ capability: Capability.Container }),
+  shortcutKeys: Slot.make({ capability: Capability.Base }),
+  shortcutWhat: Slot.make({ capability: Capability.Base }),
+  /** The commands offered in the toolbar, undo and redo by default. One `toolbarAction` each, with `data-action`. */
+  toolbar: Slot.make({ capability: Capability.Container }),
+  toolbarAction: Slot.make({ capability: Capability.Interactive }),
+  /** Where the selection is: the page, then each node holding it, then it. One `crumb` button each. */
+  crumbs: Slot.make({ capability: Capability.Container }),
+  crumb: Slot.make({ capability: Capability.Interactive }),
   viewports: Slot.make({ capability: Capability.Container }),
   viewport: Slot.make({ capability: Capability.Interactive }),
   /** What the page is previewed as: one field per key of the Catalog's context. */
   preview: Slot.make({ capability: Capability.Container }),
   /** Why the last edit was refused. */
   alert: Slot.make({ capability: Capability.Base }),
-  /** The page in edit mode, and the frame that sets its width. */
+  /** The page in edit mode, and the frame that sets its width. It takes the shortcuts when focused. */
   canvas: Slot.make({ capability: Capability.Container }),
   frame: Slot.make({ capability: Capability.Container }),
+  /** In the frame while the page holds nothing: how to begin. */
+  empty: Slot.make({ capability: Capability.Base }),
+  /**
+   * Over the selected node on the canvas, placed from where it is measured to
+   * be, with its Block's label; drawn over the page, so the page's own
+   * markup needs no mark to show it.
+   */
+  selectionBox: Slot.make({ capability: Capability.Container }),
+  selectionLabel: Slot.make({ capability: Capability.Base }),
+  /** Over the node under the pointer, as the selection's box is placed. */
+  hoverBox: Slot.make({ capability: Capability.Base }),
   /** The live region the Builder's announcements are read from. */
   live: Slot.make({ capability: Capability.Base }),
 })
+
+/** A box over a measured node: where `Measure` found it, and nothing to the pointer. */
+const boxOver = (name: string) => {
+  const at = measured(name)
+  return Style.self({
+    position: 'absolute',
+    insetInlineStart: `var(${at.x})`,
+    insetBlockStart: `var(${at.y})`,
+    width: `var(${at.w})`,
+    height: `var(${at.h})`,
+    display: `var(${at.display}, none)`,
+    boxSizing: 'border-box',
+    pointerEvents: 'none',
+  })
+}
+
+/**
+ * What the drawn Builder needs to work unstyled: the root a container, the frame
+ * as wide as the viewport, centred, the boxes over the canvas, the narrow tabs
+ * hidden. In `components`, so an application's style overrides it.
+ */
+const FrameDefaults = Style.forSlots(BuilderSlots)(
+  {
+    // The page's container, so a look measures the frame it is previewed in, not the window.
+    frame: Style.self({
+      maxWidth: 'var(--fk-frame-width)',
+      marginInline: 'auto',
+      containerType: 'inline-size',
+      containerName: PAGE_CONTAINER,
+    }),
+    // What the boxes are placed in: the canvas, measured from its scroll box.
+    canvas: Style.self({ position: 'relative' }),
+    selectionBox: boxOver('selected'),
+    selectionLabel: Style.self({
+      position: 'absolute',
+      insetBlockEnd: '100%',
+      insetInlineStart: '0',
+    }),
+    hoverBox: boxOver('hovered'),
+    // A container, so what it holds may be laid out by the editor's width, not the window's.
+    root: Style.self({ containerType: 'inline-size', containerName: 'builder' }),
+    // Shown only by a narrow layout, which shows one panel at a time.
+    panelTabs: Style.self({ display: 'none' }),
+  },
+  { name: 'BuilderDefaults', layer: StyleLayers.standard.layer('components') },
+)
+
+/** The panels a narrow layout shows one at a time, by the Builder's `panel`, and their tabs' words. */
+const PANELS = [
+  ['insert', 'addPanel'],
+  ['layers', 'layersPanel'],
+  ['properties', 'settingsPanel'],
+] as const
 
 /** The width each viewport draws the page at. */
 export const viewportWidths = { wide: '100%', medium: '768px', narrow: '375px' } as const
@@ -79,14 +237,29 @@ export interface BuilderLike {
   // `any`: a Renderer's entries are keyed by its own Blocks, so no one Blocks type fits every Builder's.
   readonly renderer: Renderer<any, never>
   readonly offered: ReadonlyArray<string>
-  readonly document: (model: Model) => Document
+  readonly document: (model: Pick<Model, 'page'>) => Document
   // Method syntax: a Builder whose Blocks are named narrower still fits.
-  placeFor(document: Document, selected: NodeId | null, block: string): Position | undefined
+  placeFor(
+    document: Document,
+    selected: Option.Option<NodeId>,
+    block: string,
+  ): Option.Option<Position>
+  /** Where a pattern goes, as `placeFor` places its root's Block. */
+  readonly patternAt: (
+    document: Document,
+    selected: Option.Option<NodeId>,
+    pattern: string,
+  ) => Option.Option<Position>
+  /** What a key, a node's action and the toolbar run. */
+  readonly commands: ReadonlyArray<BuilderCommand>
+  readonly inspecting: (
+    model: Pick<Model, 'page' | 'selected' | 'inspector'>,
+  ) => Option.Option<Inspecting>
   readonly keyCommand: (
-    model: Model,
+    model: Pick<Model, 'page' | 'selected' | 'editing'>,
     key: string,
     modifiers: KeyboardModifiers,
-  ) => Message | undefined
+  ) => Option.Option<Message>
 }
 
 /** Every node as a tree row, in document order, with its parent node and whether it holds any. */
@@ -118,28 +291,45 @@ export const ROW_DROP_ATTRIBUTE = 'builder-drop'
 /** On the row being dragged. */
 export const ROW_DRAGGING_ATTRIBUTE = 'builder-dragging'
 
-/** The Builder's Message for what a drag reports. */
-const dragMessage = (fact: PointerDrag.DragFact): Message => {
-  switch (fact._tag) {
-    case 'DragStarted':
-      return Message.DragStarted({ id: NodeId.make(fact.id) })
-    case 'DraggedOver':
-      return Message.DraggedOver({
-        over: fact.over === null ? null : { id: NodeId.make(fact.over.id), zone: fact.over.zone },
-      })
-    case 'DragDropped':
-      return Message.DragDropped()
-    case 'DragCancelled':
-      return Message.DragCancelled()
+/**
+ * A drag's facts as the Builder's Messages; `source` says what the dragged
+ * element is: a node's own id, or a palette tile's Block.
+ */
+const dragMessage =
+  (source: (id: string) => DragSource) =>
+  (fact: PointerDrag.DragFact): Message => {
+    switch (fact._tag) {
+      case 'DragStarted':
+        return Message.DragStarted({ source: source(fact.id) })
+      case 'DraggedOver':
+        // The DOM's fact says "over nothing" with `null`, over the page's own space
+        // with `region` too; the Builder has a Message for each.
+        return fact.over !== null
+          ? Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
+          : fact.region === true
+            ? Message.DraggedOverPage()
+            : Message.DraggedOff()
+      case 'DragDropped':
+        return Message.DragDropped()
+      case 'DragCancelled':
+        return Message.DragCancelled()
+    }
   }
-}
+/** A row or a node dragged: a node on the page. */
+const nodeDrag = dragMessage(id => ({ _tag: 'Existing', id: NodeId.make(id) }))
+/** A palette tile dragged: a new node of its Block. */
+const tileDrag = dragMessage(block => ({ _tag: 'New', block }))
 
 /** The DOM id a layer row carries, so keyboard focus can find it. */
 export const layerId = (builder: { readonly name: string }, id: string): string =>
   `${builder.name}-layer-${id}`
 
-const asNodeId = (id: string | null): NodeId | null =>
-  id === null || id === '' ? null : NodeId.make(id)
+/** A node id the DOM reported, where `null` or an empty id is none. */
+const asNodeId = (id: string | null): Option.Option<NodeId> =>
+  Option.map(
+    Option.filter(Option.fromNullOr(id), found => found !== ''),
+    NodeId.make,
+  )
 
 /** A stored appearance that is a record of choices, as opposed to a list or a scalar. */
 const isChoices = (
@@ -147,18 +337,18 @@ const isChoices = (
 ): value is { readonly [axis: string]: Schema.Json } =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** What a context key's control reads as a value: blank is unset, a toggle's text a boolean. */
-const contextValue = (control: Control | undefined, raw: string): ContextValue => {
-  if (raw === '') return null
-  if (control !== undefined && Input.Toggle.is(control)) return raw === 'true'
+/** What a context key's control reads as a value: blank is none, a toggle's text a boolean. */
+const contextValue = (control: Control | undefined, raw: string): Option.Option<ContextValue> => {
+  if (raw === '') return Option.none()
+  if (control !== undefined && Input.Toggle.is(control)) return Option.some(raw === 'true')
   if (
     control !== undefined &&
     Input.Number.is(control) &&
     raw.trim() !== '' &&
     Number.isFinite(Number(raw))
   )
-    return Number(raw)
-  return raw
+    return Option.some(Number(raw))
+  return Option.some(raw)
 }
 
 /** Choices named by themselves. */
@@ -172,20 +362,29 @@ const named = (values: ReadonlyArray<string>): ReadonlyArray<BuilderOption> =>
  */
 const optionsOf = <Message>(
   h: HtmlBuilder<Message>,
-  blank: string | undefined,
-  choices: ReadonlyArray<BuilderOption>,
-  current: string | undefined,
+  option: SlotView.SlotBuilder<Message>,
+  select: {
+    /** What the blank choice reads as; with none, a blank only while nothing is chosen. */
+    readonly blank?: string | undefined
+    readonly choices: ReadonlyArray<BuilderOption>
+    readonly current?: string | undefined
+  },
 ): ReadonlyArray<Html> => {
+  const { blank, choices, current } = select
   const empty = current === undefined || current === ''
   const stray = !empty && !choices.some(choice => choice.value === current)
   return [
     ...(blank !== undefined || empty
-      ? [h.option([h.Value(''), h.Selected(empty)], [blank ?? ''])]
+      ? [h.option(option.attrs([h.Value(''), h.Selected(empty)]), [blank ?? ''])]
       : []),
     ...choices.map(choice =>
-      h.option([h.Value(choice.value), h.Selected(current === choice.value)], [choice.label]),
+      h.option(option.attrs([h.Value(choice.value), h.Selected(current === choice.value)]), [
+        choice.label,
+      ]),
     ),
-    ...(stray ? [h.option([h.Value(current), h.Selected(true)], [`? ${current}`])] : []),
+    ...(stray
+      ? [h.option(option.attrs([h.Value(current), h.Selected(true)]), [`? ${current}`])]
+      : []),
   ]
 }
 
@@ -194,60 +393,74 @@ const contextChoices = (control: Control | undefined): ReadonlyArray<string> | u
   control === undefined
     ? undefined
     : Input.Select.is(control)
-      ? control.data.options
+      ? control.data.options.map(String)
       : Input.Toggle.is(control)
         ? ['true', 'false']
         : undefined
 
-/**
- * An action's input to start from: an empty value for each field the inspector
- * can draw, the first choice of a select. What still does not check is refused
- * as any edit is, and the alert says why.
- */
-const seedOf = (input: Schema.Top): { readonly [key: string]: Schema.Json } =>
-  Object.fromEntries(
-    Object.entries(fieldsOf(input)).flatMap(
-      ([key, schema]): ReadonlyArray<[string, Schema.Json]> => {
-        const control = Input.resolve(Entity.unmapped, schema)
-        if (control === undefined) return []
-        if (Input.Toggle.is(control)) return [[key, false]]
-        if (Input.Number.is(control)) return [[key, 0]]
-        if (Input.Select.is(control)) {
-          const [first] = control.data.options
-          return first === undefined ? [] : [[key, first]]
-        }
-        return Input.Text.is(control) || Input.Multiline.is(control) ? [[key, '']] : []
-      },
-    ),
-  )
+/** The longest summary a layer row shows before it is cut short. */
+const SUMMARY_LENGTH = 40
 
-const controlsKey = Metadata.key<Readonly<Record<string, Control>>>(
-  'foldkit-mixins-builder/controls',
-  {
-    // One record per Block: a later annotation's prop replaces an earlier one's.
-    merge: records => [Object.assign({}, ...records)],
-    summarize: record =>
-      Object.entries(record)
-        .map(([key, control]) => `${key}: ${control.kind}`)
-        .join(', '),
-  },
-)
+/** The most values a look offers as buttons; one with more is a select. */
+const CHOICES_SHOWN = 4
 
-/** The control a Block asked for its prop, else the one its Schema resolves to. */
-const controlFor = (block: AnyBlock, key: string, schema: Schema.Top): Control | undefined =>
-  controlsKey.get(block.metadata)[0]?.[key] ?? Input.resolve(Entity.unmapped, schema)
+/** The keys the tree's own keyboard takes, beside the commands: they move focus, not the page. */
+const TREE_KEYS: ReadonlyArray<readonly [keys: string, what: 'treeUpDown' | 'treeLeftRight']> = [
+  ['↑ ↓', 'treeUpDown'],
+  ['← →', 'treeLeftRight'],
+]
 
-/** A prop's label: its Schema's `title`, else its key. */
-const labelFor = (key: string, schema: Schema.Top): string => {
-  const title = Schema.resolveAnnotations(schema)?.title
-  return typeof title === 'string' ? title : key
+/** How a key is named on screen. */
+const keyNames: Readonly<Record<string, string>> = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
 }
+
+/**
+ * A command's key as a person on `platform` reads it, in its own order: `⌥⇧⌘Z`
+ * on a Mac, where `mod` is ⌘, and `Ctrl+Alt+Shift+Z` elsewhere, the modifiers
+ * named by `words`.
+ */
+export const keysOf = (
+  key: CommandKey,
+  platform: Platform = 'other',
+  words: Pick<BuilderWords, 'keyNames' | 'ctrlKey' | 'altKey' | 'shiftKey'> = builderWords,
+): string => {
+  // A key is the caller's text: each table is read for an own entry only, never `Object`'s.
+  const own = (table: Readonly<Record<string, string>>) =>
+    Object.hasOwn(table, key.key) ? Option.fromUndefinedOr(table[key.key]) : Option.none()
+  const name = Option.getOrElse(
+    Option.orElse(own(keyNames), () => own(words.keyNames)),
+    () => (key.key.length === 1 ? key.key.toUpperCase() : key.key),
+  )
+  const held = (
+    words: { mod: string; alt: string; shift: string },
+    order: ReadonlyArray<'mod' | 'alt' | 'shift'>,
+  ) => order.flatMap(modifier => (key[modifier] === true ? [words[modifier]] : []))
+  return platform === 'mac'
+    ? [...held({ mod: '⌘', alt: '⌥', shift: '⇧' }, ['alt', 'shift', 'mod']), name].join('')
+    : [
+        ...held({ mod: words.ctrlKey, alt: words.altKey, shift: words.shiftKey }, [
+          'mod',
+          'alt',
+          'shift',
+        ]),
+        name,
+      ].join('+')
+}
+
+/** The platform keys are named for: a Mac's, or any other's. */
+export type Platform = 'mac' | 'other'
 
 /**
  * What the drawn Builder is given beside its Model, by the page's parent: the
  * application's, never the Builder's to keep.
  */
 export interface BuilderViewInputs {
+  /** The platform the author is on, so keys are named as theirs are (⌘ on a Mac). Default: `other`. */
+  readonly platform?: Platform | undefined
   /**
    * Each node's read, by node id, as a published page is drawn with it: the
    * page's Query and Surface Blocks' values, so the canvas shows their rows.
@@ -258,6 +471,8 @@ export interface BuilderViewInputs {
    * application loaded for it, as a form's `options` are.
    */
   readonly options?: Readonly<Record<string, ReadonlyArray<BuilderOption>>> | undefined
+  /** The editor's words, over the English ones (`builderWords`). */
+  readonly words?: Partial<BuilderWords> | undefined
 }
 
 /** One choice of a relation picker: what is stored, and what is shown. */
@@ -269,18 +484,87 @@ export interface BuilderOption {
 /** What the drawn Builder's Slots and Behaviors read: its Model and its inputs. */
 export type BuilderInput = Model & BuilderViewInputs
 
+// Whether a runtime render is under way, which `h.submodel` needs. Foldkit offers
+// no way to ask; a lazy slot reads the current frame before anything else and
+// throws without one. Any other throw, such as a slot drawn twice, is left to surface.
+const probe = createLazy()
+const nothing = () => null
+const inRender = (): boolean => {
+  try {
+    probe(nothing, [])
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * How the inspector's settings forms look: Styles attached to every Block's
+ * settings form, as to any form's `FormView.field(form)` and `FormView.define`.
+ */
+export interface SettingsLook {
+  /** Attached to each settings form's fields: `FieldSlots`. */
+  readonly field?: SlotView.SlotViewTransform
+  /** Attached to each settings form around its fields: `FormSlots`. */
+  readonly form?: SlotView.SlotViewTransform
+  /**
+   * Renderers for control kinds of the application's own, beside the shipped
+   * ones, as a form view takes them. A function of the Message, since each
+   * Block's settings form has Messages of its own: `Cms.controlRenderers`.
+   */
+  readonly renderers?: <Message>() => Renderers<Message>
+}
+
+/** A Block's settings form, drawn with `look`. */
+const settingsViewOf = (settings: Settings, look: SettingsLook) => {
+  const field = FormView.field(
+    settings.form,
+    look.renderers === undefined ? {} : { renderers: look.renderers() },
+  )
+  const drawn = FormView.define(settings.form, {
+    field: look.field === undefined ? field : field.pipe(look.field),
+  })
+  const view = FormView.submodel(
+    settings.form,
+    look.form === undefined ? drawn : drawn.pipe(look.form),
+  )
+  return view
+}
+
 /** The drawn Builder: what `BuilderView.define` returns. */
 export type BuilderSlotView = SlotView.SlotView<typeof BuilderSlots, BuilderInput, Message>
 
-export const BuilderView = {
-  /**
-   * Block metadata: the control the inspector draws a prop with, where its
-   * Schema alone does not say, as
-   * `Heading.pipe(Block.annotate(BuilderView.controls({ text: Input.multiline() })))`.
-   * `Input.hidden()` leaves a prop out of the inspector.
-   */
-  controls: (controls: Readonly<Record<string, Control>>): Metadata => controlsKey.of(controls),
+const Parts = SlotView.parts(BuilderSlots)<BuilderInput, Message>()
 
+/** One piece of the drawn Builder, placed by `BuilderView.assemble`. */
+export type BuilderPart = SlotView.Part<typeof BuilderSlots, BuilderInput, Message>
+
+/** The drawn Builder's pieces, by what they show. */
+export interface BuilderParts {
+  /** The panels' switch, for a narrow layout: see `BuilderView.narrow`. */
+  readonly Panels: BuilderPart
+  /** The Blocks a page may gain, each a button that inserts it. */
+  readonly Palette: BuilderPart
+  /** The page's nodes as an ARIA tree, with the keyboard and dragging. */
+  readonly Layers: BuilderPart
+  /** The selected node's props, looks, conditions and actions, or the shortcuts. */
+  readonly Inspector: BuilderPart
+  /** The toolbar's commands: undo and redo, unless the Builder's commands say otherwise. */
+  readonly Toolbar: BuilderPart
+  /** Where the selection is, from the page down. */
+  readonly Crumbs: BuilderPart
+  readonly Viewports: BuilderPart
+  /** The context the page is previewed for; nothing where the Catalog has none. */
+  readonly Preview: BuilderPart
+  /** Why the last edit was refused; nothing when none was. */
+  readonly Alert: BuilderPart
+  /** The page, drawn by the site's Renderer, with the pointer. */
+  readonly Canvas: BuilderPart
+  /** What the Builder announces to a screen reader. */
+  readonly Live: BuilderPart
+}
+
+export const BuilderView = {
   /** What the drawn Builder is drawn with, typed where a form's `controls` entry cannot be. */
   inputs: (inputs: BuilderViewInputs = {}): BuilderViewInputs => inputs,
 
@@ -305,159 +589,81 @@ export const BuilderView = {
     ) => Html),
 
   /**
-   * The Builder drawn, as a `SlotView` over the Builder's Model. Style and
-   * extend it through `BuilderSlots` like any other SlotView; its Behaviors
-   * (the layers' keyboard, the canvas's pointer, the shortcuts) are attached.
+   * The Builder's parts, each drawn again only when what it reads changed,
+   * with its Behaviors (the layers' keyboard, the canvas's pointer, the
+   * shortcuts) declared with it. Place them with `assemble`.
    */
-  define: (builder: BuilderLike) => {
-    const draw = (
-      model: BuilderInput,
-      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
-      h: HtmlBuilder<Message>,
-    ): Html => {
-      const document = builder.document(model)
-      const selected = model.selected
-      // A drop is marked only where it would land: `at` is null where the page refuses it.
-      const drop = model.drag?.at == null ? null : model.drag.over
-      const button = (
-        slot: SlotView.SlotBuilder<Message>,
-        label: string,
-        message: Message | undefined,
-        extra: ReadonlyArray<ReturnType<HtmlBuilder<Message>['AriaPressed']>> = [],
-      ) =>
-        h.button(
-          slot.attrs([
-            h.Type('button'),
-            h.Disabled(message === undefined),
-            ...(message === undefined ? [] : [h.OnClick(message)]),
-            ...extra,
-          ]),
-          [label],
-        )
-
-      const palette = h.nav(
-        slots.palette.attrs([h.AriaLabel('Add a block')]),
-        builder.offered.map(name => {
-          const at = builder.placeFor(document, selected, name)
-          return button(
-            slots.paletteItem,
-            `Add ${name}`,
-            at === undefined ? undefined : Message.InsertAsked({ block: name, at }),
-          )
-        }),
-      )
-
-      const shown = TreeNavigation.shown(rowsOf(document), model.layers, layersArgs)
-      const tree = h.ul(
-        slots.tree.attrs([h.Role('tree'), h.AriaLabel('Layers')]),
-        shown.map((row, index) => {
-          const node = document.nodes[NodeId.make(row.id)]
-          const known =
-            node !== undefined && Catalog.block(builder.catalog, node.block) !== undefined
-          return h.li(
-            slots.row.attrs(
-              [
-                h.Key(row.id),
-                h.DataAttribute(ROW_ATTRIBUTE, row.id),
-                ...(drop?.id === row.id ? [h.DataAttribute(ROW_DROP_ATTRIBUTE, drop.zone)] : []),
-                ...(model.drag?.id === row.id ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')] : []),
-                h.AriaSelected(row.id === selected),
-                h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
-              ],
-              { index, id: row.id },
-            ),
-            [`${known ? '' : '? '}${node?.block ?? row.id}`],
-          )
-        }),
-      )
-      // The tree inside is what is named "Layers"; the panel around it is not named twice.
-      const layers = h.section(slots.layers.attrs(), [tree])
-
-      const actions =
-        selected === null
-          ? []
-          : [
-              h.div(slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]), [
-                button(slots.action, 'Move up', builder.keyCommand(model, 'ArrowUp', alt)),
-                button(slots.action, 'Move down', builder.keyCommand(model, 'ArrowDown', alt)),
-                button(slots.action, 'Move out', builder.keyCommand(model, 'ArrowLeft', alt)),
-                button(slots.action, 'Move in', builder.keyCommand(model, 'ArrowRight', alt)),
-                button(slots.action, 'Duplicate', builder.keyCommand(model, 'd', ctrl)),
-                button(slots.action, 'Delete', builder.keyCommand(model, 'Delete', plain)),
-              ]),
-            ]
-
-      const inspector =
-        selected === null ? [] : [inspect(document, selected, model.options ?? {}, slots, h)]
-
-      const history = h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
-        button(slots.undo, 'Undo', History.canUndo(model.page) ? Message.Undid() : undefined),
-        button(slots.redo, 'Redo', History.canRedo(model.page) ? Message.Redid() : undefined),
-      ])
-
-      const viewports = h.div(
-        slots.viewports.attrs([h.Role('group'), h.AriaLabel('Viewport')]),
-        (['wide', 'medium', 'narrow'] as const).map(viewport =>
-          button(slots.viewport, viewport, Message.ViewportChosen({ viewport }), [
-            h.AriaPressed(model.viewport === viewport ? 'true' : 'false'),
-          ]),
-        ),
-      )
-
-      const context = fieldsOf(builder.catalog.context)
-      const preview =
-        Object.keys(context).length === 0
-          ? []
-          : [
-              h.div(
-                slots.preview.attrs([h.Role('group'), h.AriaLabel('Preview as')]),
-                Object.entries(context).map(([key, schema]) =>
-                  contextField(slots, h, {
-                    id: `${builder.name}-preview-${key}`,
-                    label: key,
-                    schema,
-                    current: model.preview[key],
-                    blank: 'unset',
-                    send: value => Message.PreviewChosen({ key, value }),
-                  }),
-                ),
-              ),
-            ]
-
-      const canvas = h.div(slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page')]), [
-        h.div(
-          slots.frame.attrs([
-            h.DataAttribute('viewport', model.viewport),
-            h.Style({ maxWidth: viewportWidths[model.viewport], margin: '0 auto' }),
-          ]),
-          [
-            ...Renderer.render(builder.renderer, document, inertHtml, {
-              mode: 'edit',
-              selected,
-              hovered: model.hovered,
-              drop,
-              context: model.preview,
-              ...(model.data === undefined ? {} : { data: model.data }),
-            }),
-          ],
-        ),
-      ])
-
-      return h.div(slots.root.attrs(), [
-        palette,
-        layers,
-        ...actions,
-        ...inspector,
-        history,
-        viewports,
-        ...preview,
-        ...(model.refused === null
-          ? []
-          : [h.p(slots.alert.attrs([h.Role('alert')]), [model.refused.message])]),
-        canvas,
-        h.div(slots.live.attrs(), [LiveAnnounce.view(model.announcer, h)]),
-      ])
+  parts: (
+    builder: BuilderLike,
+    options: {
+      /** How the inspector's settings forms look. */
+      readonly settings?: SettingsLook
+    } = {},
+  ): BuilderParts => {
+    // Each Block's settings form, drawn: made once per form, as the form is once per Block.
+    const settingsViews = new WeakMap<Settings, ReturnType<typeof settingsViewOf>>()
+    const settingsView = (settings: Settings) => {
+      const known = settingsViews.get(settings)
+      if (known !== undefined) return known
+      const made = settingsViewOf(settings, options.settings ?? {})
+      settingsViews.set(settings, made)
+      return made
     }
+    const described = new Map(
+      builder.catalog.blocks.map(block => {
+        // The props a layer row may quote: those drawn as text.
+        const texts = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
+          const control = controlOf(block, key, schema)
+          return control !== undefined && (Input.Text.is(control) || Input.Multiline.is(control))
+            ? [key]
+            : []
+        })
+        return [
+          block.name,
+          {
+            label: block.words.label,
+            description: block.words.description,
+            // Blocks given no group share one.
+            group: block.words.group,
+            texts,
+          },
+        ] as const
+      }),
+    )
+    /** A Block's label; one the Catalog lacks is marked unknown. */
+    const labelOf = (name: string): string => described.get(name)?.label ?? `? ${name}`
+    /** A node's first text prop that says something, cut short. */
+    const summaryOf = (node: Document['nodes'][NodeId]): Option.Option<string> => {
+      for (const key of described.get(node.block)?.texts ?? []) {
+        const value = node.props[key]
+        const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+        if (text !== '')
+          return Option.some(
+            text.length > SUMMARY_LENGTH ? `${text.slice(0, SUMMARY_LENGTH - 1).trimEnd()}…` : text,
+          )
+      }
+      return Option.none()
+    }
+    // The palette's groups, in the order their first Block is offered: a Map keeps insertion
+    // order. Blocks given no group share one, named when drawn, by the words.
+    const ungrouped = Symbol('ungrouped')
+    const grouped = new Map<string | typeof ungrouped, Array<string>>()
+    for (const name of builder.offered) {
+      const group = Option.getOrElse(
+        Option.flatMap(Option.fromUndefinedOr(described.get(name)), each => each.group),
+        (): string | typeof ungrouped => ungrouped,
+      )
+      const names = grouped.get(group)
+      if (names === undefined) grouped.set(group, [name])
+      else names.push(name)
+    }
+    const groups = [...grouped].map(([group, names]) => ({
+      group: group === ungrouped ? Option.none<string>() : Option.some(group),
+      names,
+    }))
+    const patterns = builder.catalog.patterns
+    // A heading names each group when there is more than one, the patterns' included.
+    const headed = groups.length + (patterns.length > 0 ? 1 : 0) > 1
 
     // One field per context key: a choice, or typed in; blank is unset.
     const contextField = (
@@ -467,18 +673,23 @@ export const BuilderView = {
         readonly id: string
         readonly label: string
         readonly schema: Schema.Top
-        readonly current: ContextValue | undefined
+        readonly current: Option.Option<ContextValue>
         /** What the blank choice reads as. */
         readonly blank: string
-        readonly send: (value: ContextValue) => Message
+        /** The value chosen, or none for the blank. */
+        readonly send: (value: Option.Option<ContextValue>) => Message
       },
     ) => {
       const { id: fieldId, label, schema, current, blank, send } = field
       const control = Input.resolve(Entity.unmapped, schema)
       const choices = contextChoices(control)
-      const shown = current === undefined || current === null ? '' : String(current)
+      // A context value that is itself `null` is shown as the blank too.
+      const shown = Option.match(current, {
+        onNone: () => '',
+        onSome: value => (value === null ? '' : String(value)),
+      })
       return h.div(slots.field.attrs(), [
-        h.label([h.For(fieldId)], [label]),
+        h.label(slots.label.attrs([h.For(fieldId)]), [label]),
         choices === undefined
           ? h.input(
               slots.control.attrs([
@@ -492,173 +703,117 @@ export const BuilderView = {
                 h.Id(fieldId),
                 h.OnChange(raw => send(contextValue(control, raw))),
               ]),
-              optionsOf(h, blank, named(choices), shown),
+              optionsOf(h, slots.selectOption, { blank, choices: named(choices), current: shown }),
             ),
       ])
     }
 
-    /** One value, drawn by the control it resolves to: a prop, or an action's input. */
-    const valueField = (
-      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
-      h: HtmlBuilder<Message>,
-      field: {
-        readonly id: string
-        readonly label: string
-        readonly control: Control | undefined
-        readonly value: Schema.Json | undefined
-        readonly set: (value: Schema.Json) => Message
-        /** A relation picker's choices; none until the application gives them. */
-        readonly options?: ReadonlyArray<BuilderOption> | undefined
-        /** Whether it may be left empty, stored as `null`: a relation picker offers a blank. */
-        readonly optional?: boolean | undefined
-      },
-    ): Html => {
-      const { id: fieldId, label, control, value, set, options = [] } = field
-      if (control !== undefined && Input.RelationMany.is(control)) {
-        const chosen = Array.isArray(value)
-          ? value.filter((each): each is string => typeof each === 'string')
-          : []
-        // A chosen value the choices lack stays, shown, so it can be let go.
-        const choices = [
-          ...options,
-          ...chosen
-            .filter(each => !options.some(option => option.value === each))
-            .map(stray => ({ value: stray, label: `? ${stray}` })),
-        ]
-        return h.div(slots.field.attrs([h.Id(fieldId), h.Role('group'), h.AriaLabel(label)]), [
-          h.span([], [label]),
-          ...choices.map(choice =>
-            h.label(
-              [],
-              [
-                h.input(
-                  slots.control.attrs([
-                    h.Type('checkbox'),
-                    h.Value(choice.value),
-                    h.Checked(chosen.includes(choice.value)),
-                    h.OnClick(
-                      set(
-                        chosen.includes(choice.value)
-                          ? chosen.filter(each => each !== choice.value)
-                          : [...chosen, choice.value],
-                      ),
-                    ),
-                  ]),
-                ),
-                choice.label,
-              ],
-            ),
-          ),
-        ])
-      }
-      const input = (() => {
-        if (control !== undefined && Input.Toggle.is(control))
-          return h.input(
-            slots.control.attrs([
-              h.Id(fieldId),
-              h.Type('checkbox'),
-              h.Checked(value === true),
-              h.OnClick(set(value !== true)),
-            ]),
-          )
-        if (control !== undefined && Input.Select.is(control))
-          return h.select(
-            slots.control.attrs([h.Id(fieldId), h.OnChange(choice => set(choice))]),
-            control.data.options.map(option =>
-              h.option([h.Value(option), h.Selected(option === value)], [option]),
-            ),
-          )
-        if (control !== undefined && Input.RelationOne.is(control))
-          return h.select(
-            slots.control.attrs([
-              h.Id(fieldId),
-              h.OnChange(choice => set(choice === '' ? null : choice)),
-            ]),
-            optionsOf(
-              h,
-              field.optional === true ? 'none' : undefined,
-              options,
-              typeof value === 'string' ? value : undefined,
-            ),
-          )
-        if (control !== undefined && Input.Number.is(control))
-          return h.input(
-            slots.control.attrs([
-              h.Id(fieldId),
-              h.Value(typeof value === 'number' ? String(value) : ''),
-              h.OnInput(text =>
-                set(Number.isFinite(Number(text)) && text.trim() !== '' ? Number(text) : text),
-              ),
-            ]),
-          )
-        const text = [
-          h.Id(fieldId),
-          h.Value(typeof value === 'string' ? value : ''),
-          h.OnInput((typed: string) => set(typed)),
-        ]
-        if (control !== undefined && Input.Multiline.is(control))
-          // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
-          // and these never carry.
-          return h.textarea(slots.control.attrs(text) as Parameters<typeof h.textarea>[0])
-        if (control !== undefined && Input.Text.is(control))
-          return h.input(slots.control.attrs(text))
-        return undefined
-      })()
-      // A kind this inspector does not draw is shown, not edited: no control to label.
-      return input === undefined
-        ? h.div(slots.field.attrs(), [
-            h.span([], [label]),
-            h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)]),
-          ])
-        : h.div(slots.field.attrs(), [h.label([h.For(fieldId)], [label]), input])
-    }
-
-    /** The selected node's props, one field each, drawn by the control its Schema resolves to. */
     const inspect = (
       document: Document,
       id: NodeId,
       options: Readonly<Record<string, ReadonlyArray<BuilderOption>>>,
+      actions: Html,
+      inspecting: Option.Option<Inspecting>,
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
+      w: BuilderWords,
     ): Html => {
       const node = document.nodes[id]
       const block = node === undefined ? undefined : Catalog.block(builder.catalog, node.block)
+      const head = h.div(slots.inspectorHead.attrs(), [
+        h.h2(slots.inspectorTitle.attrs(), [node === undefined ? id : labelOf(node.block)]),
+        ...Option.match(
+          node === undefined
+            ? Option.none()
+            : (described.get(node.block)?.description ?? Option.none()),
+          {
+            onNone: () => [],
+            onSome: hint => [h.p(slots.inspectorHint.attrs(), [hint])],
+          },
+        ),
+        actions,
+      ])
+      /** A part of the settings under its heading; none when it has nothing in it. */
+      const section = (title: string, fields: ReadonlyArray<Html>): ReadonlyArray<Html> =>
+        fields.length === 0
+          ? []
+          : [
+              h.div(slots.inspectorSection.attrs([h.Role('group'), h.AriaLabel(title)]), [
+                h.h3(slots.inspectorSectionTitle.attrs(), [title]),
+                ...fields,
+              ]),
+            ]
       if (node === undefined || block === undefined)
-        return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
-          h.p(
-            [],
-            [
-              'This block is not in this version of the application, so its settings cannot be edited here.',
-            ],
-          ),
+        return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel(w.properties)]), [
+          head,
+          h.p([], [w.unknownBlock]),
           ...Object.entries(node?.props ?? {}).map(([key, value]) =>
             h.div(slots.field.attrs(), [
-              h.span([], [key]),
+              h.span(slots.label.attrs(), [key]),
               h.code(slots.control.attrs(), [JSON.stringify(value)]),
             ]),
           ),
         ])
-      const set = (key: string, value: Schema.Json): Message =>
-        Message.Applied({ op: Composition.Op.setProp(id, key, value) })
-      const drawn = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
-        const control = controlFor(block, key, schema)
-        return control !== undefined && Input.Hidden.is(control) ? [] : [{ key, schema, control }]
+      // The props: the Block's settings form, whose changes the Builder turns into edits,
+      // then any prop no control fits, as it is stored.
+      /**
+       * One of the node's forms, placed under `slot`; its Messages go to the
+       * Builder as `Inspected`, naming the node and the form.
+       */
+      const drawForm = (
+        target: Inspecting,
+        form: InspectedForm,
+        slot: string,
+        inputs: FormViewInputs,
+      ): Html => {
+        const view = settingsView(form.settings)
+        return inRender()
+          ? h.submodel({
+              slotId: `${builder.name}-${slot}`,
+              model: form.model,
+              view,
+              toParentMessage: sent =>
+                Message.Inspected({
+                  id: target.id,
+                  form: form.key,
+                  message: form.settings.encodeMessage(sent),
+                }),
+              viewInputs: inputs,
+            })
+          : // No runtime frame (a test, a static description): nothing carries the form's
+            // Messages to the Builder, and no handler can run, so it is drawn as it is.
+            view(form.model, inputs, SlotView.inertBuilder())
+      }
+      const fields = Option.match(inspecting, {
+        onNone: () => [],
+        onSome: target => [
+          drawForm(target, target.props, 'settings', {
+            submits: false,
+            words: { none: w.none },
+            // The application's choices are keyed `'Block.prop'`; the form's by prop.
+            options: Object.fromEntries(
+              Object.entries(options).flatMap(([at, choices]) =>
+                at.startsWith(`${node.block}.`) ? [[at.slice(node.block.length + 1), choices]] : [],
+              ),
+            ),
+          }),
+          ...target.props.settings
+            .shown(node.props)
+            .map(({ label, value }) =>
+              h.div(slots.field.attrs(), [
+                h.span(slots.label.attrs(), [label]),
+                h.code(slots.control.attrs(), [JSON.stringify(value)]),
+              ]),
+            ),
+        ],
       })
-      const fields = drawn.map(({ key, schema, control }) =>
-        valueField(slots, h, {
-          id: `${builder.name}-${id}-${key}`,
-          label: labelFor(key, schema),
-          control,
-          value: node.props[key],
-          set: value => set(key, value),
-          options: options[`${node.block}.${key}`],
-          optional: Schema.is(schema)(null),
-        }),
-      )
       // The node's look: one choice per axis its Block offers, blank for the default,
       // and on a responsive axis one more per breakpoint it may change at.
       const chosen = isChoices(node.appearance) ? node.appearance : {}
-      const looks = Object.entries(block.appearance).flatMap(([axis, { values, breakpoints }]) => {
+      const looks = Object.entries(block.appearance).flatMap(([axis, look]) => {
+        const { values, breakpoints } = look
+        /** A value's name: the look's label for it, else the value spaced. */
+        const named = (value: string): string => look.labels?.[value] ?? spaced(value)
         const stored = chosen[axis]
         // What is chosen at each point: `base`, then each breakpoint.
         const at: Readonly<Record<string, string>> =
@@ -689,13 +844,72 @@ export const BuilderView = {
               op: Composition.Op.setAppearance(id, Object.keys(next).length === 0 ? null : next),
             })
           }
+        const label = spaced(axis)
+        if ((breakpoints ?? []).length === 0 && values.length <= CHOICES_SHOWN) {
+          const current = at['base']
+          // A stored value the look lacks is shown pressed, and choosing it again sends nothing.
+          const stray =
+            current !== undefined && !values.includes(current)
+              ? Option.some(current)
+              : Option.none()
+          return [
+            h.div(slots.field.attrs(), [
+              h.span(slots.label.attrs(), [label]),
+              h.div(
+                slots.choices.attrs([
+                  h.Id(`${builder.name}-${id}-appearance-${axis}`),
+                  h.Role('group'),
+                  h.AriaLabel(label),
+                ]),
+                [
+                  ...[
+                    ['', w.lookDefault] as const,
+                    ...values.map(value => [value, named(value)] as const),
+                  ].map(([value, text]) =>
+                    h.button(
+                      slots.choice.attrs([
+                        h.Type('button'),
+                        h.AriaPressed(
+                          (value === '' ? current === undefined : current === value)
+                            ? 'true'
+                            : 'false',
+                        ),
+                        h.OnClick(choose('base')(value)),
+                      ]),
+                      [text],
+                    ),
+                  ),
+                  ...Option.match(stray, {
+                    onNone: () => [],
+                    onSome: value => [
+                      h.button(
+                        slots.choice.attrs([
+                          h.Type('button'),
+                          h.AriaPressed('true'),
+                          h.Disabled(true),
+                        ]),
+                        [`? ${value}`],
+                      ),
+                    ],
+                  }),
+                ],
+              ),
+            ]),
+          ]
+        }
         return ['base', ...(breakpoints ?? [])].map(point => {
           const fieldId = `${builder.name}-${id}-appearance-${axis}${point === 'base' ? '' : `-${point}`}`
           return h.div(slots.field.attrs(), [
-            h.label([h.For(fieldId)], [point === 'base' ? axis : `${axis} at ${point}`]),
+            h.label(slots.label.attrs([h.For(fieldId)]), [
+              point === 'base' ? label : say(w.lookAt, { label, breakpoint: point }),
+            ]),
             h.select(
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
-              optionsOf(h, point === 'base' ? 'default' : 'unchanged', named(values), at[point]),
+              optionsOf(h, slots.selectOption, {
+                blank: point === 'base' ? w.lookDefault : w.lookUnchanged,
+                choices: values.map(value => ({ value, label: named(value) })),
+                current: at[point],
+              }),
             ),
           ])
         })
@@ -705,7 +919,7 @@ export const BuilderView = {
       const when = Array.isArray(node.when) ? node.when : []
       const isEqOn = (key: string) => (condition: Schema.Json) =>
         isChoices(condition) && Array.isArray(condition['eq']) && condition['eq'][0] === key
-      const eqOf = (key: string): ContextValue | undefined => {
+      const eqOf = (key: string): Option.Option<ContextValue> => {
         for (const condition of when)
           if (isChoices(condition) && isEqOn(key)(condition) && Array.isArray(condition['eq'])) {
             const value = condition['eq'][1]
@@ -714,20 +928,23 @@ export const BuilderView = {
               typeof value === 'number' ||
               typeof value === 'boolean'
             )
-              return value
+              return Option.some(value)
           }
-        return undefined
+        return Option.none()
       }
       const conditions = Object.entries(fieldsOf(builder.catalog.context)).map(([key, schema]) =>
         contextField(slots, h, {
           id: `${builder.name}-${id}-when-${key}`,
-          label: `when ${key}`,
+          label: say(w.shownWhen, { key }),
           schema,
           current: eqOf(key),
-          blank: 'always',
+          blank: w.always,
           send: value => {
             const others = when.filter(condition => !isEqOn(key)(condition))
-            const next = value === null ? others : [...others, { eq: [key, value] }]
+            const next = Option.match(value, {
+              onNone: () => others,
+              onSome: chosen => [...others, { eq: [key, chosen] }],
+            })
             return Message.Applied({
               op: Composition.Op.setWhen(id, next.length === 0 ? null : next),
             })
@@ -740,15 +957,13 @@ export const BuilderView = {
       const events = block.events.flatMap(event => {
         const reference = stored[event]
         const ref = isChoices(reference) ? reference : {}
-        const input = isChoices(ref['input']) ? ref['input'] : {}
-        const action = builder.catalog.actions.find(each => each.name === ref['action'])
         const run = (name: string, given: { readonly [key: string]: Schema.Json }): Message =>
           Message.Applied({
             op: Composition.Op.setAction(id, event, { action: name, input: given }),
           })
         const pickId = `${builder.name}-${id}-on-${event}`
         const pick = h.div(slots.field.attrs(), [
-          h.label([h.For(pickId)], [`on ${event}`]),
+          h.label(slots.label.attrs([h.For(pickId)]), [say(w.onEvent, { event })]),
           h.select(
             slots.control.attrs([
               h.Id(pickId),
@@ -756,103 +971,783 @@ export const BuilderView = {
                 const chosen = builder.catalog.actions.find(each => each.name === name)
                 return chosen === undefined
                   ? Message.Applied({ op: Composition.Op.setAction(id, event, null) })
-                  : run(chosen.name, seedOf(chosen.input))
+                  : run(chosen.name, inputOf(block, event, chosen).seed())
               }),
             ]),
-            optionsOf(
-              h,
-              'nothing',
-              named(builder.catalog.actions.map(each => each.name)),
-              typeof ref['action'] === 'string' ? ref['action'] : undefined,
-            ),
+            optionsOf(h, slots.selectOption, {
+              blank: w.runsNothing,
+              choices: named(builder.catalog.actions.map(each => each.name)),
+              current: typeof ref['action'] === 'string' ? ref['action'] : undefined,
+            }),
           ),
         ])
-        const inputs =
-          action === undefined
-            ? []
-            : Object.entries(fieldsOf(action.input)).map(([key, schema]) =>
-                valueField(slots, h, {
-                  id: `${pickId}-${key}`,
-                  label: labelFor(key, schema),
-                  control: Input.resolve(Entity.unmapped, schema),
-                  value: input[key],
-                  set: value => run(action.name, { ...input, [key]: value }),
-                }),
-              )
-        return [pick, ...inputs]
+        // The chosen action's input, its own form; an action the Catalog lacks has none.
+        const input = Option.match(
+          Option.flatMap(inspecting, target =>
+            Option.map(Option.fromUndefinedOr(target.on[event]), form => ({ target, form })),
+          ),
+          {
+            onNone: () => [],
+            onSome: ({ target, form }) => [
+              drawForm(target, form, `on-${event}`, { submits: false, words: { none: w.none } }),
+            ],
+          },
+        )
+        return [pick, ...input]
       })
-      return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
-        ...fields,
-        ...looks,
-        ...conditions,
-        ...events,
+      return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel(w.properties)]), [
+        head,
+        ...section(w.content, fields),
+        ...section(w.style, looks),
+        ...section(w.visibility, conditions),
+        ...section(w.interactions, events),
       ])
     }
 
-    return SlotView.forMessages<Message>()
-      .define(BuilderSlots, (input: BuilderInput, slots, h) => draw(input, slots, h), {
-        name: 'Builder',
+    const shortcuts = ({
+      input,
+      h,
+    }: {
+      readonly input: Pick<BuilderInput, 'page' | 'selected' | 'editing'>
+      readonly h: HtmlBuilder<Message>
+    }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyCommand(input, key, modifiers))]
+
+    /**
+     * A button, disabled where there is nothing to send: by `aria-disabled`, so
+     * it keeps focus when what it did (the last undo) leaves it nothing to do.
+     */
+    const button = (
+      h: HtmlBuilder<Message>,
+      slot: SlotView.SlotBuilder<Message>,
+      label: string,
+      message: Option.Option<Message>,
+      extra: ReadonlyArray<Attribute<Message>> = [],
+    ) =>
+      h.button(
+        slot.attrs([
+          h.Type('button'),
+          ...Option.match(message, {
+            onNone: () => [h.AriaDisabled(true)],
+            onSome: sent => [h.OnClick(sent)],
+          }),
+          ...extra,
+        ]),
+        [label],
+      )
+
+    /** A command as a button: disabled while it has nothing to do, titled with its first key. */
+    const commandButton = (
+      h: HtmlBuilder<Message>,
+      slot: SlotView.SlotBuilder<Message>,
+      command: BuilderCommand,
+      input: Pick<BuilderInput, 'page' | 'selected' | 'platform' | 'words'>,
+    ) => {
+      const [key] = command.keys
+      const w = wordsOf(input.words)
+      return button(h, slot, command.label, command.run(input), [
+        h.DataAttribute('action', command.id),
+        h.Title(
+          key === undefined
+            ? command.label
+            : say(w.withKeys, { label: command.label, keys: keysOf(key, input.platform, w) }),
+        ),
+      ])
+    }
+
+    const labelAt = (document: Document, id: NodeId): string =>
+      Option.match(Option.fromUndefinedOr(document.nodes[id]), {
+        onNone: () => id,
+        onSome: node => labelOf(node.block),
       })
-      .pipe(
-        Behavior.attach(
-          TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<BuilderInput, Message>({
+    // Where an insert lands, said on the Block's button, from the place itself.
+    const whereItGoes = (
+      document: Document,
+      selected: Option.Option<NodeId>,
+      at: Option.Option<Position>,
+      w: BuilderWords,
+    ): string =>
+      Option.match(at, {
+        onNone: () =>
+          Option.match(selected, {
+            onNone: () => w.nothingHoldsIt,
+            onSome: id => say(w.cannotGoAt, { label: labelAt(document, id) }),
+          }),
+        onSome: position => {
+          if (position._tag === 'Root') {
+            // `placeFor` puts a root after the selected one, or last: never first before others.
+            const before = document.roots[position.index - 1]
+            return position.index === document.roots.length || before === undefined
+              ? w.addsToEnd
+              : say(w.addsAfter, { label: labelAt(document, before) })
+          }
+          const before =
+            document.nodes[position.parent]?.regions[position.region]?.[position.index - 1]
+          return Option.contains(selected, position.parent) || before === undefined
+            ? say(w.addsInside, { label: labelAt(document, position.parent) })
+            : say(w.addsAfter, { label: labelAt(document, before) })
+        },
+      })
+    // A drop is marked only where it would land: `at` is none where the page refuses it.
+    const dropOf = (drag: Model['drag']) =>
+      Option.flatMap(drag, each => (Option.isSome(each.at) ? each.over : Option.none()))
+
+    // The shortcuts, on the layers and on the canvas; each part draws one of the two.
+    const Shortcuts = Behavior.forSlots(BuilderSlots)<
+      Pick<BuilderInput, 'page' | 'selected' | 'editing'>,
+      Message
+    >(
+      {
+        layers: Behavior.slot({ attributes: shortcuts }),
+        canvas: Behavior.slot({ attributes: shortcuts }),
+      },
+      { name: 'BuilderShortcuts' },
+    )
+    // What is selected, however it was (a click, a shortcut, an insert, the
+    // address), is brought into view in the layers and on the canvas.
+    const KeepSelectionInView = Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
+      {
+        layers: Behavior.slot({
+          mount: () => KeepInView({ selector: '[role="treeitem"][aria-selected="true"]' }),
+        }),
+        canvas: Behavior.slot({
+          // The mark is on a `display: contents` wrapper, which has no box: the Block's own element does.
+          mount: () => KeepInView({ selector: `[data-${MARK_ATTRIBUTE}="selected"] > *` }),
+        }),
+      },
+      { name: 'KeepSelectionInView' },
+    )
+
+    // The canvas, found by its id, so a tile dragged from the palette can land on its nodes.
+    const canvasId = `${builder.name}-canvas`
+
+    // Each panel's element: its id, for its tab to name, and whether its tab is chosen.
+    const panelId = (panel: string) => `${builder.name}-panel-${panel}`
+    const panelMarks = (
+      panel: (typeof PANELS)[number][0],
+      slot: 'palette' | 'layers' | 'inspector',
+    ) =>
+      Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, 'panel'>, Message>(
+        {
+          [slot]: Behavior.slot({
+            attributes: ({ input, h }) => [
+              h.Id(panelId(panel)),
+              h.DataAttribute('panel', panel),
+              h.DataAttribute('panel-shown', String(input.panel === panel)),
+            ],
+          }),
+          // Keyed by the panel's slot, which `forSlots` checks exists.
+        } as unknown as Behavior.BehaviorSpec<
+          typeof BuilderSlots,
+          Pick<BuilderInput, 'panel'>,
+          Message
+        >,
+        { name: `BuilderPanel-${panel}` },
+      )
+
+    const Panels = Parts.part('Panels', { reads: ['panel', 'words'] }, (input, slots, h) => {
+      const w = wordsOf(input.words)
+      return h.div(
+        // A group of pressed buttons, as the viewports are: ARIA tabs would promise
+        // arrow keys and a roving tab stop.
+        slots.panelTabs.attrs([h.Role('group'), h.AriaLabel(w.panels)]),
+        PANELS.map(([panel, label]) =>
+          h.button(
+            slots.panelTab.attrs([
+              h.Type('button'),
+              h.AriaPressed(input.panel === panel ? 'true' : 'false'),
+              h.AriaControls(panelId(panel)),
+              h.DataAttribute('panel', panel),
+              h.OnClick(Message.PanelChosen({ panel })),
+            ]),
+            [w[label]],
+          ),
+        ),
+      )
+    })
+
+    const Palette = Parts.part(
+      'Palette',
+      {
+        reads: ['page', 'selected', 'panel', 'words'],
+        behaviors: [
+          panelMarks('insert', 'palette'),
+          // A tile dragged onto the page adds its Block where it is dropped; a press adds it
+          // where the palette's button says.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'palette',
+            attribute: 'data-block',
+            // Its own canvas, found from the palette, whatever the Builder's name holds.
+            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
+            toMessage: tileDrag,
+          }),
+        ],
+      },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        const w = wordsOf(input.words)
+        /** A tile: what it adds, said, where a press adds it, and the Message that asks. */
+        const tile = (item: {
+          readonly data: readonly [name: 'block' | 'pattern', value: string]
+          readonly label: string
+          readonly hint: Option.Option<string>
+          readonly at: Option.Option<Position>
+          readonly asked: (at: Position) => Message
+        }) =>
+          h.button(
+            slots.paletteItem.attrs([
+              h.Type('button'),
+              h.DataAttribute(...item.data),
+              h.AriaLabel(say(w.addBlock, { label: item.label })),
+              h.Title(whereItGoes(document, input.selected, item.at, w)),
+              // As a command's button: it keeps focus when its place fills up.
+              ...Option.match(item.at, {
+                onNone: () => [h.AriaDisabled(true)],
+                onSome: position => [h.OnClick(item.asked(position))],
+              }),
+            ]),
+            [
+              h.span(slots.paletteLabel.attrs(), [item.label]),
+              ...Option.match(item.hint, {
+                onNone: () => [],
+                onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
+              }),
+            ],
+          )
+        const group = (name: string, tiles: ReadonlyArray<Html>) =>
+          h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(name)]), [
+            ...(headed ? [h.h3(slots.paletteHeading.attrs(), [name])] : []),
+            ...tiles,
+          ])
+        return h.nav(slots.palette.attrs([h.AriaLabel(w.palette)]), [
+          ...groups.map(({ group: named, names: blocks }) =>
+            group(
+              Option.getOrElse(named, () => w.ungrouped),
+              blocks.map(block =>
+                tile({
+                  data: ['block', block],
+                  label: labelOf(block),
+                  hint: described.get(block)?.description ?? Option.none(),
+                  at: builder.placeFor(document, input.selected, block),
+                  asked: at => Message.InsertAsked({ block, at }),
+                }),
+              ),
+            ),
+          ),
+          ...(patterns.length === 0
+            ? []
+            : [
+                group(
+                  w.patterns,
+                  patterns.map(pattern =>
+                    tile({
+                      data: ['pattern', pattern.name],
+                      label: pattern.words.label,
+                      hint: pattern.words.description,
+                      at: builder.patternAt(document, input.selected, pattern.name),
+                      asked: at => Message.PatternAsked({ pattern: pattern.name, at }),
+                    }),
+                  ),
+                ),
+              ]),
+        ])
+      },
+    )
+
+    /**
+     * One layer row, from what it shows alone. Its arguments are compared by
+     * identity, so an absent node or drop arrives as `undefined`, not as an
+     * `Option`, which would be a new value on every draw.
+     */
+    const drawRow = (
+      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
+      h: HtmlBuilder<Message>,
+      {
+        index,
+        id,
+        branch,
+        node,
+        open,
+        selected,
+        drop,
+        dragged,
+      }: {
+        readonly index: number
+        readonly id: string
+        readonly branch: boolean
+        readonly node: Document['nodes'][NodeId] | undefined
+        readonly open: boolean
+        readonly selected: boolean
+        readonly drop: DropZone | undefined
+        readonly dragged: boolean
+      },
+    ): Html =>
+      h.li(
+        slots.row.attrs(
+          [
+            h.Key(id),
+            h.DataAttribute(ROW_ATTRIBUTE, id),
+            ...(node === undefined ? [] : [h.DataAttribute('block', node.block)]),
+            ...(drop === undefined ? [] : [h.DataAttribute(ROW_DROP_ATTRIBUTE, drop)]),
+            ...(dragged ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')] : []),
+            h.AriaSelected(selected),
+            // Made current, as the keys make a row: it selects the node and keeps the
+            // layers showing, where `Selected` would switch a narrow editor to Settings.
+            h.OnClick(Layers.wrapper.make(TreeNavigation.Message.Focused({ id }))),
+            // Pointing at a row marks its node on the page, as pointing at the page does.
+            h.OnMouseEnter(Message.Hovered({ id: NodeId.make(id) })),
+            h.OnMouseLeave(Message.Unhovered()),
+          ],
+          { index, id },
+        ),
+        [
+          ...(branch
+            ? [
+                h.span(
+                  slots.rowToggle.attrs([
+                    // The row says whether it is open; this is the pointer's way to change it.
+                    h.AriaHidden(true),
+                    h.OnClick(
+                      Layers.wrapper.make(
+                        open
+                          ? TreeNavigation.Message.Closed({ id })
+                          : TreeNavigation.Message.Opened({ id }),
+                      ),
+                    ),
+                  ]),
+                  [],
+                ),
+              ]
+            : []),
+          h.span(slots.rowLabel.attrs(), [node === undefined ? id : labelOf(node.block)]),
+          ...Option.match(node === undefined ? Option.none() : summaryOf(node), {
+            onNone: () => [],
+            onSome: summary => [h.span(slots.rowSummary.attrs(), [summary])],
+          }),
+        ],
+      )
+
+    // Where the selected and the hovered node are, for the boxes drawn over them.
+    const MeasureMarks = Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
+      {
+        canvas: Behavior.slot({
+          mount: () =>
+            Measure({
+              targets: {
+                // The mark is on a `display: contents` wrapper, which has no box: its Block's element does.
+                selected: `[data-${MARK_ATTRIBUTE}="selected"] > *`,
+                hovered: `[data-${MARK_ATTRIBUTE}="hovered"] > *`,
+              },
+            }),
+        }),
+      },
+      { name: 'MeasureMarks' },
+    )
+
+    const LayersPart = Parts.part(
+      'Layers',
+      {
+        reads: ['page', 'selected', 'layers', 'drag', 'editing', 'panel', 'words'],
+        behaviors: [
+          panelMarks('layers', 'layers'),
+          TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<
+            Pick<BuilderInput, 'page' | 'selected' | 'layers' | 'drag'>,
+            Message
+          >({
             container: 'tree',
             item: 'row',
-            rows: model => rowsOf(builder.document(model)),
+            rows: input => rowsOf(builder.document(input)),
             domId: id => layerId(builder, id),
           }),
+          // A row is dragged onto another; the keyboard's way is the shortcuts.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'tree',
+            attribute: `data-${ROW_ATTRIBUTE}`,
+            toMessage: nodeDrag,
+          }),
+          Shortcuts,
+          KeepSelectionInView,
+        ],
+      },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        const { selected } = input
+        const drop = dropOf(input.drag)
+        const dragged = Option.flatMap(input.drag, drag =>
+          drag.source._tag === 'Existing' ? Option.some(drag.source.id) : Option.none(),
+        )
+        const shown = TreeNavigation.shown(rowsOf(document), input.layers, layersArgs)
+        const tree = h.ul(
+          slots.tree.attrs([h.Role('tree'), h.AriaLabel(wordsOf(input.words).layers)]),
+          // Each row drawn again only when what it shows changed: a new selection
+          // redraws the row it left and the row it reached.
+          shown.map((row, index) =>
+            slots.row.lazy({ index, id: row.id }, drawRow, {
+              index,
+              id: row.id,
+              branch: row.branch,
+              node: document.nodes[NodeId.make(row.id)],
+              open: TreeNavigation.isOpen(input.layers, layersArgs, row.id),
+              selected: Option.contains(selected, NodeId.make(row.id)),
+              drop: Option.getOrUndefined(
+                Option.map(
+                  Option.filter(drop, over => over.id === row.id),
+                  over => over.zone,
+                ),
+              ),
+              dragged: Option.contains(dragged, NodeId.make(row.id)),
+            }),
+          ),
+        )
+        // The tree inside is what is named "Layers"; the panel around it is not named twice.
+        return h.section(slots.layers.attrs(), [tree])
+      },
+    )
+
+    const Inspector = Parts.part(
+      'Inspector',
+      {
+        reads: ['page', 'selected', 'options', 'inspector', 'platform', 'panel', 'words'],
+        behaviors: [panelMarks('properties', 'inspector')],
+      },
+      (input, slots, h) => {
+        const w = wordsOf(input.words)
+        const actions = h.div(
+          slots.actions.attrs([h.Role('toolbar'), h.AriaLabel(w.selectedBlock)]),
+          builder.commands
+            .filter(command => command.placement.includes('node'))
+            .map(command => commandButton(h, slots.action, command, input)),
+        )
+        return Option.match(input.selected, {
+          onNone: () =>
+            h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel(w.properties)]), [
+              h.p(slots.inspectorHint.attrs(), [w.selectToChange]),
+              h.h3(slots.inspectorSectionTitle.attrs(), [w.shortcuts]),
+              h.dl(
+                slots.shortcuts.attrs(),
+                [
+                  ...TREE_KEYS.map(([keys, what]) => [keys, w[what]] as const),
+                  ...builder.commands.flatMap(command => {
+                    const [key] = command.keys
+                    return key === undefined
+                      ? []
+                      : [[keysOf(key, input.platform, w), command.label] as const]
+                  }),
+                ].flatMap(([keys, what]) => [
+                  h.dt(slots.shortcutKeys.attrs(), [keys]),
+                  h.dd(slots.shortcutWhat.attrs(), [what]),
+                ]),
+              ),
+            ]),
+          onSome: id =>
+            inspect(
+              builder.document(input),
+              id,
+              input.options ?? {},
+              actions,
+              builder.inspecting(input),
+              slots,
+              h,
+              w,
+            ),
+        })
+      },
+    )
+
+    const Toolbar = Parts.part(
+      'Toolbar',
+      { reads: ['page', 'selected', 'platform', 'words'] },
+      (input, slots, h) =>
+        h.div(
+          slots.toolbar.attrs([h.Role('toolbar'), h.AriaLabel(wordsOf(input.words).pageActions)]),
+          builder.commands
+            .filter(command => command.placement.includes('toolbar'))
+            .map(command => commandButton(h, slots.toolbarAction, command, input)),
         ),
-        Behavior.attach(
-          Targets.behavior(BuilderSlots)<BuilderInput, Message>({
+    )
+
+    const Crumbs = Parts.part(
+      'Crumbs',
+      { reads: ['page', 'selected', 'words'] },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        const w = wordsOf(input.words)
+        // The page, then each node from the top down to the selected one, which is where you are.
+        const holders = (id: NodeId): ReadonlyArray<NodeId> => {
+          const places = Composition.index(document)
+          const chain: Array<NodeId> = [id]
+          for (
+            let place = places.get(id);
+            place?.parent !== undefined;
+            place = places.get(place.parent)
+          )
+            chain.unshift(place.parent)
+          return chain
+        }
+        const trail = Option.match(input.selected, { onNone: () => [], onSome: holders })
+        return h.nav(slots.crumbs.attrs([h.AriaLabel(w.crumbs)]), [
+          h.button(
+            slots.crumb.attrs([
+              h.Type('button'),
+              h.OnClick(Message.Deselected()),
+              ...(trail.length === 0 ? [h.AriaCurrent('location')] : []),
+            ]),
+            [w.crumbPage],
+          ),
+          ...trail.map((id, index) =>
+            h.button(
+              slots.crumb.attrs([
+                h.Type('button'),
+                h.OnClick(Message.Selected({ id })),
+                ...(index === trail.length - 1 ? [h.AriaCurrent('location')] : []),
+              ]),
+              [labelAt(document, id)],
+            ),
+          ),
+        ])
+      },
+    )
+
+    const Viewports = Parts.part('Viewports', { reads: ['viewport', 'words'] }, (input, slots, h) =>
+      h.div(
+        slots.viewports.attrs([h.Role('group'), h.AriaLabel(wordsOf(input.words).viewports)]),
+        (['wide', 'medium', 'narrow'] as const).map(viewport =>
+          button(
+            h,
+            slots.viewport,
+            wordsOf(input.words)[viewport],
+            Option.some(Message.ViewportChosen({ viewport })),
+            [
+              h.DataAttribute('viewport', viewport),
+              h.AriaPressed(input.viewport === viewport ? 'true' : 'false'),
+            ],
+          ),
+        ),
+      ),
+    )
+
+    const context = fieldsOf(builder.catalog.context)
+    // Nothing where the Catalog has no context to preview.
+    const Preview = Parts.part('Preview', { reads: ['preview', 'words'] }, (input, slots, h) =>
+      Object.keys(context).length === 0
+        ? null
+        : h.div(
+            slots.preview.attrs([h.Role('group'), h.AriaLabel(wordsOf(input.words).previewAs)]),
+            Object.entries(context).map(([key, schema]) =>
+              contextField(slots, h, {
+                id: `${builder.name}-preview-${key}`,
+                label: key,
+                schema,
+                current: Option.fromUndefinedOr(input.preview[key]),
+                blank: wordsOf(input.words).unset,
+                send: value =>
+                  Option.match(value, {
+                    onNone: () => Message.PreviewCleared({ key }),
+                    onSome: chosen => Message.PreviewChosen({ key, value: chosen }),
+                  }),
+              }),
+            ),
+          ),
+    )
+
+    const Alert = Parts.part('Alert', { reads: ['refused'] }, (input, slots, h) =>
+      Option.match(input.refused, {
+        onNone: () => null,
+        onSome: refused => h.p(slots.alert.attrs([h.Role('alert')]), [refused.message]),
+      }),
+    )
+
+    // Focusable, so a press on the page leaves the shortcuts where the selection is.
+    const Canvas = Parts.part(
+      'Canvas',
+      {
+        reads: [
+          'page',
+          'selected',
+          'hovered',
+          'drag',
+          'viewport',
+          'preview',
+          'data',
+          'editing',
+          'words',
+        ],
+        behaviors: [
+          Targets.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             // A link on the page being edited selects its node; it does not navigate.
             preventDefault: true,
             toMessage: fact =>
-              fact._tag === 'TargetHovered'
-                ? Message.Hovered({ id: asNodeId(fact.id) })
-                : Message.Selected({ id: asNodeId(fact.id) }),
+              Option.match(asNodeId(fact.id), {
+                onNone: () =>
+                  fact._tag === 'TargetHovered' ? Message.Unhovered() : Message.Deselected(),
+                onSome: id =>
+                  fact._tag === 'TargetHovered'
+                    ? Message.Hovered({ id })
+                    : Message.Selected({ id }),
+              }),
           }),
-        ),
-        // A row or a node is dragged onto another; the keyboard's way is the shortcuts.
-        Behavior.attach(
-          PointerDrag.behavior(BuilderSlots)<BuilderInput, Message>({
-            container: 'tree',
-            attribute: `data-${ROW_ATTRIBUTE}`,
-            toMessage: dragMessage,
-          }),
-        ),
-        Behavior.attach(
-          PointerDrag.behavior(BuilderSlots)<BuilderInput, Message>({
+          // A node is dragged onto another; the keyboard's way is the shortcuts.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
-            toMessage: dragMessage,
+            toMessage: nodeDrag,
           }),
-        ),
-        Behavior.attach(
-          Behavior.forSlots(BuilderSlots)<BuilderInput, Message>(
-            {
-              layers: Behavior.slot({
-                attributes: ({
-                  input,
-                  h,
-                }: {
-                  readonly input: BuilderInput
-                  readonly h: HtmlBuilder<Message>
-                }) => [
-                  h.OnKeyDownPreventDefault((key, modifiers) =>
-                    Option.fromNullishOr(builder.keyCommand(input, key, modifiers)),
-                  ),
-                ],
-              }),
+          // Text on the page, edited where it is: the Builder checks which field each names.
+          EditableText.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'canvas',
+            attribute: `data-${FIELD_ATTRIBUTE}`,
+            toMessage: fact => {
+              switch (fact._tag) {
+                case 'EditAsked':
+                  return Message.EditingAsked({ field: fact.field })
+                case 'TextEdited':
+                  return Message.FieldTyped({ field: fact.field, text: fact.text })
+                case 'TextCommitted':
+                  return Message.EditingCommitted({ field: fact.field, text: fact.text })
+                case 'TextCancelled':
+                  return Message.EditingCancelled({ field: fact.field })
+              }
             },
-            { name: 'BuilderShortcuts' },
-          ),
-        ),
-      )
+          }),
+          Shortcuts,
+          KeepSelectionInView,
+          MeasureMarks,
+        ],
+      },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        // The selected node's Block, named on its box.
+        const selectedBlock = Option.flatMap(input.selected, id =>
+          Option.fromUndefinedOr(document.nodes[id]?.block),
+        )
+        return h.div(
+          slots.canvas.attrs([
+            h.Id(canvasId),
+            h.DataAttribute('builder-canvas', ''),
+            h.Role('region'),
+            h.AriaLabel(wordsOf(input.words).canvas),
+            h.Tabindex(0),
+          ]),
+          [
+            h.div(
+              slots.frame.attrs([
+                h.DataAttribute('viewport', input.viewport),
+                // The width is the frame's own; the rule that reads it is `FrameDefaults`.
+                h.Style({ '--fk-frame-width': viewportWidths[input.viewport] }),
+              ]),
+              [
+                ...(document.roots.length === 0
+                  ? [h.p(slots.empty.attrs(), [wordsOf(input.words).emptyPage])]
+                  : []),
+                ...Renderer.render(builder.renderer, document, inertHtml, {
+                  mode: 'edit',
+                  selected: input.selected,
+                  hovered: input.hovered,
+                  drop: dropOf(input.drag),
+                  context: input.preview,
+                  data: input.data,
+                  editing: input.editing,
+                }),
+              ],
+            ),
+            // Drawn over the page, placed from where the marked nodes are measured to be;
+            // hidden while none is. They only show: they take no pointer.
+            h.div(slots.hoverBox.attrs([h.AriaHidden(true)]), []),
+            h.div(
+              slots.selectionBox.attrs([h.AriaHidden(true)]),
+              Option.match(selectedBlock, {
+                onNone: () => [],
+                onSome: name => [h.span(slots.selectionLabel.attrs(), [labelOf(name)])],
+              }),
+            ),
+          ],
+        )
+      },
+    )
+
+    const Live = Parts.part('Live', { reads: ['announcer'] }, (input, slots, h) =>
+      h.div(slots.live.attrs(), [LiveAnnounce.view(input.announcer, h)]),
+    )
+
+    return {
+      Panels,
+      Palette,
+      Layers: LayersPart,
+      Inspector,
+      Toolbar,
+      Crumbs,
+      Viewports,
+      Preview,
+      Alert,
+      Canvas,
+      Live,
+    }
+  },
+
+  /**
+   * A layout of your own: `render` places the parts with `draw`, around
+   * anything else you draw with its `h`. Styles and Behaviors attach to the
+   * result as to `define`'s.
+   */
+  assemble: (
+    render: SlotView.AssemblyRender<typeof BuilderSlots, BuilderInput, Message>,
+  ): BuilderSlotView =>
+    Parts.assemble(render, { name: 'Builder' }).pipe(Style.attach(FrameDefaults)),
+
+  /**
+   * The narrow layout, below `width` of the Builder itself (its root is the
+   * container `builder`): the panels' tabs show, and only the panel the
+   * Builder's `panel` names; selecting a node chooses Settings.
+   * In the `app` layer by default, so it outranks an application's own
+   * placing of the panels; pass `layer` to put it elsewhere.
+   */
+  narrow: (width: string, options: { readonly layer?: Placement } = {}) => {
+    const narrower = `@container builder (max-width: ${width})`
+    const hidden = Style.at(
+      narrower,
+      Style.pseudo('[data-panel-shown="false"]', { display: 'none' }),
+    )
+    return Style.forSlots(BuilderSlots)(
+      {
+        panelTabs: Style.at(narrower, Style.self({ display: 'flex' })),
+        palette: hidden,
+        layers: hidden,
+        inspector: hidden,
+      },
+      {
+        name: 'BuilderNarrow',
+        layer: options.layer ?? StyleLayers.standard.layer('app'),
+      },
+    )
+  },
+
+  /** The Builder drawn with every part, in the default layout. */
+  define: (
+    builder: BuilderLike,
+    options: {
+      /** How the inspector's settings forms look. */
+      readonly settings?: SettingsLook
+    } = {},
+  ): BuilderSlotView => {
+    const parts = BuilderView.parts(builder, options)
+    // Four regions, so a new panel lands in one without moving the layout around it.
+    return BuilderView.assemble((_input, slots, h, draw) =>
+      h.div(slots.root.attrs(), [
+        draw(parts.Panels),
+        h.div(slots.regions.attrs(), [
+          h.div(slots.start.attrs(), [draw(parts.Palette), draw(parts.Layers)]),
+          h.div(slots.bar.attrs(), [
+            draw(parts.Toolbar),
+            draw(parts.Crumbs),
+            draw(parts.Viewports),
+            draw(parts.Preview),
+          ]),
+          h.div(slots.stage.attrs(), [draw(parts.Alert), draw(parts.Canvas)]),
+          h.div(slots.end.attrs(), [draw(parts.Inspector)]),
+        ]),
+        draw(parts.Live),
+      ]),
+    )
   },
 }
-
-const plain: KeyboardModifiers = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }
-const alt: KeyboardModifiers = { ...plain, altKey: true }
-const ctrl: KeyboardModifiers = { ...plain, ctrlKey: true }

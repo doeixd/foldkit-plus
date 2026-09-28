@@ -7,9 +7,9 @@ import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Cms } from 'foldkit-cms'
+import { Cms, type Transition } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, RemoteClient } from 'foldkit-remote'
@@ -162,6 +162,8 @@ const world = () => {
     ],
     transaction: Transaction.statements,
     isAuthor,
+    // Grace writes; she may not take a post off the site.
+    allow: (principal, transition) => transition !== 'unpublish' || principal?.name !== 'grace',
     nameOf: principal => principal?.name ?? null,
   })
   const server = RemoteServer.make({
@@ -221,9 +223,9 @@ const world = () => {
       for (let round = 0; round < 3; round++) {
         for (const active of Object.values(PostEditor.actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection).pipe(Effect.provide(Client)),
+            Data.prefetch(model, projection.value).pipe(Effect.provide(Client)),
           )
         }
         await send(Message.Nudged())
@@ -251,24 +253,74 @@ const world = () => {
         await settle((next.commands ?? []) as Commands)
       },
       status: () => PostEditor.status(model),
-      resumed: () => PostEditor.resumed(model),
-      state: () => PostEditor.state(model)?._tag,
-      schedule: () => PostEditor.state(model)?.schedule,
+      // Read as plain values, so each assertion says what it expects in one word.
+      resumed: () => Option.getOrUndefined(PostEditor.resumed(model)),
+      state: () => Option.getOrUndefined(Option.map(PostEditor.state(model), state => state._tag)),
+      may: (transition: Transition) => PostEditor.may(model, transition),
+      schedule: () =>
+        Option.getOrUndefined(Option.map(PostEditor.state(model), state => state.schedule)),
       previewing: () => PostEditor.previewing(model),
       /** The post as any view of the application reads it. */
       post: (id: string) => {
         const read = Data.get(PostBody, id).read(model)
         return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value : read._tag
       },
-      error: () => PostEditor.error(model)?.message,
+      error: () =>
+        Option.getOrUndefined(Option.map(PostEditor.error(model), error => error.message)),
       field: (key: 'title' | 'body') => PostForm.field(model.editor.form, key),
     }
   }
 
   const rows = (query: string) =>
     sqlite.prepare(query).all() as ReadonlyArray<Record<string, unknown>>
-  return { author, rows, sent, reads, sqlite }
+  /** Content brought in by the server, as a seed or a migration would. */
+  const imported = (item: Parameters<typeof cms.import>[0]) =>
+    Effect.runPromise(cms.import(item).pipe(Effect.provide(database)))
+  return { author, rows, sent, reads, sqlite, imported }
 }
+
+describe('an import', () => {
+  it('is published by the publish path, as whom it names and when, and opens like any entry', async () => {
+    const { imported, rows, author } = world()
+    const at = new Date('2025-06-01T00:00:00.000Z')
+    const done = await imported({
+      type: 'posts',
+      values: { title: 'Imported', body: 'From before' },
+      as: { name: 'edda' },
+      at,
+      entry: 'old1',
+    })
+    expect(done).toEqual({ entry: 'old1', targetId: 'made1' })
+    // The row the application's own create wrote, shown from when it was published.
+    expect(rows(`select title, published_at from posts where id = 'made1'`)).toEqual([
+      { title: 'Imported', published_at: at.toISOString() },
+    ])
+    expect(
+      rows(`select label, target_id, revision, created_by from cms_entries where id = 'old1'`),
+    ).toEqual([{ label: 'Imported', target_id: 'made1', revision: 1, created_by: 'edda' }])
+    expect(
+      rows(`select n, published_by, published_at from cms_revisions where entry_id = 'old1'`),
+    ).toEqual([{ n: 1, published_by: 'edda', published_at: at.toISOString() }])
+    expect(rows(`select id from cms_drafts where id = 'old1'`)).toEqual([])
+
+    const ada = author('ada')
+    await ada.open('old1')
+    expect(ada.state()).toBe('Published')
+    expect(ada.field('title').value).toBe('Imported')
+  })
+
+  it('is refused whole: an unknown type, or values its create does not take, leave nothing', async () => {
+    const { imported, rows } = world()
+    await expect(
+      imported({ type: 'recipes', values: {}, as: { name: 'edda' }, entry: 'bad1' }),
+    ).rejects.toThrow('"recipes" is not a type of content this server knows')
+    await expect(
+      imported({ type: 'posts', values: { title: 3 }, as: { name: 'edda' }, entry: 'bad2' }),
+    ).rejects.toThrow('This draft is not ready to publish')
+    expect(rows(`select id from cms_entries where id like 'bad%'`)).toEqual([])
+    expect(rows(`select id from cms_drafts where id like 'bad%'`)).toEqual([])
+  })
+})
 
 describe('something new', () => {
   it('is saved as it is typed, under the id it was made with, and is on the worklist by its title', async () => {
@@ -378,6 +430,24 @@ describe('something new', () => {
   })
 })
 
+describe('what the principal may do', () => {
+  it('is what allow lets them ask, said with the entry, and nothing before it is read', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    expect(ada.may('archive')).toBe(false)
+    await ada.open('e1')
+    // Whatever the state offers now: e1 has no draft, and publishing is still hers to ask.
+    expect((['publish', 'unpublish', 'archive'] as const).map(ada.may)).toEqual([true, true, true])
+    const grace = author('grace')
+    await grace.open('e1')
+    expect((['publish', 'unpublish', 'archive'] as const).map(grace.may)).toEqual([
+      true,
+      false,
+      true,
+    ])
+  })
+})
+
 describe('what the review found', () => {
   it('asks once, however many times publish is pressed', async () => {
     const { author, sent } = world()
@@ -405,21 +475,29 @@ describe('what the review found', () => {
     expect(rows(`select label from cms_entries where id = 'new1'`)).toEqual([{ label: 'Hello' }])
   })
 
-  it('resumes a draft that was saved mid-check with nothing in flight', async () => {
-    const { author, rows } = world()
+  it('stores a draft saved mid-check settled, and resumes it with nothing in flight', async () => {
+    const { author, rows, sqlite } = world()
     const ada = author('ada')
     await ada.open('e1')
     // The rest ends and the draft is saved while the check of the body is still out.
     const commands = ada.hold(ada.type('body', 'Checked later'))
     await ada.settle(commands.filter(command => command.name.endsWith('.rest')))
-    expect(String(rows(`select model from cms_drafts where id = 'e1'`)[0]!['model'])).toContain(
-      'Validating',
-    )
+    const stored = String(rows(`select model from cms_drafts where id = 'e1'`)[0]!['model'])
+    expect(stored).toContain('"body":{"_tag":"NotValidated","value":"Checked later"}')
 
     const later = author('ada')
     await later.open('e1')
     expect(later.resumed()).toBe('Model')
     expect(later.field('body')).toEqual({ _tag: 'NotValidated', value: 'Checked later' })
+
+    // One stored before drafts were settled is settled as it is shown again.
+    sqlite.exec(
+      `update cms_drafts set model = '${stored.replace('"_tag":"NotValidated","value":"Checked later"', '"_tag":"Validating","value":"Checked later"')}' where id = 'e1'`,
+    )
+    const older = author('ada')
+    await older.open('e1')
+    expect(older.resumed()).toBe('Model')
+    expect(older.field('body')).toEqual({ _tag: 'NotValidated', value: 'Checked later' })
   })
 
   it('forgets an old failure once the author has moved on', async () => {

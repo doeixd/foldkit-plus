@@ -78,6 +78,19 @@ describe('Theme.tokens', () => {
     const piece = Style.responsive(Theme.tokens.breakpoint, { md: { display: 'flex' } })
     expect(piece.rules?.[0]?.at).toBe('@media (min-width: 48rem)')
   })
+
+  it('measures the same breakpoints on a named container', () => {
+    const page = Theme.inContainer('page', Theme.tokens.breakpoint)
+    expect(page.md).toBe('@container page (min-width: 48rem)')
+    const piece = Style.responsive(page, { md: { display: 'flex' } })
+    expect(piece.rules?.[0]?.at).toBe('@container page (min-width: 48rem)')
+    expect(Theme.breakpointWidths({ breakpoint: page })).toEqual({
+      sm: 640,
+      md: 768,
+      lg: 1024,
+      xl: 1280,
+    })
+  })
 })
 
 describe('Theme.breakpointWidths', () => {
@@ -216,10 +229,22 @@ describe('Theme.oklch', () => {
     )
   })
 
-  it('gives every feedback family a contrast text pair', () => {
-    for (const name of ['success', 'warning', 'error', 'info'] as const) {
-      expect(brand[name].text).toBe(
+  it('gives every family text on its fill and ink on the base surface', () => {
+    const families = [
+      'accent',
+      'secondary',
+      'tertiary',
+      'success',
+      'warning',
+      'error',
+      'info',
+    ] as const
+    for (const name of families) {
+      expect(brand[name]['on-fill']).toBe(
         `oklch(from var(--fk-${name}-default) clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`,
+      )
+      expect(brand[name].ink).toBe(
+        `light-dark(oklch(from var(--fk-${name}-default) 0.5 c h), oklch(from var(--fk-${name}-default) 0.8 c h))`,
       )
     }
   })

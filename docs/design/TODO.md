@@ -29,6 +29,36 @@ These wait on upstream Foldkit or Effect, not on work here.
 
 ## SSR and resumability
 
+Phase S is what the CMS example's generated site had to write by hand; each
+item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
+
+- [ ] **S1. A browser entry.** `foldkit-ssr`'s one module imports Foldkit's
+  server renderer, 210 KB (63 KB gzipped) that a page taking a render over
+  does not need; the example loads it lazily (`sitePlan.ts`). Split off
+  `foldkit-ssr/server`, and export the root attribute from the browser side.
+- [ ] **S2. `Data.satisfy`,** preparing a Model for a render: each active
+  Surface's reads, again until none is missing. The example's `prerender.ts`
+  loop is its first caller. [router-DESIGN.md](./router-DESIGN.md) §20
+- [ ] **S3. A head from the Model:** description, image, Open Graph, article
+  facts and JSON-LD, typed in the plan, escaped, checked like the view, and
+  applied on client navigation too. A template missing the tags Foldkit fills
+  (canonical, `og:url`) is refused.
+- [ ] **S4. `SSR.sitemap` and a `robots` helper** from the generated pages.
+- [ ] **S5. Deciding whether to take a page over** (`when`, and
+  `otherwise: 'render'` drawing afresh in place), and a freshness check for a
+  page older than the data.
+- [ ] **S6. A determinism check:** render each page under two time zones and
+  locales, and fail when the HTML differs. The example met both a build-time
+  clock and a runtime time zone in its dates.
+- [ ] **S7. `foldkit-ssr/vite`,** the example's `generate.ts` as a build step:
+  the template, the build id from the entry script, the file layout per host,
+  and each page's styles in its first paint.
+- [ ] **S8. A chosen theme before the first paint:** `local` in the plan, and a
+  head script from `foldkit-mixins`' `Theme` that sets it from storage.
+- [ ] **S9. Localized pages:** the locale in the route, `lang` from the Model,
+  `hreflang` alternates in the head and sitemap, words and formats by explicit
+  locale.
+
 - [x] **G1.** Name the handler that makes a page wait for the live runtime.
   This is the resumable design's rule 1. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
 - [x] **G2.** Test rule 6 directly: the resumed page reaches the eager page's
@@ -111,8 +141,9 @@ Each item says how it would attach; none is started.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Deviations
 - [ ] Decide whether Wiring lives in `foldkit-surface` or its own package.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
-- [ ] Decide where URL semantics belong when routing and Mirror share a URL
-  Message, with a spike on a routed example.
+- [x] Decide where URL semantics belong when routing and Mirror share a URL
+  Message, with a spike on a routed example. Decided by the CMS example: a
+  shared tag reaches every wiring sharing it, then the application.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
 - [ ] Decide whether `Sync.mount` takes the whole assembly.
   [wiring-DESIGN.md](./wiring-DESIGN.md) Open questions
@@ -122,6 +153,84 @@ Each item says how it would attach; none is started.
   applications ask for it. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] `withResources`, `Link.key` and HashMap storage, which W5 left out.
   [bundle-DX-PLAN.md](./bundle-DX-PLAN.md) Outcome
+
+## Routing and navigation
+
+What building the CMS example's addresses, scroll and loading states showed is
+missing. [router-DESIGN.md](./router-DESIGN.md) §33 has the reasoning; §31 is
+the larger plan it amends.
+
+- [ ] **Targets with intents.** An address that asks something of an owner with
+  no Model yet (a Builder before its page loads) is held until the owner is
+  ready, then applied through its Messages. Both CMS applications hand-wrote
+  it (`linked`, `previewAsked`). §33.3
+- [ ] **One declaration of history intent** for routed params, as a mirror has
+  per key: a step when the node or entry changes, a replace otherwise. §33.4
+- [ ] **Scroll keeping as a primitive,** from `examples/cms/src/scroll.ts`: the
+  offset taken when the reader acts, a restore that holds while the screen
+  settles, entries keyed by the Navigation API. `foldkit-primitives`, or
+  upstream in Foldkit's navigation. §33.5
+- [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
+  only once a wait is noticeable, their space held. And a review of every
+  package view for facts drawn before they are read (`Initial` is unknown,
+  not empty). §33.6
+- [ ] **Foundations in the HTML as a `foldkit-mixins` Vite plugin,** from
+  `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7, SSR S7
+- [ ] **Targets that know their document,** so a link to another application
+  is a full load and one within it is a Navigate Command. §33.7
+- [ ] **Prefetch a target's data before navigating,** which removes the waits
+  the demo still shows between screens. §16, §33.6
+- [ ] **The studio's one blank frame between sections:** one application with
+  lazily loaded sections, or rendered first paints as the public site now has.
+  §33.7
+- [ ] **Site paths and targets:** `Site.paths(node, source)` enumerating a
+  node's addresses from a query, `Site.targets(site)` for a build, a sitemap
+  and prefetch, and one declaration giving both `routeOf` and `pathOf`. §33.9
+- [ ] **Site metadata:** `Site.meta` as a function of the Model feeding SSR's
+  head, and whether a node is indexed. §23, §33.9
+- [ ] **Locales in the route graph:** a top-level locale parameter, targets
+  with alternates, and data sources that take the locale. §33.11
+- [ ] `foldkit-site` itself, and the rest of §31's sequence.
+
+## Server
+
+What the CMS example's server, run over HTTP, in the page and at build time,
+asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
+
+- [ ] **`Server.handle` in-process,** with Node, Worker, in-page and build
+  adapters; the example's `http.ts`, `browser.ts` and `prerender.ts` are its
+  first users. §19.1
+- [ ] **Scheduled jobs as nodes** (`Server.every`), reading the clock through a
+  Layer. The CMS's due publishing is polled by hand in two hosts. §19.2
+- [ ] **Static emission from the graph:** a document node's paths from a query,
+  the host's file layout, cache headers, redirects (from slug history) and a
+  real 404 for generated prefixes. The published demo serves a 200 with the
+  studio's shell for an unknown `/site/` address. §19.3, §19.4
+- [ ] **Principal and CSRF middleware** per host, for cookie-authenticated
+  mutations and SSR fallback posts. §19.5
+- [ ] **A content security policy** the document node emits: hashes for the
+  inline envelope, JSON-LD and styles of a generated page, a nonce per request.
+  §19.7
+- [ ] **Caching by whether a page depends on the principal.** §19.8
+
+## Internationalization
+
+Nothing is built. [i18n-DESIGN.md](./i18n-DESIGN.md) decides who owns what;
+the steps land in the packages that own them.
+
+- [ ] **The locale in the Model and the route,** with `lang` and `dir` from it,
+  in the CMS example with a second language. Routing: router-DESIGN §33.11.
+- [ ] **Word tables per locale** (`editWords.en`, and the form, list and view
+  words), with plural forms in `fillWords` and a check listing missing keys.
+- [ ] **`Format.of(locale)`** for dates, numbers and relative times, with an
+  explicit time zone; nothing reads the runtime's default.
+- [ ] **Per-locale CMS entries,** slugs and locale-aware reads. cms-DESIGN §14
+- [ ] **Schema labels per locale:** `Words.of(schema, { locale, table })` over a
+  keyed table.
+- [ ] **Right to left:** an audit of the remaining physical `left`/`right`
+  properties, and a check that keeps them out.
+- [ ] Generated pages per locale and negotiation at the edge: SSR Phase S9,
+  server-DESIGN §19.9.
 
 ## Mixins and styling
 

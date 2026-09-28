@@ -317,8 +317,14 @@ What the build taught the proposal:
   Surface is already the seam every integration imports; a separate package
   avoids widening Surface. The proposal prefers Surface, since the type is data
   like `Contract`.
-- **Where do URL semantics belong?** `wiring.url(message)` assumes one URL Message;
-  applications with routing (`Route`) may need Mirror and routing to share it. A
-  spike with a routed example decides.
+- ~~**Where do URL semantics belong?**~~ Decided 2026-09-27 by the CMS
+  example, which routes its open entry beside a URL mirror. A shared tag is
+  observed, not claimed: every wiring sharing it folds it in list order, and
+  the application's own `update` sees it after them, so routing reads the
+  slices the mirrors have already installed. Before, routing took the first
+  claimant, so an application with a URL mirror never saw its own URL
+  Message, and a second URL mirror never read the URL. A mirror owns
+  top-level fields; state a child owns is routed through the child's
+  Messages. See [router-DESIGN.md](./router-DESIGN.md) §33.
 - **Does `Sync.mount` want the whole assembly** (to derive its durable Message
   check from the same list) rather than only its config?

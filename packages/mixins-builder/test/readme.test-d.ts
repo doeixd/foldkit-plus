@@ -1,11 +1,12 @@
 // The README's snippets, compiled. Keep the two in step.
 import { Schema } from 'effect'
-import type { Message, Model } from 'foldkit-builder'
+import { Builder, type Message, type Model } from 'foldkit-builder'
 import { Bundle } from 'foldkit-bundle'
 import { Block, Composition, Content } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Style } from 'foldkit-mixins'
+import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 import type * as Submodel from 'foldkit/submodel'
 import { expectTypeOf } from 'vitest'
 import { BuilderSlots, BuilderView, type BuilderViewInputs } from '../src/index.js'
@@ -50,8 +51,13 @@ const Quote = Block.define('Quote', {
     ref: Schema.String,
   }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+}).pipe(Block.annotate(Builder.controls({ text: Input.multiline(), ref: Input.hidden() })))
 expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()
+
+const Described = Quote.pipe(Block.words({ group: 'Text', description: 'Words someone said' }))
+expectTypeOf(Described.name).toEqualTypeOf<'Quote'>()
+// @ts-expect-error: a Block's words are only its label, description and group.
+Block.words({ icon: 'quote' })
 
 // What the page's parent gives the drawn Builder: each node's read, and a
 // relation prop's choices.
@@ -63,7 +69,7 @@ expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()
   const Featured = Block.define('Featured', {
     Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
     provides: [Content.Flow],
-  }).pipe(Block.annotate(BuilderView.controls({ category: Input.relationOne(Category) })))
+  }).pipe(Block.annotate(Builder.controls({ category: Input.relationOne(Category) })))
   expectTypeOf(Featured.name).toEqualTypeOf<'Featured'>()
 
   const categories: ReadonlyArray<{ readonly id: string; readonly name: string }> = []
@@ -73,4 +79,59 @@ expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()
       options: { 'Featured.category': categories.map(c => ({ value: c.id, label: c.name })) },
     }),
   ).toEqualTypeOf<BuilderViewInputs>()
+}
+
+// "Your own layout".
+{
+  const parts = BuilderView.parts(PageBuilder)
+  const Compact = BuilderView.assemble((_model, slots, h, draw) =>
+    h.div(slots.root.attrs(), [
+      h.h1([], ['Home page']),
+      draw(parts.Palette),
+      draw(parts.Canvas),
+      draw(parts.Inspector),
+    ]),
+  )
+  expectTypeOf(Compact).toEqualTypeOf<ReturnType<typeof BuilderView.define>>()
+}
+
+// "Styling": the settings forms' look.
+{
+  const PageEditing = BuilderView.define(PageBuilder, {
+    settings: {
+      field: Style.attach(Style.forSlots(FieldSlots)({ label: Style.class('setting-label') })),
+      form: Style.attach(Style.forSlots(FormSlots)({ root: Style.class('settings') })),
+    },
+  })
+  expectTypeOf(PageEditing).toEqualTypeOf<ReturnType<typeof BuilderView.define>>()
+}
+
+// "Styling": how the boxes over the page look.
+{
+  const Boxes = Style.forSlots(BuilderSlots)({
+    selectionBox: Style.self({ outline: '2px solid Highlight', outlineOffset: '3px' }),
+    selectionLabel: Style.self({
+      background: 'Highlight',
+      color: 'HighlightText',
+      fontSize: '0.75rem',
+    }),
+    hoverBox: Style.self({ outline: '1px dashed GrayText', outlineOffset: '3px' }),
+  })
+  void BuilderView.define(PageBuilder).pipe(Style.attach(Boxes))
+}
+
+// A narrow editor
+{
+  const PageEditing = BuilderView.define(PageBuilder).pipe(
+    Style.attach(BuilderView.narrow('52rem')),
+  )
+  void PageEditing
+}
+
+// The editor's words
+{
+  const inputs = BuilderView.inputs({
+    words: { palette: 'Bloque nuevo', addBlock: 'Añadir {label}' },
+  })
+  void inputs
 }

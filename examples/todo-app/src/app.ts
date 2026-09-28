@@ -79,13 +79,25 @@ export const Message = defineMessageUnion({
   /** The browser's URL changed (a link, back, forward); the filter is read from it. */
   UrlChanged: { url: Url },
   // --- effectful intents: local, and their Command emits a durable fact -----
-  /** The composer was submitted. The Command mints the id and the timestamp. */
-  RequestedTodo: { title: Schema.String },
+  /**
+   * The composer was submitted, or an agent asked. The Command mints the id and
+   * the timestamp; `requestId` is the call that waits for the fact (an agent's
+   * invocation), carried onto it so two requests for one title are told apart.
+   * Messages cross ports and the journal as they are, so it is a plain optional
+   * key rather than an `Option`.
+   */
+  RequestedTodo: { title: Schema.String, requestId: Schema.optionalKey(Schema.String) },
   /** The inline editor was committed. The Command emits `RenamedTodo`. */
   EditingCommitted: {},
 
   // --- durable facts: replicated, replayed, journaled ----------------------
-  SubmittedTodo: { id: Schema.String, title: Schema.String, createdAt: Schema.Number },
+  SubmittedTodo: {
+    id: Schema.String,
+    title: Schema.String,
+    createdAt: Schema.Number,
+    /** The request it answers, where a call waits; a fact journaled before lacks it. */
+    requestId: Schema.optionalKey(Schema.String),
+  },
   ToggledTodo: { id: Schema.String },
   RenamedTodo: { id: Schema.String, title: Schema.String },
   PrioritySet: { id: Schema.String, priority: Priority },
@@ -115,10 +127,10 @@ export const initialModel: Model = {
 type Return = Update.Return<Model, Message>
 
 /** Mints what a durable fact needs and cannot compute itself: an id and a time. */
-const mintTodo = (title: string) => ({
+const mintTodo = (title: string, request: { readonly requestId?: string }) => ({
   name: 'MintTodo',
   effect: Effect.map(Clock.currentTimeMillis, createdAt =>
-    Message.SubmittedTodo({ id: crypto.randomUUID(), title, createdAt }),
+    Message.SubmittedTodo({ id: crypto.randomUUID(), title, createdAt, ...request }),
   ),
 })
 
@@ -141,10 +153,13 @@ export const makeUpdate =
       MirrorRestored: () => ({ model: mirrors(model, message) }),
       // Intents. Note that each one clears its *local* state here, in the local
       // transition; the durable fact it causes never touches local fields.
-      RequestedTodo: ({ title }) =>
+      RequestedTodo: ({ title, requestId }) =>
         title.trim() === ''
           ? { model }
-          : { model: modifyFields(model, { draft: () => '' }), commands: [mintTodo(title.trim())] },
+          : {
+              model: modifyFields(model, { draft: () => '' }),
+              commands: [mintTodo(title.trim(), requestId === undefined ? {} : { requestId })],
+            },
       EditingCommitted: () => {
         const id = model.editingId
         const title = model.editDraft.trim()

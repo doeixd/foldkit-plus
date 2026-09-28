@@ -59,6 +59,13 @@ export const newIds = (count: number): Effect.Effect<ReadonlyArray<NodeId>> =>
 /** A Document with nothing in it. */
 export const empty = (): Document => ({ format: 1, roots: [], nodes: {} })
 
+/**
+ * The node an id names, read as an own key: stored ids are untrusted, and an
+ * id such as `constructor` would otherwise read `Object`'s own.
+ */
+export const nodeAt = (document: Document, id: NodeId): Node | undefined =>
+  Object.hasOwn(document.nodes, id) ? document.nodes[id] : undefined
+
 /** Where a node is: at the root, or in a parent's Region, at an index. */
 export interface Place {
   readonly parent: NodeId | undefined
@@ -78,9 +85,10 @@ export const index = (document: Document): ReadonlyMap<NodeId, Place> => {
   if (known !== undefined) return known
   const found = new Map<NodeId, Place>()
   const visit = (id: NodeId, place: Place): void => {
-    if (found.has(id) || document.nodes[id] === undefined) return
+    const node = nodeAt(document, id)
+    if (found.has(id) || node === undefined) return
     found.set(id, place)
-    for (const [region, children] of Object.entries(document.nodes[id].regions))
+    for (const [region, children] of Object.entries(node.regions))
       children.forEach((child, at) => visit(child, { parent: id, region, index: at }))
   }
   document.roots.forEach((id, at) => visit(id, { parent: undefined, region: undefined, index: at }))

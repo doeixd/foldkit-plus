@@ -12,7 +12,7 @@
  */
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { eq } from 'drizzle-orm'
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import { published } from 'foldkit-cms-drizzle'
@@ -35,6 +35,7 @@ import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import { isAuthor, openServer, write, type Principal } from './server.js'
+import { memorySqlite } from './sqlite-node.js'
 
 const ArticleId = Schema.String.pipe(Schema.brand('ArticleId'))
 type ArticleId = typeof ArticleId.Type
@@ -127,15 +128,9 @@ const ArticleEditor = Editor.at({ data: Data, model: App.model.editor })
 const ArticleView = Entity.select(Article, { title: true, body: true })
 const actives = {
   ...ArticleEditor.actives,
-  page: {
-    name: 'ArticlePage',
-    owner: App.owner,
-    messages: [],
-    projectionOf: (model: Model) => {
-      const id = ArticleEditor.pageId(model)
-      return id === null ? undefined : Data.get(ArticleView, ArticleId.make(id))
-    },
-  },
+  page: Data.active('ArticlePage', (model: Model) =>
+    Option.map(ArticleEditor.pageId(model), id => Data.get(ArticleView, ArticleId.make(id))),
+  ),
 }
 
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -168,7 +163,7 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
 
   let now = new Date('2026-03-01T09:00:00.000Z')
   let madeArticles = 0
-  const backend = openServer(() => now, {
+  const backend = openServer(() => now, memorySqlite(), {
     schema: `create table articles (
       id text primary key, title text not null, slug text not null unique,
       body text not null, published_at text
@@ -242,9 +237,9 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
       for (let round = 0; round < 2; round++) {
         for (const active of Object.values(actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }).pipe(
+            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
               Effect.provide(client),
             ),
           )
@@ -279,16 +274,17 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => ArticleEditor.status(model),
-      state: () => {
-        const state = ArticleEditor.state(model)
-        return state === undefined ? '?' : Display.show(Cms.Display.State.of({}), state)
-      },
-      resumed: () => ArticleEditor.resumed(model),
+      state: () =>
+        Option.match(ArticleEditor.state(model), {
+          onNone: () => '?',
+          onSome: state => Display.show(Cms.Display.State.of({}), state),
+        }),
+      resumed: () => Option.getOrElse(ArticleEditor.resumed(model), () => 'not opened'),
       /** The article as this chair's own preview reads it. */
       preview: async (): Promise<string> => {
         const id = ArticleEditor.pageId(model)
-        if (id === null) return 'no page'
-        const projection = Data.get(ArticleView, ArticleId.make(id))
+        if (Option.isNone(id)) return 'no page'
+        const projection = Data.get(ArticleView, ArticleId.make(id.value))
         model = await Effect.runPromise(
           Data.prefetch(model, projection).pipe(Effect.provide(client)),
         )

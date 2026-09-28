@@ -267,8 +267,10 @@ rest of your options.
   in list order. That check needs every placement's field, so a placement
   through a custom Link (below) relaxes `rest` to `Partial<Model>`.
 - **`placements.update(own)`** is the parent's update: a placement's or
-  wiring's Message goes to its item and every other Message to `own`. Without
-  `own` they leave the Model unchanged.
+  wiring's Message goes to its item and every other Message to `own`. A tag
+  wirings declare `shared` goes to each of them in list order and then to
+  `own`, so URL mirrors and the application's routing all see `UrlChanged`.
+  Without `own` they leave the Model unchanged.
 - **`placements.url(onUrlChange)`** is the runtime URL config: `init` applies
   every wiring's `onUrl` to the Model, and a URL change becomes
   `onUrlChange`'s Message, which a wiring routes.
@@ -596,6 +598,14 @@ property that is wrong:
 | `managedResources` not built with `placements.resources(own)`, when a placement has resources | `managedResources` |
 | `init` not returning `placements.initial(rest)`, when a wiring runs startup Commands | `init` |
 | `url` not built with `placements.url(onUrlChange)`, when a wiring reads the URL | `url` |
+
+**Annotate the parameters of callbacks written inline in the config.**
+`makeApplication`'s `init: (url: Url) => …` and `routing.onUrlChange: (url: Url)
+=> …` need their types written. TypeScript does not infer from an object literal
+holding an unannotated callback until it has typed that callback, and the
+runtime's config is overloaded, so nothing types it through `complete`: the
+config falls back to what `complete` requires of any config, and every check
+fails, beginning with `update`'s. The `update` error says so.
 
 Pass the parent's own records through the same call:
 `placements.subscriptions(ownSubscriptions)`. A duplicate key throws at startup,

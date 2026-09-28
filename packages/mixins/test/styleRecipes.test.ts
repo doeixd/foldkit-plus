@@ -51,8 +51,9 @@ describe('perItem and stagger', () => {
     expect(styleOf(b.title.attrs([], { index: 2 }))).toEqual({
       transition: 'opacity 200ms',
       '--fk-index': '2',
-      transitionDelay: 'calc(var(--fk-index) * 40ms)',
     })
+    // The delay is a rule reading the index.
+    expect(Rows.css).toContain('transition-delay:calc(var(--fk-index) * 40ms)')
     expect(classOf(b.action.attrs([], { index: 3 }))).toBe('odd')
     expect(classOf(b.action.attrs([], { index: 4 }))).toBe('even')
   })
@@ -65,10 +66,8 @@ describe('perItem and stagger', () => {
   it('stagger can target animation-delay', () => {
     const piece = Style.stagger({ stepMs: 10, property: 'animationDelay' })
     const [only] = piece.items ?? []
-    expect(only?.({ index: 1 }).style).toEqual({
-      '--fk-index': '1',
-      animationDelay: 'calc(var(--fk-index) * 10ms)',
-    })
+    expect(only?.({ index: 1 }).style).toEqual({ '--fk-index': '1' })
+    expect(Style.stylesheet(piece)).toContain('animation-delay:calc(var(--fk-index) * 10ms)')
   })
 })
 
@@ -125,6 +124,17 @@ describe('recipeFor', () => {
         Style.recipeFor(CardSlots)({ variants: { tone: { a: { nope: Style.empty } as never } } }),
       ),
     ).toBe('mixins:unknown-slot')
+  })
+
+  it('is its base alone when it has no variants', () => {
+    const Plain = Style.recipeFor(CardSlots)({ base: { root: Style.class('card') } })
+    expect(Plain().root?.classes).toEqual(['card'])
+    expect(Plain.def.variants).toEqual({})
+    expect(Plain.extend({ base: { root: Style.class('brand') } })().root?.classes).toEqual([
+      'card',
+      'brand',
+    ])
+    expect(Style.recipe({ base: Style.class('plain') })({}).classes).toEqual(['plain'])
   })
 
   it('feeds forSlots', () => {

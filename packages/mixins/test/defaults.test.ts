@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { Defaults } from '../src/defaults.js'
 import { Layers } from '../src/layers.js'
 import { Style } from '../src/style.js'
-import { declaredTokens, tokenReferences } from './tokens.js'
+import { declaredTokens, hooks, tokenReferences } from './tokens.js'
 
 const cssOf = (piece: { readonly globalCss?: ReadonlyArray<string> }): string =>
   (piece.globalCss ?? []).join('')
@@ -23,8 +23,14 @@ describe('Defaults', () => {
     for (const selector of selectors) expect(css).toContain(selector)
     const references = tokenReferences(css)
     expect(references.length).toBeGreaterThan(0)
-    for (const reference of references) expect(declaredTokens).toContain(reference)
+    for (const reference of references) expect([...declaredTokens, ...hooks]).toContain(reference)
     expect(css).not.toMatch(/var\(--fk-[a-z0-9-]+\)/)
+  })
+
+  it('colors headings with a container’s --fk-heading before text-overt', () => {
+    expect(cssOf(Defaults.headings)).toContain(
+      'color:var(--fk-heading, var(--fk-text-overt, inherit))',
+    )
   })
 
   it('reset normalizes the box model and references no theme token', () => {

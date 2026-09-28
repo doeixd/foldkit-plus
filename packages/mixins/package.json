@@ -28,28 +28,39 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
     "./layers": {
+      "foldkit-plus:source": "./src/layers.ts",
       "types": "./dist/layers.d.mts",
       "import": "./dist/layers.mjs"
     },
     "./theme": {
+      "foldkit-plus:source": "./src/theme.ts",
       "types": "./dist/theme.d.mts",
       "import": "./dist/theme.mjs"
     },
     "./layout": {
+      "foldkit-plus:source": "./src/layout.ts",
       "types": "./dist/layout.d.mts",
       "import": "./dist/layout.mjs"
     },
     "./defaults": {
+      "foldkit-plus:source": "./src/defaults.ts",
       "types": "./dist/defaults.d.mts",
       "import": "./dist/defaults.mjs"
     },
     "./prose": {
+      "foldkit-plus:source": "./src/prose.ts",
       "types": "./dist/prose.d.mts",
       "import": "./dist/prose.mjs"
+    },
+    "./testing": {
+      "foldkit-plus:source": "./src/testing.ts",
+      "types": "./dist/testing.d.mts",
+      "import": "./dist/testing.mjs"
     },
     "./package.json": "./package.json"
   },

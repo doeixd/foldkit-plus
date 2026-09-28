@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" role="img" aria-label="Rolling green hills under a pale sky">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfe3ff"/>
+      <stop offset="1" stop-color="#fff4e0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="600" fill="url(#sky)"/>
+  <circle cx="930" cy="170" r="70" fill="#ffd27a"/>
+  <path d="M0 420 C 200 330 380 360 560 410 S 960 470 1200 380 V600 H0Z" fill="#8cc58a"/>
+  <path d="M0 480 C 260 420 460 460 700 500 S 1040 540 1200 470 V600 H0Z" fill="#5ea86b"/>
+  <path d="M0 540 C 300 500 620 560 900 540 S 1120 520 1200 530 V600 H0Z" fill="#3f8a55"/>
+</svg>

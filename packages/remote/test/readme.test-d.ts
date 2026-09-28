@@ -3,7 +3,7 @@
  * documentation cannot drift from the API. `Route` and `rpcClient` stand in
  * for what an application supplies.
  */
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { expectTypeOf } from 'vitest'
 import { Entity as DomainEntity, Expr, Order, type AnyQuery } from 'foldkit-entity'
 import { Bundle } from 'foldkit-bundle'
@@ -95,7 +95,9 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   Data.subscriptions(
     {
       page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+        model.route._tag === 'project'
+          ? Option.some({ projectId: model.route.projectId })
+          : Option.none(),
       ),
     },
     { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
@@ -118,10 +120,8 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
       )
       return { model: started, commands: [command] }
     }
-    case 'ClickedMore': {
-      const next = Data.next(model, projects)
-      return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
-    }
+    case 'ClickedMore':
+      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
   }
 }
 
@@ -139,7 +139,9 @@ const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 const wiring = Page.assemble(
   Data.wiring({
     page: Surface.at(ProjectPage, model =>
-      model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+      model.route._tag === 'project'
+        ? Option.some({ projectId: model.route.projectId })
+        : Option.none(),
     ),
   }),
 )

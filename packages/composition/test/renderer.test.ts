@@ -1,31 +1,22 @@
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { inertHtml, type Html } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Action, Projection, Surface } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Block, Catalog, Composition, Content, NodeId, isSafeUrl } from 'foldkit-composition'
-import { Renderer } from 'foldkit-composition/foldkit'
+import {
+  Block,
+  Catalog,
+  Composition,
+  Content,
+  NodeId,
+  Region,
+  isSafeUrl,
+} from 'foldkit-composition'
+import { Renderer, fieldOf } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 import { ArticleKit, Columns, ColumnsLook, Site, SiteRenderer, body, homePage } from './site.js'
-
-type Node = Exclude<Html, null>
-
-const all = (node: Html | undefined): ReadonlyArray<Node> =>
-  node === null || node === undefined
-    ? []
-    : [
-        node,
-        ...(node.children ?? []).flatMap(child => (typeof child === 'string' ? [] : all(child))),
-      ]
-const text = (node: Html | undefined): string =>
-  all(node)
-    .map(each => each.text ?? '')
-    .join('')
-const attr = (node: Node | undefined, key: string): unknown => node?.data?.attrs?.[key]
-const prop = (node: Node | undefined, key: string): unknown => node?.data?.props?.[key]
-const classes = (node: Html | undefined): ReadonlyArray<string> =>
-  node === null || node === undefined ? [] : Object.keys(node.data?.class ?? {})
+import { Inert } from 'foldkit-mixins/testing'
 
 const id = NodeId.make
 const page = (roots: ReadonlyArray<string>, nodes: Readonly<Record<string, unknown>>) =>
@@ -35,48 +26,71 @@ describe('drawing a Document', () => {
   it('draws each root with its Block’s view, and each Region’s children in order', () => {
     const [hero, about] = Renderer.render(SiteRenderer, homePage, inertHtml)
     expect(hero?.sel).toBe('header')
-    expect(classes(hero)).toEqual(['hero'])
-    expect(all(hero).map(node => node.sel)).toContain('h1')
-    expect(text(hero)).toBe('Build what comes nextA page as dataStart')
-    const link = all(hero).find(node => node.sel === 'a')
-    expect(prop(link, 'href')).toBe('/start')
+    expect(Inert.classes(hero)).toEqual(['hero'])
+    expect(Inert.all(hero).map(node => node.sel)).toContain('h1')
+    expect(Inert.text(hero)).toBe('Build what comes nextA page as dataStart')
+    const link = Inert.all(hero).find(node => node.sel === 'a')
+    expect(Inert.value(link, 'href')).toBe('/start')
 
     expect(about?.sel).toBe('section')
-    expect(attr(all(about)[0], 'data-tone')).toBe('plain')
-    expect(text(about)).toBe('Composition is a stored page.')
-    const image = all(about).find(node => node.sel === 'img')
-    expect(prop(image, 'src')).toBe('https://example.com/photo.jpg')
+    expect(Inert.value(Inert.all(about)[0], 'data-tone')).toBe('plain')
+    expect(Inert.text(about)).toBe('Composition is a stored page.')
+    const image = Inert.all(about).find(node => node.sel === 'img')
+    expect(Inert.value(image, 'src')).toBe('https://example.com/photo.jpg')
   })
 
   it('marks each node in edit mode, and changes nothing else', () => {
     const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, { mode: 'edit' })
-    const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
-    expect(marked.map(node => attr(node, 'data-composition-node'))).toEqual(['hero', 'start'])
+    const marked = Inert.all(hero).filter(
+      node => Inert.value(node, 'data-composition-node') !== undefined,
+    )
+    expect(marked.map(node => Inert.value(node, 'data-composition-node'))).toEqual([
+      'hero',
+      'start',
+    ])
     expect(marked[0]?.data?.style).toEqual({ display: 'contents' })
     const [inner] = marked[0]?.children ?? []
-    expect(typeof inner === 'string' ? inner : classes(inner)).toEqual(['hero'])
+    expect(typeof inner === 'string' ? inner : Inert.classes(inner)).toEqual(['hero'])
   })
 
   it('marks the selected, hovered and drop target nodes in edit mode, for a stylesheet', () => {
     const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, {
       mode: 'edit',
-      selected: id('start'),
-      hovered: id('hero'),
-      drop: { id: id('start'), zone: 'before' },
+      selected: Option.some(id('start')),
+      hovered: Option.some(id('hero')),
+      drop: Option.some({ id: id('start'), zone: 'before' }),
     })
-    const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
-    expect(marked.map(node => attr(node, 'data-composition-selected'))).toEqual([undefined, ''])
-    expect(marked.map(node => attr(node, 'data-composition-hovered'))).toEqual(['', undefined])
-    expect(marked.map(node => attr(node, 'data-composition-drop'))).toEqual([undefined, 'before'])
-    const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, { selected: id('start') })
-    expect(all(viewed).some(node => attr(node, 'data-composition-selected') !== undefined)).toBe(
-      false,
+    const marked = Inert.all(hero).filter(
+      node => Inert.value(node, 'data-composition-node') !== undefined,
     )
+    expect(marked.map(node => Inert.value(node, 'data-composition-mark'))).toEqual([
+      'hovered',
+      'selected',
+    ])
+    expect(marked.map(node => Inert.value(node, 'data-composition-drop'))).toEqual([
+      undefined,
+      'before',
+    ])
+    // Hovered and selected at once, the node is marked selected.
+    const [both] = Renderer.render(SiteRenderer, homePage, inertHtml, {
+      mode: 'edit',
+      selected: Option.some(id('hero')),
+      hovered: Option.some(id('hero')),
+    })
+    expect(
+      Inert.all(both).flatMap(node => Inert.value(node, 'data-composition-mark') ?? []),
+    ).toEqual(['selected'])
+    const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, {
+      selected: Option.some(id('start')),
+    })
+    expect(
+      Inert.all(viewed).some(node => Inert.value(node, 'data-composition-mark') !== undefined),
+    ).toBe(false)
   })
 
   it('draws a layout Block with the look its node chose, and its stylesheet holds the layout', () => {
     const [, about] = Renderer.render(SiteRenderer, homePage, inertHtml)
-    const columns = all(about).find(node => node.data?.style?.['gap'] !== undefined)
+    const columns = Inert.all(about).find(node => node.data?.style?.['gap'] !== undefined)
     expect(columns?.data?.style).toEqual({
       gap: 'var(--fk-space-lg)',
       '--fk-l-threshold': '30rem',
@@ -85,7 +99,7 @@ describe('drawing a Document', () => {
     const flex = (node: typeof left) =>
       node === undefined || typeof node === 'string' ? undefined : node.data?.style?.['flex-grow']
     expect([flex(left), flex(right)]).toEqual(['2', '1'])
-    const [layout] = classes(columns)
+    const [layout] = Inert.classes(columns)
     expect(Style.stylesheet(...ColumnsLook.styles)).toContain(`.${layout}{display:flex`)
     expect(Columns.appearance['gap']?.kind).toBe('token')
   })
@@ -100,13 +114,15 @@ describe('drawing a Document', () => {
     })
     expect(Composition.validate(Site, deep)).toEqual([])
     const [section] = Renderer.render(SiteRenderer, deep, inertHtml)
-    expect(all(section).filter(node => node.sel === 'img')).toHaveLength(1)
+    expect(Inert.all(section).filter(node => node.sel === 'img')).toHaveLength(1)
     // Each level is a layout of its own, the image inside the third.
-    const [layout] = classes(
-      all(section).find(node => node.sel === 'div' && classes(node).length > 0),
+    const [layout] = Inert.classes(
+      Inert.all(section).find(node => node.sel === 'div' && Inert.classes(node).length > 0),
     )
     expect(
-      all(section).filter(node => node.sel === 'div' && classes(node).includes(layout ?? '')),
+      Inert.all(section).filter(
+        node => node.sel === 'div' && Inert.classes(node).includes(layout ?? ''),
+      ),
     ).toHaveLength(3)
     const moved = Composition.apply(
       Site,
@@ -151,12 +167,12 @@ describe('drawing a Document', () => {
       mode: 'edit',
       context: { audience: 'guest' },
     })
-    expect(attr(all(marked)[0], 'data-composition-hidden')).toBe('')
+    expect(Inert.value(Inert.all(marked)[0], 'data-composition-hidden')).toBe('')
     const [shown] = Renderer.render(Drawn, members, inertHtml, {
       mode: 'edit',
       context: { audience: 'member' },
     })
-    expect(attr(all(shown)[0], 'data-composition-hidden')).toBeUndefined()
+    expect(Inert.value(Inert.all(shown)[0], 'data-composition-hidden')).toBeUndefined()
   })
 
   it('hands a view the Message its node’s action makes, checked first', () => {
@@ -174,7 +190,7 @@ describe('drawing a Document', () => {
     })
     const Actions = Catalog.make({ blocks: [Cta], roots: [Content.Section], actions: [Subscribe] })
     const h = SlotView.inertBuilder<typeof Message.Type>()
-    const pressed: Array<typeof Message.Type | undefined> = []
+    const pressed: Array<Option.Option<typeof Message.Type>> = []
     const Drawn = Renderer.forMessages<typeof Message.Type>().make(Actions, {
       Cta: ({ props, on, h }) => {
         pressed.push(on('press'), on('hover'))
@@ -201,20 +217,20 @@ describe('drawing a Document', () => {
       cta({ press: { action: 'subscribe', input: { list: 'news' } } }),
       inertHtml,
     )
-    expect(given).toEqual([undefined])
+    expect(given).toEqual([Option.none()])
     // @ts-expect-error a dispatching Renderer must route every Message the Catalog's actions make
     Renderer.forMessages<{ readonly _tag: 'Other' }>().make(Actions, {
       Cta: ({ props, h }) => h.p([], [props.label]),
     })
     expect(pressed).toEqual([
-      Message.Subscribed({ list: 'news' }),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+      Option.some(Message.Subscribed({ list: 'news' })),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
+      Option.none(),
     ])
   })
 
@@ -231,15 +247,15 @@ describe('drawing a Document', () => {
       b: { block: 'Button', props: { label: 'Go', href: '/go' }, regions: {} },
     })
     const [viewed] = Renderer.render(Fragile, drawn, inertHtml)
-    expect(all(viewed).flatMap(node => (node.sel === undefined ? [] : [node.sel]))).toEqual([
+    expect(Inert.all(viewed).flatMap(node => (node.sel === undefined ? [] : [node.sel]))).toEqual([
       'section',
       'a',
     ])
     const [edited] = Renderer.render(Fragile, drawn, inertHtml, { mode: 'edit' })
-    const placeholder = all(edited).find(
-      node => attr(node, 'data-composition-placeholder') === 'Image',
+    const placeholder = Inert.all(edited).find(
+      node => Inert.value(node, 'data-composition-placeholder') === 'Image',
     )
-    expect(text(placeholder)).toContain('it could not be drawn: Error: no image today')
+    expect(Inert.text(placeholder)).toContain('it could not be drawn: Error: no image today')
   })
 
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {
@@ -250,13 +266,13 @@ describe('drawing a Document', () => {
     })
     const [viewed] = Renderer.render(SiteRenderer, broken, inertHtml)
     // Nothing is drawn for a visitor: the section is there, and empty.
-    expect(all(viewed).map(node => node.sel)).toEqual(['section'])
+    expect(Inert.all(viewed).map(node => node.sel)).toEqual(['section'])
 
     const [edited] = Renderer.render(SiteRenderer, broken, inertHtml, { mode: 'edit' })
-    const placeholders = all(edited).filter(
-      node => attr(node, 'data-composition-placeholder') !== undefined,
+    const placeholders = Inert.all(edited).filter(
+      node => Inert.value(node, 'data-composition-placeholder') !== undefined,
     )
-    expect(placeholders.map(node => text(node))).toEqual([
+    expect(placeholders.map(node => Inert.text(node))).toEqual([
       'Carousel: this Block is not in this version of the application',
       'Image: its settings are not valid',
       'Missing: this node is not in the page',
@@ -269,7 +285,7 @@ describe('drawing a Document', () => {
       b: { block: 'Columns', props: { ratio: '1:1' }, regions: { left: ['b'], right: [] } },
     })
     const [section] = Renderer.render(SiteRenderer, cyclic, inertHtml)
-    expect(all(section).filter(node => node.sel === 'div').length).toBe(3)
+    expect(Inert.all(section).filter(node => node.sel === 'div').length).toBe(3)
   })
 
   it('requires a view for every Block of the Catalog', () => {
@@ -292,6 +308,132 @@ describe('drawing a Document', () => {
     })
     expectTypeOf(renderer.entries.Press).parameter(0).toHaveProperty('h')
     expectTypeOf(renderer).toExtend<Renderer<typeof Press, typeof Message.Type>>()
+  })
+})
+
+describe('text edited in place', () => {
+  const Title = Block.define('Title', {
+    Props: Schema.Struct({
+      text: Schema.String,
+      tagLine: Schema.String,
+      level: Schema.Number,
+      note: Schema.optional(Schema.String),
+      mood: Schema.Literals(['calm', 'loud']),
+    }),
+    provides: [Content.Section],
+  })
+  const Stack = Block.define('Stack', {
+    Props: Schema.Struct({ name: Schema.String }),
+    regions: { items: Region.many({ accepts: [Content.Section] }) },
+    provides: [Content.Section],
+  })
+  const Titles = Catalog.make({ blocks: [Title, Stack], roots: [Content.Section] })
+  const TitleRenderer = Renderer.make(Titles, {
+    // Draws its name as plain text, and what it holds draws fields of its own.
+    Stack: ({ props, regions, h }) => h.div([], [props.name, ...regions.items]),
+    Title: ({ field, h }) =>
+      h.header([], [h.h1([], [field('text', { label: 'Title' })]), h.p([], [field('tagLine')])]),
+  })
+  const titles = page(['t', 'u'], {
+    t: {
+      block: 'Title',
+      props: { text: 'Hello there', tagLine: 'Hi', level: 1, mood: 'calm' },
+      regions: {},
+    },
+    u: {
+      block: 'Title',
+      props: { text: 'Other', tagLine: 'Also', level: 1, mood: 'calm' },
+      regions: {},
+    },
+  })
+  const fields = (roots: ReadonlyArray<Html>) =>
+    roots.flatMap(root =>
+      Inert.all(root).filter(node => Inert.value(node, 'data-composition-field') !== undefined),
+    )
+
+  it('draws a field as its text for a visitor, and marked by node and prop for an editor', () => {
+    const [viewed] = Renderer.render(TitleRenderer, titles, inertHtml)
+    expect(Inert.text(viewed)).toBe('Hello thereHi')
+    expect(
+      Inert.all(viewed)
+        .filter(node => node.sel !== undefined)
+        .map(node => node.sel),
+    ).toEqual(['header', 'h1', 'p'])
+    const [marked] = fields(Renderer.render(TitleRenderer, titles, inertHtml, { mode: 'edit' }))
+    expect(Inert.text(marked)).toBe('Hello there')
+    expect(Inert.value(marked, 'contenteditable')).toBeUndefined()
+    const name = String(Inert.value(marked, 'data-composition-field'))
+    expect(fieldOf(name)).toEqual(Option.some({ id: id('t'), key: 'text' }))
+    // An id with the separator a naive name would split on is still one id.
+    expect(fieldOf(JSON.stringify(['a:b', 'text']))).toEqual(
+      Option.some({ id: id('a:b'), key: 'text' }),
+    )
+    expect(fieldOf('t:text')).toEqual(Option.none())
+    expect(fieldOf(JSON.stringify(['', 'text']))).toEqual(Option.none())
+  })
+
+  it('draws the field being edited editable, with the text it had when editing began', () => {
+    const editing = Option.some({ id: id('t'), key: 'text', initial: 'Hello' })
+    // The node's other field, and the other node's same field, are drawn as they were.
+    const [edited, sibling, other] = fields(
+      Renderer.render(TitleRenderer, titles, inertHtml, { mode: 'edit', editing }),
+    )
+    expect(Inert.value(sibling, 'contenteditable')).toBeUndefined()
+    // Frozen: the page holds more by now, and the browser shows what was typed.
+    expect(Inert.text(edited)).toBe('Hello')
+    expect(Inert.value(edited, 'contenteditable')).toBe('plaintext-only')
+    expect(Inert.value(edited, 'role')).toBe('textbox')
+    expect(Inert.value(edited, 'aria-label')).toBe('Title')
+    // Keyed apart, so the browser's element is replaced when editing begins and ends.
+    expect(edited?.key).toBeDefined()
+    expect(other?.key).toBeUndefined()
+    expect(Inert.value(other, 'contenteditable')).toBeUndefined()
+    // A visitor's page ignores it.
+    const visited = Renderer.render(TitleRenderer, titles, inertHtml, { editing })
+    expect(Inert.text(visited[0])).toBe('Hello thereHi')
+    expect(fields(visited)).toEqual([])
+    // A field given no label is named by its prop, spaced.
+    const [, tagLine] = fields(
+      Renderer.render(TitleRenderer, titles, inertHtml, {
+        mode: 'edit',
+        editing: Option.some({ id: id('t'), key: 'tagLine', initial: 'Hi' }),
+      }),
+    )
+    expect(Inert.value(tagLine, 'aria-label')).toBe('Tag line')
+  })
+
+  it('says which text props a node draws as fields, and not those of what it holds', () => {
+    const stacked = page(['s'], {
+      s: { block: 'Stack', props: { name: 'All' }, regions: { items: ['t'] } },
+      t: {
+        block: 'Title',
+        props: { text: 'Hello', tagLine: 'Hi', level: 1, mood: 'calm' },
+        regions: {},
+      },
+    })
+    expect(Renderer.fields(TitleRenderer, stacked, id('t'))).toEqual(['text', 'tagLine'])
+    expect(Renderer.fields(TitleRenderer, stacked, id('s'))).toEqual([])
+    expect(Renderer.fields(TitleRenderer, stacked, id('gone'))).toEqual([])
+  })
+
+  it('takes only a prop that is text', () => {
+    Renderer.make(Titles, {
+      Stack: ({ h }) => h.div([], []),
+      Title: ({ field, h }) =>
+        h.h1(
+          [],
+          [
+            // @ts-expect-error: a number is no text
+            field('level'),
+            // @ts-expect-error: text that may be absent is no field
+            field('note'),
+            // @ts-expect-error: no such prop
+            field('title'),
+            // @ts-expect-error: one of a few names is no free text
+            field('mood'),
+          ],
+        ),
+    })
   })
 })
 

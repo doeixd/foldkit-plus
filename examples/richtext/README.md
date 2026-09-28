@@ -181,7 +181,7 @@ stays unverified. That is the deferred item in §115, not a claim.
 ## Why there is no package.json
 
 The harness only needs `foldkit-richtext` and `foldkit-richtext-dom`, mapped to
-source in `tsconfig.json` and aliased in the root `vitest.config.ts`. Keeping the
+source in `tsconfig.json` (by `pnpm paths`) and aliased in its own `vite.config.ts`. Keeping the
 harness out of the workspace dependency graph
 means it needs no `pnpm install`, so it adds no lockfile churn. Promote it to a
 runnable example (add a `package.json` with `workspace:*` dependencies and run

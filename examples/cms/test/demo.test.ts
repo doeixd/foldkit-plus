@@ -37,5 +37,7 @@ describe('foldkit-cms example', () => {
       "the editor's worklist still has it: Hello, World! (Unpublished)",
       'and the row was never a draft\'s to spoil: [{"id":"post-1","title":"Hello, World!","slug":"hello-world","published_at":null}]',
     ])
-  })
+    // The whole story, post and page, takes about four seconds alone, close to
+    // Vitest's five-second default, and longer beside the rest of the suite.
+  }, 30_000)
 })

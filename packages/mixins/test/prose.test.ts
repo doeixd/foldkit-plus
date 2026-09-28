@@ -12,18 +12,23 @@ import { declaredTokens, tokenReferences } from './tokens.js'
 describe('Prose.style', () => {
   it('shares one class across options and carries them as variables', () => {
     const plain = Prose.style()
-    const narrow = Prose.style({ measure: '50ch', rhythm: { heading: '2.5em', list: '0' } })
-    expect(Style.stylesheet(plain)).toBe(Style.stylesheet(narrow))
-    expect(plain.style).toEqual({
-      maxInlineSize: 'var(--fk-prose-measure, 65ch)',
-      lineHeight: 'var(--fk-leading-relaxed, 1.6)',
+    const narrow = Prose.style({
+      measure: '50ch',
+      leading: '1.8',
+      rhythm: { heading: '2.5em', list: '0' },
     })
+    expect(Style.stylesheet(plain)).toBe(Style.stylesheet(narrow))
+    // Nothing inline but the variables, so a later layer can override the measure.
+    expect(plain.style).toEqual({})
     expect(narrow.style).toEqual({
-      ...plain.style,
       '--fk-prose-measure': '50ch',
+      '--fk-prose-leading': '1.8',
       '--fk-prose-heading': '2.5em',
       '--fk-prose-list': '0',
     })
+    const css = Style.stylesheet(plain)
+    expect(css).toContain('max-inline-size:var(--fk-prose-measure, 65ch)')
+    expect(css).toContain('line-height:var(--fk-prose-leading, var(--fk-leading-relaxed, 1.6))')
   })
 
   it('writes the rhythm between unlike elements as rules with token fallbacks', () => {

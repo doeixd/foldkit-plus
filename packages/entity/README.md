@@ -55,7 +55,7 @@ pnpm add effect foldkit-entity
 
 ```ts
 import { Schema } from 'effect'
-import { Entity } from 'foldkit-entity'
+import { Entity, type Selected } from 'foldkit-entity'
 
 const Task = Entity.define('Task', Schema.Struct({
   id: Schema.String,
@@ -63,7 +63,7 @@ const Task = Entity.define('Task', Schema.Struct({
   done: Schema.Boolean,
 }))
 const TaskTitle = Entity.select(Task, { id: true, title: true })
-type TaskTitle = typeof TaskTitle.schema.Type
+type TaskTitle = Selected<typeof TaskTitle> // the value it reads
 const value: TaskTitle = { id: 't1', title: 'Read the guide' }
 ```
 
@@ -189,7 +189,7 @@ const PostRow = Entity.select(Blog.Post, {
   comments: true,
 })
 
-PostRow.schema.Type
+type PostRow = Selected<typeof PostRow>
 // {
 //   title: string
 //   commentCount: number
@@ -347,6 +347,25 @@ Entity.same(CmsPost, Blog.Post) // true: the metadata changed, the entity did no
 ```
 
 Annotating again combines with what is there, using the key's own `merge`.
+
+### A schema's own words
+
+A label or a help text written on a schema (`annotate({ title, description })`)
+is read with `Words.of(schema)`, which gives each as an `Option`. Under Effect 4 a
+schema with checks resolves to its **last check's** annotations, which say what
+the check expects and carry no title, so
+`Schema.String.annotate({ title: 'Name' }).check(Schema.isMinLength(1))` resolved
+directly has no title. `Words.of` falls back to the schema's own annotations. A
+form's labels, Crud's columns and the page Builder's inspector read words
+through it.
+
+```ts
+import { Schema } from 'effect'
+import { Words } from 'foldkit-entity'
+
+Words.of(Schema.String.annotate({ title: 'Name' }).check(Schema.isMinLength(1))).title
+// Option.some('Name')
+```
 
 ## Saying something about a row: `Expr`
 
@@ -531,6 +550,8 @@ from queries, not from what a database could express.
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
 | `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |
+| `Selected<typeof selection>` | Type: the value a Selection reads (its `schema`'s `Type`). |
+| `Words.of(schema)` | A schema's `title` and `description`, each an `Option`, including a title given before a check. |
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
 | `Expr.eq(left, right)` | Two values are the same; a field or a plain value on either side is coerced, and a predicate may stand where a boolean is wanted. |
 | `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |

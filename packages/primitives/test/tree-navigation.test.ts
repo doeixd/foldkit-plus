@@ -180,6 +180,7 @@ describe('TreeNavigation behavior', () => {
     expect(Attributes.find(guide, 'Id')?.value).toBe('layer-guide')
     expect(Attributes.find(guide, 'Role')?.value).toBe('treeitem')
     expect(Attributes.find(guide, 'AriaLevel')?.value).toBe(2)
+    expect(Attributes.find(guide, 'Style')?.value).toEqual({ '--fk-tree-level': '2' })
     expect(Attributes.find(guide, 'AriaPosinset')?.value).toBe(2)
     expect(Attributes.find(guide, 'AriaSetsize')?.value).toBe(2)
     expect(Attributes.find(guide, 'AriaExpanded')?.value).toBe(true)

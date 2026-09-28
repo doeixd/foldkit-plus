@@ -30,10 +30,14 @@ export const body: StyleValue = global(
   `:where(body){font-family:${v('font-body', 'system-ui, sans-serif')};font-size:${v('size-md', '1rem')};line-height:${v('leading-normal', '1.5')};font-weight:${v('weight-normal', '400')};color:${v('text-default', 'CanvasText')};background:${v('surface-base', 'Canvas')};-webkit-font-smoothing:antialiased}`,
 )
 
-/** A type hierarchy for h1 to h6 from the size scale. */
+/**
+ * A type hierarchy for h1 to h6 from the size scale, in `text-overt`. A
+ * container drawn in a color of its own, such as a band on the accent, sets
+ * `--fk-heading: currentColor` (`Style.vars`) and its headings take its color.
+ */
 export const headings: StyleValue = global(
   [
-    `:where(:is(h1,h2,h3,h4,h5,h6)){font-family:${v('font-heading', 'inherit')};font-weight:${v('weight-bold', '700')};line-height:${v('leading-tight', '1.2')};color:${v('text-overt', 'inherit')};letter-spacing:-0.01em}`,
+    `:where(:is(h1,h2,h3,h4,h5,h6)){font-family:${v('font-heading', 'inherit')};font-weight:${v('weight-bold', '700')};line-height:${v('leading-tight', '1.2')};color:${v('heading', v('text-overt', 'inherit'))};letter-spacing:-0.01em}`,
     `:where(h1){font-size:${v('size-4xl', '2.25rem')}}`,
     `:where(h2){font-size:${v('size-3xl', '1.875rem')}}`,
     `:where(h3){font-size:${v('size-2xl', '1.5rem')}}`,

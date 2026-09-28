@@ -4,8 +4,8 @@
  * each to spread beside `foldkit-mixins-form`'s and `foldkit-mixins-crud`'s.
  * There is no CMS view package: a kind and its renderer are all a view needs.
  */
-import { Display } from 'foldkit-crud'
-import { Input, type Control, type ControlChange, type Draft } from 'foldkit-form'
+import { Display, type DisplayWords } from 'foldkit-crud'
+import { Input, fillWords, type Control, type ControlChange, type Draft } from 'foldkit-form'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import type { State } from './lifecycle.js'
 
@@ -39,6 +39,8 @@ export interface StateWords {
   readonly Archived?: string
   readonly scheduled?: string
   readonly overdue?: string
+  /** A state with what its schedule adds: `{state}` and `{schedule}`. */
+  readonly withSchedule?: string
 }
 const stateWords: Required<StateWords> = {
   New: 'New',
@@ -48,6 +50,7 @@ const stateWords: Required<StateWords> = {
   Archived: 'Archived',
   scheduled: 'scheduled',
   overdue: 'overdue',
+  withSchedule: '{state}, {schedule}',
 }
 
 const isState = (value: unknown): value is State =>
@@ -63,7 +66,9 @@ const StateDisplay = Display.kind<{ readonly words?: StateWords | undefined }>('
     if (!isState(value)) return String(value)
     const words = { ...stateWords, ...data.words }
     const schedule = scheduleOf(value)
-    return schedule === undefined ? words[value._tag] : `${words[value._tag]}, ${words[schedule]}`
+    return schedule === undefined
+      ? words[value._tag]
+      : fillWords(words.withSchedule, { state: words[value._tag], schedule: words[schedule] })
   },
 })
 
@@ -108,16 +113,24 @@ export interface ControlContext<Message> {
   readonly change: (value: Draft) => Message
   readonly blurred: Message
   readonly state: ReadonlyArray<Attribute<Message>>
-  readonly slots: { readonly text: { readonly attrs: (attrs: ReadonlyArray<any>) => any } }
+  readonly slots: {
+    readonly text: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
+    readonly group: { readonly attrs: () => any }
+    readonly affix: { readonly attrs: () => any }
+  }
   readonly h: HtmlBuilder<Message>
 }
 
 /** What `foldkit-mixins-crud` gives a display's renderer, as far as these read it. */
 export interface DisplayContext<Message> {
-  readonly display: { readonly kind: string; readonly text: (value: unknown, words: any) => string }
+  readonly display: {
+    readonly kind: string
+    readonly text: (value: unknown, words: DisplayWords) => string
+  }
   readonly value: unknown
-  readonly words: unknown
+  readonly words: DisplayWords
   readonly h: HtmlBuilder<Message>
+  readonly badge: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
 }
 
 /** An ISO moment as a `datetime-local` input writes one, in the viewer's zone; other text as it is. */
@@ -161,24 +174,18 @@ export const Kinds = {
     Record<string, (context: ControlContext<Message>) => Html>
   > => ({
     [Slug.kind]: ({ control, state, draft, change, blurred, slots, h }) =>
-      h.span(
-        [],
-        [
-          h.span(
-            [h.DataAttribute('cms-slug-prefix', '')],
-            [Slug.is(control) ? control.data.prefix : ''],
-          ),
-          h.input(
-            slots.text.attrs([
-              ...state,
-              h.Type('text'),
-              h.Value(String(draft)),
-              h.OnInput(change),
-              h.OnBlur(blurred),
-            ]),
-          ),
-        ],
-      ),
+      h.div(slots.group.attrs(), [
+        h.span(slots.affix.attrs(), [Slug.is(control) ? control.data.prefix : '']),
+        h.input(
+          slots.text.attrs([
+            ...state,
+            h.Type('text'),
+            h.Value(String(draft)),
+            h.OnInput(change),
+            h.OnBlur(blurred),
+          ]),
+        ),
+      ]),
     [DateTime.kind]: ({ state, draft, change, blurred, slots, h }) =>
       h.input(
         slots.text.attrs([
@@ -195,16 +202,18 @@ export const Kinds = {
   displayRenderers: <Message>(): Readonly<
     Record<string, (context: DisplayContext<Message>) => Html>
   > => ({
-    [StateDisplay.kind]: ({ display, value, words, h }) =>
+    [StateDisplay.kind]: ({ display, value, words, h, badge }) =>
       h.span(
-        isState(value)
-          ? [
-              h.DataAttribute('cms-state', value._tag),
-              ...(scheduleOf(value) === undefined
-                ? []
-                : [h.DataAttribute('cms-schedule', scheduleOf(value)!)]),
-            ]
-          : [],
+        badge.attrs(
+          isState(value)
+            ? [
+                h.DataAttribute('cms-state', value._tag),
+                ...(scheduleOf(value) === undefined
+                  ? []
+                  : [h.DataAttribute('cms-schedule', scheduleOf(value)!)]),
+              ]
+            : [],
+        ),
         [display.text(value, words)],
       ),
     [Moment.kind]: ({ display, value, words, h }) =>

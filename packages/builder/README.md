@@ -18,6 +18,9 @@ submits it, and a CMS autosaves it.
 | The page being edited | the Builder's Model, as the form key's value |
 | Undo | the Builder's Model: the page is kept as a `foldkit-primitives/state` history |
 | What is selected, the open panel, the viewport | the Builder's Model, beside the page |
+| The last node copied or cut | the Builder's Model, as `clipboard`, and the system clipboard as text |
+| Which text on the page is being edited in place, and what it said when that began | the Builder's Model, as `editing` |
+| A prop's field while it holds text that does not decode yet | the Builder's Model, as `inspector` |
 | The layers' keyboard focus and which rows are open | the Builder's Model, as a `TreeNavigation` placement |
 | What the editor last said to assistive technology | the Builder's Model, as a `LiveAnnounce` placement |
 | Saving, revisions, publishing | the form, and `foldkit-cms` around it |
@@ -70,12 +73,16 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Applied({ op })` | applies an Operation; a button, a key, a drag or an agent sends the same |
 | `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
+| `PatternAsked({ pattern, at })` | one of the Catalog's patterns, once ids are minted for its nodes |
+| `CopyAsked({ id })`, `CutAsked({ id })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
+| `EditingAsked({ field })`, `FieldTyped({ field, text })`, `EditingCommitted({ field, text })`, `EditingCancelled({ field })` | text edited in place: see below |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
-| `Selected({ id })`, `Hovered({ id })` | what the inspector and the node actions work on |
+| `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
-| `DragStarted({ id })`, `DraggedOver({ over })`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
-| `PreviewChosen({ key, value })` | previews the page with one context key set, or unset with `null` |
+| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
+| `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
+| `Inspected({ id, message })` | a Message of the selected node's settings form: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
@@ -89,6 +96,53 @@ const PageForm = Form.make('PageForm', PageInput, {
   the next edit goes through.
 - **A new node is selected**, and a removed one is no longer.
 
+## The inspector is a form
+
+Each Block's props are edited through a `foldkit-form` form made from its props
+Schema, once per Block, at the first use, and the input of the action each of
+its events runs through one more, once per Block, event and action. A form
+edits a value as the Document stores it, so a prop drawn as an `Option` is
+chosen as an id or nothing, and checks each value against its whole Schema.
+The node owns its values; a form only holds what its fields show:
+
+```text
+node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key
+   a key the Message changed that decodes, and the node lacks ─► setProp,
+                                              or setAction with the input's other keys
+   an optional key emptied ─► unsetProp, or setAction without it
+   a key that does not decode ─► its error, no edit
+```
+
+- **A change that decodes is an edit**, one `setProp` per key the Message
+  changed, grouped in history like any other, so typing a word undoes as one.
+  A field left alone is never written back, and typing back the value the node
+  holds adds no undo step.
+- **Text that does not decode** (`"abc"` for a number) stays in its field with
+  the form's error, and changes nothing. A required field emptied is such
+  text; an optional one emptied takes the value away.
+- **A value the node refuses**, one that fits its field but not the Block (a
+  check across props), is said in `refused`, and the form shows what the node
+  holds again.
+- **An action's input is written whole**, with only the keys its Schema names,
+  so one a stored input kept from an older Schema is dropped, not refused.
+- **A node changed another way** (an undo, the canvas, an agent) refills every
+  field but one holding text that does not decode. Moving the selection drops
+  what was held; the next node's fields fill from its props.
+- `PageBuilder.inspecting(model)` is the selected node's forms and their
+  Models, for a view to draw: `props`, and `on` by event. A view sends
+  `Inspected({ id, form: form.key, message: form.settings.encodeMessage(message) })`;
+  one for a node no longer selected, or a form it no longer draws, is ignored.
+  Each form's Model is held as JSON, so a saved Builder still is.
+- A prop is labelled with its Schema's `title`, else its key spaced
+  (`maxItems` is "Max items"). A Block asks for a control where the Schema
+  does not say, with `Block.annotate(Builder.controls({ body: Input.multiline() }))`;
+  `Input.hidden()` leaves a prop out.
+- A control of the application's own, backed by a Bundle (`Input.bundle`, a
+  color picker), works as it does in any form, with no Builder code; send its
+  Messages with `settings.control(key, message)`. The Builder runs its forms as
+  functions and starts nothing, so one with Subscriptions or Resources is
+  refused where the Builder is made: every Block's form is made there.
+
 ## The keyboard, the layers, and what the editor says
 
 The Builder places two `foldkit-primitives/interaction` bundles in its Model:
@@ -97,23 +151,115 @@ The Builder places two `foldkit-primitives/interaction` bundles in its Model:
 Behaviors; `foldkit-mixins-builder` does.
 
 - **Moving keyboard focus in the layers selects the node** it lands on.
-- **`PageBuilder.keyCommand(model, key, modifiers)`** is the editor's shortcuts
-  as the Message they send, or `undefined`:
+- **A removed node leaves the layers' keys nearby:** with nothing selected,
+  `layers.current` moves to the node after it, else the one before, else the
+  nearest holder left, rather than falling back to the first row. With focus
+  in the layers, the Behavior follows it there, which selects that node.
+- **`PageBuilder.commands`** is the editor's commands, one table: each has an
+  `id`, a `label`, its `keys`, where a drawn Builder offers it (`placement`:
+  the node's actions, the toolbar, or by key only), and `run(model)`, the
+  Message it sends now, or none while it has nothing to do. A view draws the
+  node's actions, the toolbar, their titles and the list of shortcuts from it,
+  and `PageBuilder.keyCommand(model, key, modifiers)` is derived from it: the
+  first command one of whose keys is pressed and which has something to do,
+  so a command added on a built one's key runs where that one has none. The
+  built table:
 
   | Keys | What they do to the selected node |
   | --- | --- |
   | Alt+Up, Alt+Down | move it among its siblings |
   | Alt+Left | move it out of its parent, to just after it |
   | Alt+Right | move it into the node above it, last in the first Region that takes it |
-  | Mod+D | duplicate it, just after it |
+  | Mod+D | duplicate it, just after it, where its Region has room |
+  | Mod+C, Mod+X | copy it; cut it |
   | Delete, Backspace | remove it |
   | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
+  | Mod+V | paste inside it, or after it, as a new node of the copy's Block goes |
+  | Enter | edit its first text in place |
+  | Escape | deselect it |
 
-  Attach it to the layers panel, not the whole editor, so Delete in a text box
-  edits the text. A move the page refuses is refused as any edit is.
+  Attach `keyCommand` to the layers panel and the canvas, not the whole editor,
+  so Delete in a text box edits the text. A move the page refuses is refused
+  as any edit is. A key's `mod` is Ctrl, or ⌘ on a Mac; `mod` and `alt` must be
+  as given, and `shift` only where given, so Delete takes Shift+Delete too.
+- **`Builder.make(name, { commands: built => ... })`** changes the table: another
+  key for a command, one left out, one moved to the toolbar. What runs a key,
+  the node's actions and the toolbar all follow it.
 - **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
-  Section body", and so are undo, redo, and a refusal, assertively. A prop
-  edit is not: the field being typed in already says it.
+  Section body", a Block named by its label, and so are undo, redo, and a
+  refusal, assertively. A prop edit is not: the field being typed in already
+  says it.
+- **What it says is its words.** `Builder.make(name, { words })` takes any of
+  `EditWords` over the English ones (`editWords`): each announcement, each
+  command's label, and each refusal the Builder makes itself. Words are text,
+  a value a blank in them (`'Moved {label}{at}'`), as a form's and a view's
+  are, so one object can hold them all. A refusal `apply` makes is worded by
+  `refusal`, with blanks `{code}` and `{message}`, by default its own message; the Model's `refused` holds the
+  worded text, so the live region and a view's alert say the same.
+
+## Text edited in place
+
+A Block's view that draws a text prop with `field(key)` (see
+[`foldkit-composition`](../composition/README.md#drawing-a-page-foldkit-compositionfoldkit))
+can be edited on the canvas, where it shows:
+
+```text
+double-click, or Enter ─► EditingAsked ─► editing: { id, key, initial }   the field freezes at `initial`
+typing ─► FieldTyped ─► setProp, in the session's one undo step
+Enter or leaving it ─► EditingCommitted      Escape ─► EditingCancelled: the step is taken back
+```
+
+- **Each Message names the field as the canvas marks it**, and the Builder
+  checks it: text the Renderer does not draw as a field (`Renderer.fields`),
+  a prop that is not text, or a field other than the one being edited is
+  ignored.
+- **One session is one undo step.** Beginning ends whatever group came
+  before (`History.close`), so two sessions of one prop undo apart, and a
+  second ask for the field being edited (a double-click inside it) begins
+  nothing. Escape, or text that ends where it began, takes the step back and
+  leaves nothing to redo (`History.revert`). Where another edit came between
+  (the inspector, an agent), the step is no longer the last: the text is
+  written back as a step of its own, and a commit writes nothing the page
+  already holds, so no step is empty. A session in which nothing was typed
+  writes nothing when it ends, so a field only looked at does not put back
+  over another's edit the text it showed.
+- **While text is edited, the keys are the text's:** `keyCommand` offers
+  nothing, so Backspace deletes a letter, not the block.
+- **Editing ends when its node is no longer the one selected**, as a click
+  elsewhere or a removal makes it, and at an undo or a redo, which change the
+  page under the field.
+- The canvas freezes the field at `initial` so a redraw never rewrites the
+  element under the caret; the text is read by `foldkit-primitives`'
+  `EditableText`, which `foldkit-mixins-builder` attaches to the canvas.
+
+## Copy, cut and paste
+
+A copy is a node and all it holds, as `Composition.takeTree` takes it. It goes
+in two places: the Model's `clipboard`, and the system clipboard as JSON,
+`{ "format": "foldkit-composition", "tree": … }`, so a copy made in one tab
+pastes in another.
+
+- **`CopyAsked({ id })`** keeps the copy and writes it out; **`CutAsked({ id })`**
+  also removes the node, as one undoable edit. A node its Region cannot do
+  without is not cut, and nothing is copied.
+- **`PasteAsked()`** reads the system clipboard in a Command, which answers
+  `ClipboardRead({ text })`. Text read wins; the Model's copy is used only when
+  the browser would not let the clipboard be read.
+- **The text is untrusted.** It is decoded strictly (a key it should not have
+  is refused, not dropped), checked by its own ids (`Composition.treeRefusal`),
+  so a refusal names what was copied, then each node gets a newly minted id by
+  `Composition.rekey`, and the tree goes in by one `insertTree`, which checks
+  every node against the Catalog. Anything that does not decode or fit (text
+  that is not part of a page, an unknown Block, a prop of the wrong type, a
+  child it names but does not hold) is refused whole: nothing goes in, and
+  `refused` says why. Text that is not part of a page, or no copy at all, is
+  `builder:nothing-to-paste`; the rest are `apply`'s own codes.
+- **It goes where a new node of its root's Block would** (`placeFor`): inside
+  the selection when it fits there, else after it, else last among the roots,
+  or, for a Block that is no root, last in the last Region with room that
+  takes it, so a node cut and pasted with nothing selected comes back. Where
+  it can go nowhere, it is refused before ids are minted, as
+  `builder:no-place`, with the Block's label.
 
 The announcer debounces and clears on Effect's clock through Commands named
 `LiveAnnounce.read` and `LiveAnnounce.clear`. A runtime runs them beside
@@ -150,14 +296,23 @@ In, from the parent's own `update`, for a form key named `document` placed as
 `page`:
 
 ```ts
-const blockIn = (url: Url): NodeId | null => {
-  const id = new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')
-  return id === null || id === '' ? null : NodeId.make(id)
-}
+const blockIn = (url: Url): Option.Option<NodeId> =>
+  Option.map(
+    Option.filter(
+      Option.fromNullOr(new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')),
+      id => id !== '',
+    ),
+    NodeId.make,
+  )
 
 const selectFrom = (url: Url) =>
   Message.GotPageMessage({
-    message: PageForm.control('document').send(BuilderMessage.Selected({ id: blockIn(url) })),
+    message: PageForm.control('document').send(
+      Option.match(blockIn(url), {
+        onNone: () => BuilderMessage.Deselected(),
+        onSome: id => BuilderMessage.Selected({ id }),
+      }),
+    ),
   })
 
 const update = placements.update((model, message) =>
@@ -176,15 +331,16 @@ Out, as one of the parent's own Subscriptions, given to
 ```ts
 const selectionUrl = Subscription.make<Model, Message>()(entry => ({
   selectionUrl: entry(
-    { block: Schema.NullOr(Schema.String) },
+    { block: Schema.Option(Schema.String) },
     {
       modelToDependencies: model => ({
         block: PageForm.control('document').field(model.page).value.selected,
       }),
       dependenciesToStream: ({ block }) =>
-        block === null
-          ? Stream.empty
-          : Stream.fromEffect(Navigation.replaceUrl(`?block=${block}`)).pipe(Stream.drain),
+        Option.match(block, {
+          onNone: () => Stream.empty,
+          onSome: id => Stream.fromEffect(Navigation.replaceUrl(`?block=${id}`)).pipe(Stream.drain),
+        }),
     },
   ),
 }))
@@ -216,37 +372,68 @@ nothing in the page and is not an edit.
 ## Dragging
 
 A pointer drag is four Messages, the facts `foldkit-primitives`' `PointerDrag`
-reports:
+reports. What is dragged is its `source`: a node on the page,
+`{ _tag: 'Existing', id }`, or a new node of a Block, `{ _tag: 'New', block }`,
+dragged from the palette.
 
-- **`DragStarted({ id })`** selects the node and puts `{ id, over: null, at:
-  null }` in the Model's `drag`. Nothing moves yet.
-- **`DraggedOver({ over })`** says which node the pointer is over and in which
-  zone of it, `before`, `inside` or `after`. The Builder works out where a drop
-  would land, `drag.at`: before or after that node among its siblings, or last
-  in the first of its Regions that accepts the dragged Block. Inside a node
-  that takes nothing is after it, and `drag.over.zone` says so. Where the page
-  would refuse the move, such as into the node itself, `at` is `null`.
-- **`DragDropped()`** applies the move to `drag.at` as one edit, undone and
-  announced like a key's; with no `at`, nothing moves and "Not moved" is
-  announced. **`DragCancelled()`** ends the drag the same way.
+- **`DragStarted({ source })`** puts the drag in the Model's `drag`, an
+  `Option`, with `over` and `at` both none, and selects a node it drags. Nothing
+  changes on the page yet. A node not on the page, or a Block with no starting
+  props, starts no drag.
+- **`DraggedOver({ id, zone })`** says which node the pointer is over and in
+  which zone of it, `before`, `inside` or `after`; **`DraggedOff()`** that it is
+  over none. The Builder works out where a drop would land, `drag.at`: before
+  or after that node among its siblings, or last in the first of its Regions
+  that accepts the dragged Block. Inside a node that takes nothing is after it,
+  and `drag.over`'s zone says so. Where that node has no place for it, the
+  nearest node holding it that does is used, before it or after it, so a
+  Section dropped on a Section's last Heading lands after that Section, and
+  `drag.over` names the holder. It climbs no higher than a node being dragged,
+  and a drop onto a node's own place is no move, not its holder's. Each place is tried as the edit a drop would
+  make (a move for a node, an insert of the Block's starting props for a new
+  one), and where the page would refuse it, such as a node into itself, `at`
+  is none, so a mark never promises a drop the page refuses.
+- **`DraggedOverPage()`** says a palette tile is over the page's own space,
+  over none of its nodes: an empty page, or the space below the last node.
+  It lands where a press with nothing selected would put it (`placeFor`):
+  last among the roots, or last in the last Region that takes it. A node
+  already on the page is moved only onto another.
+- **`DragDropped()`** works the place out again, since the page may have
+  changed, and moves a node there as one edit, undone and announced like a
+  key's; a new node is asked for as a press on the palette asks, so it gets an
+  id, is added there, and is selected. With no place, nothing changes and "Not
+  moved", or "Not added", is announced. **`DragCancelled()`** ends the drag the
+  same way.
 
 A drawing marks `drag.over` only while `drag.at` is set, so the mark is where
 the node will go. The keyboard's way to move a node is `keyCommand`.
 
 ## Helpers
 
+Each helper that may have no answer returns an `Option`, as the Model's
+`selected`, `hovered`, `refused` and `drag` are. The Model stores them as `null`
+(`Schema.OptionFromNullOr`), so a saved Builder, such as a CMS draft, is JSON.
+
 - `PageBuilder.placeFor(document, selected, block)` is where the palette puts a
   new node: inside the selection when a Region there accepts it, else after the
-  selection, else last among the roots.
+  selection, else last among the roots, or last in the last Region on the page
+  with room that accepts it; none where the Block can go nowhere.
+- `PageBuilder.patternAt(document, selected, pattern)` is the same for a
+  pattern, by its root's Block; none for a pattern the Catalog lacks. Its use
+  is one `usePattern` edit, undone as one.
 - `PageBuilder.moveBy(document, id, delta)` is the Operation that moves a node
-  among its siblings, or `undefined` at an end.
-- `PageBuilder.dropAt(document, dragged, target, zone)` is where a drag over
-  `target` would put `dragged`, or `undefined` where the page refuses it.
+  among its siblings; none at an end.
+- `PageBuilder.dropAt(document, source, target, zone)` is where a drag over
+  `target` would put `dragged`; none where the page refuses it.
+- `PageBuilder.keyCommand(model, key, modifiers)` is the Message a shortcut
+  sends; none for a key it does not handle, which is what Foldkit's
+  `OnKeyDownPreventDefault` takes.
 - `PageBuilder.replace(model, document)` and `PageBuilder.settle(model)` are what
   the form control's fill and settle do.
 
 ## Limits
 
 - One node is selected at a time.
-- The plain view is plain. The drawn editor is `foldkit-mixins-builder`.
+- The plain view is plain, and names its panels in English. The drawn editor
+  is `foldkit-mixins-builder`.
 - A starting props value must encode with its Block's Schema.

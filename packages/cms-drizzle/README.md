@@ -90,6 +90,12 @@ RemoteServer.make({
 - A content type with no `published` role has nothing to hide, and needs none.
 - **`create` and `update` go to the CMS, not to `RemoteServer.make`.** Registered
   there too, they are a way to publish with no draft, no revision and no `allow`.
+- **Content that exists already is imported, not inserted.** `cms.import({ type,
+  values, as, at, entry })` makes the entry and a draft of `values`, then publishes
+  it as a publish does: your `create` handler writes the row, as `as`, and revision
+  1 records `values`, dated `at`. It is one transaction, and the server's own act,
+  so `allow` is not asked. Writing the CMS's tables by hand has to match what a
+  publish writes, and drifts.
 
 ## Verify the audience boundary
 
@@ -156,8 +162,9 @@ fails after writing leaves nothing behind.
 - A draft your mutation's Input refuses is not published, and the error says why.
   The draft is kept.
 - A row that is already shown keeps the date it was first published on.
-- What your handler returns (patches, connection changes, deletions) goes to the
-  client with the entry, the revision and the row's `published` member.
+- The row as your handler left it goes to the client with the entry and the
+  revision, every column of it, so a handler need not patch what it wrote. What
+  your handler returns (patches, connection changes, deletions) goes too.
 
 ### Slugs
 
@@ -245,12 +252,16 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
 | `published(column, isAuthor)` | A `visible` rule for a content table: a visitor sees rows whose column is set. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, and `bindings`. |
+| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. |
 | `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each. |
+| `cms.import({ type, values, as, at?, entry? })` | Content that is published already (a seed, or what another CMS held), written by the publish path; an Effect of `{ entry, targetId }`. |
 
 ## Limits
 
-- `allow` is asked about every transition.
+- `allow` is asked about every transition, and again when an entry is read with
+  `may`: the entry's `may` is the transitions `allow` lets the reader ask
+  (`Cms.transitions` filtered), so the client can leave out what would be
+  refused. Whether the entry offers one now is its `state`'s to say.
 - `CmsPublish` needs a draft. To show an unpublished row again as it is, the
   editor's publish saves what is there first; a client of your own does the same.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the

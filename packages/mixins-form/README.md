@@ -105,6 +105,8 @@ EditForm.view(model, h, {
 
 - `FormView.define(Edit)` alone is a complete, unstyled form. `field` is only
   for changing how fields are drawn.
+- `submits: false` draws the form without its submit button, for someone who
+  may not submit it (a writer, where the submit publishes).
 - `options` is keyed by the form's keys and is where a relation picker's choices
   come from. The form names the target Entity; listing it is a query you make,
   so the choices are yours to load, filter, and label.
@@ -118,17 +120,23 @@ EditForm.view(model, h, {
 | `Multiline` | `textarea` | `multiline` |
 | `Number` | `input type="text" inputmode="decimal"` | `number` |
 | `Toggle` | `input type="checkbox"` | `toggle` |
-| `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select` |
-| `RelationOne` | `select` of `options[key]`, with a blank | `select` |
-| `RelationMany` | a `role="group"` of checkboxes over `options[key]` | `choices`, `choice` |
+| `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select`, `option` |
+| `RelationOne` | `select` of `options[key]`, with a blank | `select`, `option` |
+| `RelationMany` | a `role="group"` of checkboxes over `options[key]`, each in a `label` with its words | `choices`, `choiceLabel`, `choice` |
 | `Nested` | a `fieldset` with a `legend`, a `div` per row holding the nested form's fields, and `button type="button"`s to add and remove a row | `group`, `legend`, `row`, `add`, `remove` |
 
 A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 `input type="search"` above it, in the `search` slot, labelled `Search <label>`
 and naming the picker it controls with `aria-controls`. `words.search` in the
-view inputs replaces the word. All of the view's words (`submit`, `search`,
-`add`, `remove`) are text, with `{label}` and `{position}` as blanks; see
-[words in one place](../form/README.md#words-as-text-in-one-place).
+view inputs replaces the word. The blank choice of a `select` has no words
+unless `words.none` gives it some ("none"). All of the view's words (`submit`,
+`search`, `none`, `add`, `remove`) are text, with `{label}` and `{position}` as
+blanks; see [words in one place](../form/README.md#words-as-text-in-one-place).
+
+A chosen value its choices lack stays in sight: after the choices comes
+`? value`, chosen, in a `select` and in a `RelationMany`'s checkboxes. It is a
+stored id whose row is gone, or one the application has not loaded yet, and
+the author can see it and let it go.
 
 ### Renderers
 
@@ -170,7 +178,9 @@ nested form). Such a key has no draft, so `draft` and `input.field.value` are
 renderer.
 
 Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
-`error`, and `control` (around a Bundle's own view). `FormSlots` publishes `root` (the `form`), `errors` (failures that
+`error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
+renderer that draws text beside its control (a prefix, a unit) with the two
+together. `FormSlots` publishes `root` (the `form`), `errors` (failures that
 belong to no one field), `submit`, and the five slots of a nested key.
 
 A Bundle's own view that takes inputs gets them from the view input

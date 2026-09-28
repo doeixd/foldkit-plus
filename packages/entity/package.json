@@ -27,10 +27,12 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
     "./conformance": {
+      "foldkit-plus:source": "./src/conformance/index.ts",
       "types": "./dist/conformance/index.d.mts",
       "import": "./dist/conformance/index.mjs"
     }

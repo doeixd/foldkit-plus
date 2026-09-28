@@ -42,9 +42,11 @@ export interface Control<Data = unknown> {
   readonly data: Data
   /**
    * For a `text` draft: the value the key's schema is given, when that is not the
-   * text itself. `undefined` means the text does not read as one.
+   * text itself, read with the control's `data` (a select's options). `undefined`
+   * means the text does not read as one.
    */
-  readonly parse?: ((draft: string) => unknown) | undefined
+  // A method, so a control of any data is a `Control<unknown>`.
+  parse?(draft: string, data: Data): unknown
   /** What to say when `parse` gives `undefined`. */
   readonly unparsed?: string | undefined
   /**
@@ -117,24 +119,27 @@ const kind = <Data = Record<string, never>>(
     readonly draft: DraftKind
     readonly shown?: boolean
     readonly searches?: boolean | ((data: Data) => boolean)
-    readonly parse?: (draft: string) => unknown
+    /** The value a text draft stands for, given the control's data; `undefined` when it stands for none. */
+    readonly parse?: (draft: string, data: Data) => unknown
     readonly unparsed?: string
   },
-): ControlKind<Data> => ({
-  kind: name,
-  of: data =>
-    Object.freeze({
-      kind: name,
-      draft: spec.draft,
-      shown: spec.shown ?? true,
-      searches:
-        typeof spec.searches === 'function' ? spec.searches(data) : (spec.searches ?? false),
-      data,
-      parse: spec.parse,
-      unparsed: spec.unparsed,
-    }),
-  is: (control): control is Control<Data> => control.kind === name,
-})
+): ControlKind<Data> => {
+  return {
+    kind: name,
+    of: data =>
+      Object.freeze({
+        kind: name,
+        draft: spec.draft,
+        shown: spec.shown ?? true,
+        searches:
+          typeof spec.searches === 'function' ? spec.searches(data) : (spec.searches ?? false),
+        data,
+        ...(spec.parse === undefined ? {} : { parse: spec.parse }),
+        unparsed: spec.unparsed,
+      }),
+    is: (control): control is Control<Data> => control.kind === name,
+  }
+}
 
 /**
  * What a control backed by a Bundle carries: the Bundle, its args, and how the
@@ -217,7 +222,15 @@ const Number_ = kind('Number', {
   unparsed: 'Enter a number',
 })
 const Toggle = kind('Toggle', { draft: 'flag' })
-const Select = kind<{ readonly options: ReadonlyArray<string> }>('Select', { draft: 'text' })
+/**
+ * One of a fixed set, text or numbers. The draft is the option as text, as a
+ * `<select>` holds it; the value is the option itself, so `3` is stored as `3`.
+ */
+const Select = kind<{ readonly options: ReadonlyArray<string | number> }>('Select', {
+  draft: 'text',
+  parse: (draft, data) => data.options.find(option => String(option) === draft),
+  unparsed: 'Choose one of the options',
+})
 const RelationOne = kind<RelationData>('RelationOne', {
   draft: 'text',
   searches: data => data.search,
@@ -255,8 +268,12 @@ const fromSchema = (schema: Schema.Top): Control | undefined => {
     if (only._tag === 'Boolean') return Toggle.of(nothing)
   }
   const literals = members.map(member => (member._tag === 'Literal' ? member.literal : undefined))
-  return literals.length > 0 && literals.every(literal => typeof literal === 'string')
-    ? Select.of({ options: literals as ReadonlyArray<string> })
+  const options = literals.filter(
+    (literal): literal is string | number =>
+      typeof literal === 'string' || typeof literal === 'number',
+  )
+  return options.length > 0 && options.length === literals.length
+    ? Select.of({ options })
     : undefined
 }
 
@@ -320,7 +337,7 @@ export const Input = {
   multiline: (): Control => Multiline.of(nothing),
   number: (): Control => Number_.of(nothing),
   toggle: (): Control => Toggle.of(nothing),
-  select: (options: ReadonlyArray<string>): Control => Select.of({ options }),
+  select: (options: ReadonlyArray<string | number>): Control => Select.of({ options }),
   /**
    * A picker of one of `target`, for a value that is not a relation of the
    * form's Entity: a page Builder's Block prop that holds an id. A relation key

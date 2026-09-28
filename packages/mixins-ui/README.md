@@ -326,6 +326,11 @@ What a recipe assumes and does:
   which `@foldkit/ui` already writes; no `whenInput` is needed.
 - **Tone and variant are independent.** A tone sets a few private custom
   properties that `solid`, `outline`, and `ghost` read.
+- **On a colored band, unfilled buttons take the band's color.** `outline` and
+  `ghost` draw their text in the tone's ink, which reads on the page's surface
+  and not on a band of the accent. A band sets
+  `Style.vars({ '--fk-ink': 'currentColor' })`, beside `--fk-heading` for its
+  headings, and their text is the band's.
 
 Adjust a recipe with `extend` instead of forking it. Base pieces compose per
 slot, a variant's pieces compose over the shipped ones, and compounds append:

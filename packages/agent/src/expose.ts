@@ -9,6 +9,7 @@ import { type SnakeCase, assertValidName, defaultName } from './naming.js'
 import type {
   AnyCompletion,
   AnyMessage,
+  Correlation,
   InvocationContext,
   MessageConstructor,
   StateCompletion,
@@ -269,7 +270,12 @@ type VariantCompletion<Request, Success extends Constructors, Failure extends Co
   readonly success: Success
   readonly failure?: Failure | undefined
   readonly correlate?:
-    ((request: Request, result: MessageOf<Success> | MessageOf<Failure>) => boolean) | undefined
+    | ((
+        request: Request,
+        result: MessageOf<Success> | MessageOf<Failure>,
+        call: Correlation,
+      ) => boolean)
+    | undefined
   readonly timeout?: Duration.Input | undefined
 }
 

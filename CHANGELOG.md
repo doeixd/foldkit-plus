@@ -9,6 +9,234 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-bundle`, a shared tag reaches everyone who shares it:** a Message
+  tag wirings declare `shared` is folded by each of them in list order, and
+  the parent's own update sees it after them. Before, the first claimant took
+  it: of two URL mirrors only the first read the URL, and an application with
+  a URL mirror never saw its own `UrlChanged`, so it could not route on it.
+
+- **`foldkit-mixins-crud`, loading told from empty:** a list's or a detail's
+  `status` line is `aria-busy` while the first answer is awaited, as the table
+  already was while refreshing, so a style can draw a quiet placeholder for
+  loading and keep its empty state for empty.
+
+- **`foldkit-agent`, correlating by the call:** a completion's `correlate`
+  receives a third argument, `{ invocation }` (type `Correlation`), so a fact
+  that carries the invocation's id from `toMessage` is told apart where the
+  input is not. The todo app and the root README's example completed `add_todo`
+  by matching the trimmed title, which mixed up two todos of one title; they now
+  pass `requestId: invocation.id` through `RequestedTodo` to `SubmittedTodo`.
+
+- **CMS example as a static site:** `pnpm --filter foldkit-example-cms
+  build:sandbox` builds the studio and the public site with the same server
+  running in the page, on SQLite compiled to WebAssembly (`sql.js`), so it
+  deploys with no backend. Each visitor's sandbox is kept in the browser's
+  storage; `?reset` starts afresh. The server takes its database
+  (`openServer(clock, sqlite)`), and one endpoint module answers requests for
+  both the HTTP server and the page.
+  On a phone the studio's sidebar is a top bar (the brand and who is looking,
+  then the sections in a row), the editor's bar wraps its actions under its
+  status, the builder's panels scroll within a short height so the page
+  shows, and a post list's cards fit a narrow canvas. The posts open with what
+  the demo is and what to try, and the page says it is starting while the
+  sandbox opens. The address keeps the open post, the search and the Archive
+  tab, as it kept the open page, so a reload lands where one was, and opening
+  or closing a post or a page is a step Back returns from. A page has its History
+  and More (discard, unpublish, archive) under a fold below the editor's bar,
+  as a post has them in its aside. The History is a timeline: each revision
+  with its date, time and publisher, the newest marked Live while it is on the
+  site, and Restore offered only where it would change something. Moving
+  between the studio's sections and the site no longer paints white: the
+  foundations' stylesheet is in the HTML. A wait says "Loading…" only once it
+  is noticeable, an entry being read shows no "New" badge, and the pages list
+  no longer says "Nothing yet." before it is read. A new screen starts at the
+  top and Back, Forward or a reload return where it was. A chair's avatar is
+  centred in its touch target on a phone. The page builder shows its panel
+  tabs at every width it stacks at: an editor between 52rem and 64rem wide
+  (a 1280px window's) stacked every panel above the page with no tabs, so a
+  new page seemed to open without one. The address keeps a post's preview and
+  the Builder's panel and preview width, so a reload comes back to them, and
+  the worklist's search and tab go through a `foldkit-mirror` URL mirror
+  (`?archive=true` where it was `?archive=1`). The blog's eight posts explain
+  how the demo is made (the CMS, the page builder, Composition, Form, Crud,
+  Entity and Remote, and the styling), and a post's body can hold headings,
+  lists and code. The site links to the demo's code on GitHub, and a
+  published sandbox kept from the earlier seed is replaced by this one. A new
+  post or page is in the address (`new=<id>`) from the moment it is started,
+  so a reload comes back to it; its first save turns that into its own key.
+  The public site is rendered at build time with `foldkit-ssr`: each
+  published page and post is HTML with its text, styles, description, link
+  preview, canonical address and article facts, beside a sitemap and
+  `robots.txt`. The browser takes a generated page over without drawing or
+  reading it again, while the visitor's sandbox still holds the seed. The
+  studio is `noindex`. Moving between the studio's Posts and Pages no longer
+  reloads the page: the two applications share one document and swap in
+  place, keeping the loaded code and the in-page server, about 60 ms a move
+  where a load took 220 (and 0.8–1 s on a slowed CPU).
+
+- **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
+  for a drag onto `targets` carry `region`, whether the pointer is inside the
+  region, so `over: null` with `region: true` is its empty space.
+  `foldkit-builder` gains `DraggedOverPage()`, which lands a tile where a
+  press with nothing selected would put it, and `foldkit-mixins-builder` sends
+  it; a tile dropped on an empty page, or below the last node, added nothing.
+
+- **`foldkit-primitives`, `FollowTabStop`:** a Mount keeping focus inside a
+  container of roving tab stops on its stop, when a transition it did not see
+  moves the stop or removes the focused descendant. `TreeNavigation`'s
+  Behavior attaches it, so the Builder's layers keep focus through a
+  duplicate, a paste or a delete made by key, where focus stayed on the old
+  row or fell to `<body>`. **`foldkit-builder`** moves `layers.current` off a
+  removed node to the one after it, else before it, else its holder, rather
+  than leaving it for the first row.
+
+- **`foldkit-cms`: `Cms.Display.State`'s words include `withSchedule`**
+  (`'{state}, {schedule}'`), where a state and its schedule were joined by a
+  comma no application could word. A display renderer's context types its
+  words as `DisplayWords`, where it had `any`.
+
+- **`foldkit-builder`: its words.** `Builder.make(name, { words })` takes any of
+  `EditWords` over `editWords`: what it announces of each edit, its commands'
+  labels, and the refusals it makes itself, as text with blanks
+  (`'Moved {label}{at}'`); `refusal` words those `apply` makes (`{code}`,
+  `{message}`). Announcements name a Block by its label, not its stored name.
+
+- **`foldkit-mixins-builder`: the editor's words.** Every word the drawn
+  Builder shows of its own is one of `BuilderWords` (English defaults in
+  `builderWords`), given as the view input `words`. Words are text, a value
+  a blank in them (`'Add {label}'`), since a view input may hold no nested
+  function. `keysOf` takes them, for the named keys (`keyNames`) and Ctrl,
+  Alt and Shift, and no longer reads `Object`'s own names for a key called
+  `constructor`. A look's blank choice now reads "Default", as its buttons do.
+
+- **`foldkit-mixins`: parts, each drawn again only when what it reads
+  changed.** `SlotView.parts(Slots)<Input, Message>()` makes parts that name
+  the input keys they read and are given only those; `assemble` places them.
+  `slots.row.lazy(item, draw, args)` draws one repeated item again only when
+  its arguments or what the Mixins gave it changed. Over 1,000 nodes, a
+  hover, a selection and a keystroke in the inspector each went from about
+  50 ms to the next frame.
+- **`foldkit-mixins-builder`: the editor as parts.** `BuilderView.parts(builder)`
+  gives `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
+  `Viewports`, `Preview`, `Alert`, `Canvas` and `Live`, each with its own
+  Behaviors; `BuilderView.assemble(render)` places them among an
+  application's elements, and `define` is the default layout.
+- **`foldkit-builder`: the inspector is a form.** A node's props, and the
+  input of the action each event runs, are edited through `foldkit-form`
+  forms of the Block's settings (`settingsOf`, `inputOf`), drawn by
+  `FormView`, so a prop gets the control a form would give it, a value that
+  does not decode shows its error and edits nothing, and a control of the
+  application's own (`Input.bundle`, such as a color picker) works with no
+  Builder code. `BuilderView.define(builder, { settings: { field, form,
+  renderers } })` styles the forms and draws the application's control kinds.
+- **`foldkit-composition`: a Block's words are its own.**
+  `Block.words({ label, description, group })` names a Block and says what it
+  is for; the palette, the layers, the inspector, `Catalog.describe`,
+  `Composition.describe` and the agent's `operationSchema` all read it.
+- **`foldkit-primitives/dom`: `Measure`**, a Mount that writes where marked
+  elements are (`--fk-<name>-x/-y/-w/-h/-display`) for an overlay drawn over
+  them. The drawn Builder's selection and hover are boxes placed this way.
+- **`foldkit-builder`: one table of commands.** `PageBuilder.commands` (`{ id,
+  label, keys, placement, run }`) is every key, node action, toolbar button
+  and shortcut listed; `keyCommand` is derived from it and `Builder.make`'s
+  `commands` changes it. Keys are written for the author's platform
+  (`BuilderView.inputs({ platform: 'mac' })`).
+- **`foldkit-builder`: a Block dragged from the palette** is added where it
+  is dropped (`DragSource` is `Existing` or `New`). **`foldkit-primitives`:**
+  `PointerDrag` takes `targets: { attribute, within }`, so a drag may land on
+  another region's elements.
+- **`foldkit-builder`: copy, cut and paste.** A node and all it holds is kept
+  in the Model's `clipboard` and on the system clipboard as tagged JSON; a
+  paste reads it back (`readText`, new in `foldkit-primitives/dom`), decodes
+  it strictly, gives every node a new id and inserts it whole or refuses it.
+- **`foldkit-composition`: Patterns.** `Catalog.make({ patterns })` holds
+  arrangements of Blocks, checked where the Catalog is made;
+  `Op.usePattern({ pattern, ids, at })` inserts one, and `operationSchema`
+  offers each with exactly its ids. The drawn palette offers them in a group
+  of their own.
+- **Text edited in place.** A Block's view draws a text prop with
+  `field(key)`; the editor edits it on the canvas, frozen at the text it had
+  when editing began so no redraw moves the caret, one undo step per session
+  (`History.close` and `History.revert`, new in `foldkit-primitives/state`).
+  `EditableText`, new in `foldkit-primitives`, reads what is typed as text,
+  once per composition, and `Renderer.fields` says which props a node draws
+  this way.
+- **`foldkit-mixins`: container breakpoints.** `Style.responsive` takes an
+  at-rule as well as a media query, `Theme.inContainer(name, breakpoints)`
+  writes a theme's breakpoints on a named container, and `Style.at(prelude,
+  piece)` puts a selector under an at-rule. The Builder's frame is the page's
+  container (`PAGE_CONTAINER`), so a look written this way follows a narrow
+  preview in a wide window.
+- **`foldkit-mixins-builder`: a narrow editor.** `BuilderView.narrow(width)`
+  shows one panel at a time, chosen by a group of pressed buttons, below that
+  width of the editor itself.
+
+- **`foldkit-mixins`: a Style's rules arrive with the Slot that draws them.**
+  Compiling a Style records each class with its CSS; in a browser, a class a
+  Slot draws is appended once to one `<style data-foldkit-styles>` element
+  (made only when there is something to add, declaring the standard layer
+  order unless the page declares its own), unless a stylesheet on the page
+  already carries it. A Style left out of an application's `Style.stylesheet` now
+  draws instead of silently drawing nothing. `Style.stylesheet` is unchanged.
+- **`foldkit-mixins`: `Style.usedIn(html)`**, the CSS of every compiled class a
+  page's markup uses, after the layer order: what a server puts in the head.
+  **`foldkit-ssr`:** `SSR.page`, `SSR.generate` and `SSR.entry` take
+  `head: rendered => string`, put before the template's `</head>` (a template
+  without one is refused when there is something to add; `SSR.entry` refuses it
+  when it is made, and answers a `head` that throws `500`).
+- **`foldkit-composition/foldkit`: `Renderer.render` draws a node again only
+  when what it reads changed.** Inside a runtime render, each node's drawing is
+  memoized on its node object, drawn children, read, visibility and marks, so
+  an edit redraws the node it touched and its ancestors, and an unrelated Model
+  change redraws no node. Each node's element is keyed by its id (the edit
+  wrapper, or the Block's root in view mode unless the Block set a key).
+- **`foldkit-mixins/testing`: `Inert.draw`, `unslotted`, `fixedInline` and
+  `bySlot`,** which check a package view's customization contract: every
+  element it draws comes from a Slot, however deeply its views nest, and no
+  fixed declaration is inline. They found markup outside any Slot in three
+  packages, now Slots of their own: `foldkit-mixins-builder`'s `selectOption`,
+  `foldkit-mixins-form`'s `option` and `choiceLabel`, and
+  `foldkit-mixins-crud`'s `head`, `headRow` and `body`.
+- **`foldkit-mixins/testing`: `Inert`, queries over a view drawn with the
+  inert builder** (`all`, `children`, `byTag`, `byRole`, `byLabel`, `text`,
+  `value`, `classes`, `style`, `pressed`), replacing a tree walker seven test
+  files each defined, and the casts to hand-written node types that came with
+  them.
+- **Fixed declarations are rules, not inline styles**, so a later layer can
+  override them: `Prose.style`'s measure and line height (with a new `leading`
+  option), `Style.grid`'s template and areas, and `Style.stagger`'s delay (its
+  `--fk-index` stays inline). The drawn Builder's frame writes
+  `--fk-frame-width`, read by a default rule in `components`.
+- **`foldkit-mixins-builder`: what the editor calls a Block.**
+  `Block.words({ label, description, group })` (now in `foldkit-composition`) names a
+  Block, says what it is for, and files it in a palette group. The palette is
+  grouped; each button is named "Add <label>", shows the description, and is
+  titled with where it would go ("Adds it inside the Section") or why it
+  cannot. A layer row shows the label and the node's first text in brief, and
+  a row that holds others has a toggle. New Slots: `paletteGroup`,
+  `paletteHeading`, `paletteLabel`, `paletteHint`, `rowToggle`, `rowLabel`,
+  `rowSummary`; palette buttons and rows carry `data-block`. A palette button's
+  text is now the label, not `Add <Block>`: find it by its accessible name.
+- **`foldkit-mixins-builder`: the inspector in parts.** It opens with the
+  selected Block's label, description and actions (now drawn there, each
+  titled with its shortcut and carrying `data-action`), then its settings under
+  Content, Style, Visibility and Interactions. A look of up to four values is a
+  row of buttons, one pressed, instead of a `select`. Labels are the key spaced
+  when there is no `title` ("Text", "Shown when audience is", "On press"), and
+  viewport buttons read "Wide", "Medium", "Narrow". With nothing selected it
+  says how to begin and lists the shortcuts. New Slots: `inspectorHead`,
+  `inspectorTitle`, `inspectorHint`, `inspectorSection`,
+  `inspectorSectionTitle`, `choices`, `choice`, `shortcuts`, `shortcutKeys`,
+  `shortcutWhat`, and `label` and `option` for a field's name and a
+  many-choice picker's choice, which were drawn outside any Slot.
+- **`foldkit-builder`: Escape deselects** in `keyCommand`.
+  **`foldkit-mixins-builder`** takes the shortcuts on the canvas as well as the
+  layers (the canvas is now focusable), and draws a breadcrumb of where the
+  selection is (`crumbs`, one `crumb` button per node holding it, the page
+  first, the current one `aria-current="location"`).
+- **`foldkit-mixins-builder`: pointing at a layer row marks its node** on the
+  page (the Builder's `Hovered` and `Unhovered`), and an empty page says how to
+  begin, in the new `empty` Slot.
 - **`foldkit-surface`: `Action`, a named capability that ends in a Message.**
   `Action.define({ name, description, input, toMessage })` declares one, and
   `Action.run(action, data)` decodes the data as its input before making the
@@ -92,7 +320,7 @@ version changed; `pnpm` skips versions already in the registry.
   its nodes. It adds no state and no Messages. The CMS example's page form
   draws its Builder this way. Phase 7 of the page builder design.
   The inspector labels a prop with its Schema's `title`, and a Block asks for a
-  prop's control with `Block.annotate(BuilderView.controls({ ... }))`, such as
+  prop's control with `Block.annotate(Builder.controls({ ... }))`, such as
   `Input.multiline()`, or `Input.hidden()` to leave it out. A row in the
   layers or a node on the page can be dragged onto another with the pointer:
   the Builder's `drag` says where a drop would land (`dropAt`), the target is
@@ -140,11 +368,27 @@ version changed; `pnpm` skips versions already in the registry.
   a placed collection in step with the page shown, adding, removing, and
   starting again a node whose props changed; `Stateful.views` and
   `Stateful.html` draw each node with its own item.
-- **`foldkit-cms`: `placed.storedEntry(model)`,** the entry the server knows:
-  `null` while something new is not saved yet, so a link names only what exists.
+- **`foldkit-form`: a title given before a check names the key.** Effect
+  resolves a checked schema to its last check's annotations, so
+  `Schema.String.annotate({ title }).check(...)` lost its label; the form now
+  falls back to the schema's own annotations.
+- **`foldkit-composition`: a Query Block gets its own window,** cut to its
+  `first` even when another read of the same query loaded more rows.
+  `Composition.valid` describes itself with `expected`, not a `title` a form
+  would take for the field's label.
+- **`foldkit-cms-drizzle`: a publish patches the whole row back,** as the
+  handler left it, so the author's own screen shows what was published without
+  the handler returning a patch.
+- **`foldkit-mixins-builder`: an optional relation prop stored as `null` and
+  decoded to an `Option`** (`Schema.OptionFromNullOr`) offers its blank: the
+  inspector asks the stored side.
+- **`foldkit-mixins-ui`: `Recipes.Button` on a link** is not underlined.
+- **`foldkit-cms`: `placed.storedEntry(model)`,** the entry the server knows, as
+  an `Option`: none while something new is not saved yet, so a link names only
+  what exists.
 - **`foldkit-mixins-builder`: relation pickers for Block props.** A prop asks
   for `Input.relationOne(Entity)` or `Input.relationMany(Entity)` through
-  `BuilderView.controls`, and its choices come in `BuilderView.inputs({ options
+  `Builder.controls`, and its choices come in `BuilderView.inputs({ options
   })`, keyed `'Block.prop'`.
 - **`foldkit-form`: `Input.relationOne` and `Input.relationMany`,** a picker for
   a key that holds ids without being a relation.
@@ -256,6 +500,248 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-cms`, drafts:** a draft stores the form's Model settled, as it is
+  shown again, so nothing in flight is saved; a Builder's undo history was,
+  up to 200 copies of the page, and a page of about 150 blocks could no
+  longer be saved ("This draft is too large to save").
+
+- **`foldkit-mixins-builder`, words:** `selectAHolder` is `nothingHoldsIt`, and
+  says what it now means: with nothing selected a tile goes anywhere that can
+  hold it, so a disabled one has nowhere yet. The empty page says to begin
+  with a block the palette offers.
+
+- **`foldkit-cms`, editor status:** a publish or a schedule the form's own
+  checks stop is `Incomplete` (a new `EditorStatus`) until the next edit, and
+  one waiting for a check reads `Publishing`; before, the status stayed what
+  the last save said, "Saved", so a refused publish read as a success.
+  `EditorForm` gains `engine.isValidating`, which `Form.make` provides.
+
+- **`foldkit-builder`, dropping:** where the node dragged over has no place
+  for what is dragged, it lands by the nearest node holding it that does,
+  before or after it, and `drag.over` names that holder; a Section dragged
+  onto a Section's last Heading landed only on the Section's thin bottom edge.
+  `dropAt` agrees.
+
+- **`foldkit-mixins-builder`:** a click on a layers row makes it current, as
+  the keys do (`TreeNavigation`'s `Focused`), rather than sending `Selected`,
+  so a narrow editor keeps the layers showing instead of switching to
+  Settings and hiding the row that had just taken focus.
+
+- **CMS example:** a Quote's text and a Callout's body keep the lines broken
+  with Shift+Enter once editing ends, in the editor and on the public page
+  (`white-space: pre-line` on their looks).
+
+- **`foldkit-primitives`, `PointerDrag`:** an Escape that cancels a drag is
+  caught on the way down and stopped there, so the focused element does not
+  also act on it; in the Builder, Escape during a canvas drag cancelled the
+  drag and deselected the node.
+
+- **`foldkit-mixins-builder`:** the palette's tiles and the command buttons
+  are disabled by `aria-disabled` rather than `disabled`, so Undo pressed on
+  the last step, or a tile whose place fills, keeps focus instead of dropping
+  it to `<body>`. Style `[aria-disabled="true"]`; the CMS example does.
+
+- **`foldkit-primitives`, `EditableText`:** when Enter or Escape ends an edit
+  and the view then removes the field or makes it no longer editable, focus
+  comes back to the container instead of falling to `<body>`, where the next
+  key (an undo, a Delete) did nothing. The Builder's canvas is that container.
+
+- **`foldkit-primitives`, `PointerDrag`:** `targets.within` is looked for
+  nearest first, under the container's closest ancestor holding a match,
+  not the first on the page, so the second of two editors dropped its tiles
+  onto the first's page. **`foldkit-mixins-builder`** finds its canvas by a
+  `data-builder-canvas` attribute rather than an id built from the Builder's
+  name, which a name with a space or a colon broke (no drop landed, or every
+  move threw).
+
+- **`foldkit-primitives`, `Measure`:** a change in the subtree is measured as
+  its records arrive, so an editor's selection box moves in the frame the
+  selection is drawn in rather than one after; and it measures again when an
+  image or a font inside loads and on each frame of a transition or an
+  animation inside, which moved a target without resizing it and left the box
+  where it was.
+
+- **`foldkit-mixins`, per-item memo (`slots.x.lazy`):** a static Style's
+  contribution is compared too, so two views apart only by a Style no longer
+  reuse each other's rows (a theme switch kept the old theme's rows); and an
+  item drawn with no runtime frame (a test, a server) keeps no bookkeeping.
+
+- **`foldkit-builder`, text edited in place:** Escape puts the text back even
+  where another edit came between, a commit writes nothing the page already
+  holds, a second ask for the field being edited begins nothing, and an undo
+  or a redo ends editing. A session in which nothing was typed writes nothing
+  when it ends, so leaving a field untouched keeps an agent's edit made
+  meanwhile (the Model's `editing` gains `typed`). A Block named as one of `Object`'s own names is not
+  taken for one with starting props, and a pasted tree is checked by its own
+  ids, so a refusal names what was copied rather than freshly minted ids.
+
+- **`foldkit-builder`, the inspector:** an optional prop or input emptied is
+  taken away (`unsetProp`, or the input written without it) instead of left
+  as it was; a value the Block refuses leaves its field showing the node's
+  value, not one that looks accepted; an action's input is written with only
+  the keys its Schema names; and a held form Message with a key its variant
+  lacks is not decoded. `Settings` gains `keys`.
+
+- **`foldkit-builder`, placing and commands:** `placeFor` puts a Block that
+  is no root, with nothing near the selection to take it, last in the last
+  Region on the page with room that accepts it, so a node cut and pasted
+  back comes back rather than being refused with a minted id; a paste with
+  no place at all is refused before ids are minted, as `builder:no-place`
+  (a new word, `noPlace`). Duplicate is not offered where its Region is
+  full. `keyCommand` tries each command a key names in turn, so a command an
+  application adds on a built one's key runs where that one has nothing to
+  do.
+
+- **`foldkit-composition`:** `field(key)` takes only a prop that is exactly
+  `string`; a list of names (`'plain' | 'accent'`) is no longer a field. An
+  id that is one of `Object`'s own names (`toString`, `constructor`,
+  `__proto__`) is an id as any other: a tree naming one it lacks was a
+  `TypeError` from `apply`, and one it held was refused as taken; a stored
+  Document naming one it lacks was a `TypeError` from `validate`, `index` and
+  `describe`, and is now `composition:missing-node`.
+  `Renderer.fields` no longer shares the page's memo, which made a view that
+  called it redraw every node on every change. `Composition.treeRefusal` is
+  exported, to check a tree by its own ids before it is rekeyed.
+
+- **`foldkit-mixins-builder`: the default layout is four regions.** `define`
+  draws `regions` holding `start` (palette, layers), `bar` (toolbar, crumbs,
+  viewports, preview), `stage` (alert, canvas) and `end` (inspector), where it
+  drew ten sibling panels; `root` is always the container `builder`, so a
+  Style may follow the editor's own width. A Style that placed each panel on
+  the root's grid places the regions instead.
+
+- **`foldkit-composition/foldkit`: absence is an `Option`.** `RenderContext.on(event)`
+  returns an `Option` of the Message, and `Renderer.render`'s edit options
+  `selected`, `hovered`, `drop` and `editing` take `Option`s, as an editor's
+  Model holds them, rather than `undefined`.
+
+- **`foldkit-mixins-builder`: `BuilderView.describe` and `BuilderView.controls`
+  are gone,** for `Block.words` (in `foldkit-composition`) and
+  `Builder.controls` (in `foldkit-builder`). The toolbar's `history`, `undo`
+  and `redo` Slots are `toolbar` and `toolbarAction`, and `ACTIONS` and
+  `SHORTCUTS` are the command table. **`foldkit-builder`:** `DragStarted`
+  takes a `source`, and `dropAt` a `DragSource`, not an id.
+- **`foldkit-primitives`:** `Measure` attaches nothing when it cannot start.
+  Where there is no `ResizeObserver` (jsdom), it had already attached a
+  `MutationObserver`, which then threw on every change to the page.
+
+- **A value that may be absent is an `Option`, not `null` or `undefined`,**
+  across the read and builder APIs. Breaking:
+  - `foldkit-surface`: `Surface.at`'s params function returns
+    `Option<Params>` (none: inactive), and `projectionOf` returns
+    `Option<Projection>`.
+  - `foldkit-remote`: `Data.active(name, projectionOf)` makes an application's
+    read of the domain an active Surface; it replaces spelling one out from
+    `contract`, and throws for a domain on a raw optic, which names no
+    application.
+  - `foldkit-crud`: `detail.at`'s `id` and `list.at`'s `input` return an
+    `Option`; `more(model)` is an `Option<Command>`. `Crud.options` throws
+    without lists.
+  - `foldkit-cms`: the editor's `entry`, `pageId`, `resumed`, `state` and
+    `error` reads return `Option`s; an editor domain gives `active` instead of
+    `contract`.
+  - `foldkit-builder`: the Model's `selected`, `hovered`, `refused` and `drag`
+    are `Option`s, stored as `null`. `Selected` takes an id and `Deselected`
+    clears it; likewise `Hovered`/`Unhovered`, `DraggedOver({ id, zone })`/
+    `DraggedOff`, and `PreviewChosen`/`PreviewCleared`. `placeFor`, `moveBy`,
+    `dropAt` and `keyCommand` return `Option`s.
+  - `foldkit-remote`: a preview (`Data.overlay`) of an entity the server has
+    not seen, missing a field its Selection reads, reads `Failed` with an
+    `Overlaid` error naming the fields, not `Initial` for good.
+  - `foldkit-composition`: `SurfaceBlock.reads`, `QueryBlock.reads`, `value`
+    and the `documentOf` of their `active` are `Option`s; the reads gain
+    `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
+    key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-mixins`: a family's `text` token is `on-fill`, and each family
+  gains `ink`.** `accent.text` read as "accent-colored text" and was the text
+  *on* the accent's fill. It is now `accent['on-fill']` (`--fk-accent-on-fill`),
+  and `accent.ink` is the accent as text on the base surface, for every family.
+  `text['on-accent']`, the same value as `accent['on-fill']`, is removed.
+  Prose's `mark` drew its text in the on-fill color over the accent's tint; it
+  uses `ink`.
+- **`foldkit-remote`: a query read shows at most its window, and "load more"
+  grows the window.** Remote keeps one connection per query and input, so a
+  read of `first: 3` now shows three rows even when a `first: 50` read of the
+  same query loaded more, with `hasNext` set when it cut any. Two windows of one
+  connection are one query, for the wider; a window wider than what the
+  connection holds fetches only the rows it lacks (before, it was never
+  fetched). `Data.more(model, projection)` returns the Model with the read's
+  window one page larger, an `Option`; `Data.next`, `Data.previous`,
+  `Data.fetch` and the fold's `fetch` are removed. `Remote.query` and
+  `Remote.queryMessage` still run one page by hand. The store gains `grown`
+  and the `WindowGrown` Message.
+- **`foldkit-bundle`: `complete`'s `update` error names a common cause:** an
+  unannotated parameter on a callback written inline in the config, which keeps
+  TypeScript from inferring the config at all.
+- **`foldkit-composition`: `Renderer.render` of a Renderer that sends nothing
+  takes any application's builder,** so a view passes its own `h` instead of
+  `inertHtml`.
+- **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
+  README says how the principal is inferred from `where`'s parameter.
+  `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-mixins-crud`: `ListSlots` and `DetailSlots` gain `badge`,** and a
+  Display renderer's context carries it, so a value drawn as a label of its own
+  is styled as a Slot. `foldkit-cms`'s state renderer draws in it.
+- **`foldkit-cms-drizzle`: `cms.import({ type, values, as, at?, entry? })`**
+  publishes content that exists already (a seed, or another CMS's) by the
+  publish path, in one transaction, instead of an application writing the CMS's
+  tables by hand.
+- **`foldkit-cms`: the Entry has a server-derived `may`,** the transitions the
+  reader may ask by the server's `allow`; the placed editor gives
+  `may(model, transition)`, and `Cms.transitions` lists them all.
+  `foldkit-cms-drizzle` supplies it; its `Asked` type is removed for
+  `foldkit-cms`'s `Transition`, which it duplicated.
+- **`foldkit-mixins-form`: `FormView`'s `submits: false`** draws a form without
+  its submit button.
+- **`foldkit-primitives`: `KeepInView({ selector })`,** a Mount that scrolls
+  whatever newly matches in its subtree into view. `foldkit-mixins-builder`
+  mounts it on the layers panel and the canvas, so a new selection (an inserted
+  Block, say) is in view. `foldkit-composition` exports `MARK_ATTRIBUTE`.
+- **`foldkit-form`: a number-literal schema resolves to a `Select`,** whose
+  `options` may be text or numbers and whose value is the chosen option itself.
+  `Control.parse` now receives the control's `data`. `foldkit-mixins-builder`'s
+  inspector draws the select and stores a number as a number.
+- **`foldkit-entity`: `Selected<typeof selection>`,** the value a Selection
+  reads.
+- **`foldkit-cms`: the editor's Commands carry the form's requirements, not
+  `any`.** `EditorForm`, `EditorContent` and `Editor.make` gain a `Services`
+  parameter (default `never`), so an application's `update` types its Commands
+  as `RemoteClient` and its runner needs no cast.
+- **`foldkit-entity`: `Words.of(schema)`,** a schema's `title` and
+  `description` as `Option`s, including a title given before a check (which
+  Effect 4 resolves past). `foldkit-form`, `foldkit-crud`'s column labels and
+  `foldkit-mixins-builder`'s inspector read words through it; the inspector and
+  Crud no longer lose such a title.
+- **`foldkit-remote-drizzle`: `drizzleWrites` and `returning.row`.**
+  `drizzleWrites` is the provided database's `insert`, `update` and `delete`,
+  typed by each table's columns, so a handler writes without casting
+  `DrizzleDatabase`; `returning.row(binding, id)` reads back the row a handler
+  wrote as patches, every column and each `one` relation as its ref.
+  `foldkit-cms-drizzle` uses both instead of its own casts.
+- **`foldkit-crud`: `list.more(model)` is the Model showing one page more,** an
+  `Option`, instead of a Command.
+- **`foldkit-composition`: `QueryBlock.reads` no longer cuts rows itself;**
+  Remote does.
+- **`foldkit-mixins-ui`: `outline` and `ghost` buttons read `--fk-ink` first,**
+  so on a band that sets `--fk-ink: currentColor` their text is the band's
+  color instead of the tone's ink, which does not read there.
+- **`foldkit-mixins`: `Defaults.headings` reads `--fk-heading` first,** so a
+  container drawn in its own color sets `--fk-heading: currentColor` and its
+  headings take its color; elsewhere they stay `text-overt`.
+- **`foldkit-mixins-form`: `FieldSlots` gains `group` and `affix`,** for a
+  control drawn with text beside it; `foldkit-cms`'s slug renderer draws its
+  prefix and input in them instead of in bare spans with a
+  `data-cms-slug-prefix` attribute.
+- **`foldkit-primitives`: `TreeNavigation` writes each row's level as
+  `--fk-tree-level`** beside `aria-level`, so one `calc` indents any depth.
+- **`foldkit-composition`: the edit marks are one attribute.**
+  `data-composition-mark` is `selected` or `hovered` and replaces
+  `data-composition-selected` and `data-composition-hovered`; a node both
+  hovered and selected is `selected`. Restyle `[data-composition-selected]` as
+  `[data-composition-mark='selected']`.
+- **`foldkit-mixins`: a recipe's `variants` is optional,** so a recipe that is
+  only its base (`Style.recipeFor(Slots)({ base })`) no longer writes
+  `variants: {}`.
 - **`foldkit-ssr`: Messages answered before boot reach `update` before any
   other Message,** instead of being replayed through a Subscription after the
   first render. An event dispatched in the task that boots the page, such as

@@ -1,4 +1,4 @@
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, expectTypeOf, it } from 'vitest'
@@ -93,10 +93,16 @@ describe('the vocabulary', () => {
       merge: categories => categories.slice(-1),
       summarize: category => category,
     })
-    const Marked = Hero.pipe(Block.annotate(Palette.of('Marketing')))
+    const Marked = Hero.pipe(
+      Block.annotate(Palette.of('Marketing')),
+      Block.words({ description: 'The big opening of a page', group: 'Layout' }),
+    )
     expect(Catalog.describe(Catalog.make({ blocks: [Marked], roots: [Content.Section] }))).toEqual([
       {
         name: 'Hero',
+        label: 'Hero',
+        description: 'The big opening of a page',
+        group: 'Layout',
         provides: ['Section'],
         props: ['title'],
         regions: { actions: { accepts: ['Interactive'], holds: '0 to 2' } },
@@ -106,6 +112,38 @@ describe('the vocabulary', () => {
     ])
     // Annotating gives a new Block and leaves the first as it was.
     expect(Metadata.summarize(Hero.metadata)).toEqual([])
+    expect(Hero.words.description).toEqual(Option.none())
+  })
+
+  it('words a Block: its name spaced until told, each later word in place of the one before', () => {
+    const Latest = Block.define('PostList', { Props: Schema.Struct({}), provides: [Content.Flow] })
+    expect(Latest.words).toEqual({
+      label: 'Post list',
+      description: Option.none(),
+      group: Option.none(),
+    })
+    const told = Latest.pipe(
+      Block.words({ label: 'Latest posts', group: 'Blog' }),
+      // Each call leaves what it does not give as it was.
+      Block.words({ description: 'The newest posts' }),
+      Block.words({ group: 'From the blog' }),
+    )
+    expect(told.words).toEqual({
+      label: 'Latest posts',
+      description: Option.some('The newest posts'),
+      group: Option.some('From the blog'),
+    })
+    expect(Latest.pipe(Block.words({ group: 'Blog' }), Block.words({})).words.group).toEqual(
+      Option.some('Blog'),
+    )
+  })
+
+  it('tells an agent what each Block is for, in the schema of its edits', () => {
+    const Told = Hero.pipe(Block.words({ description: 'The big opening of a page' }))
+    const schema = Schema.toJsonSchemaDocument(
+      Composition.operationSchema(Catalog.make({ blocks: [Told], roots: [Content.Section] })),
+    )
+    expect(JSON.stringify(schema)).toContain('"description":"The big opening of a page"')
   })
 
   it('types a Block’s decoded props', () => {
@@ -115,6 +153,21 @@ describe('the vocabulary', () => {
     }>()
     const decoded = Block.decode(Heading, { text: 'Hi', level: 2 })
     expect(Result.isSuccess(decoded) && decoded.success).toEqual({ text: 'Hi', level: 2 })
+  })
+  it('says how a prop is stored, which a prop drawn as an Option differs in', () => {
+    const Linked = Block.define('Linked', {
+      Props: Schema.Struct({ to: Schema.OptionFromNullOr(Schema.String), label: Schema.String }),
+      provides: [Content.Flow],
+    })
+    const storesNull = (key: string) =>
+      Option.exists(Block.stored(Linked, key), stored => Schema.is(stored)(null))
+    // Drawn as an Option, stored as `null`; the decoded side would say no.
+    expect(storesNull('to')).toBe(true)
+    expect(Schema.is(Linked.Props.fields.to)(null)).toBe(false)
+    expect(storesNull('label')).toBe(false)
+    // A key the props do not declare, even one every object inherits, is none.
+    expect(Option.isNone(Block.stored(Linked, 'missing'))).toBe(true)
+    expect(Option.isNone(Block.stored(Linked, 'constructor'))).toBe(true)
   })
 })
 
@@ -509,6 +562,26 @@ describe('index and describe', () => {
     expect(places.get(id('section-1'))).toEqual({ parent: undefined, region: undefined, index: 0 })
     expect(places.get(id('button-1'))).toEqual({ parent: 'section-1', region: 'body', index: 1 })
     expect(Composition.index(good)).toBe(places)
+  })
+
+  it('writes a Block’s label after its name, where it says more than the name', () => {
+    const Worded = Catalog.make({
+      blocks: [
+        Section,
+        Heading.pipe(Block.words({ label: 'Title' })),
+        Button.pipe(Block.words({ label: 'Button' })),
+      ],
+      roots: [Content.Section],
+    })
+    const document = page(['section-1'], {
+      'section-1': { block: 'Section', props: { tone: 'plain' }, regions: { body: ['h', 'b'] } },
+      h: { block: 'Heading', props: { level: 1, text: 'Hi' }, regions: {} },
+      b: { block: 'Button', props: { label: 'Go' }, regions: {} },
+    })
+    expect(Composition.describe(Worded, document).split('\n').slice(2)).toEqual([
+      '    Heading "Title" h {"level":1,"text":"Hi"}',
+      '    Button b {"label":"Go"}',
+    ])
   })
 
   it('writes the Document as indented text, marking what the Catalog does not know', () => {

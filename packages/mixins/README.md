@@ -178,9 +178,17 @@ the base view. Adding another `OnInput` attachment is a conflict, not a way to
 chain a second application update. Compose the action in the existing Message
 handler instead.
 
-For `Style.pseudo`, `Style.media`, or other compiled rules, also install the
-text returned by `Style.stylesheet(style)` in the page. Calling a SlotView
-returns HTML; it does not inject a stylesheet for you.
+A Style's compiled rules (`Style.pseudo`, `Style.media`, a layer) arrive with
+the Slot that draws them. In a browser, the first time a Slot draws a class,
+its CSS is appended to one `<style data-foldkit-styles>` element, in the
+microtask after the draw and before the browser paints. The element is made
+only when there is something to add, and declares the standard layer order
+first unless a sheet on the page already declares one, which it leaves alone.
+Classes a stylesheet already on the page carries are left out, so
+installing `Style.stylesheet(...)` yourself (for the first paint, or on the
+server) never duplicates them. Outside a browser nothing is injected: a server
+puts `Style.usedIn(html)`, the CSS of every compiled class the page's markup
+uses, in the page's head (with `foldkit-ssr`, through its `head` option).
 
 ## What the resolver guarantees
 
@@ -247,9 +255,9 @@ error; the compiler writes the kebab-case name. Values are not checked, so
 | `Style.compose(...)` | concatenate classes; later declarations win per property |
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
-| `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue` |
+| `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
 | `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
-| `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` and a `calc` delay |
+| `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.self` / `pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance; `self` is a rule on the element's own class (`&{…}`), for declarations a layer must hold |
 | `Style.keyframes` / `global` | class-independent CSS |
@@ -279,21 +287,26 @@ Style.stylesheet(FieldStyle, CardStyle)
 Equal rules share a class, so server and client derive the same class and CSS. A rule piece
 inside `Style.whenInput` compiles to its class like any other; the class is static and only its
 presence follows the input, and its CSS is in `Style.stylesheet` whether or not the condition
-ever holds.
+ever holds. Drawn, it is injected like any other class.
 
 Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
 
 - `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that
   write `data-state`; `whenInput` when the view knows, `states` when the DOM does;
 - `Style.responsive(breakpoints, { md: { display: 'flex' } })`, named breakpoints from the record
-  you pass, so a misspelled one is a type error;
+  you pass, so a misspelled one is a type error; a breakpoint is a media query or a whole at-rule,
+  such as `'@container page (min-width: 48rem)'`;
+- `Style.at('@container builder (max-width: 40rem)', Style.pseudo('[data-open="false"]', { … }))`
+  puts a piece's rules inside an at-rule, where no one constructor does; a class, a piece chosen
+  when drawn, global CSS or a rule already inside an at-rule throws there;
 - `Style.enter({ opacity: '0' })`, a `@starting-style` rule the element animates from, with
   `Style.allowDiscrete` when `display` takes part;
 - `Style.vars({ '--gap': '1rem' })` and `Style.viewTransitionName('hero')`, declarations;
 - `Style.grid({ areas: [['header', 'header'], ['nav', 'main']], columns, rows, gap })`, a grid
   template with typed areas: `.style` for the container and `.area('main')` for a child, where
   a name the template lacks is a type error and a ragged template raises
-  `mixins:ragged-grid-areas`;
+  `mixins:ragged-grid-areas`. Both are rules, not inline declarations, so a later layer can
+  override the template;
 - `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
   strings `pseudo` and `nest` take. Each takes a selector list: every top-level selector is
   scoped to the class (`:is(a, b)` is not split), and a selector that writes `&` places the class
@@ -306,7 +319,11 @@ an accent color and a few knobs (hue shifts, surface saturation and contrast, a 
 feedback hues) and returns typed tokens for surfaces, text, outlines, and the accent, secondary,
 tertiary and feedback families. Only the `knob` group holds literals; every other value is a CSS
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
-the derivation and one knob override recolors everything below it. `Theme.tokens` is the
+the derivation and one knob override recolors everything below it. Each family (`accent`,
+`secondary`, `tertiary`, `success`, `warning`, `error`, `info`) has a fill, `default`, and two
+text colors named for where they go: `on-fill` is text on that fill (near white on a mid accent),
+and `ink` is text in the family's color on the base surface, dark enough to read in a light scheme
+and light enough in a dark one. Colored text is `ink`, never `default`. `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 
 A theme reaches the page as pieces, and the page chooses the layers:
@@ -352,6 +369,10 @@ needs relative color syntax and `light-dark()` (Chrome 123, Firefox 128, Safari 
 `Style.responsive(Theme.tokens.breakpoint, { md: { … } })` and
 `Theme.breakpointWidths(Theme.tokens)` (for the `Breakpoints` bundle) name the same breakpoints;
 a query that is not a plain `min-width` raises `theme:unparseable-breakpoint`.
+`Theme.inContainer('page', Theme.tokens.breakpoint)` is the same breakpoints measured on the
+container named `page` rather than the window: an editor's preview frame, narrow in a wide
+window, then draws a look as a narrow screen would. An element must be that container
+(`containerType: 'inline-size', containerName: 'page'`).
 
 ### Layout
 
@@ -386,10 +407,14 @@ distinct value is its own class. `sidebar` and `switcher` are flex math and need
 (box model, media, form-control fonts, reduced motion) and `body`, `headings`, `links`, `code`,
 `controls`, composed as `Defaults.all` (everything except `reset`). Each is element-selector CSS
 under `:where()` over `--fk-*` tokens with a fallback, so a class rule always beats it and it reads
-with or without a theme. `foldkit-mixins/prose` is the longform contract: `Prose.style({ measure?,
-rhythm? })` is one class for every caller (the rhythm between unlike elements: heading to
+with or without a theme. Headings are `text-overt` unless a container sets `--fk-heading`: a band
+drawn in its own color writes `Style.vars({ '--fk-heading': 'currentColor' })` and the headings
+inside take its color, with no rule on the heading. `foldkit-mixins-ui`'s unfilled buttons read
+`--fk-ink` the same way. `foldkit-mixins/prose` is the longform contract: `Prose.style({ measure?,
+leading?, rhythm? })` is one class for every caller (the rhythm between unlike elements: heading to
 paragraph, list to paragraph, around figures) whose options are `--fk-prose-*` variables on the
-element. Both are unlayered; the page places them:
+element. Its measure and line height are a rule reading those variables, so a later layer can
+override them. Both are unlayered; the page places them:
 
 ```ts
 import { Layers, Style } from 'foldkit-mixins'
@@ -513,6 +538,72 @@ For per-item groups such as tabs, options or calendar cells, use
 `SlotView.buildersFor(slots, mixins, { input, h })` and map the items yourself. One contribution
 then applies to every item while each item's base attributes retain their own event ownership.
 
+### Parts: redraw only what changed
+
+A SlotView runs whole on every change to its input. A larger view can be cut
+into parts, each declaring the input keys it reads and given only those. A part
+runs again only when one of those values changed by identity; otherwise
+Foldkit reuses its last drawing without diffing it.
+
+```ts
+type Input = { readonly title: string; readonly count: number }
+const Parts = SlotView.parts(PanelSlots)<Input, Message>()
+
+const Title = Parts.part('Title', { reads: ['title'] }, (input, slots, h) =>
+  h.h2(slots.title.attrs(), [input.title]),
+)
+const Count = Parts.part('Count', { reads: ['count'] }, (input, slots, h) =>
+  h.p(slots.count.attrs(), [String(input.count)]),
+)
+const Panel = Parts.assemble((input, slots, h, draw) =>
+  h.section(slots.root.attrs(), [draw(Title), draw(Count)]),
+)
+```
+
+`input.count` inside `Title` does not compile, so a part cannot read a value it
+is not redrawn for. `Panel` is an ordinary SlotView: Styles and Behaviors attach
+to it and reach every part's Slots.
+
+- **A part's own Behaviors** go in its `behaviors` option, declared over the
+  part's selection (`Pick<Input, 'count'>`), and are resolved against it.
+- **A Mixin attached to the whole view that reads the input** (a Behavior's
+  `attributes`, `Style.whenInput`) is resolved against the whole input, so the
+  parts it reaches are drawn again on every change: correct, not cached. Static
+  Styles cost nothing.
+- **Memoizing needs a running application.** Drawn inert (a test, a server's
+  first pass), every part is drawn afresh.
+
+A Slot drawn once per item can memoize each item, in a part or any SlotView:
+
+```ts
+const drawRow = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, Message>,
+  h: HtmlBuilder<Message>,
+  { index, text }: { readonly index: number; readonly text: string },
+) => h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
+
+const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
+  h.ul(
+    slots.root.attrs(),
+    input.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, { index, text })),
+  ),
+)
+```
+
+An item is drawn again only when one of its arguments changed by identity, or
+when a Mixin gave the Slots it used something different for it (a static Style
+by identity, so two views apart only by a Style draw their rows apart). A Behavior
+that works out a roving tab stop from the whole list redraws the row the stop
+left and the row it reached, and no other. `drawRow` reads only its arguments,
+so define it once, not per render. A Mixin that gives an item a handler made per
+render, and an item drawing that holds another, are drawn every time: correct,
+not cached.
+Items are remembered by key for the life of the page, as Foldkit's keyed memo
+is, so key by something bounded (a node id), not by something that keeps
+changing (a search's results). The memo is one per drawing function: two views
+drawing the same key with one `drawRow` share it, and each misses whenever
+what it gives the row differs from the other's. Drawn inert, nothing is kept.
+
 ## With `foldkit-surface`
 
 Mixins do not require Surface, but the two fit naturally: Surface says **what a feature may
@@ -586,6 +677,26 @@ Probe({ value: 'Ada', invalid: true }, SlotView.inertBuilder<Message>())
 Attributes.find(input, 'Class')?.value // 'field-input'
 Attributes.find(input, 'AriaInvalid')?.value // true
 ```
+
+What a whole view draws is read with `Inert` from `foldkit-mixins/testing`: `Inert.all`,
+`children`, `byTag`, `byRole`, `byLabel` (by `aria-label`, a `<label for>`, or the innermost
+element with that text), `text`, `value` (an attribute or a property, whichever the builder
+wrote, so `title` and `value` need no special case), `classes`, `style` and `pressed` (an
+`Option`, none for a button that is not a toggle).
+
+```ts
+import { Inert } from 'foldkit-mixins/testing'
+
+const root = Probe({ value: 'Ada', invalid: false }, SlotView.inertBuilder<Message>())
+Inert.value(Inert.byTag(root, 'input')[0], 'value') // 'Ada'
+```
+
+`Inert.draw(view, input)` draws a SlotView with every element a Slot draws marked with the
+Slot's name, however deeply its views nest; a view drawn for real is never marked. On that tree,
+`Inert.bySlot(root, 'input')` finds a Slot's elements, `Inert.unslotted(root, { inside })` lists
+every element no Slot drew (skipping what a Slot named in `inside` holds, such as a canvas drawing
+the application's page), and `Inert.fixedInline(root, { inside })` every inline declaration that
+is not a custom property. A package view's test expects both lists to be empty.
 
 ## `@foldkit/ui`
 

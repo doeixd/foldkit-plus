@@ -113,6 +113,37 @@ export const container = (condition: string, declarations: Declarations): StyleV
     rules: Object.freeze([Rules.container(condition, declarations)]),
   })
 
+/**
+ * A piece's rules inside an at-rule, where one constructor alone cannot put
+ * them: `Style.at('@container builder (max-width: 40rem)',
+ * Style.pseudo('[data-open="false"]', { display: 'none' }))`. Its inline
+ * declarations become a rule on the element. A class, a condition, a
+ * per-item piece, global CSS or a rule already inside an at-rule cannot be
+ * put inside one, and throws here.
+ */
+export const at = (prelude: string, piece: StyleValue): StyleValue => {
+  const refuse = (what: string): never => {
+    throw new Error(`Style.at: ${what} cannot go inside "${prelude}"`)
+  }
+  if (!prelude.startsWith('@')) refuse('anything but an at-rule prelude')
+  if (piece.classes.length > 0) refuse('a class')
+  if ((piece.conditions ?? []).length > 0 || (piece.items ?? []).length > 0)
+    refuse('a piece chosen when drawn')
+  if ((piece.globalCss ?? []).length > 0) refuse('global CSS')
+  const own = Object.keys(piece.style).length === 0 ? [] : [Rules.rule('&', piece.style)]
+  return Object.freeze({
+    classes: empty.classes,
+    style: empty.style,
+    rules: Object.freeze(
+      [...own, ...(piece.rules ?? [])].map(rule =>
+        rule.at === undefined
+          ? Object.freeze({ ...rule, at: prelude })
+          : refuse(`a rule inside "${rule.at}"`),
+      ),
+    ),
+  })
+}
+
 /** A nested selector relative to the generated class, e.g. `Style.nest('> span', {...})`. */
 export const nest = (selector: string, declarations: Declarations): StyleValue =>
   Object.freeze({
@@ -171,7 +202,9 @@ export const states = (
  * Declarations per named breakpoint, e.g.
  * `Style.responsive({ md: '(min-width: 48rem)' }, { md: { display: 'flex' } })`.
  * The breakpoint names come from the record you pass, typically a theme's, so
- * a misspelled one is a type error.
+ * a misspelled one is a type error. A breakpoint is a media query, or a whole
+ * at-rule: `'@container page (min-width: 48rem)'` measures the container named
+ * `page` rather than the window (`Theme.inContainer` writes these).
  */
 export const responsive = <Breakpoints extends Readonly<Record<string, string>>>(
   breakpoints: Breakpoints,
@@ -183,9 +216,12 @@ export const responsive = <Breakpoints extends Readonly<Record<string, string>>>
     rules: Object.freeze(
       Object.entries(map).flatMap(([name, declarations]) => {
         const query = breakpoints[name]
-        return query === undefined || declarations === undefined
-          ? []
-          : [Rules.media(query, declarations)]
+        if (query === undefined || declarations === undefined) return []
+        return [
+          query.startsWith('@')
+            ? Rules.rule('&', declarations, query)
+            : Rules.media(query, declarations),
+        ]
       }),
     ),
   })
@@ -238,14 +274,15 @@ export const grid = <const Area extends string>(
     }
   }
   return Object.freeze({
-    style: inline({
+    // Rules, not inline declarations, so a later layer can override the template.
+    style: self({
       display: 'grid',
       gridTemplateAreas: config.areas.map(row => `"${row.join(' ')}"`).join(' '),
       ...(config.columns === undefined ? {} : { gridTemplateColumns: config.columns }),
       ...(config.rows === undefined ? {} : { gridTemplateRows: config.rows }),
       ...(config.gap === undefined ? {} : { gap: config.gap }),
     }),
-    area: (name: Exclude<Area, '.'>) => inline({ gridArea: name }),
+    area: (name: Exclude<Area, '.'>) => self({ gridArea: name }),
     areas: Object.freeze(names),
   })
 }

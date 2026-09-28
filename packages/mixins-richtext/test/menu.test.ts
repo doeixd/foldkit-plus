@@ -17,31 +17,18 @@ import {
   type SlashEntry,
   type SlashMenuInput,
 } from '../src/index.js'
+import { Inert, type Node } from 'foldkit-mixins/testing'
+import type { Html } from 'foldkit/html'
 
 const Message = defineMessageUnion({ Chose: { entry: Schema.String } })
 type Message = typeof Message.Type
 
-/** A rendered vnode, as much of it as these tests read. */
-interface Node {
-  readonly sel?: string
-  readonly text?: string
-  readonly data?: {
-    readonly attrs?: Readonly<Record<string, unknown>>
-    readonly class?: Readonly<Record<string, boolean>>
-    readonly on?: { readonly click?: unknown }
-  }
-  readonly children?: ReadonlyArray<Node>
-}
-
-const all = (node: Node): ReadonlyArray<Node> => [node, ...(node.children ?? []).flatMap(all)]
-const items = (root: Node): ReadonlyArray<Node> =>
-  all(root).filter(node => node.data?.attrs?.['data-entry'] !== undefined)
-const nodeFor = (root: Node, entry: string): Node | undefined =>
+const items = (root: Html): ReadonlyArray<Node> =>
+  Inert.all(root).filter(node => node.data?.attrs?.['data-entry'] !== undefined)
+const nodeFor = (root: Html, entry: string): Node | undefined =>
   items(root).find(node => node.data?.attrs?.['data-entry'] === entry)
-const labels = (root: Node): ReadonlyArray<string> =>
-  items(root).map(node => node.text ?? node.children?.[0]?.text ?? '')
-const classes = (node: Node | undefined): ReadonlyArray<string> =>
-  Object.keys(node?.data?.class ?? {})
+const labels = (root: Html): ReadonlyArray<string> =>
+  items(root).map(node => node.text ?? Inert.children(node)[0]?.text ?? '')
 
 const catalogue = (): ReadonlyArray<SlashEntry<Message>> => [
   {
@@ -68,7 +55,7 @@ const input = (overrides: Partial<SlashMenuInput<Message>> = {}): SlashMenuInput
 const render = (
   view = slashMenuView<Message>(),
   overrides: Partial<SlashMenuInput<Message>> = {},
-): Node => view(input(overrides), SlotView.inertBuilder()) as unknown as Node
+): Html => view(input(overrides), SlotView.inertBuilder())
 
 describe('the slash menu view', () => {
   it('draws an item per match, in order, the highlighted one current', () => {
@@ -77,7 +64,7 @@ describe('the slash menu view', () => {
     expect(nodeFor(root, 'paragraph')?.data?.attrs?.['aria-current']).toBe('false')
     expect(nodeFor(root, 'heading-1')?.data?.attrs?.['aria-current']).toBe('true')
     expect(
-      all(root).find(node => node.data?.attrs?.['role'] === 'menu')?.data?.attrs?.['role'],
+      Inert.all(root).find(node => node.data?.attrs?.['role'] === 'menu')?.data?.attrs?.['role'],
     ).toBe('menu')
     expect(nodeFor(root, 'heading-1')?.data?.attrs?.['role']).toBe('menuitem')
   })
@@ -85,7 +72,7 @@ describe('the slash menu view', () => {
   it('narrows to the query, and marks the first match when the index is stale', () => {
     const root = render(undefined, { textBefore: '/h1', index: 4 })
     expect(labels(root)).toEqual(['Heading 1'])
-    expect(root.children?.[0]?.children?.length).toBe(1)
+    expect(Inert.children(Inert.children(root)[0])).toHaveLength(1)
     expect(nodeFor(root, 'heading-1')?.data?.attrs?.['aria-current']).toBe('true')
   })
 
@@ -117,7 +104,7 @@ describe('the slash menu view', () => {
     const styled = slashMenuView<Message>().pipe(
       Style.attach(Style.forSlots(SlashMenuSlots)({ item: Style.class('entry') })),
     )
-    expect(classes(nodeFor(render(styled), 'paragraph'))).toEqual(['entry'])
+    expect(Inert.classes(nodeFor(render(styled), 'paragraph'))).toEqual(['entry'])
   })
 
   it('hands a Behavior each entry id as its slot item id', () => {
@@ -165,5 +152,16 @@ describe('the slash menu in an application', () => {
       Scene.click('[data-entry="heading-1"]'),
       Scene.expect(Scene.selector('#last')).toHaveText('heading-1'),
     )
+  })
+})
+
+describe('its customization contract', () => {
+  it.each([
+    ['a menu with matches', input()],
+    ['a menu with none', input({ textBefore: '/nothing' })],
+  ])('draws everything through its Slots, with no fixed inline style: %s', (_, drawn) => {
+    const root = Inert.draw(slashMenuView<Message>(), drawn)
+    expect(Inert.unslotted(root)).toEqual([])
+    expect(Inert.fixedInline(root)).toEqual([])
   })
 })

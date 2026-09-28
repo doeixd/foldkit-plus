@@ -24,8 +24,15 @@ jobs:
 
       - run: pnpm format:check
 
+      # Each tsconfig's paths are derived from package exports, and every
+      # workspace import is a referenced project, so none reads a stale build.
+      - run: pnpm paths:check
+
       # Forced, so a warm `.tsbuild` cannot hide a project-graph change.
       - run: pnpm typecheck:force
+
+      # The browser tests (`*.browser.test.ts`) run in headless Chromium.
+      - run: pnpm exec playwright install --with-deps chromium
 
       - run: pnpm test
 

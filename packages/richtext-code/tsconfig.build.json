@@ -4,5 +4,10 @@
     "outDir": ".tsbuild/build",
     "tsBuildInfoFile": ".tsbuild/build/tsconfig.build.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../richtext/tsconfig.build.json"
+    }
+  ]
 }

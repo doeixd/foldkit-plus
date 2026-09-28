@@ -22,6 +22,7 @@ import {
   region,
   root,
   takeTree,
+  treeRefusal,
 } from './operation.js'
 import { Url, isSafeUrl } from './url.js'
 import { valid, validate } from './validate.js'
@@ -29,15 +30,18 @@ import { valid, validate } from './validate.js'
 export {
   Block,
   fieldsOf,
+  spaced,
   type AnyBlock,
+  type BlockWords,
   type AppearanceAxes,
   type AppearanceAxis,
   type AppearanceChoice,
   type AppearanceFinding,
   type PropsFinding,
   type PropsOf,
+  type StoredPropsOf,
 } from './block.js'
-export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
+export { Catalog, type BlockDescription, type BlockName, type Pattern } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'
 export type { Migrated, Migration } from './migrate.js'
@@ -97,6 +101,8 @@ export const Composition = {
   takeTree,
   /** A subtree under new ids, every reference renamed; throws unless `ids` names each node once. */
   rekey,
+  /** Why a tree could not go into any page, checked alone, by its own ids; none when it could. */
+  treeRefusal,
   Tree,
   /**
    * Moves a stored Document forward through named migrations, in order. Each

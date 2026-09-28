@@ -3,7 +3,7 @@
  * Surfaces read the post, a menu that starts closed in the browser, and a
  * Remote read of the post's author.
  */
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineRouteUnion } from 'foldkit/route'
@@ -55,7 +55,7 @@ const LikedBadge = App.surface('LikedBadge', {
   model: ({ model }) => ({ id: model.post.id }),
 })
 export const likedBadge = Surface.at(LikedBadge, (model: Model) =>
-  model.post.liked ? { id: model.post.id } : undefined,
+  model.post.liked ? Option.some({ id: model.post.id }) : Option.none(),
 )
 
 /** Reads the post's author from Remote, which has no Model path. */
@@ -64,12 +64,12 @@ const Author = App.surface('Author', {
   model: ({ params }) => ({ author: Remote.select(Data, User.select({ name: true }))(params.id) }),
 })
 export const author = Surface.at(Author, (model: Model) =>
-  model.route._tag === 'Post' ? { id: 'u1' } : undefined,
+  model.route._tag === 'Post' ? Option.some({ id: 'u1' }) : Option.none(),
 )
 
 /** The same read, for an id taken from `post.id`: only its metadata says which. */
 export const postAuthor = Surface.at(Author, (model: Model) =>
-  model.route._tag === 'Post' ? { id: model.post.id } : undefined,
+  model.route._tag === 'Post' ? Option.some({ id: model.post.id }) : Option.none(),
 )
 
 /** The server's Model for a post page. */

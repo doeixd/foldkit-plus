@@ -24,10 +24,11 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { Effect, Exit, Schema, Semaphore } from 'effect'
-import { Cms, type Content, type Facts } from 'foldkit-cms'
+import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
 import type { MutationDescriptor } from 'foldkit-remote'
 import {
   DrizzleDatabase,
+  drizzleWrites,
   bind,
   query,
   returning,
@@ -48,19 +49,6 @@ import type { CmsTables } from './tables.js'
 
 export { pgTables, sqliteSchema, sqliteTables, type CmsTables } from './tables.js'
 
-/** The writes the CMS makes, as any Drizzle database for SQLite or Postgres offers them. */
-interface Writes {
-  insert(table: unknown): { values(values: object): PromiseLike<unknown> }
-  update(table: unknown): {
-    set(values: object): {
-      where(condition: SQL | undefined): {
-        returning(columns: Record<string, AnyColumn>): PromiseLike<ReadonlyArray<object>>
-      }
-    }
-  }
-  delete(table: unknown): { where(condition: SQL | undefined): PromiseLike<unknown> }
-}
-
 /**
  * A content type as the server holds it: its declaration, the binding of its
  * table, and the application's own handlers of its two publish mutations. What
@@ -72,18 +60,6 @@ export interface ServedContent<P = any> {
   readonly create: MutationSource<P, DrizzleDatabase>
   readonly update: MutationSource<P, DrizzleDatabase>
 }
-
-/** What an author may be refused, by `allow`. */
-export type Asked =
-  | 'save'
-  | 'discard'
-  | 'publish'
-  | 'unpublish'
-  | 'schedule'
-  | 'unschedule'
-  | 'archive'
-  | 'unarchive'
-  | 'restore'
 
 /**
  * Runs some work so that it happened entirely or did not. Drizzle's own
@@ -173,7 +149,7 @@ export interface CmsServerConfig<P> {
    * Whether this author may make this transition. It is asked after the entry is
    * found and the transition is one its state offers. Default: any author may.
    */
-  readonly allow?: (principal: P, transition: Asked, entry: EntryRow) => boolean
+  readonly allow?: (principal: P, transition: Transition, entry: EntryRow) => boolean
   /** The server's clock, passed in so a test can hold it. */
   readonly now?: () => Date
   /**
@@ -274,7 +250,7 @@ export const CmsServer = {
           },
         },
         // Not a column: this server derives it, below, with its own clock.
-        derived: { state: { supplied: true } },
+        derived: { state: { supplied: true }, may: { supplied: true } },
       },
       Draft: { table: tables.drafts, visible: authorsOnly },
       Revision: { table: tables.revisions, visible: authorsOnly },
@@ -379,55 +355,76 @@ export const CmsServer = {
         return row as EntryRow | undefined
       })
 
-    // An entry's `state` is not a column. The generated source reads the rest; the
-    // state is derived from what is known of each entry, with this server's clock.
+    // An entry's `state` and `may` are not columns. The generated source reads the
+    // rest; the state is derived from what is known of each entry, with this server's
+    // clock, and `may` is what `allow` lets the reader ask of it.
     const generated = source<P>(Db.Entry)
     const entries: EntitySource<P, DrizzleDatabase> = {
       ...generated,
       read: context =>
         Effect.gen(function* () {
           const wantsState = context.fields.includes('state')
-          const fields = context.fields.filter(field => field !== 'state')
+          const wantsMay = context.fields.includes('may')
+          const fields = context.fields.filter(field => field !== 'state' && field !== 'may')
           const records = yield* generated.read({
             ...context,
-            // The state needs these of each entry, asked for or not.
-            fields: wantsState
-              ? [...new Set([...fields, 'type', 'targetId', 'archivedAt'])]
-              : fields,
+            // Both need these of each entry, asked for or not; `allow` is given the row.
+            fields:
+              wantsState || wantsMay
+                ? [
+                    ...new Set([
+                      ...fields,
+                      'type',
+                      'targetId',
+                      'archivedAt',
+                      ...(wantsMay ? ['label', 'revision'] : []),
+                    ]),
+                  ]
+                : fields,
           })
-          if (!wantsState) return records
-          const facts = yield* factsOf(
-            records.map(record => ({
-              id: record.id,
-              type: String(record.values.type),
-              targetId: (record.values.targetId as string | null) ?? null,
-              label: '',
-              archivedAt: (record.values.archivedAt as string | null) ?? null,
-              revision: null,
-            })),
-          )
-          const at = now()
-          return records.map(record => ({
+          if (!wantsState && !wantsMay) return records
+          const rows = records.map((record): EntryRow => ({
             id: record.id,
-            values: {
-              ...Object.fromEntries(
-                Object.entries(record.values).filter(
-                  ([field]) => field === 'id' || context.fields.includes(field),
-                ),
-              ),
-              state: Cms.state(facts.get(record.id)!, at),
-            },
+            type: String(record.values.type),
+            targetId: (record.values.targetId as string | null) ?? null,
+            label: String(record.values.label ?? ''),
+            archivedAt: (record.values.archivedAt as string | null) ?? null,
+            revision: (record.values.revision as number | null) ?? null,
           }))
+          const facts = yield* factsOf(rows)
+          const at = now()
+          return records.map((record, index) => {
+            const row = rows[index]!
+            const known = facts.get(record.id)!
+            return {
+              id: record.id,
+              values: {
+                ...Object.fromEntries(
+                  Object.entries(record.values).filter(
+                    ([field]) => field === 'id' || context.fields.includes(field),
+                  ),
+                ),
+                ...(wantsState ? { state: Cms.state(known, at) } : {}),
+                // What `allow` lets this reader ask of this entry, whatever its state
+                // offers now: the state says that, and a draft saved a moment later
+                // changes it without asking the server again.
+                ...(wantsMay
+                  ? {
+                      may: Cms.transitions.filter(
+                        transition => config.allow?.(context.principal, transition, row) !== false,
+                      ),
+                    }
+                  : {}),
+              },
+            }
+          })
         }),
     }
 
     // The descriptor carries all three questions and the order; this says only
     // which table answers them. The audience boundary is unchanged: `visible`
     // on the binding is conjoined with the body, as for every source here.
-    const worklist: QuerySource<P, DrizzleDatabase> = query<P, typeof Cms.Entries.Input.Type>(
-      Cms.Entries,
-      { entity: Db.Entry },
-    )
+    const worklist: QuerySource<P, DrizzleDatabase> = query(Cms.Entries, { entity: Db.Entry })
 
     /** A mutation of this server: its principal and its database are fixed, its input is the descriptor's. */
     const operation = <Name extends string, Input, Output>(
@@ -467,7 +464,7 @@ export const CmsServer = {
       })
 
     /** Whether the application lets this author do this, once the entry is known. */
-    const asking = (principal: P, transition: Asked, entry: EntryRow | undefined) =>
+    const asking = (principal: P, transition: Transition, entry: EntryRow | undefined) =>
       entry !== undefined && config.allow?.(principal, transition, entry) === false
         ? Effect.fail(refuse(`This author may not ${transition} this entry`))
         : Effect.void
@@ -524,7 +521,7 @@ export const CmsServer = {
         yield* asking(principal, 'save', existing)
         if (existing !== undefined) yield* promised(principal, existing)
 
-        const database = (yield* DrizzleDatabase) as unknown as Writes
+        const database = yield* drizzleWrites
         const who = nameOf(principal)
         const id = existing?.id ?? input.entry
         const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, id)
@@ -614,7 +611,7 @@ export const CmsServer = {
         if (entry === undefined) return yield* refuse('There is no such entry')
         yield* asking(principal, 'discard', entry)
         yield* promised(principal, entry)
-        const database = (yield* DrizzleDatabase) as unknown as Writes
+        const database = yield* drizzleWrites
         yield* Effect.promise(() =>
           Promise.resolve(database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
         )
@@ -629,7 +626,7 @@ export const CmsServer = {
       }),
     )
 
-    const done: Readonly<Record<Exclude<Asked, 'save' | 'discard'>, string>> = {
+    const done: Readonly<Record<Exclude<Transition, 'save' | 'discard'>, string>> = {
       publish: 'published',
       unpublish: 'unpublished',
       schedule: 'scheduled',
@@ -639,7 +636,7 @@ export const CmsServer = {
       restore: 'restored',
     }
     /** The entry, if its state offers this transition now. */
-    const offering = (id: string, transition: Exclude<Asked, 'save' | 'discard'>) =>
+    const offering = (id: string, transition: Exclude<Transition, 'save' | 'discard'>) =>
       Effect.gen(function* () {
         const entry = yield* findEntry(id)
         if (entry === undefined) return yield* refuse('There is no such entry')
@@ -680,8 +677,8 @@ export const CmsServer = {
         return { draft, creating, handler, decoded }
       })
 
-    /** A publish, for the operation that asks for one and for the schedule that comes due. */
-    const publishing = (found: Found, principal: P, basedOn: number | null) =>
+    /** A publish, for the operation that asks for one, the schedule that comes due, and an import. */
+    const publishing = (found: Found, principal: P, basedOn: number | null, at: Date = now()) =>
       Effect.gen(function* () {
         const { entry, served } = found
         const database = yield* DrizzleDatabase
@@ -714,7 +711,7 @@ export const CmsServer = {
         }
 
         return yield* Effect.gen(function* () {
-          const writes = (yield* DrizzleDatabase) as unknown as Writes
+          const writes = yield* drizzleWrites
           const n = (held ?? 0) + 1
           // Compare and set, first: of two publishes made from one revision, one
           // finds the number already moved, and nothing of it is written.
@@ -739,7 +736,6 @@ export const CmsServer = {
           const targetId = creating
             ? String((ran.output as { readonly id: unknown }).id)
             : entry.targetId!
-          const at = now()
           const shown = served.type.roles.published
           if (shown !== undefined) {
             // Publishing shows the row. One already shown keeps its first date.
@@ -779,12 +775,12 @@ export const CmsServer = {
                 .returning({ id: tables.entries.id }),
             ),
           )
-          const content = returning(served.binding, shown === undefined ? [] : [shown.key])
           return {
             output: { entry: entry.id as never, targetId, revision: n },
             entities: [
               ...ran.entities,
-              ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
+              // The row as the handler left it, every column: a handler need not patch what it wrote.
+              ...(yield* returning.row(served.binding, targetId)),
               ...(yield* entryPatches(entry.id)),
               ...revisionPatch.patches(
                 yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
@@ -816,7 +812,7 @@ export const CmsServer = {
     /** Writes to an entry's draft, and answers with both as the client should now hold them. */
     const drafted = (id: string, values: object) =>
       Effect.gen(function* () {
-        const writes = (yield* DrizzleDatabase) as unknown as Writes
+        const writes = yield* drizzleWrites
         yield* Effect.promise(() =>
           Promise.resolve(
             writes
@@ -871,7 +867,7 @@ export const CmsServer = {
           Effect.gen(function* () {
             const { entry, served } = yield* offering(input.entry, transition)
             yield* asking(principal, transition, entry)
-            const writes = (yield* DrizzleDatabase) as unknown as Writes
+            const writes = yield* drizzleWrites
             yield* Effect.promise(() =>
               Promise.resolve(
                 writes
@@ -933,7 +929,7 @@ export const CmsServer = {
         if (revision === undefined)
           return yield* refuse(`This entry has no revision ${input.revision}`)
 
-        const writes = database as unknown as Writes
+        const writes = yield* drizzleWrites
         const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, entry.id)
         const at = now().toISOString()
         const updatedAt =
@@ -1025,12 +1021,80 @@ export const CmsServer = {
         return outcomes
       })
 
+    /**
+     * Content published already, such as a site's first pages or what another CMS
+     * held, written by the path a publish takes: an entry and a draft of
+     * `values`, then the publish, which runs the type's own `create` handler as
+     * `as` and records revision 1. It is the server's act, not an author's, so
+     * `allow` is not asked. `at` is when it was published (default now); `entry`
+     * names the entry (default a new id). One transaction: it all lands or none.
+     */
+    const importing = (item: {
+      readonly type: string
+      readonly values: unknown
+      readonly as: P
+      readonly at?: Date | undefined
+      readonly entry?: string | undefined
+    }) =>
+      config.transaction(
+        Effect.gen(function* () {
+          const served = byType.get(item.type)
+          if (served === undefined)
+            return yield* refuse(`"${item.type}" is not a type of content this server knows`)
+          const writes = yield* drizzleWrites
+          const id = item.entry ?? Cms.newEntryId()
+          const at = item.at ?? now()
+          const labelKey = served.type.roles.label?.key
+          const named =
+            labelKey === undefined
+              ? undefined
+              : (item.values as Readonly<Record<string, unknown>> | null)?.[labelKey]
+          const entry: EntryRow = {
+            id,
+            type: item.type,
+            targetId: null,
+            label: typeof named === 'string' ? named : '',
+            archivedAt: null,
+            revision: null,
+          }
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes.insert(tables.entries).values({
+                ...entry,
+                createdBy: nameOf(item.as),
+                createdAt: at.toISOString(),
+              }),
+            ),
+          )
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes.insert(tables.drafts).values({
+                id,
+                values: item.values,
+                model: null,
+                form: '',
+                updatedAt: at.toISOString(),
+                updatedBy: nameOf(item.as),
+                baseRevision: null,
+              }),
+            ),
+          )
+          const facts: Facts = {
+            archivedAt: null,
+            row: 'none',
+            draft: { scheduledFor: null, scheduleError: null },
+          }
+          const published = yield* publishing({ entry, served, facts }, item.as, null, at)
+          return { entry: id, targetId: published.output.targetId }
+        }),
+      )
+
     const Unpublish = operation(Cms.Operations.Unpublish, ({ input, principal }) =>
       Effect.gen(function* () {
         const { entry, served } = yield* offering(input.entry, 'unpublish')
         yield* asking(principal, 'unpublish', entry)
         const shown = served.type.roles.published!
-        const writes = (yield* DrizzleDatabase) as unknown as Writes
+        const writes = yield* drizzleWrites
         yield* Effect.promise(() =>
           Promise.resolve(
             writes
@@ -1075,13 +1139,7 @@ export const CmsServer = {
     // and says no more: the address column and the order come from the body,
     // through the binding that knows which column holds which field.
     const bySlug = config.content.flatMap(({ type, binding }) =>
-      type.roles.slug === undefined
-        ? []
-        : [
-            query<P, { readonly slug: string }>(Cms.bySlug(type), {
-              entity: binding,
-            }) as QuerySource<P, DrizzleDatabase>,
-          ],
+      type.roles.slug === undefined ? [] : [query(Cms.bySlug(type), { entity: binding })],
     )
 
     return {
@@ -1094,6 +1152,7 @@ export const CmsServer = {
       queries: [worklist, ...bySlug] as ReadonlyArray<QuerySource<P, DrizzleDatabase>>,
       mutations,
       due,
+      import: importing,
       /** The bindings of `Entry`, `Draft` and `Revision`, for a handler that returns patches of them. */
       bindings: Db,
     }

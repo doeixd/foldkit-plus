@@ -3,7 +3,7 @@
  * active Surface lists, a page with bindings needs Surfaces to say so, and a
  * handler inside a static region is refused.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -58,7 +58,7 @@ describe('bindings against the Surfaces', () => {
     const asleep = SSR.plan(App, {
       id: 'post',
       state: plan.state,
-      surfaces: [Surface.at(Reader, undefined), Surface.at(Keys, () => undefined)],
+      surfaces: [Surface.at(Reader, undefined), Surface.at(Keys, () => Option.none())],
     })
     const refused = await refusal(config, asleep)
     expect(refused.message).toContain('dispatches Pressed')

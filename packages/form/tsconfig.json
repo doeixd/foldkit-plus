@@ -9,13 +9,21 @@
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-form": ["./src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
-    { "path": "../bundle/tsconfig.build.json" },
-    { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../entity/tsconfig.build.json" }
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    }
   ]
 }

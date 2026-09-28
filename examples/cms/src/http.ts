@@ -1,54 +1,22 @@
 /**
- * The server behind one HTTP endpoint: the same `RemoteServer` handlers the
- * scripted run calls. **The `x-chair` header stands in for authentication.** It
- * is the client saying who it is, which no real server believes: a real one
- * derives the principal from a session it verified.
- *
- * It is also the host that keeps time. The CMS owns no timer, so this asks what
- * is due every few seconds; behind a load balancer it would be one cron trigger.
+ * The server behind one HTTP endpoint, as `pnpm dev` runs it: each request
+ * answered by `endpoint.ts`, the chair read from the `x-chair` header, and what
+ * is due published every few seconds.
  */
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Effect } from 'effect'
-import { RemoteServer } from 'foldkit-remote-server'
-import { openServer, type Principal } from './server.js'
-import type { Operation } from './transport.js'
-
-const principals: Readonly<Record<string, Principal>> = {
-  wren: { name: 'wren', role: 'author' },
-  edda: { name: 'edda', role: 'editor' },
-}
+import { answer, publishDue } from './endpoint.js'
+import { openServer } from './server.js'
+import { memorySqlite } from './sqlite-node.js'
 
 export const startHttpServer = async (
   port: number,
 ): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
-  const backend = openServer(() => new Date())
-  const run = (
-    principal: Principal,
-    operation: Operation,
-    payload: never,
-  ): Effect.Effect<unknown, { readonly message: string }> => {
-    const handlers = RemoteServer.handlers(backend.server, principal)
-    const asked =
-      operation === 'read'
-        ? handlers.FoldkitRemoteRead(payload)
-        : operation === 'query'
-          ? handlers.FoldkitRemoteQuery(payload)
-          : handlers.FoldkitRemoteMutate(payload)
-    return (asked as Effect.Effect<unknown, { readonly message: string }, any>).pipe(
-      Effect.provide(backend.database),
-    ) as Effect.Effect<unknown, { readonly message: string }>
-  }
+  const backend = openServer(() => new Date(), memorySqlite())
+  await backend.seed()
 
   const clock = setInterval(() => {
-    void Effect.runPromise(
-      backend.cms
-        .due(new Date(), { as: name => principals[name ?? ''] ?? null })
-        .pipe(Effect.provide(backend.database)),
-    ).then(outcomes => {
-      for (const { entry, error } of outcomes)
-        console.log(error === null ? `published ${entry}, as scheduled` : `${entry}: ${error}`)
-    })
+    void publishDue(backend).then(said => said.forEach(line => console.log(line)))
   }, 5000)
 
   const server: Server = createServer((request, response) => {
@@ -58,28 +26,22 @@ export const startHttpServer = async (
     }
     if (request.method !== 'POST' || request.url !== '/remote')
       return reply(404, { error: 'not found' })
-    const principal = principals[String(request.headers['x-chair'])] ?? null
+    const chair = String(request.headers['x-chair'])
     const chunks: Buffer[] = []
     request.on('data', chunk => chunks.push(chunk as Buffer))
     request.on('end', () => {
       void (async () => {
+        let body: unknown
         try {
-          const { operation, payload } = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
-            readonly operation: Operation
-            readonly payload: never
-          }
-          const result = await Effect.runPromise(
-            run(principal, operation, payload).pipe(
-              Effect.map(value => ({ status: 200, body: { result: value } })),
-              Effect.catch(error =>
-                Effect.succeed({ status: 500, body: { error: error.message } }),
-              ),
-            ),
-          )
-          reply(result.status, result.body)
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
         } catch (error) {
-          reply(400, { error: error instanceof Error ? error.message : String(error) })
+          return reply(400, { error: error instanceof Error ? error.message : String(error) })
         }
+        const answered = await answer(backend, chair, body)
+        reply(
+          answered.ok ? 200 : 500,
+          answered.ok ? { result: answered.result } : { error: answered.error },
+        )
       })()
     })
   })

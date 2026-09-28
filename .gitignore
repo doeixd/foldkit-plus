@@ -9,3 +9,5 @@ coverage/
 *.tgz
 PLAN.md
 .tsbuild/
+# Vitest browser mode: screenshots and traces of failed browser tests.
+.vitest/

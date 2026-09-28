@@ -4,10 +4,11 @@
  * who is nobody. One server, in process; each chair has its own Model. The clock
  * is the script's, so the schedule comes due when the story says.
  */
-import { Effect, Layer, Stream } from 'effect'
+import { Effect, Layer, Option, Stream } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
-import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemotePolicy } from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, Remote, RemotePolicy } from 'foldkit-remote'
+import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import {
   Data,
@@ -23,30 +24,27 @@ import {
 } from './app.js'
 import { PostForm, Posts } from './domain.js'
 import { openServer, type Principal } from './server.js'
+import { memorySqlite } from './sqlite-node.js'
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []
   const say = (line: string) => lines.push(line)
 
   let now = new Date('2026-03-01T09:00:00.000Z')
-  const backend = openServer(() => now)
+  const backend = openServer(() => now, memorySqlite())
 
   /** One chair: a principal, a Remote client that asks as them, and a Model of their own. */
   const chair = (principal: Principal) => {
     const handlers = RemoteServer.handlers(backend.server, principal)
-    const served = <A, E>(effect: Effect.Effect<A, E, any>) =>
-      effect.pipe(Effect.provide(backend.database)) as never
     const sent: string[] = []
-    const service: (typeof RemoteClient)['Service'] = {
-      read: batch => served(handlers.FoldkitRemoteRead(batch)),
-      query: request => served(handlers.FoldkitRemoteQuery(request)),
-      mutate: request => {
+    // The server in process, as the client's transport, noting each mutation it is sent.
+    const client = Remote.clientLayer({
+      ...handlers,
+      FoldkitRemoteMutate: request => {
         sent.push(request.mutation.replace('Cms', ''))
-        return served(handlers.FoldkitRemoteMutate(request))
+        return handlers.FoldkitRemoteMutate(request)
       },
-      live: () => Stream.empty,
-    }
-    const client = Layer.succeed(RemoteClient, service)
+    }).pipe(Layer.provide(backend.database))
     let model: Model = initial
 
     /** What the runtime does: update, run the Commands, feed their Messages back. */
@@ -54,11 +52,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       const next = update(model, message)
       model = next.model
       for (const command of next.commands ?? []) {
-        const settled = await Effect.runPromise(
-          (command.effect as Effect.Effect<Message, never, RemoteClient>).pipe(
-            Effect.provide(client),
-          ),
-        )
+        const settled = await Effect.runPromise(command.effect.pipe(Effect.provide(client)))
         await send(settled)
       }
     }
@@ -67,9 +61,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       for (let round = 0; round < 2; round++) {
         for (const active of Object.values(actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }).pipe(
+            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
               Effect.provide(client),
             ),
           )
@@ -90,12 +84,18 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => PostEditor.status(model),
       state: () => {
-        const state = PostEditor.state(model)
-        return state === undefined ? '?' : Display.show(Cms.Display.State.of({}), state)
+        return Option.match(PostEditor.state(model), {
+          onNone: () => '?',
+          onSome: state => Display.show(Cms.Display.State.of({}), state),
+        })
       },
-      why: () => PostEditor.error(model)?.message.replace(/^.*?: /, '') ?? 'no error',
+      why: () =>
+        Option.match(PostEditor.error(model), {
+          onNone: () => 'no error',
+          onSome: ({ message }) => message.replace(/^.*?: /, ''),
+        }),
       field: (key: 'title' | 'slug' | 'body') => PostForm.field(model.editor.form, key).value,
-      resumed: () => PostEditor.resumed(model),
+      resumed: () => Option.getOrElse(PostEditor.resumed(model), () => 'not opened'),
       worklist: () => {
         const page = Worklist.page(model)
         return page._tag === 'Ready' || page._tag === 'Refreshing'
@@ -119,25 +119,23 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       /** The site's page for an address: what `bySlug` finds, read as a page. */
       visit: async (slug: string): Promise<string> => {
-        const found = await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteQuery({
-              query: Cms.bySlug(Posts).name,
-              input: { slug },
-              window: { first: 1 },
-            }),
-          ) as Effect.Effect<{ readonly edges: ReadonlyArray<{ readonly id: string }> }>,
+        const asked = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
+          Effect.runPromise(effect.pipe(Effect.provide(backend.database)))
+        const found = await asked(
+          handlers.FoldkitRemoteQuery({
+            query: Cms.bySlug(Posts).name,
+            input: { slug },
+            window: { first: 1 },
+          }),
         )
         const id = found.edges[0]?.id
         if (id === undefined) return '404'
-        const read = (await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteRead({
-              version: REMOTE_PROTOCOL_VERSION,
-              requests: [{ entity: 'Post', id, fields: ['title', 'body'] }],
-            } as never),
-          ),
-        )) as { readonly entities: ReadonlyArray<{ readonly values: Record<string, unknown> }> }
+        const read = await asked(
+          handlers.FoldkitRemoteRead({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [{ entity: 'Post', id, fields: ['title', 'body'] }],
+          }),
+        )
         const values = read.entities[0]?.values
         return values === undefined ? '404' : `"${values['title']}": ${values['body']}`
       },

@@ -5,7 +5,7 @@
  * selected; the Surface Block shows a feature's Surface; the stateful Block's
  * item is ordinary browser state; the static Block is drawn.
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -132,14 +132,25 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
       : h.p([], ['Loading'])
   },
   Cart: ({ data, h }) => {
-    const cart = Cart.value(data)
-    return h.p([], [cart === undefined ? '' : `${cart.caption}: ${cart.count}`])
+    return h.p(
+      [],
+      [
+        Option.match(Cart.value(data), {
+          onNone: () => '',
+          onSome: cart => `${cart.caption}: ${cart.count}`,
+        }),
+      ],
+    )
   },
   Votes: ({ data }) => Stateful.html(data),
 })
 
-const reads = QueryBlock.active('PageReads', App.owner, Data, Site, (model: Model) => model.page)
-const features = SurfaceBlock.active('PageFeatures', App.owner, Site, (model: Model) => model.page)
+const reads = QueryBlock.active('PageReads', App.owner, Data, Site, (model: Model) =>
+  Option.some(model.page),
+)
+const features = SurfaceBlock.active('PageFeatures', App.owner, Site, (model: Model) =>
+  Option.some(model.page),
+)
 
 /** The server's store: two of u1's projects, with a budget no Block selects. */
 const server = Layer.succeed(RemoteClient, {
@@ -174,8 +185,7 @@ describe('a page of static, data, feature and stateful Blocks, served by SSR', (
         count: props.start,
       }),
     )({ ...initial, page: home }).model
-    const projection = reads.projectionOf(withPage)
-    if (projection === undefined) throw new Error('no reads')
+    const projection = Option.getOrThrow(reads.projectionOf(withPage))
     const loaded = await Effect.runPromise(
       Data.prefetch(withPage, projection).pipe(Effect.provide(server)),
     )
@@ -190,8 +200,8 @@ describe('a page of static, data, feature and stateful Blocks, served by SSR', (
           [],
           Renderer.render(SiteRenderer, model.page, h, {
             data: {
-              ...(reads.projectionOf(model)?.read(model) ?? {}),
-              ...(features.projectionOf(model)?.read(model) ?? {}),
+              ...reads.data(model),
+              ...features.data(model),
               ...Stateful.views(Placed, Site, Votes, model.page, model, h),
             },
           }),

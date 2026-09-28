@@ -4,7 +4,7 @@ import { runPageDemo } from '../src/pageDemo.js'
 describe('a page in foldkit-cms, built with foldkit-builder', () => {
   it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads, picks, follows a link and takes an agent’s edit', async () => {
     const page =
-      'Section {"tone":"plain"} > body: > Heading {"text":"Welcome"} > Button {"href":"/blog","label":"Read the blog"}'
+      'Section {"heading":""} > body: > Heading {"text":"Welcome"} > Button {"href":"/site/blog","label":"Read the blog"}'
     expect(await runPageDemo()).toEqual([
       '— a writer builds a page —',
       `the page: ${page}`,
@@ -25,7 +25,7 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       'revisions: 1, 2',
       `the first, restored as a draft: ${page}; state Changed`,
       'nothing was published by that: Welcome | News | Read the blog',
-      'discarded: Section {"tone":"plain"} > body: > Heading {"text":"Welcome"} > Heading {"text":"News"} > Button {"href":"/blog","label":"Read the blog"}; state Published',
+      'discarded: Section {"heading":""} > body: > Heading {"text":"Welcome"} > Heading {"text":"News"} > Button {"href":"/site/blog","label":"Read the blog"}; state Published',
       '— a change promised for the morning —',
       'editor: Scheduled; state Changed, scheduled',
       'tonight a visitor reads: Welcome | News | Read the blog',
@@ -43,6 +43,7 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       'while the page loads, nothing is selected: nothing',
       'once it is open, the Block the link names: Button',
       'a link to a Block the page lacks is let go: nothing waits; Button selected',
+      'a link shows the layers, at a phone’s width: layers, narrow',
       '— an agent edits the page, as a person does —',
       'it adds a heading: done',
       'the page: Written by an agent | Good morning | News | All posts',

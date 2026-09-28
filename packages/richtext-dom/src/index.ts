@@ -522,9 +522,18 @@ export const rangeToPosition = (
   if (located === undefined) return undefined
   // A decoration or a mark can split the run into several text nodes; the offset is into
   // the run's text, so the pieces before this one count too.
-  const texts = textNodesOf(run)
-  const before = texts.slice(0, texts.indexOf(node)).reduce((total, text) => total + text.length, 0)
+  // Counted in the element the document draws for the run, not the nearest one claiming its
+  // id: a node that element does not hold (a duplicated identity a mutation left behind) is
+  // refused rather than read as an offset into the run.
+  const element = dom.elements.get(located.run.id)
+  const texts = element === undefined ? [] : textNodesOf(element)
+  const index = texts.indexOf(node)
+  if (index === -1) return undefined
+  const before = texts.slice(0, index).reduce((total, text) => total + text.length, 0)
   const at = before + offset
+  // Text the document does not have (a stray keystroke before repair, text appended inside
+  // the run) has no semantic position, so an offset past the run's text is refused.
+  if (at > located.run.text.length) return undefined
   return {
     node: located.run.id,
     offset: at,
@@ -579,9 +588,10 @@ const runMatches = (
  * Recovery, not domain state (§31): makes the subtree match the document again
  * after something outside the semantic pipeline touched it — a cancelled IME
  * composition leaves text the document never had, and a browser extension can
- * mutate anything. Blocks whose rendered text and element already match are left
- * alone, so this costs nothing in the normal case and returns the same `EditorDom`
- * when nothing was wrong.
+ * mutate anything. A block whose rendered text and element already match is left
+ * alone and the same `EditorDom` comes back, so nothing is rebuilt in the normal
+ * case; rendering each run once to compare it is the price of a check that cannot
+ * drift, paid when a composition ends rather than on every edit.
  */
 export const repair = (dom: EditorDom, content: RichText.Document): EditorDom => {
   const present = new Set<RichText.NodeId>()

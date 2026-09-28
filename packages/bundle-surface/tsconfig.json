@@ -8,6 +8,7 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-bundle-surface": ["./src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mirror": ["../mirror/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]

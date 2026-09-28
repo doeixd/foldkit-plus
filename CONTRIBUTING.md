@@ -11,10 +11,11 @@
 
 ## Before a commit
 
-Run the checks CI runs. `pnpm check` runs all five in sequence:
+Run the checks CI runs. `pnpm check` runs all six in sequence:
 
 ```bash
 pnpm format:check
+pnpm paths:check
 pnpm typecheck
 pnpm test
 pnpm demo
@@ -25,7 +26,22 @@ Format with `pnpm format`, never bare `prettier`: the repository config matches
 the style already in the tree, and without it prettier rewrites files to its own
 defaults.
 
+## Workspace resolution
+
+Workspace packages resolve to their source through the `foldkit-plus:source`
+export condition, in Vite, Vitest and the examples, so nothing needs a build
+to see a change. TypeScript resolves through `paths`, which `pnpm paths`
+generates from each project's references: after adding a workspace
+dependency, add the project reference and run `pnpm paths`, rather than
+editing `paths` by hand.
+
 ## Tests
+
+`pnpm test` runs two Vitest projects: `unit` (Node and jsdom) and `browser`
+(files named `*.browser.test.ts`, in headless Chromium at a desktop size), for
+what needs real layout, focus or selection. The browser project needs
+Chromium once: `pnpm exec playwright install chromium`. Vitest also runs from
+a package's own folder, with the same resolution.
 
 Every test must be able to fail. Mutate the code under test (invert a guard,
 drop a branch, return a constant), confirm the relevant test goes red, then

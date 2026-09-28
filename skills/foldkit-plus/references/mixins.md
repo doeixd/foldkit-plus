@@ -41,6 +41,14 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   metadata; declaring them installs nothing.
 - `Behavior.slot({ requires, attributes: ({ input, h }) => [...], mount })` — `requires`
   (capability/events/attributes) is checked against the slot **when `forSlots` runs**.
+- **Parts** cut a big view so each piece redraws only when what it reads changes:
+  `const P = SlotView.parts(S)<Input, Message>()`, `P.part(name, { reads: ['k'], behaviors },
+  (input, slots, h) => …)` (input is `Pick<Input, 'k'>`), `P.assemble((input, slots, h, draw) =>
+  … draw(Part) …)` is a SlotView; a part may be drawn in more than one place. A whole-view Mixin
+  that reads input makes parts redraw every time.
+  Per item: `slots.row.lazy(item, drawRow, { ...args })` with `drawRow(slots, h, args)` defined once;
+  an item redraws when an arg changes or what Mixins give its Slots changes (a static Style by
+  identity). The memo is one per `drawRow`, shared by every view drawing it.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
 - `protected: { events, attributes, style }` forbids attachments from supplying those.
 - **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style
@@ -258,6 +266,8 @@ them by layer order alone.
 
 - `SlotView.inertBuilder<Message>()` is an `HtmlBuilder` with no runtime: call `View(input, h)`
   to build real attributes, then read them with `Attributes.find(bundle, 'Class')?.value`.
+- `Inert` (`foldkit-mixins/testing`) reads a whole inert tree: `all`, `children`, `byTag`,
+  `byRole`, `byLabel`, `text`, `value` (attribute or property), `classes`, `style`, `pressed`.
 
 ## 7. Gotchas (verified)
 
@@ -274,11 +284,12 @@ them by layer order alone.
   lacks is fine.
 - A rule piece inside `Style.whenInput` compiles to a static class whose presence follows the
   input; its CSS is always in the stylesheet. Also: `Style.states({ open: {...} })` (`[data-state]`
-  rules), `Style.responsive(breakpoints, map)`, `Style.enter(decl)` (`@starting-style`) with
+  rules), `Style.responsive(breakpoints, map)`, `Style.at(prelude, piece)` (a piece's rules inside
+  an at-rule, e.g. a selector under a container query), `Style.enter(decl)` (`@starting-style`) with
   `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, `Style.grid({ areas, columns?,
-  rows?, gap? })` (typed areas: `.style` on the container, `.area(name)` on a child; ragged rows
-  raise `mixins:ragged-grid-areas`), and `Selector.*` builders.
-- Multi-slot recipes: `Style.recipeFor(Slots)({ base, variants, defaults, compound })` returns
+  rows?, gap? })` (typed areas, as rules: `.style` on the container, `.area(name)` on a child;
+  ragged rows raise `mixins:ragged-grid-areas`), and `Selector.*` builders.
+- Multi-slot recipes (every field optional): `Style.recipeFor(Slots)({ base, variants, defaults, compound })` returns
   `selection => StylePieces` (`null` unsets a defaulted axis) with `.extend(patch)` merging per
   slot (`mixins:unknown-slot` for a slot the contract lacks). `Style.perItem(item => piece)` and
   `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
@@ -302,15 +313,19 @@ them by layer order alone.
   scales (`knob` density/radius-factor, `space`, `radius`, `font`, `size`, `leading`, `weight`,
   `motion`, `border`, `breakpoint`). `Theme.oklch({ accent: { h, c, l }, … })` derives the
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
-  `error`, `info`); only `knob` holds literals, so overriding `knob.accent-h` under a
+  `error`, `info`; each family has a fill `default`, `on-fill` for text on it, and `ink` for
+  colored text on the base surface: colored text is `ink`, never `default`); only `knob` holds literals, so overriding `knob.accent-h` under a
   `Theme.scoped` selector recolors everything. Emit `Theme.root(theme, { omit: Theme.tokens })`
   after `Theme.root(Theme.tokens)` to avoid duplicates. The active theme is a Model field written
   as `data-theme` on the root. `Theme.breakpointWidths(Theme.tokens)` feeds the `Breakpoints`
   bundle (`theme:unparseable-breakpoint` for a non-`min-width` query).
+  `Theme.inContainer('page', Theme.tokens.breakpoint)` gives the breakpoints as
+  `'@container page (min-width: …)'`, which `Style.responsive` and a responsive look take as is.
 - Defaults and prose: `Defaults.reset` and `Defaults.all` (`body`, `headings`, `links`, `code`,
   `controls`; `all` excludes `reset`) from `foldkit-mixins/defaults` are `:where()` element CSS over
   `--fk-*` tokens with fallbacks, unlayered: place them with `L.in('reset', …)` / `L.in('defaults',
-  …)`. `Prose.style({ measure?, rhythm?: { paragraph, heading, list, figure } })` from
+  …)`. Headings are `text-overt`; a colored band sets `Style.vars({ '--fk-heading': 'currentColor',
+  '--fk-ink': 'currentColor' })` and its headings and unfilled (`outline`/`ghost`) buttons take its color. `Prose.style({ measure?, leading?, rhythm?: { paragraph, heading, list, figure } })` from
   `foldkit-mixins/prose` is one class for every caller; options are `--fk-prose-*` variables on
   the element. Put it in `components`.
 - Layout: `foldkit-mixins/layout` exports `Layout.stack/cluster/split/sidebar/switcher/reel/center/
@@ -322,8 +337,11 @@ them by layer order alone.
   (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`).
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
-- Rule-based CSS is data: put `Style.stylesheet(StyleA, StyleB)` (global then scoped, deduped)
-  into a `<style>` element yourself.
+- Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is
+  appended once to a `<style data-foldkit-styles>` (made only when needed; it declares the
+  standard layer order unless the page already declares one). Install `Style.stylesheet(L.declare, …)`
+  yourself for the layer order, the theme and a first paint; injection skips what it carries. On a
+  server, `Style.usedIn(html)` is the CSS of the classes the rendered markup uses.
 
 ## 8. See also
 
