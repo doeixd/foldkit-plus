@@ -373,7 +373,8 @@ const once = replica.synchronize.pipe(
 ```
 
 `replica.start` is the long-running convenience loop. It exchanges once, then
-wakes after every submit. A failed exchange, whether the wire failed or the
+wakes after every submit and every notice the transport hears from the server
+(`Transport.changes`). A failed exchange, whether the wire failed or the
 response was refused, is recorded in `status.lastError` and announced on
 `statusChanges`; the loop survives and retries on a backoff from 0.5 s up to
 30 s, or at once on the next submit, so an outbox is delivered even if nobody

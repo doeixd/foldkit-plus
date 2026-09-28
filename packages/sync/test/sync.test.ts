@@ -1171,6 +1171,37 @@ describe('Replica.start', () => {
     await close(replica)
   })
 
+  it('hears a notice that arrives during its first exchange', async () => {
+    const replica = await open('a')
+    const exchanges = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const notices = yield* PubSub.sliding<void>(1)
+          const second = yield* Deferred.make<void>()
+          let calls = 0
+          yield* Effect.forkScoped(
+            replica.start.pipe(
+              Effect.provideService(Transport, {
+                changes: Stream.fromPubSub(notices),
+                exchange: () =>
+                  Effect.gen(function* () {
+                    calls += 1
+                    if (calls === 1) yield* PubSub.publish(notices, undefined)
+                    else yield* Deferred.succeed(second, undefined)
+                    return { operations: [], rejected: [] }
+                  }),
+              }),
+            ),
+          )
+          yield* Deferred.await(second).pipe(Effect.timeout('1 second'), Effect.ignore)
+          return calls
+        }),
+      ),
+    )
+    expect(exchanges).toBe(2)
+    await close(replica)
+  })
+
   it('statusChanges re-emits the status after a submit', async () => {
     const replica = await open('a')
     const statuses = await Effect.runPromise(

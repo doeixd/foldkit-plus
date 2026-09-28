@@ -769,9 +769,12 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       const start: Effect.Effect<void, never, Transport> = Effect.gen(function* () {
         const transport = yield* Transport
         // A server's notice wakes the loop as a submit does; the fiber ends with this one.
+        // It starts at once so it is subscribed before the first exchange, which a
+        // notice may arrive during.
         if (transport.changes !== undefined)
           yield* Effect.forkChild(
             Stream.runForEach(transport.changes, () => Queue.offer(wake, undefined)),
+            { startImmediately: true },
           )
         let failures = 0
         while (!(yield* Ref.get(closed))) {
