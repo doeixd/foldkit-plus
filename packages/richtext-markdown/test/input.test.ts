@@ -183,7 +183,7 @@ describe('the rules applied to a document, as the editor applies them', () => {
   it.each([
     ['[ ]', false],
     ['[x]', true],
-  ])('turns `%s ` at the start of a list item into a task in that list', (marker, checked) => {
+  ])('turns `%s ` at the start of a list'''s last item into a task in that list', (marker, checked) => {
     let count = 0
     const mint = () => `m${++count}`
     const { document } = parse(`- milk\n- ${marker}eggs\n`, { mint })

@@ -326,7 +326,8 @@ against each other: `print(parse(markdown))` returns the Markdown it started fro
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
 `###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
 or a list (`WrapBlock`), a fence such as `` ```ts `` converts it to a `CodeBlock`
-(`ConvertBlock`), and `[ ] ` or `[x] ` in a list item makes it a task — where the editor applies the rules its placement names
+(`ConvertBlock`), and `[ ] ` or `[x] ` in the last item of a bulleted list makes it a task
+(elsewhere, lifting and re-wrapping the item splits its list) — where the editor applies the rules its placement names
 (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A source session edits
 the Markdown itself: `openSource(document, { style?, selection? })` gives `{ printed, draft,
 unprintable, style, caret }` (a `SourceSession` schema the Model holds; `caret` is where the

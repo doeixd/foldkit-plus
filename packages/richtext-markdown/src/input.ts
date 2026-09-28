@@ -4,7 +4,7 @@
  * `# ` through `###### ` retype the block (`RetypeBlock`); `> `, `- `, `* `, `+ `, and an
  * ordered marker such as `1. ` wrap it in a quote or a list (`WrapBlock`); a fence with an
  * optional language, such as `` ```ts ``, converts it to a `CodeBlock` (`ConvertBlock`);
- * `[ ] ` or `[x] ` at the start of a list item makes it a task.
+ * `[ ] ` or `[x] ` at the start of a list item makes it a task (see `taskRule` for where).
  *
  * Every marker, and the space that completes it, must be the whole text before the caret,
  * which is what puts it at the block's start — the same place Markdown reads a block marker
@@ -100,7 +100,9 @@ const fenceRule: InputRule = {
 /**
  * A task marker, `[ ] ` or `[x] `, at the start of a list item: `- ` has already made the
  * item by then, so the rule reads that it is in one. The paragraph is lifted out of the item
- * and wrapped as a task, which joins the list it came from.
+ * and wrapped as a task, which joins the list it came from only when the item was the last of
+ * a bulleted list and held nothing else; anywhere else it splits the list, because no command
+ * retypes a list item in place and a rule cannot see where its item stands.
  */
 const taskRule: InputRule = {
   name: 'task-list',
