@@ -59,5 +59,5 @@ npx vitest run examples/foldkit-api-cache   # from the repository root
   nothing about it.
 - **What no open tab reads is collected after five minutes.** The stats have a
   `Data.subscriptions` call of their own, for their policy; retention is the
-  domain's, so the `retain` entry left after spreading both calls roots what
-  either reads. Upstream keeps everything it fetched for the session.
+  domain's, so the second call's `retain` is left out and the one kept roots
+  what either reads. Upstream keeps everything it fetched for the session.
