@@ -1,4 +1,4 @@
-import { Array, Effect, Equal, Match, Option, Schema } from 'effect'
+import { Array, Effect, Match, Option, Schema } from 'effect'
 import { Command, type Runtime, Subscription, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -125,12 +125,6 @@ export const update = (model: Model, message: Message) =>
 
     ChangedUrl: ({ url }) => {
       const nextRoute = urlToAppRoute(url)
-
-      // The runtime sends the starting URL again after `init` has read it; the
-      // route the Model already shows is not a change, so nothing refetches.
-      if (Equal.equals(nextRoute, model.route)) {
-        return { model }
-      }
 
       const routeSteps = Match.value(nextRoute).pipe(
         Match.withReturnType<ReadonlyArray<Update.Step<Model, Message>>>(),

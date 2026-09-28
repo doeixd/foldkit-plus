@@ -1,4 +1,5 @@
-import { Option } from 'effect'
+import { Option, String } from 'effect'
+import { modifyFields } from 'foldkit/struct'
 import { describe, expect, test } from 'vitest'
 
 import { AppRoute, Message, routeTitle, update } from '../src/main.js'
@@ -11,7 +12,8 @@ import {
   personRouter,
   urlToAppRoute,
 } from '../src/route.js'
-import { on, urlOrThrow } from './helpers.js'
+import { People } from '../src/page/index.js'
+import { on, peoplePageWith, urlOrThrow } from './helpers.js'
 
 const routes: ReadonlyArray<readonly [path: string, route: AppRoute, title: string]> = [
   ['/', AppRoute.Home(), 'Routing'],
@@ -55,11 +57,27 @@ describe('routes', () => {
   })
 })
 
-describe('ChangedUrl for the route the Model already shows', () => {
-  test.each(routes)('%s leaves the Model as it is and fetches nothing', (path, route) => {
-    const model = on(route)
-    const result = update(model, Message.ChangedUrl({ url: urlOrThrow(`http://localhost${path}`) }))
-    expect(result.model).toBe(model)
-    expect(result.commands ?? []).toEqual([])
-  })
+describe('ChangedUrl for the People route the Model already shows', () => {
+  test.each([
+    ['unsubmitted text on /people', '/people', '', 'bo', ''],
+    ['the same search again', '/people?searchText=designer', 'designer', 'designer', 'designer'],
+  ])(
+    '%s resets the input to the route and searches again',
+    (_case, path, routeText, typed, searched) => {
+      const model = modifyFields(
+        on(AppRoute.People({ searchText: Option.liftPredicate(routeText, String.isNonEmpty) })),
+        {
+          peoplePage: () => modifyFields(peoplePageWith(routeText), { searchInput: () => typed }),
+        },
+      )
+      const result = update(
+        model,
+        Message.ChangedUrl({ url: urlOrThrow(`http://localhost${path}`) }),
+      )
+      expect(result.model.peoplePage.searchInput).toBe(searched)
+      expect(result.model.peoplePage.searchHistory).toStrictEqual(model.peoplePage.searchHistory)
+      expect(result.model.peoplePage.results).toStrictEqual(People.SearchResults.Loading())
+      expect(result.commands).toHaveLength(1)
+    },
+  )
 })

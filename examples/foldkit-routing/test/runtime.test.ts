@@ -56,6 +56,17 @@ const searchInput = (): HTMLInputElement => {
   return input
 }
 
+const typeSearch = (value: string): void => {
+  searchInput().value = value
+  searchInput().dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+const submitSearch = (): void => {
+  document
+    .querySelector('button[type="submit"]')
+    ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+}
+
 const waitFor = (assertion: () => void) => vi.waitFor(assertion, { timeout: 3_000 })
 
 test('links navigate, and back and forward return to each page', async () => {
@@ -92,11 +103,8 @@ test('a search is kept in the URL, and back restores the page before it', async 
   await waitFor(() => expect(text()).toContain('Click on any person to view their details:'))
   expect(currentNavLink()).toBe('People')
 
-  searchInput().value = 'designer'
-  searchInput().dispatchEvent(new Event('input', { bubbles: true }))
-  document
-    .querySelector('button[type="submit"]')
-    ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+  typeSearch('designer')
+  submitSearch()
   await waitFor(() => expect(text()).toContain('2 results for “designer”'))
   expect(window.location.search).toBe('?searchText=designer')
   expect(text()).not.toContain('Bob Smith')
@@ -113,6 +121,21 @@ test('a search is kept in the URL, and back restores the page before it', async 
   await waitFor(() => expect(document.title).toBe('Person 5 | Routing'))
   expect(text()).toContain('Designer')
   expect(currentNavLink()).toBe('People')
+})
+
+test('the People route shown again searches again and drops unsubmitted text', async () => {
+  start('/people?searchText=designer')
+  await waitFor(() => expect(text()).toContain('2 results for “designer”'))
+
+  submitSearch()
+  await waitFor(() => expect(text()).toContain('Searching…'))
+  await waitFor(() => expect(text()).toContain('2 results for “designer”'))
+  expect(window.location.search).toBe('?searchText=designer')
+
+  typeSearch('bo')
+  link('People').click()
+  await waitFor(() => expect(searchInput().value).toBe(''))
+  await waitFor(() => expect(text()).toContain('Click on any person to view their details:'))
 })
 
 test('G then a letter goes to that section', async () => {

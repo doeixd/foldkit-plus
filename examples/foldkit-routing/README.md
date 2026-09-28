@@ -18,8 +18,9 @@ link / back / G P -> URL -> ChangedUrl -> urlToAppRoute (parser combinators) -> 
                                       \-> People.informRouteChanged -> FetchPeople -> People Submodel
 ```
 
-A `ChangedUrl` for the route the Model already shows changes nothing: the
-runtime sends the starting URL again after `init` has read it.
+Every `ChangedUrl` to a People route searches again, as upstream's does, even
+for the route already shown: submitting the same search, or clicking People on
+`/people`, reruns it and resets the input to the route's text.
 
 ## Run it
 
@@ -57,10 +58,6 @@ pnpm --filter foldkit-example-foldkit-routing dev
 
 ## Differences from upstream
 
-- **Returning to the address already shown does nothing.** Upstream reruns the
-  search when `ChangedUrl` repeats the current route: on start, after
-  resubmitting the same search, or clicking People while on `/people` (which
-  also reset text typed but not submitted). Here that is a no-op.
 - **The nav link of the current section carries `aria-current="page"`**, which
   is what styles it, in place of upstream's conditional class.
 - **Home drops an empty `<p>`** upstream draws after its text.
@@ -76,9 +73,10 @@ From the repository root: `npx vitest run examples/foldkit-routing`.
 - `test/story.test.ts`, `test/scene.test.ts` and `test/page/*` are upstream's
   tests, unchanged but for the import paths.
 - `test/route.test.ts`: a table of URLs to routes and titles, each router's
-  printed URL, and that a `ChangedUrl` for the shown route returns the same
-  Model with no Command.
+  printed URL, and that a `ChangedUrl` for the People route already shown
+  resets the input and searches again.
 - `test/view.test.ts`: every page drawn inert, each element through a Slot,
   every token the drawn styles read in the stylesheet, and the current nav link.
 - `test/runtime.test.ts`: the real runtime in jsdom: links, back and forward,
-  the search in the URL, and the key bindings.
+  the search in the URL, the same search resubmitted, People clicked on
+  `/people`, and the key bindings.
