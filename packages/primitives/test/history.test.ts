@@ -96,6 +96,47 @@ describe('History transitions', () => {
   })
 })
 
+describe('History.goTo', () => {
+  // Step 2 is the present; the future holds the next redo first.
+  const middle: HistoryModel<string> = {
+    past: ['a', 'b'],
+    present: 'c',
+    future: ['d', 'e'],
+    group: null,
+  }
+
+  it.each([
+    [0, { past: [], present: 'a', future: ['b', 'c', 'd', 'e'] }],
+    [1, { past: ['a'], present: 'b', future: ['c', 'd', 'e'] }],
+    [3, { past: ['a', 'b', 'c'], present: 'd', future: ['e'] }],
+    [4, { past: ['a', 'b', 'c', 'd'], present: 'e', future: [] }],
+  ])('jumps to step %s, back or forward in one move', (step, expected) => {
+    expect(History.goTo(middle, step)).toEqual({ ...expected, group: null })
+  })
+
+  it.each([2, -1, 5, 1.5, Number.NaN])('leaves the Model as it was for step %s', step => {
+    expect(History.goTo(middle, step)).toBe(middle)
+  })
+
+  it('ends a group, as an undo does', () => {
+    const typed = History.push(History.start('a'), 'b', { capacity: 10, group: 'g' })
+    expect(History.goTo(typed, 0).group).toBeNull()
+  })
+
+  it('jumps through the placed bundle', () => {
+    const c = send(
+      { doc: send(fresh, EditHistory.Message.Push({ value: 'b' })) },
+      EditHistory.Message.Push({ value: 'c' }),
+    )
+    expect(send({ doc: c }, EditHistory.Message.GoTo({ step: 0 }))).toEqual({
+      past: [],
+      present: 'a',
+      future: ['b', 'c'],
+      group: null,
+    })
+  })
+})
+
 describe('History factory', () => {
   it('rejects a negative or fractional capacity', () => {
     expect(() => history({ name: 'Bad', value: Schema.String, capacity: -1 })).toThrow(
@@ -175,6 +216,13 @@ describe('grouped steps, and the steps as functions', () => {
       EditHistory.Message.Push({ value: 'bc', group: 'x' }),
     ].reduce<Model>((model, message) => ({ doc: send(model, message) }), fresh)
     expect(typed.doc).toEqual({ past: ['a'], present: 'bc', future: [], group: 'x' })
+  })
+
+  it('keeps an empty future as it was through a push, grouped or not', () => {
+    const typed = History.push(History.start('a'), 'b', { capacity: 10, group: 'g' })
+    const joined = History.push(typed, 'bc', { capacity: 10, group: 'g' })
+    expect(joined.future).toBe(typed.future)
+    expect(History.push(joined, 'x', { capacity: 10 }).future).toBe(typed.future)
   })
 
   it('keeps a stored history, its group included, through its Schema', () => {

@@ -1,9 +1,11 @@
-import { Array, Duration, Effect, Match, Option, Schema, Stream } from 'effect'
+import { Array, Effect, Match, Option, Schema, Stream } from 'effect'
 import { Command, Runtime, Subscription, type Update } from 'foldkit'
 import { type Document, type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { SlotView, Style } from 'foldkit-mixins'
+import { type KeyboardMessage, keyboardEvents } from 'foldkit-primitives/events'
+import { ticks } from 'foldkit-primitives/time'
 
 import { GAME, GAME_SPEED } from './constants.js'
 import { Apple, Direction, Position, Snake } from './domain/index.js'
@@ -206,33 +208,33 @@ export const GenerateApplePosition = Command.define('GenerateApplePosition', {
 
 // SUBSCRIPTION
 
-export const subscriptions = Subscription.make<Model, Message>()(entry => ({
-  gameClock: entry(
-    {
-      isPlaying: Schema.Boolean,
-      interval: Schema.Number,
-    },
-    {
-      modelToDependencies: model => ({
-        isPlaying: model.gameState === 'Playing',
-        interval: Math.max(GAME_SPEED.MIN_INTERVAL, GAME_SPEED.BASE_INTERVAL - model.points),
-      }),
-      dependenciesToStream: ({ isPlaying, interval }) =>
-        Stream.when(
-          Stream.tick(Duration.millis(interval)).pipe(Stream.map(Message.TickedClock)),
-          Effect.sync(() => isPlaying),
-        ),
-    },
-  ),
+/** The keys that would scroll the page under the board. */
+const SCROLL_KEYS: ReadonlySet<string> = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  ' ',
+])
+
+type Pressed = Extract<KeyboardMessage, { readonly _tag: 'Pressed' }>
+
+export const subscriptions = Subscription.make<Model, Message>()(() => ({
+  // The game speeds up as the points rise; a new interval applies from the
+  // next tick, so eating an apple does not also move the snake at once.
+  gameClock: ticks({
+    intervalMs: (model: Model) =>
+      model.gameState === 'Playing'
+        ? Option.some(Math.max(GAME_SPEED.MIN_INTERVAL, GAME_SPEED.BASE_INTERVAL - model.points))
+        : Option.none(),
+    onTick: () => Message.TickedClock(),
+  }),
 
   keyboard: Subscription.persistent(
-    Subscription.fromEventFilterMapPreventDefault({
-      // Read when the Subscription starts, not on import, so the module loads
-      // without a DOM (the story and view tests, a server).
-      target: () => document,
-      type: 'keydown',
-      filterMapEvent: keyboardEvent => Option.some(Message.PressedKey({ key: keyboardEvent.key })),
-    }),
+    keyboardEvents({ preventDefault: press => SCROLL_KEYS.has(press.key) }).pipe(
+      Stream.filter((message): message is Pressed => message._tag === 'Pressed'),
+      Stream.map(({ key }) => Message.PressedKey({ key })),
+    ),
   ),
 }))
 

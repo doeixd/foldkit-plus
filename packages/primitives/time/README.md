@@ -54,16 +54,22 @@ guide](../../bundle/README.md) for mounting and composing placements.
 | --- | --- | --- |
 | `Timer` | bundle `{ count, running }` | `{ intervalMs }` |
 | `Interval` | bundle `{ running, lastAt }` | `{ intervalMs }` |
+| `ticks` | entry: ticks at an interval read from the parent's Model | `intervalMs(model)` → `Option`, `onTick(at)` |
 | `debounce` | factory: latest value settles as OutMessage | `{ delayMs }` + `onOut` |
 | `Throttle` | bundle: first attempt per window fires as OutMessage | `{ intervalMs }` + `onOut` |
 | `formatRelativeTime` | pure: two dates → "3 days ago" | — |
 
-`Timer` counts ticks, `Interval` records when. `Throttle` is the leading edge to
-`debounce`'s trailing one — pair them, don't add a second timer. OutMessages are
+`Timer` counts ticks, `Interval` records when; both own a `running` flag at a fixed
+interval. When the parent's Model already says whether and how fast to tick (a game's
+phase and score), `ticks` reads both from it and keeps nothing of its own.
+
+`Throttle` is the leading edge to `debounce`'s trailing one — pair them, don't add a
+second timer. OutMessages are
 required at placement (`Bundle.ignore` drops on purpose). There is deliberately no `now`
 helper: `Clock.currentTimeMillis` is it.
 
 ## Failure
 
-Non-positive or non-finite intervals are rejected at placement. While stopped, tick
+Non-positive or non-finite intervals are rejected at placement; `ticks` throws where
+`intervalMs` answers one, which crashes the runtime naming it. While stopped, tick
 streams are empty. A superseded debounce timer emits nothing.

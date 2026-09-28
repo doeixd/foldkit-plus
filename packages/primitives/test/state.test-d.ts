@@ -24,3 +24,7 @@ Page.at(Doc)
 // The attached union constructs Messages like any exported one:
 const push = EditHistory.Message.Push({ value: 'b' })
 expectTypeOf(push._tag).toEqualTypeOf<'Push'>()
+
+EditHistory.Message.GoTo({ step: 0 })
+// @ts-expect-error: a step is counted, not named
+EditHistory.Message.GoTo({ step: 'first' })

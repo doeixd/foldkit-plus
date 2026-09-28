@@ -57,7 +57,7 @@ guide](../../bundle/README.md) for mounting and composing placements.
 | Name | Form | Needs |
 | --- | --- | --- |
 | `Pagination` | bundle `{ page, perPage, total }`, clamped | `{ perPage }` (+ optional `total`) |
-| `history` | factory bundle `{ past, present, future }` | value Schema (+ `capacity`) |
+| `history` | factory bundle `{ past, present, future }`; `History.goTo` jumps to a step | value Schema (+ `capacity`) |
 | `Locale` | bundle `{ locale }` | `{ default }` |
 | `SelectionSet` | bundle `{ selected }` in first-selection order | none |
 | `Virtual` | bundle `{ scrollTop, heights, scrolling, ...layout }` | layout args (+ restore/settle options) |

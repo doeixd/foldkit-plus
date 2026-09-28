@@ -40,8 +40,10 @@ export const WebSocketMessage = defineMessageUnion({
   Closed: {},
   Failed: { message: Schema.String },
   SendFailed: { message: Schema.String },
-  /** Acknowledges dispatch, not delivery; update ignores it. */
-  Sent: {},
+  /** Acknowledges dispatch of `data`, not its delivery; update ignores it. */
+  Sent: { data: Schema.String },
+  /** The socket was still connecting when `connectTimeoutMs` ran out, and was closed. */
+  TimedOut: {},
 })
 export type WebSocketMessage = typeof WebSocketMessage.Type
 
@@ -84,6 +86,15 @@ const textOf = (data: unknown): Effect.Effect<string> =>
         ? Effect.succeed(new TextDecoder().decode(data))
         : Effect.succeed(String(data))
 
+/** Closes the socket with its handlers detached first, so the close reports nothing. */
+const closeSilently = (socket: SocketHandle): void => {
+  socket.onopen = null
+  socket.onmessage = null
+  socket.onclose = null
+  socket.onerror = null
+  socket.close()
+}
+
 const failMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
@@ -98,7 +109,7 @@ export const websocket = <const Name extends string>(config: {
     Name,
     WebSocketModel,
     WebSocketMessage,
-    { readonly url: string },
+    { readonly url: string; readonly connectTimeoutMs?: number | undefined },
     never,
     SocketService,
     SocketService,
@@ -108,7 +119,13 @@ export const websocket = <const Name extends string>(config: {
   >(config.name, {
     Model: WebSocketModel,
     Message: WebSocketMessage,
-    args: Schema.Struct({ url: Schema.String }),
+    args: Schema.Struct({
+      url: Schema.String,
+      /** How long a socket may stay connecting before it is closed as `TimedOut`; unbounded when absent. */
+      connectTimeoutMs: Schema.optional(
+        Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0)), Schema.check(Schema.isFinite())),
+      ),
+    }),
     init: (args): Update.Return<WebSocketModel, WebSocketMessage, SocketService> => ({
       model: { url: args.url, status: 'closed', lastError: null },
     }),
@@ -131,6 +148,13 @@ export const websocket = <const Name extends string>(config: {
           model: unlessSame(model, { ...model, lastError: message }),
         }),
         Sent: () => ({ model }),
+        TimedOut: () => ({
+          model: unlessSame(model, {
+            ...model,
+            status: 'closed',
+            lastError: `websocket connect to ${model.url} timed out`,
+          }),
+        }),
       }),
     resources: () =>
       ManagedResource.make<WebSocketModel, WebSocketMessage>()(entry => ({
@@ -174,24 +198,40 @@ export const websocket = <const Name extends string>(config: {
           release: ({ socket, events }) =>
             Effect.asVoid(
               Effect.andThen(
-                Effect.sync(() => {
-                  socket.onopen = null
-                  socket.onmessage = null
-                  socket.onclose = null
-                  socket.onerror = null
-                  socket.close()
-                }),
+                Effect.sync(() => closeSilently(socket)),
                 Queue.shutdown(events),
               ),
             ),
         }),
       })),
-    subscriptions: (): Subscription.Subscriptions<
-      WebSocketModel,
-      WebSocketMessage,
-      SocketService
-    > =>
+    subscriptions: ({
+      connectTimeoutMs,
+    }): Subscription.Subscriptions<WebSocketModel, WebSocketMessage, SocketService> =>
       Subscription.make<WebSocketModel, WebSocketMessage, SocketService>()(entry => ({
+        connectTimeout: entry(
+          { connecting: Schema.Boolean },
+          {
+            modelToDependencies: model => ({ connecting: model.status === 'connecting' }),
+            dependenciesToStream: ({ connecting }) =>
+              !connecting || connectTimeoutMs === undefined
+                ? Stream.empty
+                : Stream.unwrap(
+                    Effect.matchEffect(Effect.andThen(Effect.sleep(connectTimeoutMs), Socket.get), {
+                      // Released while waiting: onReleased reports Closed.
+                      onFailure: () => Effect.succeed(Stream.empty),
+                      onSuccess: ({ socket }) =>
+                        Effect.sync((): Stream.Stream<WebSocketMessage> => {
+                          // 0 is WebSocket.CONNECTING. An open that beat the
+                          // timer wins; the handlers go before the close, so
+                          // the error and close it causes report nothing.
+                          if (socket.readyState !== 0) return Stream.empty
+                          closeSilently(socket)
+                          return Stream.make(WebSocketMessage.TimedOut())
+                        }),
+                    }),
+                  ),
+          },
+        ),
         incoming: entry(
           // Connecting to open is no reason to restart: the stream reads the
           // same queue, and replays an open it attached too late to see.
@@ -239,7 +279,7 @@ export const websocket = <const Name extends string>(config: {
                       Effect.sync(() => {
                         socket.send(data)
                       }),
-                      () => WebSocketMessage.Sent(),
+                      () => WebSocketMessage.Sent({ data }),
                     )
                   : Effect.fail(
                       new Error(

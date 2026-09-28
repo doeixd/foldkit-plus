@@ -20,3 +20,7 @@ const chat = Page.at(Doc, { args: { url: 'ws://localhost/chat' } })
 // @ts-expect-error: the step's commands require the socket service
 const plain: Update.Step<Model, Message> = chat.helpers.send('hi')
 void plain
+
+Page.at(Doc, { args: { url: 'ws://localhost/chat', connectTimeoutMs: 5000 } })
+// @ts-expect-error: the timeout is milliseconds, not a duration
+Page.at(Doc, { args: { url: 'ws://localhost/chat', connectTimeoutMs: '5 seconds' } })

@@ -55,13 +55,6 @@ const startStroke = (model: Model, grid: Grid): HistoryModel<Grid> =>
 const continueStroke = (model: Model, grid: Grid): HistoryModel<Grid> =>
   History.push(model.history, grid, { capacity: MAX_HISTORY, group: STROKE })
 
-/** `step` applied `count` times: a jump through history is that many undos or redos. */
-const repeat = (
-  history: HistoryModel<Grid>,
-  count: number,
-  step: (history: HistoryModel<Grid>) => HistoryModel<Grid>,
-): HistoryModel<Grid> => (count <= 0 ? history : repeat(step(history), count - 1, step))
-
 // TOOL
 
 const applyEraser = (model: Model, x: number, y: number) => {
@@ -344,7 +337,7 @@ export const update = (model: Model, message: Message) =>
         onNone: () => ({ model }),
         onSome: () => ({
           model: modifyFields(model, {
-            history: history => repeat(history, history.past.length - stepIndex, History.undo),
+            history: history => History.goTo(history, stepIndex),
           }),
         }),
       }),
@@ -354,7 +347,8 @@ export const update = (model: Model, message: Message) =>
         onNone: () => ({ model }),
         onSome: () => ({
           model: modifyFields(model, {
-            history: history => repeat(history, stepIndex + 1, History.redo),
+            // The future starts just after the present, at `past.length`.
+            history: history => History.goTo(history, history.past.length + 1 + stepIndex),
           }),
         }),
       }),

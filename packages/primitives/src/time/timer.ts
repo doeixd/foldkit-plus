@@ -1,12 +1,13 @@
 /**
  * A timer as a bundle: a count in the Model, advanced by a tick stream while
  * running. The clock is Effect's, so tests drive it with TestClock instead of
- * waiting.
+ * waiting. For a clock whose running or interval the parent's Model decides,
+ * use the `ticks` entry instead.
  */
-import { Schema, Stream } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
 import { Bundle } from 'foldkit-bundle'
+import { ticks } from './ticks.js'
 
 export const TimerModel = Schema.Struct({ count: Schema.Number, running: Schema.Boolean })
 export type TimerModel = typeof TimerModel.Type
@@ -34,17 +35,10 @@ export const Timer = Bundle.make('Timer', {
       Stopped: () => (model.running ? { model: { ...model, running: false } } : { model }),
       Ticked: () => ({ model: { ...model, count: model.count + 1 } }),
     }),
-  subscriptions: ({ intervalMs }): Subscription.Subscriptions<TimerModel, TimerMessage> =>
-    Subscription.make<TimerModel, TimerMessage>()(entry => ({
-      ticks: entry(
-        { running: Schema.Boolean },
-        {
-          modelToDependencies: model => ({ running: model.running }),
-          dependenciesToStream: ({ running }) =>
-            running
-              ? Stream.map(Stream.tick(intervalMs), () => TimerMessage.Ticked())
-              : Stream.empty,
-        },
-      ),
-    })),
+  subscriptions: ({ intervalMs }) => ({
+    ticks: ticks<TimerModel, TimerMessage>({
+      intervalMs: model => (model.running ? Option.some(intervalMs) : Option.none()),
+      onTick: () => TimerMessage.Ticked(),
+    }),
+  }),
 })

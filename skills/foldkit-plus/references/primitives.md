@@ -64,6 +64,17 @@ friends lift with `Subscription.persistent`, and `matchHotkey` turns a press
 into a chord answer. Slices that must survive reload persist through
 `Mirror.kv`, not here — this package owns live facts only.
 
+A clock the parent's Model drives is an entry, not a placement:
+`ticks({ intervalMs: model => Option<number>, onTick: at => Message })` from
+`foldkit-primitives/time` ticks while `intervalMs` is `Some`, and a new interval
+applies from the next tick without a restart (Timer and Interval are built on
+it; their first tick comes one interval after `Started`).
+`keyboardEvents({ preventDefault: press => boolean })` cancels a press's default
+inside the listener, and composes with `matchHotkey`. `websocket` takes
+`{ url, connectTimeoutMs? }`; `Sent { data }` carries what was sent, and
+`TimedOut` reports an attempt that ran out of time. `History.goTo(model, step)`
+and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
+
 ## Common tasks
 
 - **Place a preset:** `Page.place(PrefersDark, 'dark')` — no config needed.

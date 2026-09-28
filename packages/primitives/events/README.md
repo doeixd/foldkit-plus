@@ -56,7 +56,7 @@ guide](../../bundle/README.md) for mounting and composing placements.
 | `Visibility` | bundle `{ visible }` | none |
 | `WindowSize` | bundle `{ width, height }` | none |
 | `Idle` | bundle `{ idle }` | `{ timeoutMs }` |
-| `keyboardEvents` | entry: presses (keys + modifiers) and releases | none |
+| `keyboardEvents` | entry: presses (keys + modifiers) and releases | optional `preventDefault(press)` |
 | `matchHotkey` | pure: pattern + press → chord answer | — |
 | `pointerEvents` | entry: moves `{ x, y }` | none |
 | `scrollEvents` | entry: positions (capture: containers included) | none |

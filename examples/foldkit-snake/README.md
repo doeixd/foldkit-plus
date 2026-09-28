@@ -12,35 +12,30 @@ Tailwind classes.
 ## Who owns what
 
 The Model owns the whole game. The clock and the keyboard only report facts
-as Messages, and Foldkit Plus owns nothing but the board's appearance:
+as Messages; whether the clock runs and how fast are read from the Model, so
+nothing else keeps a copy of them:
 
 ```text
-clock (interval from points) ─┐
-keydown on document ──────────┴─> Message -> update -> Model -> view -> Slots <- Style (foldkit-mixins)
+clock (running and interval from gameState, points) ─┐
+keydown on window ───────────────────────────────────┴─> Message -> update -> Model -> view -> Slots <- Style (foldkit-mixins)
 ```
 
 | Concern | Owner | Where |
 | --- | --- | --- |
 | Snake, apple, direction, game state, points, high score | the Model, plain Foldkit | `src/main.ts` |
 | Movement, growth, wrapping, collisions, apple placement | upstream's pure domain modules, unchanged | `src/domain/`, `src/constants.ts` |
-| The game clock, faster as the points rise | a plain Foldkit Subscription entry | `src/main.ts`, `// SUBSCRIPTION` |
-| Keys, with the browser's scrolling cancelled | `Subscription.fromEventFilterMapPreventDefault` | `src/main.ts`, `// SUBSCRIPTION` |
+| The game clock, faster as the points rise | `foldkit-primitives/time` `ticks`, its interval a function of the Model | `src/main.ts`, `// SUBSCRIPTION` |
+| Keys, with the arrows' and Space's scrolling cancelled | `foldkit-primitives/events` `keyboardEvents({ preventDefault })` | `src/main.ts`, `// SUBSCRIPTION` |
 | The page's and the board's Slots, layout and type | `foldkit-mixins` (`SlotView`, `Style`, `Layout`) | `src/style.ts` |
 | Cell colors, one per `data-cell` value | `foldkit-mixins` `Style.states` over game tokens | `src/style.ts`, `// BOARD` |
 | Drawing only the rows that changed | `foldkit-mixins` `slots.row.lazy` | `src/main.ts`, `// VIEW` |
 
 ## What is not used, and why
 
-- **`foldkit-primitives` `Timer` / `Interval`** would own the tick, but both
-  take a fixed `intervalMs` when placed, and the game's interval is derived
-  from the points on every change. Each also keeps a `running` flag, which
-  would be a second owner of what `gameState` already says. The upstream
-  entry, whose dependencies are `{ isPlaying, interval }`, owns both in one
-  place.
-- **`foldkit-primitives` `keyboardEvents()`** cannot cancel the browser's
-  default, and Space and the arrows would scroll the page. Its README sends
-  that case to core `Subscription.fromEventFilterMap`, which is what upstream
-  already uses.
+- **`foldkit-primitives` `Timer` / `Interval`.** Both are bundles that keep
+  their own `running` flag at an interval fixed where they are placed. Here
+  `gameState` already says whether the game runs and the points set its speed,
+  so the `ticks` entry reads both from the Model instead.
 - **`foldkit-mirror`**: upstream keeps the high score for the session only.
   Remembering it on the device would be a new feature, not a port.
 - **`foldkit-mixins-ui`**: the game draws no `@foldkit/ui` component.
@@ -70,9 +65,15 @@ pnpm --filter foldkit-example-foldkit-snake dev
 
 ## Differences from upstream
 
-- The keyboard Subscription reads `document` when it starts rather than when
-  the module loads, so `main.ts` imports without a DOM. Upstream's tests ran
-  under happy-dom, which hid this.
+- **The clock keeps its phase.** Upstream restarted its tick stream whenever
+  the interval changed, and a new stream ticks at once, so eating an apple
+  also moved the snake a step early, and Space moved it at once. `ticks`
+  applies a new interval from the next tick and ticks first one interval after
+  the game starts.
+- **Only the keys that scroll are cancelled.** Upstream cancelled the default
+  of every key, the browser's own shortcuts included; here only the arrows and
+  Space are. The keys are read on `window` when the Subscription starts, so
+  `main.ts` imports without a DOM.
 - `PausedGame` and `RestartedGame` are kept although nothing sends them, as
   upstream keeps them.
 
@@ -87,7 +88,8 @@ From the repository root: `npx vitest run examples/foldkit-snake`.
   color, and every token the drawn styles read defined in the stylesheet.
 - `test/subscription.test.ts` runs the game clock under the TestClock (its
   interval at several scores, silence unless playing) and checks that the
-  keyboard reports keys and cancels their default.
+  keyboard reports every key pressed and cancels the default of the arrows and
+  Space only.
 - `test/runtime.test.ts` runs the real runtime in jsdom: a tick draws only the
   row it changed, a moved apple draws two, and every class on the page has its
   CSS.

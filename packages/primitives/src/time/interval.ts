@@ -3,12 +3,14 @@
  * advanced by a tick stream while running. Sibling of Timer (which counts
  * ticks); this one records *when* they happened, so views can render clocks
  * and elapsed times. The clock is Effect's, so tests drive it with TestClock.
+ * For a clock whose running or interval the parent's Model decides, use the
+ * `ticks` entry instead.
  */
-import { Clock, Schema, Stream } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { ticks } from './ticks.js'
 
 export const IntervalModel = Schema.Struct({
   running: Schema.Boolean,
@@ -42,19 +44,10 @@ export const Interval = Bundle.make('Interval', {
         Ticked: ({ at }) => ({ model: { ...model, lastAt: at } }),
       },
     ),
-  subscriptions: ({ intervalMs }): Subscription.Subscriptions<IntervalModel, IntervalMessage> =>
-    Subscription.make<IntervalModel, IntervalMessage>()(entry => ({
-      ticks: entry(
-        { running: Schema.Boolean },
-        {
-          modelToDependencies: model => ({ running: model.running }),
-          dependenciesToStream: ({ running }) =>
-            running
-              ? Stream.mapEffect(Stream.tick(intervalMs), () => Clock.currentTimeMillis).pipe(
-                  Stream.map(at => IntervalMessage.Ticked({ at })),
-                )
-              : Stream.empty,
-        },
-      ),
-    })),
+  subscriptions: ({ intervalMs }) => ({
+    ticks: ticks<IntervalModel, IntervalMessage>({
+      intervalMs: model => (model.running ? Option.some(intervalMs) : Option.none()),
+      onTick: at => IntervalMessage.Ticked({ at }),
+    }),
+  }),
 })

@@ -7,7 +7,7 @@
  * the present moves and nothing new is recorded, so typing a word undoes as a
  * whole. Grouping needs no clock; the application names what belongs together.
  *
- * The steps are also pure functions (`History.push`, `undo`, `redo`, `clear`),
+ * The steps are also pure functions (`History.push`, `undo`, `redo`, `goTo`, `clear`),
  * for a parent that records an edit in the same transition that makes it
  * rather than dispatching a Message to a placed bundle.
  */
@@ -37,6 +37,14 @@ const start = <Value>(present: Value): HistoryModel<Value> => ({
   group: null,
 })
 
+/**
+ * No redo steps, keeping an already empty future: a view that reads the
+ * future compares it by identity, so a push per keystroke or stroke cell
+ * must not hand it a new empty array each time.
+ */
+const noFuture = <Value>(model: HistoryModel<Value>): ReadonlyArray<Value> =>
+  model.future.length === 0 ? model.future : []
+
 const push = <Value>(
   model: HistoryModel<Value>,
   value: Value,
@@ -45,12 +53,12 @@ const push = <Value>(
   const group = options.group ?? null
   // The same group again joins the last step: the present moves, the past stays.
   if (group !== null && group === model.group && model.past.length > 0)
-    return { ...model, present: value, future: [] }
+    return { ...model, present: value, future: noFuture(model) }
   return {
     // slice(-0) is slice(0): a zero capacity keeps nothing, explicitly.
     past: options.capacity === 0 ? [] : [...model.past, model.present].slice(-options.capacity),
     present: value,
-    future: [],
+    future: noFuture(model),
     group,
   }
 }
@@ -73,6 +81,18 @@ const redo = <Value>(model: HistoryModel<Value>): HistoryModel<Value> => {
     past: [...model.past, model.present],
     present: next,
     future: model.future.slice(1),
+    group: null,
+  }
+}
+
+const goTo = <Value>(model: HistoryModel<Value>, step: number): HistoryModel<Value> => {
+  const steps = [...model.past, model.present, ...model.future]
+  if (!Number.isInteger(step) || step < 0 || step >= steps.length || step === model.past.length)
+    return model
+  return {
+    past: steps.slice(0, step),
+    present: steps[step]!,
+    future: steps.slice(step + 1),
     group: null,
   }
 }
@@ -113,6 +133,12 @@ export const History = {
   undo,
   /** One step forward, or the Model as it was when there is none. */
   redo,
+  /**
+   * The value at `step` made the present, counting every kept value from the
+   * oldest (0), so the present is at `past.length`: what a click on a step's
+   * thumbnail does. The Model as it was for the present or a step not kept.
+   */
+  goTo,
   /** Nothing to undo or redo, the present kept. */
   clear,
   /** The next push starts a step of its own, whatever its group: a group ends here. */
@@ -141,6 +167,7 @@ export const history = <const Name extends string, Value>(config: {
     Push: { value: config.value, group: Schema.optional(Schema.String) },
     Undo: {},
     Redo: {},
+    GoTo: { step: Schema.Number },
     Clear: {},
   })
   return Object.assign(
@@ -154,6 +181,7 @@ export const history = <const Name extends string, Value>(config: {
           Push: ({ value, group }) => ({ model: push(model, value, { capacity, group }) }),
           Undo: () => ({ model: undo(model) }),
           Redo: () => ({ model: redo(model) }),
+          GoTo: ({ step }) => ({ model: goTo(model, step) }),
           Clear: () => ({ model: clear(model) }),
         }),
     }),

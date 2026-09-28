@@ -2,7 +2,7 @@
 /**
  * The two Subscriptions upstream keeps: the game clock, whose speed follows
  * the points, under the TestClock; and the keyboard, which cancels the
- * browser's default so arrows and Space steer rather than scroll.
+ * default of the arrows and Space so they steer rather than scroll.
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
@@ -30,7 +30,10 @@ const playingModel: Model = {
 const emittedWithin = <Dependencies>(
   entry: {
     readonly modelToDependencies: (model: Model) => Dependencies
-    readonly dependenciesToStream: (dependencies: Dependencies) => Stream.Stream<Message>
+    readonly dependenciesToStream: (
+      dependencies: Dependencies,
+      readDependencies: () => Dependencies,
+    ) => Stream.Stream<Message>
   },
   model: Model,
   millis: number,
@@ -39,14 +42,17 @@ const emittedWithin = <Dependencies>(
   Effect.runPromise(
     Effect.gen(function* () {
       const emitted: Array<Message> = []
+      const dependencies = entry.modelToDependencies(model)
       const fiber = yield* Effect.forkChild(
-        Stream.runForEach(entry.dependenciesToStream(entry.modelToDependencies(model)), message =>
-          Effect.sync(() => void emitted.push(message)),
+        Stream.runForEach(
+          entry.dependenciesToStream(dependencies, () => dependencies),
+          message => Effect.sync(() => void emitted.push(message)),
         ),
       )
       for (let i = 0; i < 100; i++) yield* Effect.yieldNow
       act()
       yield* TestClock.adjust(millis)
+      for (let i = 0; i < 100; i++) yield* Effect.yieldNow
       yield* Fiber.interrupt(fiber)
       return emitted
     }).pipe(Effect.provide(TestClock.layer())),
@@ -62,9 +68,9 @@ describe('the game clock', () => {
     const model = modifyFields(playingModel, { points: () => points })
     const ticks = async (millis: number) =>
       (await emittedWithin(subscriptions.gameClock, model, millis)).length
-    // A tick is due at once and then every interval.
-    expect(await ticks(3 * interval)).toBe(4)
-    expect(await ticks(3 * interval - 1)).toBe(3)
+    // The first tick is one interval after the game starts.
+    expect(await ticks(3 * interval)).toBe(3)
+    expect(await ticks(3 * interval - 1)).toBe(2)
   })
 
   test.each(['NotStarted', 'Paused', 'GameOver'] as const)(
@@ -76,16 +82,19 @@ describe('the game clock', () => {
   )
 
   test('emits TickedClock', async () => {
-    const [tick] = await emittedWithin(subscriptions.gameClock, playingModel, 0)
+    const [tick] = await emittedWithin(subscriptions.gameClock, playingModel, 150)
     expect(tick).toEqual(Message.TickedClock())
   })
 })
 
 describe('the keyboard', () => {
-  test('reports every key on the document and cancels its default', async () => {
-    const events = ['ArrowUp', ' ', 'x'].map(
-      key => new KeyboardEvent('keydown', { key, cancelable: true, bubbles: true }),
-    )
+  test('reports every key pressed, and cancels the default of the keys that scroll', async () => {
+    const events = [
+      ...['ArrowUp', ' ', 'x'].map(
+        key => new KeyboardEvent('keydown', { key, cancelable: true, bubbles: true }),
+      ),
+      new KeyboardEvent('keyup', { key: 'x', cancelable: true, bubbles: true }),
+    ]
     const emitted = await emittedWithin(subscriptions.keyboard, playingModel, 0, () =>
       events.forEach(event => document.body.dispatchEvent(event)),
     )
@@ -94,6 +103,6 @@ describe('the keyboard', () => {
       Message.PressedKey({ key: ' ' }),
       Message.PressedKey({ key: 'x' }),
     ])
-    expect(events.map(event => event.defaultPrevented)).toEqual([true, true, true])
+    expect(events.map(event => event.defaultPrevented)).toEqual([true, true, false, false])
   })
 })

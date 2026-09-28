@@ -16,7 +16,7 @@ only remembers the present grid:
 
 ```text
 mousedown / mouseenter on a cell ─> Message -> update ─> History.push (a stroke is one group) -> Model.history
-keydown on document (Ctrl+Z, B, F, E) ─┘                 History.undo / redo ─┘       │
+keydown on document (Ctrl+Z, B, F, E) ─┘          History.undo / redo / goTo ─┘       │
                                                                                       ├─> view (lazy rows) -> Slots <- Style
                                                           CanvasMirror subscription <─┘-> localStorage
 localStorage -> flags (CanvasMirror.restore) -> init (CanvasMirror.reduce, grid size from the grid)
@@ -35,7 +35,7 @@ pnpm --filter foldkit-example-foldkit-pixel-art dev
 | Concern | Owner | Where |
 | --- | --- | --- |
 | Tool, color, mirror mode, grid size, hover, the dialogs' state | the Model, plain Foldkit | `src/model.ts`, `src/update.ts` |
-| The grid on screen, the undo and redo steps, a stroke as one step, the 50-step limit | `foldkit-primitives/state` `History` (`push` with a `group`, `close`, `undo`, `redo`), over `Model.history` | `src/update.ts`, `// HISTORY` |
+| The grid on screen, the undo and redo steps, a stroke as one step, the 50-step limit | `foldkit-primitives/state` `History` (`push` with a `group`, `close`, `undo`, `redo`, and `goTo` for a thumbnail), over `Model.history` | `src/update.ts`, `// HISTORY` |
 | Painting, erasing, flood fill, mirroring | upstream's pure `grid.ts`, less its `pushHistory` | `src/grid.ts` |
 | The palettes | upstream's `palette.ts`, unchanged | `src/palette.ts` |
 | Remembering the canvas, theme and color across reloads | `foldkit-mirror` (`Mirror.kv` over `App.model.history.present` and two fields), read into Flags | `src/mirror.ts`, `src/main.ts` |
@@ -51,8 +51,7 @@ pnpm --filter foldkit-example-foldkit-pixel-art dev
 
 - **`History` as a placed bundle (`history({ name, value })`).** A press
   paints and records in one transition, so `update` calls the pure steps; a
-  bundle would need a second Message per stroke cell. `History` has no jump
-  to a step, so a thumbnail undoes or redoes that many times.
+  bundle would need a second Message per stroke cell.
 - **`foldkit-primitives/interaction`.** `Targets` reports a press on `click`,
   after the button is released, and painting starts on `mousedown`;
   `PointerDrag` and `Move` drag one item or report deltas. None owns

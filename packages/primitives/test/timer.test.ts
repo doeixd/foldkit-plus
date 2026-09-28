@@ -2,7 +2,7 @@
  * Timer: pure transitions, the tick stream driven by TestClock (no waiting),
  * silence while stopped, and placement through a real assembly.
  */
-import { Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -19,7 +19,8 @@ const Page = Bundle.parent({ Model, Message })
 
 const ticksStream = (model: TimerModel) => {
   const entry = Timer.subscriptions!({ intervalMs: 1000 }).ticks!
-  return entry.dependenciesToStream(entry.modelToDependencies(model), () => ({}))
+  const dependencies = entry.modelToDependencies(model)
+  return entry.dependenciesToStream(dependencies, () => dependencies)
 }
 
 describe('Timer transitions', () => {

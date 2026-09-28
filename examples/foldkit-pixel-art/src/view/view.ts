@@ -6,7 +6,7 @@ import { Button } from 'foldkit-mixins-ui'
 
 import { isGridEmpty } from '../grid.js'
 import { Message } from '../message.js'
-import type { Grid, Model } from '../model.js'
+import type { Model } from '../model.js'
 import { type PaletteTheme, currentPaletteTheme } from '../palette.js'
 import { PageSlots, PageStyle, SecondaryButtonStyle } from '../style.js'
 import { Canvas } from './canvas.js'
@@ -32,9 +32,6 @@ type PageInput = Readonly<{ model: Model }> &
   ErrorDialogInput &
   GridSizeConfirmDialogInput
 
-/** A future with nothing in it, one value: `History.push` makes a new empty one each cell of a stroke. */
-const NO_GRIDS: ReadonlyArray<Grid> = []
-
 export const pageInput = (model: Model): PageInput => {
   const theme: PaletteTheme = currentPaletteTheme(model)
   const { past, future, present } = model.history
@@ -43,7 +40,7 @@ export const pageInput = (model: Model): PageInput => {
     model,
     isCanvasEmpty: isGridEmpty(present),
     past,
-    future: Array.isReadonlyArrayNonEmpty(future) ? future : NO_GRIDS,
+    future,
     // A stroke shows the grid from before it until it ends, so the panel is not drawn per cell.
     shownGrid: model.isDrawing ? Option.getOrElse(Array.last(past), () => present) : present,
     theme,

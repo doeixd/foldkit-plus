@@ -3,12 +3,19 @@
  * WebSocket: pure transitions, acquire/release against a real server,
  * server-to-queue duplex, and the send helper's service requirement.
  */
-import { Effect, Option, Schema, Stream } from 'effect'
+import { Effect, Fiber, Option, Queue, Ref, Schema, Stream } from 'effect'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { WebSocket as WsClient, WebSocketServer } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { websocket, WebSocketMessage } from '../src/net/index.js'
+import {
+  Socket,
+  type SocketHandle,
+  websocket,
+  WebSocketMessage,
+  type WebSocketModel,
+} from '../src/net/index.js'
 import { takeMessages } from './support.js'
 
 const Chat = websocket({
@@ -177,5 +184,131 @@ describe('WebSocket message decoding', () => {
       WebSocketMessage.Received({ data: 'hi' }),
     ])
     await Effect.runPromise(entry.release(acquired))
+  })
+})
+
+describe('WebSocket on a stand-in socket: connect timeout and send', () => {
+  const url = 'ws://test/chat'
+  const socketIn = (readyState: number) => {
+    const closes: Array<number> = []
+    const socket: SocketHandle = {
+      readyState,
+      send: () => undefined,
+      close: () => void closes.push(socket.readyState),
+      onopen: () => undefined,
+      onmessage: () => undefined,
+      onclose: () => undefined,
+      onerror: () => undefined,
+    }
+    return { socket, closes }
+  }
+
+  /**
+   * What the timeout entry emits within `millis` of TestClock time for a
+   * socket in `status`, with the resource holding `socket` (none: released).
+   */
+  const emittedWithin = (
+    args: { readonly url: string; readonly connectTimeoutMs?: number },
+    status: WebSocketModel['status'],
+    socket: Option.Option<SocketHandle>,
+    millis: number,
+  ) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const entry = Chat.subscriptions!(args).connectTimeout!
+        const dependencies = entry.modelToDependencies({ url, status, lastError: null })
+        const events = yield* Queue.unbounded<WebSocketMessage>()
+        const emitted: Array<WebSocketMessage> = []
+        const fiber = yield* Effect.forkChild(
+          Stream.runForEach(
+            entry.dependenciesToStream(dependencies, () => dependencies),
+            message => Effect.sync(() => void emitted.push(message)),
+          ).pipe(
+            Effect.provideServiceEffect(
+              Socket._tag,
+              Ref.make(Option.map(socket, value => ({ socket: value, events }))),
+            ),
+          ),
+        )
+        for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+        yield* TestClock.adjust(millis)
+        for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+        yield* Fiber.interrupt(fiber)
+        return emitted
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+
+  const timed = { url, connectTimeoutMs: 5000 }
+
+  it('closes a socket still connecting when the time runs out, and reports TimedOut', async () => {
+    const early = socketIn(0)
+    expect(await emittedWithin(timed, 'connecting', Option.some(early.socket), 4999)).toEqual([])
+    expect(early.closes).toEqual([])
+    const late = socketIn(0)
+    expect(await emittedWithin(timed, 'connecting', Option.some(late.socket), 5000)).toEqual([
+      WebSocketMessage.TimedOut(),
+    ])
+    expect(late.closes).toEqual([0])
+    // Detached before closing, so the close's own error and close events report nothing.
+    expect([late.socket.onopen, late.socket.onerror, late.socket.onclose]).toEqual([
+      null,
+      null,
+      null,
+    ])
+  })
+
+  it('leaves a socket that opened before the timer alone', async () => {
+    const opened = socketIn(1)
+    expect(await emittedWithin(timed, 'connecting', Option.some(opened.socket), 60_000)).toEqual([])
+    expect(opened.closes).toEqual([])
+  })
+
+  it.each([
+    ['open', timed, 'open'],
+    ['closed', timed, 'closed'],
+    ['connecting with no timeout given', { url }, 'connecting'],
+  ] as const)('never fires while %s', async (_, args, status) => {
+    const { socket, closes } = socketIn(0)
+    expect(await emittedWithin(args, status, Option.some(socket), 60_000)).toEqual([])
+    expect(closes).toEqual([])
+  })
+
+  it('ends quietly when the socket was released while it waited', async () => {
+    expect(await emittedWithin(timed, 'connecting', Option.none(), 60_000)).toEqual([])
+  })
+
+  it('reports a send with what it sent', async () => {
+    const { socket } = socketIn(1)
+    const sent: Array<string> = []
+    const open: SocketHandle = { ...socket, send: data => void sent.push(data) }
+    const [command] = placed.helpers.send('hi')({
+      chat: { url, status: 'open', lastError: null },
+    }).commands!
+    const events = await Effect.runPromise(Queue.unbounded<WebSocketMessage>())
+    const result = await Effect.runPromise(
+      command!.effect.pipe(
+        Effect.provideServiceEffect(Socket._tag, Ref.make(Option.some({ socket: open, events }))),
+      ),
+    )
+    expect(sent).toEqual(['hi'])
+    expect(result).toEqual(Doc.wrapper.make(WebSocketMessage.Sent({ data: 'hi' })))
+  })
+
+  it('records the timeout as a close with its reason', () => {
+    const connecting: Model = { chat: { url, status: 'connecting', lastError: null } }
+    const timedOut = fold(connecting, WebSocketMessage.TimedOut())
+    expect(timedOut).toEqual({
+      url,
+      status: 'closed',
+      lastError: `websocket connect to ${url} timed out`,
+    })
+    expect(fold({ chat: timedOut }, WebSocketMessage.TimedOut())).toBe(timedOut)
+  })
+
+  it('refuses a timeout that is not positive and finite at placement', () => {
+    expect(() => Page.at(Doc, { args: { url, connectTimeoutMs: 0 } })).toThrow(/args do not match/)
+    expect(() =>
+      Page.at(Doc, { args: { url, connectTimeoutMs: Number.POSITIVE_INFINITY } }),
+    ).toThrow(/args do not match/)
   })
 })

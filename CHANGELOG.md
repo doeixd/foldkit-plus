@@ -39,6 +39,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives/time`, `ticks({ intervalMs, onTick })`:** a clock
+  entry whose running and interval are functions of the parent Model; a new
+  interval applies from the next tick without a restart. Timer and Interval
+  are built on it.
+- **`foldkit-primitives`, `keyboardEvents({ preventDefault })`** cancels the
+  default of the presses a predicate over `KeyPress` picks, decided in the
+  listener.
+- **`foldkit-primitives`, websocket:** `Sent` carries `{ data }`, and an
+  optional `connectTimeoutMs` closes a socket still connecting and reports the
+  new `TimedOut`.
+- **`foldkit-primitives`, `History.goTo(model, step)`** and the bundle's
+  `GoTo { step }` jump to any kept step.
+
 - **`foldkit-mixins`, slots declared by their style:** `Style.slots(pieces)`
   declares an application's own Slots from their styles and returns
   `{ slots, style }`; `Style.slot(options, piece)` gives one a capability,
@@ -551,6 +564,11 @@ version changed; `pnpm` skips versions already in the registry.
   and listening take 12 ms in Chromium, down from 22.
 
 ### Changed
+
+- **`foldkit-primitives`, Timer and Interval's first tick** now comes one
+  interval after `Started`, not at once. `History.push` keeps an already-empty
+  `future`, so a view reading it is not redrawn per push. The new `TimedOut`
+  and `GoTo` variants break a match over every variant.
 
 - **`foldkit-mixins`, a branded `StyleValue` (breaking for hand-built
   values):** a `StyleValue` carries a brand, so a declarations object is never

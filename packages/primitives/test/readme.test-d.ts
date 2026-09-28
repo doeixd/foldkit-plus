@@ -159,6 +159,10 @@ const keyed = Subscription.make<KeyModel, KeyMessage>()(() => ({
 
 void keyed
 
+keyboardEvents({ preventDefault: press => press.key === 'ArrowUp' })
+// @ts-expect-error: the decision reads the press, not the DOM event
+keyboardEvents({ preventDefault: press => press.defaultPrevented })
+
 // Mounts attach in views, on the element they observe.
 import { Resize } from '../src/observers/index.js'
 import { ClipboardMessage, copyText } from '../src/dom/index.js'
@@ -219,3 +223,20 @@ void saveStep
       })),
   })
 }
+
+// A clock whose running and speed the parent's Model decides.
+import { ticks } from '../src/time/index.js'
+
+type Game = { readonly playing: boolean; readonly points: number }
+const GameMessage = defineMessageUnion({ TickedClock: {} })
+type GameMessage = typeof GameMessage.Type
+
+const gameSubscriptions = Subscription.make<Game, GameMessage>()(() => ({
+  clock: ticks({
+    intervalMs: (game: Game) =>
+      game.playing ? Option.some(Math.max(80, 150 - game.points)) : Option.none(),
+    onTick: () => GameMessage.TickedClock(),
+  }),
+}))
+
+void gameSubscriptions

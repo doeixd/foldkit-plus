@@ -54,7 +54,7 @@ guide](../../bundle/README.md) for mounting and composing placements.
 | Name | Form | Needs |
 | --- | --- | --- |
 | `Online` | bundle `{ online }` + `Changed` | none |
-| `websocket` | factory bundle `{ url, status, lastError }` + `send` helper | `{ url }` |
+| `websocket` | factory bundle `{ url, status, lastError }` + `send` helper | `{ url, connectTimeoutMs? }` |
 | `sse` | factory bundle `{ url, status, lastError }`, no send | `{ url }` |
 | `broadcastMessages` | entry: `Received { data }` | channel name |
 | `postBroadcast` | Command: `Posted` / `BroadcastFailed` | channel name + data |

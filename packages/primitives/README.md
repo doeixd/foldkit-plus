@@ -213,8 +213,12 @@ SSE spec.
 holds `{ url, status, lastError }` with `status` moving
 closed → connecting → open. The resource owns the socket (one assembly holds
 one); `send` is a placed helper whose command writes through the resource tag
-and yields `Sent` on dispatch, `SendFailed` when no connection is open — a
-closed socket's `send` is a silent no-op per spec, so the bundle checks first.
+and yields `Sent { data }` on dispatch, carrying what was sent, and
+`SendFailed` when no connection is open — a closed socket's `send` is a
+silent no-op per spec, so the bundle checks first. Args `{ url,
+connectTimeoutMs? }`: with a timeout, a socket still connecting when it runs
+out is closed and reported as `TimedOut` (status closed, `lastError` set);
+without one, an attempt waits as long as the browser does.
 Incoming `Received` notifies without storing: project the payload into your
 own field to keep it. `createSocket` defaults to the platform WebSocket, read
 lazily so tests substitute a double; the socket service rides the assembly
@@ -236,13 +240,40 @@ the Command fails, instead of throwing.
 `Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive and finite —
 anything else is rejected at placement). The tick stream runs on
 Effect's clock, so tests advance it with TestClock instead of waiting; while
-stopped the stream is empty. Restarting keeps the count; only `Ticked`
-advances it.
+stopped the stream is empty. The first tick comes one interval after
+`Started`. Restarting keeps the count; only `Ticked` advances it.
 
 `Interval` is the wall-clock sibling: Model `{ running, lastAt }`,
 `Ticked { at }` stamped from Effect's clock. `Timer` counts ticks,
 `Interval` records when — views render clocks and elapsed times from
 `lastAt`. Same args, same TestClock story, same silence while stopped.
+
+Both own their `running` flag, at an interval fixed where they are placed.
+When the parent's Model already decides whether the clock runs and how fast
+(a game's phase and its score), a second flag would be a second owner of that
+fact. `ticks` is the entry for that case: `intervalMs` reads the interval from
+the Model, `None` while stopped, and `onTick` makes the parent's Message with
+the tick's time:
+
+```ts
+import { Option } from 'effect'
+import * as Subscription from 'foldkit/subscription'
+import { ticks } from 'foldkit-primitives/time'
+
+const subscriptions = Subscription.make<Game, GameMessage>()(() => ({
+  clock: ticks({
+    intervalMs: (game: Game) =>
+      game.playing ? Option.some(Math.max(80, 150 - game.points)) : Option.none(),
+    onTick: () => GameMessage.TickedClock(),
+  }),
+}))
+```
+
+A Model change that leaves the interval alone does nothing. A new interval
+applies from the next tick, without restarting the clock, so a game that
+speeds up keeps its rhythm instead of ticking at once; `None` stops it, and
+`Some` again starts afresh, one interval before the first tick. `Timer` and
+`Interval` are built on it.
 
 `debounce({ name, value })` is a factory over any value Schema (like
 `history`): `Changed` restarts a `{ delayMs }` timer, and only the latest
@@ -291,9 +322,11 @@ focus `{ tag, id }` — elements cross as tag and id, never as live nodes.
 `matchHotkey("ctrl+shift+k", press)` answers whether a press is a shortcut,
 so `update` stays a table of chords; matching is exact and auto-repeat never
 matches. When the observed target itself depends on state, scope the entry
-through subscription dependencies and it restreams on change. When the
-handler must cancel the browser default, core
-`Subscription.fromEventFilterMap` maps synchronously inside dispatch. Lift
+through subscription dependencies and it restreams on change.
+`keyboardEvents({ preventDefault: press => ... })` cancels the default of the
+presses the predicate picks (the arrows scrolling a game's page,
+`matchHotkey('ctrl+s', press)`), decided in the listener, because a default
+can only be cancelled while the event is dispatching. Lift
 with `Subscription.persistent`, mapping into the parent's Message; without
 a window each stream is empty instead of throwing.
 
@@ -417,11 +450,13 @@ this bundle owns the page, not the items.
 
 `history({ name, value, capacity })` makes an undo/redo bundle over any value
 Schema. The Model holds `{ past, present, future, group }`; `Push` records and
-drops the redo future, `Undo`/`Redo` move one step, `Clear` empties both sides
-while keeping the present. A `Push` may name a `group`: consecutive pushes of
+drops the redo future (an empty future is kept as it was, so a view reading it
+is not drawn again per push), `Undo`/`Redo` move one step, `GoTo { step }`
+jumps to any kept value, counted from the oldest (0) so the present is at
+`past.length`, and `Clear` empties both sides while keeping the present. A `Push` may name a `group`: consecutive pushes of
 the same group are one step, so typing a word undoes as a whole, with no clock.
-The steps are also pure functions, `History.start`, `push`, `undo`, `redo` and
-`clear`, for a parent that records an edit in the same transition that makes it
+The steps are also pure functions, `History.start`, `push`, `undo`, `redo`,
+`goTo` and `clear`, for a parent that records an edit in the same transition that makes it
 (the page Builder keeps its page this way). Two more are only functions:
 `History.close(model)` ends the group, so the same group pushed again is a step
 of its own, and `History.revert(model, group)` takes back the step `group` is

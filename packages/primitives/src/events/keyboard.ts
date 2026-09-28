@@ -4,8 +4,9 @@
  * reports presses and releases, including auto-repeat, and the parent
  * stores what matters. Hotkey matching stays application policy.
  */
-import { Schema, Stream } from 'effect'
+import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import type { KeyPress } from './hotkeys.js'
 
 export const KeyboardMessage = defineMessageUnion({
   Pressed: {
@@ -25,26 +26,43 @@ export type KeyboardMessage = typeof KeyboardMessage.Type
  * empty instead of throwing. Lift with `Subscription.persistent`, mapping
  * into the parent's Message.
  */
-export const keyboardEvents = (): Stream.Stream<KeyboardMessage> => {
+export const keyboardEvents = (
+  options: {
+    /**
+     * Whether to cancel a press's default (the page scrolling under an arrow
+     * key, the browser's own shortcut), decided in the listener, since a
+     * default can only be cancelled before the event finishes dispatching.
+     */
+    readonly preventDefault?: (press: KeyPress) => boolean
+  } = {},
+): Stream.Stream<KeyboardMessage> => {
   if (typeof window === 'undefined') return Stream.empty
-  const downs: Stream.Stream<KeyboardMessage> = Stream.fromEventListener<KeyboardEvent>(
-    window,
-    'keydown',
-  ).pipe(
-    Stream.map(event =>
-      KeyboardMessage.Pressed({
-        key: event.key,
-        repeat: event.repeat,
-        ctrl: event.ctrlKey,
-        shift: event.shiftKey,
-        alt: event.altKey,
-        meta: event.metaKey,
+  return Stream.callback<KeyboardMessage>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const down = (event: KeyboardEvent) => {
+          const press = KeyboardMessage.Pressed({
+            key: event.key,
+            repeat: event.repeat,
+            ctrl: event.ctrlKey,
+            shift: event.shiftKey,
+            alt: event.altKey,
+            meta: event.metaKey,
+          })
+          if (options.preventDefault?.(press) === true) event.preventDefault()
+          Queue.offerUnsafe(queue, press)
+        }
+        const up = (event: KeyboardEvent) =>
+          Queue.offerUnsafe(queue, KeyboardMessage.Released({ key: event.key }))
+        window.addEventListener('keydown', down)
+        window.addEventListener('keyup', up)
+        return { down, up }
       }),
+      ({ down, up }) =>
+        Effect.sync(() => {
+          window.removeEventListener('keydown', down)
+          window.removeEventListener('keyup', up)
+        }),
     ),
   )
-  const ups: Stream.Stream<KeyboardMessage> = Stream.fromEventListener<KeyboardEvent>(
-    window,
-    'keyup',
-  ).pipe(Stream.map(event => KeyboardMessage.Released({ key: event.key })))
-  return Stream.mergeAll([downs, ups], { concurrency: 'unbounded' })
 }

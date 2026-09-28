@@ -308,14 +308,12 @@ its README the details.
 - [x] **Mirror: its URL assembly does not fit `makeApplication` routing.**
   Done: `Mirror.routing`. Bundle's `assembly.url` still has the `Sync.mount`
   shape (`{ init(model, url), onUrlChange }`), not `makeApplication`'s.
-- [ ] **Primitives: Timer and Interval fix their interval where placed,** so a
-  clock that speeds up (Snake) cannot use them; `keyboardEvents()` cannot
-  prevent a key's default. `foldkit-snake`
-- [ ] **Primitives: the websocket's `Sent` carries no data, and it has no
-  connect timeout.** `foldkit-websocket-chat`
-- [ ] **Primitives: `History.push` makes a new empty `future` on every push,**
-  which redraws whatever reads it; and `History` has no jump-to-step.
-  `foldkit-pixel-art`
+- [x] **Primitives: a clock the Model drives, and a key's default.** Done:
+  `ticks`, `keyboardEvents({ preventDefault })`. `foldkit-snake`
+- [x] **Primitives: the websocket's `Sent` data and a connect timeout.** Done:
+  `Sent { data }`, `connectTimeoutMs`, `TimedOut`. `foldkit-websocket-chat`
+- [x] **Primitives: `History.push`'s new empty `future`, and jump-to-step.**
+  Done: the empty future is kept; `History.goTo` / `GoTo`. `foldkit-pixel-art`
 - [x] **Form: no "valid right now" query, no validate-all.** Done:
   `form.isValid`, `Message.ValidatedAll()`.
 - [ ] **Form: no Command definition for a check that tests can match** (still

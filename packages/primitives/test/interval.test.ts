@@ -19,7 +19,8 @@ const Page = Bundle.parent({ Model, Message })
 
 const ticksStream = (model: IntervalModel) => {
   const entry = Interval.subscriptions!({ intervalMs: 1000 }).ticks!
-  return entry.dependenciesToStream(entry.modelToDependencies(model), () => ({}))
+  const dependencies = entry.modelToDependencies(model)
+  return entry.dependenciesToStream(dependencies, () => dependencies)
 }
 
 describe('Interval transitions', () => {
@@ -65,14 +66,8 @@ describe('Interval stream', () => {
         return yield* Fiber.join(fiber)
       }).pipe(Effect.provide(TestClock.layer())),
     )
-    expect(values).toHaveLength(3)
-    const ats = values.map(message => {
-      if (message._tag !== 'Ticked') throw new Error('expected Ticked')
-      return message.at
-    })
-    for (let i = 1; i < ats.length; i++) {
-      expect(ats[i]!).toBeGreaterThan(ats[i - 1]!)
-    }
+    // The first tick is one interval after starting, stamped with its time.
+    expect(values).toEqual([1000, 2000, 3000].map(at => IntervalMessage.Ticked({ at })))
   })
 
   it('emits nothing while stopped', async () => {
