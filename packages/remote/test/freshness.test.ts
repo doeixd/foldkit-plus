@@ -12,8 +12,10 @@ import {
   emptyStore,
   entityKey,
   markStale,
+  plan,
   setUnavailable,
   tombstone,
+  visibleStore,
   writeEntity,
   type RemoteMessage,
 } from '../src/index.js'
@@ -228,5 +230,34 @@ describe('a field the server settled without a value', () => {
     expect(read.modelToDependencies(withheld).requirements).toEqual([])
     clock = 2_000
     expect(read.modelToDependencies({ ...withheld }).requirements).toEqual([request])
+  })
+})
+
+describe('a value a pending request patches', () => {
+  const freshness = { now: 1_500, freshness: 1_000 }
+  const layered = {
+    layers: [
+      {
+        id: 'm1',
+        patches: [
+          { entity: 'Project', id: 'p1', values: { name: 'Pending' } },
+          { entity: 'Project', id: 'm1.tmp', values: { name: 'Created' } },
+        ],
+      },
+    ],
+    overlays: [],
+  }
+
+  it('is as fresh as the value under it', () => {
+    const visible = visibleStore(knownAt(1_000).remote.entities, layered)
+    expect(plan(visible, [request], { freshness })).toEqual([])
+    expect(deadlineOf(visible, [request], freshness)).toEqual({ at: 2_000, due: [request] })
+  })
+
+  it('is not the server’s to age when only the request holds it', () => {
+    const created = { ...request, id: 'm1.tmp' }
+    const visible = visibleStore(knownAt(1_000).remote.entities, layered)
+    expect(plan(visible, [created], { freshness })).toEqual([])
+    expect(deadlineOf(visible, [created], freshness)).toBeUndefined()
   })
 })

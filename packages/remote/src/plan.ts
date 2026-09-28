@@ -82,7 +82,8 @@ export const deadlineOf = (
     )
     if (fresh) {
       const expires = entry.updatedAt + freshness.freshness
-      if (expires > freshness.now) {
+      // An entity dated `Infinity` never ages (see `visibleStore`): no deadline.
+      if (expires > freshness.now && Number.isFinite(expires)) {
         if (at === undefined || expires < at) {
           at = expires
           due = [group]

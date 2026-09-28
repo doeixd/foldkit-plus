@@ -174,15 +174,25 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
   return overlays.length === optimistic.overlays.length ? optimistic : { ...optimistic, overlays }
 }
 
-/** Base store with every layer applied in order. Later layers win. */
+/**
+ * Base store with every layer applied in order. Later layers win. A patch is
+ * not news from the server, so it keeps the date of the value under it; an
+ * entity only a request holds (a temporary id) is not the server's to age, and
+ * is dated `Infinity`, so freshness never plans or times it.
+ */
 export const visibleStore = (base: EntityStore, optimistic: OptimisticState): EntityStore =>
   writeEntities(
     base,
     optimistic.layers.flatMap(layer =>
-      layer.patches.map(patch => ({
-        key: entityKey(patch.entity, patch.id),
-        values: patch.values,
-      })),
+      layer.patches.map(patch => {
+        const key = entityKey(patch.entity, patch.id)
+        const under = base[key]
+        return {
+          key,
+          values: patch.values,
+          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+        }
+      }),
     ),
   )
 

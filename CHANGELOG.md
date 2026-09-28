@@ -278,6 +278,13 @@ version changed; `pnpm` skips versions already in the registry.
   Model change the Remote model is not part of, such as typing in a field,
   reuses the plan until the next freshness deadline instead of walking every
   row again: about 1 ms to 0.02 ms per change for a list of 400 rows.
+- **`foldkit-remote`: freshness follows what the server said and when.** A
+  pending optimistic patch keeps the date of the value under it, so under a
+  freshness policy a request in flight no longer makes a fresh entity read as
+  expired and refetch it; an entity only a request holds (a temporary id) is
+  never aged, planned or timed. A field the server settled without a value
+  now ages out with its entity on the read entry's timer, instead of waiting
+  for an unrelated Model change. `EntityWrite` takes an optional `updatedAt`.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

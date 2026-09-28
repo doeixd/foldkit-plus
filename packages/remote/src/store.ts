@@ -102,6 +102,8 @@ export interface EntityWrite {
   readonly values: Readonly<Record<string, unknown>>
   /** The canonical window each written relation field was fetched with. */
   readonly windows?: Readonly<Record<string, string>> | undefined
+  /** When this write dates the entity, instead of the batch's `now`. */
+  readonly updatedAt?: number | undefined
 }
 
 /**
@@ -117,7 +119,12 @@ export const writeEntities = (
   if (writes.length === 0) return store
   const next: Record<EntityKey, EntityEntry> = { ...store }
   for (const write of writes) {
-    next[write.key] = written(next[write.key] ?? emptyEntry, write.values, now, write.windows)
+    next[write.key] = written(
+      next[write.key] ?? emptyEntry,
+      write.values,
+      write.updatedAt ?? now,
+      write.windows,
+    )
   }
   return next
 }
