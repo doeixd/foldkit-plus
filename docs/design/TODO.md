@@ -29,6 +29,36 @@ These wait on upstream Foldkit or Effect, not on work here.
 
 ## SSR and resumability
 
+Phase S is what the CMS example's generated site had to write by hand; each
+item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
+
+- [ ] **S1. A browser entry.** `foldkit-ssr`'s one module imports Foldkit's
+  server renderer, 210 KB (63 KB gzipped) that a page taking a render over
+  does not need; the example loads it lazily (`sitePlan.ts`). Split off
+  `foldkit-ssr/server`, and export the root attribute from the browser side.
+- [ ] **S2. `Data.satisfy`,** preparing a Model for a render: each active
+  Surface's reads, again until none is missing. The example's `prerender.ts`
+  loop is its first caller. [router-DESIGN.md](./router-DESIGN.md) §20
+- [ ] **S3. A head from the Model:** description, image, Open Graph, article
+  facts and JSON-LD, typed in the plan, escaped, checked like the view, and
+  applied on client navigation too. A template missing the tags Foldkit fills
+  (canonical, `og:url`) is refused.
+- [ ] **S4. `SSR.sitemap` and a `robots` helper** from the generated pages.
+- [ ] **S5. Deciding whether to take a page over** (`when`, and
+  `otherwise: 'render'` drawing afresh in place), and a freshness check for a
+  page older than the data.
+- [ ] **S6. A determinism check:** render each page under two time zones and
+  locales, and fail when the HTML differs. The example met both a build-time
+  clock and a runtime time zone in its dates.
+- [ ] **S7. `foldkit-ssr/vite`,** the example's `generate.ts` as a build step:
+  the template, the build id from the entry script, the file layout per host,
+  and each page's styles in its first paint.
+- [ ] **S8. A chosen theme before the first paint:** `local` in the plan, and a
+  head script from `foldkit-mixins`' `Theme` that sets it from storage.
+- [ ] **S9. Localized pages:** the locale in the route, `lang` from the Model,
+  `hreflang` alternates in the head and sitemap, words and formats by explicit
+  locale.
+
 - [ ] **G1.** Name the handler that makes a page wait for the live runtime.
   This is the resumable design's rule 1. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
 - [ ] **G2.** Test rule 6 directly: the resumed page reaches the eager page's
@@ -139,13 +169,21 @@ the larger plan it amends.
   package view for facts drawn before they are read (`Initial` is unknown,
   not empty). §33.6
 - [ ] **Foundations in the HTML as a `foldkit-mixins` Vite plugin,** from
-  `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7
+  `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7, SSR S7
 - [ ] **Targets that know their document,** so a link to another application
   is a full load and one within it is a Navigate Command. §33.7
 - [ ] **Prefetch a target's data before navigating,** which removes the waits
   the demo still shows between screens. §16, §33.6
-- [ ] **The studio's one blank frame between sections:** SSR the first paint,
-  or one application with lazily loaded sections. §33.7
+- [ ] **The studio's one blank frame between sections:** one application with
+  lazily loaded sections, or rendered first paints as the public site now has.
+  §33.7
+- [ ] **Site paths and targets:** `Site.paths(node, source)` enumerating a
+  node's addresses from a query, `Site.targets(site)` for a build, a sitemap
+  and prefetch, and one declaration giving both `routeOf` and `pathOf`. §33.9
+- [ ] **Site metadata:** `Site.meta` as a function of the Model feeding SSR's
+  head, and whether a node is indexed. §23, §33.9
+- [ ] **Locales in the route graph:** a top-level locale parameter, targets
+  with alternates, and data sources that take the locale. §33.11
 - [ ] `foldkit-site` itself, and the rest of §31's sequence.
 
 ## Mixins and styling

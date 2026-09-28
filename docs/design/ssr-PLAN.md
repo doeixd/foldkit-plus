@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done. Next: [Phase G](#phase-g-close-what-the-resumable-design-asks-and-phases-a-to-f-left-out), the resumable design's remaining asks. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done. Next: [Phase G](#phase-g-close-what-the-resumable-design-asks-and-phases-a-to-f-left-out), the resumable design's remaining asks. [Phase S](#phase-s-static-sites-from-what-the-cms-example-needed) (proposed 2026-09-27) is what a static site built on it needed: a browser entry, preparing Remote data, a head from the Model, a sitemap, deciding whether to take a page over, deterministic renders, a Vite build step, themes and locales. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -967,6 +967,134 @@ any point; G5 comes before any upstream proposal, per
 [the upstream plan](../upstream-foldkit-ssr.md). Each step updates the README's test list, and G1 also the README's
 bindings section and the skill reference, since `SSR.render`'s result and the
 server's logging change.
+
+### Phase S: static sites, from what the CMS example needed
+
+**Status: proposed.** The CMS example (`examples/cms`) renders its public site
+at build time with `SSR.generate` and takes each page over in the browser
+(`prerender.ts`, `sitePlan.ts`, `client.ts`). The phases above made that
+possible. Everything else a static site needs, the example wrote by hand. Each
+item below is something it had to write, or a mistake it made first, and each
+ends in a test that can fail. Items S1 to S4 block a second site from doing
+the same; S5 to S9 are what a site with readers in more than one place needs.
+
+**S1. A browser entry.** `foldkit-ssr` has one module, and it imports
+`foldkit/experimental/server`. A page that only takes a render over loads
+Foldkit's renderer and HTML parser too: 210 KB (63 KB gzipped) in the example.
+The example loads the plan lazily to keep it off the studio's pages, and wrote
+Foldkit's root attribute out by hand, because importing
+`FOLDKIT_APP_ATTRIBUTE` alone put the renderer in every page's bundle.
+Split the package: `foldkit-ssr` for what both sides use (`plan`, `envelope`,
+`resume`, `hydrate`, `Resume.*`), and `foldkit-ssr/server` for `render`,
+`page`, `generate`, `entry` and `handle`. Export the root attribute from the
+browser side.
+- Test: the browser entry's module graph reaches no `foldkit/experimental/server`
+  (a static import walk, not a bundle size).
+
+**S2. Preparing a Model for a render.** A render draws the Model `init`
+returns and fetches nothing. The example prefetches each active Surface's
+projection in turn, each over the Model the last one left, so the home page's
+Blocks are read once its document is. That loop is router-DESIGN §20's
+`Data.satisfy`, and it belongs in Remote, which the plan's parts already name.
+The example also found that a bundle assembly's `init` must return
+`placements.initial(...)`, so the prepared Model goes through it.
+- `Data.satisfy(model, sources)` repeats until a pass plans nothing, bounded,
+  failing with the Surface still reading after the bound.
+- Test: a source that is active only once another's read has arrived is read;
+  a cycle fails at the bound.
+
+**S3. A head from the Model.** Foldkit's `Document` carries `title`, `lang`,
+`dir`, `canonical` and `ogUrl`. A page a search engine or a link preview reads
+also needs a description, Open Graph and Twitter tags, an image, a post's
+article facts and JSON-LD, and sometimes `robots`. The example builds these in
+`generate`'s `head` callback, which gets the render but not the Model, so it
+renders one path at a time to reach each page's Model. It also found that
+Foldkit fills `canonical` and `og:url` only into tags the template already
+has.
+- `SSR.plan({ head: model => Head })`, a typed value (`description`, `image`,
+  `type`, `article`, `jsonLd`, `robots`, `alternates`), rendered escaped with
+  the page, and checked like the view: what it reads must cross or be static.
+- The same `Head` applied in the browser on navigation, so a client-side move
+  to another post updates its description too. That needs the fields in
+  Foldkit's `Document`; until then, a Subscription on the Model's head.
+- The template gets the tags Foldkit fills, or `generate` refuses it, naming
+  the missing one.
+- Test: a generated post's description and JSON-LD come from its Model, with
+  quotes and `</script>` escaped; a missing canonical tag is refused.
+
+**S4. A sitemap and `robots.txt` from what was generated.** Every static site
+writes both from its paths. `generate` knows each page's address; the plan's
+head knows when it last changed (`article.modified`).
+- `SSR.sitemap(pages, { origin })` and a `robots` helper naming it.
+- Test: every generated path appears once, with its `lastmod`.
+
+**S5. Deciding whether to take a page over.** A generated page shows the data
+it was built from. Where the browser's data can differ, taking it over would
+show stale facts as live ones: the example's per-visitor sandbox after an
+edit, a signed-in reader, a CDN copy older than a publish. The example decides
+before calling `hydrate` (`takesOver`) and otherwise draws afresh in place of
+the page, which keeps it on screen until the fresh draw replaces it.
+- `SSR.hydrate(config, plan, { when, otherwise: 'render' })`: `when` is asked
+  before anything is adopted; `otherwise: 'render'` runs the application
+  afresh on the rendered root instead of containing the page.
+- Freshness: a plan may carry a data version (Remote's cursor), and the browser
+  asks once whether the page is still current, redrawing when it is not.
+- Test: a page the browser declines is drawn afresh with no empty frame; a
+  page older than the data is redrawn.
+
+**S6. A render must not depend on where it runs.** Two mistakes the example
+made that no test caught until one was written:
+- The seed dated posts from the build's clock, so the build and a visitor's
+  sandbox showed different dates. A render's inputs must be fixed or cross in
+  the envelope.
+- A post's date was formatted in the runtime's time zone, so a page rendered
+  in UTC and redrawn in the reader's browser could name different days.
+  Formatting that depends on the runtime (time zone, locale default, `Math.random`,
+  `Date.now`) differs between server and browser.
+- Check it: render each page twice, under two time zones and two default
+  locales, and fail when the HTML differs. A cheap guard that catches the whole
+  class.
+
+**S7. A build step, and a Vite plugin for it.** The example runs `tsx
+src/generate.ts dist` after `vite build`. That script reads the built
+`index.html`, makes a template from it (an empty container, the studio's
+`noindex` removed, the head tags S3 fills), takes the build id from the entry
+script's address (which the browser reads as `import.meta.url`), and writes
+`x.html` for the host's clean addresses. Every site repeats it.
+- `foldkit-ssr/vite`: a `closeBundle` step with `paths` (or a function of the
+  prepared data), `origin`, a `template` transform, and the file layout
+  (`x.html` or `x/index.html`, per host). It extends `@foldkit/vite-plugin`'s
+  `ssr.serverEntry` rather than owning a build (Phase 6).
+- The page's styles in its first paint: `Style.usedIn(rendered.html)` in the
+  head, and the foundations stylesheet (reset, tokens, theme) written into the
+  template. The example's `foundations` Vite plugin does the second; it belongs
+  in `foldkit-mixins`.
+- Test: a fixture site built with the plugin serves each path with its text,
+  styles and envelope, and resumes.
+
+**S8. Themes.** A theme that follows the reader's system setting is CSS
+alone and renders the same everywhere, which is what the example does. A theme
+the reader chooses is stored in the browser (a `Mirror.kv`), which a static
+page cannot know, so the page paints the default and then flips.
+- The choice is `local` in the plan (the browser's own, not the server's), and
+  a small script in the head, written by `foldkit-mixins`' `Theme`, sets
+  `data-theme` on `<html>` from storage before the first paint.
+- A server-rendered page can read it from a cookie instead, as Flags.
+- Test: a page with a stored dark choice paints dark in its first frame.
+
+**S9. Localization.** Nothing in the example is localized; a site that is
+would need:
+- The locale in the route (`/fr/blog/...`), so each locale is its own
+  generated page and its own address, and `lang` in the `Document` from the
+  Model.
+- `alternates` in S3's head (`hreflang`), and in S4's sitemap.
+- Words (`FormMessages`, `ViewWords`, a site's own) chosen by locale in the
+  Model, not by the runtime's default, and dates and numbers formatted with an
+  explicit locale and time zone (S6).
+- The CMS's one draft and one revision log per locale (cms-DESIGN §14) is
+  what feeds it.
+- Test: a page generated for two locales carries each language's text, `lang`
+  and alternates, and resumes under each.
 
 ### Beyond this plan
 

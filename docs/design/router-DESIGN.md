@@ -6230,6 +6230,8 @@ This is an extremely strong unification.
 
 # 23. Head metadata should be pure Site metadata
 
+What a page's metadata must hold, learned from a generated site: see §33.9.
+
 Affe has excellent route-local title/meta support.
 
 Foldkit Plus can add the ergonomic part without introducing a separate state system.
@@ -6895,3 +6897,75 @@ are needed:
 
 Step 7's prefetch then has a measured reason: every loading state the demo
 still shows is a wait prefetch removes.
+
+## 33.9 What a static site asked of the route graph
+
+The example's public site is now rendered at build time and taken over in
+the browser ([ssr-PLAN.md](./ssr-PLAN.md) Phase S has the rendering half). The
+route graph's half is what the build could not ask a Site for, because there
+is none yet, and so hand-wrote:
+
+- **Which addresses exist.** `prerender.ts` lists the pages and posts from
+  SQL, then maps each slug to a path by hand. A Site node's paths depend on
+  data (every published post is a path), so a node needs a way to enumerate
+  its targets: `Site.paths(node, source)`, where `source` is a Remote query
+  (`Cms.Entries`, `RecentPosts`) read through the same `Data.satisfy` as the
+  page itself. The whole site is then `Site.targets(site)`, which a build, a
+  sitemap and prefetch all read.
+- **The inverse of the parser.** The example has `routeOf` (address to route)
+  and `pathOf` (route to address), and a test that one inverts the other,
+  because a canonical address made by the wrong one points at another page.
+  Foldkit's router is bidirectional already; §15's `Site.target` should carry
+  both from one declaration, so no application writes the pair.
+- **A page's metadata, from its node.** §23's `Site.title` and `Site.meta`
+  are the right place. The example shows what `meta` must hold: a description,
+  an image, a type (`article` for a post), an article's dates and JSON-LD. It
+  also shows it must read the page's own data (a post's excerpt, a page's
+  Hero lead), so it is a function of the Model, which feeds SSR's plan `head`
+  (Phase S3) as is.
+- **Which chrome is the document's.** The studio is `noindex`, the site is
+  not, and they share one `index.html`. A Site node says whether it is indexed,
+  and the template follows the node rather than a hand-edited meta tag.
+
+## 33.10 Documents, and taking a page over
+
+§33.7 said a target must know its document. With generated pages there are
+three kinds of navigation, and the Site graph is what tells them apart:
+
+- within one application: a Navigate Command;
+- to another application: a full load;
+- to a generated page of this application: either. A full load gets the
+  page's HTML and metadata at once; a Navigate Command skips the load but draws
+  from what the browser holds.
+
+The example follows links within the site with Navigate Commands, which is
+right while the visitor's data is the seed and wrong once it may not be
+(Phase S5). A Site target should say which it prefers, and the prefetch of
+§16 makes a Navigate Command as fast as the generated page.
+
+## 33.11 Locales are part of the route
+
+Nothing in the example is localized. A site that is makes the locale a route
+parameter at the top of the graph (`/fr/blog/...`), not a setting beside it:
+
+- Each locale is its own address and its own generated page; `lang` comes
+  from the route in the Model.
+- `Site.target(node, params, { locale })` gives a page's alternates, for
+  `hreflang` in its head and its sitemap entry.
+- A node's data sources take the locale as input, so the CMS's per-locale
+  drafts and revisions (cms-DESIGN §14) feed it with no second route tree.
+- A link keeps the locale the way the example's links keep `?as=`: the
+  target carries it, and nothing rebuilds it by hand.
+
+## 33.12 Themes are not routes
+
+A theme the reader chooses is a preference, owned by the local Model and kept
+by a `Mirror.kv`, not a route parameter: an address shared with someone else
+should not carry the sharer's theme. The routing concern is only that a
+generated page cannot know it, which SSR Phase S8 answers with a script that
+sets it before the first paint.
+
+Amended sequence, following §33.8's: after **4b**, **4c** is SSR Phase S1 to
+S4 (a browser entry, `Data.satisfy`, a head from the Model, a sitemap), which
+the Site's `paths`, `meta` and `targets` then feed. Locales (33.11) come with
+the first localized content, not before.
