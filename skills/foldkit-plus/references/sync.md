@@ -241,7 +241,7 @@ const server = Effect.gen(function* () {
   journal keeps it in memory; `load` replays the few since).
 - `read(key, cursor, { limit })` pages history; set the exchange's `more: true`
   and the replica asks again at once. `vacuum()` shrinks the file after `compact`.
-- Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `subscribe` (a wake-up signal; catch up
+- Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `epoch`, `subscribe` (a wake-up signal; catch up
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
 - Durable does **not** speak the sync exchange. Your server wires
@@ -254,8 +254,10 @@ const server = Effect.gen(function* () {
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it
-differs, the server answers from sequence 0 and the replica rebuilds its
-committed state, keeping its outbox. `journalContract()` also passes
+differs, the server answers from sequence 0 (skipping its cursor-ahead check)
+and the replica rebuilds its committed state, keeping its outbox: everything the
+old server committed is lost, only pending work survives. A replica that never
+heard an epoch cannot detect a reset. `journalContract()` also passes
 `replicaId`, so Durable binds each replica to its first committing actor.
 
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for

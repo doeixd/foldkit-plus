@@ -210,12 +210,52 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-ssr`: its build configuration references the packages it builds
   from,** so another project can reference it.
 
+- **`foldkit-richtext`: `Replicated`, collaborative rich text without a CRDT.** A
+  document state where every character has an identity: `translate` restates an
+  edit as ops that name characters and blocks, `applyOps` folds them in any
+  server order to the same state, `project` gives the editor a `Document`, and
+  `anchor`/`resolve` keep a selection by its characters. `invert` gives the ops
+  that undo an edit and nothing else. `translate`'s `continues` option and
+  `coalesce` make a burst of typing one op, and a `Collect` op removes deleted
+  text, in two phases, through the log. `examples/pages` wires it to Sync and
+  Durable.
+- **`foldkit-richtext-dom`: `patchTo`, and an `overlay` Command** for
+  decorations from application state, such as other people's carets.
+- **`foldkit-sync`:**
+  - `Sync.fact`, which applies a durable fact in the intent's own transition.
+  - `onReinstall` on `Sync.mount`.
+  - `Sync.durable(message)`.
+  - A contract's `coalesce`, which merges a burst into one unsent operation.
+  - `Storage.append`, a one-row write per submit, with an IndexedDB outbox
+    store.
+  - Server push through `{ notify: true }` frames and `Transport.changes`.
+  - Paged exchanges (`more`).
+  - `transport.socket`, so presence shares the sync connection.
+  - A presence `throttle`.
+  - Server-reset recovery: a server's `epoch` goes back as `exchange`'s
+    optional third argument, and a new one makes the replica rebuild from the
+    server's answer and resend its outbox.
+- **`foldkit-durable`:**
+  - `Journal.cursor`, `read(key, after, { limit })` and `vacuum()`.
+  - An in-memory snapshot with `snapshotEvery`.
+  - `Journal.epoch(key)`.
+  - A `replicaId` option that binds each replica to the actor of its first
+    commit. Sync's `journalContract()` supplies it.
+
 ### Changed
 
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by
   `Form.make` have them.
+- **`foldkit-durable` schema 5** adds epoch and replica-binding tables. Files
+  from schema 4 upgrade in place; an older build refuses a schema 5 file.
+- **`foldkit-sync`: the socket transport reconnects for as long as its layer
+  lives.** `maxRetries` now counts consecutive failures after which queued work
+  fails fast, instead of ending the transport. `Replica.start` retries a failed
+  exchange on a backoff, and every failed exchange sets `status.lastError`.
+- **`foldkit-sync`: the IndexedDB database moves to version 2** (the outbox
+  store); code from before it cannot open a database this version wrote.
 
 ## 0.11.0
 

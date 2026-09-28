@@ -72,6 +72,7 @@ each of those.
 | Term | What it is |
 | --- | --- |
 | **Mirror** | A Model slice represented in the URL or a key-value store. The Model stays the owner. [`foldkit-mirror`](../packages/mirror/README.md) |
+| **Epoch** | The identity of a document's history on the server (`journal.epoch(key)`). A replica that comes back with another holds a cursor into history the server lacks, and rebuilds. [Replicated state](./replication.md) |
 | **Replica** | `foldkit-sync`'s client side: your Messages as durable operations, pending ones replayed over the committed state. [Replicated state](./replication.md) |
 | **Journal** | `foldkit-durable`'s server side: the authoritative order of committed operations. |
 | **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |

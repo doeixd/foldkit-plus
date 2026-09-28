@@ -14,7 +14,7 @@ This pass makes one rich-text document editable by several people, offline, conv
 - **Loro is dropped.** Durable gives every operation one total order, so replicas converge by replaying the same log. What a CRDT would add is intent preservation, and anchoring edits on character identity gives that without one.
 - **Translate at edit time:** a command runs against the projected Document as today, and its Transaction is mapped at once onto identity-anchored operations. Every command and its validation is reused.
 - **In scope:** character identity, the anchored operation vocabulary, the replica state and its projection to `RichText.Document`, selections held as anchors, the Sync contract, and convergence tests (concurrent edits, offline, reconnect, duplicates, cold restore).
-- **Out of scope at the start:** presence, collaborative undo beyond undoing one's own edits, tombstone garbage collection, and the notion-like demo. All but tombstone collection were built later.
+- **Out of scope at the start:** presence, collaborative undo beyond undoing one's own edits, tombstone garbage collection, and the notion-like demo. All were built later.
 
 ## Proposed design
 
@@ -92,10 +92,10 @@ Found while building (newest first):
 | 12 | `ConvertBlock` is delete plus insert with fresh ids for the block and every run, so concurrent edits inside it would be orphaned | `richtext/src/command.ts:810-838` | Design gap | Retype keeps identity in `db7e0e3` (C4) |
 | 13 | `InsertNode` and `MoveNode` address blocks by index; `JoinNode` requires the removed block to be the adjacent sibling | `richtext/src/transaction.ts:642` | Design gap | Anchor on sibling ids in the replicated form |
 | 14 | There is no operation that changes a node block's props | `richtext/src/transaction.ts:25-116` | Missing | Fixed in `7f59302`: `SetProps` operation and command; there was also no way to tick a task item |
-| 15 | Deleted characters must stay as tombstones while any pending op may anchor on them; collecting them needs a low-water mark over replica cursors, which Durable does not track | `docs/benchmarks.md:63-66` | Design gap | Keep tombstones; still open (B6) |
+| 15 | Deleted characters must stay as tombstones while any pending op may anchor on them; collecting them needs a low-water mark over replica cursors, which Durable does not track | `docs/benchmarks.md:63-66` | Design gap | Collected by a `Collect` op in `bb47b1d` (B6) |
 | 16 | Durable compaction nulls payloads but keeps identity rows, so the file does not shrink | `durable/src/journal.ts:850-880` | Rough edge | `Journal.vacuum()` in `35790af` (B4) |
 | 17 | A Durable `read` returns every op after the cursor, with no pagination | `examples/sync/src/journal.ts:205-262` | Rough edge | `read(key, after, { limit })` and `more` in `35790af` (B4) |
-| 18 | Presence is generic and fine for remote carets, but is not wired into the socket example, has no throttle, and `prune` is manual | `sync/src/presence.ts`, `sync/README.md:973` | Rough edge | Wired in `ecd2c8d` (C6); throttling still open |
+| 18 | Presence is generic and fine for remote carets, but is not wired into the socket example, has no throttle, and `prune` is manual | `sync/src/presence.ts`, `sync/README.md:973` | Rough edge | Wired in `ecd2c8d` (C6); throttled in `dbe5a27` |
 | 19 | The LWW clock persists every stamp: one IndexedDB write per allocation | `sync/src/lww.ts:98-117` | Performance | Log |
 | 20 | Composition's `Position` is an index, so if pages are ever synced, concurrent inserts or moves would land wrongly after a rebase | `composition/src/operation.ts:23-27` | Design note | The anchors built here could serve it later |
 
@@ -113,7 +113,7 @@ Open questions, with how each was settled:
 1. **Fallback for a missing anchor.** When an op anchors on a character whose insert was rejected: attach to the nearest surviving predecessor, or drop the op. Settled: the text lands at the end of the block it was typed in (D3).
 2. **Sync API change or the Command pattern.** Passing `{ opId, replicaId }` to `replay` is a small, general Sync change; the alternative needs no Sync change but adds an intent Message per edit. Settled by `Sync.fact` (finding 10), which applies the fact in the intent's own transition.
 3. **Coalescing window.** Merging a typing burst into one op cuts outbox and journal rows, but delays when others see the text. Settled with no window at all (B5).
-4. **Tombstone collection.** Deferred. Documents grow with every deletion until a low-water mark exists (B6).
+4. **Tombstone collection.** Deferred at first; settled by a `Collect` op in the log, with no low-water mark (B6, `bb47b1d`).
 
 ## Status
 
@@ -170,7 +170,7 @@ Each design below is grounded in the code as it stood at `fa02943`: file referen
 **A3. A replica ahead of a reset server; server identity.** A client cursor beyond the server's makes `read` throw `InvalidCursorError`. That reached the client as an opaque `TransportError` string, *after* the server had already committed the exchange's pending ops, so their acknowledgements were lost (`examples/sync/src/journal.ts:257-278`). The replica then failed the same way forever.
 
 - Server: validate the cursor before appending anything, and answer with a typed `{error: {_tag: 'InvalidCursor', cursor}}`.
-- Identity: the journal mints an `epoch` when it is created and returns it on every exchange. `ReplicaState` stores it (`sync.ts:90-101`). A different epoch means the cursor refers to a history this server does not have.
+- Identity: the journal mints an `epoch` when it is created and returns it on every exchange. (Built per document instead, minted on first use and new after `reset`: see Follow-up.) `ReplicaState` stores it (`sync.ts:90-101`). A different epoch means the cursor refers to a history this server does not have.
 - Recovery on a new epoch: adopt the server's checkpoint unconditionally (the regression check does not apply across epochs), keep the outbox, and resend it.
   - Pending ops are the user's intent and survive.
   - Ops the replica saw committed but the new server lacks are gone, unless another replica still holds them. That is the narrow guarantee to document.
@@ -225,7 +225,7 @@ The measurements so far (1.4 ms per keystroke at 100 paragraphs, 9.5 ms at 1,000
 - So at compaction the server may rewrite its snapshot without tombstones whose delete committed at or below the floor. That needs the delete's sequence recorded on each span.
 - A late op anchored on a purged character takes the missing-anchor fallback.
 
-It is worth building only once B0 shows tombstones dominate the cost.
+It is worth building only once B0 shows tombstones dominate the cost. (Built differently, as a `Collect` op: see Follow-up.)
 
 ### C. Editor
 
@@ -272,7 +272,7 @@ It is worth building only once B0 shows tombstones dominate the cost.
 - A peer's presence value is `{page, selection: AnchoredSelection, name}`. Each tab resolves peers' selections against its own current body, so a caret follows the characters it sits by, exactly like the local one.
 - Draw them through the attachment's existing `decorate` option.
 - Transport: one `Sync.socket(url)` yields both the exchange transport and a presence channel on one connection, and rebinds presence on reconnect. `socketPresenceChannel` bound one socket forever.
-- Throttle `presence.set` to a frame; it notified on every call.
+- Throttle `presence.set` to a frame; it notified on every call. (Built as a `throttle` option in `dbe5a27`.)
 
 ### D. Application semantics (examples/pages)
 
@@ -291,7 +291,7 @@ It is worth building only once B0 shows tombstones dominate the cost.
 2. **Push:** A2, then remove the pages polling loop.
 3. **Cost:** B0, then B1, B2, B5, B3 and B4, each against the bench.
 4. **Features:** C3, C4, C5, C6, D1 and D2.
-5. **Deferred:** B6, and the epoch recovery from A3 (only a server reset needs it).
+5. **Deferred:** B6, and the epoch recovery from A3 (only a server reset needs it). Both were built later; see Follow-up.
 
 ### Decisions
 
@@ -300,7 +300,7 @@ Each was left open with a recommendation, and the recommendation was taken:
 - **D3:** text with a lost anchor lands at the end of the block it was typed in, rather than the op being dropped.
 - **D1:** deleted pages go to a trash rather than deletion being final.
 - **C3:** undo reverses only this tab's own edits, with last-writer-wins for props.
-- **A3:** a server reset is not handled yet; resending the outbox and accepting the loss of ops no replica holds remains the proposal.
+- **A3:** a server reset is not handled yet; resending the outbox and accepting the loss of ops no replica holds remains the proposal. (Since built in `8eba2d0`, and narrower than proposed: every op the old server committed is lost, not only those no replica holds.)
 
 ## Implemented
 
@@ -323,7 +323,7 @@ The plan above is built on `claude/richtext-commits-review-djbvzn`, in order, on
   - `594b2aa`: a layered holders index, per-entry projection reuse, a lazy translate shadow, and SetSelection checked against apply's own index.
   - One keystroke at 100, 1,000 and 4,000 paragraphs went from 1.08, 8.7 and 49 ms to 0.17, 1.9 and 9.6 ms.
 - B2, `d4cbc4f`: `Storage.append` and an IndexedDB outbox store (database version 2), so a submit writes one row.
-- B5, `6c6b0ad`: `coalesce(last, next)` merges into an operation no exchange has carried. The outbox is marked sent under the replica's lock, and pages merges page edits and renames. The Replicated `Insert` start index was not built, so a merged edit is one operation holding many ops.
+- B5, `6c6b0ad`: `coalesce(last, next)` merges into an operation no exchange has carried. The outbox is marked sent under the replica's lock, and pages merges page edits and renames. The Replicated `Insert` start index was not built then, so a merged edit was one operation holding many ops; it was built in `4728d69`.
 - B3, `930958e`: the journal keeps the snapshot in memory, and `snapshotEvery` is new (schema 4). A 2,000-item append went from 2.99 to 1.95 ms, and to 0.91 ms at `snapshotEvery: 50` (`packages/durable/bench/storage.ts`).
 - B4, `35790af`: `read(key, cursor, { limit })`, the exchange's `more`, and `Journal.vacuum()`. The design's `incremental_vacuum` does nothing here, because compaction shrinks rows rather than freeing pages. Only `VACUUM` plus a WAL checkpoint shrinks the file.
 
@@ -344,11 +344,11 @@ The plan above is built on `claude/richtext-commits-review-djbvzn`, in order, on
 
 - Merging adjacent inserts, `4728d69`: `Insert` gains an optional `from`. `translate`'s `continues` option carries text typed at the end of this replica's own insert on that insert, and `Replicated.coalesce` folds the run into one op. Pages coalesces its merged edits with it, so a burst of typing the server has not seen is one `Insert`.
 - Presence, `dbe5a27`: a `throttle` option sends at most one value per interval, the latest; a departure goes at once. Pages throttles to 50 ms and still announces only when its page or caret changed.
-- A3, `901b47f` and `8eba2d0`: `Journal.epoch(key)` names a document's history and is new after `reset` or in a new file. The replica stores the server's epoch and sends it back; a server that finds another answers from sequence 0, and the replica rebuilds its committed state from that and resends its outbox. Durable's `replicaId` option, which Sync's `journalContract` supplies, binds each replica to its first committing actor and refuses anyone else's operations from it.
+- A3, `901b47f` and `8eba2d0`: `Journal.epoch(key)` names a document's history and is new after `reset` or in a new file. The replica stores the server's epoch and sends it back; a server that finds another answers from sequence 0, and the replica rebuilds its committed state from that and resends its outbox. Everything the old server committed is lost, on every replica; only what was pending survives, not the ops another replica still holds, as the design hoped. Durable's `replicaId` option, which Sync's `journalContract` supplies, binds each replica to its first committing actor and refuses anyone else's operations from it; the first actor to use an id claims it.
 - B6, `bb47b1d`: the sequence-per-span design needed the commit sequence inside `update`, which replay never sees, and a server-only purge would have made replicas diverge. It became a `Collect` op instead, committed through the log: each one removes the text the previous one marked deleted and marks what is deleted now, so every replica removes the same text at the same point, and only a replica offline across two collections loses anchors. An insert keeps one deleted character at its end, so a continued insert never reuses an index. The pages server commits one per page every hour.
 
 **Still open**
 
 - Finding 19: the LWW clock's write per stamp.
 - A replica that never heard an epoch cannot tell that the server it last saw was reset.
-- The epoch rule is copied into each example server; Sync has no server-side exchange helper to hold it.
+- The epoch rule is copied into the sync and pages example servers; Sync has no server-side exchange helper to hold it, and `examples/todo-app` neither returns an epoch nor answers from 0.

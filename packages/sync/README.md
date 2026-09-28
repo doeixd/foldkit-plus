@@ -349,18 +349,21 @@ operation may run many times as the authoritative base changes beneath it.
 
 ## Synchronization
 
-A replica exchanges two things with the server:
+A replica exchanges these with the server:
 
 ```text
 request
   current cursor
   pending operations
+  the server's epoch, once the replica has heard one
 
 response
   newly committed operations
   acknowledgements
   rejections
   optional checkpoint
+  optional more (the replica asks again at once)
+  optional epoch
 ```
 
 `replica.synchronize` performs one exchange through the `Transport` Effect
@@ -742,7 +745,8 @@ const storage = yield* Sync.indexedDb('todos/tab-1')
 ```
 
 Stored replica state includes protocol/schema versions, document/replica
-identity, cursor, committed snapshot, local sequence, and pending operations.
+identity, cursor, the server's epoch, committed snapshot, local sequence, and
+pending operations.
 Persisted and remote operations are decoded strictly against the application
 Message Schema.
 
@@ -781,9 +785,12 @@ Important recovery cases:
   answers from sequence 0 of its own history, and should skip its
   cursor-ahead check for that request. The replica then rebuilds its committed
   state from that answer and keeps its outbox, which the same exchange delivers.
-  Operations the old server committed that no replica still holds are gone. A
-  replica that has never heard an epoch takes the first one as its own, so a
-  server reset before that is not recognized.
+  Everything the old server committed is gone, on every replica; only what was
+  still pending survives. The replica trusts a server that names a new epoch to
+  have answered from its start; it does not check. A replica that has never
+  heard an epoch takes the first one as its own, so a reset before that is not
+  recognized: such a replica fails every exchange (its cursor is ahead of the
+  server's) until its storage is cleared.
 
 Application Message/shared-state migrations remain application policy; Sync
 versioning protects its own persisted envelope.
