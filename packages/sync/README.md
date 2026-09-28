@@ -767,6 +767,12 @@ Important recovery cases:
   the application can offer an explicit reset/recovery path.
 - **Unsupported storage version.** `UnsupportedReplicaVersionError` names the
   persisted and supported versions so migration/reset can be explicit.
+- **Rolling back past the outbox store.** The IndexedDB adapter upgrades its
+  database to version 2, adding the `outbox` store. A release from before that
+  opens it as version 1, which the browser refuses with a `VersionError`, so a
+  rollback that far needs a new database name or a reset.
+- **Another tab blocks the upgrade.** Opening fails with a `StorageError`
+  rather than waiting; a connection the upgrade opens later is closed.
 - **Server compaction.** A checkpoint replaces history the replica can no longer
   replay and pending local work is rebased on it.
 - **Server reset.** A server that answers with an `epoch` (Durable's

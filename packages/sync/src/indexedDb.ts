@@ -55,12 +55,17 @@ const openDatabase = (
           if (event.oldVersion < 1) database.createObjectStore('replica')
           if (event.oldVersion < 2) database.createObjectStore('outbox')
         }
-        request.onsuccess = () => resolve(request.result)
+        let blocked = false
+        // A blocked open still succeeds once the other connection closes, after the
+        // effect has failed; nothing else would ever close that connection.
+        request.onsuccess = () => (blocked ? request.result.close() : resolve(request.result))
         request.onerror = () => reject(request.error)
         // Without this, a version upgrade blocked by another open connection
         // never settles and the effect hangs.
-        request.onblocked = () =>
+        request.onblocked = () => {
+          blocked = true
           reject(new Error('IndexedDB upgrade is blocked by another connection'))
+        }
       }),
     catch: cause => storageError('Could not open the storage', cause),
   })
