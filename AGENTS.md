@@ -962,6 +962,13 @@ of its own named a form field "fits the Catalog". Read words with
   subscription retries" in three places. Before writing that something
   happens again, find the condition that makes it happen and check the
   failure path meets it.
+- **`new URL` keeps Windows backslashes and eats the drive.** Parsing a
+  `path.join`ed file path as a URL yields `\Users\…` (and `C:/…` parses as
+  scheme `c:`, dropping the drive), while the browser reads the same file as
+  `/C:/…` from `import.meta.url` — so a build id compared the two ways never
+  matched on Windows and hydration refused every page, which passed on Linux
+  for good. Normalize separators and read a drive path as a `file:` URL
+  before comparing (`examples/foldkit-ssg/src/entry.server.ts:buildIdOf`).
 - **Workspace packages resolve to source; `paths` are generated.** Every
   export has a `foldkit-plus:source` condition, which Vite, Vitest and the
   examples resolve through, so nothing reads a stale `dist`. TypeScript keeps
