@@ -31,6 +31,8 @@ key -> editor Message -> Editor.update runs the command on the projection
 `update`'s `GotEditor` case (`src/app.ts`) does all of it. The ids a translation needs
 are minted from the tab's `session` and a counter in the Model, which is why the fact
 goes through `Sync.fact`: a later keystroke must read the Model with this one's counter.
+Typing that carries on the tab's own last insert extends it rather than minting a new
+one, so a burst the server has not seen yet goes out as one `Insert`.
 
 Another person's edit arrives the other way. An exchange brings it to the replica,
 `Sync.mount` reinstalls the pages, and `onReinstall` (`reinstalled` in `src/app.ts`)
@@ -50,7 +52,8 @@ at most every 50 ms (`throttle`), sending the latest; nothing of presence is jou
 and a tab that goes quiet drops out after 30 seconds.
 
 Undo takes back this tab's own edits and leaves everyone else's. Each edit is recorded, in the
-tab's Model, as the ops that reverse it (`Replicated.invert`); a run of typing is one step.
+tab's Model, as the ops that reverse it (`Replicated.invert`); a run of typing is one step,
+until the caret is put somewhere else.
 Undo applies those ops as a new edit, which travels and converges like any other, and records
 their own inverse for redo. A snapshot undo would restore a document the others have moved on
 from, so the editor's own history is not used.
@@ -92,18 +95,22 @@ and reach the other window once the server is back.
 
 ## Limits
 
-- Deleted text is kept, as tombstones, until the server collects it: `journal.collect()`
-  commits a `Collect` op per page, hourly. A tab offline across two collections finds the
-  deleted text it anchored on gone, and its typing there lands at the end of the block.
+- Deleted text is kept, as tombstones, until the server collects it: hourly,
+  `journal.collect()` commits a `Collect` op for each page that holds deleted text. Only
+  the server may; the journal refuses a tab's. A tab offline across two collections finds
+  the deleted text it anchored on gone, and its typing there lands at the end of the block,
+  or of the block that one was joined into. An undo from before then restores less.
 - A new replica replays the whole history, 500 edits per exchange; the server sends no
   checkpoint, because it never compacts.
-- Titles are last-writer-wins by the server's order. Keystrokes the server has not seen
-  yet are merged into one edit, as typing in the body is (`coalesce` in
-  `src/contract.ts`); typing that carries on the tab's own insert becomes one `Insert`
-  there.
-- The server takes a tab's name, from the socket URL, as its identity; a real deployment
-  authenticates the connection. The journal binds each replica to the first tab that
-  commits from it, so one tab cannot send edits as another's replica.
+- Titles are last-writer-wins by the server's order. Renames the server has not seen yet
+  are merged into one, as typing in the body is (`coalesce` in `src/contract.ts`).
+- The server takes a tab's name, from the socket URL, as its identity, and accepts only
+  `tab-…` names. Nothing authenticates it: a real deployment does. The journal binds each
+  replica to the first name that commits from it, so a connection under another name
+  cannot send edits as that replica, but one that claims the same name can.
+- A tab's outbox lives in IndexedDB under the tab's name, which the tab keeps in
+  `sessionStorage`: a reload finds it again, but a tab closed while offline leaves its
+  unsent edits there, and no later tab reads them.
 - Deleting `pages.sqlite` gives the server a new epoch. A tab that comes back rebuilds from
-  the new, empty history and sends what was waiting in its outbox; pages only the old
-  server held are gone.
+  the new, empty history and sends what was still waiting in its outbox. Everything the
+  old server had committed is gone, on every tab.

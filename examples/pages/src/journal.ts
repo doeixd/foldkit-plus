@@ -1,4 +1,4 @@
-import { Effect, Exit, Fiber, Scope, Stream } from 'effect'
+import { Effect, Exit, Fiber, Schema, Scope, Stream } from 'effect'
 import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
 import {
   DocumentId as SyncDocumentId,
@@ -6,10 +6,29 @@ import {
   type Operation,
   type TransportClient,
 } from 'foldkit-sync'
-import type { Shared } from './app.js'
+import { Message, type Shared } from './app.js'
 import { PagesSync } from './contract.js'
 
 const pages = DocumentId.make('pages')
+const decodeMessage = Schema.decodeUnknownSync(Message)
+
+/** The actor, and replica, the server commits its own operations as. No tab can be it. */
+export const SERVER = 'server'
+
+/**
+ * Whether an operation collects deleted text. Only the server may: two collections in a row
+ * would remove what a tab offline for a moment still anchors on.
+ */
+const collects = (operation: Operation): boolean => {
+  const message = decodeMessage(operation.message)
+  return message._tag === 'EditedPage' && message.ops.some(op => op.type === 'Collect')
+}
+
+/** Whether a page holds deleted text a collection would mark or remove. */
+const collectable = (page: Shared['pages'][number]): boolean =>
+  Object.values(page.body.blocks).some(entry =>
+    entry.spans.some(span => span.kept !== true && (span.deleted || entry.deleted)),
+  )
 
 /**
  * The server: a Durable journal that puts every replica's edits in one order, and the
@@ -30,6 +49,9 @@ export const openJournal = (file = ':memory:', page = PAGE) => {
       snapshotEvery: 50,
       opId: operation => OpId.make(operation.opId),
       actorId: principal => ActorId.make(principal.actorId),
+      authorize: ({ principal, operation }) =>
+        principal.actorId === SERVER ||
+        !collects(operation) || { allowed: false, reason: 'only the server collects' },
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )
 
@@ -87,25 +109,27 @@ export const openJournal = (file = ':memory:', page = PAGE) => {
   })
 
   /**
-   * Collects deleted text: one `Collect` op per page, committed by the server like any edit,
-   * so every replica applies it at the same place in the order. Text deleted before the
-   * previous collection is removed, so a tab offline across two of them finds its anchors
-   * on that text gone, and its typing there lands at the end of the block.
+   * Collects deleted text: one `Collect` op per page that holds any, committed by the server
+   * like any edit, so every replica applies it at the same place in the order. Text deleted
+   * before the previous collection is removed, so a tab offline across two of them finds its
+   * anchors on that text gone, and its typing there lands at the end of the block, or of
+   * the block that one was joined into.
    */
   const collect = (): void => {
-    for (const { id } of Effect.runSync(journal.load(pages)).snapshot.pages) {
+    for (const page of Effect.runSync(journal.load(pages)).snapshot.pages) {
+      if (!collectable(page)) continue
       const cursor = Effect.runSync(journal.cursor(pages))
       const operation = PagesSync.codec.normalizeOperation({
         protocolVersion: 1,
         schemaVersion: 1,
         documentId: 'pages',
-        replicaId: 'server',
+        replicaId: SERVER,
         localSequence: cursor + 1,
-        opId: `server:${cursor + 1}`,
+        opId: `${SERVER}:${cursor + 1}`,
         baseCursor: cursor,
-        message: { _tag: 'EditedPage', id, ops: [{ type: 'Collect' }] },
+        message: { _tag: 'EditedPage', id: page.id, ops: [{ type: 'Collect' }] },
       })
-      Effect.runSync(journal.append(pages, operation, { actorId: 'server' }))
+      Effect.runSync(journal.append(pages, operation, { actorId: SERVER }))
     }
   }
 

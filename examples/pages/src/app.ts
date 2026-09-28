@@ -95,6 +95,7 @@ export const Message = defineMessageUnion({
   // Local: what this tab asked for.
   AddedPage: { title: Schema.String },
   OpenedPage: { id: Schema.String },
+  TrashedPage: { id: Schema.String },
   GotEditor: { message: EditorMessage },
   ToggledTask: {},
   GotPeers: { peers: Schema.Array(Peer) },
@@ -146,6 +147,60 @@ const opened = (model: Model, id: string): Model => ({
   menuIndex: 0,
   undoGroup: null,
 })
+
+/** No page open: nothing of the last one is carried on. */
+const closed = (model: Model): Model => ({
+  ...model,
+  open: null,
+  selection: null,
+  storedMarks: null,
+  menuIndex: 0,
+  undoGroup: null,
+})
+
+/**
+ * One keystroke's inverse prepended to its typing group's step. Deleting what a run of typing
+ * inserted is one `Delete` whose touching ranges are merged, so a long run stays one small op
+ * rather than one per keystroke.
+ */
+const prepend = (
+  inverse: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+  ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+): ReadonlyArray<RichText.Replicated.ReplicatedOp> => {
+  const [added] = inverse
+  const [first, ...rest] = ops
+  if (inverse.length !== 1 || added?.type !== 'Delete' || first?.type !== 'Delete')
+    return [...inverse, ...ops]
+  const ranges = [...first.ranges]
+  for (const range of added.ranges) {
+    const touching = ranges.findIndex(
+      held => held.id === range.id && held.from <= range.to && range.from <= held.to,
+    )
+    if (touching === -1) ranges.push(range)
+    else {
+      const held = ranges[touching]!
+      ranges[touching] = {
+        id: held.id,
+        from: Math.min(held.from, range.from),
+        to: Math.max(held.to, range.to),
+      }
+    }
+  }
+  return [{ type: 'Delete', ranges }, ...rest]
+}
+
+/** Whether two anchored selections sit by the same characters, whatever their affinity. */
+const samePlace = (
+  left: RichText.Replicated.AnchoredSelection | null,
+  right: RichText.Replicated.AnchoredSelection | null,
+): boolean => {
+  if (left === null || right === null) return left === right
+  if (left.type !== 'Range' || right.type !== 'Range')
+    return JSON.stringify(left) === JSON.stringify(right)
+  const same = (a: RichText.Replicated.AnchoredPosition, b: RichText.Replicated.AnchoredPosition) =>
+    a.block === b.block && a.after === b.after
+  return same(left.anchor, right.anchor) && same(left.focus, right.focus)
+}
 
 /** The page with this id, unless it is in the trash. */
 export const pageOf = (model: Model, id: string | null): Page | undefined =>
@@ -260,16 +315,25 @@ const commit = (
   const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`, {
     continues: id => id.startsWith(`${model.session}:`),
   })
-  // A caret move translates to no ops and mints nothing, so its key is not spent.
+  // A caret move translates to no ops and mints nothing, so its key is not spent. A caret
+  // put elsewhere ends a run of typing; the report of where typing left it does not.
   if (translated.ops.length === 0) {
-    return { model: { ...model, selection: translated.selection }, commands }
+    const moved = !samePlace(translated.selection, model.selection)
+    return {
+      model: {
+        ...model,
+        selection: translated.selection,
+        undoGroup: moved ? null : model.undoGroup,
+      },
+      commands,
+    }
   }
   const inverse = Replicated.invert(page.body, translated.ops)
   const last = model.undo[model.undo.length - 1]
   // Opening a page starts a new group, so a run of typing is always on one page.
   const joins = last !== undefined && group !== null && group === model.undoGroup
   const undo = joins
-    ? [...model.undo.slice(0, -1), { page: page.id, ops: [...inverse, ...last.ops] }]
+    ? [...model.undo.slice(0, -1), { page: page.id, ops: prepend(inverse, last.ops) }]
     : [...model.undo, { page: page.id, ops: inverse }].slice(-UNDO_DEPTH)
   return applyEdit(
     {
@@ -354,6 +418,11 @@ export const update = (model: Model, message: Message): Return =>
         commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
       }
     },
+    // Closes the page here if it is open, then trashes it everywhere.
+    TrashedPage: ({ id }) => ({
+      model: model.open === id ? closed(model) : model,
+      commands: [Sync.fact(Message.DeletedPage({ id }))],
+    }),
     OpenedPage: ({ id }) => {
       const page = pageOf(model, id)
       const next = opened(model, id)
@@ -415,7 +484,7 @@ export const update = (model: Model, message: Message): Return =>
 export const reinstalled = (next: Model, previous: Model): Return => {
   const before = pageOf(previous, previous.open)
   const after = pageOf(next, next.open)
-  if (after === undefined) return { model: { ...next, open: null, selection: null } }
+  if (after === undefined) return { model: closed(next) }
   if (before === undefined || before.body === after.body) return { model: next }
   return {
     model: next,

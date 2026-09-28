@@ -5,7 +5,7 @@
 import { fileURLToPath } from 'node:url'
 import { Sequence, Sync, type SocketLike } from 'foldkit-sync'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { openJournal } from './journal.js'
+import { openJournal, SERVER } from './journal.js'
 
 const socketLike = (socket: WebSocket): SocketLike => ({
   send: data => socket.send(data),
@@ -27,8 +27,13 @@ const journal = openJournal(fileURLToPath(new URL('../pages.sqlite', import.meta
 const presence = Sync.presence.hub<unknown>()
 const sockets = new WebSocketServer({ host: '127.0.0.1', port: 8787 })
 sockets.on('connection', (socket, request) => {
-  // A real deployment authenticates here; this one trusts the tab's name.
-  const actor = new URL(request.url ?? '', 'ws://localhost').searchParams.get('tab') ?? 'guest'
+  // A real deployment authenticates here; this one trusts the tab's name, which is always
+  // `tab-…`, so a connection cannot act as the server or take another's odd name.
+  const actor = new URL(request.url ?? '', 'ws://localhost').searchParams.get('tab') ?? ''
+  if (!actor.startsWith('tab-') || actor === SERVER) {
+    socket.close()
+    return
+  }
   const transport = journal.transport(actor)
   // Each commit is announced to every tab, so a tab that is only reading sees others' typing.
   const stops = [
@@ -47,6 +52,16 @@ sockets.on('connection', (socket, request) => {
 
 // Deleted text is collected once an hour; a tab offline across two collections finds text
 // it anchored on gone, and its typing there lands at the end of the block.
-setInterval(() => journal.collect(), 60 * 60 * 1000)
+setInterval(
+  () => {
+    try {
+      journal.collect()
+    } catch (error) {
+      // A collection that fails is tried again next hour; the server stays up.
+      console.error('Could not collect deleted text', error)
+    }
+  },
+  60 * 60 * 1000,
+)
 
 console.log('Sync server on ws://127.0.0.1:8787')

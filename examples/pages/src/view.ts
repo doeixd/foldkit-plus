@@ -22,7 +22,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       [h.Class('pages')],
       [
         h.nav(
-          [h.Class('sidebar')],
+          [h.Class('sidebar'), h.AriaLabel('Pages')],
           [
             h.ul(
               [h.Class('page-list')],
@@ -33,7 +33,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                     [h.Class(page.id === model.open ? 'page open' : 'page')],
                     [
                       h.button(
-                        [h.Class('page-link'), h.OnClick(Message.OpenedPage({ id: page.id }))],
+                        [
+                          h.Class('page-link'),
+                          ...(page.id === model.open ? [h.AriaCurrent('page')] : []),
+                          h.OnClick(Message.OpenedPage({ id: page.id })),
+                        ],
                         [page.title === '' ? 'Untitled' : page.title],
                       ),
                     ],
@@ -61,6 +65,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                               h.button(
                                 [
                                   h.Class('restore'),
+                                  h.AriaLabel(
+                                    `Restore ${page.title === '' ? 'Untitled' : page.title}`,
+                                  ),
                                   h.OnClick(Message.RestoredPage({ id: page.id })),
                                 ],
                                 ['Restore'],
@@ -82,11 +89,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                 h.input([
                   h.Id('page-title'),
                   h.Class('title'),
+                  h.AriaLabel('Page title'),
                   h.Value(open.title),
                   h.OnInput(title => Message.RenamedPage({ id: open.id, title })),
                 ]),
                 h.div(
-                  [h.Class('toolbar')],
+                  [h.Class('toolbar'), h.Role('toolbar'), h.AriaLabel('Formatting')],
                   [
                     tool(h, 'Undo', EditorMessage.Undone()),
                     tool(h, 'Redo', EditorMessage.Redone()),
@@ -117,7 +125,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                       [
                         h.Id('delete-page'),
                         h.Class('tool danger'),
-                        h.OnClick(Message.DeletedPage({ id: open.id })),
+                        h.OnClick(Message.TrashedPage({ id: open.id })),
                       ],
                       ['Delete page'],
                     ),

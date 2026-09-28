@@ -136,5 +136,6 @@ assert.equal(
 )
 assert.equal(alice.model.pages[0]!.title, 'Launch plan (v2)')
 assert.deepEqual(alice.model.pages, bob.model.pages)
+assert.deepEqual(journal.snapshot().pages, alice.model.pages)
 console.log('Both replicas and the server agree.')
 journal.close()

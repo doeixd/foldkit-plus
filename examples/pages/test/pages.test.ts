@@ -197,8 +197,11 @@ describe('two people on one page', () => {
       },
       Message.GotEditor({ message: EditorMessage.Typed({ text: 'Hello' }) }),
     )
-    const run = Replicated.project(body()).children[0]!.children[0]!.id
-    const id = Replicated.ReplicatedId.make(run.slice(0, run.lastIndexOf('.')))
+    // The insert the typing made, as the edit carries it.
+    const edited = decodeMessage(Effect.runSync(replica.pending).at(-1)!.message)
+    const insert = edited._tag === 'EditedPage' ? edited.ops[0] : undefined
+    if (insert?.type !== 'Insert') throw new Error('expected an insert')
+    const id = insert.id
     await bobEdits(
       replica,
       model,
@@ -517,13 +520,77 @@ describe('two people on one page', () => {
     unsubscribe()
   })
 
+  const carried = (): Model => {
+    const at = {
+      block: Replicated.ReplicatedId.make('x:0'),
+      after: null,
+      affinity: 'after' as const,
+    }
+    return {
+      ...initialModel('alice'),
+      open: 'mine',
+      selection: { type: 'Range', anchor: at, focus: at },
+      storedMarks: ['Bold'],
+      menuIndex: 2,
+      undoGroup: 'typing',
+    }
+  }
+  const nothingCarried = { selection: null, storedMarks: null, menuIndex: 0, undoGroup: null }
+
   it('starts a page it opens without what the editor carried for the last', () => {
-    const carried = { ...initialModel('alice'), storedMarks: ['Bold'], menuIndex: 2 }
-    expect(update(carried, Message.OpenedPage({ id: 'other' })).model).toMatchObject({
+    expect(update(carried(), Message.OpenedPage({ id: 'other' })).model).toMatchObject({
       open: 'other',
-      selection: null,
-      storedMarks: null,
-      menuIndex: 0,
+      ...nothingCarried,
     })
+  })
+
+  it('closes the page it trashes, and trashes it through the log', () => {
+    const result = update(carried(), Message.TrashedPage({ id: 'mine' }))
+    expect(result.model).toMatchObject({ open: null, ...nothingCarried })
+    expect(result.commands?.map(command => command.name)).toEqual(['foldkit-sync/fact'])
+    // Another page trashed leaves the open one alone.
+    expect(update(carried(), Message.TrashedPage({ id: 'other' })).model.open).toBe('mine')
+  })
+
+  it('ends a run of typing when the caret is put elsewhere, so undo takes back what followed', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const page = model.open!
+    const run = () => Replicated.project(pageOf(model, page)!.body).children[0]!.children[0]!.id
+    const editor = async (message: EditorMessage) => {
+      model = await bobEdits(replica, model, Message.GotEditor({ message }))
+    }
+    await editor(EditorMessage.Selected({ selection: caretAt(run(), 0) }))
+    for (const text of ['a', 'b']) await editor(EditorMessage.Typed({ text }))
+    // Where typing left the caret, reported again, keeps the run going.
+    await editor(EditorMessage.Selected({ selection: caretAt(run(), 2) }))
+    await editor(EditorMessage.Typed({ text: 'c' }))
+    expect(model.undo).toHaveLength(1)
+    // A run of typing is one small op to undo, not one per keystroke.
+    expect(model.undo[0]!.ops).toHaveLength(1)
+    await editor(EditorMessage.Selected({ selection: caretAt(run(), 0) }))
+    await editor(EditorMessage.Typed({ text: 'X' }))
+    await editor(EditorMessage.Undone())
+    expect(textOf({ ...Effect.runSync(replica.shared), pages: model.pages }, page)).toEqual(['abc'])
+  })
+
+  it('refuses a collection a tab sends, and collects nothing where nothing was deleted', async () => {
+    const replica = await open('tab-bob')
+    replicas.push(replica)
+    const model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    await synchronize(replica, 'tab-bob')
+    let heard = 0
+    const unsubscribe = journal.subscribe(() => (heard += 1))
+    journal.collect()
+    await Effect.runPromise(
+      replica.submit(Message.EditedPage({ id: model.open!, ops: [{ type: 'Collect' }] })),
+    )
+    const [sent] = Effect.runSync(replica.pending)
+    await synchronize(replica, 'tab-bob')
+    expect(Effect.runSync(replica.status).rejected).toEqual([sent!.opId])
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(heard).toBe(0)
+    unsubscribe()
   })
 })
