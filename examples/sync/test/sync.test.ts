@@ -706,13 +706,27 @@ describe('a server agent', () => {
     // The agent is a producer with its own replica identity and the caller's
     // actor, not a second mutation path.
     expect(server.read('todos', 0).at(-1)).toMatchObject({
-      replicaId: 'agent',
+      replicaId: 'agent-owner',
       actorId: 'owner',
     })
 
     const replica = await open('replica')
     await replica.synchronize(server.transport(principal))
     expect(replica.shared()).toEqual(server.snapshot('todos').model)
+  })
+
+  it('lets agents acting for different callers each commit to one document', async () => {
+    server.append(operation('seed', 1, created('a')), principal)
+    for (const actorId of ['owner', 'alice']) {
+      const agent = Agent.bind({
+        definition: SyncAgent.make({
+          messages: SyncAgent.expose(Message, { RenamedTodo: rename }),
+        }),
+        host: serverAgentHost({ journal: server, principal: { ...principal, actorId } }),
+      })
+      await Effect.runPromise(agent.messages.dispatch('rename_todo', { id: 'a', title: actorId }))
+    }
+    expect(server.snapshot('todos').model.todos).toEqual([{ id: 'a', title: 'alice' }])
   })
 
   it('refuses a capability the principal may not invoke, appending nothing', async () => {
