@@ -52,6 +52,9 @@
     { "path": "./examples/kitchen-sink" },
     { "path": "./examples/todo-app" },
     { "path": "./examples/richtext" },
-    { "path": "./examples/form" }
+    { "path": "./examples/form" },
+    { "path": "./examples/foldkit-counter" },
+    { "path": "./examples/foldkit-query-sync" },
+    { "path": "./examples/foldkit-api-cache" }
   ]
 }
