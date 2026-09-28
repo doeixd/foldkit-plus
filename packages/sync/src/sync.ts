@@ -500,6 +500,8 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           Effect.gen(function* () {
             if (yield* Ref.get(closed))
               return yield* new ReplicaClosedError({ message: 'Replica is closed' })
+            if (!definition.durable(message))
+              return yield* new InvalidOutboxError({ message: 'Message is local-only' })
             const last = current.pending[current.pending.length - 1]
             const merged =
               last !== undefined &&
@@ -507,6 +509,10 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               (yield* Ref.get(unsent)).has(last.opId)
                 ? definition.coalesce(decodeMessage(last.message), message)
                 : undefined
+            if (merged !== undefined && !definition.durable(merged))
+              return yield* new InvalidOutboxError({
+                message: 'coalesce returned a local-only Message',
+              })
             // A merged Message takes the place of the last operation, under its identity.
             const operation = yield* Effect.try({
               try: () =>

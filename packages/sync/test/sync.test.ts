@@ -944,6 +944,27 @@ describe('coalescing', () => {
     await close(replica)
   })
 
+  it('names a local-only Message, submitted or merged, as the refusal', async () => {
+    let coalesced = 0
+    const Selecting = defineSync({
+      ...definition,
+      coalesce: (_, next): Message | undefined => {
+        coalesced += 1
+        return next._tag === 'RenamedTodo' ? { _tag: 'SelectedTodo', id: next.id } : undefined
+      },
+    })
+    const replica = await Effect.runPromise(Selecting.openReplica(replicaId('a'), memoryStorage()))
+    const refusal = (message: Message) =>
+      Effect.runPromise(Effect.flip(replica.submit(message))).then(error => error.message)
+    await submit(replica, created('t'))
+
+    expect(await refusal({ _tag: 'SelectedTodo', id: 't' })).toBe('Message is local-only')
+    expect(coalesced).toBe(0)
+    expect(await refusal(renamed('t', 'one'))).toBe('coalesce returned a local-only Message')
+    expect(titles(replica)).toEqual([['a:1', 't']])
+    await close(replica)
+  })
+
   it('never merges into an operation an exchange carried, even one that failed', async () => {
     const replica = await openCoalescing('a')
     await submit(replica, renamed('t', 'one'))
