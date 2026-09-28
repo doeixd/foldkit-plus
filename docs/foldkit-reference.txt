@@ -1,0 +1,370 @@
+## Foldkit API Quick Reference
+
+Foldkit is an Effect-native Elm-style frontend framework. Prefer these primitives over inventing React-style state/lifecycle patterns.
+
+### Core modules
+
+- **`AsyncData`** — async/loading state.
+  - `Idle`, `Loading`, `Refreshing`, `Success`, `Failure`, `Stale`
+  - `succeed`, `fail`
+  - `match`, `matchData`, `matchDataSplitEmpty`
+  - `map`, `mapError`, `mapBoth`, `flatMap`
+  - `getData`, `getError`, `getOrElse`
+  - `revalidate`, `revalidateOrLoad`, `loadIfMissing`
+  - `zipWith`, `all`, `settle`
+
+- **`Command`** — one-shot side effects.
+  - `define` — define a named Effect-backed Command.
+  - `mapMessage`, `mapMessages` — map result Messages.
+  - `mapEffect` — transform underlying Effect.
+  - `Interruptible` — cancellable/restartable Commands.
+  - Types: `Command`, `CommandDefinition`.
+
+- **`Update`** — compose update results and child state machines.
+  - `Return` — standard `{ model, commands? }` update result.
+  - `ReturnWithOutMessage`
+  - `Step`, `StepWithOutMessage`
+  - `combine` — combine update results.
+  - `foldChild` — run a child update inside a parent update.
+  - `foldChildStep`
+  - `foldChildInit`, `foldChildInits`
+  - `withOutMessage`
+  - `refresh`
+
+- **`Message`** — define typed Message unions.
+  - `defineMessageUnion`
+  - `MessageUnion`
+
+- **`Schema`** — Foldkit helpers around Effect Schema.
+  - `defineTaggedUnion`
+  - `taggedStruct`
+
+- **`Struct`** — immutable Model updates.
+  - `modifyFields`
+  - `makeModifyFieldsFor`
+
+- **`Submodel`** — nested Model/Message/update state machines.
+  - `defineView`
+  - `Config`
+  - `View`
+  - `Reflect`, `Reflect2`
+
+### Runtime / application
+
+- **`Runtime`** — create and execute Foldkit applications.
+  - `makeApplication`
+  - `makeElement`
+  - `run`
+  - `embed`
+  - `hydrate`
+  - `ApplicationInit`, `ElementInit`
+  - routing configuration
+  - crash handling
+  - slow-operation warnings
+  - DevTools configuration
+  - view transitions
+
+- **`Port`** — typed host ↔ Foldkit communication.
+  - `inbound`
+  - `outbound`
+  - `emit`
+  - `stream`
+  - `subscription`
+  - `Ports`
+
+- **`Render`** — post-render lifecycle.
+  - `afterCommit`
+  - `afterPaint`
+
+- **`brand`** — internal/result branding helper.
+  - `brandViewResult`
+
+### Views / DOM
+
+- **`Html`** — declarative virtual DOM.
+  - `html`
+  - `submodel`
+  - `createLazy`
+  - `createKeyedLazy`
+  - `childAttributes`
+  - `Html`
+  - `Document`
+  - `Attribute`
+
+- **`Dom`** — DOM effects/helpers.
+  - `focus`
+  - `advanceFocus`
+  - `clickElement`
+  - `scrollIntoView`
+  - `scrollIntoViewAfterPaint`
+  - `scrollIntoViewIfNotVisible`
+  - `showDialog`, `closeDialog`
+  - `lockScroll`, `unlockScroll`
+  - `inertOthers`, `restoreInert`
+  - `waitForAnimationSettled`
+  - `detectElementMovement`
+
+- **`Mount`** — imperative DOM / third-party library boundary.
+  - `define`
+  - `defineStream`
+  - `mapMessage`
+  - `liveViewStateChanges`
+  - `MountTracker`
+  - `ViewState`
+
+- **`CustomElement`** — declarative Web Component integration.
+  - `define`
+  - `CustomElementSpec`
+  - `CustomElementConfig`
+  - `ElementBuilder`
+
+- **`Canvas`** — declarative Canvas rendering.
+  - `view`
+  - `Circle`, `Rect`, `Text`
+  - `Path`
+  - `MoveTo`, `LineTo`, `BezierTo`, `QuadTo`, `Close`
+  - `Group`
+  - `Point`
+
+### Effects / lifecycles
+
+- **`Subscription`** — ongoing external streams driven by Model state.
+  - `makeSubscriptions`
+  - `animationFrame`
+  - `Subscription`
+  - `Subscriptions`
+
+- **`ManagedResource`** — Model-scoped stateful resources.
+  - `tag`
+  - `makeManagedResources`
+  - `ResourceNotAvailable`
+  - `ManagedResource`
+  - `ManagedResourceService`
+  - use for WebSockets, workers, AudioContext, persistent handles, etc.
+
+- **`Http`** — Foldkit HTTP runtime integration.
+  - `layer`
+
+- **`File`** — browser file APIs as Effects.
+  - `select`
+  - `selectMultiple`
+  - `readAsText`
+  - `readAsArrayBuffer`
+  - `readAsDataUrl`
+  - `name`, `size`, `mimeType`
+  - `File`, `FileReadError`
+
+### Routing / URLs
+
+- **`Route`** — typed bidirectional routing.
+  - `literal`
+  - `param`
+  - `string`
+  - `int`
+  - `schemaSegment`
+  - `root`
+  - `rest`, `restString`
+  - `slash`
+  - `query`
+  - `oneOf`
+  - `mapTo`
+  - `defineRouteUnion`
+  - `parseUrlWithFallback`
+
+- **`Route.Transition`** — reason about route changes.
+  - `make`
+  - `coldLoad`
+  - `entered`
+  - `enteredAny`
+  - `exited`
+  - `exitedAny`
+  - `stayed`
+  - `isEntering`
+
+- **`Navigation`** — browser navigation Commands.
+  - `pushUrl`
+  - `replaceUrl`
+  - `back`
+  - `forward`
+  - `load`
+  - `openUrl`
+  - `UrlRequest`
+
+- **`Url`** — typed URL value.
+  - `Url`
+  - `fromString`
+  - `toString`
+
+### Data / forms
+
+- **`FieldValidation`** — validation state and rules.
+  - `Field`
+  - `NotValidated`
+  - `Validating`
+  - `Valid`
+  - `Invalid`
+  - `makeRules`
+  - `validate`
+  - `validateAll`
+  - `isValid`, `isInvalid`
+  - `allValid`, `anyInvalid`
+
+- **`FieldValidation.Rule`** — reusable validation rules.
+  - `minLength`, `maxLength`
+  - `pattern`
+  - `email`
+  - `url`
+  - `startsWith`, `endsWith`, `includes`
+  - `equals`, `oneOf`
+  - `minItems`, `maxItems`
+  - `fromSchema`
+
+- **`Calendar`** — date-only/calendar calculations.
+  - `CalendarDate`
+  - `make`
+  - `today`
+  - `addDays`, `addMonths`, `addYears`
+  - `subtractDays`, `subtractMonths`, `subtractYears`
+  - `daysInMonth`
+  - `dayOfWeek`
+  - `startOfWeek`, `endOfWeek`
+  - `firstOfMonth`, `lastOfMonth`
+  - `between`, `clamp`
+  - `isBefore`, `isAfter`, `isEqual`
+  - `format`, `formatShort`, `formatLong`
+  - `fromDateLocal`, `toDateLocal`
+
+### Testing
+
+- **`Story`** — test pure update/state-machine behavior.
+  - `story`
+  - `given`
+  - `message`
+  - `model`
+  - `steps`
+  - `expectOutMessage`
+  - `expectNoOutMessage`
+  - `Story.Command.resolve`
+  - `Story.Command.resolveAll`
+  - `Story.Command.resolveAllExact`
+  - `Story.Command.expectHas`
+  - `Story.Command.expectExact`
+  - `Story.Command.expectNone`
+
+- **`Scene`** — test rendered behavior/accessibility.
+  - queries: `getByRole`, `getByText`, `getByLabel`, `getByTestId`, etc.
+  - `find`, `findAll`
+  - `role`, `text`, `label`, `selector`, `within`
+  - `first`, `last`, `nth`, `filter`
+  - interaction helpers for click/input/change/keyboard/files/etc.
+  - Command and Mount resolution helpers
+  - prefer Scene for user-visible behavior; Story for Model assertions.
+
+- **`foldkit/test`** — exports `Story` and `Scene`.
+- **`foldkit/test/vitest`** — Vitest integration/matchers.
+
+### Model preservation / HMR
+
+- **`foldkit/model-preservation`**
+  - `PreserveModelMessage`
+  - `RequestModelMessage`
+  - `RestoreModelMessage`
+  - used by state-preserving development/HMR infrastructure.
+
+### DevTools
+
+- **`foldkit/devtools-protocol`** — protocol types for Foldkit DevTools/MCP.
+  - `Event`, `Request`, `Response`
+  - `RuntimeInfo`
+  - `SerializedEntry`
+  - Model diff / Message / frame schemas.
+
+- **`foldkit/devtools-host`** — DevTools host integration.
+  - `DEVTOOLS_HOST_ID`
+  - DevTools store types
+  - `toInspectableValue`
+  - Submodel-path helpers.
+
+### Experimental
+
+- **`foldkit/experimental`**
+  - exports `Machine`
+  - exports `Server`
+
+- **`foldkit/experimental/machine`** — declarative finite state machines.
+  - `define`
+  - `to`
+  - `when`
+  - `otherwise`
+  - `Machine.transition`
+  - `Machine.step`
+  - `reachableFrom`
+  - `unreachableStates`
+  - `deadTransitions`
+  - `toMermaid`
+  - integrates directly with `Update.Return` / `Update.foldChild`.
+
+- **`foldkit/experimental/server`** — SSR/SSG/server request pipeline.
+  - `renderToString`
+  - `handleRequest`
+  - `classifyRequest`
+  - `injectIntoTemplate`
+  - `toResponse`
+  - `resolveRequestUrl`
+  - server rendering and hydration helpers.
+
+### `@foldkit/ui`
+
+Accessible headless UI primitives following the same Foldkit Model/Message architecture.
+
+- `Animation`
+- `Button`
+- `Calendar`
+- `Checkbox`
+- `Combobox`
+- `DatePicker`
+- `Dialog`
+- `Disclosure`
+- `DragAndDrop`
+- `Fieldset`
+- `FileDrop`
+- `Input`
+- `Listbox`
+- `Menu`
+- `Popover`
+- `RadioGroup`
+- `Select`
+- `Slider`
+- `Switch`
+- `Tabs`
+- `Textarea`
+- `Toast`
+- `Tooltip`
+- `VirtualList`
+
+Also:
+
+- **`Anchor`** — positioning/portal runtime for custom floating UI.
+
+Stateless UI modules generally expose `view`. Stateful UI modules expose a Foldkit-style `Model`, `Message`, `init`, `update`, `view`, and often `OutMessage`.
+
+### Selection rules
+
+- async request state → `AsyncData`
+- one-shot effect → `Command`
+- update composition → `Update`
+- immutable Model edit → `Struct`
+- nested state machine → `Submodel`
+- ongoing stream → `Subscription`
+- long-lived stateful handle → `ManagedResource`
+- imperative DOM/library → `Mount`
+- host ↔ Foldkit boundary → `Port`
+- URL parsing/building → `Route`
+- navigation effect → `Navigation`
+- validation → `FieldValidation`
+- update tests → `Story`
+- UI behavior tests → `Scene`
+- browser rendering → `Html`
+- application execution → `Runtime`
+
+Foldkit is pre-1.0. Verify exact signatures against the installed Foldkit version/source before inventing APIs.
