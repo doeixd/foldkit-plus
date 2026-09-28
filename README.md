@@ -20,6 +20,12 @@ reconciled by `update`. Replicas replay the same Messages through the same
 one. Views are styled from outside without forking. Each package answers one
 question, and they compose because they meet at explicit application boundaries.
 
+**See it running:** [foldkit-cms-demo.pages.dev](https://foldkit-cms-demo.pages.dev/)
+is a blog studio and its public site built with these packages: a CMS with
+drafts and revisions, a page builder, forms, lists, and pages rendered at build
+time. Its server runs in your browser, so nothing you write leaves it. The code
+is [`examples/cms`](./examples/cms).
+
 ## Choose who owns the state
 
 | What you are adding | Authoritative owner | Extension |
