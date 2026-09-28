@@ -99,7 +99,12 @@ export const ShopPage = slots(
   {
     page: [U.bg('surface.muted'), U.color('text.default'), { minHeight: '100vh' }],
     header: {},
-    nav: [U.p('md'), U.bg('accent.default'), U.color('accent.on-fill'), { marginBottom: t.space.lg }],
+    nav: [
+      U.p('md'),
+      U.bg('accent.default'),
+      U.color('accent.on-fill'),
+      { marginBottom: t.space.lg },
+    ],
     navList: [
       L.in('layouts', Layout.center({ max: '72rem', gutters: '0' })),
       L.in('layouts', Layout.cluster({ gap: t.space.lg, justify: 'center' })),
@@ -167,10 +172,7 @@ export const CartPart = slots(
     empty,
     emptyActions,
     shopLink: linkButton(accentFill),
-    items: [
-      L.in('layouts', Layout.stack({ gap: t.space.md })),
-      { marginBottom: t.space.lg },
-    ],
+    items: [L.in('layouts', Layout.stack({ gap: t.space.md })), { marginBottom: t.space.lg }],
     item: itemRow,
     itemDetails: {},
     itemName,
@@ -223,10 +225,7 @@ export const CheckoutPart = slots(
       U.color('text.overt'),
       { margin: `0 0 ${t.space.md}` },
     ],
-    lines: [
-      L.in('layouts', Layout.stack({ gap: t.space.xs })),
-      { marginBottom: t.space.lg },
-    ],
+    lines: [L.in('layouts', Layout.stack({ gap: t.space.xs })), { marginBottom: t.space.lg }],
     line: [
       U.flex,
       U.items('center'),
@@ -302,13 +301,7 @@ export const QuantityButtonStyle = forSlots(ButtonSlots)(
 export const RemoveButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
     base: {
-      button: [
-        errorFill,
-        U.py('2xs'),
-        U.px('sm'),
-        U.rounded('sm'),
-        { marginLeft: t.space.xs },
-      ],
+      button: [errorFill, U.py('2xs'), U.px('sm'), U.rounded('sm'), { marginLeft: t.space.xs }],
     },
   })({ tone: 'danger' }),
   { name: 'RemoveButtonStyle' },
