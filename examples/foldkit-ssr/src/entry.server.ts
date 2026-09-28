@@ -41,11 +41,20 @@ const pageHeaders = {
  * loads, which `entry.ts` reads of itself as `import.meta.url`. A page from
  * another build is refused before the browser adopts it. Read it from the
  * template as written, before Vite's development server adds its own client.
+ * A file path built with `path.join` carries the platform's separators, which
+ * `new URL` keeps as backslashes on Windows while the browser reads forward
+ * slashes, and a drive letter parses as a scheme that drops the drive; a drive
+ * path is read as a `file:` URL like the browser reads of itself, so the two
+ * readings agree on either platform.
  */
 export const buildIdOf = (template: string): string => {
   const entry = template.match(/<script type="module"[^>]*src="([^"]+)"/)?.[1]
   if (entry === undefined) throw new Error('index.html loads no module script')
-  return new URL(entry, 'http://localhost').pathname
+  const normalized = entry.replaceAll('\\', '/')
+  return new URL(
+    /^[A-Za-z]:\//.test(normalized) ? `file:///${normalized}` : normalized,
+    'http://localhost',
+  ).pathname
 }
 
 /**

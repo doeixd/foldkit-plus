@@ -58,6 +58,15 @@ describe('the generated pages', () => {
     expect(buildIdOf(template)).toBe('/src/entry.ts')
   })
 
+  test('reads a Windows file path as the forward-slash id the browser reads of itself', () => {
+    // `new URL` keeps backslashes while `import.meta.url` never has them, so
+    // without the normalization the two build ids disagree and hydration
+    // refuses the page on Windows.
+    expect(buildIdOf(loading('C:\\build\\assets\\index-abc123.js'))).toBe(
+      '/C:/build/assets/index-abc123.js',
+    )
+  })
+
   test('styles its first paint: the stylesheet and every class it draws, with every token they read', async () => {
     for (const { html } of await generate()) {
       const page = parse(html)
