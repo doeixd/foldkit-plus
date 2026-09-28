@@ -7,7 +7,7 @@
  */
 import { Schema } from 'effect'
 import type { RemoteError } from './remoteData.js'
-import { entityKey, tombstone, writeEntity, type EntityStore } from './store.js'
+import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
 export interface NormalizedPatch {
   readonly entity: string
@@ -97,29 +97,38 @@ export interface Reconciled {
   readonly state: MutationState
 }
 
+/** What a settled mutation wrote, as `MutationSucceeded` carries it. */
+export interface MutationAnswer {
+  readonly entities: ReadonlyArray<NormalizedPatch>
+  /** Entities the mutation deleted; each is tombstoned. */
+  readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
+  /** Injected clock reading of the answer, which dates what it writes. */
+  readonly now: number
+}
+
 /**
  * Applies a mutation result once and marks the request settled. A second call
  * with the same `requestId` (a retry, or a live event describing the same change)
- * does not re-apply the entities, but still clears `pending`. The entities are
- * stamped `now`, which is how fresh a freshness policy takes them to be.
+ * does not re-apply the entities, but still clears `pending`.
  */
 export const reconcileMutation = (
   store: EntityStore,
   state: MutationState,
   requestId: string,
-  entities: ReadonlyArray<NormalizedPatch>,
-  deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
-  now = 0,
+  answer: MutationAnswer,
 ): Reconciled => {
   // Patches first, then deletions: a mutation that names an entity both ways has deleted it.
   const next = state.applied.has(requestId)
     ? store
-    : deleted.reduce(
+    : (answer.deleted ?? []).reduce(
         (current, gone) => tombstone(current, entityKey(gone.entity, gone.id)),
-        entities.reduce(
-          (current, entity) =>
-            writeEntity(current, entityKey(entity.entity, entity.id), entity.values, now),
+        writeEntities(
           store,
+          answer.entities.map(entity => ({
+            key: entityKey(entity.entity, entity.id),
+            values: entity.values,
+          })),
+          answer.now,
         ),
       )
   const applied = remember(state.applied, requestId)

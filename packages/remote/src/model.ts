@@ -771,10 +771,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         model.optimistic,
         model.mutations,
         message.requestId,
-        message.entities,
-        message.connections ?? [],
-        message.deleted ?? [],
-        message.now,
+        message,
       )
       return {
         ...model,

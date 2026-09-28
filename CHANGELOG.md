@@ -268,9 +268,12 @@ version changed; `pnpm` skips versions already in the registry.
   under a freshness policy every value a mutation wrote was already expired and
   read again at once, and one a read had just dated was set back. `Data.mutate`
   and `Remote.mutateInto` take a `now` option (default `Date.now`), as
-  `ObserveOptions` and `LiveOptions` do, and `settleSuccess` and
-  `reconcileMutation` a trailing `now`. A hand-built `MutationSucceeded` adds
-  the field.
+  `ObserveOptions` and `LiveOptions` do. `settleSuccess` and
+  `reconcileMutation` take the answer as one `MutationAnswer` object
+  (`{ entities, deleted?, now }`, plus `connections?` for `settleSuccess`)
+  instead of positional arguments, so the clock cannot be left out. A
+  hand-built `MutationSucceeded` adds the field, and a stored one without it
+  no longer decodes.
 - **`foldkit-remote`: the read entry plans once per Remote state and query.** A
   Model change the Remote model is not part of, such as typing in a field,
   reuses the plan until the next freshness deadline instead of walking every

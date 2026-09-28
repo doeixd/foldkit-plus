@@ -5,7 +5,12 @@
  * rebase for free.
  */
 import { type Connection, type Edge, edge, items } from './connection.js'
-import { reconcileMutation, type MutationState, type NormalizedPatch } from './mutation.js'
+import {
+  reconcileMutation,
+  type MutationAnswer,
+  type MutationState,
+  type NormalizedPatch,
+} from './mutation.js'
 import { entityKey, isTombstone, writeEntities, type EntityStore } from './store.js'
 
 export interface EntityLayer {
@@ -219,16 +224,16 @@ export const settleSuccess = (
   optimistic: OptimisticState,
   state: MutationState,
   requestId: string,
-  entities: ReadonlyArray<NormalizedPatch>,
-  connections: ReadonlyArray<ConnectionChange> = [],
-  deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
-  now = 0,
+  answer: MutationAnswer & {
+    /** Connection changes the server confirmed; they replace the request's own. */
+    readonly connections?: ReadonlyArray<ConnectionChange> | undefined
+  },
 ): {
   readonly store: EntityStore
   readonly state: MutationState
   readonly optimistic: OptimisticState
 } => {
-  const reconciled = reconcileMutation(base, state, requestId, entities, deleted, now)
+  const reconciled = reconcileMutation(base, state, requestId, answer)
   return {
     store: reconciled.store,
     state: reconciled.state,
@@ -238,7 +243,7 @@ export const settleSuccess = (
           removeLayer(optimistic, requestId),
           requestId,
           `confirmed:${requestId}`,
-          connections,
+          answer.connections ?? [],
         ),
   }
 }

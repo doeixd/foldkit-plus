@@ -266,14 +266,13 @@ describe('optimistic convergence', () => {
           optimistic = settleFailure(optimistic, request.id)
           continue
         }
-        const settled = settleSuccess(
-          store,
-          optimistic,
-          state,
-          request.id,
-          [{ entity: 'E', id: 'x', values: { [request.field]: request.value } }],
-          [ConnectionChange.prepend('Feed', { entity: 'E', id: `${request.id}-real` })],
-        )
+        const settled = settleSuccess(store, optimistic, state, request.id, {
+          entities: [{ entity: 'E', id: 'x', values: { [request.field]: request.value } }],
+          connections: [
+            ConnectionChange.prepend('Feed', { entity: 'E', id: `${request.id}-real` }),
+          ],
+          now: 0,
+        })
         store = settled.store
         state = settled.state
         optimistic = settled.optimistic

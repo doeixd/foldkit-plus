@@ -1,6 +1,16 @@
 import { Schema } from 'effect'
 import type { ModelRef } from 'foldkit-surface'
-import { Entity, Remote, RemoteData, Selection, type EntityRef } from '../src/index.js'
+import {
+  Entity,
+  Remote,
+  RemoteData,
+  Selection,
+  emptyMutationState,
+  emptyStore,
+  reconcileMutation,
+  type EntityRef,
+  type RemoteMessage,
+} from '../src/index.js'
 
 const User = Entity.make(
   'User',
@@ -149,3 +159,9 @@ Selection.make(Board, { owner: Selection.connection(User, { first: 1 }) })
 Selection.connection(Comment, { first: 1 }, UserSummary)
 // @ts-expect-error Remote.select takes an entity selection, not a bare connection
 Remote.select({} as never, Selection.connection(Comment, { first: 1 }))
+
+// A mutation's answer is dated: nothing defaults its clock to 0.
+// @ts-expect-error a settled mutation carries now
+const _undated: RemoteMessage = { _tag: 'MutationSucceeded', requestId: 'r', entities: [] }
+// @ts-expect-error reconcileMutation takes the answer's now
+reconcileMutation(emptyStore, emptyMutationState, 'r', { entities: [] })
