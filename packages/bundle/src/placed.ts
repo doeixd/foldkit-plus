@@ -4,7 +4,6 @@
  * no store, reducer, or render path.
  */
 import { Option, Record, Schema } from 'effect'
-import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
@@ -323,15 +322,14 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     argsSummary,
     link,
     init: (parent: unknown) => {
-      const initial = bundle.init(args)
-      const model = link.write(parent, initial.model)
+      const lifted = Update.foldChildInit(bundle.init(args), {
+        toParentModel: child => link.write(parent, child),
+        toParentMessage: link.toParentMessage,
+      })
       // A nested child under an absent outer child has nowhere to live, so its
       // startup Commands would run for nothing and their Messages reach nothing.
-      if (Option.isNone(link.read(model))) return { model: parent }
-      return {
-        model,
-        commands: Command.mapMessages(initial.commands, link.toParentMessage),
-      }
+      if (Option.isNone(link.read(lifted.model))) return { model: parent }
+      return lifted
     },
     update: (parent: unknown, message: AnyMessage) =>
       Option.map(link.fromParentMessage(message), childMessage => {
