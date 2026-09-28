@@ -20,4 +20,7 @@ const mirrorSubscriptions = Subscription.make<Model, Message, KeyValueStore.KeyV
   () => BoardMirror.subscriptions,
 )
 
-export const subscriptions = { ...dragAndDropSubscriptions, ...mirrorSubscriptions }
+export const subscriptions = Subscription.aggregate<Model, Message, KeyValueStore.KeyValueStore>()(
+  dragAndDropSubscriptions,
+  mirrorSubscriptions,
+)
