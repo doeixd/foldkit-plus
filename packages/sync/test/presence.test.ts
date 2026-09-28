@@ -353,8 +353,13 @@ describe('presence', () => {
     hub.join(update => seen.push(update))
     servePresence(server, hub, { peerId: 'a' })
 
-    client.send('not json')
-    client.send(JSON.stringify({ id: 'x', cursor: 0, pending: [] }))
+    for (const frame of [
+      'not json',
+      'null',
+      '3',
+      JSON.stringify({ id: 'x', cursor: 0, pending: [] }),
+    ])
+      client.send(frame)
 
     expect(seen).toEqual([])
   })

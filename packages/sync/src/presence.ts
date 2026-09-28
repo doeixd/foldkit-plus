@@ -310,13 +310,14 @@ interface PresenceFrame<Update> {
 
 /** Decodes a presence frame, ignoring anything else a socket may carry. */
 const decodePresence = <Update>(data: string): PresenceFrame<Update> | undefined => {
-  let frame: Record<string, unknown>
+  let frame: unknown
   try {
-    frame = JSON.parse(data) as Record<string, unknown>
+    frame = JSON.parse(data)
   } catch {
     return undefined
   }
-  const payload = frame[frameType]
+  if (typeof frame !== 'object' || frame === null) return undefined
+  const payload = (frame as Record<string, unknown>)[frameType]
   if (typeof payload !== 'object' || payload === null) return undefined
   const { id, value } = payload as { id?: unknown; value?: unknown }
   return { id: typeof id === 'string' ? id : undefined, value: (value ?? null) as Update | null }

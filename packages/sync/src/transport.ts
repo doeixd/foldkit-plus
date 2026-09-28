@@ -342,13 +342,19 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               flush()
             })
             const offMessage = next.onMessage(data => {
-              for (const listener of [...listeners]) listener(data)
+              // Another protocol's listener must not cost an exchange its reply.
+              for (const listener of [...listeners]) {
+                try {
+                  listener(data)
+                } catch {}
+              }
               let reply: ExchangeReply | NotifyFrame
               try {
                 reply = JSON.parse(data) as ExchangeReply | NotifyFrame
               } catch {
                 return
               }
+              if (typeof reply !== 'object' || reply === null) return
               if ('notify' in reply) {
                 if (reply.notify === true) PubSub.publishUnsafe(notices, undefined)
                 return

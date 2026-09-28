@@ -241,6 +241,29 @@ describe('the socket transport', () => {
     expect(result).toEqual(['late'])
   })
 
+  it('answers an exchange past a throwing shared listener and frames that are not objects', async () => {
+    const { client, server } = socketPair()
+    server.onMessage(data => {
+      const frame = JSON.parse(data) as { id: string }
+      server.send('null')
+      server.send('3')
+      server.send(JSON.stringify({ id: frame.id, result: 'ok' }))
+    })
+    const program = Effect.gen(function* () {
+      const transport = yield* Effect.service(Transport)
+      transport.socket!.onMessage(() => {
+        throw new Error('another protocol failed')
+      })
+      return yield* transport.exchange(0, []).pipe(Effect.timeout('1 second'))
+    })
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        program.pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client }))),
+      ),
+    )
+    expect(result).toBe('ok')
+  })
+
   it('fails the exchange when the reply carries an error', async () => {
     const { client, server } = socketPair()
     server.onMessage(data => {
