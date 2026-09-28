@@ -273,6 +273,21 @@ Remote's Subscription entries, so a plan with `start: 'idle' |
 it rather than a `Snapshot`, which is for a cache that survives a reload and
 keeps no cursors.
 
+A render that fetches nothing needs everything the page's active Surfaces
+read, and one read can decide what another asks for (a page's Blocks once its
+document is read). `Data.satisfy` takes the record `Data.wiring` takes and
+prefetches, cache-first, pass after pass until nothing is missing; past its
+bound (8 passes, `{ passes }`) it fails with `RemoteUnsatisfied`, naming the
+Surfaces still reading:
+
+```ts
+const page = await Effect.runPromise(
+  Data.satisfy(App.initial, {
+    page: Surface.at(ProjectPage, () => Option.some({ projectId: 'p1' })),
+  }).pipe(Effect.provide(clientLayer)),
+)
+```
+
 Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts

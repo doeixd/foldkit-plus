@@ -531,6 +531,25 @@ export interface RemoteDomain<
     options?: ObserveOptions,
   ): Effect.Effect<AppModel, RemoteReadError | RemoteProtocolError | RemoteQueryError, RemoteClient>
   /**
+   * The Model with everything the active Surfaces read, for a render that
+   * fetches nothing (SSR, a prerender). Each pass prefetches every Surface
+   * that plans a read, over the Model the one before it left, so a Surface
+   * active only once another's read has arrived is read in the next pass (or
+   * the same one, when it comes later in `active`). It stops at the first
+   * pass that plans nothing, and fails with `RemoteUnsatisfied` when
+   * `options.passes` run out first. Reads are cache-first: a field already
+   * held is not asked again.
+   */
+  satisfy(
+    model: AppModel,
+    active: Readonly<Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>>,
+    options?: SatisfyOptions,
+  ): Effect.Effect<
+    AppModel,
+    RemoteReadError | RemoteProtocolError | RemoteQueryError | RemoteUnsatisfied,
+    RemoteClient
+  >
+  /**
    * Starts a registered mutation from `update`: applies `MutationStarted` (with
    * the optimistic operations) to the Model and returns the Command that runs
    * it and yields the settling Message. The request id comes from the model's
@@ -870,6 +889,25 @@ export interface ObserveOptions {
   /** The clock a refreshing policy reads; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
 }
+
+/** How `Data.satisfy` reads: how many passes it may take, and the clock. */
+export interface SatisfyOptions {
+  /** At most this many passes over the Surfaces; default 8. */
+  readonly passes?: number | undefined
+  /** The clock the reads are stamped with; default `Date.now`, read at each use. */
+  readonly now?: (() => number) | undefined
+}
+
+/**
+ * `Data.satisfy` reached its bound with Surfaces still reading, such as a
+ * chain whose every read reveals one more. It names them, so a page that
+ * would have rendered them loading fails instead. (A read the server leaves
+ * unanswered settles as missing and ends the loop.)
+ */
+export class RemoteUnsatisfied extends Schema.TaggedError<RemoteUnsatisfied>()(
+  'RemoteUnsatisfied',
+  { surfaces: Schema.Array(Schema.String), passes: Schema.Number },
+) {}
 
 export interface LiveOptions {
   /** The clock `LiveReceived` stamps events with; default `Date.now`, read at each use. */
@@ -2268,6 +2306,14 @@ const bindDomain = <
     const next = updateRemote(remote, resolved as RemoteMessage)
     return next === remote ? model : store.set(model, next as Store)
   }
+  // Two applications can have the same Model type; the owner token tells them apart.
+  const assertOwned = (entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>) => {
+    if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
+      throw new Error(
+        `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
+      )
+    }
+  }
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
     ...bound,
@@ -2293,14 +2339,7 @@ const bindDomain = <
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
       // Checked before any reader joins the domain, so a refused call adds none.
-      for (const entry of Object.values(active)) {
-        // Two applications can have the same Model type; the owner token tells them apart.
-        if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
-          throw new Error(
-            `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
-          )
-        }
-      }
+      for (const entry of Object.values(active)) assertOwned(entry)
       for (const [key, entry] of Object.entries(active)) {
         const projectionAt = readers.get(entry) ?? memoizedProjectionOf(entry)
         readers.set(entry, projectionAt)
@@ -2362,6 +2401,37 @@ const bindDomain = <
           requests: requirements,
         })
         return reduce(current, { _tag: 'ReadReceived', requests: requirements, result, now: at })
+      }),
+    satisfy: (model, active, options = {}) =>
+      Effect.gen(function* () {
+        const { passes = 8, now = wallClock } = options
+        const entries = Object.values(active)
+        entries.forEach(assertOwned)
+        const planOptions = RemotePolicy.toPlan(RemotePolicy.cacheFirst, now())
+        const plans = (current: AppModel, entry: (typeof entries)[number]) => {
+          const planned = planAsked(
+            store.get(current),
+            askedWhile(projectionOf(entry, current)),
+            planOptions,
+          )
+          return planned.queries.length > 0 || planned.requirements.length > 0
+        }
+        let current = model
+        for (let pass = 0; pass < passes; pass++) {
+          if (!entries.some(entry => plans(current, entry))) return current
+          for (const entry of entries) {
+            // Asked again over the Model the Surface before it left.
+            const projection = projectionOf(entry, current)
+            if (Option.isSome(projection))
+              current = yield* domain.prefetch(current, projection.value, { now })
+          }
+        }
+        const reading = entries.filter(entry => plans(current, entry))
+        if (reading.length === 0) return current
+        return yield* new RemoteUnsatisfied({
+          surfaces: reading.map(entry => entry.name),
+          passes,
+        })
       }),
     query: <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
       query: Q,

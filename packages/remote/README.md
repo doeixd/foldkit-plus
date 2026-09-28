@@ -808,6 +808,24 @@ const loaded = await Effect.runPromise(
 Remote Messages reduced into it. It never changes the semantics of the
 Projection itself.
 
+A render that fetches nothing (SSR, a prerender) needs everything a page's
+active Surfaces read, and one read can decide what another asks for: a page's
+Blocks are known once its document is. `Data.satisfy` prefetches every active
+Surface, cache-first, pass after pass until a pass plans nothing:
+
+```ts
+const ready = await Effect.runPromise(
+  Data.satisfy(model, actives).pipe(Effect.provide(clientLayer)),
+)
+```
+
+`actives` is the record `Data.wiring` takes. The passes are bounded (8 by
+default, `{ passes }` to change it); a Surface still reading after the last
+fails the Effect with `RemoteUnsatisfied`, which names it, rather than
+rendering it loading. A read the server leaves unanswered settles as missing,
+so it ends the loop; what runs out the passes is a chain whose every read
+reveals one more.
+
 ### Refreshing from `update`
 
 To revalidate what a screen already declares — a refresh button, a focus

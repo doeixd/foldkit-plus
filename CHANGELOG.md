@@ -49,6 +49,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`, `Data.satisfy(model, actives, { passes? })`:** the Model
+  with everything the active Surfaces read, for a render that fetches nothing.
+  It prefetches each Surface that plans a read, cache-first, pass after pass
+  until a pass plans nothing, so a read that depends on another (a page's
+  Blocks on its document) is made too. Past the bound (8 passes) it fails with
+  `RemoteUnsatisfied`, naming the Surfaces still reading.
+
 - **`foldkit-bundle`, `onMessage`:** a placement's `onMessage` (and
   `(message, key)` on a collection) observes each child Message as a parent
   Step after the child and its `onOut`; `placements.update(own)` types `own`'s
