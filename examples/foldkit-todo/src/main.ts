@@ -23,10 +23,9 @@ import {
   EditInputStyle,
   FilterButtonStyle,
   NewTodoInputStyle,
-  PageSlots,
-  PageStyle,
   SaveButtonStyle,
   SelectedFilterButtonStyle,
+  TodoPage,
 } from './style.js'
 
 // CONSTANT
@@ -285,7 +284,7 @@ export const subscriptions = Subscription.make<Model, Message, KeyValueStore.Key
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof TodoPage.slots, Message>
 
 const button = (
   config: Readonly<{
@@ -468,7 +467,7 @@ const activeCountOf = (todos: Todos): number =>
   Array.length(Array.filter(todos, todo => !todo.completed))
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) => {
+  .define(TodoPage.slots, (model: Model, slots, h) => {
     const filteredTodos = filterTodos(model.todos, model.filter)
     const activeCount = activeCountOf(model.todos)
     const completedCount = Array.length(model.todos) - activeCount
@@ -526,7 +525,7 @@ export const Page = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(TodoPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: `Todos (${activeCountOf(model.todos)})`,

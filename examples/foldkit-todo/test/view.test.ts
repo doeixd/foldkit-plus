@@ -1,4 +1,4 @@
-import { SlotView, Style } from 'foldkit-mixins'
+import { SlotView } from 'foldkit-mixins'
 import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
 import type { Html } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
@@ -7,10 +7,6 @@ import { describe, expect, test } from 'vitest'
 import { type Message, type Model, Page, initialModel, view } from '../src/main.js'
 import { stylesheet } from '../src/style.js'
 import { editingModel, modelWithTodos } from './fixtures.js'
-
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
 
 const models: ReadonlyArray<readonly [string, Model]> = [
   ['empty', initialModel],
@@ -37,7 +33,7 @@ describe('the todo view', () => {
   test('fills only the selected filter with the accent', () => {
     const tree = Inert.draw(Page, modifyFields(modelWithTodos, { filter: () => 'Active' as const }))
     const accented = ['All', 'Active', 'Completed'].filter(name =>
-      cssOf([buttonNamed(tree, name)]).includes('--_fk-tone-fill:var(--fk-accent-default)'),
+      Inert.css([buttonNamed(tree, name)]).includes('--_fk-tone-fill:var(--fk-accent-default)'),
     )
     expect(accented).toEqual(['Active'])
   })
@@ -47,21 +43,14 @@ describe('the todo view', () => {
       .filter(node => Inert.value(node, 'data-state') === 'completed')
       .map(Inert.text)
     expect(struck).toEqual(['Done task'])
-    expect(cssOf(Inert.bySlot(Inert.draw(Page, modelWithTodos), 'todoText'))).toContain(
+    expect(Inert.css(Inert.bySlot(Inert.draw(Page, modelWithTodos), 'todoText'))).toContain(
       '[data-state="completed"]',
     )
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      models.flatMap(([, model]) =>
-        [...cssOf(Inert.all(Inert.draw(Page, model))).matchAll(/var\((--fk-[\w-]+)\)/g)].map(
-          ([, name]) => name,
-        ),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    const tree = Inert.draw(Page, modelWithTodos)
+    expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+    expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
   })
 })
