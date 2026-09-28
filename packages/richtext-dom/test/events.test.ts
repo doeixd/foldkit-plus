@@ -389,6 +389,19 @@ describe('the wired editing loop', () => {
     // The run the IME is writing into is not redrawn under it.
     expect(toText(attachment.current())).toBe('abにほcd\nef')
     expect(attachment.current().root.querySelector('[data-decoration]')).toBeNull()
+    attachment.current().root.dispatchEvent(composition('compositionend', ''))
+    attachment.sync(
+      { document: attachment.current().content, selection: caretAt(['a', 2]) },
+      {
+        dirtyNodes: new Set(),
+        insertedNodes: new Set(),
+        removedNodes: new Set(),
+        textChanged: new Set(),
+        structureChanged: false,
+        selectionChanged: false,
+      },
+    )
+    expect(attachment.current().root.querySelector('[data-decoration]')?.textContent).toBe('a')
     attachment.detach()
   })
 

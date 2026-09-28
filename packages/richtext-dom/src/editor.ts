@@ -296,10 +296,13 @@ export const redecorateEditor = (hostId: string): boolean => {
   return attachment !== undefined
 }
 
-/** The document the editor at `hostId` has drawn, or undefined when none is attached there. */
-export const drawnDocument = (hostId: string): RichText.Document | undefined => {
+/**
+ * The latest document the editor at `hostId` holds (`Attachment.held`), or undefined when none
+ * is attached there.
+ */
+export const heldDocument = (hostId: string): RichText.Document | undefined => {
   const host = document.getElementById(hostId)
-  return host === null ? undefined : attachmentIn(host)?.current().content
+  return host === null ? undefined : attachmentIn(host)?.held()
 }
 
 /** The editor's events as a mount: one attachment per element, released with it.

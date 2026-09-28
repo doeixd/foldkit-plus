@@ -1131,6 +1131,38 @@ describe('replacing the whole document', () => {
     expect(patched.elements.has(id('n'))).toBe(false)
   })
 
+  it('redraws both blocks when a run moves between blocks the change keeps', () => {
+    const runs = (first: ReadonlyArray<string>, second: ReadonlyArray<string>) =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          ['a', first],
+          ['b', second],
+        ].map(([block, ids]) => ({
+          type: 'Paragraph',
+          id: block,
+          children: (ids as ReadonlyArray<string>).map(run => ({
+            type: 'Text',
+            id: run,
+            text: run,
+            marks: [],
+          })),
+        })),
+      })
+    for (const [before, after, dirty] of [
+      [runs(['r1', 'r2'], ['r3']), runs(['r1'], ['r2', 'r3']), ['a', 'b']],
+      // Reordered within one block: nothing else changes.
+      [runs(['r1', 'r2'], ['r3']), runs(['r2', 'r1'], ['r3']), ['a']],
+    ] as const) {
+      const changeSet = replaceChangeSet(before, after)
+      // No run's text or marks changed, so only where they stand says the blocks must redraw;
+      // a change set naming nothing is one `patchTo` skips.
+      expect([...changeSet.dirtyNodes].sort()).toEqual(dirty)
+      const patched = patch(mount(document, before), after, changeSet)
+      expect(patched.root.isEqualNode(mount(document, after).root)).toBe(true)
+    }
+  })
+
   it('names a block whose props alone changed', () => {
     const task = (checked: boolean) =>
       RichText.decodeDocument({

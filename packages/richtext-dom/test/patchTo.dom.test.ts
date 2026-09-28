@@ -12,6 +12,7 @@ import * as RichText from 'foldkit-richtext'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Message } from '../src/editor.js'
 import { EditorView, editorView, overlay, patchTo } from '../src/editor-bundle.js'
+import { mountInto, releaseMount } from '../src/host.js'
 
 const hostId = 'patched-body'
 const paragraphs = (...texts: ReadonlyArray<string>) =>
@@ -194,6 +195,29 @@ describe('a document replaced by the parent', () => {
       expect(host()).not.toBe(first)
     } finally {
       handle.dispose()
+    }
+  })
+})
+
+describe('a replacement that arrives during a composition', () => {
+  it('is judged against the state waiting on the composition, not the one drawn', () => {
+    const host = window.document.createElement('div')
+    host.id = 'composing-body'
+    window.document.body.append(host)
+    const attachment = mountInto(host, paragraphs('one', 'two'), { onIntent: () => {} })
+    const replace = (from: RichText.Document, to: RichText.Document) =>
+      Effect.runSync(patchTo(host.id, from, { document: to, selection: null }).effect)
+    try {
+      attachment.current().root.dispatchEvent(new Event('compositionstart'))
+      const upper = paragraphs('one', 'TWO')
+      replace(paragraphs('one', 'two'), upper)
+      // Back to what is drawn: unchanged from the drawing, but not from the state held.
+      replace(upper, paragraphs('one', 'two'))
+      attachment.current().root.dispatchEvent(new Event('compositionend'))
+      expect(host.textContent).toBe('onetwo')
+    } finally {
+      releaseMount(host)
+      host.remove()
     }
   })
 })

@@ -240,6 +240,11 @@ export interface Attachment {
    * the next state drawn brings them.
    */
   readonly redecorate: () => void
+  /**
+   * The latest document synced: the one waiting on a composition, or else the one drawn. A
+   * patch computed from here to the next state is what brings the subtree up to it.
+   */
+  readonly held: () => RichText.Document
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
   readonly detach: () => void
@@ -447,6 +452,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   target.addEventListener('paste', onPaste)
   return {
     current: () => current,
+    held: () => deferred?.state.document ?? current.content,
     composing: () => composing,
     redecorate: () => {
       if (composing) return

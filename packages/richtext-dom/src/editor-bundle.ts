@@ -16,7 +16,7 @@ import * as Submodel from 'foldkit/submodel'
 import type * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
 import {
-  drawnDocument,
+  heldDocument,
   events,
   Message,
   patchEditor,
@@ -157,6 +157,12 @@ export const replaceChangeSet = (
       if (old === undefined || old.text !== run.text || !sameMarks(old, run)) {
         dirtyNodes.add(id)
         if (placed.parent !== null) dirtyNodes.add(placed.parent)
+      }
+      // A run moved to another block, or to another place in its own, changes both blocks'
+      // runs though the run itself did not change.
+      if (was !== undefined && (was.parent !== placed.parent || was.index !== placed.index)) {
+        if (placed.parent !== null) dirtyNodes.add(placed.parent)
+        if (was.parent !== null && after.has(was.parent)) dirtyNodes.add(was.parent)
       }
       continue
     }
@@ -307,7 +313,8 @@ const carryKey = (hostId: string, from: RichText.Document, to: RichText.Document
  * The host is found by the document the view renders, so `previous` is the object it
  * rendered and `next.document` the object it will render; building the Command hands the
  * host on from one to the other, so build it only to return it. The patch itself starts
- * from whatever the editor has drawn, and `next.selection` becomes the browser selection;
+ * from the latest state the editor holds (what it has drawn, or a state waiting on a
+ * composition), and `next.selection` becomes the browser selection;
  * a replacement that changes nothing drawn leaves the DOM alone, selection included, as an
  * exchange that only confirms edits already shown does.
  */
@@ -321,8 +328,10 @@ export const patchTo = (
     name: 'RichText.patch',
     effect: Effect.as(
       Effect.sync(() => {
-        const drawn = drawnDocument(hostId) ?? previous
-        const changeSet = replaceChangeSet(drawn, next.document)
+        const held = heldDocument(hostId)
+        // No editor is attached there: it went away while the transition was in flight.
+        if (held === undefined) return
+        const changeSet = replaceChangeSet(held, next.document)
         const unchanged =
           !changeSet.structureChanged &&
           changeSet.dirtyNodes.size === 0 &&
