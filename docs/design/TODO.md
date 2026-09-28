@@ -312,13 +312,17 @@ its README the details.
 - [ ] **Primitives: `History.push` makes a new empty `future` on every push,**
   which redraws whatever reads it; and `History` has no jump-to-step.
   `foldkit-pixel-art`
-- [ ] **Form: no public "valid right now" query** (`canSubmit` is true while a
-  check runs), no way to validate every key without submitting, no Command
-  definition for a check that tests can match, and `Form.make` requires an
-  Entity for a plain form. `foldkit-form`, `foldkit-job-application`
-- [ ] **Form: `Schema.optionalKey` is treated as required,** and `Blurred` on
-  an empty optional key returns an equal copy of the Model.
-  `foldkit-job-application`
+- [x] **Form: no "valid right now" query, no validate-all.** Done:
+  `form.isValid`, `Message.ValidatedAll()`.
+- [ ] **Form: no Command definition for a check that tests can match** (still
+  an inline `{ name: '<form>.check', args: { key } }`), and `Form.make`
+  requires an Entity for a plain form. `foldkit-form`
+- [ ] **Form: `engine.value` drops a filled but invalid optional key** that is
+  not validated yet, instead of refusing, reached by `fill` then
+  `engine.value` (a submit validates first; `isValid` is right).
+- [x] **Form: `Schema.optionalKey` is treated as required,** and `Blurred` on
+  an empty optional key returns an equal copy of the Model. Fixed; an
+  `Option`-typed key is also drawn now.
 - [ ] **SSR: `SSR.hydrate` rejects Foldkit's own application config type,**
   contrary to its README; there is no browser-only entry, so a hydrated page's
   bundle carries the server renderer (+231 kB minified); and `SSR.entry` cannot

@@ -88,7 +88,8 @@ const RenameForm = Page.children.rename
 - `Rename.bundle` is an ordinary Bundle. `onOut` is required, so a submit is
   never dropped by omission.
 - `Rename.Message` builds the form's Messages for your view to dispatch:
-  `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`.
+  `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`,
+  and `ValidatedAll()` (see [Validation](#validation)).
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
 - `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for
@@ -296,16 +297,35 @@ Entity's: the operation decides what is valid, and may be stricter.
 - **Leaving a control** (`Blurred`) checks the draft as it stands, which is how
   a required key left empty comes to say so.
 - **Empty** means `""` or `[]`. What an empty draft submits is whatever the
-  schema admits for it, tried in order: leaving the key out, `null`, then the
-  empty value itself. A key is `required` exactly when none is admitted, so
-  `Schema.optional`, `Schema.NullOr`, and an array need no flag from you. A
-  plain `Schema.String` admits `""`; add `Schema.isMinLength(1)` to require it.
+  input admits for it, tried in order: leaving the key out (`Schema.optionalKey`,
+  `Schema.optional`), `Option.none()` for a key typed `Option`, `null`, then the
+  empty value itself. A key is `required` exactly when none is admitted, so an
+  optional key, `Schema.NullOr`, and an array need no flag from you. A plain
+  `Schema.String` admits `""`; add `Schema.isMinLength(1)` to require it.
+- **A key typed `Option`** (`Schema.OptionFromNullOr(Schema.String)`) is edited
+  as what it holds: a `Text` control, checked by the inner schema, submitting
+  `Option.some(value)`, and filled from an `Option`.
 - **A number** that does not parse reads `Enter a number`; one that parses is
   checked by the schema. Only spaces is nothing entered, not zero.
 - **Submit** checks every key, so every failure shows. When all pass, the whole
   input is decoded; a rule that spans keys fails there and lands in
   `model.errors`, since it belongs to no one control. The next edit clears
   them.
+- **`ValidatedAll`** checks every key a submit would, rows too, and submits
+  nothing: for a page that sends several forms at once. A rule that spans keys
+  is said only by a submit.
+- A validation that changes nothing, such as a blur on an empty optional key,
+  returns the Model it was given, so nothing redraws.
+
+Two questions a view asks before a submit:
+
+| Query | True when |
+| --- | --- |
+| `form.isValid(model)` | a submit now would hand over the value at once: every key and row valid, no check running or still to run |
+| `form.canSubmit(model)` | nothing is invalid; a check still running does not stop it, since the submit waits for the answer |
+
+A page that submits its forms itself reads `isValid`; a Save button reads
+`canSubmit`.
 
 Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Validating`
 (a check is running), `Valid`, `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,

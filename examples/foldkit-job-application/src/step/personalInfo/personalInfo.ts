@@ -195,8 +195,7 @@ export const update = (model: Model, message: Message) =>
 
 export const hasErrors = (model: Model): boolean => Validation.hasErrors(model.form)
 
-export const isComplete = (model: Model): boolean =>
-  Validation.isComplete(PersonalInfoForm)(model.form)
+export const isComplete = (model: Model): boolean => PersonalInfoForm.isValid(model.form)
 
 export const revealErrors: Update.Step<Model, Message> = Update.foldChildStep({
   update: Validation.revealErrors(PersonalInfoForm),

@@ -66,7 +66,7 @@ const RenameForm = Page.at(Slot, {
 ## Common tasks
 
 - **Dispatch from a view:** `Rename.Message.Changed({ key, value })`,
-  `Blurred({ key })`, `Submitted()`, `Reset()`, wrapped in the placement's
+  `Blurred({ key })`, `Submitted()`, `Reset()`, `ValidatedAll()`, wrapped in the placement's
   Message (`Message.GotRenameMessage({ message })`).
 - **Posting without scripts:** `foldkit-mixins-form` names every control by
   its key (`name=<key>`; a relation picker's checkboxes also carry `value`), so
@@ -140,7 +140,13 @@ const RenameForm = Page.at(Slot, {
   `Update.Step` of the parent; keys not passed keep their draft. With Remote:
   load `Data.get(Entity.selectFor(Rename.input), id)`, then
   `fill(Entity.valuesFor(Rename.input, loaded))`.
-- **Enable the button:** `Rename.canSubmit(model.rename)`.
+- **Enable the button:** `Rename.canSubmit(model.rename)` (true while a check
+  runs; the submit waits). **Valid right now:** `Rename.isValid(model.rename)`.
+  **Show every error without submitting** (a page that submits several forms
+  itself): `Message.ValidatedAll()`.
+- **Optional keys:** `Schema.optionalKey` / `Schema.optional` left empty are
+  valid and absent from the value; a key typed `Option` (`OptionFromNullOr`) is
+  edited as the value it holds and submits `Option.some` / `Option.none()`.
 - **Put a server's error on a key** (a unique index, a rule only a server knows):
   `Message.Refused({ key, error })`. The key reads invalid with that reason, keeps
   what was typed, and clears on the next edit. `Checked` will not do: it only

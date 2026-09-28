@@ -1,11 +1,10 @@
-import { Array, Equal, Option, Record, String } from 'effect'
+import { Record, String } from 'effect'
 import { FieldValidation, Update } from 'foldkit'
 import type { MessageField } from 'foldkit-form'
 
-/** What a step's form needs for the application to read and reveal it. */
-interface StepForm<Model, Message, Key extends string> {
-  readonly controls: ReadonlyArray<{ readonly key: Key }>
-  readonly Message: { readonly Blurred: (args: { readonly key: Key }) => Message }
+/** What a step's form needs for the application to reveal its errors. */
+interface StepForm<Model, Message> {
+  readonly Message: { readonly ValidatedAll: () => Message }
   readonly bundle: {
     readonly update: (
       model: Model,
@@ -13,7 +12,6 @@ interface StepForm<Model, Message, Key extends string> {
       args: void,
     ) => Update.ReturnWithOutMessage<Model, Message, unknown>
   }
-  readonly engine: { readonly value: (model: Model) => unknown }
 }
 
 /**
@@ -24,34 +22,21 @@ export const requiredMessage = ({ label }: MessageField): string =>
   `${String.capitalize(label.toLowerCase())} is required`
 
 /**
- * Every draft not validated yet is, so a submit shows what is missing. The form
- * validates a key on `Blurred` only while it is `NotValidated`, as upstream's
- * `revealFieldErrors` did, so a valid or checked draft is left as it is. A
- * well-formed email not yet checked is asked about, rather than taken as valid.
+ * Every draft not validated yet is, so a submit shows what is missing, and a
+ * valid or checked draft is left as it is, as upstream's `revealFieldErrors`
+ * did. A well-formed email not yet checked is asked about, rather than taken
+ * as valid. The form's `ValidatedAll` hands over nothing: only a submit does.
  */
 export const revealErrors =
-  <Model, Message, Key extends string>(form: StepForm<Model, Message, Key>) =>
-  (model: Model): Update.Return<Model, Message> =>
-    Update.combine(
+  <Model, Message>(form: StepForm<Model, Message>) =>
+  (model: Model): Update.Return<Model, Message> => {
+    const { model: next, commands = [] } = form.bundle.update(
       model,
-      Array.map(form.controls, ({ key }) => (current: Model) => {
-        // `Blurred` hands over nothing: only a submit does.
-        const { model: next, commands = [] } = form.bundle.update(
-          current,
-          form.Message.Blurred({ key }),
-          undefined,
-        )
-        // The form validates an empty optional key again into an equal copy,
-        // and Foldkit redraws for a new Model.
-        return { model: Equal.equals(next, current) ? current : next, commands }
-      }),
+      form.Message.ValidatedAll(),
+      undefined,
     )
-
-/** Every key valid as it stands, a running check included as not yet. */
-export const isComplete =
-  <Model, Message, Key extends string>(form: StepForm<Model, Message, Key>) =>
-  (model: Model): boolean =>
-    Option.isSome(Option.fromUndefinedOr(form.engine.value(model)))
+    return { model: next, commands }
+  }
 
 /** Some key shows an error. */
 export const hasErrors = (form: {

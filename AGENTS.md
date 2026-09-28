@@ -476,9 +476,8 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   ignored it. Ask a lazy slot, which throws only for a missing frame: a catch
   around `h.submodel` also caught its duplicate-slot error and drew a dead form.
 - **A form checks a draft against its key's type side.** `planOf` decodes
-  with `Schema.toType(schema)`, so a key typed `Option` (`OptionFromNullOr`)
-  cannot be drawn: no picker makes an `Option`. Edit such a value on its
-  encoded side. And `Schema.toEncoded` keeps inner checks but drops one made
+  with `Schema.toType(schema)` (an `Option` key is unwrapped to what it holds
+  first). `Schema.toEncoded` keeps inner checks but drops one made
   after a transformation: `NumberFromString.check(isGreaterThan(0))` accepted
   `'-1'`. Re-check against the whole Schema.
 - **A Mount's acquire that throws halfway fails silently and leaks.** `Measure`

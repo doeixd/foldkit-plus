@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-form`, optional and `Option` keys:** a key made with
+  `Schema.optionalKey` and left empty is valid and left out of the value, as
+  it already was for `Schema.optional` (an optional nested key too). A key
+  typed `Option` (`Schema.OptionFromNullOr`) is edited as the value it holds
+  and submits `Option.some` / `Option.none()`, instead of throwing "no
+  control". A validation that changes nothing (a blur on an empty optional
+  key) returns the Model it was given, so nothing redraws.
+
 - **`foldkit-mirror`, a slow restore no longer loses the stored document:** a
   key-value or kernel mirror holds each write until the Model has taken in
   what `restore` answered. Before, the write Subscription started from the
@@ -17,6 +25,12 @@ version changed; `pnpm` skips versions already in the registry.
   applies again on every restore; a failed read counts as an empty store.
 
 ### Added
+
+- **`foldkit-form`, validating without submitting:**
+  `Message.ValidatedAll()` validates every key and row as a submit would and
+  submits nothing; `form.isValid(model)` says whether a submit now would hand
+  over the value at once (unlike `canSubmit`, a running or unrun check is not
+  valid).
 
 - **`foldkit-mixins-form`, a check running and a submit in flight:** a key
   whose check runs shows a `Checking…` line in the new `checking` Slot

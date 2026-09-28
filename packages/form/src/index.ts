@@ -8,7 +8,7 @@
  * happens to it (a Remote mutation, a Sync operation, a plain `update`) is the
  * parent's.
  */
-import { Duration, Effect, Option, Pipeable, Result, Schema } from 'effect'
+import { Duration, Effect, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
 import {
   Words,
@@ -239,6 +239,10 @@ export interface FormFor<
       readonly model: any
       readonly commands: ReadonlyArray<Command<any, never, R>>
     }
+    readonly validateAll: (model: any) => {
+      readonly model: any
+      readonly commands: ReadonlyArray<Command<any, never, R>>
+    }
     readonly isValidating: (model: any) => boolean
     readonly value: (model: any) => unknown
     /** Whether a transition changed authored content, so a nesting form recurses. */
@@ -263,7 +267,14 @@ export type NestedForms<Fields extends Schema.Struct.Fields, Members, R> = {
 
 /** The constructors of a form's Messages that a row's handle offers, wrapped for the row. */
 type RowConstructor =
-  'Changed' | 'Blurred' | 'Searched' | 'Submitted' | 'Reset' | 'RowAdded' | 'RowRemoved'
+  | 'Changed'
+  | 'Blurred'
+  | 'ValidatedAll'
+  | 'Searched'
+  | 'Submitted'
+  | 'Reset'
+  | 'RowAdded'
+  | 'RowRemoved'
 
 /**
  * One row of a nested key, addressed: the nested form's own Message constructors,
@@ -345,6 +356,10 @@ interface AnyForm extends NestedForm {
       readonly model: any
       readonly commands: ReadonlyArray<AnyCommand>
     }
+    readonly validateAll: (model: any) => {
+      readonly model: any
+      readonly commands: ReadonlyArray<AnyCommand>
+    }
     readonly isValidating: (model: any) => boolean
     readonly value: (model: any) => unknown
     readonly authoredChanged: (before: any, after: any) => boolean
@@ -361,7 +376,7 @@ interface NestedPlan extends FormControl {
   readonly form: AnyForm
   readonly cardinality: 'one' | 'many'
   readonly optional: boolean
-  /** What no row submits, for a `one` whose schema admits nothing. */
+  /** What no row submits, for a `one` whose schema admits nothing; `undefined` leaves the key out. */
   readonly nothing: null | undefined
 }
 
@@ -392,6 +407,7 @@ export type RequirementOf<C> = {
 const edits = {
   Changed: true,
   Blurred: false,
+  ValidatedAll: false,
   Submitted: false,
   Reset: true,
   Checked: false,
@@ -464,6 +480,22 @@ const isBlank = (control: Control, draft: Draft): boolean =>
   isEmpty(draft) ||
   (control.parse !== undefined && typeof draft === 'string' && draft.trim() === '')
 
+/**
+ * What an `Option`-typed key holds (`Schema.Option`, `Schema.OptionFromNullOr`),
+ * found as Effect's own tools find it: by the declaration's representation id.
+ */
+const optionOf = (schema: Schema.Top): Option.Option<Schema.Top> => {
+  const { ast } = schema
+  if (!SchemaAST.isDeclaration(ast) || ast.typeParameters.length !== 1) return Option.none()
+  const representation: unknown = ast.annotations?.['representation']
+  return typeof representation === 'object' &&
+    representation !== null &&
+    'id' in representation &&
+    representation.id === 'effect/schema/Option'
+    ? Option.some(Schema.make(ast.typeParameters[0]!))
+    : Option.none()
+}
+
 /** The schema's `title`, else `Form.label` metadata on the member, else the key. */
 const wordsOf = (
   key: string,
@@ -500,7 +532,8 @@ const nestedPlanOf = (
 ): NestedPlan => {
   const accepts = Schema.is(Schema.toType(schema) as Schema.Codec<unknown>)
   const cardinality = member.relation.cardinality
-  const optional = cardinality === 'many' || accepts(undefined) || accepts(null)
+  const absent = SchemaAST.isOptional(schema.ast) || accepts(undefined)
+  const optional = cardinality === 'many' || absent || accepts(null)
   if (given !== undefined && (given as { readonly input?: unknown }).input !== member.input)
     fail(
       name,
@@ -527,7 +560,7 @@ const nestedPlanOf = (
     form,
     cardinality,
     optional,
-    nothing: accepts(undefined) ? undefined : null,
+    nothing: absent ? undefined : null,
   }
 }
 
@@ -539,7 +572,10 @@ const planOf = (
   override: Control | ControlChange | undefined,
   messages: FormMessages,
 ): Plan => {
-  const resolved = Input.resolve(member, schema)
+  // A key typed `Option` is edited as what it holds; nothing entered is `Option.none()`.
+  const held = optionOf(schema)
+  const shape = Option.getOrElse(held, () => schema)
+  const resolved = Input.resolve(member, shape)
   const chosen =
     override === undefined
       ? resolved
@@ -553,7 +589,7 @@ const planOf = (
       `"${key}" cannot be given a ${control.kind} control; map it with Relation.nested`,
     )
   const kind = control.draft
-  const type = Schema.toType(schema) as Schema.Codec<unknown>
+  const type = Schema.toType(shape) as Schema.Codec<unknown>
   const decode = Schema.decodeUnknownResult(type)
   const accepts = Schema.is(type)
   const bundled = Input.isBundle(control) ? control.data : undefined
@@ -589,13 +625,23 @@ const planOf = (
       worded(messages.invalid, [field, message], { label, key, message }) ?? message,
   }
 
+  // What "nothing entered" submits is whatever the input admits for it: leaving
+  // an optional key out (`undefined`, which `decoded` omits), `Option.none()`,
+  // `null`, or the empty draft itself.
+  const [admitted] = (bundled === undefined ? [null, empty] : [null]).filter(value =>
+    accepts(value),
+  )
+  const nothingEntered: Checked =
+    SchemaAST.isOptional(schema.ast) || accepts(undefined)
+      ? Result.succeed(undefined)
+      : Option.isSome(held)
+        ? Result.succeed(Option.none())
+        : admitted !== undefined
+          ? Result.succeed(admitted)
+          : Result.fail(say.required)
+
   const check = (draft: Draft): Checked => {
-    if (blank(draft)) {
-      // What "nothing entered" submits is whatever the schema admits for it.
-      for (const nothing of bundled === undefined ? [undefined, null, empty] : [undefined, null])
-        if (accepts(nothing)) return Result.succeed(nothing)
-      return Result.fail(say.required)
-    }
+    if (blank(draft)) return nothingEntered
     // A kind may read its text as something else before the schema sees it, and
     // a control backed by a Bundle reads its value from its Model.
     const value =
@@ -605,7 +651,8 @@ const planOf = (
           ? control.parse(draft, control.data)
           : draft
     if (value === undefined) return Result.fail(say.unparsed)
-    return Result.mapError(decode(value), error => say.invalid(error.message))
+    const decoded = Result.mapError(decode(value), error => say.invalid(error.message))
+    return Option.isSome(held) ? Result.map(decoded, Option.some) : decoded
   }
 
   const required = kind !== 'flag' && Result.isFailure(check(empty))
@@ -658,13 +705,15 @@ const attempt = <A>(name: string, run: () => A): A => {
   }
 }
 
-/** The draft that shows `value`: a number as its text, nothing as the empty draft. */
-const draftOf = (plan: Plan, value: unknown): Draft =>
-  value === null || value === undefined
+/** The draft that shows `value`: a number as its text, nothing (`Option.none()` too) as the empty draft. */
+const draftOf = (plan: Plan, given: unknown): Draft => {
+  const value = Option.isOption(given) ? Option.getOrUndefined(given) : given
+  return value === null || value === undefined
     ? plan.empty
     : plan.kind === 'text'
       ? String(value)
       : (value as Draft)
+}
 
 const Core = {
   /**
@@ -792,6 +841,12 @@ const Core = {
       Changed: { key: KeySchema, value: DraftSchema },
       /** Validates the key as it stands, so a required key left empty says so. */
       Blurred: { key: KeySchema },
+      /**
+       * Validates every key not validated yet, in every row too, as a submit
+       * would, and submits nothing: for a page that submits several forms at once.
+       * A rule spanning keys is said only by a submit.
+       */
+      ValidatedAll: {},
       Submitted: {},
       Reset: {},
       /** The answer of a check for the draft it was asked about; one for an older draft is dropped. */
@@ -883,17 +938,23 @@ const Core = {
         }),
       ) as Partial<Value>
 
+    /** A nested key's value; none while some row has none. `undefined` is a key left out. */
+    const rowsValue = (model: Model, key: RowsKey): Option.Option<unknown> => {
+      const plan = nestedPlans[key]
+      const values = rowsOf(model)[key]!.map(row => plan.form.engine.value(row.model))
+      if (values.includes(undefined)) return Option.none()
+      return Option.some(
+        plan.cardinality === 'many' ? values : values.length === 0 ? plan.nothing : values[0],
+      )
+    }
+
     /** The value of each nested key, or `undefined` while some row has none. */
     const nestedValues = (model: Model): Readonly<Record<string, unknown>> | undefined => {
       const entries: Array<readonly [string, unknown]> = []
       for (const key of rowsKeys) {
-        const plan = nestedPlans[key]
-        const values = rowsOf(model)[key]!.map(row => plan.form.engine.value(row.model))
-        if (values.includes(undefined)) return undefined
-        entries.push([
-          key,
-          plan.cardinality === 'many' ? values : values.length === 0 ? plan.nothing : values[0],
-        ])
+        const value = rowsValue(model, key)
+        if (Option.isNone(value)) return undefined
+        if (value.value !== undefined) entries.push([key, value.value])
       }
       return Object.fromEntries(entries)
     }
@@ -953,6 +1014,15 @@ const Core = {
       draft: Draft,
     ): { readonly model: Model; readonly commands: Commands } => {
       const state = FieldValidation.validate(plans[key].rules)(draft)
+      const current = drafts(model)[key]
+      // An empty key that may stay empty validates to what it was: the same Model, so nothing redraws.
+      if (
+        state._tag === 'NotValidated' &&
+        current._tag === 'NotValidated' &&
+        sameDraft(current.value, draft)
+      ) {
+        return { model, commands: [] }
+      }
       const check = checks[key]
       if (check === undefined || state._tag !== 'Valid') {
         return { model: withField(model, key, state), commands: [] }
@@ -1073,14 +1143,17 @@ const Core = {
     }
 
     /**
-     * A submit: every key not yet validated is, in every row too, so every failure
-     * shows. With none, the value goes out; with checks still running, the submit
-     * waits for them.
+     * Every key not yet validated is, and `inRow` is run on every row, so every
+     * failure shows. A key or row this changes nothing in keeps its identity.
      */
-    const submit = (
+    const validateEvery = (
       model: Model,
-    ): { readonly model: Model; readonly commands: Commands; readonly value?: Value } => {
-      let next: Model = { ...model, errors: [], submitPending: false }
+      inRow: (
+        form: AnyForm,
+        row: unknown,
+      ) => { readonly model: unknown; readonly commands: ReadonlyArray<AnyCommand> },
+    ): { readonly model: Model; readonly commands: Commands } => {
+      let next = model
       const commands: Array<Command<Message, never, R>> = []
       for (const key of keys) {
         const state = drafts(next)[key]
@@ -1091,13 +1164,32 @@ const Core = {
         commands.push(...validated.commands)
       }
       for (const key of rowsKeys) {
-        const rows = rowsOf(next)[key]!.map(row => {
-          const submitted = nestedPlans[key].form.engine.submit(row.model)
-          commands.push(...lift(key, row.id, submitted.commands))
-          return { id: row.id, model: submitted.model }
+        const before = rowsOf(next)[key]!
+        const rows = before.map(row => {
+          const answered = inRow(nestedPlans[key].form, row.model)
+          commands.push(...lift(key, row.id, answered.commands))
+          return answered.model === row.model ? row : { id: row.id, model: answered.model }
         })
-        next = withRows(next, key, rows)
+        if (rows.some((row, index) => row !== before[index])) next = withRows(next, key, rows)
       }
+      return { model: next, commands }
+    }
+
+    /** Every key and row validated as a submit would, and nothing submitted. */
+    const validateAll = (model: Model): { readonly model: Model; readonly commands: Commands } =>
+      validateEvery(model, (form, row) => form.engine.validateAll(row))
+
+    /**
+     * A submit: every key and row is validated. With no failure, the value goes
+     * out; with checks still running, the submit waits for them.
+     */
+    const submit = (
+      model: Model,
+    ): { readonly model: Model; readonly commands: Commands; readonly value?: Value } => {
+      const { model: next, commands } = validateEvery(
+        { ...model, errors: [], submitPending: false },
+        (form, row) => form.engine.submit(row),
+      )
       if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
       return { ...finish(next), commands }
     }
@@ -1226,6 +1318,8 @@ const Core = {
               ? validateKey(model, message.key, state.value)
               : { model }
           }
+          case 'ValidatedAll':
+            return validateAll(model)
           case 'Refused': {
             const state = drafts(model)[message.key]
             return {
@@ -1289,6 +1383,9 @@ const Core = {
             // Enter in a row submits the form the row is in.
             if (inner._tag === 'Submitted') return submitted(model)
             const answered = plan.form.bundle.update(row.model, inner, undefined)
+            const lifted = lift(message.key, row.id, answered.commands ?? [])
+            // A row left as it was leaves this form as it was.
+            if (answered.model === row.model) return { model, commands: lifted }
             const next = withRows(
               model,
               message.key,
@@ -1298,10 +1395,7 @@ const Core = {
             )
             const edit =
               isEdit(inner) || plan.form.engine.authoredChanged(row.model, answered.model)
-            return resume(
-              edit ? edited(next) : next,
-              lift(message.key, row.id, answered.commands ?? []),
-            )
+            return resume(edit ? edited(next) : next, lifted)
           }
           case 'RowAdded': {
             const plan: NestedPlan | undefined = nestedPlans[message.key as RowsKey]
@@ -1465,6 +1559,7 @@ const Core = {
               [
                 'Changed',
                 'Blurred',
+                'ValidatedAll',
                 'Searched',
                 'Submitted',
                 'Reset',
@@ -1495,6 +1590,12 @@ const Core = {
         const next = submit(model)
         return next.value !== undefined || next.model.submitPending
       },
+      /**
+       * Whether the form is valid right now: a submit now would hand over the
+       * value at once. Unlike `canSubmit`, a check running, or one a key has not
+       * had yet, is not valid until it answers.
+       */
+      isValid: (model: Model): boolean => submit(model).value !== undefined,
       /**
        * The Model with nothing in flight, for one that was stored and is shown
        * again: a check that was running when it was stored will never answer, so
@@ -1534,14 +1635,15 @@ const Core = {
       partial: (model: Model): Partial<Value> => ({
         ...decoded(model),
         ...Object.fromEntries(
-          rowsKeys.flatMap(key => {
-            const plan = nestedPlans[key]
-            const values = rowsOf(model)[key]!.map(row => plan.form.engine.value(row.model))
-            if (values.includes(undefined)) return []
-            const held =
-              plan.cardinality === 'many' ? values : values.length === 0 ? plan.nothing : values[0]
-            return [[key, held] as const]
-          }),
+          rowsKeys.flatMap(key =>
+            Option.match(
+              Option.filter(rowsValue(model, key), held => held !== undefined),
+              {
+                onNone: () => [],
+                onSome: held => [[key, held] as const],
+              },
+            ),
+          ),
         ),
       }),
       /** The form as the form that nests it drives it. */
@@ -1550,6 +1652,7 @@ const Core = {
           const { model: next, commands } = submit(model)
           return { model: next, commands }
         },
+        validateAll,
         isValidating,
         /** Whether a transition changed authored content, so a nesting form recurses. */
         authoredChanged,

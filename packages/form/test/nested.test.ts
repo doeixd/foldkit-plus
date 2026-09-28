@@ -155,6 +155,19 @@ describe('a form with nested keys', () => {
     expect(PostForm.canSubmit(sent.model)).toBe(false)
   })
 
+  it('validates the rows too on ValidatedAll, and asks a row’s check without submitting', () => {
+    const withComment = step(PostForm.initial, Message.RowAdded({ key: 'comments' })).model
+    const shown = step(withComment, Message.ValidatedAll())
+    expect(shown.model.rows.author[0]!.model.fields.name._tag).toBe('Invalid')
+    expect(shown.model.rows.comments[0]!.model.fields.body._tag).toBe('Invalid')
+
+    const filled = PostForm.fill(PostForm.initial, { title: 'Hi', author: { name: 'Ada' } }).model
+    const asking = step(filled, Message.ValidatedAll())
+    expect(asking.model.rows.author[0]!.model.fields.name._tag).toBe('Validating')
+    expect(asking.model.rows.author[0]!.model.submitPending).toBe(false)
+    expect(asking.commands).toHaveLength(1)
+  })
+
   it('waits for a check in a row, and sends when it passes', async () => {
     const titled = step(PostForm.initial, Message.Changed({ key: 'title', value: 'Hello' })).model
     const asking = step(titled, named('r0', 'Ada'))

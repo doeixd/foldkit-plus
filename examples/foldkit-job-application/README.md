@@ -21,9 +21,9 @@ Applicant / Position / Degree / Skill (Schema.Struct: the rules and the labels)
       |
 Form.make ──► a form Model in the step or entry, key by key
       |         Changed ──► rule ──► (email) check, fake API 600ms ──► Valid | Invalid
-      |         engine.value ──► isComplete        Invalid anywhere ──► hasErrors
+      |         isValid ──► isComplete             Invalid anywhere ──► hasErrors
       v
-ClickedSubmit ──► each step's revealErrors (the form's Blurred on every key)
+ClickedSubmit ──► each step's revealErrors (the form's ValidatedAll)
       |           ──► every step complete? ──► Submitting ──► SubmitApplication (1.5s)
       v
 view: tabs and menu marked by hasErrors / isComplete, the review, the preview
@@ -45,7 +45,7 @@ npx vitest run examples/foldkit-job-application   # from the repository root
 | What a validated field accepts, its label and words | the record's schema, read through `Entity.input` (`foldkit-entity`) | each step's `// FORM` |
 | Each draft and its state (`NotValidated`, `Validating`, `Valid`, `Invalid`) | `foldkit-form`, as Foldkit's own `fieldValidation` Fields | `model.form` of the step or entry |
 | The email check, and dropping an answer for an email since edited | the form's `checks`, with `debounce: 0` | `src/step/personalInfo/personalInfo.ts` |
-| Whether a step is complete or shows an error; showing every error on submit | the form (`engine.value`, the fields, `Blurred`), read by `src/step/validation.ts` | each step's `// VALIDATION SUMMARY` |
+| Whether a step is complete or shows an error; showing every error on submit | the form (`isValid`, the fields, `ValidatedAll`), read by `src/step/validation.ts` | each step's `// VALIDATION SUMMARY` |
 | Pronouns, dates, graduation year, proficiency, files, the step tabs and menu | `@foldkit/ui` components, their choice in the step's Model, as upstream | the steps, `src/view/stepNav.ts` |
 | Inputs, textareas, checkboxes, buttons, tabs, radio pills, the calendar | `@foldkit/ui`, drawn through `foldkit-mixins-ui` adapters and the shipped recipes | `src/view/*`, `src/style.ts` |
 | Page Slots, layout, theme tokens, layer order, state as data attributes | `foldkit-mixins` | `src/style.ts` |
@@ -61,7 +61,7 @@ npx vitest run examples/foldkit-job-application   # from the repository root
 - **The forms' own submit.** A form's `Submitted` hands over one record's
   decoded value; the application needs every step complete at one moment,
   as upstream's `isApplicationComplete` asks. So a submit reveals each form's
-  errors with its `Blurred` and reads `engine.value`, and the forms' out
+  errors with its `ValidatedAll` and reads `isValid`, and the forms' out
   Message is never sent.
 - **Nested forms** (`Relation.nested`) for the entries. A row of a nested form
   holds only the form's keys, and an entry also holds date pickers, a

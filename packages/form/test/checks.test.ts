@@ -231,3 +231,47 @@ describe('what the form is editing', () => {
     expect(PostForm.subject(step(told, Message.Reset()).model)).toEqual({ id: 'p1' })
   })
 })
+
+describe('ValidatedAll', () => {
+  it('shows every failure and submits nothing', () => {
+    const shown = step(PostForm.initial, Message.ValidatedAll())
+    expect(shown.outMessage).toBeUndefined()
+    expect(shown.model.fields.slug._tag).toBe('Invalid')
+    expect(shown.model.fields.rank._tag).toBe('Invalid')
+    expect(shown.model.submitPending).toBe(false)
+  })
+
+  it('asks the check a key has not had, and submits nothing when it passes', async () => {
+    const filled = PostForm.fill(PostForm.initial, { id: 'p9', slug: 'fresh', rank: 3 }).model
+    const shown = await settle(filled, Message.ValidatedAll())
+    expect(asked.map(entry => entry.slug)).toEqual(['fresh'])
+    expect(shown.model.fields.slug._tag).toBe('Valid')
+    expect(shown.out).toBeUndefined()
+  })
+
+  it('returns the same Model when everything is validated already', async () => {
+    const shown = step(PostForm.initial, Message.ValidatedAll()).model
+    expect(step(shown, Message.ValidatedAll()).model).toBe(shown)
+  })
+})
+
+describe('isValid', () => {
+  it('is false while a check runs, where canSubmit is true', async () => {
+    const ready = (
+      await settle((await settle(PostForm.initial, change('id', 'p9'))).model, change('rank', '5'))
+    ).model
+    const asking = step(ready, change('slug', 'fresh'))
+    expect(PostForm.canSubmit(asking.model)).toBe(true)
+    expect(PostForm.isValid(asking.model)).toBe(false)
+
+    const answered = step(asking.model, await Effect.runPromise(asking.commands![0]!.effect))
+    expect(PostForm.isValid(answered.model)).toBe(true)
+  })
+
+  it('is false for a key whose check has not run, and for one that failed', async () => {
+    const filled = PostForm.fill(PostForm.initial, { id: 'p9', slug: 'fresh', rank: 3 }).model
+    expect(PostForm.isValid(filled)).toBe(false)
+    const refused = (await settle(filled, change('slug', 'hello'))).model
+    expect(PostForm.isValid(refused)).toBe(false)
+  })
+})
