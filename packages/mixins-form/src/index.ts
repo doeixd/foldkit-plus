@@ -504,11 +504,11 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
 }
 
 /**
- * What a per-key drawer receives: everything to draw the control, and the
- * Messages that leave it, in the form's own universe. The `h` a drawer draws
- * with stays the caller's: the whole-form view's, or a custom layout's.
+ * What a per-key override receives: everything to draw the control, and the
+ * Messages that leave it, in the form's own universe. The `h` an override
+ * draws with stays the caller's: the whole-form view's, or a custom layout's.
  */
-export interface FieldDrawerInput<Key extends string = string, Changed = unknown> {
+export interface FieldOverrideInput<Key extends string = string, Changed = unknown> {
   readonly control: FormControl<Key>
   readonly field: FieldValidation.Field<Draft>
   readonly id: string
@@ -524,29 +524,29 @@ export interface FieldDrawerInput<Key extends string = string, Changed = unknown
  * draws, which is the form's in the whole-form view and the application's
  * in a custom layout.
  */
-export type FieldDrawer<Key extends string = string, Changed = unknown, Message = unknown> = (
-  input: FieldDrawerInput<Key, Changed>,
+export type FieldOverride<Key extends string = string, Changed = unknown, Message = unknown> = (
+  input: FieldOverrideInput<Key, Changed>,
   h: HtmlBuilder<Message>,
 ) => Html
 
 /**
- * Per-key overrides for `FormView.fields`. `drawers` draw through the
+ * Per-key overrides for `FormView.fields`. `overrides` draw through the
  * whole-form view; `styles` style one key's base field view there. Unknown
- * keys in either are type errors. A custom layout passes its drawer to
+ * keys in either are type errors. A custom layout passes its override to
  * `field` itself, with its own `h`.
  */
 export interface FieldsOptions<Key extends string, Changed> {
   /** A key drawn by this instead of the base field view (or its styled one). */
-  readonly drawers?: { readonly [K in Key]?: FieldDrawer<Key, Changed, Changed> } | undefined
-  /** A style around a key's base field view, kept for keys with no drawer. */
+  readonly overrides?: { readonly [K in Key]?: FieldOverride<Key, Changed, Changed> } | undefined
+  /** A style around a key's base field view, kept for keys with no override. */
   readonly styles?: { readonly [K in Key]?: NamedStyle<typeof FieldSlots> } | undefined
 }
 
 /**
  * One flat key's control, for a layout the caller owns: through the base
- * field view with a form-universe `h`, or through the drawer it is given,
- * with any `h`. A call with neither a form `h` nor a drawer is a type error,
- * since the base view's Messages are the form's own.
+ * field view with a form-universe `h`, or through the override it is given,
+ * with any `h`. A call with neither a form `h` nor an override is a type
+ * error, since the base view's Messages are the form's own.
  */
 export interface FieldsField<Key extends string, Model, FormMessage extends { readonly _tag: string }> {
   (
@@ -554,14 +554,14 @@ export interface FieldsField<Key extends string, Model, FormMessage extends { re
     model: Model,
     id: string,
     h: HtmlBuilder<FormMessage>,
-    drawer?: FieldDrawer<Key, FormMessage, FormMessage>,
+    override?: FieldOverride<Key, FormMessage, FormMessage>,
   ): Html
   <Message>(
     control: FormControl<Key>,
     model: Model,
     id: string,
     h: HtmlBuilder<Message>,
-    drawer: FieldDrawer<Key, FormMessage, Message>,
+    override: FieldOverride<Key, FormMessage, Message>,
   ): Html
 }
 
@@ -845,12 +845,12 @@ export const FormView = {
 
   /**
    * The whole form, as `define` draws it, with per-key overrides; and one flat
-   * key's control, for a layout the caller owns. Keys with no drawer render
+   * key's control, for a layout the caller owns. Keys with no override render
    * through the base field view (a new key of a known kind needs nothing new),
    * each through its style when one is given. `field` draws through the base
-   * view with a form-universe `h`, or through the drawer it is given, with any
-   * `h`. Nested keys and Bundle-backed keys draw only through `view` (or a
-   * drawer); `field` without one refuses them, naming the key.
+   * view with a form-universe `h`, or through the override it is given, with
+   * any `h`. Nested keys and Bundle-backed keys draw only through `view` (or
+   * an override); `field` without one refuses them, naming the key.
    */
   fields: <Key extends string, Model, FormMessage extends { readonly _tag: string }>(
     form: FormLike<Key, Model, FormMessage> & { readonly bundle: { readonly name: string } },
@@ -876,9 +876,9 @@ export const FormView = {
       return made
     }
     const drawn = (input: FieldInput<Key>, h: HtmlBuilder<FormMessage>): Html => {
-      const drawer = options.drawers?.[input.control.key]
-      if (drawer === undefined) return viewOf(input.control.key)(input, h)
-      return drawer(
+      const override = options.overrides?.[input.control.key]
+      if (override === undefined) return viewOf(input.control.key)(input, h)
+      return override(
         {
           control: input.control,
           field: input.field,
@@ -904,11 +904,11 @@ export const FormView = {
         model: Model,
         id: string,
         h: HtmlBuilder<M> | HtmlBuilder<FormMessage>,
-        drawer?: FieldDrawer<Key, FormMessage, M>,
+        override?: FieldOverride<Key, FormMessage, M>,
       ): Html => {
         const state = form.field(model, control.key)
-        if (drawer !== undefined)
-          return drawer(
+        if (override !== undefined)
+          return override(
             {
               control,
               field: state,
@@ -922,7 +922,7 @@ export const FormView = {
           )
         if (Input.Nested.is(control.control) || Input.isBundle(control.control))
           throw new Error(
-            `FormView.fields: "${control.key}" nests rows or a Bundle; draw it with the whole-form view, or give a drawer for it`,
+            `FormView.fields: "${control.key}" nests rows or a Bundle; draw it with the whole-form view, or give an override for it`,
           )
         return viewOf(control.key)(
           {

@@ -5,7 +5,7 @@ import { SlotView, Style } from 'foldkit-mixins'
 import { Inert, type Node } from 'foldkit-mixins/testing'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
-import { FieldSlots, FormSlots, FormView, type FieldDrawer, type FormInput } from '../src/index.js'
+import { FieldSlots, FormSlots, FormView, type FieldOverride, type FormInput } from '../src/index.js'
 
 const Note = Entity.define(
   'Note',
@@ -66,11 +66,11 @@ describe('FormView.fields', () => {
     expect(drawn(root, 'Note-body')).toEqual(['textarea', undefined])
   })
 
-  it('draws a key with its drawer, handing it the key’s Messages', () => {
+  it('draws a key with its override, handing it the key’s Messages', () => {
     let changed: unknown
     let blurred: unknown
     const Fields = FormView.fields(NoteForm, {
-      drawers: {
+      overrides: {
         body: (input, h) => {
           changed = input.changed('Hello')
           blurred = input.blurred
@@ -103,21 +103,21 @@ describe('FormView.fields', () => {
   it('draws one flat key for a layout the caller owns', () => {
     const Fields = FormView.fields(NoteForm)
     const h = SlotView.inertBuilder<NoteMessage>()
-    const bodyDrawer: FieldDrawer<NoteKey, NoteMessage, NoteMessage> = (input, draw) =>
+    const bodyOverride: FieldOverride<NoteKey, NoteMessage, NoteMessage> = (input, draw) =>
       draw.div(
-        [draw.DataAttribute('drawer', 'body')],
+        [draw.DataAttribute('override', 'body')],
         [draw.textarea([draw.Id(input.id), draw.Value(String(input.field.value))])],
       )
     const root = h.div(
       [],
       [
         Fields.field(controlOf('title'), initial, 'F-title', h),
-        Fields.field(controlOf('body'), initial, 'F-body', h, bodyDrawer),
+        Fields.field(controlOf('body'), initial, 'F-body', h, bodyOverride),
       ],
     )
     expect(drawn(root, 'F-title')).toEqual(['input', 'text'])
     expect(drawn(root, 'F-body')).toEqual(['textarea', undefined])
-    expect(Inert.all(root).some(node => Inert.value(node, 'data-drawer') === 'body')).toBe(true)
+    expect(Inert.all(root).some(node => Inert.value(node, 'data-override') === 'body')).toBe(true)
   })
 
   it('refuses a nested key through field, naming it', () => {

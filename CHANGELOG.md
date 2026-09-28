@@ -49,11 +49,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
-- **`foldkit-mixins-form`, `FormView.fields(form, { drawers, styles })`:**
-  the whole form as `define` draws it, with per-key drawers and styles, plus
-  one flat key's control for a layout the caller owns. Keys with no drawer
+- **`foldkit-mixins-form`, `FormView.fields(form, { overrides, styles })`:**
+  the whole form as `define` draws it, with per-key overrides and styles, plus
+  one flat key's control for a layout the caller owns. Keys with no override
   render by kind, so a new key of a known kind needs nothing new; unknown
-  keys are type errors. A drawer receives the control, field, id, validity,
+  keys are type errors. A override receives the control, field, id, validity,
   errors and Messages, with any `h`.
 
 - **`foldkit-mixins-ui`, `Button.view({ label, style, ... })`:** a button

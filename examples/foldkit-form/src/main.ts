@@ -9,7 +9,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Entity } from 'foldkit-entity'
 import { Form, Input as FormInput, type Draft, type FormControl, type Submitted } from 'foldkit-form'
 import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
-import { FormView, type FieldDrawerInput } from 'foldkit-mixins-form'
+import { FormView, type FieldOverrideInput } from 'foldkit-mixins-form'
 import { Button, Input, Textarea } from 'foldkit-mixins-ui'
 
 import { InputStyle, FormPage, SubmitButtonStyle, TextareaStyle } from './style.js'
@@ -197,15 +197,15 @@ type FormMessage = typeof WaitlistForm.Message.Type
 
 const Fields = FormView.fields(WaitlistForm)
 
-type FieldDrawer = (
-  input: FieldDrawerInput<FieldKey, FormMessage>,
+type FieldOverride = (
+  input: FieldOverrideInput<FieldKey, FormMessage>,
   h: HtmlBuilder<Message>,
 ) => Html
 
 const changed = (message: FormMessage): Message => Message.GotFormMessage({ message })
 
-const textDrawer =
-  (slots: Slots, type: string): FieldDrawer =>
+const textOverride =
+  (slots: Slots, type: string): FieldOverride =>
   (input, h) =>
     UiInput.view(
       {
@@ -235,8 +235,8 @@ const textDrawer =
       h,
     )
 
-const textareaDrawer =
-  (slots: Slots): FieldDrawer =>
+const textareaOverride =
+  (slots: Slots): FieldOverride =>
   (input, h) =>
     UiTextarea.view(
       {
@@ -268,11 +268,11 @@ const textareaDrawer =
     )
 
 /** How each key is drawn: the control's kind decides, with email's HTML type the one per-key fact. */
-const drawerOf = (control: FormControl<FieldKey>, slots: Slots): FieldDrawer => {
-  if (control.control.kind === FormInput.Multiline.kind) return textareaDrawer(slots)
+const overrideOf = (control: FormControl<FieldKey>, slots: Slots): FieldOverride => {
+  if (control.control.kind === FormInput.Multiline.kind) return textareaOverride(slots)
   if (control.control.kind === FormInput.Text.kind)
-    return textDrawer(slots, control.key === 'email' ? 'email' : 'text')
-  throw new Error(`no drawer for a "${control.control.kind}" control ("${control.key}")`)
+    return textOverride(slots, control.key === 'email' ? 'email' : 'text')
+  throw new Error(`no override for a "${control.control.kind}" control ("${control.key}")`)
 }
 
 /** What is said under a field: that it is being checked, or its first error. */
@@ -339,7 +339,7 @@ export const Page = SlotView.forMessages<Message>()
           ]),
           [
             ...WaitlistForm.controls.map(control =>
-              Fields.field(control, model.form, control.key, h, drawerOf(control, slots)),
+              Fields.field(control, model.form, control.key, h, overrideOf(control, slots)),
             ),
             submitButton(model, h),
           ],

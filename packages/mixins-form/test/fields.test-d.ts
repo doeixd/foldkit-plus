@@ -2,9 +2,9 @@ import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormView } from '../src/index.js'
 import { Edit } from './fixture.js'
 
-// Unknown keys in drawers and styles are refused.
+// Unknown keys in overrides and styles are refused.
 FormView.fields(Edit, {
-  drawers: {
+  overrides: {
     // @ts-expect-error no key "headline"
     headline: (input, h) => h.div([], []),
   },
