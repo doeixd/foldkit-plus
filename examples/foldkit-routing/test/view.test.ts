@@ -1,34 +1,24 @@
-import { Style } from 'foldkit-mixins'
-import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
+import { Option } from 'effect'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
 import { AppRoute, Page } from '../src/main.js'
-import { PeoplePage } from '../src/page/people.js'
 import { stylesheet } from '../src/style.js'
-import { on, peoplePageWith } from './helpers.js'
+import { on } from './helpers.js'
 
-/**
- * Every route but People, which the page draws through `h.submodel`: an inert
- * draw has no runtime frame to place it in, so the People page is drawn alone.
- */
+/** Every route, the People page through its `h.submodel` too. */
 const trees = [
-  ...[
-    AppRoute.Home(),
-    AppRoute.Nested(),
-    AppRoute.Person({ personId: 1 }),
-    AppRoute.Person({ personId: 99 }),
-    AppRoute.FilesIndex(),
-    AppRoute.Files({ path: ['documents', 'taxes'] }),
-    AppRoute.Files({ path: ['documents', 'resume.pdf'] }),
-    AppRoute.Files({ path: ['documents', 'missing.txt'] }),
-    AppRoute.NotFound({ path: '/missing' }),
-  ].map(route => Inert.draw(Page, on(route))),
-  Inert.draw(PeoplePage, peoplePageWith('designer')),
-]
-
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
+  AppRoute.Home(),
+  AppRoute.People({ searchText: Option.none() }),
+  AppRoute.Nested(),
+  AppRoute.Person({ personId: 1 }),
+  AppRoute.Person({ personId: 99 }),
+  AppRoute.FilesIndex(),
+  AppRoute.Files({ path: ['documents', 'taxes'] }),
+  AppRoute.Files({ path: ['documents', 'resume.pdf'] }),
+  AppRoute.Files({ path: ['documents', 'missing.txt'] }),
+  AppRoute.NotFound({ path: '/missing' }),
+].map(route => Inert.draw(Page, on(route)))
 
 describe('the pages', () => {
   test('draws every element through a Slot, so a Style can reach all of it', () => {
@@ -36,14 +26,10 @@ describe('the pages', () => {
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      trees.flatMap(tree =>
-        [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const tree of trees) {
+      expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
+    }
   })
 
   test.each([

@@ -7,7 +7,7 @@
  */
 import { Runtime } from 'foldkit'
 import type { HtmlBuilder } from 'foldkit/html'
-import { Mixin, SlotView } from 'foldkit-mixins'
+import { Mixin, SlotView, Style } from 'foldkit-mixins'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { GAME } from '../src/constants.js'
@@ -27,9 +27,7 @@ const start = (): HTMLElement => {
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-  const styles = document.createElement('style')
-  styles.textContent = stylesheet
-  document.head.append(styles)
+  Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'root'
   document.body.append(container)

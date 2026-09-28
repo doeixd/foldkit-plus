@@ -38,7 +38,7 @@ pnpm --filter foldkit-example-foldkit-route-transitions dev
 | The transition log | the application's Model | `src/main.ts`, `logTransition` |
 | The simulated loads and save | Foldkit Commands over `Effect.sleep` | `src/main.ts` |
 | The paintings | a constant | `src/data.ts` |
-| Appearance: theme, layout, badges, every element's Slot | `foldkit-mixins` | `src/style.ts` |
+| Appearance: theme, layout, badges, every element's Slot (declared by its style with `AppStyle`'s `slots`) | `foldkit-mixins` (`AppStyle`, `Layout`, `Utilities`) | `src/style.ts`, installed by `src/entry.ts` with `Style.install` |
 
 ### What is not used, and why
 

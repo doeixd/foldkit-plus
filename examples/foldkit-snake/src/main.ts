@@ -9,7 +9,7 @@ import { ticks } from 'foldkit-primitives/time'
 
 import { GAME, GAME_SPEED } from './constants.js'
 import { Apple, Direction, Position, Snake } from './domain/index.js'
-import { BoardSlots, BoardStyle, SnakeSlots, SnakeStyle } from './style.js'
+import { BoardPart, SnakePage } from './style.js'
 
 // MODEL
 
@@ -240,7 +240,7 @@ export const subscriptions = Subscription.make<Model, Message>()(() => ({
 
 // VIEW
 
-/** What one cell of the board shows. Drawn as `data-cell`, which `BoardStyle` colors. */
+/** What one cell of the board shows. Drawn as `data-cell`, which `BoardPart`'s style colors. */
 export type Cell = 'Empty' | 'Head' | 'Body' | 'Apple'
 
 /**
@@ -265,7 +265,7 @@ const boardRows = (model: Model): ReadonlyArray<string> => {
 }
 
 const drawRow = (
-  slots: SlotView.SlotBuilders<typeof BoardSlots, Message>,
+  slots: SlotView.SlotBuilders<typeof BoardPart.slots, Message>,
   h: HtmlBuilder<Message>,
   { cells }: { readonly cells: string },
 ): Html =>
@@ -275,13 +275,13 @@ const drawRow = (
   )
 
 export const Board = SlotView.forMessages<Message>()
-  .define(BoardSlots, (model: Model, slots, h) =>
+  .define(BoardPart.slots, (model: Model, slots, h) =>
     h.div(
       slots.board.attrs(),
       boardRows(model).map((cells, y) => slots.row.lazy({ index: y }, drawRow, { cells })),
     ),
   )
-  .pipe(Style.attach(BoardStyle))
+  .pipe(Style.attach(BoardPart.style))
 
 const gameStateView = (gameState: GameState): string =>
   Match.value(gameState).pipe(
@@ -293,7 +293,7 @@ const gameStateView = (gameState: GameState): string =>
   )
 
 export const Game = SlotView.forMessages<Message>()
-  .define(SnakeSlots, (model: Model, slots, h) =>
+  .define(SnakePage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.h1(slots.title.attrs(), ['Snake Game']),
       h.div(slots.scores.attrs(), [
@@ -309,7 +309,7 @@ export const Game = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(SnakeStyle))
+  .pipe(Style.attach(SnakePage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: `Snake | ${model.points} pts`,

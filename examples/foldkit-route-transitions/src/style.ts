@@ -1,75 +1,64 @@
 /**
  * The route-transitions example's appearance, as `foldkit-mixins` data.
- * `main.ts` publishes the Slots and draws the markup; everything it looks like
- * lives here.
+ * `main.ts` draws the markup through the Slots declared here; everything it
+ * looks like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the `Layout` pieces it composes by layer
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the `Layout` pieces it composes by layer
  * order rather than by specificity.
  */
-import { Capability, Event, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Capability, Event, Style } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
-
-const L = Layers.standard
-const app = L.layer('app')
+import { Utilities as U } from 'foldkit-mixins/utilities'
 
 /** Upstream's Tailwind `sm` and `lg`: two columns of paintings, and the log beside the page. */
 const sm = '(min-width: 40rem)'
 const lg = '(min-width: 64rem)'
 
-// THEME
-
 /**
  * Indigo, as upstream's nav bar and links are. The secondary hue is violet,
  * for the cold-load badge; success is shifted to emerald, for the entered one.
+ * A white base, so the cards and the log stand out from the gray page.
+ * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
  */
-const palette = Theme.oklch({
-  accent: { h: 277, c: 0.24, l: '51%' },
-  secondaryHueShift: 16,
-  feedback: { success: 163 },
+const { t, L, slots, stylesheet } = AppStyle.make({
+  palette: Theme.compose(
+    Theme.oklch({
+      accent: { h: 277, c: 0.24, l: '51%' },
+      secondaryHueShift: 16,
+      feedback: { success: 163 },
+    }),
+    Theme.define({ knob: { 'base-l': '100%' } }),
+  ),
+  colorScheme: 'light',
 })
 
-/** A white base, so the cards and the log stand out from the gray page. */
-const theme = Theme.compose(
-  Theme.compose(Theme.tokens, palette),
-  Theme.define({ knob: { 'base-l': '100%' } }),
-)
-
-const t = Theme.ref(theme)
-
-const container = Slot.make({ capability: Capability.Container })
+export { stylesheet }
 
 const shadow = '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)'
 
-const heading: StyleValue = Style.self({
-  margin: `0 0 ${t.space.lg}`,
-  fontSize: t.size['4xl'],
-  fontWeight: t.weight.bold,
-  color: t.text.overt,
-})
+const heading = [
+  U.text('4xl'),
+  U.font('bold'),
+  U.color('text.overt'),
+  { margin: `0 0 ${t.space.lg}` },
+]
 
-const lead: StyleValue = Style.self({
-  margin: `0 0 ${t.space.md}`,
-  fontSize: t.size.lg,
-  color: t.text.muted,
-})
-
-const link: StyleValue = Style.compose(
-  Style.self({ color: t.accent.default, textDecoration: 'none' }),
+const link = [
+  U.color('accent.default'),
+  { textDecoration: 'none' },
   Style.pseudo(':hover', { textDecoration: 'underline' }),
-)
+]
 
-const card: StyleValue = Style.self({
-  overflow: 'hidden',
-  borderRadius: t.radius.lg,
-  background: t.surface.base,
-  boxShadow: shadow,
-})
+const card = [U.rounded('lg'), U.bg('surface.base'), { overflow: 'hidden', boxShadow: shadow }]
 
-const muted = (fontSize: string): StyleValue =>
-  Style.self({ margin: '0', fontSize, color: t.text.muted })
+const muted = (size: Parameters<typeof U.text>[0]) => [
+  U.m('0'),
+  U.text(size),
+  U.color('text.muted'),
+]
 
 const tone = (family: { readonly subtle: string; readonly ink: string }) => ({
   background: family.subtle,
@@ -78,241 +67,168 @@ const tone = (family: { readonly subtle: string; readonly ink: string }) => ({
 
 // PAGE
 
-export const PageSlots = Slots.define({
-  page: container,
-  header: container,
-  nav: container,
-  navList: container,
-  navItem: container,
-  navLink: container,
-  main: container,
-  content: container,
-  heading: container,
-  sectionHeading: container,
-  errorHeading: container,
-  lead: container,
-  intro: container,
-  link: container,
-  tipsLabel: container,
-  tips: container,
-  tip: container,
-  loading: container,
-  paintingGrid: container,
-  paintingItem: container,
-  paintingCard: container,
-  swatch: container,
-  cardBody: container,
-  cardTitle: container,
-  cardArtist: container,
-  backLink: container,
-  article: container,
-  banner: container,
-  articleBody: container,
-  articleTitle: container,
-  articleArtist: container,
-  neighbors: container,
-  neighborLink: container,
-  neighborMissing: container,
-  position: container,
-  draft: Slot.make({ capability: Capability.TextInput, events: [Event.Input] }),
-  saved: container,
-  nothingSaved: container,
-  savedCard: container,
-  savedLabel: container,
-  savedText: container,
-  log: container,
-  logTitle: container,
-  logIntro: container,
-  logList: container,
-  logEntry: container,
-  logSummary: container,
-  badges: container,
-  badge: container,
-})
-
-export const PageStyle = Style.forSlots(PageSlots)(
+export const RoutePage = slots(
   {
-    page: Style.self({ minHeight: '100vh', background: t.surface.muted, color: t.text.default }),
-    nav: Style.self({
-      padding: t.space.md,
-      background: t.accent.default,
-      color: t.accent['on-fill'],
-    }),
-    navList: Style.compose(
+    page: [U.bg('surface.muted'), U.color('text.default'), { minHeight: '100vh' }],
+    header: {},
+    nav: [U.p('md'), U.bg('accent.default'), U.color('accent.on-fill')],
+    navList: [
       L.in('layouts', Layout.center({ max: '72rem', gutters: '0' })),
       L.in('layouts', Layout.cluster({ gap: t.space.md })),
-      Style.self({ margin: '0', padding: '0', listStyle: 'none' }),
-    ),
+      U.m('0'),
+      U.p('0'),
+      { listStyle: 'none' },
+    ],
+    navItem: {},
     // The link to the section the route is in carries `aria-current="page"`.
-    navLink: Style.compose(
-      Style.self({
+    navLink: [
+      U.rounded('sm'),
+      U.font('medium'),
+      {
         display: 'inline-block',
         padding: `${t.space['2xs']} ${t.space.sm}`,
-        borderRadius: t.radius.sm,
-        fontWeight: t.weight.medium,
         color: 'inherit',
         textDecoration: 'none',
         transition: `background ${t.motion.fast} ${t.motion.ease}`,
-      }),
+      },
       Style.pseudo(':hover', {
         background: `color-mix(in oklch, ${t.accent.default} 80%, white)`,
       }),
       Style.pseudo('[aria-current="page"]', { background: t.accent.active }),
-    ),
-    main: Style.compose(
+    ],
+    main: [
       L.in('layouts', Layout.center({ max: '72rem', gutters: t.space.md })),
-      Style.self({
-        display: 'grid',
-        gap: t.space.xl,
-        alignItems: 'start',
-        paddingBlock: t.space.xl,
-      }),
+      U.grid,
+      U.gap('xl'),
+      U.py('xl'),
+      { alignItems: 'start' },
       Style.media(lg, { gridTemplateColumns: 'minmax(0, 1fr) 360px' }),
-    ),
+    ],
+    content: {},
     heading,
-    sectionHeading: Style.compose(heading, Style.self({ marginBottom: t.space.xs })),
-    errorHeading: Style.compose(heading, Style.self({ color: t.error.ink })),
-    lead,
-    intro: Style.self({ margin: `0 0 ${t.space.lg}`, color: t.text.muted }),
+    sectionHeading: [heading, { marginBottom: t.space.xs }],
+    errorHeading: [heading, U.color('error.ink')],
+    lead: [U.text('lg'), U.color('text.muted'), { margin: `0 0 ${t.space.md}` }],
+    intro: [U.color('text.muted'), { margin: `0 0 ${t.space.lg}` }],
     link,
-    tipsLabel: Style.self({ margin: `0 0 ${t.space.xs}`, color: t.text.muted }),
-    tips: Style.compose(
+    tipsLabel: [U.color('text.muted'), { margin: `0 0 ${t.space.xs}` }],
+    tips: [
       L.in('layouts', Layout.stack({ gap: t.space.xs })),
-      Style.self({ margin: '0', paddingLeft: t.space.lg, color: t.text.muted }),
-    ),
-    tip: Style.self({ listStyle: 'disc' }),
-    loading: Style.self({
-      padding: t.space['2xl'],
-      border: `${t.border.thin} dashed ${t.outline.default}`,
-      borderRadius: t.radius.lg,
-      textAlign: 'center',
-      color: t.text.muted,
-    }),
-    paintingGrid: Style.compose(
-      Style.self({
-        display: 'grid',
-        gap: t.space.md,
-        margin: '0',
-        padding: '0',
-        listStyle: 'none',
-      }),
+      U.m('0'),
+      U.color('text.muted'),
+      { paddingLeft: t.space.lg },
+    ],
+    tip: { listStyle: 'disc' },
+    loading: [
+      { border: `${t.border.thin} dashed ${t.outline.default}` },
+      U.p('2xl'),
+      U.rounded('lg'),
+      U.textCenter,
+      U.color('text.muted'),
+    ],
+    paintingGrid: [
+      U.grid,
+      U.gap('md'),
+      U.m('0'),
+      U.p('0'),
+      { listStyle: 'none' },
       Style.media(sm, { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }),
-    ),
-    paintingCard: Style.compose(
+    ],
+    paintingItem: {},
+    paintingCard: [
       card,
-      Style.self({
-        display: 'block',
+      U.block,
+      {
         color: 'inherit',
         textDecoration: 'none',
         transition: `box-shadow ${t.motion.fast} ${t.motion.ease}`,
-      }),
+      },
       Style.pseudo(':hover', {
         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
       }),
-    ),
+    ],
     // The painting's colours arrive on the element as `--painting-gradient`.
-    swatch: Style.self({ height: '7rem', background: 'var(--painting-gradient)' }),
-    cardBody: Style.self({ padding: t.space.md }),
-    cardTitle: Style.self({
-      margin: '0',
-      fontSize: t.size.md,
-      fontWeight: t.weight.semibold,
-      color: t.text.overt,
-    }),
-    cardArtist: muted(t.size.sm),
-    backLink: Style.compose(
-      link,
-      Style.self({ display: 'inline-block', marginBottom: t.space.md }),
-    ),
+    swatch: { height: '7rem', background: 'var(--painting-gradient)' },
+    cardBody: U.p('md'),
+    cardTitle: [U.m('0'), U.text('md'), U.font('semibold'), U.color('text.overt')],
+    cardArtist: muted('sm'),
+    backLink: [link, { display: 'inline-block', marginBottom: t.space.md }],
     article: card,
-    banner: Style.self({ height: '14rem', background: 'var(--painting-gradient)' }),
-    articleBody: Style.self({ padding: t.space.lg }),
-    articleTitle: Style.self({
-      margin: `0 0 ${t.space['2xs']}`,
-      fontSize: t.size['3xl'],
-      fontWeight: t.weight.bold,
-      color: t.text.overt,
-    }),
-    articleArtist: muted(t.size.md),
-    neighbors: Style.self({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: t.space.lg,
-    }),
-    neighborLink: Style.compose(link, Style.self({ fontWeight: t.weight.medium })),
-    neighborMissing: Style.self({ color: t.outline.default }),
-    position: muted(t.size.sm),
-    draft: Style.compose(
-      Style.self({
-        boxSizing: 'border-box',
-        display: 'block',
-        width: '100%',
-        height: '10rem',
-        padding: t.space.md,
-        font: 'inherit',
-        color: t.text.default,
-        background: t.surface.base,
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.lg,
-      }),
+    banner: { height: '14rem', background: 'var(--painting-gradient)' },
+    articleBody: U.p('lg'),
+    articleTitle: [
+      U.text('3xl'),
+      U.font('bold'),
+      U.color('text.overt'),
+      { margin: `0 0 ${t.space['2xs']}` },
+    ],
+    articleArtist: muted('md'),
+    neighbors: [U.flex, U.items('center'), U.justify('between'), { marginTop: t.space.lg }],
+    neighborLink: [link, U.font('medium')],
+    neighborMissing: U.color('outline.default'),
+    position: muted('sm'),
+    draft: Style.slot({ capability: Capability.TextInput, events: [Event.Input] }, [
+      { border: `${t.border.thin} solid ${t.outline.default}` },
+      U.block,
+      U.wFull,
+      U.p('md'),
+      U.rounded('lg'),
+      U.color('text.default'),
+      U.bg('surface.base'),
+      { boxSizing: 'border-box', height: '10rem', font: 'inherit' },
       Style.pseudo(':focus', {
         outline: 'none',
         boxShadow: `0 0 0 ${t.border.thick} ${t.accent.default}`,
       }),
-    ),
-    saved: Style.self({ marginTop: t.space.lg }),
-    nothingSaved: muted(t.size.sm),
-    savedCard: Style.self({
-      padding: t.space.md,
-      background: t.surface.base,
-      border: `${t.border.thin} solid ${t.outline.subtle}`,
-      borderRadius: t.radius.lg,
-    }),
-    savedLabel: Style.self({
-      margin: `0 0 ${t.space['2xs']}`,
-      fontSize: t.size.sm,
-      fontWeight: t.weight.medium,
-      color: t.text.muted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.025em',
-    }),
-    savedText: Style.self({ margin: '0', color: t.text.overt }),
-    log: Style.compose(
-      Style.self({
-        padding: t.space.md,
-        borderRadius: t.radius.lg,
-        background: t.surface.base,
-        boxShadow: shadow,
-      }),
+    ]),
+    saved: { marginTop: t.space.lg },
+    nothingSaved: muted('sm'),
+    savedCard: [
+      { border: `${t.border.thin} solid ${t.outline.subtle}` },
+      U.p('md'),
+      U.rounded('lg'),
+      U.bg('surface.base'),
+    ],
+    savedLabel: [
+      U.text('sm'),
+      U.font('medium'),
+      U.color('text.muted'),
+      U.uppercase,
+      { margin: `0 0 ${t.space['2xs']}`, letterSpacing: '0.025em' },
+    ],
+    savedText: [U.m('0'), U.color('text.overt')],
+    log: [
+      U.p('md'),
+      U.rounded('lg'),
+      U.bg('surface.base'),
+      { boxShadow: shadow },
       Style.media(lg, { position: 'sticky', top: t.space.xl }),
-    ),
-    logTitle: Style.self({
-      margin: `0 0 ${t.space['2xs']}`,
-      fontSize: t.size.lg,
-      fontWeight: t.weight.bold,
-      color: t.text.overt,
-    }),
-    logIntro: Style.compose(muted(t.size.sm), Style.self({ marginBottom: t.space.md })),
-    logList: Style.compose(
+    ],
+    logTitle: [
+      U.text('lg'),
+      U.font('bold'),
+      U.color('text.overt'),
+      { margin: `0 0 ${t.space['2xs']}` },
+    ],
+    logIntro: [muted('sm'), { marginBottom: t.space.md }],
+    logList: [
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      Style.self({ margin: '0', padding: '0', listStyle: 'none' }),
-    ),
-    logEntry: Style.self({
-      padding: t.space.sm,
-      border: `${t.border.thin} solid ${t.outline.subtle}`,
-      borderRadius: t.radius.md,
-    }),
-    logSummary: Style.compose(muted(t.size.xs), Style.self({ marginBottom: t.space.xs })),
+      U.m('0'),
+      U.p('0'),
+      { listStyle: 'none' },
+    ],
+    logEntry: [
+      { border: `${t.border.thin} solid ${t.outline.subtle}` },
+      U.p('sm'),
+      U.rounded('md'),
+    ],
+    logSummary: [muted('xs'), { marginBottom: t.space.xs }],
     badges: L.in('layouts', Layout.cluster({ gap: '0.375rem' })),
-    badge: Style.compose(
-      Style.self({
-        padding: `${t.space['3xs']} ${t.space.xs}`,
-        borderRadius: t.radius.full,
-        fontSize: t.size.xs,
-        fontWeight: t.weight.medium,
-        whiteSpace: 'nowrap',
-      }),
+    badge: [
+      U.rounded('full'),
+      U.text('xs'),
+      U.font('medium'),
+      { padding: `${t.space['3xs']} ${t.space.xs}`, whiteSpace: 'nowrap' },
       Style.states(
         {
           coldLoad: tone(t.secondary),
@@ -323,23 +239,7 @@ export const PageStyle = Style.forSlots(PageSlots)(
         },
         'data-tone',
       ),
-    ),
+    ],
   },
-  { name: 'PageStyle', layer: app },
-)
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The slot styles' own classes are injected when a Slot
- * first draws them, so they are not repeated here. `colorScheme: 'light'`
- * keeps the page light in a dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
+  { name: 'PageStyle' },
 )

@@ -1,4 +1,4 @@
-import { SlotView, Style } from 'foldkit-mixins'
+import { SlotView } from 'foldkit-mixins'
 import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
 import { modifyFields } from 'foldkit/struct'
 import { describe, expect, test } from 'vitest'
@@ -25,10 +25,6 @@ const cells = Inert.bySlot(tree, 'cell')
 
 const cellAt = (drawn: ReadonlyArray<InertNode>, x: number, y: number): unknown =>
   Inert.value(drawn[y * GAME.GRID_SIZE + x], 'data-cell')
-
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
 
 describe('the snake view', () => {
   test('puts the points in the document title', () => {
@@ -73,17 +69,13 @@ describe('the snake view', () => {
     { cell: 'Body', token: 'body' },
     { cell: 'Apple', token: 'apple' },
   ])('colors a $cell cell from its own token', ({ cell, token }) => {
-    expect(cssOf(cells.slice(0, 1))).toContain(
+    expect(Inert.css(cells.slice(0, 1))).toContain(
       `[data-cell="${cell}"]{background:var(--fk-game-${token})}`,
     )
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+    expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
   })
 })

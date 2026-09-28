@@ -32,11 +32,11 @@ pnpm --filter foldkit-example-foldkit-routing dev
 | --- | --- | --- |
 | Parsing and printing URLs, the route union, the 404 fallback | plain Foldkit (`foldkit/route`) | `src/route.ts` |
 | Links, back and forward, the key bindings | plain Foldkit (`routing`, `Subscription.keyBindings`) | `src/main.ts`, `src/entry.ts` |
-| The People page: search input, history, results | a hand-wired Foldkit Submodel | `src/page/people.ts` |
+| The People page: search input, history, results | a hand-wired Foldkit Submodel, folded through a `foldkit-bundle` `Link.field` | `src/page/people.ts`, `src/main.ts` |
 | The file tree | a constant | `src/fileTree.ts` |
 | The page title per route | the view's `Document.title` | `src/main.ts`, `routeTitle` |
-| The search input and button | `@foldkit/ui`, styled through `foldkit-mixins-ui` | `src/page/people.ts` |
-| Appearance: theme, layout, every page's Slots | `foldkit-mixins` | `src/style.ts` |
+| The search input and button | `@foldkit/ui`, styled through `foldkit-mixins-ui` (`Input.toView`, `Button.toView`) | `src/page/people.ts` |
+| Appearance: theme, layout, every page's Slots (declared by their style with `AppStyle`'s `slots`) | `foldkit-mixins` (`AppStyle`, `Layout`, `Utilities`) | `src/style.ts`, installed by `src/entry.ts` with `Style.install` |
 
 ### What is not used, and why
 
@@ -49,7 +49,9 @@ pnpm --filter foldkit-example-foldkit-routing dev
   `ali` searched). A Bundle's `init` takes fixed `args` given at placement, so
   the route would have to arrive after `init`, with a second fetch. The Bundle
   README itself says a one-off child is fine hand-wired; Foldkit's
-  `Update.foldChild` and `h.submodel` are used as upstream uses them.
+  `Update.foldChild` and `h.submodel` are used as upstream uses them, with
+  the fold's read, write and wrapping given by the Bundle package's
+  `Link.field`, which keeps the Model when the page is unchanged.
 - **`foldkit-metadata`.** It is for package authors attaching facts to
   another package's declarations. A page title is the view's `title`.
 - **`foldkit-mirror`.** The search text is in the URL because it is part of
@@ -75,7 +77,8 @@ From the repository root: `npx vitest run examples/foldkit-routing`.
 - `test/route.test.ts`: a table of URLs to routes and titles, each router's
   printed URL, and that a `ChangedUrl` for the People route already shown
   resets the input and searches again.
-- `test/view.test.ts`: every page drawn inert, each element through a Slot,
+- `test/view.test.ts`: every page drawn inert (People through its
+  `h.submodel`), each element through a Slot,
   every token the drawn styles read in the stylesheet, and the current nav link.
 - `test/runtime.test.ts`: the real runtime in jsdom: links, back and forward,
   the search in the URL, the same search resubmitted, People clicked on

@@ -1,17 +1,12 @@
 import { Option } from 'effect'
 import { Transition } from 'foldkit/route'
 import { modifyFields } from 'foldkit/struct'
-import { Style } from 'foldkit-mixins'
-import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
 import { AppRoute, type Model, Page, PaintingStatus, routeTitle } from '../src/main.js'
 import { stylesheet } from '../src/style.js'
 import { logging, on } from './helpers.js'
-
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
 
 const painting = (paintingId: number) => AppRoute.Painting({ paintingId })
 
@@ -44,17 +39,10 @@ describe('the page', () => {
     expect(Inert.fixedInline(Inert.draw(Page, model))).toEqual([])
   })
 
-  test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      models.flatMap(([, model]) =>
-        [...cssOf(Inert.all(Inert.draw(Page, model))).matchAll(/var\((--fk-[\w-]+)\)/g)].map(
-          ([, name]) => name,
-        ),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+  test.each(models)('ships every theme token the drawn styles read on %s', (_, model) => {
+    const tree = Inert.draw(Page, model)
+    expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+    expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
   })
 
   test.each([
@@ -169,7 +157,7 @@ describe('a log entry', () => {
   })
 
   test('colours each badge by its tone', () => {
-    const css = cssOf(
+    const css = Inert.css(
       Inert.bySlot(
         Inert.draw(Page, logging(Transition.coldLoad<AppRoute>(AppRoute.Home()))),
         'badge',

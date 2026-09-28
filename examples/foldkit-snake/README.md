@@ -26,7 +26,7 @@ keydown on window ────────────────────�
 | Movement, growth, wrapping, collisions, apple placement | upstream's pure domain modules, unchanged | `src/domain/`, `src/constants.ts` |
 | The game clock, faster as the points rise | `foldkit-primitives/time` `ticks`, its interval a function of the Model | `src/main.ts`, `// SUBSCRIPTION` |
 | Keys, with the arrows' and Space's scrolling cancelled | `foldkit-primitives/events` `keyboardEvents({ preventDefault })` | `src/main.ts`, `// SUBSCRIPTION` |
-| The page's and the board's Slots, layout and type | `foldkit-mixins` (`SlotView`, `Style`, `Layout`) | `src/style.ts` |
+| The page's and the board's Slots (declared by their style with `AppStyle`'s `slots`), layout and type | `foldkit-mixins` (`AppStyle`, `SlotView`, `Layout`, `Utilities`) | `src/style.ts` |
 | Cell colors, one per `data-cell` value | `foldkit-mixins` `Style.states` over game tokens | `src/style.ts`, `// BOARD` |
 | Drawing only the rows that changed | `foldkit-mixins` `slots.row.lazy` | `src/main.ts`, `// VIEW` |
 
@@ -57,11 +57,12 @@ pnpm --filter foldkit-example-foldkit-snake dev
   rows the snake and the apple changed. The first change after the page
   mounts still draws every row, because a row's memo learns which Slots it
   uses on its first draw.
-- `src/style.ts` holds the appearance as data. The board's colors are the
+- `src/style.ts` holds the appearance as data. `AppStyle.make` fixes the
+  palette, the `app` layer and the page stylesheet once. The board's colors are the
   Tailwind shades upstream names, as `game` tokens; each cell's `data-cell`
   (`Empty`, `Head`, `Body`, `Apple`) picks one with `Style.states`. The sheet
   sets `color-scheme: dark`, since upstream's page is black in any browser.
-- `src/entry.ts` installs the stylesheet and runs the application.
+- `src/entry.ts` installs the stylesheet with `Style.install` and runs the application.
 
 ## Differences from upstream
 

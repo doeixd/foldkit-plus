@@ -18,7 +18,7 @@ import {
   studioRouter,
   urlToAppRoute,
 } from './route.js'
-import { PageSlots, PageStyle } from './style.js'
+import { RoutePage } from './style.js'
 
 export { AppRoute } from './route.js'
 
@@ -263,7 +263,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) =
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof RoutePage.slots, Message>
 
 const routeLabel = (route: AppRoute): string =>
   AppRoute.match(route, {
@@ -566,7 +566,7 @@ export const routeTitle = (route: AppRoute): string => {
 }
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(RoutePage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.header(slots.header.attrs(), [navigationView(model.route, slots, h)]),
       h.main(slots.main.attrs(), [
@@ -581,7 +581,7 @@ export const Page = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(RoutePage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: routeTitle(model.route),

@@ -11,7 +11,7 @@ import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button, Input } from 'foldkit-mixins-ui'
 
 import { AppRoute, type PeopleRoute, peopleRouter, personRouter } from '../route.js'
-import { PeopleSlots, PeopleStyle, SearchButtonStyle, SearchInputStyle } from '../style.js'
+import { PeoplePart, SearchButtonStyle, SearchInputStyle } from '../style.js'
 
 // DOMAIN
 
@@ -184,7 +184,7 @@ export const informRouteChanged = (model: Model, route: PeopleRoute) =>
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PeopleSlots, Message>
+type Slots = SlotBuilders<typeof PeoplePart.slots, Message>
 
 const statusText = (results: SearchResults): string =>
   SearchResults.match<string>(results, {
@@ -230,27 +230,21 @@ const searchView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
           value: model.searchInput,
           placeholder: 'Search by name or role...',
           onInput: value => Message.ChangedSearchInput({ value }),
-          toView: attributes => {
-            const { input, label } = Input.resolve(attributes, [SearchInputStyle.mixin], {
-              input: undefined,
-              h,
-            })
-            return h.div(slots.field.attrs(), [
+          toView: Input.toView([SearchInputStyle.mixin], { h }, ({ input, label }) =>
+            h.div(slots.field.attrs(), [
               h.label(label, ['Search people']),
               h.input([...input, h.Autocomplete('off')]),
-            ])
-          },
+            ]),
+          ),
         },
         h,
       ),
       UiButton.view(
         {
           type: 'submit',
-          toView: attributes =>
-            h.button(
-              Button.resolve(attributes, [SearchButtonStyle.mixin], { input: undefined, h }).button,
-              ['Search'],
-            ),
+          toView: Button.toView([SearchButtonStyle.mixin], { h }, ({ button }) =>
+            h.button(button, ['Search']),
+          ),
         },
         h,
       ),
@@ -259,7 +253,7 @@ const searchView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
 
 /** The page, drawn through its own Slots: `h` here is the Submodel's, typed by People's Message. */
 export const PeoplePage = SlotView.forMessages<Message>()
-  .define(PeopleSlots, (model: Model, slots, h) =>
+  .define(PeoplePart.slots, (model: Model, slots, h) =>
     h.div(slots.content.attrs(), [
       h.h1(slots.heading.attrs(), ['People']),
 
@@ -282,6 +276,6 @@ export const PeoplePage = SlotView.forMessages<Message>()
       }),
     ]),
   )
-  .pipe(Style.attach(PeopleStyle))
+  .pipe(Style.attach(PeoplePart.style))
 
 export const view = Submodel.defineView<Model, Message>(PeoplePage)

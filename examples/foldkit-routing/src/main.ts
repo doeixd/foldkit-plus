@@ -5,6 +5,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
+import { Link } from 'foldkit-bundle'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
 import { type File, type FileTreeEntry, fileTree, findEntry, formatFileSize } from './fileTree.js'
@@ -18,7 +19,7 @@ import {
   peopleRouter,
   urlToAppRoute,
 } from './route.js'
-import { PageSlots, PageStyle } from './style.js'
+import { RoutingPage } from './style.js'
 
 export { AppRoute } from './route.js'
 
@@ -88,15 +89,12 @@ const navigationUrlByShortcut: Readonly<Record<NavigationShortcut, () => string>
   GN: nestedRouter,
 }
 
+/** Keeps the Model when the People page is unchanged, so a no-op draws nothing. */
+const peoplePage = Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage))
+
 const foldPeopleEntry = <Input>(
   update: (peoplePage: People.Model, input: Input) => People.UpdateReturn,
-): Update.Fold<Model, Message, Input> =>
-  Update.foldChild({
-    update,
-    read: model => Option.some(model.peoplePage),
-    write: (model, nextPeoplePage) => modifyFields(model, { peoplePage: () => nextPeoplePage }),
-    toParentMessage: message => Message.GotPeopleMessage({ message }),
-  })
+): Update.Fold<Model, Message, Input> => Update.foldChild({ ...peoplePage, update })
 
 const foldPeople = foldPeopleEntry(People.update)
 
@@ -173,7 +171,7 @@ export const subscriptions = Subscription.make<Model, Message>()(() => ({
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof RoutingPage.slots, Message>
 
 const NavSection = Schema.Literals(['Home', 'People', 'Files', 'Nested'])
 type NavSection = typeof NavSection.Type
@@ -370,7 +368,7 @@ const notFoundView = (path: string, slots: Slots, h: HtmlBuilder<Message>): Html
   ])
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(RoutingPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.header(slots.header.attrs(), [navigationView(model.route, slots, h)]),
       h.main(slots.main.attrs(), [
@@ -392,7 +390,7 @@ export const Page = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(RoutingPage.style))
 
 export const routeTitle = (route: AppRoute): string =>
   AppRoute.match(route, {

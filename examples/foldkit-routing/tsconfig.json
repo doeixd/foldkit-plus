@@ -6,6 +6,7 @@
     "emitDeclarationOnly": true,
     "composite": true,
     "paths": {
+      "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
@@ -20,6 +21,9 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/bundle/tsconfig.build.json"
+    },
     {
       "path": "../../packages/mixins/tsconfig.build.json"
     },
