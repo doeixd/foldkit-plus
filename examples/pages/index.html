@@ -36,6 +36,14 @@
       /* Someone else's caret: after the character drawn, or before it at a run's start. */
       [data-decoration='peer'] { box-shadow: 2px 0 0 #e8590c; }
       [data-decoration='peer-before'] { box-shadow: -2px 0 0 #e8590c; }
+      /* Their name, from the decoration's data, over the caret. */
+      [data-decoration^='peer'] { position: relative; }
+      [data-decoration^='peer']::after {
+        content: attr(data-decoration-name);
+        position: absolute; bottom: 100%; left: 0; pointer-events: none;
+        font: 11px/1.4 system-ui; color: #fff; background: #e8590c;
+        padding: 0 4px; border-radius: 3px; white-space: nowrap;
+      }
       .markdown { margin-top: 32px; color: #59636e; }
       .markdown pre { background: #f6f7f8; padding: 12px; border-radius: 6px; }
     </style>
