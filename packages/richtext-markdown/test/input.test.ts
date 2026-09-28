@@ -183,30 +183,35 @@ describe('the rules applied to a document, as the editor applies them', () => {
   it.each([
     ['[ ]', false],
     ['[x]', true],
-  ])('turns `%s ` at the start of a list'''s last item into a task in that list', (marker, checked) => {
-    let count = 0
-    const mint = () => `m${++count}`
-    const { document } = parse(`- milk\n- ${marker}eggs\n`, { mint })
-    const list = document.children[0]
-    const item = list?.type === 'Node' ? list.blocks?.[1] : undefined
-    const run = item?.type === 'Node' ? item.blocks?.[0]?.children[0] : undefined
-    if (run === undefined) throw new Error('no second item')
-    const caret = { node: run.id, offset: marker.length, affinity: 'after' } as const
-    const action = RichText.applyInputRules(markdownInputRules, {
-      textBefore: marker,
-      text: ' ',
-      insertion: { type: 'InsertText', text: ' ' },
-      within: ['ListItem', 'List'],
-    })
-    const result = RichText.runAction(
-      { document, selection: { type: 'Range', anchor: caret, focus: caret } },
-      action,
-      { mint },
-      { nodes: RichText.nodeRegistry(RichText.standardNodes) },
-    )
-    if (!result.ok) throw new Error(result.error)
-    expect(print(result.state.document).markdown).toBe(`- milk\n- [${checked ? 'x' : ' '}] eggs\n`)
-  })
+  ])(
+    'turns `%s ` at the start of a list’s last item into a task in that list',
+    (marker, checked) => {
+      let count = 0
+      const mint = () => `m${++count}`
+      const { document } = parse(`- milk\n- ${marker}eggs\n`, { mint })
+      const list = document.children[0]
+      const item = list?.type === 'Node' ? list.blocks?.[1] : undefined
+      const run = item?.type === 'Node' ? item.blocks?.[0]?.children[0] : undefined
+      if (run === undefined) throw new Error('no second item')
+      const caret = { node: run.id, offset: marker.length, affinity: 'after' } as const
+      const action = RichText.applyInputRules(markdownInputRules, {
+        textBefore: marker,
+        text: ' ',
+        insertion: { type: 'InsertText', text: ' ' },
+        within: ['ListItem', 'List'],
+      })
+      const result = RichText.runAction(
+        { document, selection: { type: 'Range', anchor: caret, focus: caret } },
+        action,
+        { mint },
+        { nodes: RichText.nodeRegistry(RichText.standardNodes) },
+      )
+      if (!result.ok) throw new Error(result.error)
+      expect(print(result.state.document).markdown).toBe(
+        `- milk\n- [${checked ? 'x' : ' '}] eggs\n`,
+      )
+    },
+  )
 
   it('reads a task marker only inside a list item', () => {
     expect(match('[ ] ')).toBeUndefined()
