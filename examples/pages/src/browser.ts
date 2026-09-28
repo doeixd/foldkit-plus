@@ -62,7 +62,7 @@ const presence = await Effect.runPromise(
     return yield* Sync.presence.make({
       id: tab,
       ttl: '30 seconds',
-      // A caret moves with every keystroke; peers need only the latest, a few times a second.
+      // A caret moves with every keystroke; peers need only the latest, 20 times a second.
       throttle: '50 millis',
       decodeValue: Schema.decodeUnknownSync(PeerPresence),
       channel,

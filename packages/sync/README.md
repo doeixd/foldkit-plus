@@ -824,9 +824,9 @@ next week.
 `Sync.presence.make` creates a TTL'd peer registry. Values are decoded before
 they enter the registry; a peer that stops refreshing is removed. Changes are
 available both as a callback subscription and as a Stream. A caret sets a new
-value on nearly every keystroke; `throttle: '50 millis'` sends at most one value
-per interval on the channel, the latest one set when the interval ends, while
-the peer's own entry changes at once. A departure (`leave`) is sent immediately
+value on nearly every keystroke; with `throttle: '50 millis'` a value set after
+a quiet interval is sent at once, and those set within the interval wait, only
+the latest of them sent when it ends. The peer's own entry changes at once. A departure (`leave`) is sent immediately
 and cancels a value still waiting.
 
 Presence can share the socket transport's connection. `transport.socket` is a

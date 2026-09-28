@@ -1,4 +1,14 @@
-import { Clock, Duration, Effect, Fiber, PubSub, Ref, Stream, type Scope } from 'effect'
+import {
+  Clock,
+  Duration,
+  Effect,
+  Fiber,
+  PubSub,
+  Ref,
+  Stream,
+  SynchronizedRef,
+  type Scope,
+} from 'effect'
 import type { SocketLike } from './transport.js'
 
 /** One peer's presence. A `null` value means the peer left. */
@@ -35,7 +45,7 @@ export interface PresenceOptions<Update> {
   /**
    * The least time between two values sent on the channel. `set` still takes effect here at
    * once; a value set sooner waits, and only the latest one waiting is sent when the time is
-   * up. A departure is never held back. Absent, every `set` is sent.
+   * up. A departure is never held back. Absent, every `set` is sent at once.
    */
   readonly throttle?: Duration.Input | undefined
 }
@@ -79,14 +89,14 @@ export const createPresence = Effect.fn('Presence.create')(function* <Update>(
   const ttl = Duration.toMillis(options.ttl)
   const throttle = options.throttle === undefined ? 0 : Duration.toMillis(options.throttle)
   const scope = yield* Effect.scope
-  const lastSent = yield* Ref.make<number | undefined>(undefined)
-  // Whether a flush is pending, and the latest value for it to send: one Ref, so a `set`
-  // holding a value and a flush finding nothing held cannot interleave and strand a value.
-  const outbound = yield* Ref.make<{
-    readonly flushing: boolean
-    readonly held?: { readonly value: Update }
-  }>({ flushing: false })
-  const flusher = yield* Ref.make<Fiber.Fiber<void> | undefined>(undefined)
+  // What a throttled channel has sent and holds. Every decision about it is made under
+  // this one lock, so two `set`s cannot both send in one interval, a value held while a
+  // flush finds nothing cannot be stranded, and a flush is never forked and lost.
+  const outbound = yield* SynchronizedRef.make<{
+    readonly lastSent: number | undefined
+    readonly held: { readonly value: Update } | undefined
+    readonly flusher: Fiber.Fiber<void> | undefined
+  }>({ lastSent: undefined, held: undefined, flusher: undefined })
   const peers = yield* Ref.make(new Map<string, PresencePeer<Update>>())
   const closed = yield* Ref.make(false)
   const signals = yield* PubSub.sliding<void>(1)
@@ -144,47 +154,49 @@ export const createPresence = Effect.fn('Presence.create')(function* <Update>(
           Effect.forkScoped,
         )
 
-  const send = (value: Update): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      yield* Ref.set(lastSent, yield* Clock.currentTimeMillis)
-      yield* channel!.publish({ id: options.id, value })
-    })
+  const publish = (value: Update): Effect.Effect<void> =>
+    channel!.publish({ id: options.id, value })
 
   /** Drops a value waiting to be sent, so nothing older goes out after what comes next. */
-  const cancelHeld = Effect.gen(function* () {
-    const fiber = yield* Ref.getAndSet(flusher, undefined)
-    if (fiber !== undefined) yield* Fiber.interrupt(fiber)
-    yield* Ref.set(outbound, { flushing: false })
-  })
+  const cancelHeld = SynchronizedRef.updateEffect(outbound, state =>
+    (state.flusher === undefined ? Effect.void : Fiber.interrupt(state.flusher)).pipe(
+      Effect.as({ ...state, held: undefined, flusher: undefined }),
+    ),
+  )
 
-  /** Sends what is held each time the throttle allows, until a turn finds nothing held. */
+  /** Sends what is held once per interval, until an interval passes with nothing held. */
   const flush = (wait: number): Effect.Effect<void> =>
     Effect.gen(function* () {
-      yield* Effect.sleep(wait)
-      const latest = yield* Ref.modify(outbound, state =>
-        state.held === undefined
-          ? [undefined, { flushing: false }]
-          : [state.held, { flushing: true }],
-      )
-      if (latest === undefined) return
-      yield* send(latest.value)
-      yield* flush(throttle)
+      for (let delay = wait; ; delay = throttle) {
+        yield* Effect.sleep(delay)
+        const now = yield* Clock.currentTimeMillis
+        const latest = yield* SynchronizedRef.modify(outbound, state =>
+          state.held === undefined
+            ? ([undefined, { ...state, flusher: undefined }] as const)
+            : ([state.held, { ...state, held: undefined, lastSent: now }] as const),
+        )
+        if (latest === undefined) return
+        yield* publish(latest.value)
+      }
     })
 
   const broadcast = (value: Update, at: number): Effect.Effect<void> =>
     Effect.gen(function* () {
-      const sent = yield* Ref.get(lastSent)
-      const ready = sent === undefined || at - sent >= throttle
-      const action = yield* Ref.modify(outbound, state =>
-        state.flushing
-          ? (['hold', { flushing: true, held: { value } }] as const)
-          : ready
-            ? (['send', state] as const)
-            : (['flush', { flushing: true, held: { value } }] as const),
+      const sends = yield* SynchronizedRef.modifyEffect(outbound, state =>
+        Effect.gen(function* () {
+          // `set` checked too, but `close` may have run since; a flush forked now would outlive it.
+          if (yield* Ref.get(closed)) return [false, state] as const
+          if (state.flusher !== undefined) return [false, { ...state, held: { value } }] as const
+          // Without a throttle the wait is never positive, so every value goes at once; a
+          // clock set back never makes one wait longer than an interval.
+          const wait =
+            state.lastSent === undefined ? 0 : Math.min(throttle, state.lastSent + throttle - at)
+          if (wait <= 0) return [true, { ...state, lastSent: at }] as const
+          const flusher = yield* Effect.forkIn(flush(wait), scope)
+          return [false, { ...state, held: { value }, flusher }] as const
+        }).pipe(Effect.uninterruptible),
       )
-      if (action === 'send') return yield* send(value)
-      if (action === 'flush')
-        yield* Ref.set(flusher, yield* Effect.forkIn(flush(sent! + throttle - at), scope))
+      if (sends) yield* publish(value)
     })
 
   const set = Effect.fn('Presence.set')(function* (value: Update) {

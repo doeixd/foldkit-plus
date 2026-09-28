@@ -97,6 +97,62 @@ describe('a throttled presence', () => {
       }),
     ))
 
+  it('sends every value without a throttle, though the clock goes back', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel })
+        yield* at(10_000)
+        yield* presence.set({ cursor: 1 })
+        yield* at(5_000)
+        yield* presence.set({ cursor: 2 })
+        yield* presence.set({ cursor: 3 })
+        expect(sent).toEqual([{ cursor: 1 }, { cursor: 2 }, { cursor: 3 }])
+      }),
+    ))
+
+  it('holds a value for no more than one interval after the clock goes back', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel, throttle: '100 millis' })
+        yield* at(10_000)
+        yield* presence.set({ cursor: 1 })
+        yield* at(5_000)
+        yield* presence.set({ cursor: 2 })
+        yield* at(5_100)
+        expect(sent).toEqual([{ cursor: 1 }, { cursor: 2 }])
+      }),
+    ))
+
+  it('sends nothing held once closed', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel, throttle: '100 millis' })
+        yield* presence.set({ cursor: 1 })
+        yield* at(10)
+        yield* presence.set({ cursor: 2 })
+        yield* presence.close
+        yield* at(500)
+        expect(sent).toEqual([{ cursor: 1 }])
+      }),
+    ))
+
+  it('sends a value set after leaving', () =>
+    run(
+      Effect.gen(function* () {
+        const { sent, channel } = yield* recording
+        const presence = yield* make({ id: 'a', ttl: '1 second', channel, throttle: '100 millis' })
+        yield* presence.set({ cursor: 1 })
+        yield* presence.leave
+        yield* at(10)
+        yield* presence.set({ cursor: 2 })
+        yield* at(100)
+        expect(sent).toEqual([{ cursor: 1 }, null, { cursor: 2 }])
+      }),
+    ))
+
   it('sends a departure at once and never the value it was holding', () =>
     run(
       Effect.gen(function* () {
