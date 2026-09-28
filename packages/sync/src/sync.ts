@@ -90,6 +90,12 @@ export interface Exchange<Shared> {
   readonly checkpoint?: Checkpoint<Shared> | undefined
   /** The server sent only part of what is after the cursor; the replica asks again. */
   readonly more?: boolean | undefined
+  /**
+   * The identity of the server's history. The replica sends back the one it last saw; a
+   * server that finds another answers from the start of its own history, and the replica,
+   * seeing a new epoch, rebuilds its committed state from that answer and keeps its outbox.
+   */
+  readonly epoch?: string | undefined
 }
 
 export interface ReplicaState<Shared> {
@@ -103,6 +109,8 @@ export interface ReplicaState<Shared> {
   readonly committed: Shared
   readonly committedIds: ReadonlyArray<string>
   readonly pending: ReadonlyArray<Operation>
+  /** The server history `cursor` points into, once an exchange has named one. */
+  readonly epoch?: string
 }
 
 /**
@@ -110,7 +118,12 @@ export interface ReplicaState<Shared> {
  * is the primary seam.
  */
 export interface TransportClient {
-  exchange(cursor: Sequence, pending: ReadonlyArray<Operation>): Promise<unknown>
+  /** `epoch` is the server history the replica's cursor points into, when it knows one. */
+  exchange(
+    cursor: Sequence,
+    pending: ReadonlyArray<Operation>,
+    epoch?: string | undefined,
+  ): Promise<unknown>
 }
 
 /** A redacted view of a replica's state, for a UI to explain and recover. */
@@ -220,6 +233,8 @@ export interface Sync<Message, Shared> {
 
 /** Structural match for `foldkit-durable`'s journal options; Sync stays independent. */
 export interface JournalContract<Operation, Shared> {
+  /** The replica each operation came from, which Durable binds to its first committer. */
+  readonly replicaId: (operation: Operation) => string
   readonly operation: {
     /** Operations are stored in their encoded form, so this is the identity. */
     readonly encode: (operation: Operation) => Operation
@@ -260,6 +275,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     committed: definition.shared,
     committedIds: Schema.Array(Schema.String),
     pending: Schema.Array(OperationSchema),
+    epoch: Schema.optionalKey(Schema.NonEmptyString),
   })
   const CheckpointSchema = Schema.Struct({ cursor: Sequence, model: definition.shared })
   const ExchangeSchema = Schema.Struct({
@@ -268,6 +284,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     acknowledged: Schema.optional(Schema.Array(OpId)),
     checkpoint: Schema.optional(CheckpointSchema),
     more: Schema.optional(Schema.Boolean),
+    epoch: Schema.optional(Schema.NonEmptyString),
   })
   const decodeState = Schema.decodeUnknownSync(ReplicaStateSchema, { onExcessProperty: 'error' })
   const encodeState = Schema.encodeSync(ReplicaStateSchema)
@@ -345,6 +362,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     decodeCommittedOperation(input, key).committed
 
   const journalContract = (): JournalContract<Operation, Shared> => ({
+    replicaId: operation => operation.replicaId,
     // Operations are stored in their encoded form: `normalizeOperation` has
     // already encoded the Message and validated the identity.
     operation: { encode: operation => operation, decode: normalizeOperation },
@@ -594,7 +612,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         yield* Metric.update(syncMetrics.exchanges, 1)
         yield* Metric.update(syncMetrics.exchangePending, sent.pending.length)
         const response = yield* Effect.gen(function* () {
-          const raw = yield* transport.exchange(sent.cursor, sent.pending)
+          const raw = yield* transport.exchange(sent.cursor, sent.pending, sent.epoch)
           // The response is untrusted: a malformed shape is a typed failure, not
           // a defect that escapes the declared error channel.
           return yield* Effect.try({
@@ -603,17 +621,31 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               new InvalidExchangeError({ message: 'Invalid sync exchange response', cause }),
           })
         })
-        yield* SynchronizedRef.modifyEffect(stateRef, current =>
+        const restarted = yield* SynchronizedRef.modifyEffect(stateRef, current =>
           Effect.gen(function* () {
             // A `close` during the exchange must not persist its result.
             if (yield* Ref.get(closed))
               return yield* new ReplicaClosedError({ message: 'Replica is closed' })
-            let cursor = current.cursor
-            let committed = current.committed
+            // Another epoch means the server's history is not the one the cursor points
+            // into (it was reset): the answer starts from its beginning, so the committed
+            // state is rebuilt from it. The outbox is the user's intent and is kept.
+            const restarted =
+              response.epoch !== undefined &&
+              current.epoch !== undefined &&
+              response.epoch !== current.epoch
+            if (restarted)
+              yield* Effect.logWarning('sync server history changed; rebuilding', {
+                documentId,
+                replicaId,
+              })
+            let cursor = restarted ? sequence(0) : current.cursor
+            let committed = restarted ? definition.empty : current.committed
             // A checkpoint folds committed history into its snapshot, so the
-            // retained id set starts over from it.
+            // retained id set starts over from it, as it does on a new epoch.
             const ids =
-              response.checkpoint === undefined ? new Set(current.committedIds) : new Set<string>()
+              response.checkpoint === undefined && !restarted
+                ? new Set(current.committedIds)
+                : new Set<string>()
             if (response.checkpoint !== undefined) {
               if (response.checkpoint.cursor < cursor)
                 return yield* new CheckpointRegressionError({
@@ -670,11 +702,13 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             }
             if (applied > 0) yield* Metric.update(syncMetrics.applied, applied)
             // Validated and encoded by `persist`, for the same reason as submit.
+            const epoch = response.epoch ?? current.epoch
             const next: ReplicaState<Shared> = {
               ...current,
               revision: current.revision + 1,
               committed,
               cursor,
+              ...(epoch === undefined ? {} : { epoch }),
               committedIds: [...ids].slice(-COMMITTED_ID_WINDOW),
               pending: current.pending.filter(
                 operation =>
@@ -684,7 +718,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               ),
             }
             yield* persist(next, current)
-            return [undefined, next] as const
+            return [restarted, next] as const
           }),
         )
         yield* Ref.set(lastError, undefined)
@@ -694,7 +728,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           )
         yield* PubSub.publish(statusSignals, undefined)
         const reached = (yield* SynchronizedRef.get(stateRef)).cursor
-        return response.more === true && reached > sent.cursor
+        return response.more === true && reached > (restarted ? 0 : sent.cursor)
       })
 
       // A server that pages its answer says there is more, and the replica asks again at

@@ -290,6 +290,16 @@ describe('the socket transport', () => {
     })
   })
 
+  it('carries the epoch a replica sends to the handler it serves', async () => {
+    const { client, server } = socketPair()
+    serveSocket(server, { exchange: (cursor, pending, epoch) => ({ cursor, pending, epoch }) })
+    const withEpoch = Effect.gen(function* () {
+      const transport = yield* Transport
+      return yield* transport.exchange(0, [], 'one')
+    }).pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client })))
+    expect(await Effect.runPromise(withEpoch)).toMatchObject({ epoch: 'one' })
+  })
+
   it('refuses a frame it cannot answer before the handler sees it', async () => {
     const { client, server } = socketPair()
     let exchanged = 0
@@ -303,6 +313,7 @@ describe('the socket transport', () => {
     client.send('not json')
     client.send(JSON.stringify({ id: 'x', cursor: 'nope', pending: [] }))
     client.send(JSON.stringify({ cursor: 0, pending: [] }))
+    client.send(JSON.stringify({ id: 'y', cursor: 0, pending: [], epoch: 7 }))
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(exchanged).toBe(0)

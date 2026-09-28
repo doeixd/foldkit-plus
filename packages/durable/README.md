@@ -363,6 +363,7 @@ operation.replicaId` binds each replica to the actor of its first commit, per
 document, and refuses any other actor's operation from it before `validate`
 runs. Without it, one actor could commit an id another replica will use, and
 that replica's own operation would then be answered as already committed.
+`foldkit-sync`'s `journalContract()` supplies it.
 
 Authorization may return `true` / `false`, a refusal carrying a reason, or an
 Effect producing either. A refusal becomes `OperationRejectedError`; a supplied

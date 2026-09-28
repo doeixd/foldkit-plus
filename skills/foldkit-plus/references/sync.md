@@ -252,6 +252,12 @@ const server = Effect.gen(function* () {
   than throwing: a thrown exchange is retried with the same outbox, forever. See
   `examples/sync/src/journal.ts`.
 
+**Server reset.** A server returns `epoch: journal.epoch(key)` from every
+exchange; the replica sends it back as `exchange`'s third argument. When it
+differs, the server answers from sequence 0 and the replica rebuilds its
+committed state, keeping its outbox. `journalContract()` also passes
+`replicaId`, so Durable binds each replica to its first committing actor.
+
 **Presence and LWW.** `Sync.presence.make` is a TTL'd peer registry for
 ephemeral state ("who is viewing"), never a durable Message; its `throttle`
 option sends at most one value per interval, the latest.

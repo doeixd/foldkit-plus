@@ -99,7 +99,9 @@ and reach the other window once the server is back.
   yet are merged into one edit, as typing in the body is (`coalesce` in
   `src/contract.ts`); typing that carries on the tab's own insert becomes one `Insert`
   there.
-- The server takes a tab's name as its identity and does not check that an operation's
-  replica is the tab that sent it; a real deployment authenticates the connection.
-- Deleting `pages.sqlite` while tabs keep their IndexedDB leaves those replicas ahead of
-  the server, and their exchanges fail until the site's data is cleared too.
+- The server takes a tab's name, from the socket URL, as its identity; a real deployment
+  authenticates the connection. The journal binds each replica to the first tab that
+  commits from it, so one tab cannot send edits as another's replica.
+- Deleting `pages.sqlite` gives the server a new epoch. A tab that comes back rebuilds from
+  the new, empty history and sends what was waiting in its outbox; pages only the old
+  server held are gone.

@@ -72,7 +72,8 @@ export const startSyncServer = async <Presence = unknown>(options: {
     const handler = options.journal.transport(principal)
     const stops = [
       Sync.transport.serve(socketLike(socket), {
-        exchange: (cursor, pending) => handler.exchange(Sequence.make(cursor), pending),
+        exchange: (cursor, pending, epoch) =>
+          handler.exchange(Sequence.make(cursor), pending, epoch),
         // A commit to this document is announced, so the client exchanges without polling.
         changes: listener =>
           options.journal.subscribe(key => {

@@ -163,6 +163,36 @@ describe('two people on one page', () => {
     return alice
   }
 
+  const titles = (shared: Shared) => shared.pages.map(page => page.title)
+
+  it('rebuilds on a server that lost its history, and delivers what was waiting', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    const model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'Old' }))
+    await synchronize(replica, 'bob')
+    await bobEdits(replica, model, Message.AddedPage({ title: 'New' }))
+    // The server starts again from an empty database, behind the replica's cursor.
+    journal.close()
+    journal = openJournal()
+    await synchronize(replica, 'bob')
+    // What only the old server held is gone; the edit that was waiting is not.
+    expect(titles(journal.snapshot())).toEqual(['New'])
+    expect(titles(Effect.runSync(replica.shared))).toEqual(['New'])
+    expect(Effect.runSync(replica.pending)).toEqual([])
+  })
+
+  it('refuses one tab’s edits sent under another’s replica', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    const model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'A' }))
+    await synchronize(replica, 'bob')
+    await bobEdits(replica, model, Message.AddedPage({ title: 'B' }))
+    const [waiting] = Effect.runSync(replica.pending)
+    await synchronize(replica, 'mallory')
+    expect(Effect.runSync(replica.status).rejected).toEqual([waiting!.opId])
+    expect(titles(journal.snapshot())).toEqual(['A'])
+  })
+
   it('sends a burst of typing the server has not seen as one operation', async () => {
     const aliceReplica = await open('alice')
     replicas.push(aliceReplica)

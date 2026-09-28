@@ -773,6 +773,85 @@ describe('a paged exchange', () => {
   })
 })
 
+describe('a server that was reset', () => {
+  /**
+   * A server with a log and an epoch, which answers a replica that saw another epoch from
+   * the start of its log, commits what it is sent, and pages its answer.
+   */
+  const server = (epoch: string | undefined, log: Array<CommittedOperation>, page = 100) => {
+    const state = { epoch, log, seen: [] as Array<string | undefined> }
+    const client: TransportClient = {
+      exchange: async (cursor, sent, seen) => {
+        state.seen.push(seen)
+        const from = seen !== undefined && seen !== state.epoch ? 0 : cursor
+        for (const operation of sent)
+          state.log.push({
+            ...operation,
+            serverSequence: toSequence(state.log.length + 1),
+            actorId: 'owner',
+          })
+        return {
+          operations: state.log.slice(from, from + page),
+          rejected: [],
+          acknowledged: sent.map(operation => operation.opId),
+          more: from + page < state.log.length,
+          ...(state.epoch === undefined ? {} : { epoch: state.epoch }),
+        }
+      },
+    }
+    return { state, client }
+  }
+  const titles = (replica: Replica<Message, Shared>) => shared(replica).todos.map(todo => todo.id)
+  const history = (...ids: ReadonlyArray<string>) =>
+    ids.map((id, index) => committed('b', index + 1, index + 1, created(id)))
+
+  it('sends back the epoch it last heard, across a reopen', async () => {
+    const storage = memoryStorage()
+    const one = server('one', history('t1'))
+    const replica = await open('a', storage)
+    await sync(replica, one.client)
+    await close(replica)
+    const reopened = await open('a', storage)
+    await sync(reopened, one.client)
+    expect(one.state.seen).toEqual([undefined, 'one'])
+    await close(reopened)
+  })
+
+  it('rebuilds from a new history and sends its outbox there', async () => {
+    const replica = await open('a')
+    await sync(replica, server('one', history('t1', 't2', 't3')).client)
+    await submit(replica, created('mine'))
+    // The server lost its history and has another since, shorter than the replica's cursor.
+    const two = server('two', history('t9'))
+    await sync(replica, two.client)
+    expect(titles(replica)).toEqual(['t9', 'mine'])
+    expect(Effect.runSync(replica.committed).todos.map(todo => todo.id)).toEqual(['t9', 'mine'])
+    expect(cursor(replica)).toBe(2)
+    expect(pending(replica)).toEqual([])
+    await close(replica)
+  })
+
+  it('takes the first epoch it hears as the one its cursor points into', async () => {
+    const log = history('t1')
+    const replica = await open('a')
+    await sync(replica, server(undefined, log).client)
+    log.push(committed('b', 2, 2, created('t2')))
+    await sync(replica, server('one', log).client)
+    expect(titles(replica)).toEqual(['t1', 't2'])
+    await close(replica)
+  })
+
+  it('pages through a rebuilt history shorter than its old cursor', async () => {
+    const replica = await open('a')
+    await sync(replica, server('one', history(...'abcdefghij')).client)
+    const two = server('two', history('v', 'w', 'x', 'y', 'z'), 2)
+    await sync(replica, two.client)
+    expect(titles(replica)).toEqual(['v', 'w', 'x', 'y', 'z'])
+    expect(two.state.seen).toEqual(['one', 'two', 'two'])
+    await close(replica)
+  })
+})
+
 describe('coalescing', () => {
   const renamed = (id: string, title: string): Message => ({ _tag: 'RenamedTodo', id, title })
   const Coalescing = defineSync({

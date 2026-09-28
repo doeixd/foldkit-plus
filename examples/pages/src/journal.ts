@@ -44,12 +44,15 @@ export const openJournal = (file = ':memory:', page = PAGE) => {
     )
 
   const transport = (actorId: string): TransportClient => ({
-    exchange: async (cursor, pending) => {
-      // A cursor past the server's names history this server does not have (it was reset,
-      // or the client is confused). Refused before anything is appended, or the edits
+    exchange: async (cursor, pending, seen) => {
+      // A replica that saw another epoch holds a cursor into history this server lacks
+      // (it was reset): it is answered from the start, and rebuilds from that. Otherwise a
+      // cursor past the server's is refused before anything is appended, or the edits
       // would commit and their acknowledgements be lost with the failed read.
+      const epoch = Effect.runSync(journal.epoch(pages))
+      const from = seen !== undefined && seen !== epoch ? 0 : cursor
       const at = Effect.runSync(journal.cursor(pages))
-      if (cursor > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
+      if (from > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
       const rejected: Array<string> = []
       const acknowledged: Array<string> = []
       for (const input of pending) {
@@ -72,12 +75,13 @@ export const openJournal = (file = ':memory:', page = PAGE) => {
         const opId: unknown = (input as { readonly opId?: unknown } | null)?.opId
         if (typeof opId === 'string') rejected.push(opId)
       }
-      const rows = Effect.runSync(journal.read(pages, Cursor.make(cursor), { limit: page }))
+      const rows = Effect.runSync(journal.read(pages, Cursor.make(from), { limit: page }))
       return {
         operations: rows.map(committed),
         rejected,
         acknowledged,
         more: rows.length === page,
+        epoch,
       }
     },
   })

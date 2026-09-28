@@ -206,13 +206,16 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
       return () => Effect.runSync(Fiber.interrupt(fiber))
     },
     transport: (principal: Principal): TransportClient => ({
-      exchange: async (cursor, pending) => {
+      exchange: async (cursor, pending, seen) => {
         if (!principal.actorId) throw new Error('Unauthenticated reader')
-        // A cursor past the server's names history this server does not have. Refused
-        // before anything is appended, or the operations would commit and their
-        // acknowledgements be lost with the failed read.
+        // A replica that saw another epoch holds a cursor into history this server lacks
+        // (it was reset): it is answered from the start, and rebuilds from that. Otherwise
+        // a cursor past the server's is refused before anything is appended, or the
+        // operations would commit and their acknowledgements be lost with the failed read.
+        const epoch = Effect.runSync(durable.epoch(DocumentId.make(principal.documentId)))
+        const from = seen !== undefined && seen !== epoch ? 0 : cursor
         const at = Effect.runSync(durable.cursor(DocumentId.make(principal.documentId)))
-        if (cursor > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
+        if (from > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
         const rejected: string[] = []
         const acknowledged: string[] = []
         for (const input of pending) {
@@ -264,7 +267,7 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
         // floor check and the read and produce a gapped stream.
         const caught = Effect.runSync(
           durable
-            .read(DocumentId.make(principal.documentId), Cursor.make(cursor), { limit: page })
+            .read(DocumentId.make(principal.documentId), Cursor.make(from), { limit: page })
             .pipe(
               Effect.map(rows => ({ rows })),
               Effect.catchTag('CompactedCursorError', () =>
@@ -279,6 +282,7 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
             operations: [],
             rejected,
             acknowledged,
+            epoch,
           }
         }
         return {
@@ -286,6 +290,7 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
           rejected,
           acknowledged,
           more: caught.rows.length === page,
+          epoch,
         }
       },
     }),

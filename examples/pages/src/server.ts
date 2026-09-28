@@ -33,7 +33,8 @@ sockets.on('connection', (socket, request) => {
   // Each commit is announced to every tab, so a tab that is only reading sees others' typing.
   const stops = [
     Sync.transport.serve(socketLike(socket), {
-      exchange: (cursor, pending) => transport.exchange(Sequence.make(cursor), pending),
+      exchange: (cursor, pending, epoch) =>
+        transport.exchange(Sequence.make(cursor), pending, epoch),
       changes: journal.subscribe,
     }),
     // On the same socket: the connection's tab is the identity its presence goes out under.

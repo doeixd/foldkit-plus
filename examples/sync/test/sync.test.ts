@@ -178,6 +178,30 @@ describe('the journal adapter', () => {
     expect(server.snapshot('todos')).toEqual({ cursor: 0, model: { todos: [] } })
   })
 
+  it('answers a replica that saw another epoch from the start, committing its outbox', async () => {
+    const a = await open('a')
+    await a.submit(created('old'))
+    await a.synchronize(server.transport(principal))
+    await a.submit(created('waiting'))
+    // A new server behind the replica's cursor: it has another epoch and other history.
+    const other = openJournal(':memory:')
+    other.append(operation('b', 1, created('theirs')), principal)
+    await a.synchronize(other.transport(principal))
+    expect(a.shared().todos.map(todo => todo.id)).toEqual(['theirs', 'waiting'])
+    expect(other.snapshot('todos').model.todos.map(todo => todo.id)).toEqual(['theirs', 'waiting'])
+    other.close()
+  })
+
+  it('refuses an operation from a replica another actor committed from first', async () => {
+    const transport = server.transport(principal)
+    await transport.exchange(Sequence.make(0), [operation('a', 1, created('first'))])
+    await expect(
+      server
+        .transport({ ...principal, actorId: 'intruder' })
+        .exchange(Sequence.make(1), [operation('a', 2, created('second'))]),
+    ).resolves.toMatchObject({ rejected: ['a:2'], acknowledged: [] })
+  })
+
   it('catches a replica far behind up in pages, within one synchronize', async () => {
     const paged = openJournal(':memory:', { page: 2 })
     for (let index = 1; index <= 5; index++)

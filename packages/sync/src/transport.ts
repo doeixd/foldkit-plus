@@ -12,6 +12,7 @@ export interface ExchangeFrame {
   readonly id: string
   readonly cursor: number
   readonly pending: ReadonlyArray<Operation>
+  readonly epoch?: string | undefined
 }
 
 export interface ExchangeReply {
@@ -30,9 +31,11 @@ export interface NotifyFrame {
 }
 
 export interface TransportShape {
+  /** `epoch` is the server history the replica's cursor points into, when it knows one. */
   readonly exchange: (
     cursor: number,
     pending: ReadonlyArray<Operation>,
+    epoch?: string | undefined,
   ) => Effect.Effect<unknown, TransportError>
   /**
    * Emits when the server may have something new, for a transport that can hear
@@ -63,26 +66,34 @@ const failure = (error: unknown): TransportError =>
 
 /** A transport backed by an in-process handler, for tests and single-process demos. */
 export const layerLoopback = (
-  handler: (cursor: number, pending: ReadonlyArray<Operation>) => unknown | Promise<unknown>,
+  handler: (
+    cursor: number,
+    pending: ReadonlyArray<Operation>,
+    epoch?: string | undefined,
+  ) => unknown | Promise<unknown>,
 ): Layer.Layer<Transport> =>
   Layer.succeed(Transport, {
-    exchange: (cursor, pending) =>
-      Effect.tryPromise({ try: () => Promise.resolve(handler(cursor, pending)), catch: failure }),
+    exchange: (cursor, pending, epoch) =>
+      Effect.tryPromise({
+        try: () => Promise.resolve(handler(cursor, pending, epoch)),
+        catch: failure,
+      }),
   })
 
 /** Wraps the promise-based client the replica already speaks. */
 export const layerFromPromise = (transport: TransportClient): Layer.Layer<Transport> =>
   Layer.succeed(Transport, {
-    exchange: (cursor, pending) =>
+    exchange: (cursor, pending, epoch) =>
       Effect.tryPromise({
-        try: () => transport.exchange(sequence(cursor), pending),
+        try: () => transport.exchange(sequence(cursor), pending, epoch),
         catch: failure,
       }),
   })
 
 /** Bridges the service back to the promise client the replica consumes. */
 export const toPromise = (transport: TransportShape): TransportClient => ({
-  exchange: (cursor, pending) => Effect.runPromise(transport.exchange(cursor, pending)),
+  exchange: (cursor, pending, epoch) =>
+    Effect.runPromise(transport.exchange(cursor, pending, epoch)),
 })
 
 /**
@@ -100,6 +111,7 @@ export const serveSocket = (
     readonly exchange: (
       cursor: number,
       pending: ReadonlyArray<Operation>,
+      epoch?: string | undefined,
     ) => unknown | Promise<unknown>
     /** Subscribes to the document's commits; returns the unsubscribe. */
     readonly changes?: ((listener: () => void) => () => void) | undefined
@@ -120,22 +132,33 @@ export const serveSocket = (
       return
     }
     if (typeof parsed !== 'object' || parsed === null) return
-    const { id, cursor, pending } = parsed as { id?: unknown; cursor?: unknown; pending?: unknown }
+    const { id, cursor, pending, epoch } = parsed as {
+      id?: unknown
+      cursor?: unknown
+      pending?: unknown
+      epoch?: unknown
+    }
     // Without an id there is nobody to answer, so drop the frame.
     if (typeof id !== 'string') return
     if (
       typeof cursor !== 'number' ||
       !Number.isSafeInteger(cursor) ||
       cursor < 0 ||
-      !Array.isArray(pending)
+      !Array.isArray(pending) ||
+      (epoch !== undefined && typeof epoch !== 'string')
     ) {
       send({ id, error: 'Invalid exchange frame' })
       return
     }
-    const frame: ExchangeFrame = { id, cursor, pending: pending as ReadonlyArray<Operation> }
+    const frame: ExchangeFrame = {
+      id,
+      cursor,
+      pending: pending as ReadonlyArray<Operation>,
+      epoch: typeof epoch === 'string' ? epoch : undefined,
+    }
     void (async () => {
       try {
-        const result = await options.exchange(frame.cursor, frame.pending)
+        const result = await options.exchange(frame.cursor, frame.pending, frame.epoch)
         send({ id: frame.id, result })
       } catch (error) {
         send({ id: frame.id, error: error instanceof Error ? error.message : String(error) })
@@ -244,6 +267,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
         readonly id: string
         readonly cursor: number
         readonly pending: ReadonlyArray<Operation>
+        readonly epoch: string | undefined
         readonly resume: (effect: Effect.Effect<unknown, TransportError>) => void
       }
       const notices = yield* PubSub.sliding<void>(1)
@@ -279,6 +303,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
             id: entry.id,
             cursor: entry.cursor,
             pending: entry.pending,
+            ...(entry.epoch === undefined ? {} : { epoch: entry.epoch }),
           } satisfies ExchangeFrame),
         )
       }
@@ -377,7 +402,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
       return Transport.of({
         changes: Stream.fromPubSub(notices),
         socket: shared,
-        exchange: (cursor, pending) =>
+        exchange: (cursor, pending, epoch) =>
           Effect.callback<unknown, TransportError>(resume => {
             if (disposed) {
               resume(Effect.fail(new TransportError({ message: 'transport closed' })))
@@ -391,7 +416,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               resume(Effect.fail(new TransportError({ message: 'transport queue full' })))
               return
             }
-            const entry: Entry = { id: String(nextId++), cursor, pending, resume }
+            const entry: Entry = { id: String(nextId++), cursor, pending, epoch, resume }
             if (ready) send(entry)
             else queued.push(entry)
             // A caller interrupted before a reply must release its slot, or a

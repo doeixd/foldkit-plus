@@ -924,6 +924,8 @@ failure cases fit the same ownership model:
 | Server rejects an operation | remove it from pending and rebase the rest |
 | Other clients commit first | advance committed base and replay local pending operations |
 | Server compacted needed history | adopt a checkpoint, then replay newer commits + local pending |
+| Server lost its history (reset, new database) | a new `epoch`: the server answers from 0, the replica rebuilds committed state and resends pending; commits only the old server held are lost |
+| Another actor sends a replica's operations | Durable binds each replica to its first committer (`replicaId` in `journalContract`) and refuses the rest |
 | Local replica storage was evicted | start from server state; unsent local edits are unrecoverable |
 | Two writers use one replica storage | CAS fails rather than silently merging two local histories |
 | Replay refuses a Message | `ReplayError`; operation is not written to the outbox |

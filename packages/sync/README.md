@@ -766,6 +766,15 @@ Important recovery cases:
   persisted and supported versions so migration/reset can be explicit.
 - **Server compaction.** A checkpoint replaces history the replica can no longer
   replay and pending local work is rebased on it.
+- **Server reset.** A server that answers with an `epoch` (Durable's
+  `journal.epoch(key)`) names its history, and the replica stores it and sends
+  it back as `exchange`'s third argument. A server that finds another epoch
+  answers from sequence 0 of its own history, and should skip its
+  cursor-ahead check for that request. The replica then rebuilds its committed
+  state from that answer and keeps its outbox, which the same exchange delivers.
+  Operations the old server committed that no replica still holds are gone. A
+  replica that has never heard an epoch takes the first one as its own, so a
+  server reset before that is not recognized.
 
 Application Message/shared-state migrations remain application policy; Sync
 versioning protects its own persisted envelope.
