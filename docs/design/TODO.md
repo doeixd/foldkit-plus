@@ -43,7 +43,7 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   facts and JSON-LD, typed in the plan, escaped, checked like the view, and
   applied on client navigation too. A template missing the tags Foldkit fills
   (canonical, `og:url`) is refused.
-- [ ] **S4. `SSR.sitemap` and a `robots` helper** from the generated pages.
+- [x] **S4. `SSR.sitemap` and a `robots` helper** from the generated pages.
 - [ ] **S5. Deciding whether to take a page over** (`when`, and
   `otherwise: 'render'` drawing afresh in place), and a freshness check for a
   page older than the data.

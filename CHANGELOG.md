@@ -66,6 +66,13 @@ version changed; `pnpm` skips versions already in the registry.
   which Foldkit would otherwise leave out silently. The CMS example's
   hand-built head is now its plan's `meta`.
 
+- **`foldkit-ssr`, `SSR.sitemap(pages, { origin })` and
+  `SSR.robots({ origin, sitemap?, disallow? })`:** a generated site's sitemap
+  (each page's full address, its `modified` date as the UTC day) and the
+  `robots.txt` naming it. A duplicate path, a relative one, or a date `Date`
+  cannot read is refused. The CMS example drops its own `sitemapOf` and
+  `robots`.
+
 - **`foldkit-bundle`, `onMessage`:** a placement's `onMessage` (and
   `(message, key)` on a collection) observes each child Message as a parent
   Step after the child and its `onOut`; `placements.update(own)` types `own`'s

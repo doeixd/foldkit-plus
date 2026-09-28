@@ -315,6 +315,26 @@ alike, so a generated page records its path alone: `/about?ref=mail` resumes
 the page generated for `/about`, and `/other` is refused. A server-rendered page
 records its path and query, and resumes only there.
 
+A generated site also wants a sitemap and a `robots.txt` that names it.
+`SSR.sitemap` takes the pages, with a `modified` date where one is known, and
+`SSR.robots` the origin:
+
+```ts
+await writeFile(
+  'dist/sitemap.xml',
+  SSR.sitemap(
+    pages.map(page => ({ path: page.path, modified: '2026-09-27' })),
+    { origin: 'https://example.com' },
+  ),
+)
+await writeFile('dist/robots.txt', SSR.robots({ origin: 'https://example.com' }))
+```
+
+`modified` is any date `Date` reads, written as its UTC day. A path listed
+twice, one not starting with `/`, or a date `Date` cannot read is refused
+rather than written into a sitemap a search engine would reject. `robots`
+takes `disallow` paths and a `sitemap` path other than `/sitemap.xml`.
+
 ## Checking what the browser will read
 
 The view check sees what the first render shows. A Surface can read a field the

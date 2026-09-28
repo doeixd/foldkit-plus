@@ -697,6 +697,65 @@ const fileOf = (path: string): string => {
   return trimmed.endsWith('.html') ? trimmed : `${trimmed}/index.html`
 }
 
+const xmlText = (text: string): string =>
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+
+/**
+ * A sitemap of the pages a build generated, each at its full address under
+ * `origin`, in the order given. `modified`, when a page has it, is any date
+ * `Date` reads, written as the UTC day. A path that does not start with `/`,
+ * a path given twice, and a date `Date` cannot read are refused: each would
+ * make a sitemap a search engine rejects or misreads.
+ */
+const sitemap = (
+  pages: ReadonlyArray<{ readonly path: string; readonly modified?: string | undefined }>,
+  options: { readonly origin: string },
+): string => {
+  const seen = new Set<string>()
+  const urls = pages.map(({ path, modified }) => {
+    if (!path.startsWith('/')) throw new Error(`SSR.sitemap: "${path}" does not start with /`)
+    if (seen.has(path)) throw new Error(`SSR.sitemap: "${path}" is listed twice`)
+    seen.add(path)
+    const loc = `<loc>${xmlText(new URL(path, options.origin).href)}</loc>`
+    if (modified === undefined) return `  <url>${loc}</url>`
+    const at = new Date(modified)
+    if (Number.isNaN(at.getTime())) {
+      throw new Error(`SSR.sitemap: "${modified}", the date of "${path}", is not a date`)
+    }
+    return `  <url>${loc}<lastmod>${at.toISOString().slice(0, 10)}</lastmod></url>`
+  })
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls,
+    '</urlset>',
+    '',
+  ].join('\n')
+}
+
+/**
+ * A `robots.txt` that lets every crawler in, except under `disallow`, and
+ * names the sitemap at `sitemap` (default `/sitemap.xml`) under `origin`.
+ */
+const robots = (options: {
+  readonly origin: string
+  readonly sitemap?: string | undefined
+  readonly disallow?: ReadonlyArray<string> | undefined
+}): string =>
+  [
+    'User-agent: *',
+    'Allow: /',
+    ...(options.disallow ?? []).map(path => `Disallow: ${path}`),
+    '',
+    `Sitemap: ${new URL(options.sitemap ?? '/sitemap.xml', options.origin).href}`,
+    '',
+  ].join('\n')
+
 // Keyed by plan, element and event: a server renders the same page for every
 // request, so one warning each is enough to learn which handler to name.
 const warnedUnnamed = new Set<string>()
@@ -1124,6 +1183,8 @@ export const SSR = {
   entry,
   handle,
   serializeJsonScript,
+  sitemap,
+  robots,
 }
 
 export {

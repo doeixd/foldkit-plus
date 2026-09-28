@@ -135,18 +135,3 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
   }
   return generated
 }
-
-/** The sitemap of what was generated. */
-export const sitemapOf = (pages: ReadonlyArray<Generated>): string =>
-  [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...pages.map(
-      page =>
-        `  <url><loc>${ORIGIN}${page.path}</loc><lastmod>${page.modified.slice(0, 10)}</lastmod></url>`,
-    ),
-    '</urlset>',
-    '',
-  ].join('\n')
-
-export const robots = `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`

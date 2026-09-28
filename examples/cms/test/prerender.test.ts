@@ -4,13 +4,9 @@
  */
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
-import {
-  generateSite,
-  robots,
-  siteTemplate,
-  sitemapOf,
-  type Generated,
-} from '../src/ssr/prerender.js'
+import { SSR } from 'foldkit-ssr'
+import { ORIGIN } from '../src/content/domain.js'
+import { generateSite, siteTemplate, type Generated } from '../src/ssr/prerender.js'
 
 const template = siteTemplate(readFileSync(new URL('../index.html', import.meta.url), 'utf8'))
 
@@ -63,12 +59,11 @@ describe('the generated site', () => {
     expect(html).toContain('Admin screens, joined not generated')
   })
 
-  it('lists every page in the sitemap, and points crawlers to it', () => {
-    const sitemap = sitemapOf(pages)
+  it('lists every page in the sitemap, each with a date it can read', () => {
+    const sitemap = SSR.sitemap(pages, { origin: ORIGIN })
     expect(sitemap).toContain(
       '<loc>https://foldkit-cms-demo.pages.dev/site/blog/a-page-is-data</loc>',
     )
-    expect(sitemap.match(/<url>/g)).toHaveLength(pages.length)
-    expect(robots).toContain('Sitemap: https://foldkit-cms-demo.pages.dev/sitemap.xml')
+    expect(sitemap.match(/<lastmod>/g)).toHaveLength(pages.length)
   })
 })
