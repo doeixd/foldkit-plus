@@ -64,6 +64,12 @@ version changed; `pnpm` skips versions already in the registry.
   published sandbox kept from the earlier seed is replaced by this one. A new
   post or page is in the address (`new=<id>`) from the moment it is started,
   so a reload comes back to it; its first save turns that into its own key.
+  The public site is rendered at build time with `foldkit-ssr`: each
+  published page and post is HTML with its text, styles, description, link
+  preview, canonical address and article facts, beside a sitemap and
+  `robots.txt`. The browser takes a generated page over without drawing or
+  reading it again, while the visitor's sandbox still holds the seed. The
+  studio is `noindex`.
 
 - **Dropping a palette tile on the page's own space:** `PointerDrag`'s facts
   for a drag onto `targets` carry `region`, whether the pointer is inside the

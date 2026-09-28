@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx src/dev.ts",
     "demo": "tsx src/main.ts",
-    "build:sandbox": "vite build --mode sandbox",
+    "build:sandbox": "vite build --mode sandbox && tsx src/generate.ts dist",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -29,6 +29,7 @@
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
+    "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
     "sql.js": "1.13.0"
   },

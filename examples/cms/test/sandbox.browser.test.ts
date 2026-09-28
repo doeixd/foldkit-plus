@@ -4,7 +4,8 @@
  * what was written), and started afresh when the address asks (`?reset`).
  */
 import { afterEach, expect, it } from 'vitest'
-import { openSandbox, SANDBOX_KEY } from '../src/browser.js'
+import { openSandbox } from '../src/browser.js'
+import { clearEdited, edited, SANDBOX_KEY } from '../src/sandboxKey.js'
 import type { Send } from '../src/transport.js'
 
 const KEY = SANDBOX_KEY
@@ -21,6 +22,7 @@ const archiveHome = (send: Send) =>
 
 afterEach(() => {
   localStorage.removeItem(KEY)
+  clearEdited()
 })
 
 it('keeps its database, opens it again, and starts afresh when asked', async () => {
@@ -65,4 +67,15 @@ it('lets go of a sandbox kept from an older seed, and starts from this one', asy
   await openSandbox({ fresh: false })
   expect(localStorage.getItem('foldkit-cms-demo')).toBeNull()
   expect(localStorage.getItem(KEY)).not.toBeNull()
+})
+
+it('marks itself edited on a change, and holds the seed again once started afresh', async () => {
+  const send = await openSandbox({ fresh: false })
+  // Seeded and read: the generated pages still show what it holds.
+  await send('visitor', JSON.stringify({ operation: 'nothing' }))
+  expect(edited()).toBe(false)
+  await archiveHome(send)
+  expect(edited()).toBe(true)
+  await openSandbox({ fresh: true })
+  expect(edited()).toBe(false)
 })

@@ -72,7 +72,7 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-const App = Surface.application({ Model, Message })
+export const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   entities: [Post, Page, ...Object.values(Cms.Entities)],

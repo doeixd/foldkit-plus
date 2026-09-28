@@ -44,6 +44,18 @@ SSR.hydrate(config, Editor, { buildId })
 
 ## Gotchas
 
+- **Render from Remote data by preparing it first.** `SSR.render` and
+  `SSR.generate` render the Model `init` returns; nothing is fetched during a
+  render. Build that Model with `Data.prefetch` for each active Surface's
+  projection (`active.projectionOf(model)`), in turn, each over the Model the
+  one before left, so a read that depends on another (a page's Blocks on its
+  document) sees it. With a `foldkit-bundle` assembly, `init` must still return
+  `placements.initial(...)`: pass the prepared fields to it.
+- **The package has one entry, and it carries Foldkit's server renderer.**
+  Importing anything from `foldkit-ssr`, or from `foldkit/experimental/server`,
+  in a browser module puts the renderer and its HTML parser in that bundle.
+  Import `SSR.hydrate` through a module loaded only for a page it takes over.
+
 - `init`'s Commands never run on a resumed page. `SSR.render` fails with
   `ResumeUnsafe` `UndeclaredStartup` until the plan names them in `boot`. A
   `foldkit-bundle` app (`Mirror.kv` restore): `boot: model => assembly.init(model).commands ?? []`.

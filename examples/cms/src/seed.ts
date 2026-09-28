@@ -773,6 +773,12 @@ const posts: ReadonlyArray<Seeded> = [
   ),
 ]
 
+/**
+ * When the seed was written: its posts are dated before it. Fixed, so the
+ * pages the build renders and every visitor's sandbox show the same dates.
+ */
+export const SEEDED_AT = new Date('2026-09-27T09:00:00.000Z')
+
 /** Imports the seed, as `imported` imports each item: the posts, then the pages that point at them. */
 export const seed = <E, R>(
   imported: (item: Imported) => Effect.Effect<{ readonly targetId: string }, E, R>,

@@ -39,6 +39,7 @@
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     },
     "lib": ["ES2022", "DOM"]
@@ -74,6 +75,9 @@
     },
     {
       "path": "../../packages/mirror/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/ssr/tsconfig.build.json"
     },
     {
       "path": "../../packages/remote/tsconfig.build.json"

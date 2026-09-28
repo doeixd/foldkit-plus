@@ -11,8 +11,9 @@ import { Remote } from 'foldkit-remote'
 import * as Posts from './app.js'
 import * as Pages from './pageApp.js'
 import * as Site from './siteApp.js'
-import { view as siteView } from './siteView.js'
+import { APP_ROOT, siteConfig, takesOver } from './siteConfig.js'
 import { view as pagesView } from './pagesView.js'
+import { edited } from './sandboxKey.js'
 import { keepScroll } from './scroll.js'
 import { chairOf, httpSend, remoteClient, type Send } from './transport.js'
 import { view as postsView } from './view.js'
@@ -34,8 +35,14 @@ const startsAfresh = (): boolean => {
 // Styles arrive as it draws.
 keepScroll()
 
-const container = document.getElementById('app')
-if (container === null) throw new Error('index.html has no #app')
+/**
+ * Where the application is drawn: `#app` in `index.html`, and in a page the
+ * build rendered (`prerender.ts`), its application's root, given that id.
+ */
+const container =
+  document.getElementById('app') ?? document.querySelector<HTMLElement>(`[${APP_ROOT}]`)
+if (container === null) throw new Error('the page has no #app and no rendered application')
+container.id = 'app'
 // Vite proxies `/remote` to the server, so the browser talks to one origin; the
 // published demo, built in the `sandbox` mode, runs the server in the page instead.
 // The page is drawn while that starts, and what it asks waits for it.
@@ -53,25 +60,17 @@ const path = window.location.pathname
 const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visitor' : 'wren')
 const remote = Remote.clientLayer(remoteClient(send, chair))
 
-if (path.startsWith('/site'))
-  Runtime.run(
-    Runtime.makeApplication(
-      Site.placements.complete({
-        Model: Site.Model,
-        container,
-        init: (url: Url) => Site.initial(url),
-        update: Site.update,
-        view: siteView,
-        routing: {
-          onUrlChange: (url: Url) => Site.Message.UrlChanged({ url }),
-          onUrlRequest: (request: UrlRequest) => Site.Message.UrlRequested({ request }),
-        },
-        subscriptions: Site.placements.subscriptions(),
-        resources: remote,
-      }),
-    ),
-  )
-else if (path.startsWith('/pages'))
+if (path.startsWith('/site')) {
+  const config = siteConfig({ init: (url: Url) => Site.initial(url), resources: remote, container })
+  if (takesOver(document, chair, edited()))
+    // The build's id is its entry script's address, which the page loads as this
+    // module. Should the takeover's code not load, the page is drawn afresh.
+    void import('./sitePlan.js').then(
+      ({ takeOver }) => takeOver(config, new URL(import.meta.url).pathname),
+      () => Runtime.run(Runtime.makeApplication(config)),
+    )
+  else Runtime.run(Runtime.makeApplication(config))
+} else if (path.startsWith('/pages'))
   Runtime.run(
     Runtime.makeApplication(
       Pages.placements.complete({

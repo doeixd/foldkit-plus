@@ -9,15 +9,8 @@ import initSqlJs, { type Database } from 'sql.js'
 import wasm from 'sql.js/dist/sql-wasm.wasm?url'
 import { answer, publishDue } from './endpoint.js'
 import { openServer, type Sqlite } from './server.js'
+import { clearEdited, isStale, markEdited, SANDBOX_KEY } from './sandboxKey.js'
 import type { Send } from './transport.js'
-
-const PREFIX = 'foldkit-cms-demo'
-/**
- * Where the sandbox is kept, named by the seed's edition. Raise it when the
- * seed changes: a sandbox kept from an older edition is then let go, and
- * everyone starts from the new one rather than from what they kept.
- */
-export const SANDBOX_KEY = `${PREFIX}@3`
 
 /**
  * Bytes as base64, and back: by the browser's own where it has them (a big
@@ -38,8 +31,7 @@ const fromText = (text: string): Uint8Array =>
 /** The database last kept; none where there is none, or storage is refused. */
 const kept = (): Uint8Array | undefined => {
   try {
-    for (const key of Object.keys(localStorage))
-      if (key.startsWith(PREFIX) && key !== SANDBOX_KEY) localStorage.removeItem(key)
+    for (const key of Object.keys(localStorage)) if (isStale(key)) localStorage.removeItem(key)
     const text = localStorage.getItem(SANDBOX_KEY)
     return text === null ? undefined : fromText(text)
   } catch {
@@ -92,6 +84,7 @@ export const openSandbox = async (options: { readonly fresh: boolean }): Promise
   if (restored === undefined) {
     await backend.seed()
     keep(database)
+    clearEdited()
   }
   // Kept a moment after the last change, not after each: saves come in runs while
   // someone types. Kept at once when the page is left, so a change of chair keeps all.
@@ -112,7 +105,9 @@ export const openSandbox = async (options: { readonly fresh: boolean }): Promise
   })
   setInterval(() => {
     void publishDue(backend).then(said => {
-      if (said.length > 0) keepSoon()
+      if (said.length === 0) return
+      markEdited()
+      keepSoon()
     })
   }, 5000)
   return async (chair, body) => {
@@ -120,7 +115,10 @@ export const openSandbox = async (options: { readonly fresh: boolean }): Promise
     const answered = await answer(backend, chair, parsed)
     // Reads change nothing; a mutation, and the drafts a save writes, are kept.
     if (answered.ok && typeof parsed === 'object' && parsed !== null && 'operation' in parsed)
-      if (parsed.operation === 'mutate') keepSoon()
+      if (parsed.operation === 'mutate') {
+        markEdited()
+        keepSoon()
+      }
     return answered
   }
 }

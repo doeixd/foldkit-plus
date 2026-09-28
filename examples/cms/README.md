@@ -75,6 +75,23 @@ the sandbox's code and its wasm are fetched with the page, and
 [public/_headers](public/_headers) has Cloudflare Pages keep what is under
 `/assets` for a year, since its names change with its content.
 
+The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/prerender.ts),
+run by [generate.ts](src/generate.ts)). It runs the same server in Node over the
+seed, reads everything each page shows through Remote, and writes every
+published page and post as HTML at its address (`site/blog/a-page-is-data.html`),
+along with `sitemap.xml` and `robots.txt`. Each page carries its text, its
+styles, a description, a link preview (Open Graph and Twitter), a canonical
+address and, for a post, its article facts, so a reader, a crawler and a link
+preview see it with no script. The studio's pages are `noindex`.
+
+In the browser the site takes a generated page over without drawing it again
+or reading any of it ([sitePlan.ts](src/sitePlan.ts), loaded only then). That page
+shows the seed, so it is taken over only while the visitor's sandbox still
+holds the seed and the page is read as a visitor; after a change, or with
+`?as=`, the site draws afresh from the visitor's own sandbox
+(`takesOver` in [siteConfig.ts](src/siteConfig.ts)). The seed is dated from a
+fixed day, so both show the same dates.
+
 ## What the run shows
 
 | In the transcript | What it is |

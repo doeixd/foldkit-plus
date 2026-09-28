@@ -20,7 +20,7 @@ import {
 import { RemoteServer } from 'foldkit-remote-server'
 import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from './domain.js'
 import { Page, PageId, PageInput, Pages } from './pageDomain.js'
-import { seed } from './seed.js'
+import { seed, SEEDED_AT } from './seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
 export interface Sqlite {
@@ -187,7 +187,7 @@ export const openServer = (clock: () => Date, sqlite: Sqlite) => {
     /** Starts with the posts and pages of `seed.ts`, imported as an editor, as `pnpm dev` does. */
     seed: () =>
       Effect.runPromise(
-        seed(item => cms.import({ ...item, as: { name: 'edda', role: 'editor' } }), clock()).pipe(
+        seed(item => cms.import({ ...item, as: { name: 'edda', role: 'editor' } }), SEEDED_AT).pipe(
           Effect.provide(database),
         ),
       ),

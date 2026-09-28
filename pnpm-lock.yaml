@@ -144,6 +144,9 @@ importers:
       foldkit-remote-server:
         specifier: workspace:*
         version: link:../../packages/remote-server
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface

@@ -25,6 +25,10 @@ import type { Chair } from './transport.js'
 
 type Slots = SlotView.SlotBuilders<typeof SiteSlots, Message>
 
+/** What the blog's index says it is: its subtitle, and its description to a search engine. */
+export const BLOG_LEDE =
+  'How this demo is made, one part at a time: its CMS, its page builder and the packages under them.'
+
 /** A link on the site that keeps who is reading. */
 const siteLink = (reader: Chair, path: string) =>
   reader === 'visitor' ? path : `${path}?as=${reader}`
@@ -103,9 +107,7 @@ const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
   return [
     h.header(slots.masthead.attrs(), [
       h.h1(slots.heading.attrs(), ['The blog']),
-      h.p(slots.lede.attrs(), [
-        'How this demo is made, one part at a time: its CMS, its page builder and the packages under them.',
-      ]),
+      h.p(slots.lede.attrs(), [BLOG_LEDE]),
     ]),
     Option.match(posts, {
       onNone: () => pending(slots, h, tagOf(blogRead(model), model)),
