@@ -2,10 +2,10 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
 import { loginRouter } from '../../../route.js'
-import { HomeSlots, HomeStyle } from '../../../style.js'
+import { HomePart } from '../../../style.js'
 import type { Message } from '../message.js'
 
-type Slots = SlotBuilders<typeof HomeSlots, Message>
+type Slots = SlotBuilders<typeof HomePart.slots, Message>
 
 const featureCard = (
   title: string,
@@ -19,7 +19,7 @@ const featureCard = (
   ])
 
 export const view = SlotView.forMessages<Message>()
-  .define(HomeSlots, (_: void, slots, h) =>
+  .define(HomePart.slots, (_: void, slots, h) =>
     h.div(slots.content.attrs(), [
       h.div(slots.hero.attrs(), [
         h.h1(slots.title.attrs(), ['Welcome to Auth Example']),
@@ -50,4 +50,4 @@ export const view = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(HomeStyle))
+  .pipe(Style.attach(HomePart.style))

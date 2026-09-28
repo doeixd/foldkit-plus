@@ -1,6 +1,6 @@
 import { SlotView, Style } from 'foldkit-mixins'
 
-import { NotFoundSlots, NotFoundStyle } from './style.js'
+import { NotFoundPart } from './style.js'
 
 export interface NotFoundInput {
   readonly path: string
@@ -15,11 +15,11 @@ export interface NotFoundInput {
  */
 export const makeNotFoundView = <Message>() =>
   SlotView.forMessages<Message>()
-    .define(NotFoundSlots, (input: NotFoundInput, slots, h) =>
+    .define(NotFoundPart.slots, (input: NotFoundInput, slots, h) =>
       h.div(slots.content.attrs(), [
         h.h1(slots.heading.attrs(), ['404 - Page Not Found']),
         h.p(slots.message.attrs(), [`The path "${input.path}" was not found.`]),
         h.a(slots.link.attrs([h.Href(input.backLinkHref)]), [input.backLinkText]),
       ]),
     )
-    .pipe(Style.attach(NotFoundStyle))
+    .pipe(Style.attach(NotFoundPart.style))

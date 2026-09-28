@@ -12,7 +12,7 @@ import { Button, Input } from 'foldkit-mixins-ui'
 
 import { Session } from '../../../domain/session.js'
 import { homeRouter } from '../../../route.js'
-import { LoginInputStyle, LoginSlots, LoginStyle, SubmitButtonStyle } from '../../../style.js'
+import { LoginInputStyle, LoginPart, SubmitButtonStyle } from '../../../style.js'
 
 // FORM
 
@@ -139,7 +139,7 @@ export const update = (model: Model, message: Message) =>
 
 // VIEW
 
-type Slots = SlotBuilders<typeof LoginSlots, Message>
+type Slots = SlotBuilders<typeof LoginPart.slots, Message>
 type Field = FieldValidation.Field<string>
 type FieldKey = keyof Credentials
 
@@ -216,7 +216,7 @@ const submitButton = (model: Model, h: HtmlBuilder<Message>): Html =>
 
 /** The page, drawn through its own Slots: `h` here is the Submodel's, typed by Login's Message. */
 export const LoginPage = SlotView.forMessages<Message>()
-  .define(LoginSlots, (model: Model, slots, h) =>
+  .define(LoginPart.slots, (model: Model, slots, h) =>
     h.div(slots.content.attrs(), [
       h.div(slots.card.attrs(), [
         h.h1(slots.heading.attrs(), ['Sign In']),
@@ -241,6 +241,6 @@ export const LoginPage = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(LoginStyle))
+  .pipe(Style.attach(LoginPart.style))
 
 export const view = Submodel.defineView<Model, Message>(LoginPage)

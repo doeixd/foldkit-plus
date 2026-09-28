@@ -4,12 +4,12 @@ import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button } from 'foldkit-mixins-ui'
 
 import type { Session } from '../../../domain/session.js'
-import { SettingsSlots, SettingsStyle, SignOutButtonStyle } from '../../../style.js'
+import { SettingsPart, SignOutButtonStyle } from '../../../style.js'
 import { Message } from '../message.js'
 
 // VIEW
 
-type Slots = SlotBuilders<typeof SettingsSlots, Message>
+type Slots = SlotBuilders<typeof SettingsPart.slots, Message>
 
 const infoRow = (label: string, value: string, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.div(slots.row.attrs(), [
@@ -18,7 +18,7 @@ const infoRow = (label: string, value: string, slots: Slots, h: HtmlBuilder<Mess
   ])
 
 export const view = SlotView.forMessages<Message>()
-  .define(SettingsSlots, (session: Session, slots, h) =>
+  .define(SettingsPart.slots, (session: Session, slots, h) =>
     h.div(slots.content.attrs(), [
       h.h1(slots.heading.attrs(), ['Settings']),
       h.div(slots.card.attrs(), [
@@ -48,4 +48,4 @@ export const view = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(SettingsStyle))
+  .pipe(Style.attach(SettingsPart.style))

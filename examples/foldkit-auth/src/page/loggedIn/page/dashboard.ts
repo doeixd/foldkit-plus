@@ -2,10 +2,10 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
 import type { Session } from '../../../domain/session.js'
-import { DashboardSlots, DashboardStyle } from '../../../style.js'
+import { DashboardPart } from '../../../style.js'
 import type { Message } from '../message.js'
 
-type Slots = SlotBuilders<typeof DashboardSlots, Message>
+type Slots = SlotBuilders<typeof DashboardPart.slots, Message>
 
 const statCard = (title: string, value: string, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.div(slots.stat.attrs(), [
@@ -14,7 +14,7 @@ const statCard = (title: string, value: string, slots: Slots, h: HtmlBuilder<Mes
   ])
 
 export const view = SlotView.forMessages<Message>()
-  .define(DashboardSlots, (session: Session, slots, h) =>
+  .define(DashboardPart.slots, (session: Session, slots, h) =>
     h.div(slots.content.attrs(), [
       h.h1(slots.heading.attrs(), [`Welcome back, ${session.name}!`]),
       h.p(slots.lead.attrs(), ['Here is your dashboard.']),
@@ -25,4 +25,4 @@ export const view = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(DashboardStyle))
+  .pipe(Style.attach(DashboardPart.style))

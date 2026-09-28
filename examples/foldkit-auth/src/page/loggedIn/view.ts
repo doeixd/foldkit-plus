@@ -6,13 +6,13 @@ import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import type { Session } from '../../domain/session.js'
 import { makeNotFoundView } from '../../notFoundView.js'
 import { type LoggedInRoute, dashboardRouter, settingsRouter } from '../../route.js'
-import { LoggedInSlots, LoggedInStyle } from '../../style.js'
+import { LoggedInPart } from '../../style.js'
 import type { Message } from './message.js'
 import type { Model } from './model.js'
 import * as Dashboard from './page/dashboard.js'
 import * as Settings from './page/settings.js'
 
-type Slots = SlotBuilders<typeof LoggedInSlots, Message>
+type Slots = SlotBuilders<typeof LoggedInPart.slots, Message>
 
 const NavSection = Schema.Literals(['Dashboard', 'Settings'])
 type NavSection = typeof NavSection.Type
@@ -63,7 +63,7 @@ const navigationView = (
 const NotFound = makeNotFoundView<Message>()
 
 export const LoggedInPage = SlotView.forMessages<Message>()
-  .define(LoggedInSlots, (model: Model, slots, h) =>
+  .define(LoggedInPart.slots, (model: Model, slots, h) =>
     h.div(slots.shell.attrs(), [
       navigationView(model.session, model.route, slots, h),
       h.main(slots.main.attrs(), [
@@ -81,6 +81,6 @@ export const LoggedInPage = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(LoggedInStyle))
+  .pipe(Style.attach(LoggedInPart.style))
 
 export const view = Submodel.defineView<Model, Message>(LoggedInPage)

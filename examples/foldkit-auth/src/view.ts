@@ -5,7 +5,7 @@ import { SlotView, Style } from 'foldkit-mixins'
 import { Message } from './message.js'
 import { LoggedIn, LoggedOut, type Model } from './model.js'
 import { AppRoute } from './route.js'
-import { PageSlots, PageStyle } from './style.js'
+import { AuthPage } from './style.js'
 
 export const routeTitle = (route: AppRoute): string =>
   AppRoute.match(route, {
@@ -17,7 +17,7 @@ export const routeTitle = (route: AppRoute): string =>
   })
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(AuthPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       Match.value(model).pipe(
         Match.tagsExhaustive({
@@ -39,7 +39,7 @@ export const Page = SlotView.forMessages<Message>()
       ),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(AuthPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: routeTitle(model.route),

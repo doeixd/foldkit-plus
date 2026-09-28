@@ -1,214 +1,166 @@
 /**
- * The auth example's appearance, as `foldkit-mixins` data. The views publish
- * the Slots and draw the markup; everything it looks like lives here.
+ * The auth example's appearance, as `foldkit-mixins` data. The views draw the
+ * markup through the Slots declared here; everything it looks like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped recipes and the `Layout`
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped recipes and the `Layout`
  * pieces by layer order rather than by specificity.
  */
-import { Capability, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Style, type StyleValue } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
 import * as FieldValidation from 'foldkit/fieldValidation'
 
-const L = Layers.standard
-const app = L.layer('app')
-
-// THEME
-
-/** Blue, as upstream's Tailwind `blue-500`, over near-neutral grey surfaces. */
-const palette = Theme.oklch({
-  accent: { h: 260, c: 0.21, l: '62%' },
-  surfaceSaturation: 0.003,
+/**
+ * Blue, as upstream's Tailwind `blue-500`, over near-neutral grey surfaces.
+ * A white base, so the cards stand out from the page's `surface.muted`.
+ */
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.compose(
+    Theme.oklch({
+      accent: { h: 260, c: 0.21, l: '62%' },
+      surfaceSaturation: 0.003,
+    }),
+    Theme.define({ knob: { 'base-l': '100%' } }),
+  ),
+  colorScheme: 'light',
 })
 
-/** A white base, so the cards stand out from the page's `surface.muted`. */
-const theme = Theme.compose(
-  Theme.compose(Theme.tokens, palette),
-  Theme.define({ knob: { 'base-l': '100%' } }),
-)
-
-const t = Theme.ref(theme)
-
-const container = Slot.make({ capability: Capability.Container })
+export { stylesheet }
 
 /** Upstream's `max-w-4xl mx-auto px-4`. */
 const content = L.in('layouts', Layout.center({ max: '56rem' }))
 
-const heading: StyleValue = Style.self({
-  margin: `0 0 ${t.space.lg}`,
-  fontSize: t.size['4xl'],
-  fontWeight: t.weight.bold,
-  color: t.text.default,
-})
+const heading = [
+  U.text('4xl'),
+  U.font('bold'),
+  U.color('text.default'),
+  { margin: `0 0 ${t.space.lg}` },
+]
 
-const lead: StyleValue = Style.self({
-  margin: `0 0 ${t.space.xl}`,
-  fontSize: t.size.lg,
-  color: t.text.muted,
-})
+const lead = [U.text('lg'), U.color('text.muted'), { margin: `0 0 ${t.space.xl}` }]
 
-const link: StyleValue = Style.compose(
-  Style.self({ color: t.accent.default, textDecoration: 'none' }),
+const link = [
+  U.color('accent.default'),
+  { textDecoration: 'none' },
   Style.pseudo(':hover', { textDecoration: 'underline' }),
-)
+]
 
-const card: StyleValue = Style.self({
-  padding: t.space.lg,
-  borderRadius: t.radius.lg,
-  background: t.surface.base,
-  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%)',
-})
+const card = [
+  U.p('lg'),
+  U.rounded('lg'),
+  U.bg('surface.base'),
+  { boxShadow: '0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%)' },
+]
 
-const cardTitle: StyleValue = Style.self({
-  margin: `0 0 ${t.space.sm}`,
-  fontSize: t.size.xl,
-  fontWeight: t.weight.semibold,
-  color: t.text.default,
-})
+const cardTitle = [
+  U.text('xl'),
+  U.font('semibold'),
+  U.color('text.default'),
+  { margin: `0 0 ${t.space.sm}` },
+]
 
 /** One column, three from `md` up, as upstream's `grid-cols-1 md:grid-cols-3`. */
-const threeColumns = (gap: string): StyleValue =>
-  Style.compose(
-    Style.self({ display: 'grid', gridTemplateColumns: '1fr', gap }),
-    Style.media('(min-width: 48rem)', { gridTemplateColumns: 'repeat(3, 1fr)' }),
-  )
+const threeColumns = (gap: string) => [
+  { display: 'grid', gridTemplateColumns: '1fr', gap },
+  Style.media('(min-width: 48rem)', { gridTemplateColumns: 'repeat(3, 1fr)' }),
+]
 
 // PAGE
 
-export const PageSlots = Slots.define({ page: container })
-
-export const PageStyle = Style.forSlots(PageSlots)(
+export const AuthPage = slots(
   {
-    page: Style.self({ minHeight: '100vh', background: t.surface.muted, color: t.text.default }),
+    page: [U.bg('surface.muted'), U.color('text.default'), { minHeight: '100vh' }],
   },
-  { name: 'PageStyle', layer: app },
+  { name: 'PageStyle' },
 )
 
 // NOT FOUND
 
-export const NotFoundSlots = Slots.define({
-  content: container,
-  heading: container,
-  message: container,
-  link: container,
-})
-
-export const NotFoundStyle = Style.forSlots(NotFoundSlots)(
+export const NotFoundPart = slots(
   {
-    content: Style.compose(content, Style.self({ textAlign: 'center' })),
-    heading: Style.compose(heading, Style.self({ color: t.error.ink })),
-    message: Style.self({ margin: `0 0 ${t.space.md}`, fontSize: t.size.lg, color: t.text.muted }),
+    content: [content, U.textCenter],
+    heading: [heading, U.color('error.ink')],
+    message: [U.text('lg'), U.color('text.muted'), { margin: `0 0 ${t.space.md}` }],
     link,
   },
-  { name: 'NotFoundStyle', layer: app },
+  { name: 'NotFoundStyle' },
 )
 
 // LOGGED OUT
 
-export const LoggedOutSlots = Slots.define({ content: container })
-
-export const LoggedOutStyle = Style.forSlots(LoggedOutSlots)(
-  { content: Style.self({ paddingBlock: t.space.xl }) },
-  { name: 'LoggedOutStyle', layer: app },
-)
+export const LoggedOutPart = slots({ content: U.py('xl') }, { name: 'LoggedOutStyle' })
 
 // HOME
 
-export const HomeSlots = Slots.define({
-  content: container,
-  hero: container,
-  title: container,
-  lead: container,
-  signIn: container,
-  features: container,
-  feature: container,
-  featureTitle: container,
-  featureText: container,
-})
-
-export const HomeStyle = Style.forSlots(HomeSlots)(
+export const HomePart = slots(
   {
     content,
-    hero: Style.self({ paddingBlock: t.space['3xl'], textAlign: 'center' }),
-    title: Style.compose(heading, Style.self({ fontSize: '3rem' })),
-    lead: Style.compose(lead, Style.self({ fontSize: t.size.xl })),
-    signIn: Style.compose(
-      Style.self({
+    hero: [U.textCenter, U.py('3xl')],
+    title: [heading, { fontSize: '3rem' }],
+    lead: [lead, U.text('xl')],
+    signIn: [
+      U.font('medium'),
+      U.rounded('lg'),
+      U.bg('accent.default'),
+      U.color('accent.on-fill'),
+      {
         display: 'inline-block',
         padding: `${t.space.sm} ${t.space.xl}`,
-        borderRadius: t.radius.lg,
-        background: t.accent.default,
-        color: t.accent['on-fill'],
-        fontWeight: t.weight.medium,
         textDecoration: 'none',
         transition: `background ${t.motion.fast} ${t.motion.ease}`,
-      }),
+      },
       Style.pseudo(':hover', { background: t.accent.hover }),
-    ),
-    features: Style.compose(threeColumns(t.space.xl), Style.self({ marginTop: t.space['3xl'] })),
+    ],
+    features: [threeColumns(t.space.xl), { marginTop: t.space['3xl'] }],
     feature: card,
     featureTitle: cardTitle,
-    featureText: Style.self({ margin: '0', color: t.text.muted }),
+    featureText: [U.color('text.muted'), { margin: '0' }],
   },
-  { name: 'HomeStyle', layer: app },
+  { name: 'HomeStyle' },
 )
 
 // LOGIN
 
-export const LoginSlots = Slots.define({
-  content: container,
-  card: container,
-  heading: container,
-  hint: container,
-  hintText: container,
-  form: container,
-  field: container,
-  fieldHeader: container,
-  /** Beside a label once its field is valid. */
-  validMark: container,
-  footer: container,
-  footerText: container,
-  homeLink: container,
-})
-
-export const LoginStyle = Style.forSlots(LoginSlots)(
+export const LoginPart = slots(
   {
     content: L.in('layouts', Layout.center({ max: '28rem' })),
-    card: Style.self({
-      padding: t.space.xl,
-      borderRadius: t.radius.xl,
-      background: t.surface.base,
-      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)',
-    }),
-    heading: Style.self({
-      margin: `0 0 ${t.space.xl}`,
-      textAlign: 'center',
-      fontSize: t.size['3xl'],
-      fontWeight: t.weight.bold,
-      color: t.text.default,
-    }),
-    hint: Style.self({
-      marginBottom: t.space.lg,
-      padding: t.space.sm,
-      border: `${t.border.thin} solid ${t.info.outline}`,
-      borderRadius: t.radius.lg,
-      background: t.info.subtle,
-    }),
-    hintText: Style.self({ margin: '0', fontSize: t.size.sm, color: t.info.ink }),
+    card: [
+      U.p('xl'),
+      U.rounded('xl'),
+      U.bg('surface.base'),
+      { boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)' },
+    ],
+    heading: [
+      U.textCenter,
+      U.text('3xl'),
+      U.font('bold'),
+      U.color('text.default'),
+      { margin: `0 0 ${t.space.xl}` },
+    ],
+    hint: [
+      U.p('sm'),
+      U.rounded('lg'),
+      U.bg('info.subtle'),
+      { marginBottom: t.space.lg, border: `${t.border.thin} solid ${t.info.outline}` },
+    ],
+    hintText: [U.text('sm'), U.color('info.ink'), { margin: '0' }],
     form: L.in('layouts', Layout.stack({ gap: t.space.lg })),
-    fieldHeader: Style.compose(
+    field: {},
+    fieldHeader: [
       L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
-      Style.self({ marginBottom: t.space['2xs'] }),
-    ),
-    validMark: Style.self({ fontSize: t.size.sm, color: t.success.default }),
-    footer: Style.self({ marginTop: t.space.lg, textAlign: 'center' }),
-    footerText: Style.self({ color: t.text.muted }),
+      { marginBottom: t.space['2xs'] },
+    ],
+    // Beside a label once its field is valid.
+    validMark: [U.text('sm'), U.color('success.default')],
+    footer: [U.textCenter, { marginTop: t.space.lg }],
+    footerText: U.color('text.muted'),
     homeLink: link,
   },
-  { name: 'LoginStyle', layer: app },
+  { name: 'LoginStyle' },
 )
 
 const isValidField = (field: FieldValidation.Field<string>): boolean =>
@@ -220,180 +172,129 @@ const isValidField = (field: FieldValidation.Field<string>): boolean =>
   })
 
 /** The recipe draws an invalid field's border from `aria-invalid`; a valid one's is green. */
-export const LoginInputStyle = Style.forSlots(InputSlots)(
+export const LoginInputStyle = forSlots(InputSlots)(
   Recipes.Input.extend({
     base: {
-      input: Style.compose(
-        Style.self({ paddingBlock: t.space.xs, paddingInline: t.space.md }),
+      input: [
+        U.py('xs'),
+        U.px('md'),
         Style.whenInput(isValidField, Style.self({ borderColor: t.success.default })),
-      ),
-      label: Style.self({ marginBlockEnd: '0', color: t.text.subtle }),
-      description: Style.self({ color: t.error.ink }),
+      ],
+      label: [{ marginBlockEnd: '0' }, U.color('text.subtle')],
+      description: U.color('error.ink'),
     },
   })(),
-  { name: 'LoginInputStyle', layer: app },
+  { name: 'LoginInputStyle' },
 )
 
 /** The shipped solid button, full width, and grey while it cannot submit. */
-export const SubmitButtonStyle = Style.forSlots(ButtonSlots)(
+export const SubmitButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
     base: {
-      button: Style.compose(
-        Style.self({ width: '100%', paddingBlock: t.space.sm, borderRadius: t.radius.lg }),
+      button: [
+        U.rounded('lg'),
+        {
+          width: '100%',
+          paddingBlock: t.space.sm,
+        },
         // `@foldkit/ui` marks a disabled button with `aria-disabled`, not `disabled`.
         Style.pseudo('[aria-disabled="true"]', {
           opacity: '1',
           background: t.surface.default,
           color: t.text.muted,
         }),
-      ),
+      ],
     },
   })(),
-  { name: 'SubmitButtonStyle', layer: app },
+  { name: 'SubmitButtonStyle' },
 )
 
 // LOGGED IN
 
-export const LoggedInSlots = Slots.define({
-  shell: container,
-  nav: container,
-  navInner: container,
-  navList: container,
-  navItem: container,
-  /** The link to the page shown carries `aria-current="page"`. */
-  navLink: container,
-  signedInAs: container,
-  main: container,
-})
-
-export const LoggedInStyle = Style.forSlots(LoggedInSlots)(
+export const LoggedInPart = slots(
   {
-    shell: Style.self({ minHeight: '100vh' }),
-    nav: Style.self({
-      padding: t.space.md,
-      background: t.accent.default,
-      color: t.accent['on-fill'],
-    }),
-    navInner: Style.compose(
+    shell: { minHeight: '100vh' },
+    nav: [U.p('md'), U.bg('accent.default'), U.color('accent.on-fill')],
+    navInner: [
       L.in('layouts', Layout.center({ max: '56rem', gutters: '0' })),
       L.in('layouts', Layout.cluster({ justify: 'space-between' })),
-    ),
-    navList: Style.compose(
+    ],
+    navList: [
       L.in('layouts', Layout.cluster({ gap: t.space.lg })),
-      Style.self({ margin: '0', padding: '0', listStyle: 'none' }),
-    ),
-    navLink: Style.compose(
-      Style.self({
+      { margin: '0', padding: '0', listStyle: 'none' },
+    ],
+    navItem: {},
+    // The link to the page shown carries `aria-current="page"`.
+    navLink: [
+      U.font('medium'),
+      {
         display: 'inline-block',
         padding: `${t.space['2xs']} ${t.space.sm}`,
         borderRadius: t.radius.sm,
-        fontWeight: t.weight.medium,
         color: 'inherit',
         textDecoration: 'none',
         transition: `background ${t.motion.fast} ${t.motion.ease}`,
-      }),
+      },
       Style.pseudo(':hover', { background: t.accent.hover }),
       Style.pseudo('[aria-current="page"]', {
         background: `color-mix(in oklch, ${t.accent.active} 50%, transparent)`,
       }),
-    ),
-    signedInAs: Style.self({ fontSize: t.size.sm }),
-    main: Style.self({ paddingBlock: t.space.xl }),
+    ],
+    signedInAs: U.text('sm'),
+    main: U.py('xl'),
   },
-  { name: 'LoggedInStyle', layer: app },
+  { name: 'LoggedInStyle' },
 )
 
 // DASHBOARD
 
-export const DashboardSlots = Slots.define({
-  content: container,
-  heading: container,
-  lead: container,
-  stats: container,
-  stat: container,
-  statTitle: container,
-  statValue: container,
-})
-
-export const DashboardStyle = Style.forSlots(DashboardSlots)(
+export const DashboardPart = slots(
   {
     content,
     heading,
     lead,
     stats: threeColumns(t.space.lg),
     stat: card,
-    statTitle: Style.self({
-      margin: `0 0 ${t.space['2xs']}`,
-      fontSize: t.size.sm,
-      fontWeight: t.weight.medium,
-      color: t.text.muted,
-      textTransform: 'uppercase',
-    }),
-    statValue: Style.self({
-      margin: '0',
-      fontSize: t.size['3xl'],
-      fontWeight: t.weight.bold,
-      color: t.text.default,
-    }),
+    statTitle: [
+      U.text('sm'),
+      U.font('medium'),
+      U.color('text.muted'),
+      U.uppercase,
+      { margin: `0 0 ${t.space['2xs']}` },
+    ],
+    statValue: [U.text('3xl'), U.font('bold'), U.color('text.default'), { margin: '0' }],
   },
-  { name: 'DashboardStyle', layer: app },
+  { name: 'DashboardStyle' },
 )
 
 // SETTINGS
 
-export const SettingsSlots = Slots.define({
-  content: container,
-  heading: container,
-  card: container,
-  cardTitle: container,
-  rows: container,
-  row: container,
-  rowLabel: container,
-  rowValue: container,
-})
-
-export const SettingsStyle = Style.forSlots(SettingsSlots)(
+export const SettingsPart = slots(
   {
     content,
     heading,
-    card: Style.compose(card, Style.pseudo(':not(:last-child)', { marginBottom: t.space.lg })),
+    card: [card, Style.pseudo(':not(:last-child)', { marginBottom: t.space.lg })],
     cardTitle,
     rows: L.in('layouts', Layout.stack({ gap: t.space.md })),
-    row: Style.self({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingBlock: t.space.xs,
-      borderBottom: `${t.border.thin} solid ${t.outline.subtle}`,
-    }),
-    rowLabel: Style.self({ margin: '0', color: t.text.muted }),
-    rowValue: Style.self({ margin: '0', fontWeight: t.weight.medium, color: t.text.default }),
+    row: [
+      U.flex,
+      U.items('center'),
+      U.justify('between'),
+      U.py('xs'),
+      { borderBottom: `${t.border.thin} solid ${t.outline.subtle}` },
+    ],
+    rowLabel: [U.color('text.muted'), { margin: '0' }],
+    rowValue: [U.font('medium'), U.color('text.default'), { margin: '0' }],
   },
-  { name: 'SettingsStyle', layer: app },
+  { name: 'SettingsStyle' },
 )
 
 /** Upstream's red Sign Out button: the shipped button in its danger tone. */
-export const SignOutButtonStyle = Style.forSlots(ButtonSlots)(
+export const SignOutButtonStyle = forSlots(ButtonSlots)(
   Recipes.Button.extend({
     base: {
-      button: Style.self({ padding: `${t.space.sm} ${t.space.lg}`, borderRadius: t.radius.lg }),
+      button: [{ padding: `${t.space.sm} ${t.space.lg}`, borderRadius: t.radius.lg }],
     },
   })({ tone: 'danger' }),
-  { name: 'SignOutButtonStyle', layer: app },
-)
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The slot styles' own classes are injected when a Slot
- * first draws them, so they are not repeated here. `colorScheme: 'light'`
- * keeps the page light in a dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
+  { name: 'SignOutButtonStyle' },
 )
