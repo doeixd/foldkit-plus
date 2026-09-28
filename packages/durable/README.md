@@ -117,6 +117,7 @@ const program = Effect.gen(function* () {
     // - snapshot codec
     // - empty snapshot
     // - replay reducer
+    // - the replica each operation came from, which binds a replica to its actor
     // - authorization rules, when the Sync contract declares them
     ...TodoSync.journalContract(),
 
@@ -158,6 +159,25 @@ Foldkit application
 `foldkit-sync` owns replication semantics. `foldkit-durable` owns authoritative
 storage, order, idempotency, compaction, and effect-recovery records. There is no
 second server reducer to keep aligned with the application.
+
+Durable does not speak Sync's exchange; the server's handler for
+`exchange(cursor, pending, epoch)` does, with these calls:
+
+- `epoch(key)` is returned with every answer. When the replica sent another, it
+  holds a cursor into history this journal lacks: answer from `0`, which the
+  cursor check below then passes.
+- `cursor(key)` refuses a cursor ahead of the journal before anything is
+  appended, so no commit loses its acknowledgement to a failed read.
+- `append` for each pending operation: acknowledge `Committed` and
+  `AlreadyCommitted`; reject an operation that does not decode,
+  `OperationRejectedError` (a refusal, or a replica another actor holds) and
+  `IdentityConflictError`, which fail the same way on every retry; fail the
+  exchange on a `JournalError`, so the replica keeps the edit and tries again.
+- `read(key, cursor, { limit })` for what is after the cursor, with `more: true`
+  when a whole page came back; a `CompactedCursorError` means sending a
+  checkpoint (`load`) instead.
+- `subscribe` tells connected replicas a commit happened (Sync's `notify`
+  frame), so a replica that only reads catches up.
 
 See [`examples/sync`](../../examples/sync) for the full path.
 
