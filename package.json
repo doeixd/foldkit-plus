@@ -32,7 +32,7 @@
     "typecheck:force": "tsc -b --force",
     "check": "pnpm format:check && pnpm paths:check && pnpm tags:check && pnpm typecheck && pnpm test && pnpm demo && pnpm pack:check",
     "format": "prettier --write \"**/*.{ts,json,yaml}\"",
-    "format:check": "prettier --check \"**/*.{ts,json,yaml}\"",
+    "format:check": "prettier --check --cache \"**/*.{ts,json,yaml}\"",
     "pack:check": "pnpm build && node scripts/published-types.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack",
     "release": "pnpm build && pnpm -r --filter \"./packages/*\" publish --access public --no-git-checks"
   },
