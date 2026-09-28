@@ -255,9 +255,9 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote`: a Message that changes nothing returns the Model it
   was given,** so `Data.reduce` and the wiring keep the application's root on a
   duplicate live event, a repeated `ReadStarted`, an empty `Hydrated`, or a
-  retention pass that collects nothing. An entity or list row whose data is
-  equal after a refetch or live patch reads as the same object, so a keyed
-  row's lazy view does not re-run. The live entry no longer closes and reopens
+  retention pass that collects nothing. An entity's or list row's decoded
+  value is the same object after a refetch or live patch that brought equal
+  data, so a keyed row's lazy view does not re-run. The live entry no longer closes and reopens
   its stream on every event, and a pending request no longer rebuilds the
   visible store on each overlay change. A list read now shows a live insert
   or an optimistic connection change that wrote no entity; it used to keep

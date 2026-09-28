@@ -3,8 +3,8 @@
  *
  * Presence is tracked **separately** from values, so `undefined`/`null`/absent/
  * stale/not-found are distinct states and a missing field is never inferred from
- * `value === undefined`. Nothing here performs I/O; every operation returns a
- * new store.
+ * `value === undefined`. Nothing here performs I/O or mutates its input; an
+ * operation that changes nothing returns the store it was given.
  */
 import { Option } from 'effect'
 import { sameData } from './data.js'
