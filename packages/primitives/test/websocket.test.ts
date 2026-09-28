@@ -11,8 +11,11 @@ import { WebSocket as WsClient, WebSocketServer } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   Socket,
+  isOpen,
   type SocketHandle,
+  viewOf,
   websocket,
+  SocketView,
   WebSocketMessage,
   type WebSocketModel,
 } from '../src/net/index.js'
@@ -32,7 +35,7 @@ const placed = Page.at(Doc, { args: { url: 'ws://localhost/chat' } })
 
 const fold = (model: Model, message: Parameters<typeof Doc.wrapper.make>[0]) =>
   Option.getOrThrow(placed.update(model, Doc.wrapper.make(message))).model.chat
-const fresh: Model = { chat: { url: 'ws://localhost/chat', status: 'closed', lastError: null } }
+const fresh: Model = { chat: { url: 'ws://localhost/chat', status: 'closed', lastError: null, opened: false } }
 
 describe('WebSocket transitions', () => {
   it('connects, opens, receives without storing, and closes', () => {
@@ -40,18 +43,86 @@ describe('WebSocket transitions', () => {
     const connecting = fold(fresh, WebSocketMessage.Connecting())
     expect(connecting).toEqual({ ...fresh.chat, status: 'connecting' })
     const open = fold({ chat: connecting }, WebSocketMessage.Opened())
-    expect(open).toEqual({ ...fresh.chat, status: 'open', lastError: null })
+    expect(open).toEqual({ ...fresh.chat, status: 'open', lastError: null, opened: true })
     // Received notifies without storing: same Model, still observable.
     expect(fold({ chat: open }, WebSocketMessage.Received({ data: 'hi' }))).toEqual(open)
     expect(fold({ chat: open }, WebSocketMessage.Closed())).toEqual({
       ...fresh.chat,
       status: 'closed',
+      opened: true,
     })
     expect(fold(fresh, WebSocketMessage.Failed({ message: 'boom' }))).toEqual({
       ...fresh.chat,
       status: 'closed',
-      lastError: 'boom',
+      lastError: 'Failed to connect to WebSocket',
+      opened: false,
     })
+    expect(fold({ chat: open }, WebSocketMessage.Failed({ message: 'boom' }))).toEqual({
+      ...open,
+      status: 'closed',
+      lastError: 'Connection error',
+    })
+  })
+
+  it('words every failure for the reader', () => {
+    expect(fold(fresh, WebSocketMessage.TimedOut()).lastError).toBe('Connection timeout')
+    expect(fold(fresh, WebSocketMessage.SendFailed({ message: 'boom' })).lastError).toBe(
+      'Socket unavailable',
+    )
+  })
+
+  it('starts a retry without its past error', () => {
+    const failed: Model = {
+      chat: {
+        url: 'ws://localhost/chat',
+        status: 'closed',
+        lastError: 'Failed to connect to WebSocket',
+        opened: false,
+      },
+    }
+    expect(fold(failed, WebSocketMessage.Connecting())).toEqual({
+      url: 'ws://localhost/chat',
+      status: 'connecting',
+      lastError: null,
+      opened: false,
+    })
+  })
+})
+
+describe('SocketView', () => {
+  const url = 'ws://localhost/chat'
+  const socket = (
+    status: WebSocketModel['status'],
+    lastError: string | null,
+    opened = false,
+  ): WebSocketModel => ({ url, status, lastError, opened })
+
+  it('reads usable only from an open socket with no error outstanding', () => {
+    expect(isOpen(socket('open', null))).toBe(true)
+    expect(isOpen(socket('open', 'Socket unavailable'))).toBe(false)
+    expect(isOpen(socket('connecting', null))).toBe(false)
+    expect(isOpen(socket('closed', null))).toBe(false)
+  })
+
+  it('derives what the reader sees from the socket and whether it is wanted', () => {
+    const seen = (status: WebSocketModel['status'], lastError: string | null, wanted: boolean) =>
+      SocketView.match(viewOf(socket(status, lastError), wanted), {
+        Disconnected: () => 'disconnected',
+        Connecting: () => 'connecting',
+        Connected: () => 'connected',
+        Error: ({ error }) => `error: ${error}`,
+      })
+    expect(seen('closed', null, false)).toBe('disconnected')
+    expect(seen('closed', null, true)).toBe('connecting')
+    expect(seen('connecting', null, false)).toBe('connecting')
+    expect(seen('open', null, false)).toBe('connected')
+    expect(seen('closed', 'Failed to connect to WebSocket', false)).toBe(
+      'error: Failed to connect to WebSocket',
+    )
+    // A retry still waiting for its socket reads as connecting.
+    expect(seen('closed', 'Failed to connect to WebSocket', true)).toBe('connecting')
+    // An error on an open socket always reads as an error.
+    expect(seen('open', 'Socket unavailable', true)).toBe('error: Socket unavailable')
   })
 })
 
@@ -128,7 +199,7 @@ describe('WebSocket against a server', () => {
   it('builds a send command carrying its data', () => {
     const live = Page.at(Doc, { args: { url: 'ws://localhost/chat' } })
     const returned = live.helpers.send('hi')({
-      chat: { url: 'ws://localhost/chat', status: 'open', lastError: null },
+      chat: { url: 'ws://localhost/chat', status: 'open', lastError: null, opened: true },
     })
     expect(returned.commands).toHaveLength(1)
     expect(returned.commands![0]!.name).toBe('WebSocket.send')
@@ -216,7 +287,7 @@ describe('WebSocket on a stand-in socket: connect timeout and send', () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const entry = Chat.subscriptions!(args).connectTimeout!
-        const dependencies = entry.modelToDependencies({ url, status, lastError: null })
+        const dependencies = entry.modelToDependencies({ url, status, lastError: null, opened: false })
         const events = yield* Queue.unbounded<WebSocketMessage>()
         const emitted: Array<WebSocketMessage> = []
         const fiber = yield* Effect.forkChild(
@@ -282,7 +353,7 @@ describe('WebSocket on a stand-in socket: connect timeout and send', () => {
     const sent: Array<string> = []
     const open: SocketHandle = { ...socket, send: data => void sent.push(data) }
     const [command] = placed.helpers.send('hi')({
-      chat: { url, status: 'open', lastError: null },
+      chat: { url, status: 'open', lastError: null, opened: true },
     }).commands!
     const events = await Effect.runPromise(Queue.unbounded<WebSocketMessage>())
     const result = await Effect.runPromise(
@@ -295,12 +366,13 @@ describe('WebSocket on a stand-in socket: connect timeout and send', () => {
   })
 
   it('records the timeout as a close with its reason', () => {
-    const connecting: Model = { chat: { url, status: 'connecting', lastError: null } }
+    const connecting: Model = { chat: { url, status: 'connecting', lastError: null, opened: false } }
     const timedOut = fold(connecting, WebSocketMessage.TimedOut())
     expect(timedOut).toEqual({
       url,
       status: 'closed',
-      lastError: `websocket connect to ${url} timed out`,
+      lastError: 'Connection timeout',
+      opened: false,
     })
     expect(fold({ chat: timedOut }, WebSocketMessage.TimedOut())).toBe(timedOut)
   })

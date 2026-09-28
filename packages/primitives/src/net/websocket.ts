@@ -8,6 +8,7 @@
  */
 import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { defineTaggedUnion } from 'foldkit/schema'
 import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -29,6 +30,8 @@ export const WebSocketModel = Schema.Struct({
   url: Schema.String,
   status: Schema.Literals(['closed', 'connecting', 'open']),
   lastError: Schema.NullOr(Schema.String),
+  /** Whether the socket opened since connecting began: what an error, and a close, mean. */
+  opened: Schema.Boolean,
 })
 export type WebSocketModel = typeof WebSocketModel.Type
 
@@ -51,6 +54,43 @@ export type WebSocketMessage = typeof WebSocketMessage.Type
 export interface Acquired {
   readonly socket: SocketHandle
   readonly events: Queue.Queue<WebSocketMessage>
+}
+
+/**
+ * What the reader sees: the socket's state, or its error. A page derives
+ * this instead of keeping its own connection state machine. `lastError` is
+ * already worded for the reader (`Failed to connect to WebSocket`, never the
+ * socket's own text, which error handling drops in favor of the sentence).
+ */
+export const SocketView = defineTaggedUnion({
+  Disconnected: {},
+  Connecting: {},
+  Connected: {},
+  Error: { error: Schema.String },
+})
+export type SocketView = typeof SocketView.Type
+
+/**
+ * Whether the socket is usable: open with no error outstanding. Gates sends
+ * and received frames.
+ */
+export const isOpen = (model: WebSocketModel): boolean =>
+  model.status === 'open' && model.lastError === null
+
+/**
+ * The view of a socket, and whether its page still wants it. An error stands
+ * until the page stops wanting the socket; a retry still waiting for its
+ * socket reads as connecting, so it answers at once. An error on an open
+ * socket always reads as an error.
+ */
+export const viewOf = (model: WebSocketModel, wanted: boolean): SocketView => {
+  if (model.lastError !== null)
+    return model.status === 'open' || !wanted
+      ? SocketView.Error({ error: model.lastError })
+      : SocketView.Connecting()
+  if (model.status === 'open') return SocketView.Connected()
+  if (model.status === 'connecting' || wanted) return SocketView.Connecting()
+  return SocketView.Disconnected()
 }
 
 /** The live connection, for `send` and the incoming stream. One assembly holds one. */
@@ -127,32 +167,40 @@ export const websocket = <const Name extends string>(config: {
       ),
     }),
     init: (args): Update.Return<WebSocketModel, WebSocketMessage, SocketService> => ({
-      model: { url: args.url, status: 'closed', lastError: null },
+      model: { url: args.url, status: 'closed', lastError: null, opened: false },
     }),
     update: (
       model,
       message,
     ): Update.ReturnWithOutMessage<WebSocketModel, WebSocketMessage, never, SocketService> =>
       WebSocketMessage.match(message, {
-        Connecting: () => ({ model: unlessSame(model, { ...model, status: 'connecting' }) }),
+        Connecting: () => ({
+          model: unlessSame(model, { ...model, status: 'connecting', lastError: null, opened: false }),
+        }),
         Opened: () => ({
-          model: unlessSame(model, { ...model, status: 'open', lastError: null }),
+          model: unlessSame(model, { ...model, status: 'open', lastError: null, opened: true }),
         }),
         Received: () => ({ model }),
         // The close that follows an error, and the release after it, find it closed.
         Closed: () => ({ model: unlessSame(model, { ...model, status: 'closed' }) }),
-        Failed: ({ message }) => ({
-          model: unlessSame(model, { ...model, status: 'closed', lastError: message }),
+        // Worded by whether the socket had opened: the socket's own text is
+        // dropped in favor of the sentence, as a page would word it.
+        Failed: () => ({
+          model: unlessSame(model, {
+            ...model,
+            status: 'closed',
+            lastError: model.status === 'open' ? 'Connection error' : 'Failed to connect to WebSocket',
+          }),
         }),
-        SendFailed: ({ message }) => ({
-          model: unlessSame(model, { ...model, lastError: message }),
+        SendFailed: () => ({
+          model: unlessSame(model, { ...model, lastError: 'Socket unavailable' }),
         }),
         Sent: () => ({ model }),
         TimedOut: () => ({
           model: unlessSame(model, {
             ...model,
             status: 'closed',
-            lastError: `websocket connect to ${model.url} timed out`,
+            lastError: 'Connection timeout',
           }),
         }),
       }),

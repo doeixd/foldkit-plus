@@ -106,9 +106,9 @@ const Camera = mediaStream({ name: 'Camera' })
 const Devices = mediaDevices({ name: 'Devices' })
 const Permissions = permissions({ name: 'Permissions' })
 const url = { url: 'ws://x' }
-const open = { url: 'ws://x', status: 'open' as const, lastError: null }
-const closed = { url: 'ws://x', status: 'closed' as const, lastError: 'gone' }
-const retrying = { url: 'ws://x', status: 'connecting' as const, lastError: 'gone' }
+const open = { url: 'ws://x', status: 'open' as const, lastError: null, opened: true }
+const closed = { url: 'ws://x', status: 'closed' as const, lastError: 'gone', opened: false }
+const retrying = { url: 'ws://x', status: 'connecting' as const, lastError: 'gone', opened: false }
 const camera = { audio: true, video: true }
 const microphone = { deviceId: 'm', groupId: 'g', kind: 'audioinput' as const, label: 'Mic' }
 const granted = { states: { camera: 'granted' as const }, lastError: null }
@@ -362,8 +362,10 @@ describe('a Message that changes nothing keeps the Model', () => {
       keeps(closed, m => Socket.update(m, WebSocketMessage.Closed(), url)),
     ],
     [
-      'WebSocket SendFailed with the error held',
-      keeps(closed, m => Socket.update(m, WebSocketMessage.SendFailed({ message: 'gone' }), url)),
+      'WebSocket SendFailed with its sentence already held',
+      keeps({ ...closed, lastError: 'Socket unavailable' }, m =>
+        Socket.update(m, WebSocketMessage.SendFailed({ message: 'gone' }), url),
+      ),
     ],
     [
       'SSE Failed again on a retry',
@@ -478,7 +480,7 @@ describe('socket subscriptions', () => {
     ['WebSocket', Socket.subscriptions!(url).incoming!],
     ['SSE', Events.subscriptions!(url).incoming!],
   ])('%s keeps its stream from connecting to open', (_, entry) => {
-    const connecting = { url: 'ws://x', status: 'connecting' as const, lastError: null }
+    const connecting = { url: 'ws://x', status: 'connecting' as const, lastError: null, opened: false }
     expect(entry.modelToDependencies(open)).toEqual(entry.modelToDependencies(connecting))
     expect(entry.modelToDependencies(closed)).not.toEqual(entry.modelToDependencies(connecting))
   })

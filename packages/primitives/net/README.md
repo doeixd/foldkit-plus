@@ -54,7 +54,7 @@ guide](../../bundle/README.md) for mounting and composing placements.
 | Name | Form | Needs |
 | --- | --- | --- |
 | `Online` | bundle `{ online }` + `Changed` | none |
-| `websocket` | factory bundle `{ url, status, lastError }` + `send` helper | `{ url, connectTimeoutMs? }` |
+| `websocket` | factory bundle `{ url, status, lastError, opened }` + `send` helper, `isOpen`, `SocketView` + `viewOf(model, wanted)` | `{ url, connectTimeoutMs? }` |
 | `sse` | factory bundle `{ url, status, lastError }`, no send | `{ url }` |
 | `broadcastMessages` | entry: `Received { data }` | channel name |
 | `postBroadcast` | Command: `Posted` / `BroadcastFailed` | channel name + data |
@@ -68,4 +68,7 @@ and do not use those resource tags. A post never echoes to its own channel.
 
 No API (SSR, old browser): entries are empty, Commands yield their failure Message.
 `Failed` records; SSE stays `connecting` (the browser reconnects), WebSocket parks at
-`closed`.
+`closed`. The socket's `lastError` is worded for the reader (`Failed to connect to
+WebSocket`, `Connection error`, `Connection timeout`, `Socket unavailable`, chosen by
+whether it had opened), and `opened` says whether it had; a page derives
+`SocketView` from the two instead of keeping its own connection state.
