@@ -1278,9 +1278,9 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   const run = (query: ReadDependencies['queries'][number]) =>
     Effect.map(queryMessage(query), toMessage)
   // A plan is a function of the Remote model, what is asked, and the clock only
-  // until the next value ages out (`expires`), so a Model change the Remote
-  // model is not part of (typing in a field) reuses it rather than walking
-  // every row again.
+  // until the next value ages out (`expires`, which `deadlineOf` computes as
+  // exactly that moment), so a Model change the Remote model is not part of
+  // (typing in a field) reuses it rather than walking every row again.
   const planned = new WeakMap<
     RemoteModel,
     Map<string, { readonly until: number; readonly dependencies: ReadDependencies }>
@@ -1370,7 +1370,10 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
 
 // Where a restarted stream resumes, not a reason to restart it: every applied
 // event advances the cursor, and a restart per event would close and reopen
-// the server stream each time.
+// the server stream each time. Said in the schema rather than with Foldkit's
+// `keepAliveEquivalence`, which would change the entry's public type
+// (`EntryWithoutKeepAlive`, the only entry type Foldkit exports) for every
+// application that spreads Remote's entries into its own.
 const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () => true))
 
 /** The live entry: subscribes to `requirementsOf(model)` from the Model's resume cursor. */
@@ -2552,8 +2555,6 @@ const bindDomain = <
 
       return {
         items: items as never,
-        // Whole only if every edge was judged, every match could be shown, and
-        // the list itself is all there — a connection terminal at both ends.
         // Whole only if every edge was judged, every match could be shown, and
         // the list itself is all there. `hasNext`/`hasPrevious` read the outer
         // boundaries alone, so `isGapped` is the third question: a connection

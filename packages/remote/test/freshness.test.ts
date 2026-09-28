@@ -12,6 +12,7 @@ import {
   emptyStore,
   entityKey,
   markStale,
+  setUnavailable,
   tombstone,
   writeEntity,
   type RemoteMessage,
@@ -192,5 +193,40 @@ describe('a value a mutation answered', () => {
     })
     clock = 2_101
     expect(read.modelToDependencies(answered).requirements).toEqual([request])
+  })
+})
+
+describe('a field the server settled without a value', () => {
+  // Present fields are not what is asked; the one asked for was withheld.
+  const withheld: Model = {
+    ...initial,
+    remote: {
+      ...initial.remote,
+      entities: setUnavailable(
+        writeEntity(emptyStore, p1, { id: 'p1' }, 0),
+        [[p1, ['name']]],
+        true,
+      ),
+    },
+  }
+
+  it('ages out with its entity, so a timer asks for it again', () => {
+    expect(deadlineOf(withheld.remote.entities, [request], { now: 500, freshness: 1_000 })).toEqual(
+      {
+        at: 1_000,
+        due: [request],
+      },
+    )
+  })
+
+  it('is asked for again once its entity ages out, though nothing else changed', () => {
+    let clock = 500
+    const read = Data.subscriptions(
+      { page: Page },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
+    )['page.read']
+    expect(read.modelToDependencies(withheld).requirements).toEqual([])
+    clock = 2_000
+    expect(read.modelToDependencies({ ...withheld }).requirements).toEqual([request])
   })
 })
