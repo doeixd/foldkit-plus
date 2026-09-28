@@ -14,8 +14,14 @@ that `foldkit-mirror` keeps in step:
 
 ```text
 control -> Message -> update (modifyFields) -> Model -> Filters subscription -> ?search=…&sorting=…
-URL (load, back/forward) -> ChangedUrl -> Filters.reduce -> Model
+URL (load, back/forward) -> ChangedUrl -> Filters.reduce -> route -> Model
 ```
+
+`Mirror.routing` joins the two to Foldkit's `makeApplication`: it takes this
+application's `init`, `update` and routing, and gives back the same three with
+`Filters` reading the starting URL and every `ChangedUrl`, before the
+application routes the path. `src/entry.ts` spreads the result into the
+runtime config.
 
 A filter at its initial value is left out of the URL, so the bare page is `/`.
 A value the page cannot read (`?diet=Dragon`, `?sorting=Length`) is read as
@@ -39,6 +45,7 @@ tests and `npx tsc -b examples/foldkit-query-sync` type-checks them.
 | Search, sorting, diet, period | the Model; `foldkit-mirror`'s `Mirror.url` keeps them in the query string | `src/main.ts`, `// MIRROR` |
 | Field references the mirror is declared over | `foldkit-surface` (`Surface.application`) | `src/main.ts`, `// MIRROR` |
 | The route (`/` or a 404) | plain Foldkit routing, path only | `src/main.ts`, `// ROUTE` |
+| Reading the URL into both at start and on navigation | `Mirror.routing` over the application's own `init`, `update`, routing | `src/main.ts`, `// ROUTING` |
 | Link clicks, the two listboxes, filtering and sorting the rows | plain Foldkit and `@foldkit/ui` | `src/main.ts` |
 | Appearance: theme, layout, the page's Slots | `foldkit-mixins` | `src/style.ts` |
 | Styling `@foldkit/ui` Button and Input | `foldkit-mixins-ui` (`Button.resolve`, `Input.resolve`) | `src/main.ts`, `src/style.ts` |
@@ -52,7 +59,7 @@ has no Listbox adapter; the listboxes take the page's own Slots through
 
 | File | What it holds |
 | --- | --- |
-| `src/main.ts` | Model, Message, the mirror, init, update, subscriptions, and the view |
+| `src/main.ts` | Model, Message, the mirror, init, update, their routing, subscriptions, and the view |
 | `src/style.ts` | The theme, the Slots and their Styles, and the stylesheet |
 | `src/entry.ts` | Injects the stylesheet and runs the application |
 | `src/data.ts` | The dinosaurs, as upstream |

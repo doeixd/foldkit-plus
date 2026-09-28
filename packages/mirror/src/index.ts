@@ -14,6 +14,7 @@ import { KeyValueStore } from 'effect/unstable/persistence'
 import { mapMessage, type Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
+import type { RoutingConfig } from 'foldkit/runtime'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -469,6 +470,40 @@ export type UrlMirrorWiring<AppModel, Tag extends string> = Wiring<
   UrlChangedMessage<Tag>
 > & {
   readonly onUrl: (model: AppModel, url: Url) => AppModel
+}
+
+/** `Mirror.routing`'s config: the application's own `init`, `update` and routing, and the URL mirrors to read. */
+export interface MirrorRoutingConfig<
+  AppModel,
+  Message extends { readonly _tag: string },
+  Tag extends Message['_tag'],
+  Args extends ReadonlyArray<unknown>,
+  InitReturn extends { readonly model: AppModel },
+  UpdateReturn extends { readonly model: AppModel },
+> {
+  readonly mirrors: readonly [UrlMirror<AppModel, any, any>, ...UrlMirror<AppModel, any, any>[]]
+  /** The tag of the Message `routing.onUrlChange` makes. */
+  readonly urlChanged: Tag
+  /** `(url) => …`, or `(flags, url) => …` for an application with flags. */
+  readonly init: (...args: [...Args, Url]) => InitReturn
+  readonly update: (model: AppModel, message: Message) => UpdateReturn
+  readonly routing: {
+    readonly onUrlRequest: (request: Navigation.UrlRequest) => Message
+    readonly onUrlChange: (url: Url) => Extract<Message, UrlChangedMessage<Tag>>
+  }
+}
+
+/** `init`, `update` and `routing` for `Runtime.makeApplication`, with the mirrors reading every URL. */
+export interface MirrorRouting<
+  AppModel,
+  Message,
+  Args extends ReadonlyArray<unknown>,
+  InitReturn,
+  UpdateReturn,
+> {
+  readonly init: (...args: [...Args, Url]) => InitReturn
+  readonly update: (model: AppModel, message: Message) => UpdateReturn
+  readonly routing: RoutingConfig<Message>
 }
 
 export type KvMirrorWiring<AppModel> = Wiring<
@@ -932,6 +967,56 @@ export const Mirror = {
         subscriptions: brandEntries(mirror.subscriptions),
         contract: mirror.contract,
       }),
+    }
+  },
+
+  /**
+   * URL mirrors plugged into `Runtime.makeApplication`: spread the result into
+   * its config. `init` reads the starting URL into the Model the application's
+   * `init` returns; `update` reads a `urlChanged` Message's URL into the Model
+   * before the application's `update` sees it, so a route handler finds the
+   * slices already read. `routing` is the application's own, passed through.
+   *
+   * @example
+   * ```ts
+   * Runtime.makeApplication({
+   *   Model, view, subscriptions, container,
+   *   ...Mirror.routing({
+   *     mirrors: [Filters],
+   *     urlChanged: 'ChangedUrl',
+   *     init,
+   *     update,
+   *     routing: {
+   *       onUrlRequest: request => Message.ClickedLink({ request }),
+   *       onUrlChange: url => Message.ChangedUrl({ url }),
+   *     },
+   *   }),
+   * })
+   * ```
+   */
+  routing: <
+    AppModel,
+    Message extends { readonly _tag: string },
+    const Tag extends Message['_tag'],
+    Args extends ReadonlyArray<unknown>,
+    InitReturn extends { readonly model: AppModel },
+    UpdateReturn extends { readonly model: AppModel },
+  >(
+    config: MirrorRoutingConfig<AppModel, Message, Tag, Args, InitReturn, UpdateReturn>,
+  ): MirrorRouting<AppModel, Message, Args, InitReturn, UpdateReturn> => {
+    const read = (model: AppModel, url: Url): AppModel =>
+      config.mirrors.reduce((next, mirror) => mirror.reduce(next, url), model)
+    const isUrlChanged = (message: Message): message is Message & UrlChangedMessage<Tag> =>
+      // tag-check: open — `Tag` is the application's URL variant, generic here
+      message._tag === config.urlChanged
+    return {
+      init: (...args) => {
+        const started = config.init(...args)
+        return { ...started, model: read(started.model, args[args.length - 1] as Url) }
+      },
+      update: (model, message) =>
+        config.update(isUrlChanged(message) ? read(model, message.url) : model, message),
+      routing: config.routing,
     }
   },
 

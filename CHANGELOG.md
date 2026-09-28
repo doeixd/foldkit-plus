@@ -36,6 +36,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mirror`, `Mirror.routing`:** `Mirror.routing({ mirrors,
+  urlChanged, init, update, routing })` returns `init`, `update` and `routing`
+  for `Runtime.makeApplication`. URL mirrors read the starting URL and each URL
+  Message before the application's own `update` routes it; its `onUrlRequest`
+  and `onUrlChange` pass through unchanged. `foldkit-query-sync` uses it.
+
 - **`foldkit-ssr/client`, a browser entry:** `SSR.plan`, `resume`,
   `hydrate`, `static`, `serving`, `Resume` and the attribute names (including
   `FOLDKIT_APP_ATTRIBUTE`), importing nothing from

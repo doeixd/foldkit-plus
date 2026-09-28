@@ -181,8 +181,9 @@ export const Filters = Mirror.url(App, {
 
 // INIT
 
-export const init: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) => ({
-  model: Filters.reduce(modifyFields(initialModel, { route: () => urlToAppRoute(url) }), url),
+/** The route only: `Mirror.routing` reads the filters from the same URL. */
+const routeInit: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) => ({
+  model: modifyFields(initialModel, { route: () => urlToAppRoute(url) }),
 })
 
 // UPDATE
@@ -256,7 +257,7 @@ const foldPeriodListbox = Update.foldChild({
   }),
 })
 
-export const update = (model: Model, message: Message) =>
+const routeUpdate = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
     CompletedNavigateInternal: () => ({ model }),
     CompletedLoadExternal: () => ({ model }),
@@ -273,15 +274,17 @@ export const update = (model: Model, message: Message) =>
         }),
       }),
 
-    // Also the answer to the mirror's own URL writes, and to the starting URL
-    // `init` already read: both leave the Model as it is, so nothing renders.
+    // The filters are already read from `url` (`Mirror.routing`). This is also
+    // the answer to the mirror's own URL writes, which leave the route as it is,
+    // so the Model keeps its identity and nothing renders.
     ChangedUrl: ({ url }) => {
       const nextRoute = urlToAppRoute(url)
-      const routed = Equal.equals(nextRoute, model.route)
-        ? model
-        : modifyFields(model, { route: () => nextRoute })
 
-      return { model: Filters.reduce(routed, url) }
+      return {
+        model: Equal.equals(nextRoute, model.route)
+          ? model
+          : modifyFields(model, { route: () => nextRoute }),
+      }
     },
 
     ChangedSearchInput: ({ value }) => ({
@@ -296,6 +299,26 @@ export const update = (model: Model, message: Message) =>
 
     GotPeriodListboxMessage: ({ message }) => foldPeriodListbox(model, message),
   })
+
+// ROUTING
+
+/**
+ * `init`, `update` and `routing` for `Runtime.makeApplication`: the route is
+ * this application's, and the `Filters` mirror reads every URL into the Model
+ * before `routeUpdate` sees it.
+ */
+export const routed = Mirror.routing({
+  mirrors: [Filters],
+  urlChanged: 'ChangedUrl',
+  init: routeInit,
+  update: routeUpdate,
+  routing: {
+    onUrlRequest: request => Message.ClickedLink({ request }),
+    onUrlChange: url => Message.ChangedUrl({ url }),
+  },
+})
+
+export const { init, update } = routed
 
 // SUBSCRIPTION
 

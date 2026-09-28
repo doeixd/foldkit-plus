@@ -1,6 +1,6 @@
 import { Runtime } from 'foldkit'
 
-import { Message, Model, init, subscriptions, update, view } from './main.js'
+import { Message, Model, routed, subscriptions, view } from './main.js'
 import { stylesheet } from './style.js'
 
 const styles = document.createElement('style')
@@ -12,15 +12,10 @@ if (container === null) throw new Error('#root is missing from index.html')
 
 const application = Runtime.makeApplication({
   Model,
-  init,
-  update,
+  ...routed,
   view,
   subscriptions,
   container,
-  routing: {
-    onUrlRequest: request => Message.ClickedLink({ request }),
-    onUrlChange: url => Message.ChangedUrl({ url }),
-  },
   devTools: {
     Message,
   },

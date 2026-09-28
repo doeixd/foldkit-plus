@@ -5,6 +5,9 @@
 import { Schema } from 'effect'
 import type { KeyValueStore } from 'effect/unstable/persistence'
 import { Bundle } from 'foldkit-bundle'
+import { Runtime } from 'foldkit'
+import type { HtmlBuilder } from 'foldkit/html'
+import { UrlRequest } from 'foldkit/navigation'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -80,3 +83,31 @@ const wiredUrl = wiring.url(url => Message.UrlChanged({ url }))
 void wiredUpdate
 void wiredSubscriptions
 void wiredUrl
+
+// `Mirror.routing`: the URL mirror plugged into `makeApplication`.
+{
+  const Message = defineMessageUnion({
+    ClickedLink: { request: UrlRequest },
+    UrlChanged: { url: Url },
+  })
+  type Message = typeof Message.Type
+  const view = (model: Model, h: HtmlBuilder<Message>) => ({
+    title: '',
+    body: h.p([], [model.filter]),
+  })
+  const subscriptions = Subscription.make<Model, Message>()(() => ({ ...Filters.subscriptions }))
+  const container = document.body
+
+  const routed = Mirror.routing({
+    mirrors: [Filters],
+    urlChanged: 'UrlChanged',
+    init: (url: Url) => ({ model: initial }),
+    update: (model: Model, message: Message) => ({ model }),
+    routing: {
+      onUrlRequest: request => Message.ClickedLink({ request }),
+      onUrlChange: url => Message.UrlChanged({ url }),
+    },
+  })
+
+  Runtime.makeApplication({ Model, ...routed, view, subscriptions, container })
+}

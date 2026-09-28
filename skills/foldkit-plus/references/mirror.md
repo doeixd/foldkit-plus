@@ -89,6 +89,11 @@ const init = (url: Url): Return => foldPrefs.init(Filters.reduce(initial, url))
 // union, `if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }`,
 // and `commands: [Prefs.restore]` in init. The rest of update is then partial.
 
+// Without foldkit-bundle, Mirror.routing wires URL mirrors into makeApplication:
+// Mirror.routing({ mirrors: [Filters], urlChanged: 'UrlChanged', init, update,
+//   routing: { onUrlRequest, onUrlChange } }) returns { init, update, routing } to spread.
+// The mirrors read the starting URL and each UrlChanged before the app's update routes it.
+
 const subscriptions = Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(() => ({
   ...Filters.subscriptions,                     // entry key: 'filters.mirror'
   ...Prefs.subscriptions,

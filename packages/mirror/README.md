@@ -224,8 +224,9 @@ const subscriptions = Subscription.make<Model, Message>()(() => ({
 
 At runtime, also reduce the initial URL before the first render and map later
 navigation into `Message.UrlChanged`. The Subscription writes outward; it does
-not replace those inbound steps. The assembly-based version below wires them
-through `Filters.wiring('UrlChanged')` and `placements.url(...)`.
+not replace those inbound steps. `Mirror.routing` (next section) wires both into
+`Runtime.makeApplication`; with `foldkit-bundle`, `Filters.wiring('UrlChanged')`
+and `wiring.url(...)` do (see "One list per application with wiring").
 
 That is the entire URL loop:
 
@@ -238,6 +239,58 @@ The loop closes without a second render: the mirror's own write comes back
 as a `UrlChanged` whose keys hold what the Model already holds, and `reduce`
 then returns the Model it was given. It does the same for a navigation that
 leaves its keys alone, and `Prefs.reduce` for a restore that finds nothing new.
+
+## Plug the URL into `makeApplication` with `Mirror.routing`
+
+Foldkit's `makeApplication` takes `init(url)`, `update` and
+`routing: { onUrlRequest, onUrlChange }`. `Mirror.routing` takes the
+application's own three and gives back the same three, with the mirrors
+reading every URL, so the result spreads straight into the runtime config.
+The Message gains the link variant Foldkit's routing asks for:
+
+```ts
+import { Runtime } from 'foldkit'
+import { UrlRequest } from 'foldkit/navigation'
+
+const Message = defineMessageUnion({
+  ClickedLink: { request: UrlRequest },
+  UrlChanged: { url: Url },
+})
+
+const routed = Mirror.routing({
+  mirrors: [Filters],
+  urlChanged: 'UrlChanged',
+  init: (url: Url) => ({ model: initial }),
+  update: (model: Model, message: Message) => ({ model }),
+  routing: {
+    onUrlRequest: request => Message.ClickedLink({ request }),
+    onUrlChange: url => Message.UrlChanged({ url }),
+  },
+})
+
+Runtime.makeApplication({ Model, ...routed, view, subscriptions, container })
+```
+
+What each piece does, and does not do:
+
+- `init` calls the application's `init` and reads the starting URL into the
+  Model it returns. The application's Commands are its own; they were made
+  before the URL was read, so an `init` whose Commands depend on the slice
+  calls `Filters.reduce` itself.
+- `update` reads a `UrlChanged` Message's URL into the Model, then hands the
+  Message to the application's `update`, which routes the path over slices the
+  mirrors have already read. Every other Message goes straight through.
+- `routing` is the application's own: its links, its URL Message. Nothing is
+  intercepted or added.
+- Writing the URL is still `Filters.subscriptions`, spread into the
+  application's Subscriptions as above.
+
+`urlChanged` names the tag the mirrors read; it must be the Message
+`onUrlChange` makes, and that Message must carry a `url`, or the call does not
+compile. A `UrlChanged` for the URL the Model already shows (the mirror's own
+write, answered by Foldkit) returns the Model it was given, provided the
+application's `update` also returns its Model for a route that did not change.
+`examples/foldkit-query-sync` is the full application.
 
 ## Add remembered local state with `Mirror.kv`
 

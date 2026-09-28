@@ -305,9 +305,9 @@ its README the details.
   `ManagedResource.acquire` on a placed resource fails to type-check; and a
   custom `Link` loosens `placements.initial` to `Partial<Model>`.
   `foldkit-websocket-chat`, `foldkit-shopping-cart`
-- [ ] **Mirror: its URL assembly does not fit `makeApplication` routing**
-  (`{init, onUrlChange}` against `{onUrlRequest, onUrlChange}`).
-  `foldkit-query-sync`
+- [x] **Mirror: its URL assembly does not fit `makeApplication` routing.**
+  Done: `Mirror.routing`. Bundle's `assembly.url` still has the `Sync.mount`
+  shape (`{ init(model, url), onUrlChange }`), not `makeApplication`'s.
 - [ ] **Primitives: Timer and Interval fix their interval where placed,** so a
   clock that speeds up (Snake) cannot use them; `keyboardEvents()` cannot
   prevent a key's default. `foldkit-snake`
