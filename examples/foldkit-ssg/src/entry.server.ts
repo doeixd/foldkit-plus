@@ -7,7 +7,7 @@ import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 
 import { Model, init, plan, routing, update, view } from './main.js'
-import { STYLESHEET_ATTRIBUTE, stylesheet } from './style.js'
+import { stylesheet } from './style.js'
 
 export const prerenderPaths = ['/', '/about'] as const
 
@@ -31,7 +31,7 @@ export const buildIdOf = (template: string): string => {
  * present and add none of them again.
  */
 const head = (rendered: { readonly html: string }): string =>
-  `<style ${STYLESHEET_ATTRIBUTE}>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
+  `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
 
 /** Every page in `prerenderPaths`, in order, rendered into `template`. */
 export const generatePages = (template: string) =>

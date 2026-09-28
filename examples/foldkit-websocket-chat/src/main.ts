@@ -12,8 +12,7 @@ import { Button, type ButtonSlots, Input } from 'foldkit-mixins-ui'
 import { type SocketService, WebSocketMessage, websocket } from 'foldkit-primitives/net'
 
 import {
-  ChatSlots,
-  ChatStyle,
+  ChatPage,
   ConnectButtonStyle,
   MessageInputStyle,
   RetryButtonStyle,
@@ -249,10 +248,10 @@ export const subscriptions = assembly.subscriptions()
 
 // VIEW
 
-type Slots = SlotBuilders<typeof ChatSlots, Message>
+type Slots = SlotBuilders<typeof ChatPage.slots, Message>
 
 export const Chat = SlotView.forMessages<Message>()
-  .define(ChatSlots, (model: Model, slots, h) =>
+  .define(ChatPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.div(slots.card.attrs(), [
         h.div(slots.header.attrs(), [
@@ -274,7 +273,7 @@ export const Chat = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(ChatStyle))
+  .pipe(Style.attach(ChatPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'WebSocket Chat',
@@ -361,14 +360,9 @@ const button = (
       ...(config.onClick === undefined ? {} : { onClick: config.onClick }),
       ...(config.type === undefined ? {} : { type: config.type }),
       ...(config.isDisabled === undefined ? {} : { isDisabled: config.isDisabled }),
-      toView: attributes =>
-        h.button(
-          Button.resolve<undefined, Message>(attributes, [config.style.mixin], {
-            input: undefined,
-            h,
-          }).button,
-          [config.label],
-        ),
+      toView: Button.toView([config.style.mixin], { h }, ({ button }) =>
+        h.button(button, [config.label]),
+      ),
     },
     h,
   )
@@ -393,13 +387,7 @@ const messageInputView = (messageInput: string, slots: Slots, h: HtmlBuilder<Mes
           value: messageInput,
           placeholder: 'Type a message...',
           onInput: value => Message.UpdatedMessageInput({ value }),
-          toView: attributes =>
-            h.input(
-              Input.resolve<undefined, Message>(attributes, [MessageInputStyle.mixin], {
-                input: undefined,
-                h,
-              }).input,
-            ),
+          toView: Input.toView([MessageInputStyle.mixin], { h }, ({ input }) => h.input(input)),
         },
         h,
       ),

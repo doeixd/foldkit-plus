@@ -41,7 +41,7 @@ pnpm --filter foldkit-example-foldkit-ssg preview  # serves dist/ as a static ho
 | Rendering each path to a file in the built `index.html` | `foldkit-ssr` (`SSR.generate`) | `src/entry.server.ts`, written by `src/prerender.ts` |
 | Taking the page over, and drawing afresh where nothing was rendered | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
 | The build id both sides compare | the entry script's address | `buildIdOf` in `src/entry.server.ts`, `import.meta.url` in `src/entry.ts` |
-| Appearance, and the CSS in each page's head | `foldkit-mixins` (`Style.usedIn` for the page's classes) | `src/style.ts`, `head` in `src/entry.server.ts` |
+| Appearance, and the CSS in each page's head | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a generated page carries) | `src/style.ts`, `head` in `src/entry.server.ts`, `src/entry.ts` |
 
 `foldkit-surface` appears only to name the route field for the plan
 (`Surface.application(...).model.route`); no Surface is declared.

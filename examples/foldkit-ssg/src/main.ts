@@ -10,7 +10,7 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { AppRoute, aboutRouter, homeRouter, urlToAppRoute } from './route.js'
-import { PageSlots, PageStyle } from './style.js'
+import { PageStyle } from './style.js'
 
 export { AppRoute } from './route.js'
 
@@ -113,7 +113,7 @@ export const plan = SSR.plan(
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof PageStyle.slots, Message>
 
 const routeTitle = (route: AppRoute): string =>
   AppRoute.match(route, {
@@ -155,10 +155,10 @@ const pageView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
   })
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(PageStyle.slots, (model: Model, slots, h) =>
     h.main(slots.page.attrs(), [navigationView(slots, h), pageView(model, slots, h)]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(PageStyle.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: routeTitle(model.route),

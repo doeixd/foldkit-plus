@@ -1,7 +1,6 @@
 import { DateTime } from 'effect'
 import { modifyFields } from 'foldkit/struct'
-import { Style } from 'foldkit-mixins'
-import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
 import { Chat, ConnectionState, type Model, init } from '../src/main.js'
@@ -32,26 +31,15 @@ const models: ReadonlyArray<readonly [string, Model]> = [
   ],
 ]
 
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
-
 describe('the chat view', () => {
   test.each(models)('draws every element through a Slot when %s', (_, model) => {
     expect(Inert.unslotted(Inert.draw(Chat, model))).toEqual([])
   })
 
-  test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      models.flatMap(([, model]) =>
-        [...cssOf(Inert.all(Inert.draw(Chat, model))).matchAll(/var\((--fk-[\w-]+)\)/g)].map(
-          ([, name]) => name,
-        ),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+  test.each(models)('ships every theme token the drawn styles read when %s', (_, model) => {
+    const tree = Inert.draw(Chat, model)
+    expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+    expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
   })
 
   test.each([
@@ -70,7 +58,7 @@ describe('the chat view', () => {
       'sent',
       'received',
     ])
-    expect(cssOf(Inert.bySlot(tree, 'messageRow'))).toContain(
+    expect(Inert.css(Inert.bySlot(tree, 'messageRow'))).toContain(
       '[data-state="sent"]{justify-content:flex-end}',
     )
   })

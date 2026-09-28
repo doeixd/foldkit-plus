@@ -7,7 +7,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { buildIdOf } from '../src/entry.server.js'
-import { STYLESHEET_ATTRIBUTE } from '../src/style.js'
+import { stylesheet } from '../src/style.js'
 import { generate, loading, template } from './helpers.js'
 
 const parse = (html: string): Document => new DOMParser().parseFromString(html, 'text/html')
@@ -64,7 +64,11 @@ describe('the generated pages', () => {
       const css = Array.from(page.head.querySelectorAll('style'), style => style.textContent).join(
         '',
       )
-      expect(page.head.querySelectorAll(`style[${STYLESHEET_ATTRIBUTE}]`)).toHaveLength(1)
+      expect(
+        Array.from(page.head.querySelectorAll('style')).filter(
+          style => style.textContent === stylesheet,
+        ),
+      ).toHaveLength(1)
       const drawn = new Set(
         Array.from(page.body.querySelectorAll('[class]')).flatMap(element =>
           Array.from(element.classList),

@@ -1,123 +1,76 @@
 /**
- * The chat's appearance, as `foldkit-mixins` data. `main.ts` publishes the
- * Slots and draws the markup; everything it looks like lives here.
+ * The chat's appearance, as `foldkit-mixins` data. `main.ts` draws the markup
+ * through the Slots declared here; everything it looks like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped recipes by layer order rather
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped recipes by layer order rather
  * than by specificity.
  */
-import { Capability, Event, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Event, Style, type Piece } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U, type Space } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
 
-const L = Layers.standard
-const app = L.layer('app')
-
-// THEME
-
-/** Tailwind's blue-500 as the accent, over near-gray surfaces, as upstream's `gray-*`. */
-const palette = Theme.oklch({
-  accent: { h: 260, c: 0.214, l: '62.3%' },
-  surfaceSaturation: 0.003,
+/**
+ * Tailwind's blue-500 as the accent, over near-gray surfaces, as upstream's
+ * `gray-*`, and a white base, so the card is upstream's `bg-white`.
+ * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
+ */
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.compose(
+    Theme.oklch({ accent: { h: 260, c: 0.214, l: '62.3%' }, surfaceSaturation: 0.003 }),
+    Theme.define({ knob: { 'base-l': '100%' } }),
+  ),
+  colorScheme: 'light',
 })
 
-/** A white base, so the card is upstream's `bg-white`. */
-const theme = Theme.compose(
-  Theme.compose(Theme.tokens, palette),
-  Theme.define({ knob: { 'base-l': '100%' } }),
-)
-
-const t = Theme.ref(theme)
+export { stylesheet }
 
 /** Upstream's purple-100 to blue-100 page gradient. */
 const pageGradient =
   'linear-gradient(to bottom right, oklch(94.6% 0.033 307.2), oklch(93.2% 0.032 255.6))'
 
-const container = Slot.make({ capability: Capability.Container })
-
-const row = (gap: string): StyleValue => Style.self({ display: 'flex', alignItems: 'center', gap })
+const row = (gap: Space): Piece => [U.flex, U.items('center'), U.gap(gap)]
 
 /** The bottom band of the card: upstream's `p-6 border-t border-gray-200`. */
-const band: StyleValue = Style.self({
-  padding: t.space.lg,
-  borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
-})
+const band: Piece = [U.p('lg'), { borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}` }]
 
 const pulse = Style.keyframes({ '50%': { opacity: '0.5' } })
 
 // PAGE
 
-export const ChatSlots = Slots.define({
-  page: container,
-  card: container,
-  header: container,
-  heading: container,
-  title: container,
-  subtitle: container,
-  status: container,
-  statusDot: container,
-  statusLabel: container,
-  messages: container,
-  empty: container,
-  emptyTitle: container,
-  emptyHint: container,
-  messageList: container,
-  messageRow: container,
-  bubble: container,
-  bubbleText: container,
-  bubbleTime: container,
-  footer: container,
-  connecting: container,
-  composer: Slot.make({ capability: Capability.Container, events: [Event.Submit] }),
-  composerRow: container,
-  errorFooter: container,
-  errorBox: container,
-  errorTitle: container,
-  errorText: container,
-})
-
-export const ChatStyle = Style.forSlots(ChatSlots)(
+export const ChatPage = slots(
   {
-    page: Style.self({
-      boxSizing: 'border-box',
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: t.space.lg,
-      background: pageGradient,
-    }),
-    card: Style.self({
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      maxWidth: '42rem',
-      height: '600px',
-      borderRadius: t.radius.xl,
-      background: t.surface.base,
-      boxShadow: '0 25px 50px -12px rgb(0 0 0 / 25%)',
-    }),
-    header: Style.compose(
-      row(t.space.md),
-      Style.self({
-        justifyContent: 'space-between',
-        padding: t.space.lg,
-        borderBlockEnd: `${t.border.thin} solid ${t.outline.subtle}`,
-      }),
-    ),
-    title: Style.self({ fontSize: t.size['2xl'], fontWeight: t.weight.bold, color: t.text.overt }),
-    subtitle: Style.self({
-      marginBlockStart: t.space['2xs'],
-      fontSize: t.size.sm,
-      color: t.text.muted,
-    }),
-    status: row(t.space.xs),
-    statusDot: Style.compose(
+    page: [
+      U.column,
+      U.items('center'),
+      U.justify('center'),
+      U.p('lg'),
+      { boxSizing: 'border-box', minHeight: '100vh', background: pageGradient },
+    ],
+    card: [
+      U.column,
+      U.wFull,
+      U.rounded('xl'),
+      U.bg('surface.base'),
+      { maxWidth: '42rem', height: '600px', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 25%)' },
+    ],
+    header: [
+      row('md'),
+      U.justify('between'),
+      U.p('lg'),
+      { borderBlockEnd: `${t.border.thin} solid ${t.outline.subtle}` },
+    ],
+    heading: [],
+    title: [U.text('2xl'), U.font('bold'), U.color('text.overt')],
+    subtitle: [U.text('sm'), U.color('text.muted'), { marginBlockStart: t.space['2xs'] }],
+    status: row('xs'),
+    statusDot: [
       pulse.style,
-      Style.self({ width: '0.75rem', height: '0.75rem', borderRadius: t.radius.full }),
+      U.rounded('full'),
+      { width: '0.75rem', height: '0.75rem' },
       Style.states({
         disconnected: { background: t.error.default },
         connecting: {
@@ -127,123 +80,93 @@ export const ChatStyle = Style.forSlots(ChatSlots)(
         connected: { background: t.success.default },
         error: { background: t.error.default },
       }),
-    ),
-    statusLabel: Style.compose(
-      Style.self({ fontSize: t.size.sm, color: t.text.muted }),
+    ],
+    statusLabel: [
+      U.text('sm'),
+      U.color('text.muted'),
       Style.states({ error: { color: t.error.ink } }),
-    ),
-    messages: Style.compose(
-      Style.self({ flex: '1', padding: t.space.lg, overflowY: 'auto' }),
+    ],
+    messages: [
+      U.p('lg'),
+      { flex: '1', overflowY: 'auto' },
       Style.states({
         empty: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
       }),
-    ),
-    empty: Style.self({ textAlign: 'center', color: t.text.subtle }),
-    emptyTitle: Style.self({ margin: `0 0 ${t.space.xs}`, fontSize: t.size.lg }),
-    emptyHint: Style.self({ margin: '0', fontSize: t.size.sm }),
-    messageList: Style.compose(
+    ],
+    empty: [U.textCenter, U.color('text.subtle')],
+    emptyTitle: [U.text('lg'), { margin: `0 0 ${t.space.xs}` }],
+    emptyHint: [U.m('0'), U.text('sm')],
+    messageList: [
       L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      Style.self({ margin: '0', padding: '0', listStyle: 'none' }),
-    ),
-    messageRow: Style.compose(
-      Style.self({ display: 'flex' }),
+      U.m('0'),
+      U.p('0'),
+      { listStyle: 'none' },
+    ],
+    messageRow: [
+      U.flex,
       Style.states({
         sent: { justifyContent: 'flex-end' },
         received: { justifyContent: 'flex-start' },
       }),
-    ),
-    bubble: Style.compose(
-      Style.self({
-        maxWidth: '20rem',
-        padding: `${t.space.xs} ${t.space.md}`,
-        borderRadius: t.radius.lg,
-      }),
+    ],
+    bubble: [
+      U.rounded('lg'),
+      { maxWidth: '20rem', padding: `${t.space.xs} ${t.space.md}` },
       Style.states({
         sent: { background: t.accent.default, color: t.accent['on-fill'] },
         received: { background: t.surface.subtle, color: t.text.overt },
       }),
-    ),
-    bubbleText: Style.self({ margin: '0', overflowWrap: 'break-word' }),
-    bubbleTime: Style.compose(
-      Style.self({ margin: `${t.space['2xs']} 0 0`, fontSize: t.size.xs }),
+    ],
+    bubbleText: [U.m('0'), { overflowWrap: 'break-word' }],
+    bubbleTime: [
+      U.text('xs'),
+      { margin: `${t.space['2xs']} 0 0` },
       Style.states({
         sent: { color: `color-mix(in oklch, ${t.accent['on-fill']} 75%, transparent)` },
         received: { color: t.text.muted },
       }),
-    ),
-    footer: Style.compose(band, row(t.space.md), Style.self({ justifyContent: 'center' })),
-    connecting: Style.self({ fontWeight: t.weight.semibold, color: t.text.muted }),
-    composer: Style.compose(band, Style.self({ margin: '0' })),
-    composerRow: Style.self({ display: 'flex', gap: t.space.sm }),
+    ],
+    footer: [band, row('md'), U.justify('center')],
+    connecting: [U.font('semibold'), U.color('text.muted')],
+    composer: Style.slot({ events: [Event.Submit] }, [band, U.m('0')]),
+    composerRow: [U.flex, U.gap('sm')],
     errorFooter: band,
-    errorBox: Style.self({
-      marginBlockEnd: t.space.md,
-      padding: t.space.md,
-      border: `${t.border.thin} solid ${t.error.outline}`,
-      borderRadius: t.radius.lg,
-      background: t.error.subtle,
-    }),
-    errorTitle: Style.self({
-      margin: `0 0 ${t.space['2xs']}`,
-      fontWeight: t.weight.semibold,
-      color: t.error.ink,
-    }),
-    errorText: Style.self({ margin: '0', fontSize: t.size.sm, color: t.error.ink }),
+    errorBox: [
+      U.p('md'),
+      U.rounded('lg'),
+      U.bg('error.subtle'),
+      { marginBlockEnd: t.space.md, border: `${t.border.thin} solid ${t.error.outline}` },
+    ],
+    errorTitle: [U.font('semibold'), U.color('error.ink'), { margin: `0 0 ${t.space['2xs']}` }],
+    errorText: [U.m('0'), U.text('sm'), U.color('error.ink')],
   },
-  { name: 'ChatStyle', layer: app },
+  { name: 'ChatStyle' },
 )
 
 // MESSAGE INPUT
 
 /** The recipe's field, sharing its row with Send: it takes the room the button leaves. */
-export const MessageInputStyle = Style.forSlots(InputSlots)(
+export const MessageInputStyle = forSlots(InputSlots)(
   Recipes.Input.extend({
-    base: {
-      input: Style.self({ flex: '1', minWidth: '0', borderRadius: t.radius.lg }),
-    },
+    base: { input: [U.rounded('lg'), { flex: '1', minWidth: '0' }] },
   })({ size: 'lg' }),
-  { name: 'MessageInputStyle', layer: app },
+  { name: 'MessageInputStyle' },
 )
 
 // BUTTONS
 
 /** The solid accent button, rounded like upstream's `rounded-lg`, at `padding`. */
-const solid = (paddingInline: string, extra: StyleValue = Style.self({})) =>
+const solid = (padding: Space, extra: Piece = []) =>
   Recipes.Button.extend({
-    base: {
-      button: Style.compose(
-        Style.self({ paddingInline, borderRadius: t.radius.lg, fontWeight: t.weight.semibold }),
-        extra,
-      ),
-    },
+    base: { button: [U.px(padding), U.rounded('lg'), U.font('semibold'), extra] },
   })({ size: 'lg' })
 
-export const ConnectButtonStyle = Style.forSlots(ButtonSlots)(solid(t.space.xl), {
+export const ConnectButtonStyle = forSlots(ButtonSlots)(solid('xl'), {
   name: 'ConnectButtonStyle',
-  layer: app,
 })
 
-export const SendButtonStyle = Style.forSlots(ButtonSlots)(solid(t.space.lg), {
-  name: 'SendButtonStyle',
-  layer: app,
+export const SendButtonStyle = forSlots(ButtonSlots)(solid('lg'), { name: 'SendButtonStyle' })
+
+export const RetryButtonStyle = forSlots(ButtonSlots)(solid('lg', U.wFull), {
+  name: 'RetryButtonStyle',
 })
-
-export const RetryButtonStyle = Style.forSlots(ButtonSlots)(
-  solid(t.space.lg, Style.self({ width: '100%' })),
-  { name: 'RetryButtonStyle', layer: app },
-)
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. `colorScheme: 'light'` keeps the page light in a dark
- * browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
-)

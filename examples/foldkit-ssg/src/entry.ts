@@ -1,15 +1,12 @@
+import { Style } from 'foldkit-mixins'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
 
 import { Message, Model, init, plan, routing, update, view } from './main.js'
-import { STYLESHEET_ATTRIBUTE, stylesheet } from './style.js'
+import { stylesheet } from './style.js'
 
-// A page the build rendered carries the stylesheet in its head already.
-if (document.querySelector(`style[${STYLESHEET_ATTRIBUTE}]`) === null) {
-  const styles = document.createElement('style')
-  styles.setAttribute(STYLESHEET_ATTRIBUTE, '')
-  styles.textContent = stylesheet
-  document.head.append(styles)
-}
+// A page the build rendered carries the stylesheet in its head already, which
+// `install` finds and keeps; the dev server's empty page is given it here.
+Style.install(stylesheet)
 
 // `#root` is where the dev server's empty page draws; a page the build rendered
 // replaced it with the application's own root.

@@ -1,82 +1,63 @@
 /**
- * The example's appearance, as `foldkit-mixins` data. `main.ts` publishes the
- * Slots and draws the markup; everything it looks like lives here.
+ * The example's appearance, as `foldkit-mixins` data. `main.ts` draws the
+ * markup through the Slots declared here; everything it looks like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped Button recipe and the
- * `Layout` pieces by layer order rather than by specificity.
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped Button recipe and the `Layout`
+ * pieces by layer order rather than by specificity.
  */
-import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Capability, Style, type Piece } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 
-const L = Layers.standard
-const app = L.layer('app')
+/**
+ * A colorless, near-black accent, so the recipe's solid button is black on
+ * white like upstream's. The server writes `stylesheet` into each page's head,
+ * with the classes that page draws. `colorScheme: 'light'` keeps the page
+ * white in a dark browser, as upstream's is.
+ */
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.oklch({ accent: { h: 0, c: 0, l: '12%' } }),
+  colorScheme: 'light',
+})
 
-// THEME
-
-/** A colorless, near-black accent, so the recipe's solid button is black on white like upstream's. */
-const palette = Theme.oklch({ accent: { h: 0, c: 0, l: '12%' } })
-
-const theme = Theme.compose(Theme.tokens, palette)
-
-const t = Theme.ref(theme)
-
-const container = Slot.make({ capability: Capability.Container })
+export { stylesheet }
 
 // PAGE
 
-export const PageSlots = Slots.define({
-  page: container,
-  heading: container,
-  count: container,
-  controls: container,
-  provenance: container,
-  note: container,
-  equivalence: container,
-  equivalenceSelect: Slot.make({ capability: Capability.Focusable }),
-  equivalenceOption: container,
-  equivalencePre: container,
-  equivalenceTextarea: Slot.make({ capability: Capability.Focusable }),
-})
+const smallPrint: Piece = [U.m('0'), U.text('sm'), U.color('text.muted')]
 
-const smallPrint = Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted })
-
-export const PageStyle = Style.forSlots(PageSlots)(
+export const PageStyle = slots(
   {
     // Upstream's `min-h-screen flex flex-col items-center justify-center gap-6 p-6`.
-    page: Style.compose(
+    page: [
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
-      Style.self({
-        boxSizing: 'border-box',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: t.space.lg,
-      }),
-    ),
-    heading: Style.self({
-      margin: '0',
-      fontSize: t.size['2xl'],
-      fontWeight: t.weight.semibold,
-      color: t.text.default,
-    }),
-    count: Style.self({
-      margin: '0',
-      fontSize: '3.75rem',
-      fontWeight: t.weight.bold,
-      lineHeight: '1',
-      color: t.text.default,
-    }),
+      U.items('center'),
+      U.justify('center'),
+      U.p('lg'),
+      { boxSizing: 'border-box', minHeight: '100vh' },
+    ],
+    heading: [U.m('0'), U.text('2xl'), U.font('semibold'), U.color('text.default')],
+    count: [
+      U.m('0'),
+      U.font('bold'),
+      U.color('text.default'),
+      { fontSize: '3.75rem', lineHeight: '1' },
+    ],
     controls: L.in('layouts', Layout.cluster({ gap: t.space.md, justify: 'center' })),
     provenance: smallPrint,
-    note: Style.compose(smallPrint, Style.self({ maxWidth: '28rem', textAlign: 'center' })),
+    note: [smallPrint, U.textCenter, { maxWidth: '28rem' }],
     // Upstream's `hidden`: drawn for the parse check, never shown.
-    equivalence: Style.self({ display: 'none' }),
+    equivalence: U.hidden,
+    equivalenceSelect: Style.slot({ capability: Capability.Focusable }),
+    equivalenceOption: [],
+    equivalencePre: [],
+    equivalenceTextarea: Style.slot({ capability: Capability.Focusable }),
   },
-  { name: 'PageStyle', layer: app },
+  { name: 'PageStyle' },
 )
 
 // BUTTON
@@ -87,30 +68,11 @@ export const PageStyle = Style.forSlots(PageSlots)(
  */
 const CounterButton = Recipes.Button.extend({
   base: {
-    button: Style.compose(
-      Style.self({ borderRadius: '0' }),
+    button: [
+      { borderRadius: '0' },
       Style.pseudo(':hover:not(:disabled)', { background: t.text.subtle }),
-    ),
+    ],
   },
 })
 
-export const ButtonStyle = Style.forSlots(ButtonSlots)(CounterButton(), {
-  name: 'ButtonStyle',
-  layer: app,
-})
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The server writes it into each page's head, with the
- * classes that page draws. `colorScheme: 'light'` keeps the page white in a
- * dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
-)
+export const ButtonStyle = forSlots(ButtonSlots)(CounterButton(), { name: 'ButtonStyle' })

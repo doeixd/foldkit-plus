@@ -10,7 +10,7 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { COUNT_COOKIE } from './cookie.js'
-import { ButtonStyle, PageSlots, PageStyle } from './style.js'
+import { ButtonStyle, PageStyle } from './style.js'
 
 // MODEL
 
@@ -107,16 +107,13 @@ export const plan = SSR.plan(
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof PageStyle.slots, Message>
 
 const counterButton = (onClick: Message, label: string, h: HtmlBuilder<Message>): Html =>
   UiButton.view(
     {
       onClick,
-      toView: attributes =>
-        h.button(Button.resolve(attributes, [ButtonStyle.mixin], { input: undefined, h }).button, [
-          label,
-        ]),
+      toView: Button.toView([ButtonStyle.mixin], { h }, ({ button }) => h.button(button, [label])),
     },
     h,
   )
@@ -145,7 +142,7 @@ const parseEquivalenceView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
   ])
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(PageStyle.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.h1(slots.heading.attrs(), ['Server-rendered counter']),
       h.p(slots.count.attrs([h.Id('count')]), [model.count.toString()]),
@@ -163,7 +160,7 @@ export const Page = SlotView.forMessages<Message>()
       parseEquivalenceView(slots, h),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(PageStyle.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: `Count ${model.count}`,
