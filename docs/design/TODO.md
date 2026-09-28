@@ -268,6 +268,79 @@ the steps land in the packages that own them.
   outside infrastructure). The repository has no linter; Foldkit's Oxlint plugin
   is the likely home. [evo-DESIGN.md](./evo-DESIGN.md) item 12
 
+## Found by porting Foldkit's examples
+
+The [`examples/foldkit-*`](../../examples/README.md#foldkits-own-examples-on-foldkit-plus)
+ports worked around each of these; the example named has the workaround and
+its README the details.
+
+- [ ] **Mirror: a restore that loses the race to the first write.** On the
+  documented `Mirror.fold().init` path the write subscription starts with the
+  initial value before the restore arrives, and could delete the stored
+  document if the restore takes longer than the throttle. Unverified; the ports
+  read the store into Flags instead. `foldkit-todo`
+- [ ] **Remote: one policy per `Data.subscriptions` call.** Two policies need
+  two calls, and each call's `retain` entry collects the other's data.
+  `foldkit-api-cache`
+- [ ] **Remote: smaller gaps.** The read entry's default clock is `Date.now`
+  captured at construction, so fake timers cannot move it; no per-field fetch
+  time; `Data.subscriptions` entries type their dependencies `any`; and
+  `RemoteServer.query` with `Input: {}` needs explicit generics.
+  `foldkit-api-cache`
+- [ ] **Bundle: a child whose first state comes from the URL.** A Bundle's
+  `init` takes fixed args where it is placed, so a routed page cannot be one
+  without a second fetch, and a Model that is a union cannot hold placements.
+  `foldkit-routing`, `foldkit-auth`
+- [ ] **Bundle: a parent cannot react to a placement's Messages.**
+  `assembly.update(own)` never passes a claimed Message to `own`, and
+  `placements.update(own)` passes wrapper Messages that an exhaustive match
+  must then handle. `foldkit-websocket-chat`, `foldkit-shopping-cart`
+- [ ] **Bundle: `PlacedResources` loses `onAcquired`'s signature,** so
+  `ManagedResource.acquire` on a placed resource fails to type-check; and a
+  custom `Link` loosens `placements.initial` to `Partial<Model>`.
+  `foldkit-websocket-chat`, `foldkit-shopping-cart`
+- [ ] **Mirror: its URL assembly does not fit `makeApplication` routing**
+  (`{init, onUrlChange}` against `{onUrlRequest, onUrlChange}`).
+  `foldkit-query-sync`
+- [ ] **Primitives: Timer and Interval fix their interval where placed,** so a
+  clock that speeds up (Snake) cannot use them; `keyboardEvents()` cannot
+  prevent a key's default. `foldkit-snake`
+- [ ] **Primitives: the websocket's `Sent` carries no data, and it has no
+  connect timeout.** `foldkit-websocket-chat`
+- [ ] **Primitives: `History.push` makes a new empty `future` on every push,**
+  which redraws whatever reads it; and `History` has no jump-to-step.
+  `foldkit-pixel-art`
+- [ ] **Form: no public "valid right now" query** (`canSubmit` is true while a
+  check runs), no way to validate every key without submitting, no Command
+  definition for a check that tests can match, and `Form.make` requires an
+  Entity for a plain form. `foldkit-form`, `foldkit-job-application`
+- [ ] **Form: `Schema.optionalKey` is treated as required,** and `Blurred` on
+  an empty optional key returns an equal copy of the Model.
+  `foldkit-job-application`
+- [ ] **SSR: `SSR.hydrate` rejects Foldkit's own application config type,**
+  contrary to its README; there is no browser-only entry, so a hydrated page's
+  bundle carries the server renderer (+231 kB minified); and `SSR.entry` cannot
+  add response headers or answer OPTIONS. `foldkit-ssg`, `foldkit-ssr`
+- [ ] **Mixins: no helper installs the stylesheet in the browser;** every entry
+  hand-writes a `<style>`. `foldkit-counter`
+- [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
+  so under a blue accent they read blue. `foldkit-job-application`
+- [ ] **Mixins: `Recipes.Dialog` does not undo `Defaults.reset`'s `margin: 0`,**
+  so a modal opens against the top of the window; recipe pieces are typed
+  optional per slot; `.extend` cannot remove a piece; and a class `@foldkit/ui`
+  sets inside a ChildAttribute cannot be styled. `foldkit-pixel-art`,
+  `foldkit-ui-showcase`, `foldkit-job-application`
+- [ ] **Mixins-UI: missing adapters and recipes.** No adapter for FileDrop,
+  Nav, DragAndDrop, Animation or VirtualList (each hands out attributes); no
+  recipe for Select, Fieldset, Disclosure, Popover, Tooltip, HoverIntent,
+  Slider, RadioGroup or Calendar; `Textarea.resolve` and `SlotBuilder.attrs()`
+  return attributes `h.textarea` rejects; some adapters export no result type.
+  `foldkit-ui-showcase`
+- [ ] **Mixins-form: its fixed layout cannot show a check in progress or a
+  page-level submitting state.** `foldkit-form`, `foldkit-auth`
+- [ ] **Testing: `Inert.draw` cannot draw a view containing `h.submodel`.**
+  Every port draws the inner SlotView on its own. `foldkit-ui-showcase`
+
 ## Stale passages inside the design documents
 
 Each document now carries a dated status note, but these passages still
