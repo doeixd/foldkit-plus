@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx --conditions=foldkit-plus:source src/serve.ts",
+    "build": "vite build",
+    "start": "tsx --conditions=foldkit-plus:source src/serve.ts --production",
     "typecheck": "tsc -b"
   },
   "dependencies": {
