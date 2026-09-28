@@ -149,7 +149,10 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
     ...(loaded && Option.isSome(state)
       ? [
           h.details(slots.manage.attrs([h.Id('manage')]), [
-            h.summary(slots.manageSummary.attrs(), ['History and more']),
+            h.summary(slots.manageSummary.attrs(), [
+              'History and more',
+              h.span(slots.manageHint.attrs(), ['Revisions, unpublish and archive']),
+            ]),
             h.div(slots.manageCards.attrs(), [
               historyCard(slots, h, revisionsOf(model), {
                 state,

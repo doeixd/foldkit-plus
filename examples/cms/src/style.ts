@@ -73,6 +73,29 @@ const waitShown = Style.compose(
   Style.nest('&[aria-busy="true"]', { animation: `${appear.name} 0.2s 0.6s both` }),
 )
 
+/**
+ * A disclosure's summary: a drawn chevron in place of the browser's marker,
+ * pointing along the line while closed and turned down while open (the turn
+ * is `chevronOpen`, on the `details`).
+ */
+const chevron = Style.compose(
+  Style.nest('&::-webkit-details-marker', { display: 'none' }),
+  Style.nest('&::before', {
+    borderBlockEnd: '2px solid currentColor',
+    borderInlineEnd: '2px solid currentColor',
+    boxSizing: 'border-box',
+    content: '""',
+    flexShrink: '0',
+    height: '0.5em',
+    marginInline: '0.1em 0.2em',
+    transform: 'rotate(-45deg)',
+    transition: 'transform 150ms ease',
+    width: '0.5em',
+  }),
+  Style.self({ alignItems: 'center', cursor: 'pointer', display: 'flex', listStyle: 'none' }),
+)
+const chevronOpen = Style.nest('&[open] > summary::before', { transform: 'rotate(45deg)' })
+
 /** Read by assistive technology, not shown. */
 const readOnly = {
   clipPath: 'inset(50%)',
@@ -131,6 +154,8 @@ export const AdminSlots = Slots.define({
   /** A page's History and More, folded under the editor's bar until asked for. */
   manage: part,
   manageSummary: control,
+  /** What the fold holds, said beside its name while there is room. */
+  manageHint: part,
   manageCards: part,
   introSummary: control,
   introSteps: part,
@@ -432,73 +457,100 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
     ),
     main: Style.compose(Style.self({ minWidth: '0' }), touchTargets),
+    // A card whose header is its summary: one even row closed, and open, the
+    // row over a divider and the words below it.
     intro: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space.sm })),
       Style.self({
-        background: `color-mix(in oklch, ${t.accent.default} 7%, ${t.surface.base})`,
-        border: `1px solid color-mix(in oklch, ${t.accent.default} 25%, ${t.surface.base})`,
+        background: `color-mix(in oklch, ${t.accent.default} 6%, ${t.surface.base})`,
+        border: `1px solid color-mix(in oklch, ${t.accent.default} 22%, ${t.surface.base})`,
         borderRadius: t.radius.lg,
         color: t.text.default,
         fontSize: t.size.sm,
         lineHeight: '1.6',
-        padding: `${t.space.md} ${t.space.lg}`,
+        overflow: 'hidden',
       }),
-      Style.nest('& p', { margin: '0' }),
+      chevronOpen,
+      Style.nest('&[open] > summary', {
+        borderBlockEnd: `1px solid color-mix(in oklch, ${t.accent.default} 18%, ${t.surface.base})`,
+      }),
+      Style.nest('& > :not(summary)', { margin: '0', paddingInline: t.space.lg }),
+      // The steps' numbers sit in the indent, so the list is set in by their width too.
+      Style.nest('& > ol', { paddingInlineStart: `calc(${t.space.lg} + 1.25rem)` }),
+      Style.nest('& > summary + *', { paddingBlockStart: t.space.md }),
+      Style.nest('& > :not(summary) + :not(summary)', { marginBlockStart: t.space.sm }),
+      Style.nest('& > :last-child:not(summary)', { paddingBlockEnd: t.space.md }),
       Style.nest('& a', { color: t.accent.ink, fontWeight: t.weight.medium }),
+      Style.at(
+        `@media ${phone}`,
+        Style.compose(
+          Style.nest('& > :not(summary)', { paddingInline: t.space.md }),
+          Style.nest('& > ol', { paddingInlineStart: `calc(${t.space.md} + 1.25rem)` }),
+        ),
+      ),
     ),
     introSummary: Style.compose(
+      chevron,
       Style.self({
         color: t.text.overt,
-        cursor: 'pointer',
         fontSize: t.size.md,
         fontWeight: t.weight.semibold,
+        gap: t.space.xs,
+        padding: `${t.space.sm} ${t.space.lg}`,
+      }),
+      Style.nest('&::before', { color: t.accent.ink }),
+      Style.pseudo(':hover', {
+        background: `color-mix(in oklch, ${t.accent.default} 10%, ${t.surface.base})`,
       }),
       Style.pseudo(':focus-visible', {
         outline: `2px solid ${t.accent.default}`,
-        outlineOffset: '2px',
+        outlineOffset: '-2px',
       }),
-    ),
-    manage: Style.compose(
-      Style.self({
-        borderBlockEnd: `1px solid ${t.outline.subtle}`,
-        fontSize: t.size.sm,
-        padding: `${t.space.xs} ${t.space.lg}`,
-      }),
-      Style.media(phone, { padding: `${t.space.xs} ${t.space.md}` }),
-      // A flex summary loses the browser's marker: its own, turned when open.
-      Style.nest('&[open] > summary::before', { transform: 'rotate(90deg)' }),
-    ),
-    manageSummary: Style.compose(
-      Style.nest('&::before', {
-        content: '"▸"',
-        display: 'inline-block',
-        transition: 'transform 150ms ease',
-      }),
-      Style.nest('&::-webkit-details-marker', { display: 'none' }),
-      Style.self({
-        alignItems: 'center',
-        color: t.text.muted,
-        cursor: 'pointer',
-        display: 'flex',
-        fontWeight: t.weight.medium,
-        gap: t.space['2xs'],
-        minHeight: '2rem',
-      }),
-      Style.pseudo(':hover', { color: t.text.overt }),
+      Style.media(phone, { paddingInline: t.space.md }),
       touchTarget,
     ),
-    manageCards: Style.self({
-      display: 'grid',
-      gap: t.space.md,
-      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))',
-      paddingBlock: t.space.sm,
-    }),
-    introSteps: Style.self({
-      display: 'grid',
-      gap: t.space['2xs'],
-      margin: '0',
-      paddingInlineStart: '1.5rem',
-    }),
+    manage: Style.compose(
+      Style.self({ borderBlockEnd: `1px solid ${t.outline.subtle}`, fontSize: t.size.sm }),
+      chevronOpen,
+      Style.nest('&[open]', { background: t.surface.subtle }),
+      Style.nest('&[open] > summary', { color: t.text.overt }),
+    ),
+    // The whole row is the control: a hover and a focus ring across it.
+    manageSummary: Style.compose(
+      chevron,
+      Style.self({
+        color: t.text.default,
+        fontWeight: t.weight.semibold,
+        gap: t.space.xs,
+        minHeight: '2.5rem',
+        padding: `0 ${t.space.lg}`,
+      }),
+      Style.nest('&::before', { color: t.text.muted }),
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '-2px',
+      }),
+      Style.media(phone, { paddingInline: t.space.md }),
+      touchTarget,
+    ),
+    manageHint: Style.compose(
+      Style.self({ color: t.text.muted, fontWeight: t.weight.normal }),
+      Style.media(phone, { display: 'none' }),
+    ),
+    manageCards: Style.compose(
+      Style.self({
+        display: 'grid',
+        gap: t.space.md,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))',
+        padding: `${t.space.xs} ${t.space.lg} ${t.space.md}`,
+      }),
+      Style.media(phone, { paddingInline: t.space.md }),
+    ),
+    // Numbered steps, the numbers in the accent; the intro sets the list in.
+    introSteps: Style.compose(
+      Style.self({ display: 'grid', gap: t.space['2xs'] }),
+      Style.nest('& > li::marker', { color: t.accent.ink, fontWeight: t.weight.semibold }),
+    ),
     screen: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({
