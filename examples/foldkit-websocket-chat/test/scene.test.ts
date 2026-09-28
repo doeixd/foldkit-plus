@@ -17,7 +17,6 @@ import { WebSocketMessage } from 'foldkit-primitives/net'
 import { describe, test } from 'vitest'
 
 import {
-  ConnectionState,
   Message,
   type Model,
   TimestampReceivedMessage,
@@ -30,6 +29,17 @@ import {
 import { fromSocket, sendOnSocket } from './fixtures.js'
 
 const idleModel: Model = init().model
+
+/** The view's inputs the way the socket and the page's wanting leave them. */
+const socket = (
+  status: 'closed' | 'connecting' | 'open',
+  lastError: string | null,
+  opened: boolean,
+  wantConnection: boolean,
+) => ({
+  wantConnection: () => wantConnection,
+  chatSocket: (chat: Model['chatSocket']) => ({ ...chat, status, lastError, opened }),
+})
 
 const chatSocket = managedResources['ChatSocket@chatSocket/socket']!
 
@@ -50,11 +60,7 @@ describe('view', () => {
   test('connecting state renders the Connecting message', () => {
     scene(
       { update, view },
-      given(
-        modifyFields(idleModel, {
-          connection: () => ConnectionState.Connecting(),
-        }),
-      ),
+      given(modifyFields(idleModel, socket('connecting', null, false, true))),
       expect(text('Connecting...')).toExist(),
     )
   })
@@ -62,11 +68,7 @@ describe('view', () => {
   test('connected state shows the message input and Send button', () => {
     scene(
       { update, view },
-      given(
-        modifyFields(idleModel, {
-          connection: () => ConnectionState.Connected(),
-        }),
-      ),
+      given(modifyFields(idleModel, socket('open', null, true, true))),
       expect(placeholder('Type a message...')).toExist(),
       expect(role('button', { name: 'Send' })).toBeDisabled(),
       type(placeholder('Type a message...'), 'hi'),
@@ -77,14 +79,7 @@ describe('view', () => {
   test('error state renders the error and a Try Again button', () => {
     scene(
       { update, view },
-      given(
-        modifyFields(idleModel, {
-          connection: () =>
-            ConnectionState.Error({
-              error: 'Connection refused',
-            }),
-        }),
-      ),
+      given(modifyFields(idleModel, socket('closed', 'Connection refused', false, false))),
       expect(text('Connection Error')).toExist(),
       expect(text('Connection refused')).toExist(),
       expect(role('button', { name: 'Try Again' })).toExist(),
@@ -96,7 +91,7 @@ describe('view', () => {
       { update, view },
       given(
         modifyFields(idleModel, {
-          connection: () => ConnectionState.Connected(),
+          ...socket('open', null, true, true),
           messages: () => [
             { text: 'Hello there', zoned: zonedAt(0), isSent: true },
             { text: 'General Kenobi', zoned: zonedAt(0), isSent: false },
@@ -161,11 +156,7 @@ describe('view', () => {
   test('a message arriving on the socket lands in the conversation', () => {
     scene(
       { update, view },
-      given(
-        modifyFields(idleModel, {
-          connection: () => ConnectionState.Connected(),
-        }),
-      ),
+      given(modifyFields(idleModel, socket('open', null, true, true))),
       Subscription.emit(fromSocket(WebSocketMessage.Received({ data: 'hello from echo' }))),
       Command.expectExact(TimestampReceivedMessage({ text: 'hello from echo' })),
       Command.resolve(

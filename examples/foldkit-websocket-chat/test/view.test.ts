@@ -3,19 +3,30 @@ import { modifyFields } from 'foldkit/struct'
 import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
-import { Chat, ConnectionState, type Model, init } from '../src/main.js'
+import { Chat, type Model, init } from '../src/main.js'
 import { stylesheet } from '../src/style.js'
 
 const idleModel: Model = init().model
 const zoned = DateTime.makeZonedUnsafe(0, { timeZone: 'UTC' })
 
+/** The view's inputs the way the socket and the page's wanting leave them. */
+const socket = (
+  status: 'closed' | 'connecting' | 'open',
+  lastError: string | null,
+  opened: boolean,
+  wantConnection: boolean,
+) => ({
+  wantConnection: () => wantConnection,
+  chatSocket: (chat: Model['chatSocket']) => ({ ...chat, status, lastError, opened }),
+})
+
 const models: ReadonlyArray<readonly [string, Model]> = [
   ['disconnected', idleModel],
-  ['connecting', modifyFields(idleModel, { connection: () => ConnectionState.Connecting() })],
+  ['connecting', modifyFields(idleModel, socket('connecting', null, false, true))],
   [
     'connected with messages',
     modifyFields(idleModel, {
-      connection: () => ConnectionState.Connected(),
+      ...socket('open', null, true, true),
       messageInput: () => 'draft',
       messages: () => [
         { text: 'Hello there', zoned, isSent: true },
@@ -25,9 +36,7 @@ const models: ReadonlyArray<readonly [string, Model]> = [
   ],
   [
     'failed',
-    modifyFields(idleModel, {
-      connection: () => ConnectionState.Error({ error: 'Connection error' }),
-    }),
+    modifyFields(idleModel, socket('closed', 'Connection error', true, false)),
   ],
 ]
 

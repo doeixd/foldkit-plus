@@ -10,17 +10,17 @@ import { modifyFields } from 'foldkit/struct'
 import { Socket, WebSocketMessage, type WebSocketModel } from 'foldkit-primitives/net'
 import { describe, expect, test } from 'vitest'
 
-import { ConnectionState, type Message, type Model, init, subscriptions } from '../src/main.js'
+import { type Message, type Model, init, subscriptions } from '../src/main.js'
 import { FakeSocket, fromSocket } from './fixtures.js'
 
 const connectTimeout = subscriptions['ChatSocket@chatSocket/connectTimeout']!
 
 const idleModel: Model = init().model
 
-const at = (connection: ConnectionState, status: WebSocketModel['status']): Model =>
+const at = (wantConnection: boolean, socket: WebSocketModel): Model =>
   modifyFields(idleModel, {
-    connection: () => connection,
-    chatSocket: socket => ({ ...socket, status }),
+    wantConnection: () => wantConnection,
+    chatSocket: () => socket,
   })
 
 /** What the timeout emits within `millis` of virtual time for `model`, the socket still connecting. */
@@ -46,7 +46,12 @@ const emittedWithin = (model: Model, millis: number): Promise<ReadonlyArray<Mess
   )
 
 describe('the connection timeout', () => {
-  const connecting = at(ConnectionState.Connecting(), 'connecting')
+  const connecting = at(true, {
+    url: 'wss://ws.postman-echo.com/raw',
+    status: 'connecting',
+    lastError: null,
+    opened: false,
+  })
 
   test('fails the attempt after five seconds of connecting, and not before', async () => {
     expect(await emittedWithin(connecting, 4_999)).toEqual([])
@@ -56,9 +61,9 @@ describe('the connection timeout', () => {
   })
 
   test.each([
-    ['disconnected', at(ConnectionState.Disconnected(), 'closed')],
-    ['connected', at(ConnectionState.Connected(), 'open')],
-    ['failed', at(ConnectionState.Error({ error: 'Connection error' }), 'closed')],
+    ['disconnected', at(false, { url: 'x', status: 'closed', lastError: null, opened: false })],
+    ['connected', at(true, { url: 'x', status: 'open', lastError: null, opened: true })],
+    ['failed', at(false, { url: 'x', status: 'closed', lastError: 'Connection error', opened: false })],
   ])('never fires while %s', async (_, model) => {
     expect(await emittedWithin(model, 60_000)).toEqual([])
   })

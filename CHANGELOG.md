@@ -53,8 +53,17 @@ version changed; `pnpm` skips versions already in the registry.
   the whole form as `define` draws it, with per-key overrides and styles, plus
   one flat key's control for a layout the caller owns. Keys with no override
   render by kind, so a new key of a known kind needs nothing new; unknown
-  keys are type errors. A override receives the control, field, id, validity,
+  keys are type errors. An override receives the control, field, id, validity,
   errors and Messages, with any `h`.
+
+- **`foldkit-primitives/net`, the socket reads itself:** the WebSocket bundle
+  tracks `opened` beside `status` and `lastError`, words its own errors
+  (`Failed to connect to WebSocket` before it opened, `Connection error`
+  after, `Connection timeout`, `Socket unavailable`), and derives `SocketView`
+  (`Disconnected`/`Connecting`/`Connected`/`Error`) from the socket and
+  whether the page still wants it, with `isOpen` gating sends and frames. A
+  page keeps one `wantConnection` boolean instead of a connection state
+  machine; `foldkit-websocket-chat` is the first caller.
 
 - **`foldkit-mixins-ui`, `Button.view({ label, style, ... })`:** a button
   drawn as a button in one call (label, style, `type`, `disabled`, `onClick`),

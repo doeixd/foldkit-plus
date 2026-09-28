@@ -5,7 +5,6 @@ import { WebSocketMessage } from 'foldkit-primitives/net'
 import { describe, expect, test } from 'vitest'
 
 import {
-  ConnectionState,
   Message,
   type Model,
   TimestampReceivedMessage,
@@ -14,44 +13,56 @@ import {
   update,
 } from '../src/main.js'
 import { fromSocket, sendOnSocket } from './fixtures.js'
+import { SocketView, viewOf } from 'foldkit-primitives/net'
 
 const idleModel: Model = init().model
 
 const connectedModel: Model = modifyFields(idleModel, {
-  connection: () => ConnectionState.Connected(),
+  wantConnection: () => true,
+  chatSocket: chat => ({ ...chat, status: 'open' as const, lastError: null, opened: true }),
 })
+
+const seen = (model: Model): string =>
+  SocketView.match(viewOf(model.chatSocket, model.wantConnection), {
+    Disconnected: () => 'disconnected',
+    Connecting: () => 'connecting',
+    Connected: () => 'connected',
+    Error: ({ error }) => `error: ${error}`,
+  })
 
 const zonedNow = DateTime.makeZonedUnsafe(0, { timeZone: 'UTC' })
 
 describe('update', () => {
   describe('connection state', () => {
-    test('ClickedConnect moves into Connecting', () => {
+    test('ClickedConnect wants the socket, reading as connecting at once', () => {
       story(
         update,
         given(idleModel),
         message(Message.ClickedConnect()),
         model(model => {
-          expect(model.connection._tag).toBe('Connecting')
+          expect(model.wantConnection).toBe(true)
+          expect(seen(model)).toBe('connecting')
         }),
       )
     })
 
-    test('an opened socket moves into Connected', () => {
+    test('an opened socket reads as connected', () => {
       story(
         update,
         given(
           modifyFields(idleModel, {
-            connection: () => ConnectionState.Connecting(),
+            wantConnection: () => true,
+            chatSocket: chat => ({ ...chat, status: 'connecting' as const }),
           }),
         ),
         message(fromSocket(WebSocketMessage.Opened())),
         model(model => {
-          expect(model.connection._tag).toBe('Connected')
+          expect(seen(model)).toBe('connected')
         }),
       )
     })
 
-    test('a closed socket returns to Disconnected and clears messages', () => {
+    test('a closed socket stops wanting it and clears messages', () => {
       story(
         update,
         given(
@@ -61,7 +72,8 @@ describe('update', () => {
         ),
         message(fromSocket(WebSocketMessage.Closed())),
         model(model => {
-          expect(model.connection._tag).toBe('Disconnected')
+          expect(model.wantConnection).toBe(false)
+          expect(seen(model)).toBe('disconnected')
           expect(model.messages).toHaveLength(0)
         }),
       )
@@ -72,12 +84,14 @@ describe('update', () => {
         update,
         given(
           modifyFields(idleModel, {
-            connection: () => ConnectionState.Connecting(),
+            wantConnection: () => true,
+            chatSocket: chat => ({ ...chat, status: 'connecting' as const }),
           }),
         ),
         message(fromSocket(WebSocketMessage.TimedOut())),
         model(model => {
-          expect(model.connection).toEqual(ConnectionState.Error({ error: 'Connection timeout' }))
+          expect(model.wantConnection).toBe(false)
+          expect(seen(model)).toBe('error: Connection timeout')
         }),
       )
     })
@@ -152,7 +166,8 @@ describe('update', () => {
         given(connectedModel),
         message(fromSocket(WebSocketMessage.SendFailed({ message: 'not open' }))),
         model(model => {
-          expect(model.connection).toEqual(ConnectionState.Error({ error: 'Socket unavailable' }))
+          expect(model.wantConnection).toBe(false)
+          expect(seen(model)).toBe('error: Socket unavailable')
         }),
       )
     })

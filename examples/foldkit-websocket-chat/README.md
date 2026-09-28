@@ -14,33 +14,37 @@ it, and the styling moves from Tailwind classes to `foldkit-mixins`.
 
 Two owners, each with its own facts. The socket bundle owns the socket and
 reports what it does; the page owns what the reader asked for and sees, and
-its `connection` decides whether a socket exists at all.
+its `wantConnection` decides whether a socket exists at all.
 
 ```text
-Connect -> connection = Connecting -> gate opens -> bundle acquires new WebSocket(url)
+Connect -> wantConnection = true -> gate opens -> bundle acquires new WebSocket(url)
 socket open/frame/close/error -> bundle queue -> GotChatSocketMessage
-  -> bundle update (status, lastError) -> onMessage: reactToSocket (connection, messages)
-connection = Error | Disconnected -> gate closes -> bundle releases (closes) the socket
+  -> bundle update (status, lastError, opened) -> onMessage: reactToSocket (wantConnection, messages)
+wantConnection = false -> gate closes -> bundle releases (closes) the socket
 ```
 
 | Concern | Owner | Where |
 | --- | --- | --- |
 | The socket: opening it, its frames decoded to text, giving up after five seconds of connecting, closing it on release, the incoming stream | `foldkit-primitives/net` `websocket`, placed at `chatSocket` with `foldkit-bundle` | `src/main.ts`, `// SOCKET` |
 | Writing to the socket, refused (`SendFailed`) when it is not open | the bundle's `send` helper | `src/main.ts`, `SubmittedMessage` |
-| Whether the page wants a socket, the state it shows, the error sentence, the conversation, the draft | plain Foldkit: the Model and `update` | `src/main.ts` |
+| Whether the page wants a socket, the conversation, the draft | plain Foldkit: the Model and `update` | `src/main.ts` |
+| What the reader sees: `SocketView`, derived from the socket and the wanting | `foldkit-primitives/net` `viewOf` | `src/main.ts`, `// VIEW` |
 | Timestamps | plain Foldkit: Commands | `src/main.ts`, `// COMMAND` |
 | The accessible input and buttons | `@foldkit/ui` Input and Button | `src/main.ts` |
 | Their look: `Recipes.Input` and `Recipes.Button`, extended | `foldkit-mixins-ui` | `src/style.ts` |
 | The page's Slots, theme, layer order; per-bubble and per-status state as `data-state` + `Style.states` | `foldkit-mixins` | `src/style.ts`, installed by `src/entry.ts` |
 
-The bundle's `status` (`closed`/`connecting`/`open`) and the page's
-`connection` look alike but are different facts: `status` is what the socket
-did; `connection` is what the reader asked for, and holds the error sentence
-the socket knows nothing of. The view reads only `connection`.
+The bundle's `status` (`closed`/`connecting`/`open`), `lastError`, and `opened`
+are what the socket did; the page's `wantConnection` is what the reader asked
+for, a single boolean. The view reads only `SocketView`, derived from the two
+by `viewOf`, so no page-owned connection state machine mirrors the bundle's.
+The bundle words its own errors (`Failed to connect to WebSocket` before it
+opened, `Connection error` after, `Connection timeout`, `Socket unavailable`),
+and `opened` is what lets it tell the first two apart.
 The page learns of each socket report through the placement's `onMessage`:
 `GotChatSocketMessage` folds into the bundle first, then `reactToSocket`
-decides what it means here (an error before opening reads "Failed to connect
-to WebSocket", after it "Connection error"). The page's own `update` never
+stamps frames, drops the conversation on a clean close, and stops wanting on
+a close or a failure. The page's own `update` never
 sees the wrapper, so its match has no arm for it.
 
 ## Run it
