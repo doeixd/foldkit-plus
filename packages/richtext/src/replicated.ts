@@ -282,17 +282,29 @@ const nextHolders = (
 }
 
 /**
- * A working copy of the state for one `applyOps`: the block record is copied once, and each
- * entry the ops touch once, so a batch of ops costs one copy of what it touches.
+ * A working copy of the state for one `applyOps`: the block record is copied on the first
+ * write, and each entry the ops touch once, so a batch of ops costs one copy of what it
+ * touches, and a read-only walk (`resolve`'s) copies nothing.
  */
 const draft = (state: ReplicatedState) => {
-  const blocks: Record<string, Entry | undefined> = { ...state.blocks }
+  let blocks: Record<string, Entry | undefined> = state.blocks
+  let blocksCopied = false
   let root = state.root
   let rootCopied = false
   const copied = new Set<string>()
+  /** Blocks each insert's spans have been put into by this draft, beyond the index's. */
+  const moved = new Map<string, Set<ReplicatedId>>()
   type Writable = { -readonly [K in keyof Entry]: Entry[K] } & {
     spans: Array<Span>
     children: Array<ReplicatedId>
+  }
+  const own = (id: string, entry: Writable): void => {
+    if (!blocksCopied) {
+      blocks = { ...blocks }
+      blocksCopied = true
+    }
+    blocks[id] = entry
+    copied.add(id)
   }
   const read = (id: string): Entry | undefined => blocks[id]
   const write = (id: string): Writable | undefined => {
@@ -300,9 +312,16 @@ const draft = (state: ReplicatedState) => {
     if (entry === undefined) return undefined
     if (copied.has(id)) return entry as Writable
     const copy: Writable = { ...entry, spans: [...entry.spans], children: [...entry.children] }
-    blocks[id] = copy
-    copied.add(id)
+    own(id, copy)
     return copy
+  }
+  /** Records that `spans` were put into `block`, so `holding` finds them there. */
+  const hold = (block: string, spans: ReadonlyArray<Span>): void => {
+    for (const span of spans) {
+      const set = moved.get(span.id)
+      if (set === undefined) moved.set(span.id, new Set([block as ReplicatedId]))
+      else set.add(block as ReplicatedId)
+    }
   }
   const siblings = (parent: string | null): Array<ReplicatedId> | undefined => {
     if (parent === null) {
@@ -318,15 +337,18 @@ const draft = (state: ReplicatedState) => {
       : undefined
   }
   const create = (id: string, entry: Entry): void => {
-    blocks[id] = { ...entry, spans: [...entry.spans], children: [...entry.children] }
-    copied.add(id)
+    own(id, { ...entry, spans: [...entry.spans], children: [...entry.children] })
+    hold(id, entry.spans)
   }
   /**
    * The blocks that may hold spans of an insert: those that did before this `applyOps`, and
-   * every block it has touched since, which is where a span can have moved.
+   * those it has put spans of it into since.
    */
-  const holding = (id: string): ReadonlySet<ReplicatedId> =>
-    new Set([...(holdersIn(holdersOf(state), id) ?? []), ...(copied as Set<ReplicatedId>)])
+  const holding = (id: string): ReadonlySet<ReplicatedId> => {
+    const since = moved.get(id)
+    const before = holdersIn(holdersOf(state), id) ?? []
+    return since === undefined ? new Set(before) : new Set([...before, ...since])
+  }
   const finish = (): ReplicatedState => {
     const next: ReplicatedState = {
       version: 1,
@@ -338,7 +360,7 @@ const draft = (state: ReplicatedState) => {
     return next
   }
   const ids = (): ReadonlyArray<string> => Object.keys(blocks)
-  return { read, write, siblings, create, finish, holding, ids }
+  return { read, write, hold, siblings, create, finish, holding, ids }
 }
 type Draft = ReturnType<typeof draft>
 
@@ -556,13 +578,9 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       // A block that holds no text keeps the characters unshown, which is all a refusal
       // would do.
       if (place === undefined) return
-      work.write(place.block)!.spans.splice(place.index, 0, {
-        id: op.id,
-        offset: from,
-        text: op.text,
-        marks: op.marks,
-        deleted: false,
-      })
+      const span: Span = { id: op.id, offset: from, text: op.text, marks: op.marks, deleted: false }
+      work.write(place.block)!.spans.splice(place.index, 0, span)
+      work.hold(place.block, [span])
       return
     }
     case 'Delete':
@@ -652,6 +670,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
         const before = target.spans[place.index - 1]
         const gone = work.write(op.removed)!
         work.write(place.block)!.spans.splice(place.index, 0, ...gone.spans)
+        work.hold(place.block, gone.spans)
         gone.spans = []
         gone.deleted = true
         gone.joined = {
@@ -719,6 +738,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       delete restored.swept
       delete restored.joined
       restored.spans = takeCovered(work, op.ranges)
+      work.hold(op.id, restored.spans)
       for (const child of op.children) {
         const moved = work.read(child)
         // A child that is the block itself, or holds it since a move, would make a cycle.
@@ -1799,7 +1819,8 @@ const resolvePosition = (
   }
   const { id, index } = parseChar(position.after)
   // The block's visible characters in order; the anchor, or the last visible one before it.
-  for (const [block, entry] of Object.entries(state.blocks)) {
+  for (const block of holdersIn(holdersOf(state), id) ?? []) {
+    const entry = lookup(state, block)!
     const spanIndex = entry.spans.findIndex(
       span => span.id === id && index >= span.offset && index < span.offset + span.text.length,
     )
