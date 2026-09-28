@@ -164,11 +164,25 @@ describe('retyping a block', () => {
     expect(back.ok && back.state.document.children[0]).toMatchObject({ type: 'Paragraph', id: 'p' })
   })
 
-  it.each([
-    ['a node that holds blocks', 'q'],
-    ['preserved content', 'u'],
-  ])('refuses %s', (_, node) => {
-    expect(RichText.apply(nested(), [RichText.Edit.retypeBlock(id(node), toCode)])).toEqual({
+  it('makes a node that holds blocks another node kind, keeping them, and nothing else', () => {
+    const aside = { type: 'Node' as const, kind: 'Aside', props: { tone: 'note' } }
+    const retyped = RichText.apply(nested(), [RichText.Edit.retypeBlock(id('q'), aside)])
+    if (!retyped.ok) throw new Error(retyped.error)
+    const quote = nested().document.children[1]!
+    expect(retyped.state.document.children[1]).toEqual({
+      ...quote,
+      kind: 'Aside',
+      props: { tone: 'note' },
+    })
+    expect(retyped.changeSet.dirtyNodes).toContain(id('q'))
+    // Its nested blocks would have nowhere to go in a block of runs.
+    expect(
+      RichText.apply(nested(), [RichText.Edit.retypeBlock(id('q'), { type: 'Paragraph' })]),
+    ).toEqual({ ok: false, error: 'InvalidRange' })
+  })
+
+  it('refuses preserved content', () => {
+    expect(RichText.apply(nested(), [RichText.Edit.retypeBlock(id('u'), toCode)])).toEqual({
       ok: false,
       error: 'InvalidRange',
     })

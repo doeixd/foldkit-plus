@@ -79,6 +79,14 @@ export type Command =
    */
   | { readonly type: 'ConvertBlock'; readonly to: Container }
   /**
+   * Retypes the container the selection starts in (the node block holding its block, such as
+   * a list item) to another node kind, where it stands: its identity and every block it holds
+   * are kept, so edits made inside it meanwhile survive. Only from the container's first block,
+   * which is where a marker for the container is typed. Given a vocabulary, the new kind must
+   * hold blocks, hold each block the container holds, and stand where the container does.
+   */
+  | { readonly type: 'RetypeContainer'; readonly to: Container }
+  /**
    * Lifts the block the selection starts in out of its container, the inverse of a wrap:
    * repeated while the new parent's declaration refuses it, so a list item's paragraph leaves
    * both the item and the list. The block keeps its identity, and the caret with it.
@@ -806,12 +814,17 @@ const startingBlock = (
   }
 }
 
-/** Retype, wrap, convert, and lift: each reshapes the starting block where it stands. */
+/**
+ * Retype, wrap, convert, retype a container, and lift: each reshapes the starting block, or
+ * the container holding it, where it stands.
+ */
 const runBlockCommand = (
   state: EditorState,
   command: Extract<
     Command,
-    { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'LiftBlock' }
+    {
+      readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'RetypeContainer' | 'LiftBlock'
+    }
   >,
   starting: StartingBlock,
   ids: CommandIds,
@@ -822,6 +835,29 @@ const runBlockCommand = (
   if (command.type === 'LiftBlock') {
     const lifted = liftOperations(state.document, block.id, ids, options.nodes)
     return lifted === undefined ? failure('InvalidInput') : apply(state, lifted)
+  }
+  if (command.type === 'RetypeContainer') {
+    if (parent?.type !== 'Node' || parent.blocks === undefined || index !== 0) {
+      return failure('InvalidInput')
+    }
+    const { kind } = command.to
+    if (refusesProps(options.nodes, command.to)) return failure('InvalidInput')
+    const outerPath = parentPath.slice(0, -1)
+    const outer = outerPath.length === 0 ? undefined : blockAtPath(state.document, outerPath)
+    const declared = options.nodes?.definitionFor(kind)
+    const allowed =
+      holdsBlocks(options.nodes, kind) &&
+      acceptsChild(state.document, outerPath, kind, options.nodes) &&
+      standsWithin(declared, outer === undefined ? undefined : blockKind(outer)) &&
+      parent.blocks.every(
+        child =>
+          kindAccepts(options.nodes, kind, blockKind(child)) &&
+          standsWithin(options.nodes?.definitionFor(blockKind(child)), kind),
+      )
+    if (!allowed) return failure('UnexpectedChild')
+    return apply(state, [
+      Edit.retypeBlock(parent.id, { type: 'Node', kind, props: command.to.props ?? {} }),
+    ])
   }
   if (command.type === 'RetypeBlock') {
     // A retype keeps the block where it is, so the parent's constraint decides whether
@@ -1070,6 +1106,7 @@ export const run = (
     command.type === 'RetypeBlock' ||
     command.type === 'WrapBlock' ||
     command.type === 'ConvertBlock' ||
+    command.type === 'RetypeContainer' ||
     command.type === 'LiftBlock'
   ) {
     const target = startingBlock(state.document, selection)

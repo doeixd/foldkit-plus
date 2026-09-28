@@ -338,9 +338,7 @@ const draft = (state: ReplicatedState) => {
       return root as Array<ReplicatedId>
     }
     const entry = write(parent)
-    return entry?.shape.type === 'Node' && entry.shape.holds === 'blocks'
-      ? entry.children
-      : undefined
+    return entry !== undefined && holdsBlocks(entry.shape) ? entry.children : undefined
   }
   const create = (id: string, entry: Entry): void => {
     own(id, { ...entry, spans: [...entry.spans], children: [...entry.children] })
@@ -380,6 +378,9 @@ const holdsText = (shape: BlockShape): boolean =>
   shape.type === 'Paragraph' ||
   shape.type === 'Heading' ||
   (shape.type === 'Node' && shape.holds === 'text')
+
+const holdsBlocks = (shape: BlockShape): boolean =>
+  shape.type === 'Node' && shape.holds === 'blocks'
 
 /** Whether an id already names a block or an insert anywhere in the state. */
 const taken = (work: Draft, id: string): boolean =>
@@ -701,13 +702,7 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       const target = work.read(into)!
       if (target.deleted) return
       if (isWithin(work, into, op.removed) || isWithin(work, op.removed, into)) return
-      if (
-        target.shape.type !== 'Node' ||
-        target.shape.holds !== 'blocks' ||
-        removed.shape.type !== 'Node' ||
-        removed.shape.holds !== 'blocks'
-      )
-        return
+      if (!holdsBlocks(target.shape) || !holdsBlocks(removed.shape)) return
       const gone = work.write(op.removed)!
       for (const child of gone.children) work.write(child)!.parent = into
       work.write(into)!.children.push(...gone.children)
@@ -717,10 +712,15 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       return
     }
     case 'Retype': {
-      // Its spans stay where they are, so what anyone typed into the block stays with it.
+      // Its spans or its children stay where they are, so what anyone typed into the block
+      // stays with it. A container becomes only another container.
       const entry = work.read(op.id)
-      if (entry === undefined || !holdsText(entry.shape)) return
-      work.write(op.id)!.shape = op.to.type === 'Node' ? { ...op.to, holds: 'text' } : op.to
+      if (entry === undefined) return
+      if (holdsText(entry.shape)) {
+        work.write(op.id)!.shape = op.to.type === 'Node' ? { ...op.to, holds: 'text' } : op.to
+      } else if (holdsBlocks(entry.shape) && op.to.type === 'Node') {
+        work.write(op.id)!.shape = { ...op.to, holds: 'blocks' }
+      }
       return
     }
     case 'Undelete':
@@ -909,11 +909,11 @@ const coveredParts = (
       .sort((left, right) => left.span.offset - right.span.offset),
   )
 
-/** What a block that holds text is, as a retype names it. */
+/** What a block that holds text or blocks is, as a retype names it. */
 const retypeTargetOf = (shape: BlockShape): RetypeTarget | undefined =>
   shape.type === 'Paragraph' || shape.type === 'Heading'
     ? shape
-    : shape.type === 'Node' && shape.holds === 'text'
+    : shape.type === 'Node' && shape.holds !== 'none'
       ? { type: 'Node', kind: shape.kind, props: shape.props }
       : undefined
 
@@ -1161,8 +1161,7 @@ const projection = (state: ReplicatedState): Projection => {
     ids.flatMap((id): ReadonlyArray<Block> => {
       const entry = lookup(state, id)
       if (entry === undefined || entry.deleted) return []
-      const nested =
-        entry.shape.type === 'Node' && entry.shape.holds === 'blocks' ? blocks(entry.children) : []
+      const nested = holdsBlocks(entry.shape) ? blocks(entry.children) : []
       const known = projectedBlocks.get(entry)
       if (
         known !== undefined &&

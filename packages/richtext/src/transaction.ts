@@ -78,8 +78,10 @@ export const TextBlock = Schema.Union([
 export type TextBlock = typeof TextBlock.Type
 
 /**
- * What a block that holds text becomes, under its own identity and with its own runs: a
- * paragraph, a heading, or an application node kind that holds text, such as a code block.
+ * What a block becomes, under its own identity and with its own content: a block that holds
+ * text becomes a paragraph, a heading, or an application node kind that holds text, such as a
+ * code block, keeping its runs; a node that holds blocks becomes another node kind, keeping
+ * its nested blocks, as a list item becomes a task.
  */
 export const RetypeTarget = Schema.Union([
   Schema.Struct({ type: Schema.Literal('Paragraph') }),
@@ -803,16 +805,13 @@ export const apply = (
       const path = blockPaths.get(operation.node)
       if (path === undefined) return { ok: false, error: 'MissingNode' }
       const target = blockAt(path)
-      // Only a block whose content is its runs retypes: nested blocks would have nowhere
-      // to go, and preserved content is never rewritten.
-      if (
-        target === undefined ||
-        target.type === 'Unknown' ||
-        (target.type === 'Node' && target.blocks !== undefined)
-      ) {
+      const to = operation.to
+      // Content keeps its shape: runs stay runs, and nested blocks stay nested, so a node
+      // holding blocks retypes only to another node. Preserved content is never rewritten.
+      const nested = target?.type === 'Node' && target.blocks !== undefined
+      if (target === undefined || target.type === 'Unknown' || (nested && to.type !== 'Node')) {
         return { ok: false, error: 'InvalidRange' }
       }
-      const to = operation.to
       const already =
         to.type === 'Paragraph'
           ? target.type === 'Paragraph'
@@ -834,6 +833,7 @@ export const apply = (
                 id: target.id,
                 props: to.props,
                 children: target.children,
+                ...(nested ? { blocks: target.blocks } : {}),
               },
       )
       dirtyNodes.add(target.id)

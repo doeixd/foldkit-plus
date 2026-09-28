@@ -281,7 +281,10 @@ the caret survive; given a vocabulary, it also replaces a text-holding node kind
 props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
 wrap right after a list of the same props adds an item to it. `ConvertBlock` retypes
 a paragraph or heading to a text-holding kind such as `CodeBlock`, keeping the block's and its
-runs' identities, so the caret and other replicas' edits to it survive. `MoveBlock { node, to: { before } | { after } }`
+runs' identities, so the caret and other replicas' edits to it survive. `RetypeContainer`
+retypes the container around that block (a `ListItem` to a `TaskItem`) in place, keeping its
+identity and blocks, only from its first block and only to a kind the vocabulary lets hold
+those blocks and stand there. `MoveBlock { node, to: { before } | { after } }`
 moves a block and its subtree beside another block, by identity rather than the selection (a
 block handle's moves); across containers, the vocabulary decides: the container must hold the
 kind, the kind must stand there (`node(..., { within: ['List'] })`, reported by `validate` as
@@ -326,8 +329,8 @@ against each other: `print(parse(markdown))` returns the Markdown it started fro
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
 `###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
 or a list (`WrapBlock`), a fence such as `` ```ts `` converts it to a `CodeBlock`
-(`ConvertBlock`), and `[ ] ` or `[x] ` in the last item of a bulleted list makes it a task
-(elsewhere, lifting and re-wrapping the item splits its list) — where the editor applies the rules its placement names
+(`ConvertBlock`), and `[ ] ` or `[x] ` at the start of a list item's first block makes the
+item a task in place (`RetypeContainer`) — where the editor applies the rules its placement names
 (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A source session edits
 the Markdown itself: `openSource(document, { style?, selection? })` gives `{ printed, draft,
 unprintable, style, caret }` (a `SourceSession` schema the Model holds; `caret` is where the

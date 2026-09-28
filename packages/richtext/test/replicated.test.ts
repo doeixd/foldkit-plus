@@ -257,6 +257,8 @@ const randomEdit = (
       ],
     },
     { type: 'LiftBlock' },
+    { type: 'RetypeContainer', to: { kind: 'TaskItem', props: { checked: true } } },
+    { type: 'RetypeContainer', to: { kind: 'ListItem' } },
     { type: 'MoveBlock', node: pick(blocks).id, to: { before: pick(blocks).id } },
     { type: 'MoveBlock', node: pick(blocks).id, to: { after: pick(blocks).id } },
     ...(tasks.length === 0
@@ -377,6 +379,52 @@ describe('translating an edit', () => {
       props: { checked: true },
     })
     expect(ops).toEqual([{ type: 'SetProps', id: list.blocks![0]!.id, props: { checked: true } }])
+  })
+
+  it('makes a list item a task in place, keeping what another replica typed inside it', () => {
+    const start = base()
+    const a: View = {
+      state: start,
+      selection: caretIn({ state: start, selection: null }, 'eggs', 0),
+    }
+    const b: View = {
+      state: start,
+      selection: caretIn({ state: start, selection: null }, 'eggs', 4),
+    }
+    const item = idAt(start, [2, 1])
+    const mine = edit(a, {
+      type: 'RetypeContainer',
+      to: { kind: 'TaskItem', props: { checked: false } },
+    })
+    expect(mine).toEqual([
+      {
+        type: 'Retype',
+        id: item,
+        to: { type: 'Node', kind: 'TaskItem', props: { checked: false } },
+      },
+    ])
+    const theirs = edit(b, { type: 'InsertText', text: ' and ham' })
+    const task = {
+      kind: 'TaskItem',
+      props: { checked: false },
+      runs: [],
+      blocks: [{ p: [{ text: 'eggs and ham', marks: [] }] }],
+    }
+    for (const merged of [
+      applyReloaded(Replicated.applyOps(start, mine), theirs),
+      applyReloaded(Replicated.applyOps(start, theirs), mine),
+    ]) {
+      expect(
+        (content(Replicated.project(merged)) as ReadonlyArray<{ blocks: unknown }>)[2]!.blocks,
+      ).toEqual([expect.objectContaining({ kind: 'TaskItem' }), task])
+      const undone = applyReloaded(merged, Replicated.invert(start, mine))
+      expect(RichText.blockAtPath(Replicated.project(undone), [2, 1])).toMatchObject({
+        id: item,
+        kind: 'ListItem',
+        props: {},
+      })
+      expect(texts(undone)).toContain('eggs and ham')
+    }
   })
 
   it('translates a paste of whole blocks', () => {

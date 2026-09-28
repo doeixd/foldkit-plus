@@ -114,7 +114,7 @@ RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, 
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
 `ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
-`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection; `MoveBlock` and `SetProps` name their
+`WrapBlock`, `ConvertBlock`, `RetypeContainer`, `LiftBlock`) read the current selection; `MoveBlock` and `SetProps` name their
 blocks instead. Each resolves to transactions applied as one step, usually one (Enter over
 a range in a list item is two: the delete, then the split); the returned `ChangeSet` and
 `positionMap` describe the effect, and `transactions` holds what was applied, in order, an
@@ -186,6 +186,16 @@ find them. Given a vocabulary, the kind must be declared to hold text and its
 parent must accept it (`UnexpectedChild`), its props must decode as the kind declares them
 (`InvalidInput`), and a kind that forbids marks refuses a block that carries any
 (`ForbiddenMark`).
+
+`RetypeContainer` retypes the container around that block — the node holding it, such as a
+list item — to another node kind where it stands:
+`{ type: 'RetypeContainer', to: { kind: 'TaskItem', props: { checked: false } } }` makes the
+item a task without moving it, splitting its list, or touching what it holds, and the
+container keeps its identity, so another replica's edit inside it survives. It acts only from
+the container's first block, which is where a marker for the container is typed, and refuses
+elsewhere, or with no container, with `InvalidInput`. Given a vocabulary, the new kind must
+be declared to hold blocks, hold every block the container holds, and stand where the
+container stands (`UnexpectedChild`), and its props must decode (`InvalidInput`).
 
 `LiftBlock` is the inverse of a wrap: it moves the block the selection starts in out of its
 container — before it when it was first, after it when it was last, and between the two halves
@@ -942,8 +952,9 @@ text is added after them; block identities are stable for a block's whole life.
   nested blocks (and back out), and a parent that cannot hold blocks is refused.
 - `RetypeBlock` changes the type of a block whose content is its runs — to a paragraph,
   a heading at a level, or a node kind with props (`RetypeTarget`) — keeping its run
-  values and identities. Same-shape sets are no-ops; a node block holding nested blocks,
-  or preserved content, is refused (`InvalidRange`).
+  values and identities. A node block holding nested blocks retypes only to another node
+  kind, keeping them. Same-shape sets are no-ops; retyping such a block to a paragraph or
+  heading, or retyping preserved content, is refused (`InvalidRange`).
 - `SetProps` sets the props it names on a node block and keeps the others. Setting a
   prop to the value it has is a no-op; a text block or preserved content is refused
   (`InvalidRange`). Props cannot be deleted, only set.
