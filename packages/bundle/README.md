@@ -288,7 +288,7 @@ Each placement exposes its parts in parent terms:
 | Part | Type | Built from |
 | --- | --- | --- |
 | `placed.update(parent, message)` | `Option<Update.Return>`: `None` when the Message is not this placement's | `Update.foldChildStep` |
-| `placed.init` | `Update.Step`: writes the child's initial Model and lifts its Commands | `Command.mapMessages` |
+| `placed.init` | `Update.Step`: writes the child's initial Model and lifts its Commands | `Update.foldChildInit` |
 | `placed.subscriptions` | a Subscriptions record keyed `Name@path/key` | `Subscription.lift` with a gate |
 | `placed.resources` | a Managed Resources record keyed `Name@path/key` | `ManagedResource.lift` |
 | `placed.view(parent, h, viewInputs?)` | `Html`; nothing while the child is absent | `h.submodel` |

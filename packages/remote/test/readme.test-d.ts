@@ -144,12 +144,18 @@ declare const model: Model
   )
   const owner = Data.active('Owner', () => Option.some(Data.get(UserSummary, 'u1')))
 
+  const pageEntries = Data.subscriptions({ page: projectPage })
+  // Retention is the domain's: one `retain` roots every read, so the second
+  // call's is left out rather than spread over the first's.
+  const { retain: _domainRetain, ...ownerEntries } = Data.subscriptions(
+    { owner },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) },
+  )
+  void _domainRetain
+
   const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
-    ...Data.subscriptions({ page: projectPage }),
-    ...Data.subscriptions(
-      { owner },
-      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) },
-    ),
+    ...pageEntries,
+    ...ownerEntries,
   }))
 
   // Each entry's dependencies are typed, not `any`.

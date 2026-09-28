@@ -4,7 +4,6 @@
  * item; each child Subscription becomes one parent entry over every item.
  */
 import { Array, Option, Record, Schema, Stream } from 'effect'
-import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
@@ -327,15 +326,11 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
       }),
     add:
       (key: string, prepare: (model: unknown) => unknown = model => model): ErasedStep =>
-      parent => {
-        const initial = bundle.init(args)
-        return {
-          model: link.write(parent, key, Option.some(prepare(initial.model))),
-          commands: Command.mapMessages(initial.commands, message =>
-            link.toParentMessage(key, message),
-          ),
-        }
-      },
+      parent =>
+        Update.foldChildInit(bundle.init(args), {
+          toParentModel: child => link.write(parent, key, Option.some(prepare(child))),
+          toParentMessage: message => link.toParentMessage(key, message),
+        }),
     remove:
       (key: string): ErasedStep =>
       parent => ({ model: link.write(parent, key, Option.none()) }),

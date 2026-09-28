@@ -4,7 +4,13 @@
  */
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { generateSite, robots, siteTemplate, sitemapOf, type Generated } from '../src/ssr/prerender.js'
+import {
+  generateSite,
+  robots,
+  siteTemplate,
+  sitemapOf,
+  type Generated,
+} from '../src/ssr/prerender.js'
 
 const template = siteTemplate(readFileSync(new URL('../index.html', import.meta.url), 'utf8'))
 

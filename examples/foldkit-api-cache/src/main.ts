@@ -176,17 +176,24 @@ const readingStats = Data.active('Stats', (model: Model) =>
 // A policy covers a whole `Data.subscriptions` call, so the stats get a call of
 // their own: stale-while-revalidate sleeps until the reading is five seconds
 // old and fetches it again, which is the interval refetch. Retention is the
-// domain's, so the one `retain` entry the spread keeps roots every read; what
-// no open tab reads is collected once it has gone unread for `grace`.
+// domain's, so one `retain` entry roots every read; the second call's is left
+// out rather than spread over the first's. What no open tab reads is
+// collected once it has gone unread for `grace`.
+const postsEntries = foldData.subscriptions(
+  { posts: readingPosts, post: readingPost },
+  { grace: CACHE_GRACE },
+)
+const { retain: _domainRetain, ...statsEntries } = foldData.subscriptions(
+  { stats: readingStats },
+  {
+    policy: RemotePolicy.staleWhileRevalidate({ maxAge: Duration.toMillis(STATS_MAX_AGE) }),
+    grace: CACHE_GRACE,
+  },
+)
+void _domainRetain
 export const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
-  ...foldData.subscriptions({ posts: readingPosts, post: readingPost }, { grace: CACHE_GRACE }),
-  ...foldData.subscriptions(
-    { stats: readingStats },
-    {
-      policy: RemotePolicy.staleWhileRevalidate({ maxAge: Duration.toMillis(STATS_MAX_AGE) }),
-      grace: CACHE_GRACE,
-    },
-  ),
+  ...postsEntries,
+  ...statsEntries,
 }))
 
 // VIEW

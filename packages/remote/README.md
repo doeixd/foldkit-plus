@@ -763,19 +763,23 @@ const projectPage = Surface.at(ProjectPage, model =>
 )
 const owner = Data.active('Owner', () => Option.some(Data.get(UserSummary, 'u1')))
 
+const pageEntries = Data.subscriptions({ page: projectPage })
+// Retention is the domain's: one `retain` roots every read, so the second
+// call's is left out rather than spread over the first's.
+const { retain: _domainRetain, ...ownerEntries } = Data.subscriptions(
+  { owner },
+  { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) },
+)
+
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
-  ...Data.subscriptions({ page: projectPage }),
-  ...Data.subscriptions(
-    { owner },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) },
-  ),
+  ...pageEntries,
+  ...ownerEntries,
 }))
 ```
 
 Retention stays the domain's: a call's `retain` entry roots every read any call
-of the domain names, so neither call collects what the other reads. Spreading
-the two records keeps one `retain` entry, which is all it takes; it waits for
-its own call's `grace`.
+of the domain names, so neither call collects what the other reads. Keeping one
+`retain` entry is all it takes; it waits for its own call's `grace`.
 
 **Time reaches Remote only as a Message.** The plan is a function of the Remote
 model, what is asked, and `now`, and it runs again only when one of those
