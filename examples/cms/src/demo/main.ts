@@ -1,4 +1,4 @@
-import { runDemo } from './demo.js'
+import { runDemo } from './postDemo.js'
 import { runArticleDemo } from './articleDemo.js'
 import { runPageDemo } from './pageDemo.js'
 

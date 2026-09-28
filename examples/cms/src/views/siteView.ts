@@ -17,11 +17,11 @@ import {
   postRead,
   type Message,
   type Model,
-} from './siteApp.js'
-import { ORIGIN, SOURCE } from './domain.js'
-import { SiteRenderer, article, postGrid } from './site.js'
-import { SiteSlots, SiteStyle } from './style.js'
-import type { Chair } from './transport.js'
+} from '../apps/siteApp.js'
+import { ORIGIN, SOURCE } from '../content/domain.js'
+import { SiteRenderer, article, postGrid } from '../content/site.js'
+import { SiteSlots, SiteStyle } from '../styles/style.js'
+import type { Chair } from '../server/transport.js'
 
 type Slots = SlotView.SlotBuilders<typeof SiteSlots, Message>
 

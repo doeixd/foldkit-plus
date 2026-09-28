@@ -4,7 +4,7 @@
  * and code marked in a sentence.
  */
 import { describe, expect, it } from 'vitest'
-import { bodyOf, spansOf } from '../src/site.js'
+import { bodyOf, spansOf } from '../src/content/site.js'
 
 const FENCE = '```'
 

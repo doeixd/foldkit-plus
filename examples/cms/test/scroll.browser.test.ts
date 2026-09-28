@@ -4,7 +4,7 @@
  * when the screen it returns to is short for a moment before its content.
  */
 import { beforeAll, expect, it } from 'vitest'
-import { keepScroll } from '../src/scroll.js'
+import { keepScroll } from '../src/routing/scroll.js'
 
 const page = document.createElement('div')
 const tall = (height: number) => {

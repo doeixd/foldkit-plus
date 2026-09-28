@@ -17,7 +17,7 @@ import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
-import { iconUrl, type IconName } from './icons.js'
+import { iconUrl, type IconName } from '../views/icons.js'
 
 export const theme = Theme.compose(
   Theme.tokens,

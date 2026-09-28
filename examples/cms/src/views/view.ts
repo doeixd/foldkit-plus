@@ -26,8 +26,8 @@ import {
   history,
   postPage,
   type Model,
-} from './app.js'
-import { PostForm, type PostPreview } from './domain.js'
+} from '../apps/app.js'
+import { PostForm, type PostPreview } from '../content/domain.js'
 import { icon } from './icons.js'
 import {
   badge,
@@ -42,8 +42,8 @@ import {
   statusText,
   type RevisionRow,
 } from './shell.js'
-import { article, postHref } from './site.js'
-import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from './style.js'
+import { article, postHref } from '../content/site.js'
+import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from '../styles/style.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 

@@ -22,10 +22,10 @@ import * as Subscription from 'foldkit/subscription'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { NodeId, type Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
-import { Post, PostById, RecentPosts } from './domain.js'
-import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
-import { PageBuilder, Site } from './site.js'
-import { PageFieldStyle, PageFormStyle } from './style.js'
+import { Post, PostById, RecentPosts } from '../content/domain.js'
+import { Page, PageForm, PageId, PageView, Pages } from '../content/pageDomain.js'
+import { PageBuilder, Site } from '../content/site.js'
+import { PageFieldStyle, PageFormStyle } from '../styles/style.js'
 import {
   beginMissing,
   entryIn,
@@ -34,7 +34,7 @@ import {
   paramOf,
   writeAddress,
   type EntryEditor,
-} from './address.js'
+} from '../routing/address.js'
 
 // A pause in typing saves, as the posts do: a save per keystroke encoded the page
 // and wrote the database each time. The scripted run gives its rest no wait.

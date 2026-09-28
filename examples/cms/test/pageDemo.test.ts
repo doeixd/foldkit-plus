@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runPageDemo } from '../src/pageDemo.js'
+import { runPageDemo } from '../src/demo/pageDemo.js'
 
 describe('a page in foldkit-cms, built with foldkit-builder', () => {
   it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads, picks, follows a link and takes an agent’s edit', async () => {

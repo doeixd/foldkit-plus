@@ -4,8 +4,8 @@
  */
 import { expect, it } from 'vitest'
 import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit/experimental/server'
-import { APP_ROOT, takesOver } from '../src/siteConfig.js'
-import type { Chair } from '../src/transport.js'
+import { APP_ROOT, takesOver } from '../src/content/siteConfig.js'
+import type { Chair } from '../src/server/transport.js'
 
 const page = (body: string) => new DOMParser().parseFromString(body, 'text/html')
 const generated = page(

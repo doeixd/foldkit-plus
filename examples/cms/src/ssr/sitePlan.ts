@@ -7,8 +7,8 @@
 import { Remote } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr'
 import { Projection } from 'foldkit-surface'
-import type { siteConfig } from './siteConfig.js'
-import * as Site from './siteApp.js'
+import type { siteConfig } from '../content/siteConfig.js'
+import * as Site from '../apps/siteApp.js'
 
 /**
  * How a page the build rendered is taken over in the browser (`foldkit-ssr`):

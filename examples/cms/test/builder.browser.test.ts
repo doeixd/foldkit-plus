@@ -16,9 +16,9 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { userEvent } from 'vitest/browser'
 import { afterEach, expect, it, vi } from 'vitest'
-import { PageBuilder, PageEditing } from '../src/site.js'
-import { stylesheet } from '../src/sheet.js'
-import { theme } from '../src/style.js'
+import { PageBuilder, PageEditing } from '../src/content/site.js'
+import { stylesheet } from '../src/styles/sheet.js'
+import { theme } from '../src/styles/style.js'
 
 const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageEditing)))
 const Slot = Bundle.declare(Drawn, 'editor')

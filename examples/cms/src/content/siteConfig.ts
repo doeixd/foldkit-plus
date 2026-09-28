@@ -6,9 +6,9 @@ import type { Layer } from 'effect'
 import type { RemoteClient } from 'foldkit-remote'
 import type { UrlRequest } from 'foldkit/navigation'
 import type { Url } from 'foldkit/url'
-import * as Site from './siteApp.js'
-import type { Chair } from './transport.js'
-import { view } from './siteView.js'
+import * as Site from '../apps/siteApp.js'
+import type { Chair } from '../server/transport.js'
+import { view } from '../views/siteView.js'
 
 export const siteConfig = <Container extends HTMLElement | null>(options: {
   readonly init: (url: Url) => ReturnType<typeof Site.initial>

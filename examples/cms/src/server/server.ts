@@ -25,9 +25,9 @@ import {
   type DrizzleWrites,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from './domain.js'
-import { Page, PageId, PageInput, Pages } from './pageDomain.js'
-import { seed, SEEDED_AT } from './seed.js'
+import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from '../content/domain.js'
+import { Page, PageId, PageInput, Pages } from '../content/pageDomain.js'
+import { seed, SEEDED_AT } from '../content/seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
 export interface Sqlite {

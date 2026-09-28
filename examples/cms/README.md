@@ -33,8 +33,8 @@ row was never a draft's to spoil.
 
 ## Follow one save before publishing
 
-Read [domain.ts](src/domain.ts), then the editor placement in
-[app.ts](src/app.ts), then `CmsServer.make` in [server.ts](src/server.ts).
+Read [domain.ts](src/content/domain.ts), then the editor placement in
+[app.ts](src/apps/app.ts), then `CmsServer.make` in [server.ts](src/server/server.ts).
 A saved draft and a published row are different records. Autosave can retain
 invalid text; publish must validate and pass the server's authorization rule.
 
@@ -61,7 +61,7 @@ The studio keeps what is open in the address, so a reload or a shared link lands
 where one was: `?post=<entry>`, `?q=` and `?archive=1` for the posts,
 `?page=<entry>&block=<node>` for the pages, beside the chair, `?as=`. Opening or
 closing a post or a page is a step Back returns from; a search or a selection
-replaces the address in place ([address.ts](src/address.ts)).
+replaces the address in place ([address.ts](src/routing/address.ts)).
 
 ### As a static site
 
@@ -70,19 +70,19 @@ pnpm --filter foldkit-example-cms build:sandbox   # to examples/cms/dist
 ```
 
 The same application with the same server, run in the page on SQLite compiled
-to WebAssembly (`sql.js`, in [browser.ts](src/browser.ts)), so it needs no
+to WebAssembly (`sql.js`, in [browser.ts](src/server/browser.ts)), so it needs no
 backend and deploys as static files. Each visitor has a sandbox of their own,
 kept in the browser's storage, so a change of chair, which reloads the page,
 keeps what was written; `?reset` in the address starts afresh. Nothing is
 shared between visitors, so nothing a visitor writes is public. The server is
-[server.ts](src/server.ts) given a different database; [endpoint.ts](src/endpoint.ts)
+[server.ts](src/server/server.ts) given a different database; [endpoint.ts](src/server/endpoint.ts)
 answers a request for both hosts. The page is drawn while the sandbox starts,
 the sandbox's code and its wasm are fetched with the page, and
 [public/_headers](public/_headers) has Cloudflare Pages keep what is under
 `/assets` for a year, since its names change with its content.
 
-The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/prerender.ts),
-run by [generate.ts](src/generate.ts)). It runs the same server in Node over the
+The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/ssr/prerender.ts),
+run by [generate.ts](src/ssr/generate.ts)). It runs the same server in Node over the
 seed, reads everything each page shows through Remote, and writes every
 published page and post as HTML at its address (`site/blog/a-page-is-data.html`),
 along with `sitemap.xml` and `robots.txt`. Each page carries its text, its
@@ -91,48 +91,48 @@ address and, for a post, its article facts, so a reader, a crawler and a link
 preview see it with no script. The studio's pages are `noindex`.
 
 In the browser the site takes a generated page over without drawing it again
-or reading any of it ([sitePlan.ts](src/sitePlan.ts), loaded only then). That page
+or reading any of it ([sitePlan.ts](src/ssr/sitePlan.ts), loaded only then). That page
 shows the seed, so it is taken over only while the visitor's sandbox still
 holds the seed and the page is read as a visitor; after a change, or with
 `?as=`, the site draws afresh from the visitor's own sandbox
-(`takesOver` in [siteConfig.ts](src/siteConfig.ts)). The seed is dated from a
+(`takesOver` in [siteConfig.ts](src/content/siteConfig.ts)). The seed is dated from a
 fixed day, so both show the same dates.
 
 ## What the run shows
 
-| In the transcript | What it is |
-| --- | --- |
-| `no title yet … and it is saved` | Autosave keeps a form that does not validate. Publishing would refuse it. |
-| `the address follows the title` | `Cms.slug('title')`: the slug follows until the writer writes it. |
-| `a visitor at /blog/hello-world: 404`, `a visitor's worklist: empty` | The audience boundary: to a visitor, entries and drafts are empty tables. |
-| `the writer's page: … / preview off: NotFound` | In-app preview is the form laid over Remote's store. Nothing is sent, and with it off there is no row to read. |
-| `writer: PublishFailed (This author may not publish…)` | The server asks your `allow`: anyone may write, an editor puts it in front of visitors. |
-| `resumed from the Model` | The editor opens the writer's draft exactly as it was left. |
-| `Changed, scheduled` / `what is due that evening: []` | A promise for later. The host calls `cms.due(now, { as })`; the package owns no timer. |
-| `editor: Conflict, with "Edda was here." still in the form` | A second save is a conflict, not an overwrite, and the text is kept. |
-| `restored as a draft … nothing was published by that` | A revision comes back as a draft like any other. |
-| `state Unpublished … 404 … still has it` | Off show, and still the editor's to work on. |
+| In the transcript                                                    | What it is                                                                                                     |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `no title yet … and it is saved`                                     | Autosave keeps a form that does not validate. Publishing would refuse it.                                      |
+| `the address follows the title`                                      | `Cms.slug('title')`: the slug follows until the writer writes it.                                              |
+| `a visitor at /blog/hello-world: 404`, `a visitor's worklist: empty` | The audience boundary: to a visitor, entries and drafts are empty tables.                                      |
+| `the writer's page: … / preview off: NotFound`                       | In-app preview is the form laid over Remote's store. Nothing is sent, and with it off there is no row to read. |
+| `writer: PublishFailed (This author may not publish…)`               | The server asks your `allow`: anyone may write, an editor puts it in front of visitors.                        |
+| `resumed from the Model`                                             | The editor opens the writer's draft exactly as it was left.                                                    |
+| `Changed, scheduled` / `what is due that evening: []`                | A promise for later. The host calls `cms.due(now, { as })`; the package owns no timer.                         |
+| `editor: Conflict, with "Edda was here." still in the form`          | A second save is a conflict, not an overwrite, and the text is kept.                                           |
+| `restored as a draft … nothing was published by that`                | A revision comes back as a draft like any other.                                                               |
+| `state Unpublished … 404 … still has it`                             | Off show, and still the editor's to work on.                                                                   |
 
 ## A page, built with the page Builder
 
 The run then tells the same story for a page. A Page is declared the way a Post
-is, in [pageDomain.ts](src/pageDomain.ts): an Entity, a form, two mutations and a
+is, in [pageDomain.ts](src/content/pageDomain.ts): an Entity, a form, two mutations and a
 content type. The one difference is the `document` key, whose control is the
 page Builder from [`foldkit-builder`](../../packages/builder/README.md), over the
-site's Blocks in [site.ts](src/site.ts). The CMS is not told there is a Builder,
+site's Blocks in [site.ts](src/content/site.ts). The CMS is not told there is a Builder,
 and the Builder adds no CMS state.
 
-| In the transcript | What it is |
-| --- | --- |
-| `every change is saved as a draft: Saved; sent SaveDraft, …` | Each Block added and each prop typed is an edit of the `document` key, which the editor autosaves. A selection is not an edit. |
-| `resumed from the Model … undo starts over after a reload: 0 steps` | The draft keeps the page as it was left. Undo is the editor's state, not the page's, and does not survive a reload. |
-| `the writer's page: Welcome \| Read the blog` | The preview is the site's own Renderer drawing the form's page, laid over Remote's store. Nothing is sent. |
-| `a visitor at /home: …` | A visitor gets the page the site draws from the published row. |
-| `revisions: 1, 2 … restored as a draft … discarded` | Revisions, restore and discard are the CMS's, for a page as for a post. |
-| `in the morning a visitor reads: Good morning …` | A scheduled page goes out when the host asks what is due. |
-| `writer: Saved; editor: Conflict` | Two people on one page meet the CMS's conflict rule. |
-| `at once, from the pages the editor read to pick from … read through Remote` | `LatestPages` is a Query Block: it reads the worklist through Remote, as the reader may see it. The editor had already read the site's pages for the inspector's picker, so the canvas draws them at once. |
-| `it may leave out one of: none, Home … leaving out the page it is on` | Its `except` prop is `Input.relationOne(Cms.Entities.Entry)`. `pageApp.ts` reads the site's pages and gives them to the Builder as the picker's choices (`builderInputs`); the Block stores the chosen entry's id. |
+| In the transcript                                                            | What it is                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `every change is saved as a draft: Saved; sent SaveDraft, …`                 | Each Block added and each prop typed is an edit of the `document` key, which the editor autosaves. A selection is not an edit.                                                                                     |
+| `resumed from the Model … undo starts over after a reload: 0 steps`          | The draft keeps the page as it was left. Undo is the editor's state, not the page's, and does not survive a reload.                                                                                                |
+| `the writer's page: Welcome \| Read the blog`                                | The preview is the site's own Renderer drawing the form's page, laid over Remote's store. Nothing is sent.                                                                                                         |
+| `a visitor at /home: …`                                                      | A visitor gets the page the site draws from the published row.                                                                                                                                                     |
+| `revisions: 1, 2 … restored as a draft … discarded`                          | Revisions, restore and discard are the CMS's, for a page as for a post.                                                                                                                                            |
+| `in the morning a visitor reads: Good morning …`                             | A scheduled page goes out when the host asks what is due.                                                                                                                                                          |
+| `writer: Saved; editor: Conflict`                                            | Two people on one page meet the CMS's conflict rule.                                                                                                                                                               |
+| `at once, from the pages the editor read to pick from … read through Remote` | `LatestPages` is a Query Block: it reads the worklist through Remote, as the reader may see it. The editor had already read the site's pages for the inspector's picker, so the canvas draws them at once.         |
+| `it may leave out one of: none, Home … leaving out the page it is on`        | Its `except` prop is `Input.relationOne(Cms.Entities.Entry)`. `pageApp.ts` reads the site's pages and gives them to the Builder as the picker's choices (`builderInputs`); the Block stores the chosen entry's id. |
 
 The page column is JSON (`text('document', { mode: 'json' })`), read back through
 the composition's tolerant codec, so a stored page always reads. What a publish
@@ -142,20 +142,20 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
 ## An article, its body a rich-text document
 
 Last, an article whose `body` is a rich-text document, in
-[articleDemo.ts](src/articleDemo.ts). The body's control is `richTextInput` from
+[articleDemo.ts](src/demo/articleDemo.ts). The body's control is `richTextInput` from
 [`foldkit-richtext-dom/input`](../../packages/richtext-dom/README.md): the editor, holding the
 document in its own Model, as one form key. The CMS is not told there is an editor, and the
 editor adds no CMS state.
 
-| In the transcript | What it is |
-| --- | --- |
-| `the body: "# Tending\n\nWater **early**"; caret at 5 in e2` | The writer typed `# Tending`, Enter, and a bold word; the caret is at the end of that word's run, `e2`. `# ` is a Markdown input rule that makes a heading; Enter after a heading starts a paragraph. The transcript prints the document as Markdown. |
-| `every edit is a draft: Saved; 22 saves, each SaveDraft` | Each change to the title, and each keystroke in the body (Enter included), is saved as a draft. |
-| `resumed from the Model: … caret at 5 in e2` | The saved draft holds the editor's Model: the document and the caret, which the transcript shows, and with them the stored marks and undo history. |
-| `the writer's preview: <h1>Tending</h1>…; sent nothing` | The preview draws the form's document with the standard rendering. Nothing is sent. |
-| `a visitor at /articles/on-gardens: …` | A visitor gets the published row's document, drawn the same way. |
-| `revisions: 1, 2` / `restored as a draft … nothing was published by that` | Revisions and restore are the CMS's, for a document as for a string. |
-| `the host asks what is due` / `a visitor reads: …` | A scheduled change goes out when the host asks what is due. |
+| In the transcript                                                         | What it is                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `the body: "# Tending\n\nWater **early**"; caret at 5 in e2`              | The writer typed `# Tending`, Enter, and a bold word; the caret is at the end of that word's run, `e2`. `# ` is a Markdown input rule that makes a heading; Enter after a heading starts a paragraph. The transcript prints the document as Markdown. |
+| `every edit is a draft: Saved; 22 saves, each SaveDraft`                  | Each change to the title, and each keystroke in the body (Enter included), is saved as a draft.                                                                                                                                                       |
+| `resumed from the Model: … caret at 5 in e2`                              | The saved draft holds the editor's Model: the document and the caret, which the transcript shows, and with them the stored marks and undo history.                                                                                                    |
+| `the writer's preview: <h1>Tending</h1>…; sent nothing`                   | The preview draws the form's document with the standard rendering. Nothing is sent.                                                                                                                                                                   |
+| `a visitor at /articles/on-gardens: …`                                    | A visitor gets the published row's document, drawn the same way.                                                                                                                                                                                      |
+| `revisions: 1, 2` / `restored as a draft … nothing was published by that` | Revisions and restore are the CMS's, for a document as for a string.                                                                                                                                                                                  |
+| `the host asks what is due` / `a visitor reads: …`                        | A scheduled change goes out when the host asks what is due.                                                                                                                                                                                           |
 
 The body column is JSON, read back through `RichText.Document`. The content type lives in
 `articleDemo.ts` and is handed to `openServer` rather than exported: an exported form holding the
@@ -190,11 +190,11 @@ have left them), and serves three
 applications on Foldkit's runtime, over an HTTP transport in place of the
 in-process one:
 
-| Address | What it is |
-| --- | --- |
-| `/` | **The studio's posts**: the worklist (active or archived, with search), and a post opened across the screen: a bar with its state and Publish, the post written as it will read, and its publishing, history and other actions beside it. Preview swaps the form for the site's own article. |
-| `/pages` | **The studio's pages**: the site's pages, and a page opened in the page Builder: the Blocks to add and the page's layers on the left, the page in the middle, the selected Block's settings on the right. |
-| `/site` | **The public site**: the home page, the blog at `/site/blog` (the newest post leading), a post at `/site/blog/<slug>`, and any other page at `/site/<slug>`, read as a visitor may see them. |
+| Address  | What it is                                                                                                                                                                                                                                                                                   |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`      | **The studio's posts**: the worklist (active or archived, with search), and a post opened across the screen: a bar with its state and Publish, the post written as it will read, and its publishing, history and other actions beside it. Preview swaps the form for the site's own article. |
+| `/pages` | **The studio's pages**: the site's pages, and a page opened in the page Builder: the Blocks to add and the page's layers on the left, the page in the middle, the selected Block's settings on the right.                                                                                    |
+| `/site`  | **The public site**: the home page, the blog at `/site/blog` (the newest post leading), a post at `/site/blog/<slug>`, and any other page at `/site/<slug>`, read as a visitor may see them.                                                                                                 |
 
 The studio's two sections share one document (`studio.ts`): moving between
 Posts and Pages swaps the application in place, keeping the loaded code and

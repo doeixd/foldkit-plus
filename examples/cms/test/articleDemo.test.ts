@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runArticleDemo } from '../src/articleDemo.js'
+import { runArticleDemo } from '../src/demo/articleDemo.js'
 
 describe('foldkit-cms example, with a rich-text body', () => {
   it('takes an article from its first keystroke to a scheduled change, the body a document', async () => {

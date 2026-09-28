@@ -9,12 +9,12 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { afterEach, expect, it } from 'vitest'
-import * as Posts from '../src/app.js'
-import { openSandbox } from '../src/browser.js'
-import * as Pages from '../src/pageApp.js'
-import { view as pagesView } from '../src/pagesView.js'
-import { remoteClient, type Send } from '../src/transport.js'
-import { view as postsView } from '../src/view.js'
+import * as Posts from '../src/apps/app.js'
+import { openSandbox } from '../src/server/browser.js'
+import * as Pages from '../src/apps/pageApp.js'
+import { view as pagesView } from '../src/views/pagesView.js'
+import { remoteClient, type Send } from '../src/server/transport.js'
+import { view as postsView } from '../src/views/view.js'
 
 const urlOf = (search: string): Url => ({
   protocol: 'http:',

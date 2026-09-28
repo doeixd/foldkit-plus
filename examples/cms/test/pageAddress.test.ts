@@ -1,6 +1,6 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { addressFor } from '../src/address.js'
+import { addressFor } from '../src/routing/address.js'
 
 describe('the page editor’s address', () => {
   it('names the open page and its selection, keeping who is looking', () => {

@@ -4,7 +4,7 @@
  */
 import { Option } from 'effect'
 import { afterEach, expect, it } from 'vitest'
-import { dateOf } from '../src/site.js'
+import { dateOf } from '../src/content/site.js'
 
 const zone = process.env['TZ']
 afterEach(() => {

@@ -5,7 +5,7 @@
  */
 import { Option } from 'effect'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { mountStudio } from '../src/studio.js'
+import { mountStudio } from '../src/apps/studio.js'
 
 type Section = 'posts' | 'pages'
 const sectionOf = (pathname: string): Option.Option<Section> =>

@@ -34,8 +34,8 @@ import { richTextInput } from 'foldkit-richtext-dom/input'
 import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
-import { isAuthor, openServer, write, type Principal } from './server.js'
-import { memorySqlite } from './sqlite-node.js'
+import { isAuthor, openServer, write, type Principal } from '../server/server.js'
+import { memorySqlite } from '../server/sqlite-node.js'
 
 const ArticleId = Schema.String.pipe(Schema.brand('ArticleId'))
 type ArticleId = typeof ArticleId.Type

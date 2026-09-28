@@ -3,7 +3,7 @@
  * to the server. The database is in memory, so a restart resets the data.
  */
 import { spawn } from 'node:child_process'
-import { startHttpServer } from './http.js'
+import { startHttpServer } from './server/http.js'
 
 const server = await startHttpServer(Number(process.env['REMOTE_PORT'] ?? 8789))
 console.log(`remote server on ${server.url}`)

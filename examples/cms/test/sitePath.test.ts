@@ -4,7 +4,7 @@
  */
 import { Option } from 'effect'
 import { expect, it } from 'vitest'
-import { pathOf, routeOf, type Route } from '../src/siteApp.js'
+import { pathOf, routeOf, type Route } from '../src/apps/siteApp.js'
 
 const urlOf = (pathname: string) => ({
   protocol: 'https:',

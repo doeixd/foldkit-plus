@@ -4,9 +4,9 @@
  * what was written), and started afresh when the address asks (`?reset`).
  */
 import { afterEach, expect, it } from 'vitest'
-import { openSandbox } from '../src/browser.js'
-import { clearEdited, edited, SANDBOX_KEY } from '../src/sandboxKey.js'
-import type { Send } from '../src/transport.js'
+import { openSandbox } from '../src/server/browser.js'
+import { clearEdited, edited, SANDBOX_KEY } from '../src/server/sandboxKey.js'
+import type { Send } from '../src/server/transport.js'
 
 const KEY = SANDBOX_KEY
 

@@ -20,10 +20,10 @@ import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import { Url, toString as urlToString } from 'foldkit/url'
-import { Post, PostPage, Posts, PostById, RecentPosts } from './domain.js'
-import { Page, Pages } from './pageDomain.js'
-import { PostCard, Site } from './site.js'
-import { chairOf, chairs } from './transport.js'
+import { Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
+import { Page, Pages } from '../content/pageDomain.js'
+import { PostCard, Site } from '../content/site.js'
+import { chairOf, chairs } from '../server/transport.js'
 
 export const Route = Schema.Union([
   Schema.TaggedStruct('Page', { slug: Schema.String }),

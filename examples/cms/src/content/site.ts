@@ -31,7 +31,7 @@ import {
   narrowWidth,
   SiteSlots,
   t,
-} from './style.js'
+} from '../styles/style.js'
 
 /** The looks' base rules sit in `components`, below the application's own. */
 const components = Layers.standard.layer('components')

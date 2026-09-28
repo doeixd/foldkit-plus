@@ -18,7 +18,7 @@ import {
   sitePages,
   view as editorView,
   type Model,
-} from './pageApp.js'
+} from '../apps/pageApp.js'
 import { icon } from './icons.js'
 import {
   badge,
@@ -32,8 +32,8 @@ import {
   statusText,
   type RevisionRow,
 } from './shell.js'
-import { pageHref } from './site.js'
-import { AdminSlots, AdminStyle } from './style.js'
+import { pageHref } from '../content/site.js'
+import { AdminSlots, AdminStyle } from '../styles/style.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 

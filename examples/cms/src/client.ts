@@ -9,16 +9,16 @@ import { Option } from 'effect'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { Remote } from 'foldkit-remote'
-import * as Posts from './app.js'
-import * as Pages from './pageApp.js'
-import * as Site from './siteApp.js'
-import { APP_ROOT, siteConfig, takesOver } from './siteConfig.js'
-import { view as pagesView } from './pagesView.js'
-import { edited } from './sandboxKey.js'
-import { keepScroll } from './scroll.js'
-import { mountStudio } from './studio.js'
-import { chairOf, httpSend, remoteClient, type Send } from './transport.js'
-import { view as postsView } from './view.js'
+import * as Posts from './apps/app.js'
+import * as Pages from './apps/pageApp.js'
+import * as Site from './apps/siteApp.js'
+import { APP_ROOT, siteConfig, takesOver } from './content/siteConfig.js'
+import { view as pagesView } from './views/pagesView.js'
+import { edited } from './server/sandboxKey.js'
+import { keepScroll } from './routing/scroll.js'
+import { mountStudio } from './apps/studio.js'
+import { chairOf, httpSend, remoteClient, type Send } from './server/transport.js'
+import { view as postsView } from './views/view.js'
 
 /**
  * Whether the address asks for a fresh sandbox (`?reset`): read, and taken out of
@@ -51,7 +51,7 @@ container.id = 'app'
 const send: Send =
   import.meta.env.MODE === 'sandbox'
     ? (() => {
-        const sandbox = import('./browser.js').then(({ openSandbox }) =>
+        const sandbox = import('./server/browser.js').then(({ openSandbox }) =>
           openSandbox({ fresh: startsAfresh() }),
         )
         return async (asking, body) => (await sandbox)(asking, body)
@@ -69,7 +69,7 @@ if (path.startsWith('/site')) {
   if (takesOver(document, chair, edited()))
     // The build's id is its entry script's address, which the page loads as this
     // module. Should the takeover's code not load, the page is drawn afresh.
-    void import('./sitePlan.js').then(
+    void import('./ssr/sitePlan.js').then(
       ({ takeOver }) => takeOver(config, new URL(import.meta.url).pathname),
       () => Runtime.run(Runtime.makeApplication(config)),
     )

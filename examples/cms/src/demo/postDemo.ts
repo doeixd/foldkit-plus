@@ -21,10 +21,10 @@ import {
   postPage,
   update,
   type Model,
-} from './app.js'
-import { PostForm, Posts } from './domain.js'
-import { openServer, type Principal } from './server.js'
-import { memorySqlite } from './sqlite-node.js'
+} from '../apps/app.js'
+import { PostForm, Posts } from '../content/domain.js'
+import { openServer, type Principal } from '../server/server.js'
+import { memorySqlite } from '../server/sqlite-node.js'
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []

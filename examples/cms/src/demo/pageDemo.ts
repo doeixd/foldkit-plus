@@ -32,12 +32,12 @@ import {
   builderInputs,
   update,
   type Model,
-} from './pageApp.js'
-import { PageAgent } from './pageAgent.js'
-import { PageForm, Pages } from './pageDomain.js'
-import { openServer, type Principal } from './server.js'
-import { memorySqlite } from './sqlite-node.js'
-import { PageBuilder, PageEditing, Site, SiteRenderer } from './site.js'
+} from '../apps/pageApp.js'
+import { PageAgent } from '../content/pageAgent.js'
+import { PageForm, Pages } from '../content/pageDomain.js'
+import { openServer, type Principal } from '../server/server.js'
+import { memorySqlite } from '../server/sqlite-node.js'
+import { PageBuilder, PageEditing, Site, SiteRenderer } from '../content/site.js'
 
 /**
  * A drawn page as a visitor would read it: its text, element by element, with

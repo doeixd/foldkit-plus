@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runDemo } from '../src/demo.js'
+import { runDemo } from '../src/demo/postDemo.js'
 
 describe('foldkit-cms example', () => {
   it('takes a post from its first keystroke to being taken off show, from three chairs', async () => {

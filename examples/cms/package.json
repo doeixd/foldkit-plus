@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/dev.ts",
-    "demo": "tsx src/main.ts",
-    "build:sandbox": "vite build --mode sandbox && tsx src/generate.ts dist",
+    "demo": "tsx src/demo/main.ts",
+    "build:sandbox": "vite build --mode sandbox && tsx src/ssr/generate.ts dist",
     "typecheck": "tsc -b"
   },
   "dependencies": {

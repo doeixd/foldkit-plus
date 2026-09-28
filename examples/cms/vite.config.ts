@@ -9,10 +9,10 @@ import {
 /** Workspace packages resolve to their source, so an edit shows without a build. */
 const conditions = ['foldkit-plus:source']
 
-/** `src/sheet.ts`'s stylesheet, compiled by `server` as the page would compile it. */
+/** `src/styles/sheet.ts`'s stylesheet, compiled by `server` as the page would compile it. */
 const compiled = async (server: ViteDevServer): Promise<string> => {
-  const { stylesheet } = await server.ssrLoadModule('/src/sheet.ts')
-  if (typeof stylesheet !== 'string') throw new Error('src/sheet.ts exports no stylesheet')
+  const { stylesheet } = await server.ssrLoadModule('/src/styles/sheet.ts')
+  if (typeof stylesheet !== 'string') throw new Error('src/styles/sheet.ts exports no stylesheet')
   return stylesheet
 }
 

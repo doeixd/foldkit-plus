@@ -8,9 +8,9 @@ import type { SlotView } from 'foldkit-mixins'
 import { Option } from 'effect'
 import { Cms, type EditorStatus, type State, type Transition } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
-import type { AdminSlots } from './style.js'
+import type { AdminSlots } from '../styles/style.js'
 import { icon } from './icons.js'
-import { chairOf, chairs, type Chair } from './transport.js'
+import { chairOf, chairs, type Chair } from '../server/transport.js'
 
 export const chair: Chair = chairOf(window.location.search)
 

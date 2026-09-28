@@ -10,7 +10,7 @@ import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage } from 'foldkit-builder'
 import { Composition } from 'foldkit-composition'
 import { Projection } from 'foldkit-surface'
-import { Message, editing, type Model } from './pageApp.js'
+import { Message, editing, type Model } from '../apps/pageApp.js'
 import { PageForm } from './pageDomain.js'
 import { Site } from './site.js'
 

@@ -4,8 +4,8 @@
  */
 import { Effect, Option } from 'effect'
 import { afterEach, expect, it } from 'vitest'
-import { writeAddress } from '../src/address.js'
-import { init, initial, linkIn, Message, Narrowing, update } from '../src/app.js'
+import { writeAddress } from '../src/routing/address.js'
+import { init, initial, linkIn, Message, Narrowing, update } from '../src/apps/app.js'
 
 afterEach(() => {
   window.history.replaceState(null, '', '/')
