@@ -168,7 +168,7 @@ not later polish.
   it (`linked`, `previewAsked`). §33.3
 - [ ] **One declaration of history intent** for routed params, as a mirror has
   per key: a step when the node or entry changes, a replace otherwise. §33.4
-- [ ] **Scroll keeping as a primitive,** from `examples/cms/src/scroll.ts`: the
+- [ ] **Scroll keeping as a primitive,** from `examples/cms/src/routing/scroll.ts`: the
   offset taken when the reader acts, a restore that holds while the screen
   settles, entries keyed by the Navigation API. `foldkit-primitives`, or
   upstream in Foldkit's navigation. §33.5
@@ -207,6 +207,36 @@ not later polish.
   route-local subscriptions/effects per node, not a flat match arm over a
   nested URL. §34.2
 - [ ] `foldkit-site` itself, and the rest of §31's sequence.
+
+## CMS demo hardening
+
+What running `examples/cms` end to end asks of the packages.
+[cms-demo-PLAN.md](./cms-demo-PLAN.md) has the reasoning per area; work
+area 0 first, then areas 3–5 alongside, with areas 1–2 feeding the routing
+and server/SSR sequences.
+
+- [ ] **0. In-example hygiene:** exhaustive tag matches (no `switch` +
+  `default` in `app.ts`/`pageApp.ts`/`siteApp.ts`); `src/demo/` folder with
+  shared `harness.ts`; split `style.ts` by owner; unify the editor-bar
+  clone and `revisionsOf`; adopt shipped recipes where the demo forks them.
+- [ ] **1. Routing items** (already tracked above via §34/§33.3/§33.4 plus
+  `scroll.ts` → primitives/upstream in the §33.5 item).
+- [ ] **2. Server/transport/SSG:** `http.ts` → `Server.mount` + scheduler;
+  envelope/principal into remote/remote-server contract; `browser.ts` mount
+  shape into server/local-execution designs; prerender/generate/sitePlan
+  into SSR Phase S (S2 `Data.satisfy`, S3 head-from-Model, S4 sitemap,
+  S7 build step).
+- [ ] **3. `mixins-ui` gaps:** `Badge`, `Loading`/`Empty`/`Failure`,
+  Button variants, icon machinery, touch targets; `historyCard`/`moreCard`
+  as a CMS view companion; adopt each in the demo in the same change.
+- [ ] **4. Form view:** `Button.view`, `Input.field`, `FormView.fields`
+  with per-field overrides (keeping exhaustive-over-`FieldKey`), explicit
+  submit-gating predicate.
+- [ ] **5. Primitives:** websocket/sse status + `isConnected` + error
+  selectors and 4-state view-union derivation; shrink `reactToSocket` to
+  payload commands.
+- [ ] **6. Seeding:** `seed.ts` runner shape into cms/cms-drizzle import
+  tooling and docs.
 
 ## Server
 

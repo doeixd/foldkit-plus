@@ -6841,7 +6841,7 @@ the slow way:
    `currentEntry.key` survives a reload and a full navigation. Offsets are
    kept in `sessionStorage`, so Back into another document restores too.
 
-`examples/cms/src/scroll.ts` does this in about 130 lines, with a browser test
+`examples/cms/src/routing/scroll.ts` does this in about 130 lines, with a browser test
 that a mutation of each rule fails. It belongs in `foldkit-primitives` as a
 Subscription or Mount, or upstream in Foldkit's navigation. `Site.transition`
 can add what only topology knows: which container scrolls, such as a nested
