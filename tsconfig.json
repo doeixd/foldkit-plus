@@ -55,6 +55,21 @@
     { "path": "./examples/form" },
     { "path": "./examples/foldkit-counter" },
     { "path": "./examples/foldkit-query-sync" },
-    { "path": "./examples/foldkit-api-cache" }
+    { "path": "./examples/foldkit-api-cache" },
+    { "path": "./examples/foldkit-todo" },
+    { "path": "./examples/foldkit-form" },
+    { "path": "./examples/foldkit-job-application" },
+    { "path": "./examples/foldkit-weather" },
+    { "path": "./examples/foldkit-routing" },
+    { "path": "./examples/foldkit-route-transitions" },
+    { "path": "./examples/foldkit-snake" },
+    { "path": "./examples/foldkit-auth" },
+    { "path": "./examples/foldkit-shopping-cart" },
+    { "path": "./examples/foldkit-websocket-chat" },
+    { "path": "./examples/foldkit-kanban" },
+    { "path": "./examples/foldkit-pixel-art" },
+    { "path": "./examples/foldkit-ui-showcase" },
+    { "path": "./examples/foldkit-ssg" },
+    { "path": "./examples/foldkit-ssr" }
   ]
 }
