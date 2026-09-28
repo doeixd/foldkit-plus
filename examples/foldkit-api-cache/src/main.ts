@@ -14,8 +14,7 @@ import { Surface } from 'foldkit-surface'
 import { Post, PostsQuery, STATS_ID, Stats } from './data.js'
 import {
   BackButtonStyle,
-  PageSlots,
-  PageStyle,
+  CachePage,
   PostButtonStyle,
   RetryButtonStyle,
   TabsStyle,
@@ -192,7 +191,7 @@ export const subscriptions = Subscription.make<Model, Message, RemoteClient>()((
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof CachePage.slots, Message>
 
 const formatTime = (millis: number): string => new Date(millis).toLocaleTimeString()
 
@@ -241,23 +240,23 @@ const styledButton = (
   )
 
 export const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(CachePage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.div(slots.column.attrs(), [headerView(slots, h), tabsView(model, slots, h)]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(CachePage.style))
 
 /** What the active tab shows. A view of its own, so a test can draw it without the Tabs Submodel. */
 export const TabPanel = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(CachePage.slots, (model: Model, slots, h) =>
     Match.value(model.activeTab).pipe(
       Match.when('Posts', () => postsTabView(model, slots, h)),
       Match.when('Stats', () => statsTabView(model, slots, h)),
       Match.exhaustive,
     ),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(CachePage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'API Cache',

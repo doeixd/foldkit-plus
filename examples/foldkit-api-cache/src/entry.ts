@@ -1,12 +1,11 @@
 import { Runtime } from 'foldkit'
+import { Style } from 'foldkit-mixins'
 
 import { api } from './data.js'
 import { Message, Model, init, subscriptions, update, view } from './main.js'
 import { stylesheet } from './style.js'
 
-const styles = document.createElement('style')
-styles.textContent = stylesheet
-document.head.append(styles)
+Style.install(stylesheet)
 
 const container = document.getElementById('root')
 if (container === null) throw new Error('#root is missing from index.html')
