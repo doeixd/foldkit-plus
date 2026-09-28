@@ -257,9 +257,10 @@ version changed; `pnpm` skips versions already in the registry.
   duplicate live event, a repeated `ReadStarted`, an empty `Hydrated`, or a
   retention pass that collects nothing. An entity's or list row's decoded
   value is the same object after a refetch or live patch that brought equal
-  data, so a keyed row's lazy view does not re-run. The live entry no longer closes and reopens
-  its stream on every event, and a pending request no longer rebuilds the
-  visible store on each overlay change. A list read now shows a live insert
+  data to every field of its entity, so a keyed row's lazy view does not
+  re-run. The live entry no longer closes and reopens its stream on every
+  event, and a pending request no longer rebuilds the visible store on each
+  overlay change. A list read now shows a live insert
   or an optimistic connection change that wrote no entity; it used to keep
   the list from before it. The unused `shouldWake` export is removed.
 - **`foldkit-remote`: `MutationSucceeded` carries `now`,** the clock reading of
@@ -270,7 +271,7 @@ version changed; `pnpm` skips versions already in the registry.
   `ObserveOptions` and `LiveOptions` do, and `settleSuccess` and
   `reconcileMutation` a trailing `now`. A hand-built `MutationSucceeded` adds
   the field.
-- **`foldkit-remote`: the read entry plans once per Remote state and ask.** A
+- **`foldkit-remote`: the read entry plans once per Remote state and query.** A
   Model change the Remote model is not part of, such as typing in a field,
   reuses the plan until the next freshness deadline instead of walking every
   row again: about 1 ms to 0.02 ms per change for a list of 400 rows.

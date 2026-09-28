@@ -312,11 +312,22 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // `Data.mutate` is what `update` calls: the request starts in the Model with
   // an id from the Model's own sequence, and the returned Command's Message
   // settles it. Here the Command runs and its Message is reduced in place.
-  const rename = Data.mutate(loaded, RenameProject, { id: 'p1', name: 'Apollo II' })
+  // The answer is dated by `now`, as a read is, so the stale-while-revalidate
+  // entry above (whose clock reads 60,000) takes the renamed project as fresh.
+  const rename = Data.mutate(
+    loaded,
+    RenameProject,
+    { id: 'p1', name: 'Apollo II' },
+    { now: () => 59_000 },
+  )
   const settled = await Effect.runPromise(rename.command.effect.pipe(Effect.provide(FakeClient)))
   const renamed = Data.reduce(rename.model, settled)
   lines.push(`mutation RenameProject (${rename.requestId}): ${settled._tag}`)
   lines.push(`after mutation: ${describeData(projection.read(renamed))}`)
+  const due = refreshing.modelToDependencies(renamed).requirements
+  lines.push(
+    `refetch after mutation: ${due.length === 0 ? 'none' : due.map(r => `${r.entity}:${r.id}`).join(', ')}`,
+  )
 
   // Retention: the roots are what the active Surfaces reach. A project the page
   // does not select, and a connection nobody lists, are collected; the page's

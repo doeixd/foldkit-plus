@@ -204,14 +204,15 @@ sequenceDiagram
   UI->>update: ClickedRename
   update->>Data: Data.mutate
   Data->>Server: Command (RPC)
-  Server-->>update: MutationSucceeded { output, entities }
+  Server-->>update: MutationSucceeded { requestId, entities, now }
   update->>Data: Data.reduce
 ```
 
 `Data.mutate` applies `MutationStarted` to the Model (the request id comes from
 the Model's own sequence, so `update` stays pure) and returns the Command whose
-Message settles it. The result carries the typed `Output` **and** normalized
-entity patches. Settling is idempotent per `requestId`, so a transport retry
+Message settles it. That Message carries the normalized entity patches and
+`now`, the clock reading that dates what they write; the typed `Output` is what
+`Remote.mutateInto` returns. Settling is idempotent per `requestId`, so a transport retry
 cannot apply the same change twice. `Remote.mutateInto` is the one-step
 imperative form for SSR and tests.
 
