@@ -5781,6 +5781,9 @@ breadcrumbs
 without becoming a router state machine.
 
 Scroll restoration turned out to need more than transition data: see §33.5.
+The routing-port pair showed the same holds for the lifecycle itself:
+link-click/URL-change handling and internal-vs-external dispatch need a
+reusable wiring, not per-application branches: see §34.1.
 
 ---
 
@@ -6970,3 +6973,89 @@ Amended sequence, following §33.8's: after **4b**, **4c** is SSR Phase S1 to
 S4 (a browser entry, `Data.satisfy`, a head from the Model, a sitemap), which
 the Site's `paths`, `meta` and `targets` then feed. Locales (33.11) come with
 the first localized content, not before.
+
+---
+
+# 34. What the Foldkit routing-port pair taught (2026-09-28)
+
+`examples/foldkit-routing` now has the cleaner second cut: `Link.field` for the
+`peoplePage` child, a `NavSection` union with `navSectionOf`, `aria-current`
+instead of conditional CSS strings, slot-driven styling, and exhaustive
+`routeTitle`. It is about a third shorter and clearly better. But compared with
+the WebSocket pair (raw mechanics → `websocket(...)` primitive) and the Form
+pair (raw field mechanics → `Form.make`), the architectural move is smaller:
+routing itself is still app-owned. This section records what the third cut
+should eliminate, so `foldkit-site` converges with `Bundle`/`Link` instead of
+leaving routing as cleaned-up manual mechanics.
+
+`Link.field` is the one abstraction that did move, and it should be named as
+the pattern: `peoplePage` as a child-model field plus `GotPeopleMessage` as
+the child-message wrapper, stated once instead of restated procedurally at
+every fold. That two-directional relationship (parent → child model, child
+message → parent message) is a foundational Foldkit-Plus piece, alongside
+bundle placements and entity relationships.
+
+## 34.1 The routing mechanism is still app-owned
+
+Both cuts keep `route` plus `peoplePage` in the Model, the same message union
+(`ClickedLink`, `ChangedUrl`, `EnteredNavigationShortcut`,
+`GotPeopleMessage`, …), and the same manual `ClickedLink` branch on
+`UrlRequest.Internal` vs `External` dispatching `pushUrl` vs `load`
+(`NavigateInternal` vs `LoadExternal` Commands). The router parses routes, but
+the page still coordinates route lifecycle by hand. §13's "helpers around it"
+understates the need: the lifecycle — link-click handling, URL-change
+handling, internal-vs-external dispatch, Navigate-vs-load choice, shortcut
+mapping — should move behind a reusable semantic bundle/wiring the way the
+WebSocket lifecycle did, not stay as per-application update branches.
+
+## 34.2 Nesting is syntactic, not architectural
+
+The app serves a deeply nested URL (`/nested/route/is/very/nested`) as a flat
+`Nested: () => nestedView(...)` arm. A strong routing primitive needs a genuine
+nested route tree — layout, child routes, child models, route-local
+subscriptions, route-local effects/loaders — not merely a nested URL that
+parses. §7's hierarchy should therefore be read as an architectural tree that
+owns those per-node concerns, with the URL as one projection of it.
+
+## 34.3 One placement should drive update and view
+
+`People` is currently described twice: `Link.field('peoplePage', …)` plus
+`Update.foldChild` on the update side, and a separate `h.submodel({ model:
+model.peoplePage, view: People.view, toParentMessage: … })` on the view side.
+The placement already knows where the child model lives and how its messages
+wrap, so a routed page should state that relationship once — e.g. a
+`Site.surface` that yields a Bundle placement usable for both the fold and the
+submodel view — rather than keeping update composition and view composition in
+sync by hand.
+
+## 34.4 Route metadata is one graph, not four projections
+
+`navSectionOf`, `navigationHrefBySection`, `navigationUrlByShortcut`, and
+`routeTitle` are separate hand-kept projections of the same route graph
+(`People`/`Person` both in the People section, each section with an href, a
+shortcut, a title). Routes should be annotatable once (title, section,
+shortcut, href source), with navigation rendering, active-section derivation,
+shortcut handling, href generation, and titles derived from the annotation —
+the same direction §23 already takes for head metadata, extended to navigation
+metadata.
+
+## 34.5 Acceptance: the third routing cut
+
+Rank the pairs by how far the abstraction moved: WebSocket ★★★★★ (mechanism
+became primitive), Form ★★★★★ (domain state machine became primitive),
+routing ★★★☆☆ (composition and view got cleaner; routing itself stayed
+app-owned). The third routing example earns the remaining stars when it
+eliminates whole categories the way `Form.make` eliminated field-validation
+plumbing: route lifecycle, page composition, child-page links, navigation
+metadata, and route-local model ownership. Concretely: no hand-written
+`ClickedLink`/`ChangedUrl` branches, no separate fold/submodel declarations
+per child page, no parallel `navSectionOf`/`navigationHrefBySection`/
+`navigationUrlByShortcut`/`routeTitle` tables, and no flat match arm standing
+in for a nested route node.
+
+Amended sequence: fold the above into §31 step 5 (`foldkit-site` first cut)
+rather than treating it as later polish — lifecycle wiring (34.1), single
+placement for update+view (34.3), and annotatable route metadata (34.4) belong
+in the first Site cut alongside targets-with-intents (33.3) and history intent
+(33.4); genuine nesting (34.2) is what step 6 (nested layouts/rendering) must
+deliver.

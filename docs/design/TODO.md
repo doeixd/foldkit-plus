@@ -158,7 +158,9 @@ Each item says how it would attach; none is started.
 
 What building the CMS example's addresses, scroll and loading states showed is
 missing. [router-DESIGN.md](./router-DESIGN.md) §33 has the reasoning; §31 is
-the larger plan it amends.
+the larger plan it amends. What the `foldkit-routing` port pair showed still
+stays app-owned is in §34; those items join the first `foldkit-site` cut,
+not later polish.
 
 - [ ] **Targets with intents.** An address that asks something of an owner with
   no Model yet (a Builder before its page loads) is held until the owner is
@@ -190,6 +192,20 @@ the larger plan it amends.
   head, and whether a node is indexed. §23, §33.9
 - [ ] **Locales in the route graph:** a top-level locale parameter, targets
   with alternates, and data sources that take the locale. §33.11
+- [ ] **Route lifecycle as a reusable wiring,** not app-owned update branches:
+  `ClickedLink`/`ChangedUrl` handling, internal-vs-external dispatch
+  (`pushUrl` vs `load`, Navigate vs load Commands), and shortcut mapping, as a
+  semantic bundle/wiring. §34.1
+- [ ] **One placement driving update and view for a routed child page:** the
+  `Link`/placement that knows the child field and message wrapper yields both
+  the fold and the submodel view, instead of a separate `foldChild` plus
+  `h.submodel` per page. §34.3
+- [ ] **Annotatable routes:** title, nav section, shortcut (and href source)
+  declared once per route, with navigation rendering, active-section
+  derivation, shortcut handling, href generation and titles derived. §34.4
+- [ ] **Genuine nested route nodes:** layout, child routes, child models and
+  route-local subscriptions/effects per node, not a flat match arm over a
+  nested URL. §34.2
 - [ ] `foldkit-site` itself, and the rest of §31's sequence.
 
 ## Server
