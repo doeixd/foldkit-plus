@@ -145,7 +145,9 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   own `match` still demands every variant).
 - **A Link without a Bundle:** a Link's `read`, `write` and `toParentMessage`
   are what `Update.foldChild` takes, so a `@foldkit/ui` component folds through
-  one: `Update.foldChild({ ...link, update })`. `Link.wrapper(Message.GotXMessage)`
+  one: `Update.foldChild({ ...link, update })`. Its init folds through
+  `Link.foldInit` instead, since init has no parent yet to read:
+  `Update.foldChildInit(boot, Link.foldInit(link, rest))`. `Link.wrapper(Message.GotXMessage)`
   builds the wrapper from a variant the union already declares; `Link.field`
   and `Link.optional` writes keep the parent when the child is unchanged, so an
   ignored Message does not redraw. Nothing is routed or lifted automatically;
