@@ -46,10 +46,10 @@ SSR.hydrate(config, Editor, { buildId })
 
 - **Render from Remote data by preparing it first.** `SSR.render` and
   `SSR.generate` render the Model `init` returns; nothing is fetched during a
-  render. Build that Model with `Data.prefetch` for each active Surface's
-  projection (`active.projectionOf(model)`), in turn, each over the Model the
-  one before left, so a read that depends on another (a page's Blocks on its
-  document) sees it. With a `foldkit-bundle` assembly, `init` must still return
+  render. Build that Model with `Data.satisfy(model, actives)`, which reads
+  every active Surface pass after pass until nothing is missing, so a read that
+  depends on another (a page's Blocks on its document) is made too. With a
+  `foldkit-bundle` assembly, `init` must still return
   `placements.initial(...)`: pass the prepared fields to it.
 - **Import `foldkit-ssr/client` in the browser.** It holds `plan`, `resume`,
   `hydrate`, `static`, `serving` and the attribute names (including
@@ -66,6 +66,12 @@ SSR.hydrate(config, Editor, { buildId })
   `ViewDependsOnUnsentState`, in its body or its head (`title`, `lang`, `dir`,
   `canonical`, `ogUrl`). Add the field to `state` or stop reading it. Foldkit
   0.163 gives `canonical` no default: derive it from the route in the Model.
+  Foldkit fills `canonical` and `og:url` only into tags the template has; a
+  render that sets one into a template without its tag is refused.
+- `SSR.plan({ meta: model => Meta })` writes the description, `og:*`,
+  `twitter:card`, `article:*`, `robots`, alternates and JSON-LD into the head,
+  escaped and checked like the view, and `SSR.hydrate` replaces them as the
+  Model changes. `Meta` is typed (`import type { Meta } from 'foldkit-ssr'`).
 - A Surface in `surfaces` that reads or is activated by a field in neither
   `state` nor `local`, reads Remote data no part resumes, or activates
   differently from the browser's Model fails with `Uncovered`.

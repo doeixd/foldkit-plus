@@ -36,10 +36,10 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   server renderer, 210 KB (63 KB gzipped) that a page taking a render over
   does not need; the example loads it lazily (`sitePlan.ts`). Split off
   `foldkit-ssr/server`, and export the root attribute from the browser side.
-- [ ] **S2. `Data.satisfy`,** preparing a Model for a render: each active
+- [x] **S2. `Data.satisfy`,** preparing a Model for a render: each active
   Surface's reads, again until none is missing. The example's `prerender.ts`
   loop is its first caller. [router-DESIGN.md](./router-DESIGN.md) §20
-- [ ] **S3. A head from the Model:** description, image, Open Graph, article
+- [x] **S3. A head from the Model:** description, image, Open Graph, article
   facts and JSON-LD, typed in the plan, escaped, checked like the view, and
   applied on client navigation too. A template missing the tags Foldkit fills
   (canonical, `og:url`) is refused.

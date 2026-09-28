@@ -9,6 +9,7 @@ import { SSR } from 'foldkit-ssr'
 import { Projection } from 'foldkit-surface'
 import type { siteConfig } from '../content/siteConfig.js'
 import * as Site from '../apps/siteApp.js'
+import { metaOf } from './siteMeta.js'
 
 /**
  * How a page the build rendered is taken over in the browser (`foldkit-ssr`):
@@ -31,6 +32,8 @@ export const plan = SSR.plan(
     state: Projection.pick(Site.App.model.route, Site.App.model.reader),
     surfaces: Object.values(Site.actives),
     parts: [Remote.resume(Site.Data)],
+    // Read from the route and Remote's reads, both of which cross.
+    meta: metaOf,
   },
 )
 

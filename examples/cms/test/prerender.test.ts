@@ -43,8 +43,10 @@ describe('the generated site', () => {
     const html = at('/site/blog/a-page-is-data')
     expect(html).toContain('<title>A page is data · Journal</title>')
     expect(html).toContain('A page builder that stores HTML has already lost.')
-    expect(html).toMatch(/<meta name="description" content="This page is not HTML\./)
-    expect(html).toContain('<meta property="og:type" content="article" />')
+    expect(html).toMatch(
+      /<meta data-foldkit-meta name="description" content="This page is not HTML\./,
+    )
+    expect(html).toContain('<meta data-foldkit-meta property="og:type" content="article">')
     expect(html).toContain('"@type":"BlogPosting"')
     expect(html).toContain(
       '<link rel="canonical" href="https://foldkit-cms-demo.pages.dev/site/blog/a-page-is-data"',

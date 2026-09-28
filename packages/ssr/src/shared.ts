@@ -3,7 +3,7 @@
  * browser reads it, static regions, and the page's bindings. Nothing here
  * imports Foldkit's server renderer, so `client.ts` can carry all of it.
  */
-import { Option, Result, Schema, type Layer } from 'effect'
+import { Effect, Option, Result, Schema, Stream, type Layer } from 'effect'
 import type { Runtime } from 'foldkit'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
@@ -16,6 +16,119 @@ export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
 
 /** The envelope format this package writes and reads. */
 export const PROTOCOL = 1
+
+const LINE_SEPARATOR = String.fromCharCode(0x2028)
+const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029)
+
+/**
+ * JSON for a script element: `<` is escaped so `</script>` in the data ends
+ * nothing. U+2028 and U+2029 are escaped too: they are fine in JSON and break a
+ * reader that treats the text as JavaScript.
+ */
+export const serializeJsonScript = (value: unknown): string =>
+  JSON.stringify(value)
+    .replaceAll('<', '\\u003c')
+    .replaceAll(LINE_SEPARATOR, '\\u2028')
+    .replaceAll(PARAGRAPH_SEPARATOR, '\\u2029')
+
+/**
+ * What a page says of itself beyond Foldkit's `Document` (`title`, `lang`,
+ * `dir`, `canonical`, `ogUrl`): what a search result and a link preview show.
+ * `title` is the preview's title (`og:title`), when it differs from the
+ * document's. Dates are ISO 8601 text; `jsonLd` is structured data, each
+ * entry written as its own script.
+ */
+export interface Meta {
+  readonly description?: string | undefined
+  readonly title?: string | undefined
+  readonly image?: string | undefined
+  readonly type?: 'website' | 'article' | undefined
+  readonly siteName?: string | undefined
+  readonly article?:
+    | { readonly published?: string | undefined; readonly modified?: string | undefined }
+    | undefined
+  readonly robots?: string | undefined
+  readonly alternates?:
+    | ReadonlyArray<{ readonly hreflang: string; readonly href: string }>
+    | undefined
+  readonly jsonLd?: ReadonlyArray<Readonly<Record<string, unknown>>> | undefined
+}
+
+/** Marks each head element a plan's `meta` wrote, so the browser can replace them. */
+export const META_ATTRIBUTE = 'data-foldkit-meta'
+
+const attributeText = (text: string): string =>
+  text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+
+/** The head markup of a `Meta`, every value escaped, one element per line. */
+export const metaMarkup = (meta: Meta): string => {
+  const tag = (element: string, attributes: ReadonlyArray<readonly [string, string]>) =>
+    `<${element} ${META_ATTRIBUTE} ${attributes.map(([name, value]) => `${name}="${attributeText(value)}"`).join(' ')}>`
+  const named = (name: string, value: string | undefined) =>
+    value === undefined
+      ? []
+      : [
+          tag('meta', [
+            ['name', name],
+            ['content', value],
+          ]),
+        ]
+  const property = (name: string, value: string | undefined) =>
+    value === undefined
+      ? []
+      : [
+          tag('meta', [
+            ['property', name],
+            ['content', value],
+          ]),
+        ]
+  return [
+    ...named('description', meta.description),
+    ...property('og:title', meta.title),
+    ...property('og:description', meta.description),
+    ...property('og:type', meta.type),
+    ...property('og:site_name', meta.siteName),
+    ...property('og:image', meta.image),
+    ...(meta.description === undefined && meta.image === undefined && meta.title === undefined
+      ? []
+      : named('twitter:card', meta.image === undefined ? 'summary' : 'summary_large_image')),
+    ...property('article:published_time', meta.article?.published),
+    ...property('article:modified_time', meta.article?.modified),
+    ...named('robots', meta.robots),
+    ...(meta.alternates ?? []).map(({ hreflang, href }) =>
+      tag('link', [
+        ['rel', 'alternate'],
+        ['hreflang', hreflang],
+        ['href', href],
+      ]),
+    ),
+    ...(meta.jsonLd ?? []).map(
+      data =>
+        `<script ${META_ATTRIBUTE} type="application/ld+json">${serializeJsonScript(data)}</script>`,
+    ),
+  ].join('\n')
+}
+
+/**
+ * The Subscription entry that keeps the head's `meta` elements in step with
+ * the Model, so a move within the page (another post) changes its
+ * description too. It writes the head and sends no Message.
+ */
+export const metaEntry = <Model>(meta: (model: Model) => Meta) => ({
+  dependenciesSchema: Schema.String,
+  modelToDependencies: (model: Model) => metaMarkup(meta(model)),
+  dependenciesToStream: (markup: string) =>
+    Stream.drain(
+      Stream.fromEffect(
+        Effect.sync(() => {
+          const written = document.createElement('template')
+          written.innerHTML = markup
+          for (const old of document.head.querySelectorAll(`[${META_ATTRIBUTE}]`)) old.remove()
+          document.head.append(written.content)
+        }),
+      ),
+    ),
+})
 
 /**
  * Which part of the Model the browser owns, and what it starts from.
@@ -53,6 +166,11 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
    * with scripts off or not yet loaded.
    */
   readonly fallback?: 'server' | undefined
+  /**
+   * What the page says of itself, from the Model: rendered into the head on
+   * the server, checked like the view, and kept in step in the browser.
+   */
+  readonly meta?: ((model: Model) => Meta) | undefined
 }
 
 export type Start = 'now' | 'idle' | 'on-interaction'
@@ -134,6 +252,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     readonly start?: Start | undefined
     readonly deferrable?: ReadonlyArray<string> | undefined
     readonly fallback?: 'server' | undefined
+    readonly meta?: ((model: Model) => Meta) | undefined
   },
 ): ResumePlan<Model, Fields, Commands> => {
   const surfaces = config.surfaces ?? []
@@ -164,6 +283,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     start: config.start ?? 'now',
     deferrable: config.deferrable ?? [],
     ...(config.fallback === undefined ? {} : { fallback: config.fallback }),
+    ...(config.meta === undefined ? {} : { meta: config.meta }),
   }
 }
 

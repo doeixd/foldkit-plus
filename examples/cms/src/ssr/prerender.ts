@@ -19,16 +19,8 @@ import { openServer } from '../server/server.js'
 import { siteConfig } from '../content/siteConfig.js'
 import * as Site from '../apps/siteApp.js'
 import { plan } from './sitePlan.js'
-import { BLOG_LEDE } from '../views/siteView.js'
 import { memorySqlite } from '../server/sqlite-node.js'
 import { remoteClient, type Send } from '../server/transport.js'
-
-/** What the site says of itself where a page says nothing of its own. */
-export const SITE_DESCRIPTION =
-  'A blog, its studio and its server, built with Foldkit Plus: posts that explain how the demo is made.'
-
-/** The preview image every page offers a link preview. */
-export const IMAGE = `${ORIGIN}/og.jpg`
 
 /** One generated page: the file to write, under the build's output, and its HTML. */
 export interface Generated {
@@ -69,103 +61,8 @@ export const buildIdOf = (template: string): string => {
     .pathname
 }
 
-const escape = (text: string) =>
-  text
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-
-/** A description a search result can show: the first sentences, within 160 characters. */
-export const summary = (text: string): string => {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  if (flat.length <= 160) return flat
-  const cut = flat.slice(0, 157)
-  return `${cut.slice(0, cut.lastIndexOf(' '))}…`
-}
-
-/** What a page says of itself: a post its excerpt, a page its Hero's lead or first Text. */
-const describe = (model: Site.Model) => {
-  const post = Option.flatMap(Site.postRead(model), read => Site.firstOf(read.read(model)))
-  if (Option.isSome(post))
-    return {
-      title: post.value.title,
-      description: post.value.excerpt,
-      published: Option.fromNullOr(post.value.publishedAt),
-    }
-  if (model.route._tag === 'Blog')
-    return { title: 'The blog', description: BLOG_LEDE, published: Option.none<string>() }
-  const said = Option.flatMap(Site.pageDocument(model), document =>
-    Option.fromUndefinedOr(
-      Object.values(document.nodes)
-        .map(node => node.props['lead'] ?? node.props['body'])
-        .find((text): text is string => typeof text === 'string' && text !== ''),
-    ),
-  )
-  const title = Option.getOrElse(
-    Option.map(
-      Option.flatMap(Site.pageRead(model), read => Site.firstOf(read.read(model))),
-      page => page.title,
-    ),
-    () => 'Journal',
-  )
-  return {
-    title,
-    description: Option.getOrElse(said, () => SITE_DESCRIPTION),
-    published: Option.none<string>(),
-  }
-}
-
-/** The head a page adds: its description, its link preview, a post's article facts, and its styles. */
-const headFor = (model: Site.Model, html: string): string => {
-  const { title, description, published } = describe(model)
-  const url = `${ORIGIN}${Site.pathOf(model.route)}`
-  const said = escape(summary(description))
-  const article = Option.isSome(published)
-  const tags = [
-    `<meta name="description" content="${said}" />`,
-    `<meta property="og:site_name" content="Journal" />`,
-    `<meta property="og:type" content="${article ? 'article' : 'website'}" />`,
-    `<meta property="og:title" content="${escape(title)}" />`,
-    `<meta property="og:description" content="${said}" />`,
-    `<meta property="og:image" content="${IMAGE}" />`,
-    `<meta name="twitter:card" content="summary_large_image" />`,
-    ...Option.match(published, {
-      onNone: () => [],
-      onSome: at => [
-        `<meta property="article:published_time" content="${escape(at)}" />`,
-        // What a search engine reads of a post, as it would a published article.
-        `<script type="application/ld+json">${SSR.serializeJsonScript({
-          '@context': 'https://schema.org',
-          '@type': 'BlogPosting',
-          headline: title,
-          description: summary(description),
-          datePublished: at,
-          url,
-          image: IMAGE,
-        })}</script>`,
-      ],
-    }),
-    // The page's own styles, so its first paint is styled before any script runs.
-    `<style>${Style.usedIn(html)}</style>`,
-  ]
-  return tags.join('\n    ')
-}
-
-/**
- * The Model with everything the page reads: each active read prefetched in
- * turn, each over the Model the one before left. The route's read comes first
- * in `actives`, so the page's Blocks are asked for once its document is read.
- */
-const prepare = (model: Site.Model) =>
-  Effect.gen(function* () {
-    let current = model
-    for (const active of Object.values(Site.actives)) {
-      const projection = active.projectionOf(current)
-      if (Option.isSome(projection)) current = yield* Site.Data.prefetch(current, projection.value)
-    }
-    return current
-  })
+/** The page's own styles, so its first paint is styled before any script runs. */
+const stylesOf = (html: string): string => `<style>${Style.usedIn(html)}</style>`
 
 const urlAt = (path: string): Url => ({
   protocol: 'https:',
@@ -209,7 +106,9 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
   const generated: Array<Generated> = []
   for (const { path, modified } of paths) {
     const prepared = await Effect.runPromise(
-      prepare(Site.initial(urlAt(path)).model).pipe(Effect.provide(remote)),
+      Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives).pipe(
+        Effect.provide(remote),
+      ),
     )
     const config = siteConfig({
       // The prepared Model through the assembly's own `initial`, as `init` must return it.
@@ -228,7 +127,7 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
         template,
         origin: ORIGIN,
         paths: [path],
-        head: rendered => headFor(prepared, rendered.html),
+        head: rendered => stylesOf(rendered.html),
       }),
     )
     // `/site/blog` as `site/blog.html`: a static host serves it at the address without a slash.

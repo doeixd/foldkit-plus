@@ -35,10 +35,12 @@ import {
   allowedTags,
   codecOf,
   modelFrom,
+  metaMarkup,
   pathKey,
   plan,
   resume,
   routeOf,
+  serializeJsonScript,
   serving,
   startingFrom,
   staticRegion,
@@ -48,21 +50,6 @@ import {
   type ResumePlan,
   type RouteMatch,
 } from './shared.js'
-
-/**
- * JSON that is safe inside `<script type="application/json">`. Escaping `<`
- * keeps `</script`, `<!--` and `<script` out of it, as Foldkit escapes its
- * Flags. U+2028 and U+2029 are escaped too: they are fine in JSON and break a
- * reader that treats the text as JavaScript.
- */
-const LINE_SEPARATOR = String.fromCharCode(0x2028)
-const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029)
-
-export const serializeJsonScript = (value: unknown): string =>
-  JSON.stringify(value)
-    .replaceAll('<', '\\u003c')
-    .replaceAll(LINE_SEPARATOR, '\\u2028')
-    .replaceAll(PARAGRAPH_SEPARATOR, '\\u2029')
 
 /** The projections of the plan's Surfaces that are active for `model`. */
 const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
@@ -421,6 +408,8 @@ const eagerEntries = <Model, Fields extends Schema.Struct.Fields>(
 export interface RenderedPage {
   readonly rendered: RenderedApplication
   readonly envelope: string
+  /** The head markup of the plan's `meta`, empty without one. */
+  readonly meta: string
   /**
    * Each element whose handler for an event is a function, marked `*`: the
    * page cannot answer that event before the live runtime boots.
@@ -562,9 +551,11 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     if (Result.isFailure(encoded)) {
       return yield* new ResumeUnsafe({ reason: 'UnencodableBinding', message: encoded.failure })
     }
+    const meta = plan.meta === undefined ? '' : metaMarkup(plan.meta(started.model))
     const differing = [
       ...(full.html.replace(FLAGS_SCRIPT, '') === rendered.html ? [] : ['body']),
       ...HEAD_FIELDS.filter(field => full[field] !== rendered[field]),
+      ...(plan.meta === undefined || metaMarkup(plan.meta(browser)) === meta ? [] : ['meta']),
       ...changedBindings(
         servedBindings,
         encoded.success,
@@ -579,6 +570,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     }
     return {
       rendered,
+      meta,
       envelope: envelopeOf(plan, payload, {
         ...(options.url === undefined
           ? {}
@@ -629,18 +621,57 @@ const withHead = (template: string, extra: string): string => {
 }
 
 /**
+ * Foldkit fills `canonical` and `og:url` only into a tag the template already
+ * has, and leaves the page without one otherwise. A render that sets either
+ * and a template without its tag is refused, naming the tag.
+ */
+const FILLED_TAGS = [
+  {
+    field: 'canonical',
+    tag: '<link rel="canonical" href="">',
+    at: /<link\b[^>]*\brel\s*=\s*["']?canonical["'\s>]/i,
+  },
+  {
+    field: 'ogUrl',
+    tag: '<meta property="og:url" content="">',
+    at: /<meta\b[^>]*\bproperty\s*=\s*["']?og:url["'\s>]/i,
+  },
+] as const
+
+const withFilledTags = (template: string, rendered: RenderedApplication): string => {
+  const missing = FILLED_TAGS.filter(
+    ({ field, at }) => rendered[field] !== undefined && !at.test(template),
+  )
+  if (missing.length > 0) {
+    throw new Error(
+      `foldkit-ssr: the view sets ${missing.map(({ field }) => field).join(' and ')}, and the template has no ${missing.map(({ tag }) => tag).join(' or ')} for Foldkit to fill: add it to the template's head`,
+    )
+  }
+  return template
+}
+
+/** The plan's `meta`, then what `head` adds, one line apart. */
+const headOf = (
+  result: { readonly rendered: RenderedApplication; readonly meta: string },
+  head: Head | undefined,
+): string => [result.meta, head?.(result.rendered) ?? ''].filter(markup => markup !== '').join('\n')
+
+/**
  * The page to serve: the rendered application in the template, with the
- * envelope before `</body>` and `head`'s markup, if any, before `</head>`. Not
- * in the rendered HTML, which `injectIntoTemplate` requires to hold only the
- * root and Foldkit's payload.
+ * envelope before `</body>`, and the plan's `meta` and `head`'s markup, if
+ * any, before `</head>`. Not in the rendered HTML, which `injectIntoTemplate`
+ * requires to hold only the root and Foldkit's payload.
  */
 const page = (
   template: string,
-  result: { readonly rendered: RenderedApplication; readonly envelope: string },
+  result: { readonly rendered: RenderedApplication; readonly envelope: string; readonly meta: string },
   options: { readonly head?: Head | undefined } = {},
 ): string =>
   injectIntoTemplate(
-    withHead(withEnvelope(template, result.envelope), options.head?.(result.rendered) ?? ''),
+    withHead(
+      withEnvelope(withFilledTags(template, result.rendered), result.envelope),
+      headOf(result, options.head),
+    ),
     result.rendered,
   )
 
@@ -799,7 +830,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
 ): EntryModule => {
   // Checked once, when the entry is made, rather than failing every request.
   withEnvelope(options.template, '')
-  if (options.head !== undefined) withHead(options.template, '<!-- head -->')
+  if (options.head !== undefined || plan.meta !== undefined) {
+    withHead(options.template, '<!-- head -->')
+  }
   const headOf = options.head
   const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
   const answer = async (request: Request): Promise<Response> => {
@@ -826,7 +859,9 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
               ...flagged,
             })
         // In the Effect, so a `head` that throws is a defect, answered as a failed render is.
-        const head = headOf === undefined ? '' : headOf(result.rendered)
+        const head = [result.meta, headOf === undefined ? '' : headOf(result.rendered)]
+          .filter(markup => markup !== '')
+          .join('\n')
         return { ...result, head }
       }),
     )
@@ -841,7 +876,10 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       return plainText(500, 'The page could not be rendered.')
     }
     warnUnnamed(config, plan, exit.value.unnamed)
-    const template = withHead(withEnvelope(options.template, exit.value.envelope), exit.value.head)
+    const template = withHead(
+      withEnvelope(withFilledTags(options.template, exit.value.rendered), exit.value.envelope),
+      exit.value.head,
+    )
     return toResponse(
       template,
       Rendered(exit.value.rendered),
@@ -1090,6 +1128,7 @@ export const SSR = {
 
 export {
   FOLDKIT_APP_ATTRIBUTE,
+  META_ATTRIBUTE,
   RESUME_ATTRIBUTE,
   STATIC_ATTRIBUTE,
   Resume,
@@ -1097,8 +1136,10 @@ export {
   BINDING_ATTRIBUTE,
   FALLBACK_FIELD,
   SLOT_ATTRIBUTE,
+  metaMarkup,
   type DecodedBinding,
   type Loadable,
+  type Meta,
   type ResumableBuilder,
   type ResumableConfig,
   type ResumePart,

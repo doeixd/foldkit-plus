@@ -202,6 +202,39 @@ Since Foldkit 0.163 nothing gives `canonical` a default from the URL, so a page
 that wants one derives it from the route in its Model, as it does its `title`,
 and sends the route in `state`.
 
+Foldkit fills `canonical` and `og:url` only into tags the template already has
+and adds none, so a render that sets either into a template without
+`<link rel="canonical" href="">` or `<meta property="og:url" content="">` is
+refused, naming the tag.
+
+### What a page says of itself: `meta`
+
+A search result and a link preview read more than Foldkit's `Document`: a
+description, an image, Open Graph, a post's dates and structured data. The
+plan's `meta` gives them from the Model:
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.post),
+  meta: model => ({
+    description: model.post.excerpt,
+    type: 'article',
+    article: { published: model.post.publishedAt },
+    jsonLd: [{ '@context': 'https://schema.org', '@type': 'BlogPosting', headline: model.post.title }],
+  }),
+})
+```
+
+`SSR.render` writes the tags (`description`, `og:*`, `twitter:card`,
+`article:*`, `robots`, `link rel="alternate"`, and one JSON-LD script per
+entry) before `</head>`, every value escaped, and checks them like the view:
+a `meta` that reads a field `state` does not send is `ViewDependsOnUnsentState`.
+`SSR.hydrate` keeps them in step with the Model, so a move to another post
+replaces the description too. Each carries `data-foldkit-meta`
+(`META_ATTRIBUTE`), which is how the browser finds the ones to replace; leave
+such tags out of the template.
+
 ## Serving pages
 
 ### Through Foldkit's fetch handler

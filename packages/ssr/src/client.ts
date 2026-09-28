@@ -14,6 +14,7 @@ import {
   STATIC_ATTRIBUTE,
   bindings,
   bindingsAndEvents,
+  metaEntry,
   plan,
   resume,
   routeOf,
@@ -64,6 +65,13 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   plan: ResumePlan<Model, Fields>,
   options: { readonly buildId: string },
 ): void => {
+  const planMeta = plan.meta
+  if (planMeta !== undefined) {
+    config = {
+      ...config,
+      subscriptions: { ...config.subscriptions, 'foldkit-ssr.meta': metaEntry(planMeta) },
+    }
+  }
   const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
   if (root === null) {
     run(makeApplication(config as never))
@@ -257,10 +265,13 @@ export const Resume = { builder, view, bindings, listen }
 export const SSR = { plan, resume, hydrate, static: staticRegion, serving }
 
 export {
+  META_ATTRIBUTE,
   RESUME_ATTRIBUTE,
   STATIC_ATTRIBUTE,
   ResumeRefused,
+  metaMarkup,
   type Loadable,
+  type Meta,
   type ResumableConfig,
   type ResumePart,
   type ResumePlan,

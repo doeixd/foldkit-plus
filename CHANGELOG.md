@@ -56,6 +56,16 @@ version changed; `pnpm` skips versions already in the registry.
   Blocks on its document) is made too. Past the bound (8 passes) it fails with
   `RemoteUnsatisfied`, naming the Surfaces still reading.
 
+- **`foldkit-ssr`, `SSR.plan({ meta: model => Meta })`:** what a page says of
+  itself to a search engine and a link preview (description, `og:*`,
+  `twitter:card`, `article:*`, `robots`, alternates, JSON-LD), from the Model.
+  The render writes it before `</head>`, escaped, and checks it like the view;
+  `SSR.hydrate` replaces it as the Model changes, so a move to another post
+  updates its description. `SSR.page` and `SSR.entry` now refuse a render that
+  sets `canonical` or `ogUrl` into a template without the tag Foldkit fills,
+  which Foldkit would otherwise leave out silently. The CMS example's
+  hand-built head is now its plan's `meta`.
+
 - **`foldkit-bundle`, `onMessage`:** a placement's `onMessage` (and
   `(message, key)` on a collection) observes each child Message as a parent
   Step after the child and its `onOut`; `placements.update(own)` types `own`'s
