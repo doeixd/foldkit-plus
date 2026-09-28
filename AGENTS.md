@@ -501,12 +501,17 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **Foldkit fills head tags into the template; it adds none.** A view's
   `canonical` reached no generated page until the template had an empty
   `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.
-- **An application names its starting address twice.** `makeApplication`
-  with routing sends `onUrlChange` for the starting URL after `init` has
-  already read it; `makeElement`, which the tests embed, sends nothing. A
-  new-entry reload cleared its pending state on that repeat and showed "That
-  entry does not exist." while every test passed. A `UrlChanged` handler must
-  be a no-op for the address the Model already shows, pending work included.
+- **A URL a Command writes comes back as a `UrlChanged`.** Foldkit's
+  `pushUrl`/`replaceUrl` dispatch `foldkit:urlchange`, which the runtime
+  answers with `onUrlChange`; `makeApplication` itself sends nothing for the
+  starting URL (0.163: `navigation/index.js`, `runtime/browserListeners.js`).
+  So a Command that rewrites the URL at start, or a URL mirror's write, hands
+  `update` the address the Model already shows. A new-entry reload in the CMS
+  cleared its pending state on that repeat and showed "That entry does not
+  exist." while every test passed, since `makeElement` wires no navigation. A
+  `UrlChanged` for the shown address must not undo anything, pending work
+  included: make it a no-op unless the app deliberately treats re-navigation
+  as an event (Route Transitions logs "Stayed within route").
 - **A Mount reads its args once.** `OnMount` acquires on snabbdom's `insert` and releases on
   `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
   passes new args to the same element changes nothing, so a block handle's anchor stayed beside
