@@ -7,9 +7,13 @@
  * - **Building a projection** (`Data.query`) happens on every Model change,
  *   and re-encodes its input and re-walks its Selection each time. It looked
  *   like the hot path and is the cheapest thing here, flat in page size.
- * - **Reading one after an unrelated write** re-assembles and re-decodes every
- *   visible row, because the memo is keyed on the store object and any write
- *   makes a new one. It is linear in the page, and it is the real cost.
+ * - **Reading one after an unrelated write** re-assembles every visible row,
+ *   because the memo is keyed on the store object and any write makes a new
+ *   one. It is linear in the page, and it is the real cost. A row whose data
+ *   is equal keeps its decoded value, so it is not decoded again.
+ * - **The read entry after a change to the application alone** reuses its
+ *   plan, which is keyed on the Remote model and what is asked; before it
+ *   was, it cost what `Remote.plan` does, every keystroke.
  *
  * Both are measured over a Selection that reaches through a relation, since
  * every real Selection in this repository does and assembly follows relations.
@@ -102,6 +106,7 @@ const scenario = (page: number) => {
       { entity: 'User', id: 'u1', fields: ['name'] },
     ],
     result: {
+      settled: [],
       entities: [
         ...rows.map(row => ({ entity: 'Project', id: row.id, values: row })),
         { entity: 'User', id: 'u1', values: { name: 'Ada' } },
@@ -111,7 +116,10 @@ const scenario = (page: number) => {
   })
 
   if (projects.read(loaded)._tag !== 'Ready') throw new Error('fixture is not Ready')
-  return { projects, loaded, page }
+  const entry = Data.subscriptions({
+    list: App.surface(`List${page}`, { model: () => ({ projects }) }),
+  })['list.read']
+  return { projects, loaded, page, entry }
 }
 
 let unrelated = 0
@@ -121,12 +129,15 @@ const write = (loaded: Model): Model =>
   Data.reduce(loaded, {
     _tag: 'ReadReceived',
     requests: [{ entity: 'User', id: `other${unrelated}`, fields: ['name'] }],
-    result: { entities: [{ entity: 'User', id: `other${unrelated++}`, values: { name: 'x' } }] },
+    result: {
+      settled: [],
+      entities: [{ entity: 'User', id: `other${unrelated++}`, values: { name: 'x' } }],
+    },
     now: 0,
   })
 
 for (const size of [25, 100, 400]) {
-  const { projects, loaded } = scenario(size)
+  const { projects, loaded, entry } = scenario(size)
 
   describe(`a page of ${size} rows`, () => {
     benchmark('Data.query — build one projection', () => {
@@ -147,6 +158,10 @@ for (const size of [25, 100, 400]) {
 
     benchmark('Remote.plan — what a subscription asks', () => {
       Remote.plan(Data, loaded, projects)
+    })
+
+    benchmark('the read entry, after a change to the application alone', () => {
+      entry.modelToDependencies({ ...loaded })
     })
   })
 }

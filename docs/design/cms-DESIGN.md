@@ -1,5 +1,8 @@
 # CMS design
 
+> **Implementation status, checked 2026-09-27:** Built as `foldkit-cms` and `foldkit-cms-drizzle`: all eight steps of §13. §14's later items are not. See the
+> [design index](./README.md#where-each-design-stands).
+
 Status: design, nothing built. Written 2026-09-19, after the Entity, Form, and
 Crud work it stands on ([entity-DESIGN.md](./entity-DESIGN.md) §50 left this
 open, and said not to start it until the rest existed; it now does). Code in

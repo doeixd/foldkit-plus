@@ -77,7 +77,10 @@ const redo = <Value>(model: HistoryModel<Value>): HistoryModel<Value> => {
   }
 }
 
-const clear = <Value>(model: HistoryModel<Value>): HistoryModel<Value> => start(model.present)
+const clear = <Value>(model: HistoryModel<Value>): HistoryModel<Value> =>
+  model.past.length === 0 && model.future.length === 0 && model.group === null
+    ? model
+    : start(model.present)
 
 const checkCapacity = (name: string, capacity: number): number => {
   // A negative or fractional capacity would silently keep a wrong-sized past;

@@ -12,7 +12,10 @@ import {
   emptyStore,
   entityKey,
   markStale,
+  plan,
+  setUnavailable,
   tombstone,
+  visibleStore,
   writeEntity,
   type RemoteMessage,
 } from '../src/index.js'
@@ -166,5 +169,95 @@ describe('a value ageing out under staleWhileRevalidate', () => {
     expect(before.requirements).toEqual(after.requirements)
     expect(before).not.toEqual(after)
     expect(after.expires).toEqual({ at: 1_150, due: [request] })
+  })
+})
+
+describe('a value a mutation answered', () => {
+  it('is as fresh as the answer, so the read entry does not ask for it again', () => {
+    let clock = 1_200
+    const read = Data.subscriptions(
+      { page: Page },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
+    )['page.read']
+    // Read at 0, so aged out by 1,200: the plan asks for it.
+    const aged = knownAt(0)
+    expect(read.modelToDependencies(aged).requirements).toEqual([request])
+
+    const answered = Data.reduce(Data.reduce(aged, { _tag: 'MutationStarted', requestId: 'm1' }), {
+      _tag: 'MutationSucceeded',
+      requestId: 'm1',
+      entities: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
+      now: 1_100,
+    })
+    expect(read.modelToDependencies(answered)).toMatchObject({
+      requirements: [],
+      expires: { at: 2_100, due: [request] },
+    })
+    clock = 2_101
+    expect(read.modelToDependencies(answered).requirements).toEqual([request])
+  })
+})
+
+describe('a field the server settled without a value', () => {
+  // Present fields are not what is asked; the one asked for was withheld.
+  const withheld: Model = {
+    ...initial,
+    remote: {
+      ...initial.remote,
+      entities: setUnavailable(
+        writeEntity(emptyStore, p1, { id: 'p1' }, 0),
+        [[p1, ['name']]],
+        true,
+      ),
+    },
+  }
+
+  it('ages out with its entity, so a timer asks for it again', () => {
+    expect(deadlineOf(withheld.remote.entities, [request], { now: 500, freshness: 1_000 })).toEqual(
+      {
+        at: 1_000,
+        due: [request],
+      },
+    )
+  })
+
+  it('is asked for again once its entity ages out, though nothing else changed', () => {
+    let clock = 500
+    const read = Data.subscriptions(
+      { page: Page },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
+    )['page.read']
+    expect(read.modelToDependencies(withheld).requirements).toEqual([])
+    clock = 2_000
+    expect(read.modelToDependencies({ ...withheld }).requirements).toEqual([request])
+  })
+})
+
+describe('a value a pending request patches', () => {
+  const freshness = { now: 1_500, freshness: 1_000 }
+  const layered = {
+    layers: [
+      {
+        id: 'm1',
+        patches: [
+          { entity: 'Project', id: 'p1', values: { name: 'Pending' } },
+          { entity: 'Project', id: 'm1.tmp', values: { name: 'Created' } },
+        ],
+      },
+    ],
+    overlays: [],
+  }
+
+  it('is as fresh as the value under it', () => {
+    const visible = visibleStore(knownAt(1_000).remote.entities, layered)
+    expect(plan(visible, [request], { freshness })).toEqual([])
+    expect(deadlineOf(visible, [request], freshness)).toEqual({ at: 2_000, due: [request] })
+  })
+
+  it('is not the server’s to age when only the request holds it', () => {
+    const created = { ...request, id: 'm1.tmp' }
+    const visible = visibleStore(knownAt(1_000).remote.entities, layered)
+    expect(plan(visible, [created], { freshness })).toEqual([])
+    expect(deadlineOf(visible, [created], freshness)).toBeUndefined()
   })
 })

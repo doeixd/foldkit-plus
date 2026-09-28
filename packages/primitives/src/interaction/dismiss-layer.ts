@@ -65,25 +65,38 @@ export const toDismiss = (
 
 type Return = Update.ReturnWithOutMessage<Model, Message, Dismiss>
 
+const sameLayers = (a: ReadonlyArray<Layer>, b: ReadonlyArray<Layer>): boolean =>
+  a.length === b.length &&
+  a.every(
+    (layer, index) =>
+      layer.id === b[index]!.id &&
+      layer.outside === b[index]!.outside &&
+      layer.escape === b[index]!.escape,
+  )
+
 export const bundle = Bundle.make('DismissLayer', {
   Model,
   Message,
   init: () => ({ model: { layers: [] } }),
-  update: (_model, message): Return =>
-    Message.match<Return>(message, {
+  update: (model, message): Return => {
+    // Every press in the document reports the layers, which are usually the
+    // ones already held: keep the Model, or each click re-renders the page.
+    const next = sameLayers(model.layers, message.layers) ? model : { layers: message.layers }
+    return Message.match<Return>(message, {
       PressedAt: ({ layers, inside }) => {
         const ids = toDismiss(layers, inside)
         return ids.length === 0
-          ? { model: { layers } }
-          : { model: { layers }, outMessage: Dismiss.make({ ids }) }
+          ? { model: next }
+          : { model: next, outMessage: Dismiss.make({ ids }) }
       },
       PressedEscape: ({ layers }) => {
         const top = layers[layers.length - 1]
         return top !== undefined && top.escape
-          ? { model: { layers }, outMessage: Dismiss.make({ ids: [top.id] }) }
-          : { model: { layers } }
+          ? { model: next, outMessage: Dismiss.make({ ids: [top.id] }) }
+          : { model: next }
       },
-    }),
+    })
+  },
   subscriptions: () =>
     Subscription.make<Model, Message>()(() => ({
       document: Subscription.persistent(documentEvents()),

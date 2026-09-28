@@ -435,6 +435,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
   `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
 
+- **A no-op must return the Model it was given.** Foldkit renders only when the root Model
+  changes identity, and `Update.foldChild` writes the child back unconditionally, so a
+  `{ ...model }` equal copy (or a placement that re-wrote an unchanged child) rendered the
+  whole page: every `pointerdown` did so through DismissLayer. Test with `toBe(model)`.
+
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
@@ -754,10 +759,15 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   `RunMark` imported for nothing, and seven more dead imports had built up in the
   richtext packages. After moving or deleting code, run
   `npx tsc -p packages/<name> --noEmit --noUnusedLocals` over the packages touched.
-- **Run vitest from the repository root.** Inside `packages/richtext`, `npx vitest run`
-  finds no config of its own, so a test importing `foldkit-richtext` read the built
-  `dist`: a fixed transform still failed its test, and a broken one would have passed.
-  The root `vitest.config.ts` is what maps package names to `src`.
+- **Run a test from the repo root, not from its package.** The root
+  `vitest.config.ts` aliases every workspace package to its `src`; run from
+  `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
+  and a demo line that passed under `tsx` failed its test for no reason in the
+  change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest does not typecheck.** A demo line mapped over the dependencies of a
+  `Data.subscriptions` entry (typed `any`) passed its test and failed
+  `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
+  example, run the root typecheck, not only its test.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.

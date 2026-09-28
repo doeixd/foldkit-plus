@@ -1645,9 +1645,15 @@ importers:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
       effect:
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
@@ -1666,6 +1672,9 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
+      playwright-core:
+        specifier: 1.63.0
+        version: 1.63.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -13366,8 +13375,7 @@ snapshots:
       exsolve: 1.1.1
       pathe: 2.0.3
 
-  playwright-core@1.63.0:
-    optional: true
+  playwright-core@1.63.0: {}
 
   playwright@1.63.0:
     dependencies:

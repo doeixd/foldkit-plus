@@ -12,6 +12,7 @@ import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 /** The slice of a WebSocket the bundle needs; satisfied by the platform socket and test doubles. Handler events are `any`: the DOM and `ws` type them differently, and only `data` is read. */
 export interface SocketHandle {
@@ -116,14 +117,19 @@ export const websocket = <const Name extends string>(config: {
       message,
     ): Update.ReturnWithOutMessage<WebSocketModel, WebSocketMessage, never, SocketService> =>
       WebSocketMessage.match(message, {
-        Connecting: () => ({ model: { ...model, status: 'connecting' as const } }),
-        Opened: () => ({ model: { ...model, status: 'open' as const, lastError: null } }),
-        Received: () => ({ model }),
-        Closed: () => ({ model: { ...model, status: 'closed' as const } }),
-        Failed: ({ message }) => ({
-          model: { ...model, status: 'closed' as const, lastError: message },
+        Connecting: () => ({ model: unlessSame(model, { ...model, status: 'connecting' }) }),
+        Opened: () => ({
+          model: unlessSame(model, { ...model, status: 'open', lastError: null }),
         }),
-        SendFailed: ({ message }) => ({ model: { ...model, lastError: message } }),
+        Received: () => ({ model }),
+        // The close that follows an error, and the release after it, find it closed.
+        Closed: () => ({ model: unlessSame(model, { ...model, status: 'closed' }) }),
+        Failed: ({ message }) => ({
+          model: unlessSame(model, { ...model, status: 'closed', lastError: message }),
+        }),
+        SendFailed: ({ message }) => ({
+          model: unlessSame(model, { ...model, lastError: message }),
+        }),
         Sent: () => ({ model }),
       }),
     resources: () =>
@@ -187,11 +193,13 @@ export const websocket = <const Name extends string>(config: {
     > =>
       Subscription.make<WebSocketModel, WebSocketMessage, SocketService>()(entry => ({
         incoming: entry(
-          { status: Schema.Literals(['closed', 'connecting', 'open']) },
+          // Connecting to open is no reason to restart: the stream reads the
+          // same queue, and replays an open it attached too late to see.
+          { live: Schema.Boolean },
           {
-            modelToDependencies: model => ({ status: model.status }),
-            dependenciesToStream: ({ status }) =>
-              status === 'closed'
+            modelToDependencies: model => ({ live: model.status !== 'closed' }),
+            dependenciesToStream: ({ live }) =>
+              !live
                 ? Stream.empty
                 : Stream.unwrap(
                     Effect.matchEffect(Socket.get, {

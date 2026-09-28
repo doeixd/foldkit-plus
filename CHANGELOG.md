@@ -209,6 +209,18 @@ version changed; `pnpm` skips versions already in the registry.
   a History of its own. Undo is one mechanism in the repository, not two.
 - **`foldkit-ssr`: its build configuration references the packages it builds
   from,** so another project can reference it.
+- **`foldkit-ssr`: `SSR.render`'s result lists `unnamed`,** each element and
+  event whose handler is a function the page cannot name
+  (`{ element: 'button#point', event: 'pointerdown' }`). On a page that waits
+  to boot, `SSR.entry` and `SSR.generate` warn about each once per process.
+- **`foldkit-ssr`: `pnpm bench:manifest`** measures the resume manifest's size
+  and decode time at 10, 100 and 1,000 rows; the SSR plan records the table.
+  `pnpm bench:manifest:browser` times the same page in Chromium.
+- **`foldkit-ssr`: the envelope lists the events its markers name,** and
+  `Resume.listen` takes them as `events`, so a deferred page no longer reads
+  every element's attributes to find them. The page's list of bindings is
+  checked by hand rather than through a Schema. At a thousand rows, decoding
+  and listening take 12 ms in Chromium, down from 22.
 
 - **`foldkit-richtext`: `Replicated`, collaborative rich text without a CRDT.** A
   document state where every character has an identity: `translate` restates an
@@ -244,6 +256,67 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-ssr`: Messages answered before boot reach `update` before any
+  other Message,** instead of being replayed through a Subscription after the
+  first render. An event dispatched in the task that boots the page, such as
+  the rest of a burst of typing, reached the runtime before the replay, so
+  the text ended on its first character. The runtime still starts from the
+  resumed Model, so its first render is the served markup; its `update` is
+  wrapped to run the answered Messages ahead of the first one it processes.
+  The `foldkit-ssr.replay` entry is gone.
+- **`foldkit-ssr`: deferred boot no longer depends on `hydrate` rendering its
+  first frame before it returns.** Until that frame commits the page keeps
+  answering from its markers, and it then sends the live page the events only
+  it can answer.
+- **`foldkit-mirror`: `reduce` returns the Model it was given when the store
+  holds what the Model already does,** so the URL change a mirror's own write
+  causes, a navigation that leaves its keys alone, and a restore that finds
+  nothing new no longer render the page again. A structured field's text is
+  remembered by the value's identity, so the write entry no longer serializes
+  it on every Model change.
+- **`foldkit-bundle`: a placement or collection item returns the parent Model
+  itself when the child's `update` returns its own Model,** so a Message that
+  changes nothing renders nothing.
+- **`foldkit-primitives`: a Message that changes nothing returns the Model it
+  was given,** across state, time, motion, media, interaction, device, network
+  and event primitives, and the navigation and selection Behaviors describe
+  their items once per render instead of once per item. `Virtual` caches its
+  row offsets per keys array and heights record. `MediaStream`'s `Started`
+  while live no longer stays at `requesting`, and `Presence`'s `Hide` while
+  hidden no longer shows the content for the hide duration.
+- **`foldkit-remote`: the common Messages that change nothing return the
+  Model they were given,** so `Data.reduce` and the wiring keep the application's root on a
+  duplicate live event, a repeated `ReadStarted`, an empty `Hydrated`, or a
+  retention pass that collects nothing. An entity's or list row's decoded
+  value is the same object after a refetch or live patch that brought equal
+  data to every field of its entity, so a keyed row's lazy view does not
+  re-run. The live entry no longer closes and reopens its stream on every
+  event, and a pending request no longer rebuilds the visible store on each
+  overlay change. A list read now shows a live insert
+  or an optimistic connection change that wrote no entity; it used to keep
+  the list from before it. The unused `shouldWake` export is removed.
+- **`foldkit-remote`: `MutationSucceeded` carries `now`,** the clock reading of
+  the answer, and the entities it writes are dated by it. They were dated 0, so
+  under a freshness policy every value a mutation wrote was already expired and
+  read again at once, and one a read had just dated was set back. `Data.mutate`
+  and `Remote.mutateInto` take a `now` option (default `Date.now`), as
+  `ObserveOptions` and `LiveOptions` do. `settleSuccess` and
+  `reconcileMutation` take the answer as one `MutationAnswer` object
+  (`{ entities, deleted?, now }`, plus `connections?` for `settleSuccess`)
+  instead of positional arguments, so the clock cannot be left out. A
+  hand-built `MutationSucceeded` adds the field, and a stored one without it
+  no longer decodes.
+- **`foldkit-remote`: the read entry plans once per Remote state and query.** A
+  Model change the Remote model is not part of, such as typing in a field,
+  reuses the plan until the next freshness deadline instead of walking every
+  row again: about 1 ms to 0.02 ms per change for a list of 400 rows.
+- **`foldkit-remote`: freshness follows what the server said and when.** A
+  pending optimistic patch keeps the date of the value under it, so under a
+  freshness policy a request in flight no longer makes a fresh entity read as
+  expired and refetch it; an entity only a request holds (a temporary id) is
+  never aged, planned or timed. A field the server settled without a value
+  now ages out with its entity on the read entry's timer, instead of waiting
+  for an unrelated Model change. `EntityWrite` takes an optional `updatedAt`.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

@@ -1,5 +1,8 @@
 # Foldkit Plus: Reusing Effect Infrastructure in Sync and Durable
 
+> **Implementation status, checked 2026-09-27:** The decision holds and `foldkit-durable` uses Effect SQL; the prototypes are unbuilt and the four upstream PRs were never submitted. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** design review / upstream integration plan  
 **Date:** September 2026  
 **Target packages:** \`foldkit-sync\`, \`foldkit-durable\`  

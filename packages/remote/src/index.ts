@@ -100,6 +100,7 @@ import {
   unavailableOf,
   type Page,
 } from './selection.js'
+import { sameData } from './data.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
 import {
   QueryRequest,
@@ -258,6 +259,8 @@ export interface DomainMutateOptions {
         readonly tempId: string
       }) => ReadonlyArray<OptimisticOperation>)
     | undefined
+  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`. */
+  readonly now?: (() => number) | undefined
 }
 
 /** A Foldkit Subscription entry of the Remote domain, emitting its Messages through `RemoteClient`. */
@@ -708,14 +711,16 @@ const confirmed = <AppModel, Store extends RemoteModel, P extends Projection<App
 })
 
 // The visible store is recomputed only when the base store or the layers
-// change, so reads and plans across renders of one Model share it.
-const visibleStores = new WeakMap<OptimisticState, WeakMap<EntityStore, EntityStore>>()
+// change, so reads and plans across renders of one Model share it. Keyed on
+// the layers rather than the whole optimistic state, which also changes with
+// every overlay (a live insert, a page pruning one) that no layer is part of.
+const visibleStores = new WeakMap<object, WeakMap<EntityStore, EntityStore>>()
 
 const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): EntityStore => {
-  let byStore = visibleStores.get(optimistic)
+  let byStore = visibleStores.get(optimistic.layers)
   if (byStore === undefined) {
     byStore = new WeakMap()
-    visibleStores.set(optimistic, byStore)
+    visibleStores.set(optimistic.layers, byStore)
   }
   let visible = byStore.get(entities)
   if (visible === undefined) {
@@ -725,11 +730,6 @@ const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): Ent
   return visible
 }
 
-// A read's result per store snapshot. `Remote.storeOf` is shared across every
-// read of one Model state, so equal reads of one render assemble and decode
-// once and return one value (a view may compare by identity). A query read
-// also depends on its connection, which changes independently of the store,
-// so it keys on that object too. Weak on both, bounded by what is read.
 /**
  * `Failed` naming a field the server settled without a value, when one is
  * among what `relation` reads of the entity; otherwise nothing, and the store
@@ -753,28 +753,74 @@ const unavailableFailure = (
       }
 }
 
-const readResults = new WeakMap<object, WeakMap<object, Map<string, unknown>>>()
+/**
+ * A row's decoded value, kept while the data it was assembled from is the same,
+ * so a refetch or live patch that brought equal data hands a view the object it
+ * already rendered. Keyed on the row's own values object, which the store keeps
+ * across equal writes; a relation's targets are covered by comparing what was
+ * assembled.
+ */
+const decodedRows = new WeakMap<
+  object,
+  {
+    readonly decode: (values: unknown) => Result.Result<unknown, Schema.SchemaError>
+    readonly rows: WeakMap<object, { readonly values: unknown; readonly decoded: unknown }>
+  }
+>()
 
-const memoRead = <T>(snapshot: object, by: object, key: string, compute: () => T): T => {
-  let byScope = readResults.get(snapshot)
-  if (byScope === undefined) {
-    byScope = new WeakMap()
-    readResults.set(snapshot, byScope)
+const decodeRow = <Value>(
+  schema: Schema.Codec<Value, unknown, never, never>,
+  source: object,
+  values: unknown,
+): Result.Result<Value, Schema.SchemaError> => {
+  let bySchema = decodedRows.get(schema)
+  if (bySchema === undefined) {
+    bySchema = { decode: Schema.decodeUnknownResult(schema), rows: new WeakMap() }
+    decodedRows.set(schema, bySchema)
   }
-  let results = byScope.get(by)
-  if (results === undefined) {
-    results = new Map()
-    byScope.set(by, results)
+  const cached = bySchema.rows.get(source)
+  if (cached !== undefined && sameData(cached.values, values)) {
+    return cached.decoded as Result.Result<Value, Schema.SchemaError>
   }
-  if (results.has(key)) return results.get(key) as T
+  const decoded = bySchema.decode(values)
+  bySchema.rows.set(source, { values, decoded })
+  return decoded as Result.Result<Value, Schema.SchemaError>
+}
+
+interface ReadScope {
+  readonly inner: WeakMap<object, ReadScope>
+  readonly results: Map<string, unknown>
+}
+
+const readResults: ReadScope = { inner: new WeakMap(), results: new Map() }
+
+// A read's result per snapshot of everything it reads. `Remote.storeOf` is
+// shared across every read of one Model state, so equal reads of one render
+// assemble and decode once and return one value (a view may compare by
+// identity). A query read also depends on its connection and the overlays,
+// which change independently of the store, so it keys on those too. Weak on
+// every scope, bounded by what is read.
+const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => T): T => {
+  let scope = readResults
+  for (const by of scopes) {
+    let inner = scope.inner.get(by)
+    if (inner === undefined) {
+      inner = { inner: new WeakMap(), results: new Map() }
+      scope.inner.set(by, inner)
+    }
+    scope = inner
+  }
+  if (scope.results.has(key)) return scope.results.get(key) as T
   const value = compute()
-  results.set(key, value)
+  scope.results.set(key, value)
   return value
 }
 
 export interface MutateOptions {
   /** What the request changes before the server answers; released when it settles. */
   readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
+  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`. */
+  readonly now?: (() => number) | undefined
 }
 
 /** The default `toMessage`: the application reduces `RemoteMessage` itself. */
@@ -1231,6 +1277,14 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     Effect.map(readMessage(requirements, now), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
     Effect.map(queryMessage(query), toMessage)
+  // A plan is a function of the Remote model, what is asked, and the clock only
+  // until the next value ages out (`expires`, which `deadlineOf` computes as
+  // exactly that moment), so a Model change the Remote model is not part of
+  // (typing in a field) reuses it rather than walking every row again.
+  const planned = new WeakMap<
+    RemoteModel,
+    Map<string, { readonly until: number; readonly dependencies: ReadDependencies }>
+  >()
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
@@ -1240,21 +1294,33 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     }),
     modelToDependencies: model => {
       const remote = bound.store.get(model)
-      const planned = planAsked(remote, askedOf(model), RemotePolicy.toPlan(policy, now()))
-      return {
+      const asked = askedOf(model)
+      const askedKey = stableStringify(asked)
+      const at = now()
+      let byAsked = planned.get(remote)
+      const known = byAsked?.get(askedKey)
+      if (known !== undefined && at < known.until) return known.dependencies
+      const plan = planAsked(remote, asked, RemotePolicy.toPlan(policy, at))
+      const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
-          planned.requirements,
-          planned.queries.map(query => query.identity),
+          plan.requirements,
+          plan.queries.map(query => query.identity),
         ),
-        requirements: planned.requirements,
-        queries: planned.queries.map(({ identity, window, select }) => ({
+        requirements: plan.requirements,
+        queries: plan.queries.map(({ identity, window, select }) => ({
           identity,
           window,
           select,
         })),
-        expires: planned.expires,
+        expires: plan.expires,
       }
+      if (byAsked === undefined) {
+        byAsked = new Map()
+        planned.set(remote, byAsked)
+      }
+      byAsked.set(askedKey, { until: plan.expires?.at ?? Infinity, dependencies })
+      return dependencies
     },
     dependenciesToStream: ({ requirements, queries, refresh, expires }) =>
       Stream.concat(
@@ -1302,6 +1368,14 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   }
 }
 
+// Where a restarted stream resumes, not a reason to restart it: every applied
+// event advances the cursor, and a restart per event would close and reopen
+// the server stream each time. Said in the schema rather than with Foldkit's
+// `keepAliveEquivalence`, which would change the entry's public type
+// (`EntryWithoutKeepAlive`, the only entry type Foldkit exports) for every
+// application that spreads Remote's entries into its own.
+const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () => true))
+
 /** The live entry: subscribes to `requirementsOf(model)` from the Model's resume cursor. */
 const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
@@ -1320,7 +1394,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
 > => ({
   dependenciesSchema: Schema.Struct({
     requirements: Schema.Array(ReadRequest),
-    cursor: Schema.Number,
+    cursor: resumeCursor,
     floor: Schema.Number,
   }),
   modelToDependencies: model => {
@@ -1544,6 +1618,7 @@ export const Remote = {
     const selection = selectionOf<Value, Name>(given)
     assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
     const relation = relationOf(selection)
+    const relationKey = stableStringify(relation)
     return (id: string): Projection<AppModel, RemoteData<Value>> => ({
       Model: remoteDataSchema(selection.schema),
       dependencies: [],
@@ -1556,14 +1631,13 @@ export const Remote = {
         // `Initial` depends on the in-flight marks, which change independently
         // of the store, so it is decided outside the memo.
         const present = memoRead<RemoteData<Value> | undefined>(
-          store,
-          store,
-          `${key}\u0000${stableStringify(relation)}`,
+          [store],
+          `${key}\u0000${relationKey}`,
           () => {
             if (isTombstone(store, key)) return { _tag: 'NotFound' }
             const assembled = assemble(store, key, relation)
             if (assembled === undefined) return unavailableFailure(store, key, relation)
-            const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
+            const decoded = decodeRow(selection.schema, store[key]!.values, assembled.values)
             return Result.isFailure(decoded)
               ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
               : assembled.refreshing
@@ -1919,6 +1993,7 @@ export const Remote = {
       entities: outcome.entities,
       connections: outcome.connections,
       deleted: outcome.deleted,
+      now: (options.now ?? Date.now)(),
     })
     return {
       output: outcome.output,
@@ -2061,7 +2136,9 @@ const bindDomain = <
       live === undefined || live.policy !== undefined
         ? message
         : { ...live, policy: livePolicyFor(model, live.event) }
-    return store.set(model, updateRemote(store.get(model), resolved as RemoteMessage) as Store)
+    const remote = store.get(model)
+    const next = updateRemote(remote, resolved as RemoteMessage)
+    return next === remote ? model : store.set(model, next as Store)
   }
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
@@ -2178,15 +2255,11 @@ const bindDomain = <
           `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
         )
       }
-      const ref: QueryRef<Q['name'], QueryInput<Q>> = {
-        ...query.ref(input),
-        window: pickWindow(window),
-      }
-      const relation = relationOf(select)
+      const { ref, relation, requirement } = readContract(query.ref(input), select, window)
       const relationKey = stableStringify(relation)
       // The first failed field among the rows a list shows, if any. Decided
-      // outside the memo, which is keyed on the store and the connection: a
-      // failure can arrive without either changing.
+      // outside the memo, which is keyed on what the rows are read from: a
+      // failure can arrive without any of it changing.
       const failedItem = (
         remote: RemoteModel,
         connection: Connection,
@@ -2232,8 +2305,7 @@ const bindDomain = <
       ): RemoteData<Page<Value>> | undefined => {
         const visible = visibleStoreOf(remote.entities, remote.optimistic)
         return memoRead<RemoteData<Page<Value>> | undefined>(
-          visible,
-          connection,
+          [visible, connection, remote.optimistic.overlays],
           `${ref.identity}\u0000${relationKey}`,
           () => {
             const items: Value[] = []
@@ -2248,7 +2320,7 @@ const bindDomain = <
               const key = entityKey(edge.ref.entity, edge.ref.id)
               const assembled = assemble(visible, key, relation)
               if (assembled === undefined) return unavailableFailure(visible, key, relation)
-              const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
+              const decoded = decodeRow(select.schema, visible[key]!.values, assembled.values)
               if (Result.isFailure(decoded)) {
                 return {
                   _tag: 'Failed',
@@ -2266,12 +2338,6 @@ const bindDomain = <
             return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
           },
         )
-      }
-      const requirement: QueryRequirement = {
-        identity: ref.identity,
-        window: ref.window,
-        select: relation,
-        ref,
       }
       return {
         Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Codec<
@@ -2479,7 +2545,7 @@ const bindDomain = <
           assembledAll = false
           continue
         }
-        const decoded = Schema.decodeUnknownResult(over.selection.schema)(assembled.values)
+        const decoded = decodeRow(over.selection.schema, visible[key]!.values, assembled.values)
         if (Result.isFailure(decoded)) {
           assembledAll = false
           continue
@@ -2489,8 +2555,6 @@ const bindDomain = <
 
       return {
         items: items as never,
-        // Whole only if every edge was judged, every match could be shown, and
-        // the list itself is all there — a connection terminal at both ends.
         // Whole only if every edge was judged, every match could be shown, and
         // the list itself is all there. `hasNext`/`hasPrevious` read the outer
         // boundaries alone, so `isGapped` is the third question: a connection
@@ -2507,16 +2571,8 @@ const bindDomain = <
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),
     forget: model => Remote.forget(bound, model),
-    overlay: (model, id, optimistic) =>
-      bound.store.set(
-        model,
-        updateRemote(bound.store.get(model), { _tag: 'OverlayShown', id, optimistic }) as Store,
-      ),
-    lift: (model, id) => {
-      const remote = bound.store.get(model)
-      const lifted = updateRemote(remote, { _tag: 'OverlayLifted', id })
-      return lifted === remote ? model : bound.store.set(model, lifted as Store)
-    },
+    overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
+    lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),
     fetch: ref => ({
       name: `Remote.query(${ref.query})`,
       args: { connection: ref.identity, window: ref.window },
@@ -2566,6 +2622,7 @@ const bindDomain = <
                 entities: outcome.entities,
                 connections: outcome.connections,
                 deleted: outcome.deleted,
+                now: (options.now ?? Date.now)(),
               }),
             }),
           ),

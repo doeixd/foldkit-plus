@@ -68,19 +68,45 @@ const entry = Remote.live(AppRemote, UserPage, { userId: 'u1' }, toMessage)
 
 const dependencies = entry.modelToDependencies(root)
 
+const stream = dependencies.requirements
+  .map(
+    requirement =>
+      `${entityKey(requirement.entity, requirement.id)}:${[...requirement.fields].sort().join(',')}`,
+  )
+  .sort()
+  .join('|')
+const advanced = {
+  remote: { ...initialRemoteModel, live: { [stream]: { ...emptyLiveState, cursor: 7 } } },
+}
+
 describe('Remote live subscription', () => {
   it('reads the resume cursor from the model', () => {
-    const stream = dependencies.requirements
-      .map(
-        requirement =>
-          `${entityKey(requirement.entity, requirement.id)}:${[...requirement.fields].sort().join(',')}`,
-      )
-      .sort()
-      .join('|')
-    const advanced = {
-      remote: { ...initialRemoteModel, live: { [stream]: { ...emptyLiveState, cursor: 7 } } },
-    }
     expect(entry.modelToDependencies(advanced).cursor).toBe(7)
+  })
+
+  it('keeps its stream as events advance the cursor, and resumes from it on a restart', async () => {
+    // Foldkit restarts an entry's stream when this equivalence says its
+    // dependencies changed.
+    const same = Schema.toEquivalence(entry.dependenciesSchema)
+    const moved = entry.modelToDependencies(advanced)
+    expect(same(dependencies, moved)).toBe(true)
+    expect(same(moved, { ...moved, floor: 1 })).toBe(false)
+    expect(same(moved, { ...moved, requirements: [] })).toBe(false)
+
+    const asked: Array<number> = []
+    const client = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('unused'),
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: ({ after }) => {
+        asked.push(after)
+        return Stream.empty
+      },
+    })
+    await Effect.runPromise(
+      Stream.runDrain(entry.dependenciesToStream(moved)).pipe(Effect.provide(client)),
+    )
+    expect(asked).toEqual([7])
   })
 
   it('streams live events for a Surface', async () => {

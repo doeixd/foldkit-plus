@@ -57,10 +57,13 @@ export interface Deadline {
 /**
  * The earliest moment a value `requirements` read, following the relations the
  * store holds as `plan` does, goes stale under `freshness`, with the
- * requirements of the entities that go stale then. Nothing when no value is
- * both present and still fresh: what is already expired or stale is planned,
- * not awaited, which is what keeps a timer from firing on what it already
- * fired on.
+ * requirements of the entities that go stale then. A field the server settled
+ * without a value ages with its entity too, since `plan` asks for it again once
+ * the entity expires. Nothing when no such field is still fresh: what is
+ * already expired or stale is planned, not awaited, which is what keeps a
+ * timer from firing on what it already fired on. It is the next moment the
+ * plan can change with the clock alone, which the read entry relies on to
+ * reuse its plan until then.
  */
 export const deadlineOf = (
   store: EntityStore,
@@ -73,10 +76,14 @@ export const deadlineOf = (
     const key = entityKey(group.entity, group.id)
     const entry = store[key]
     if (entry === undefined || entry.tombstone) return
-    const fresh = group.fields.some(field => entry.present.has(field) && !entry.stale.has(field))
+    const fresh = group.fields.some(
+      field =>
+        (entry.present.has(field) && !entry.stale.has(field)) || entry.unavailable.has(field),
+    )
     if (fresh) {
       const expires = entry.updatedAt + freshness.freshness
-      if (expires > freshness.now) {
+      // An entity dated `Infinity` never ages (see `visibleStore`): no deadline.
+      if (expires > freshness.now && Number.isFinite(expires)) {
         if (at === undefined || expires < at) {
           at = expires
           due = [group]

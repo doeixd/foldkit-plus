@@ -19,6 +19,8 @@ describe('foldkit-remote example', () => {
     expect(lines).toContain(
       'after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}',
     )
+    // Dated by the answer, so the stale-while-revalidate entry plans no refetch.
+    expect(lines).toContain('refetch after mutation: none')
     expect(lines).toContain('retained: Project:p1; 1 entity and 1 connection collected')
     expect(lines).toContain('corrupt store: Failed DecodeError')
     expect(lines).toContain(

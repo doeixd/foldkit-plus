@@ -14,6 +14,7 @@ import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
 import * as Typeahead from './typeahead.js'
+import { clearQuery, perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
   current: Schema.NullOr(Schema.String),
@@ -53,7 +54,9 @@ export const bundle = Bundle.make('ListNavigation', {
   init: () => ({ model: { current: null, query: '', generation: 0 } }),
   update: (model, message, args) =>
     Message.match<Update.Return<Model, Message>>(message, {
-      Focused: ({ id }) => ({ model: { ...model, current: id } }),
+      // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
+      Focused: ({ id }) =>
+        model.current === id ? { model } : { model: { ...model, current: id } },
       Typed: ({ char, match }) => {
         const generation = model.generation + 1
         return {
@@ -68,8 +71,8 @@ export const bundle = Bundle.make('ListNavigation', {
         }
       },
       Expired: ({ generation }) =>
-        generation === model.generation ? { model: { ...model, query: '' } } : { model },
-      Cleared: () => ({ model: { ...model, query: '' } }),
+        generation === model.generation ? clearQuery(model) : { model },
+      Cleared: () => clearQuery(model),
     }),
 })
 
@@ -126,6 +129,7 @@ export const behavior =
       declared.wrapper.make(message) as unknown as ParentMessage
     const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
     const slice = (input: Input): Model => input[declared.field]
+    const itemsOf = perInput(options.items)
     const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
       outcome._tag === 'Navigate'
         ? focused(outcome.id)
@@ -141,9 +145,8 @@ export const behavior =
             readonly input: Input
             readonly h: HtmlBuilder<ParentMessage>
           }) => {
-            const items = options.items(input)
+            const items = itemsOf(input)
             const state = slice(input)
-            const texts = items.ids.map((_, index) => options.text(input, index))
             const moveOptions: RovingTabindex.MoveOptions = {
               orientation: args.orientation,
               loop: args.loop,
@@ -151,7 +154,17 @@ export const behavior =
               page: args.page,
             }
             const outcome = (key: string, modifiers: KeyboardModifiers) =>
-              Option.fromNullishOr(keyOutcome(items, texts, state, key, modifiers, moveOptions))
+              Option.fromNullishOr(
+                keyOutcome(
+                  items,
+                  // Read on a key, not on every render.
+                  items.ids.map((_, index) => options.text(input, index)),
+                  state,
+                  key,
+                  modifiers,
+                  moveOptions,
+                ),
+              )
             const stop = RovingTabindex.tabStop(items, state.current)
             const stopId = stop === -1 ? undefined : items.ids[stop]
             if (args.virtual) {
@@ -193,7 +206,7 @@ export const behavior =
               ? []
               : RovingTabindex.itemAttributes(
                   h,
-                  options.items(input),
+                  itemsOf(input),
                   slice(input).current,
                   item,
                   args.virtual,

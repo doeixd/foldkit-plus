@@ -90,7 +90,12 @@ export const config = {
           rh.form(
             [rh.Id('add'), rh.OnSubmit(Message.Added({ title: model.draft }))],
             [
-              rh.input([rh.Name('title'), rh.Value(model.draft), rh.OnInput(Message.Typed)]),
+              rh.input([
+                rh.Id('title'),
+                rh.Name('title'),
+                rh.Value(model.draft),
+                rh.OnInput(Message.Typed),
+              ]),
               rh.button([rh.Type('submit')], ['Add']),
             ],
           ),

@@ -56,8 +56,8 @@ export const Spring = Bundle.make('Spring', {
   init: args => ({ model: { value: args.from, velocity: 0, running: false } }),
   update: (model, message) =>
     SpringMessage.match(message, {
-      Started: () => ({ model: { ...model, running: true } }),
-      Stopped: () => ({ model: { ...model, running: false } }),
+      Started: () => (model.running ? { model } : { model: { ...model, running: true } }),
+      Stopped: () => (model.running ? { model: { ...model, running: false } } : { model }),
       Ticked: ({ value, velocity }) => ({ model: { ...model, value, velocity } }),
       Finished: ({ value }) => ({ model: { ...model, value, velocity: 0, running: false } }),
     }),

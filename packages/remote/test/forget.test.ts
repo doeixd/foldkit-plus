@@ -106,6 +106,7 @@ describe('Data.forget', () => {
     expect(Data.mutation(forgotten, started.requestId)._tag).toBe('Applied')
     const settled = Data.reduce(forgotten, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: started.requestId,
       entities: [{ entity: 'User', id: 'u1', values: { name: 'Grace' } }],
     })

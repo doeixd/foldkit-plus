@@ -72,9 +72,11 @@ export const Breakpoints = Bundle.make('Breakpoints', {
   }),
   update: (model, message, args) =>
     BreakpointsMessage.match(message, {
-      Changed: ({ width }) => ({
-        model: { width, breakpoint: breakpointFor(width, args.breakpoints) },
-      }),
+      // A height-only resize reports the same width.
+      Changed: ({ width }) =>
+        width === model.width
+          ? { model }
+          : { model: { width, breakpoint: breakpointFor(width, args.breakpoints) } },
     }),
   subscriptions: (): Subscription.Subscriptions<BreakpointsModel, BreakpointsMessage> =>
     Subscription.make<BreakpointsModel, BreakpointsMessage>()(() => ({

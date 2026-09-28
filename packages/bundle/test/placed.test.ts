@@ -116,6 +116,13 @@ describe('update', () => {
     expect(right.model.reached).toEqual(['left:2'])
   })
 
+  it('returns the parent itself when the child returns its own Model', () => {
+    const opened = CounterMessage.Opened({ url: 'ws://x' })
+    expect(Option.getOrThrow(Left.update(initial, GotLeft.make(opened))).model).toBe(initial)
+    const present: Model = { ...initial, maybe: Option.some(counter) }
+    expect(Option.getOrThrow(Maybe.update(present, GotMaybe.make(opened))).model).toBe(present)
+  })
+
   it('leaves the parent unchanged for a Message to an absent optional child', () => {
     const result = Option.getOrThrow(
       Maybe.update(initial, GotMaybe.make(CounterMessage.Incremented())),

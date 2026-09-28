@@ -1,5 +1,8 @@
 # `foldkit-remote-drizzle` — remaining decisions
 
+> **Implementation status, checked 2026-09-27:** Built as `foldkit-remote-drizzle` 0.8.0 with D1–D4 resolved. The SQL window optimization below is no longer deferred: nested pages rank every parent's children in one `row_number()` statement. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** design analysis, no implementation. Tracks four decisions that are
 not "missing architecture" but genuine design choices, each with real cost and
 cross-package blast radius. Grounded in the code as of `4c12d40`.

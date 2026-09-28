@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done. Next: [Phase G](#phase-g-close-what-the-resumable-design-asks-and-phases-a-to-f-left-out), the resumable design's remaining asks. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, and A to G done, G6 included: its time is within a frame, and its size risk is closed with the numbers. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -752,14 +752,18 @@ this plan's next track, in its order, and it is the source for their detail:
     so the live page does not count it twice, and an answer that met a `*`
     queues nothing and lets the event through. A test with a bubbling button
     fails if either half goes. This leans on the render being synchronous,
-    which `deferredUnnamedOnly.test.ts` pins.
+    which `deferredUnnamedOnly.test.ts` pins. *Since G5 it does not:* the
+    page keeps listening until the first render commits.
   - **Every Subscription entry counts as active.** Foldkit starts each
     entry's stream at boot whatever its dependencies, so no Model can make one
     inactive; only a Managed Resource has a Model-dependent activation
     (`modelToMaybeRequirements`).
   - **Replay is a Subscription entry**, `foldkit-ssr.replay`, added to the
     program at boot, so the queued Messages go through Foldkit's own queue in
-    order after its first render, with no second dispatch path.
+    order after its first render, with no second dispatch path. *Replaced in
+    G2:* an event dispatched in the task that boots the page reached the
+    queue before the replay, so the runtime's `update` is wrapped to run the
+    queued Messages ahead of the first Message it processes.
   - **Remote marks its entries deferrable itself**, with a symbol on each
     entry `Data.subscriptions` and the fold produce, and its part's
     `deferrable(key, entry)` reads it: the declaration travels with the
@@ -890,6 +894,13 @@ that can fail, or, for G4, a recorded measurement.
   - Tests: the result names the closure input and the pointer button of the
     bindings fixture and nothing else; the entry warns once across two
     requests. Mutations: drop the record; warn on every request.
+  - **Done** (`test/unnamed.test.ts`). One departure: the warning is given only
+    for a page that waits to boot, one planned `'idle'` or `'on-interaction'`,
+    or with a lazy bundle. A page started `'now'` with nothing to load boots
+    before any event, so its closures hold nothing up, and a warning there
+    would fire for every application with a closure. The result lists them
+    either way. An element chaining two closures for one event is one entry,
+    and a mutation test pins that too.
 
 - **G2. Test rule 6 directly: the resumed page reaches the eager page's
   Model.** Rule 6 is the invariant the other rules serve, and the design says
@@ -924,6 +935,30 @@ that can fail, or, for G4, a recorded measurement.
   - Mutations: drop the `stopPropagation` after a queued answer; replay the
     queue in reverse; skip the re-dispatch of an unanswered event. Each must
     make a sequence's Models differ.
+  - **Done** (`test/equivalence.ts`, `equivalenceFixture.ts`, and one
+    `equivalence*.test.ts` per sequence). Every Message the fixture handles
+    appends to a log in its Model, so a Message answered twice, lost or
+    reordered makes the Models differ. The harness can pace the actions like
+    a person or send them in one task (`burst`), and the typing, closure and
+    lazy sequences use one task, so their later events land while the page
+    boots.
+  - **What it found.** The first run failed: text typed in one task ended
+    on its first character. The markers answered the first `input` and
+    booted the page, the later ones reached the live page in the same task,
+    and the replay Subscription delivered the queued `Typed` after them. Any
+    event in the booting task could be reordered this way, for example a
+    `focus` that the browser fires in the same task as the `mousedown` that
+    boots. The Subscription entry is gone. The runtime still starts from the
+    resumed Model, and the `update` handed to it is wrapped: the first
+    Message it processes, whatever it is, runs the answered Messages
+    through `update` ahead of itself, their Commands with its own. A first
+    version instead folded the answered Messages into the Model the runtime
+    starts from; its first render then no longer matched the served markup,
+    and Foldkit rebuilt the children of any element whose text had changed,
+    an input beside the text included. `equivalenceAdoption.test.ts` pins
+    that the input survives. With the old replay the typing and closure
+    sequences fail, and each of the three planned mutations fails at least
+    one sequence.
 
 - **G3. Test Phase E the way the design states it.** The design's test is
   that a form posted without JavaScript "returns the page a browser click
@@ -936,6 +971,12 @@ that can fail, or, for G4, a recorded measurement.
   - The same comparison for a form inside a placement, which covers the
     depth field the review added.
   - Mutations: drop the field override; skip the plan's `boot` in the fold.
+  - **Done** (`fallbackEquivalence.test.ts`, `fallbackEquivalencePlaced.test.ts`,
+    and the harness's `posted`). The placed form is compared by typing into
+    the placement's text input, which the form's field mirrors, since the
+    form's own input has no handler for the browser to answer. Dropping the
+    override fails both tests; skipping `boot` fails the root one, since only
+    its plan boots.
 
 - **G4. Measure the manifest before optimising it.** The design's risk section
   asks for a measurement at a thousand rows before anything is done about
@@ -952,6 +993,78 @@ that can fail, or, for G4, a recorded measurement.
     tenth of the gzipped page, or decoding and listening take more than one
     frame, 16 ms. Acting then means the design's fix, planned as its own
     step. Otherwise the risk is closed with the numbers.
+  - **Done** (`bench/manifest.ts`, `pnpm bench:manifest`). Each row is a
+    keyed `li` with a click, an input whose hole the event fills, and a
+    focus. Measured 2026-09-27 with Node 22 and jsdom 26; times are medians of
+    ten runs after two warm-ups:
+
+    | rows | bindings | page (gz) | envelope (gz) | bindings (gz) | bindings / page, gz | decode | listen |
+    | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+    | 10 | 30 | 4.5 KB (0.8 KB) | 2.8 KB (0.4 KB) | 2.2 KB (0.2 KB) | 28.9% | 0.7 ms | 0.4 ms |
+    | 100 | 300 | 43.5 KB (4.5 KB) | 26.9 KB (1.7 KB) | 22.3 KB (1.0 KB) | 22.5% | 3.1 ms | 2.3 ms |
+    | 1000 | 3000 | 441.6 KB (40.4 KB) | 272.7 KB (15.2 KB) | 226.2 KB (8.5 KB) | 21.0% | 20.2 ms | 18.1 ms |
+
+    **Both thresholds are crossed** at a thousand rows: the gzipped bindings
+    are a fifth of the gzipped page, and decoding and listening together take
+    about 38 ms. Two things flatter the problem: each row here holds almost
+    no markup of its own, so a real page's ratio would be lower, and jsdom's
+    DOM is slower than a browser's. Neither closes the risk: even at 100
+    rows the ratio is over a tenth, and both costs grow linearly. So the fix
+    is planned as its own step, G6, below.
+
+- **G6. One manifest entry per keyed placement, not per row** (planned, not
+  started). The design's fix: when the rows are one view placed per key,
+  the manifest carries one entry per binding of that view with the key's
+  place left open, and each row's markers carry the key, so a thousand rows
+  cost one entry per binding rather than three thousand. Before building it,
+  split G4's times: how much of `decode` is the Schema decode of each entry
+  and how much the marker scan over every element, and how much of `listen`
+  is that scan again. If the scans dominate, one pass that reads each
+  marker once, shared by `Resume.bindings` and `Resume.listen`, may be the
+  cheaper first change. Its acceptance is G4's table rerun under the
+  thresholds at a thousand rows, with G2's sequences still green.
+  - **Time: done.** Split at a thousand rows (jsdom, medians):
+    `Resume.bindings` was 19 ms, of which the marker scan was 9, parsing the
+    envelope 2.5, the Schema decode of the list 2, and of the 3,000 Messages
+    3; `Resume.listen` was 17 ms, nearly all its own scan for the events
+    `*` markers name. So the scans dominated, as suspected. Measured in
+    Chromium (`pnpm bench:manifest:browser`, added for this, since jsdom's
+    DOM is several times slower) the picture differed: 16 ms decoding and 6
+    listening, with the list's Schema decode alone taking 6 ms there. Two
+    changes:
+    - The envelope lists every event the markers name, `*`-only ones
+      included, and `SSR.hydrate` passes it to `Resume.listen` as `events`,
+      which then scans nothing. A page whose envelope has no list, one
+      from before it, is scanned as before.
+    - The list is checked by hand (`readBindings`), refusing the same
+      malformed shapes, rather than through a Schema; each Message inside
+      is still decoded through the application's.
+
+    At a thousand rows, decoding and listening now take **12.0 ms in
+    Chromium** (from 21.9) and about 16.5 ms in jsdom (from 36), whose own
+    marker scan is 9 of it. Chromium's is the number a page lives with, so
+    the time threshold is met. The marker scan in `Resume.bindings` stays:
+    it is what refuses a page whose markers name no binding. Tests:
+    `envelopeEvents.test.ts`, `deferredEvents.test.ts`, the events case in
+    `listen.test.ts`, and a malformed case per check `readBindings` makes;
+    each has a mutation that fails it.
+  - **Size: closed with the numbers** (decided 2026-09-27), since it is not
+    met by an encoding alone. The gzipped bindings
+    are 21% of the gzipped page. The 3,000 ids alone gzip to 1.6 KB, so the
+    entries' 8.5 KB is mostly structure, but the encodings measured without
+    knowing which bindings share a value do not reach a tenth: a template
+    per shape with its values in rows is 7.4 KB, in columns per template
+    4.8 KB (12%), and with the values interned 8.0 to 9.2 KB. Only one that
+    knows each row's three bindings share its id reaches 2.1 KB (5%): that
+    is the design's fix, which needs the rows to be a keyed placement, and
+    this bench's are not. The page is also unusually bare, three bindings on
+    a row with almost no markup, which inflates the ratio. What to do next
+    was a choice: build the design's fix for keyed placements, which leaves
+    a list like this bench's where it is; adopt the per-template columns,
+    a protocol change for a partial gain; or close the size risk with these
+    numbers. It is closed: about 2.9 bytes gzipped per binding, the ratio
+    inflated by a bare page, and no change to the envelope's format. The
+    keyed-placement fix stays the answer if a real page shows the cost.
 
 - **G5. Stop depending on when `hydrate` commits.** Deferred boot assumes the
   first render, listeners included, lands inside the event that boots the
@@ -961,6 +1074,23 @@ that can fail, or, for G4, a recorded measurement.
   an unanswered event then if the boot did not commit in time. Test: a boot
   whose first render is held past the event still counts a queued click once
   and still reaches the live page with a closure's event.
+  - **Done** (`lateCommitClick.test.ts`, `lateCommitUnnamed.test.ts`, which
+    mock `foldkit/runtime` so `hydrate` starts in a later task). G2 had
+    already removed the replay Subscription, so this step keeps the page
+    listening until the first render has committed, instead of stopping as
+    soon as the runtime starts. When `hydrate` returns with the root's stamp
+    gone, the first patch has run and the page stops at once, as before.
+    Otherwise a `foldkit-ssr.handover` Subscription entry, which Foldkit
+    starts after its first render, yields `Render.afterCommit` while the root
+    is still stamped. It then stops the page, sends the kept events to the
+    live page, and emits one internal Message, so the runtime takes the
+    answered Messages even if nothing else asks it to. Both tests fail on the
+    code before this step: the click before the first render is lost, and so
+    is the closure's event. Dropping the re-dispatch fails the closure test;
+    stopping as soon as the runtime starts fails both; not stopping when
+    `hydrate` returns fails a Phase C test, because the kept booting event
+    would reach the live page twice; and dropping the internal Message fails
+    both late tests and most G2 sequences.
 
 Order: G1, then G2, then G3, which reuses G2's harness. G4 and G5 can run at
 any point; G5 comes before any upstream proposal, per
