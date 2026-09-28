@@ -1,7 +1,7 @@
 import * as UiButton from '@foldkit/ui/button'
 import * as UiInput from '@foldkit/ui/input'
-import { Array, DateTime, Duration, Effect, Option, Schema, Stream, String } from 'effect'
-import { Command, type Runtime, Subscription, Update } from 'foldkit'
+import { Array, DateTime, Effect, Match, Schema, String } from 'effect'
+import { Command, type Runtime, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
@@ -21,7 +21,8 @@ import {
 } from './style.js'
 
 const WS_URL = 'wss://ws.postman-echo.com/raw'
-const CONNECTION_TIMEOUT = Duration.millis(5000)
+/** How long an attempt may stay connecting, as upstream's acquire allowed. */
+const CONNECTION_TIMEOUT_MS = 5000
 
 const getZonedTime = DateTime.now.pipe(
   Effect.map(utc => DateTime.setZone(utc, DateTime.zoneMakeLocal())),
@@ -62,7 +63,6 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   ...ChatSocket.cases,
   ClickedConnect: {},
-  FailedConnect: { error: Schema.String },
   UpdatedMessageInput: { value: Schema.String },
   SubmittedMessage: {},
   TimestampedMessage: {
@@ -73,20 +73,6 @@ export const Message = defineMessageUnion({
 })
 
 export type Message = typeof Message.Type
-
-// SOCKET
-
-const Page = Bundle.parent({ Model, Message })
-
-/** The page wants a socket from Connect until it drops or fails, as upstream's resource did. */
-const isConnectionWanted = ConnectionState.isAnyOf(['Connecting', 'Connected'])
-
-const chatSocket = Page.at(ChatSocket, {
-  args: { url: WS_URL },
-  when: model => isConnectionWanted(model.connection),
-})
-
-const assembly = Page.assemble(chatSocket)
 
 // UPDATE
 
@@ -124,8 +110,9 @@ const reactToSocket = (message: WebSocketMessage): UpdateStep =>
           Connected: () => ({ model, commands: [TimestampReceivedMessage({ text: data })] }),
           Error: () => ({ model }),
         }),
-    // A close before the socket opened is left to the timeout, as upstream's
-    // acquire was; the release that follows any other close finds nothing to do.
+    // A close before the socket opened is left to the bundle's connect
+    // timeout, as upstream's acquire was; the release that follows any other
+    // close finds nothing to do.
     Closed: () => model =>
       ConnectionState.match(model.connection, {
         Disconnected: () => ({ model }),
@@ -147,29 +134,41 @@ const reactToSocket = (message: WebSocketMessage): UpdateStep =>
         Error: () => ({ model }),
       }),
     SendFailed: () => moveTo(ConnectionState.Error({ error: 'Socket unavailable' })),
-    Sent: () => unchanged,
+    Sent:
+      ({ data }) =>
+      model => ({ model, commands: [TimestampSentMessage({ text: data })] }),
+    TimedOut: () => model =>
+      ConnectionState.match(model.connection, {
+        Disconnected: () => ({ model }),
+        Connecting: () => moveTo(ConnectionState.Error({ error: 'Connection timeout' }))(model),
+        Connected: () => ({ model }),
+        Error: () => ({ model }),
+      }),
   })
 
-/** The placement claims its own wrapper, so its fold always applies. */
-const foldChatSocket =
-  (message: WebSocketMessage): UpdateStep =>
-  model =>
-    Option.getOrThrow(chatSocket.update(model, ChatSocket.wrapper.make(message)))
+// SOCKET
 
-export const update = (model: Model, message: Message) =>
-  Message.match<UpdateReturn>(message, {
-    GotChatSocketMessage: ({ message }) =>
-      Update.combine(model, [foldChatSocket(message), reactToSocket(message)]),
+const Page = Bundle.parent({ Model, Message }).withServices<SocketService>()
 
+/** The page wants a socket from Connect until it drops or fails, as upstream's resource did. */
+const isConnectionWanted = ConnectionState.isAnyOf(['Connecting', 'Connected'])
+
+const chatSocket = Page.at(ChatSocket, {
+  args: { url: WS_URL, connectTimeoutMs: CONNECTION_TIMEOUT_MS },
+  when: model => isConnectionWanted(model.connection),
+  onMessage: reactToSocket,
+})
+
+const assembly = Page.assemble(chatSocket)
+
+/** The page's own Messages: `GotChatSocketMessage` goes to the socket, then to `reactToSocket`. */
+type OwnMessage = Bundle.OwnMessage<Message, typeof assembly.placements>
+
+const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
+  Match.valueTags(message, {
     ClickedConnect: () => ({
       model: modifyFields(model, {
         connection: () => ConnectionState.Connecting(),
-      }),
-    }),
-
-    FailedConnect: ({ error }) => ({
-      model: modifyFields(model, {
-        connection: () => ConnectionState.Error({ error }),
       }),
     }),
 
@@ -193,7 +192,6 @@ export const update = (model: Model, message: Message) =>
           Update.combine(model, [
             next => ({ model: modifyFields(next, { messageInput: () => '' }) }),
             chatSocket.helpers.send(trimmedMessage),
-            next => ({ model: next, commands: [TimestampSentMessage({ text: trimmedMessage })] }),
           ]),
         Error: () => ({ model }),
       })
@@ -209,6 +207,8 @@ export const update = (model: Model, message: Message) =>
       }
     },
   })
+
+export const update = assembly.update(updateOwn)
 
 // INIT
 
@@ -245,32 +245,7 @@ export const managedResources = assembly.resources()
 
 // SUBSCRIPTION
 
-/**
- * Upstream's acquire gave up after five seconds; the socket bundle waits for
- * as long as the browser does, so the page times the attempt itself. The
- * stream restarts with each new attempt and stops when the attempt settles.
- */
-export const pageSubscriptions = Subscription.make<Model, Message>()(entry => ({
-  connectionTimeout: entry(
-    { isConnecting: Schema.Boolean },
-    {
-      modelToDependencies: model => ({
-        isConnecting: ConnectionState.guards.Connecting(model.connection),
-      }),
-      dependenciesToStream: ({ isConnecting }) =>
-        isConnecting
-          ? Stream.fromEffect(
-              Effect.as(
-                Effect.sleep(CONNECTION_TIMEOUT),
-                Message.FailedConnect({ error: 'Connection timeout' }),
-              ),
-            )
-          : Stream.empty,
-    },
-  ),
-}))
-
-export const subscriptions = assembly.subscriptions(pageSubscriptions)
+export const subscriptions = assembly.subscriptions()
 
 // VIEW
 

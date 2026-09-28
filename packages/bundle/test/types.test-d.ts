@@ -1,9 +1,11 @@
 /**
  * What a placement infers, and where a wiring mistake is reported.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
+import * as ManagedResource from 'foldkit/managedResource'
 import { defineMessageUnion } from 'foldkit/message'
+import { ManagedResource as SceneResource } from 'foldkit/scene'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { expectTypeOf } from 'vitest'
@@ -131,3 +133,171 @@ expectTypeOf(declaredPlacement.init).toEqualTypeOf<
 Bundle.declare(Counter, 'title').at<Model>()
 // @ts-expect-error: args and onOut are still required
 DeclaredCounter.at<Model>()()
+
+// --- A placed resource keeps its onAcquired's parameters ---
+
+// Counter's onAcquired reads the acquired value, so a scene must give one.
+const counterSocket = placed.resources['Counter@counter/socket']!
+SceneResource.acquire(counterSocket, 'ws://counter/3')
+// @ts-expect-error: this onAcquired reads the acquired value
+SceneResource.acquire(counterSocket)
+
+const PingSocket = ManagedResource.tag<WebSocket>()('ping-socket')
+const PingMessage = defineMessageUnion({ Connected: {}, Closed: {}, Failed: {} })
+const Ping = Bundle.make('Ping', {
+  Model: Schema.Struct({ on: Schema.Boolean }),
+  Message: PingMessage,
+  init: () => ({ model: { on: true } }),
+  update: model => ({ model }),
+  resources: () =>
+    ManagedResource.make<{ readonly on: boolean }, typeof PingMessage.Type>()(entry => ({
+      socket: entry(Schema.Option(Schema.Null), {
+        resource: PingSocket,
+        modelToMaybeRequirements: model => (model.on ? Option.some(null) : Option.none()),
+        acquire: () => Effect.sync(() => new WebSocket('ws://ping')),
+        release: socket => Effect.sync(() => socket.close()),
+        onAcquired: () => PingMessage.Connected(),
+        onReleased: () => PingMessage.Closed(),
+        onAcquireError: () => PingMessage.Failed(),
+      }),
+    })),
+})
+const PingParent = Bundle.parent({
+  Model: Schema.Struct({ ...Bundle.declare(Ping, 'ping').fields }),
+  Message: defineMessageUnion({ ...Bundle.declare(Ping, 'ping').cases }),
+})
+const pingSocket = PingParent.place(Ping, 'ping').resources['Ping@ping/socket']!
+// This onAcquired reads nothing, so a scene acquires without a stand-in socket.
+SceneResource.acquire(pingSocket)
+// @ts-expect-error: and refuses one
+SceneResource.acquire(pingSocket, new WebSocket('ws://ping'))
+
+// --- initial: which fields a Link's placement writes ---
+
+const Titled = Schema.Struct({
+  counter: CounterModel,
+  maybe: Schema.Option(CounterModel),
+  title: Schema.String,
+})
+type Titled = typeof Titled.Type
+const GotMaybe = Link.wrapper('GotMaybeMessage', CounterMessage)
+const TitledMessage = defineMessageUnion({
+  Renamed: { title: Schema.String },
+  ...GotCounter.cases,
+  ...GotMaybe.cases,
+})
+type TitledMessage = typeof TitledMessage.Type
+const config = { args: { limit: 1, start: 0 }, onOut: Bundle.ignore }
+
+// A field Link names its field, so `initial` refuses it and requires the rest.
+const byField = Bundle.assemble<Titled, TitledMessage>()([
+  Counter.at(Link.field<Titled>()('counter', GotCounter), config),
+])
+byField.initial({ maybe: Option.none(), title: '' })
+// @ts-expect-error: `title` is the parent's own
+byField.initial({ maybe: Option.none() })
+// @ts-expect-error: `counter` is written by its placement's init
+byField.initial({ maybe: Option.none(), title: '', counter: { count: 0, running: false } })
+
+// A custom Link with a one-segment path names that field, as `initial` reads it.
+const byMake = Bundle.assemble<Titled, TitledMessage>()([
+  Counter.at(
+    Link.make({
+      read: (parent: Titled) => Option.some(parent.counter),
+      write: (parent: Titled, counter: CounterModel) => ({ ...parent, counter }),
+      wrapper: GotCounter,
+      path: ['counter'],
+    }),
+    config,
+  ),
+])
+byMake.initial({ maybe: Option.none(), title: '' })
+// @ts-expect-error: `title` is still required through a custom Link
+byMake.initial({ maybe: Option.none() })
+
+// An Option field may be given, to start the child absent, or left to its init.
+const byOptional = Bundle.assemble<Titled, TitledMessage>()([
+  Counter.at(Link.field<Titled>()('counter', GotCounter), config),
+  Counter.at(Link.optional<Titled>()('maybe', GotMaybe), config),
+])
+byOptional.initial({ title: '' })
+byOptional.initial({ title: '', maybe: Option.none() })
+// @ts-expect-error: `title` is required
+byOptional.initial({})
+
+// A path the types cannot read leaves every field optional.
+declare const somePath: ReadonlyArray<string>
+const byUnknown = Bundle.assemble<Titled, TitledMessage>()([
+  Counter.at(
+    Link.make({
+      read: (parent: Titled) => Option.some(parent.counter),
+      write: (parent: Titled, counter: CounterModel) => ({ ...parent, counter }),
+      wrapper: GotCounter,
+      path: somePath,
+    }),
+    config,
+  ),
+])
+byUnknown.initial({})
+
+// --- onMessage, and what the parent's own update sees ---
+
+const observed = Counter.at(Link.field<Titled>()('counter', GotCounter), {
+  ...config,
+  onMessage: message => {
+    expectTypeOf(message).toEqualTypeOf<CounterMessage>()
+    return model => ({ model: { ...model, title: message._tag } })
+  },
+})
+Counter.at(Link.field<Titled>()('counter', GotCounter), {
+  ...config,
+  // @ts-expect-error: onMessage receives the child's Message
+  onMessage: (message: string) => model => ({ model }),
+})
+
+const observing = Bundle.assemble<Titled, TitledMessage>()([
+  observed,
+  Counter.at(Link.optional<Titled>()('maybe', GotMaybe), config),
+])
+observing.update((model, message) => {
+  // Every placement's wrapper is routed to it, so own sees only its own Messages.
+  expectTypeOf(message).toEqualTypeOf<Extract<TitledMessage, { readonly _tag: 'Renamed' }>>()
+  // @ts-expect-error: no wrapper reaches the parent's own update
+  if (message._tag === 'GotCounterMessage') return { model }
+  return { model: { ...model, title: message.title } }
+})
+// An own update over the whole union still fits.
+declare const wholeUpdate: (
+  model: Titled,
+  message: TitledMessage,
+) => Update.Return<Titled, TitledMessage>
+observing.update(wholeUpdate)
+
+// A composition's own update sees no wrapper either, and a configured
+// onMessage's services reach the placement.
+const Composed = Bundle.compose({ note: Schema.String }).pipe(
+  Bundle.withMessages({ Cleared: {} }),
+  Bundle.withChild('toggle', Toggle, {
+    onMessage: () => model => ({ model: { ...model, note: 'toggled' } }),
+  }),
+)
+type ComposedMessage = typeof Composed.Message.Type
+Composed.placements.update((model, message) => {
+  expectTypeOf(message).toEqualTypeOf<Extract<ComposedMessage, { readonly _tag: 'Cleared' }>>()
+  return { model }
+})
+
+interface Clock {
+  readonly now: number
+}
+const Unconfigured = Bundle.compose({ note: Schema.String }).pipe(
+  Bundle.withChild('toggle', Toggle),
+)
+declare const clockStep: Update.Step<
+  typeof Unconfigured.Model.Type,
+  typeof Unconfigured.Message.Type,
+  Clock
+>
+const Clocked = Unconfigured.pipe(Bundle.configure('toggle', { onMessage: () => clockStep }))
+type StepRequirements<S> = S extends Update.Step<any, any, infer R> ? R : never
+expectTypeOf<StepRequirements<typeof Clocked.children.toggle.init>>().toEqualTypeOf<Clock>()

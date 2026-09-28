@@ -28,7 +28,7 @@ see exactly what they saw before.
 | --- | --- |
 | A child machine placed two or more times, or published for others | a Bundle |
 | A child with Subscriptions or resources you keep forgetting to lift | a Bundle, then `placements.complete` |
-| A one-off child used in a single place | a hand-wired Submodel is fine |
+| A one-off child used in a single place, such as a `@foldkit/ui` component | a hand-wired Submodel, with a [Link as its fold's lens](#a-link-without-a-bundle-updatefoldchild) |
 | Something without its own Model: a one-shot effect, a DOM attachment | a Command or a Mount, not a Bundle |
 
 A Bundle owns nothing at runtime. **The parent Model owns the child's state**;
@@ -264,10 +264,14 @@ rest of your options.
 - **`placements.initial(rest)`** is the parent's initial Model and Commands:
   `rest` gives exactly the fields no placement owns, each placement's `init`
   writes its own slice, and each wiring's `init` runs after the placements',
-  in list order. That check needs every placement's field, so a placement
-  through a custom Link (below) relaxes `rest` to `Partial<Model>`.
+  in list order. A placement's field may be given only when it holds an
+  `Option` (below), to start the child as `None`. The check reads each
+  placement's field from its Link; one whose path the types cannot read, a
+  `Link.make` given a `string[]`, relaxes `rest` to `Partial<Model>`.
 - **`placements.update(own)`** is the parent's update: a placement's or
-  wiring's Message goes to its item and every other Message to `own`. A tag
+  wiring's Message goes to its item and every other Message to `own`, whose
+  Message is typed without the placements' wrappers (see
+  [Reacting to a child's Messages](#reacting-to-a-childs-messages)). A tag
   wirings declare `shared` goes to each of them in list order and then to
   `own`, so URL mirrors and the application's routing all see `UrlChanged`.
   Without `own` they leave the Model unchanged.
@@ -345,6 +349,52 @@ ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
   dropped by omission. Write `onOut: Bundle.ignore` to drop it on purpose.
 - **Without an args Schema**, `Args` is inferred from `init`'s parameter
   annotation instead.
+
+## Reacting to a child's Messages
+
+An OutMessage is what a child chooses to tell its parent. Sometimes the parent
+must react to what the child received instead: a socket's `Opened` or
+`Failed`, a media query's change. `onMessage` in the placement config sees each
+of the child's Messages as a Step of the parent, after the child has handled it
+and after its `onOut`:
+
+```ts
+const Observed = Page.assemble(
+  Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }),
+  Page.at(Narrow, {
+    args: { query: '(max-width: 40rem)' },
+    // Help closes when the window becomes narrow.
+    onMessage:
+      ({ matches }) =>
+      model => ({ model: matches ? { ...model, helpOpen: false } : model }),
+  }),
+)
+```
+
+It observes; the child still owns its own transition, and a helper, which is
+not a Message, does not reach it. A collection's `onMessage` also receives the
+item's key.
+
+The parent's own update, given to `placements.update(own)`, never receives a
+placement's wrapper: the placement takes it. Its Message is typed that way, as
+`Bundle.OwnMessage<Message, typeof placements.placements>`, so an exhaustive
+match over it needs no arm for `GotDarkMessage`. Match it with Effect's
+`Match.valueTags`, which is exhaustive over the union it is given; a union's
+own `Message.match` asks for every variant of the whole union.
+
+```ts
+type OwnMessage = Bundle.OwnMessage<Message, typeof Observed.placements>
+
+const updateOwn = (model: Model, message: OwnMessage) =>
+  Match.valueTags(message, {
+    ClickedHelp: () => ({ model: { ...model, helpOpen: true } }),
+  })
+
+Observed.update(updateOwn)
+```
+
+A wiring's tags are strings at runtime, so a Message a wiring claims still
+appears in `OwnMessage`.
 
 ## Presets
 
@@ -453,6 +503,66 @@ The component's view inputs pass through:
 `TabsPlaced.view(model, h, { tabs, selectedValue, ariaLabel, toView })`.
 `fromParts` accepts `subscriptions` and `helpers` too, but no Managed Resources.
 [`test/fromParts.test.ts`](test/fromParts.test.ts) runs this example.
+
+## A Link without a Bundle: `Update.foldChild`
+
+A page with a dozen `@foldkit/ui` components rarely wants a Bundle for each:
+each is one field, one `Got*Message` variant, and one line in `update`. Foldkit's
+`Update.foldChild` already folds such a child, given where it lives: `read`,
+`write` and `toParentMessage`. A Link is exactly those three, so spread one in
+and give the component's `update`:
+
+```ts
+import * as Tabs from '@foldkit/ui/tabs'
+
+const Section = Schema.Literals(['general', 'billing'])
+type Section = typeof Section.Type
+const SectionTabs = Tabs.create<Section>()
+
+const Model = Schema.Struct({ tabs: Tabs.Model, section: Section })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ GotTabsMessage: { message: Tabs.Message }, Saved: {} })
+type Message = typeof Message.Type
+
+const tabs = Link.field<Model>()('tabs', Link.wrapper(Message.GotTabsMessage))
+
+const foldTabs = Update.foldChild({
+  ...tabs,
+  update: SectionTabs.update,
+  foldOutMessage: Tabs.OutMessage.match<Update.Step<Model, Message>, Tabs.OutMessage<Section>>({
+    Selected:
+      ({ value }) =>
+      model => ({ model: { ...model, section: value } }),
+  }),
+})
+
+const update = (model: Model, message: Message) =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    GotTabsMessage: ({ message }) => foldTabs(model, message),
+    Saved: () => ({ model }),
+  })
+```
+
+- **`Link.wrapper(Message.GotTabsMessage)`** builds the wrapper from a variant
+  the parent's union already declares, so the tag is written once. A variant
+  with fields beside `message` is refused, since a wrapped Message would lack
+  them.
+- **The same Link serves every entry point:** `Update.foldChildStep({ ...link,
+  update: Dialog.open, foldOutMessage })` for one that takes no Message, and
+  `link.toParentMessage` for the view's `h.submodel` and `Subscription.lift`.
+- **An ignored Message leaves the parent as it was.** `foldChild` writes the
+  child back even when its update returned the child it was given; the writes
+  of `Link.field` and `Link.optional` then return the parent itself, so the
+  page does not redraw. A `write` given to `Link.make` copies as written;
+  placements guard it, `foldChild` does not.
+
+Nothing here is placed: there is no `placements.update` routing, and the
+component's Subscriptions are lifted by hand. When a component is placed in
+several parents, or its Subscriptions are the part that gets forgotten, make it
+a Bundle with `Bundle.fromParts` above.
+[`test/foldChild.test.ts`](test/foldChild.test.ts) runs this example, and
+[`examples/foldkit-ui-showcase`](../../examples/foldkit-ui-showcase) folds its
+thirty-eight components this way.
 
 ## Bodies that load on demand: `Bundle.lazy`
 
@@ -570,10 +680,13 @@ const Sidebar = MediaQuery.at(
 | `Link.make({ read, write, wrapper, path })` | anywhere a lens can reach |
 
 `Link.wrapper(tag, ChildMessage)` and `Link.keyedWrapper(tag, ChildMessage, key?)`
-build the parent variants a Link carries. When `rest` gives a placement's
+build the parent variants a Link carries; `Link.wrapper(Message.GotXMessage)`
+takes one the parent's union already declares. When `rest` gives a placement's
 top-level field, `placements.initial` keeps that value and skips its `init`, so
 an optional child can start as `None`. A nested placement is always initialised,
 inside whatever `rest` gave, and outer placements initialise before nested ones.
+A `Link.make` whose `path` is one literal segment, `path: ['sidebar']`, names
+that top-level field to `initial`, as `field` and `optional` do.
 
 ## Services
 

@@ -1,5 +1,5 @@
-import { Effect, Queue } from 'effect'
-import { type Acquired, WebSocketMessage } from 'foldkit-primitives/net'
+import { Effect } from 'effect'
+import { WebSocketMessage } from 'foldkit-primitives/net'
 
 import { Message } from '../src/main.js'
 
@@ -15,7 +15,7 @@ export const fromSocket = (message: WebSocketMessage): Message =>
 export const sendOnSocket = (data: string) => ({
   name: 'WebSocket.send',
   args: { data },
-  effect: Effect.succeed(WebSocketMessage.Sent()),
+  effect: Effect.succeed(WebSocketMessage.Sent({ data })),
 })
 
 /**
@@ -62,13 +62,3 @@ export class FakeSocket {
     this.close()
   }
 }
-
-/**
- * What the socket resource holds once acquired, for `Scene.ManagedResource.acquire`.
- * The bundle's `onAcquired` reads nothing from it, but the placed entry's type
- * asks for one (see the README's note on `PlacedResources`).
- */
-export const acquiredSocket = (): Acquired => ({
-  socket: new FakeSocket('wss://ws.postman-echo.com/raw'),
-  events: Effect.runSync(Queue.unbounded<WebSocketMessage>()),
-})

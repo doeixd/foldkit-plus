@@ -67,7 +67,7 @@ describe('update', () => {
       )
     })
 
-    test('FailedConnect captures the error message', () => {
+    test('an attempt the socket gave up on reads "Connection timeout"', () => {
       story(
         update,
         given(
@@ -75,13 +75,9 @@ describe('update', () => {
             connection: () => ConnectionState.Connecting(),
           }),
         ),
-        message(Message.FailedConnect({ error: 'Timeout' })),
+        message(fromSocket(WebSocketMessage.TimedOut())),
         model(model => {
-          if (model.connection._tag === 'Error') {
-            expect(model.connection.error).toBe('Timeout')
-          } else {
-            throw new Error('Expected Error')
-          }
+          expect(model.connection).toEqual(ConnectionState.Error({ error: 'Connection timeout' }))
         }),
       )
     })
@@ -127,11 +123,13 @@ describe('update', () => {
         model(model => {
           expect(model.messageInput).toBe('')
         }),
-        Command.expectExact(
+        Command.expectExact(sendOnSocket('Hello there')),
+        // The text is timestamped once the socket says it was sent.
+        Command.resolve(
           sendOnSocket('Hello there'),
-          TimestampSentMessage({ text: 'Hello there' }),
+          WebSocketMessage.Sent({ data: 'Hello there' }),
         ),
-        Command.resolve(sendOnSocket('Hello there'), WebSocketMessage.Sent()),
+        Command.expectExact(TimestampSentMessage({ text: 'Hello there' })),
         Command.resolve(
           TimestampSentMessage,
           Message.TimestampedMessage({

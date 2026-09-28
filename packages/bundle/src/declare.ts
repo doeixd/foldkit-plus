@@ -73,7 +73,8 @@ export interface Declared<B extends AnyBundle, Field extends string> {
     BundleParts<B>['ViewInputs'],
     BundleParts<B>['Resources'],
     BundleParts<B>['Helpers'],
-    Field
+    Field,
+    WrapperTag<Field>
   >
 }
 
@@ -111,7 +112,9 @@ export interface DeclaredEach<B extends AnyBundle, Field extends string> {
     BundleParts<B>['S'],
     BundleParts<B>['ViewInputs'],
     BundleParts<B>['Helpers'],
-    Field
+    Field,
+    string,
+    WrapperTag<Field>
   >
 }
 

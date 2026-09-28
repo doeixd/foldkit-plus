@@ -27,7 +27,7 @@ import {
   update,
   view,
 } from '../src/main.js'
-import { acquiredSocket, fromSocket, sendOnSocket } from './fixtures.js'
+import { fromSocket, sendOnSocket } from './fixtures.js'
 
 const idleModel: Model = init().model
 
@@ -115,14 +115,15 @@ describe('view', () => {
       given(idleModel),
       click(role('button', { name: 'Connect to Chat' })),
       expect(text('Connecting...')).toExist(),
-      ManagedResource.acquire(chatSocket, acquiredSocket()),
+      ManagedResource.acquire(chatSocket),
       expect(text('Connecting...')).toExist(),
       Subscription.emit(fromSocket(WebSocketMessage.Opened())),
       expect(placeholder('Type a message...')).toExist(),
       type(placeholder('Type a message...'), 'hi there'),
       click(role('button', { name: 'Send' })),
-      Command.expectExact(sendOnSocket('hi there'), TimestampSentMessage({ text: 'hi there' })),
-      Command.resolve(sendOnSocket('hi there'), WebSocketMessage.Sent()),
+      Command.expectExact(sendOnSocket('hi there')),
+      Command.resolve(sendOnSocket('hi there'), WebSocketMessage.Sent({ data: 'hi there' })),
+      Command.expectExact(TimestampSentMessage({ text: 'hi there' })),
       Command.resolve(
         TimestampSentMessage,
         Message.TimestampedMessage({
@@ -142,18 +143,14 @@ describe('view', () => {
       fromSocket(WebSocketMessage.Failed({ message: 'x' })),
       'Failed to connect to WebSocket',
     ],
-    [
-      'an attempt that times out',
-      Message.FailedConnect({ error: 'Connection timeout' }),
-      'Connection timeout',
-    ],
+    ['an attempt that times out', fromSocket(WebSocketMessage.TimedOut()), 'Connection timeout'],
   ])('%s shows the connection error', (_, failure, error) => {
     scene(
       { update, view },
       given(idleModel),
       click(role('button', { name: 'Connect to Chat' })),
       expect(text('Connecting...')).toExist(),
-      ManagedResource.acquire(chatSocket, acquiredSocket()),
+      ManagedResource.acquire(chatSocket),
       Subscription.emit(failure),
       expect(text('Connection Error')).toExist(),
       expect(text(error)).toExist(),

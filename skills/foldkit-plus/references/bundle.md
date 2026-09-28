@@ -137,6 +137,19 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 - **OutMessage:** a bundle whose `update` returns `outMessage` must be placed
   with `onOut: outMessage => model => ({ model: … })` (typed from the scope), or
   `onOut: Bundle.ignore` to drop it deliberately. Omitting it is a type error.
+- **Observing a child:** `onMessage: message => Step` in a placement's config
+  (`(message, key) => Step` on a collection) sees each child Message in parent
+  terms after the child and its `onOut` handled it. `own` never receives a
+  placement's wrapper: type it `Bundle.OwnMessage<Message, typeof
+  placements.placements>` and match it with Effect `Match.valueTags` (a union's
+  own `match` still demands every variant).
+- **A Link without a Bundle:** a Link's `read`, `write` and `toParentMessage`
+  are what `Update.foldChild` takes, so a `@foldkit/ui` component folds through
+  one: `Update.foldChild({ ...link, update })`. `Link.wrapper(Message.GotXMessage)`
+  builds the wrapper from a variant the union already declares; `Link.field`
+  and `Link.optional` writes keep the parent when the child is unchanged, so an
+  ignored Message does not redraw. Nothing is routed or lifted automatically;
+  for that, use `Bundle.fromParts`.
 - **Presets:** `MediaQuery.with({ query })` binds args; place it with no `args`.
   `Page.place(bundle, 'field', config)` places without a separate `declare`.
 - **Helpers:** `helpers: { reset: (model: CounterModel, to: number) => ({ model }) }` become

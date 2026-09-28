@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-bundle`, placement typing:** `PlacedResources` keeps
+  `onAcquired`'s parameters, so `Scene.ManagedResource.acquire` on a placed
+  resource needs no stand-in value; a Link carries its top-level field, so
+  `placements.initial` keeps its exact check through a custom Link, and an
+  `Option` placement field may be given to start `None`.
+
 - **`foldkit-mixins`, a slot named `__proto__`:** `forSlots` kept its piece
   on a plain object, where the name set the prototype instead.
 
@@ -38,6 +44,17 @@ version changed; `pnpm` skips versions already in the registry.
   applies again on every restore; a failed read counts as an empty store.
 
 ### Added
+
+- **`foldkit-bundle`, `onMessage`:** a placement's `onMessage` (and
+  `(message, key)` on a collection) observes each child Message as a parent
+  Step after the child and its `onOut`; `placements.update(own)` types `own`'s
+  Message without the placements' wrappers (`Bundle.OwnMessage`).
+- **`foldkit-bundle`, Links for `Update.foldChild`:**
+  `Link.wrapper(Message.GotXMessage)` builds a wrapper from a variant the union
+  already declares, and `Link.field` / `Link.optional` writes return the parent
+  when the child is unchanged, so `Update.foldChild({ ...link, update })` no
+  longer redraws for a Message the child ignores. `foldkit-ui-showcase` folds
+  its 38 components this way.
 
 - **`foldkit-primitives/time`, `ticks({ intervalMs, onTick })`:** a clock
   entry whose running and interval are functions of the parent Model; a new

@@ -456,16 +456,19 @@ type Unconfigured<Children> = {
   string
 
 /**
- * What a config's onOut returns, in Message and services; `never` without one,
- * and `never` for an onOut that returns no Commands, which infers `unknown`.
+ * What a config's onOut and onMessage return, in Message and services; `never`
+ * without them, and `never` for a Step that returns no Commands, which infers `unknown`.
  */
-type StepMessageOf<Config> = Config extends {
-  readonly onOut: (...input: ReadonlyArray<any>) => Update.Step<any, infer Message, any>
+type StepMessageOf<Config> = HookMessage<Config, 'onOut'> | HookMessage<Config, 'onMessage'>
+type StepRequirementsOf<Config> =
+  HookRequirements<Config, 'onOut'> | HookRequirements<Config, 'onMessage'>
+type HookMessage<Config, Hook extends string> = Config extends {
+  readonly [K in Hook]: (...input: ReadonlyArray<any>) => Update.Step<any, infer Message, any>
 }
   ? KnownOr<Message>
   : never
-type StepRequirementsOf<Config> = Config extends {
-  readonly onOut: (...input: ReadonlyArray<any>) => Update.Step<any, any, infer Requirements>
+type HookRequirements<Config, Hook extends string> = Config extends {
+  readonly [K in Hook]: (...input: ReadonlyArray<any>) => Update.Step<any, any, infer Requirements>
 }
   ? KnownOr<Requirements>
   : never

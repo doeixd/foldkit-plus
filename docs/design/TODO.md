@@ -296,15 +296,16 @@ its README the details.
 - [ ] **Bundle: a child whose first state comes from the URL.** A Bundle's
   `init` takes fixed args where it is placed, so a routed page cannot be one
   without a second fetch, and a Model that is a union cannot hold placements.
-  `foldkit-routing`, `foldkit-auth`
-- [ ] **Bundle: a parent cannot react to a placement's Messages.**
-  `assembly.update(own)` never passes a claimed Message to `own`, and
-  `placements.update(own)` passes wrapper Messages that an exhaustive match
-  must then handle. `foldkit-websocket-chat`, `foldkit-shopping-cart`
-- [ ] **Bundle: `PlacedResources` loses `onAcquired`'s signature,** so
-  `ManagedResource.acquire` on a placed resource fails to type-check; and a
-  custom `Link` loosens `placements.initial` to `Partial<Model>`.
-  `foldkit-websocket-chat`, `foldkit-shopping-cart`
+  `foldkit-routing`, `foldkit-auth`. Proposal: a start input beside args
+  (`init(args, input)`, a placement's `input: parent => Input` evaluated by
+  `initial`), `placed.enter(input)` / `placed.leave` for navigation, and
+  `Link.variant(Variant)` for a union Model.
+- [x] **Bundle: a parent cannot react to a placement's Messages.** Done:
+  `onMessage`, and `own` typed `Bundle.OwnMessage` without the wrappers.
+- [x] **Bundle: `PlacedResources` typing, and a custom `Link` loosening
+  `initial`.** Done: `onAcquired`'s parameters are kept, and a Link carries its
+  top-level field. Only a `Link.make` with a non-literal path still gives
+  `Partial`.
 - [x] **Mirror: its URL assembly does not fit `makeApplication` routing.**
   Done: `Mirror.routing`. Bundle's `assembly.url` still has the `Sync.mount`
   shape (`{ init(model, url), onUrlChange }`), not `makeApplication`'s.

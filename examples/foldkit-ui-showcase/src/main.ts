@@ -9,6 +9,7 @@ import { Url, toString as urlToString } from 'foldkit/url'
 
 import { Dialog as UiDialog, Nav } from '@foldkit/ui'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { Link } from 'foldkit-bundle'
 import { Dialog } from 'foldkit-mixins-ui'
 
 import * as Icon from './icon.js'
@@ -146,6 +147,9 @@ export const Message = defineMessageUnion({
 
 export type Message = typeof Message.Type
 
+// Where the UI Submodel lives, for its update, init, view and Subscriptions.
+const ui = Link.field<Model>()('uiModel', Link.wrapper(Message.GotUiMessage))
+
 // COMMAND
 
 const NavigateInternal = Command.define('NavigateInternal', {
@@ -179,34 +183,17 @@ export const init: Runtime.RoutingApplicationInit<Model, Message, Flags> = (
 ) => {
   return Update.foldChildInit(uiInit(flags.today), {
     toParentModel: uiModel => ({ route: urlToAppRoute(url), uiModel }),
-    toParentMessage: message => Message.GotUiMessage({ message }),
+    toParentMessage: ui.toParentMessage,
   })
 }
 
 // UPDATE
 
-const toUiMessage = (message: UiMessage): Message => Message.GotUiMessage({ message })
+const foldUi = Update.foldChild({ ...ui, update: uiUpdate })
 
-const foldUi = Update.foldChild({
-  update: uiUpdate,
-  read: (model: Model) => Option.some(model.uiModel),
-  write: (model, nextUiModel) => modifyFields(model, { uiModel: () => nextUiModel }),
-  toParentMessage: toUiMessage,
-})
+const foldUiOpenMobileMenu = Update.foldChildStep({ ...ui, update: openMobileMenu })
 
-const foldUiOpenMobileMenu = Update.foldChildStep({
-  update: openMobileMenu,
-  read: (model: Model) => Option.some(model.uiModel),
-  write: (model, nextUiModel) => modifyFields(model, { uiModel: () => nextUiModel }),
-  toParentMessage: toUiMessage,
-})
-
-const foldUiCloseMobileMenu = Update.foldChildStep({
-  update: closeMobileMenu,
-  read: (model: Model) => Option.some(model.uiModel),
-  write: (model, nextUiModel) => modifyFields(model, { uiModel: () => nextUiModel }),
-  toParentMessage: toUiMessage,
-})
+const foldUiCloseMobileMenu = Update.foldChildStep({ ...ui, update: closeMobileMenu })
 
 type UpdateReturn = Update.Return<Model, Message>
 
@@ -453,7 +440,7 @@ const mobileMenuView = (model: Model, h: HtmlBuilder<Message>): Html =>
     model: model.uiModel,
     view: mobileMenuDialogView,
     viewInputs: { currentRoute: model.route },
-    toParentMessage: toUiMessage,
+    toParentMessage: ui.toParentMessage,
   })
 
 const homeView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
@@ -480,7 +467,7 @@ const contentView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html 
       slotId: id,
       model: model.uiModel,
       view,
-      toParentMessage: toUiMessage,
+      toParentMessage: ui.toParentMessage,
     })
 
   return AppRoute.match(model.route, {
@@ -542,5 +529,5 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
 
 export const subscriptions = Subscription.lift(UiSubscriptions.subscriptions)<Model, Message>({
   toChildModel: model => model.uiModel,
-  toParentMessage: message => Message.GotUiMessage({ message }),
+  toParentMessage: ui.toParentMessage,
 })

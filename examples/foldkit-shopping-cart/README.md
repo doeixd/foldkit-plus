@@ -42,14 +42,8 @@ pnpm --filter foldkit-example-foldkit-shopping-cart dev
 
 - **`foldkit-bundle`.** The Products page is placed once and has no
   Subscriptions or resources to lift, which the Bundle README says is fine
-  hand-wired. Placing it would also cost more than it saves here: upstream's
-  names (`productsPage`, `GotProductsMessage`, which its tests use) do not
-  follow Bundle's `Got<Field>Message` convention, so it would need a custom
-  Link, and `placements.initial` then stops checking that `init` gives every
-  other field; and `placements.update(own)` hands `own` the whole Message, so
-  an exhaustive `Message.match` would need a dead `GotProductsMessage` arm. A
-  cart line has no state machine of its own for a Bundle collection to place:
-  its quantity changes are cart operations.
+  hand-wired. A cart line has no state machine of its own for a Bundle
+  collection to place: its quantity changes are cart operations.
 - **`foldkit-entity` / `foldkit-crud`.** A product is three fields in a
   constant list; there is no server, relation or edit screen.
 - **`foldkit-form`.** Checkout has one free-text field with no validation,

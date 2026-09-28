@@ -10,7 +10,13 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import type { AnyMessage, CollectionLink } from './link.js'
-import { checkArgs, writeIfChanged, type BuilderLike, type ViewBuilder } from './placed.js'
+import {
+  checkArgs,
+  writeIfChanged,
+  type BuilderLike,
+  type TagOf,
+  type ViewBuilder,
+} from './placed.js'
 
 const PlacedCollectionTypeId: unique symbol = Symbol.for('foldkit-bundle/PlacedCollection')
 
@@ -31,6 +37,11 @@ export interface EachConfig<
     outMessage: OutMessage,
     key: Key,
     context: Update.FoldContext<Message, LinkMessage>,
+  ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
+  /** Observes each item's Messages in parent terms, after the item has handled it and its `onOut` has run. */
+  readonly onMessage?: (
+    message: Message,
+    key: Key,
   ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the collection's Subscription keys. Defaults to `Name@path[]`. */
   readonly key?: string
@@ -66,10 +77,13 @@ export interface PlacedCollection<
   Helpers,
   Field extends string = string,
   Key extends string = string,
+  Claimed extends string = string,
 > {
   readonly [PlacedCollectionTypeId]: typeof PlacedCollectionTypeId
   /** Types only: the record field this collection owns, or `string` when unknown. */
   readonly field?: Field
+  /** Types only: the parent Message tag this collection routes, or `string` when unknown. */
+  readonly claims?: Claimed
   readonly name: Name
   /** `Name@path[]`, or the configured `key`: the prefix of every Subscription key. */
   readonly key: string
@@ -115,6 +129,7 @@ export type AnyPlacedCollection = PlacedCollection<
   any,
   any,
   any,
+  any,
   any
 >
 
@@ -137,9 +152,10 @@ export type Each = <
   OutStepMessage,
   R2,
   Key extends string,
+  Field extends string,
 >(
   bundle: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-  link: CollectionLink<Parent, LinkMessage, Model, Message, Key>,
+  link: CollectionLink<Parent, LinkMessage, Model, Message, Key, Field>,
   config?: EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>,
 ) => PlacedCollection<
   Name,
@@ -151,8 +167,9 @@ export type Each = <
   S,
   ViewInputs,
   Helpers,
-  string,
-  Key
+  Field,
+  Key,
+  TagOf<LinkMessage>
 >
 
 type ErasedSpec = BundleSpec<string, any, any, any, any, any, any, any, any, any>
@@ -302,9 +319,12 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     argsSummary,
     link,
     update: (parent: unknown, message: AnyMessage) =>
-      Option.map(link.fromParentMessage(message), ([key, childMessage]) =>
-        foldItem(key, model => bundle.update(model, childMessage, args))(parent),
-      ),
+      Option.map(link.fromParentMessage(message), ([key, childMessage]) => {
+        const fold = foldItem(key, model => bundle.update(model, childMessage, args))
+        return config.onMessage === undefined
+          ? fold(parent)
+          : Update.combine(parent, [fold, config.onMessage(childMessage, key)])
+      }),
     add:
       (key: string, prepare: (model: unknown) => unknown = model => model): ErasedStep =>
       parent => {

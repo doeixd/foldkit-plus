@@ -3,7 +3,7 @@
  * cannot drift from the API. Sections follow the README's headings.
  */
 import * as Tabs from '@foldkit/ui/tabs'
-import { Schema, Stream } from 'effect'
+import { Match, Schema, Stream } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -101,6 +101,28 @@ const ClicksPlaced = CounterPage.at(Clicks, {
 export const reset = ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
 
 export const Quiet = CounterPage.at(Clicks, { args: { limit: 10 }, onOut: Bundle.ignore })
+
+// --- Reacting to a child's Messages ---
+
+const Observed = Page.assemble(
+  Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }),
+  Page.at(Narrow, {
+    args: { query: '(max-width: 40rem)' },
+    // Help closes when the window becomes narrow.
+    onMessage:
+      ({ matches }) =>
+      model => ({ model: matches ? { ...model, helpOpen: false } : model }),
+  }),
+)
+
+type OwnMessage = Bundle.OwnMessage<Message, typeof Observed.placements>
+
+const updateOwn = (model: Model, message: OwnMessage) =>
+  Match.valueTags(message, {
+    ClickedHelp: () => ({ model: { ...model, helpOpen: true } }),
+  })
+
+export const observedUpdate = Observed.update(updateOwn)
 
 // --- Presets ---
 

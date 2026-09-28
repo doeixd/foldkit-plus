@@ -23,7 +23,7 @@ import {
   type Wrapped,
   type Wrapper,
 } from './link.js'
-import type { Invalid, Placed } from './placed.js'
+import type { Invalid, Placed, TagOf } from './placed.js'
 import type { Wiring } from './wiring.js'
 
 type P<B> = BundleParts<B>
@@ -56,7 +56,8 @@ export type PlacedBy<
   P<B>['ViewInputs'],
   P<B>['Resources'],
   P<B>['Helpers'],
-  Field
+  Field,
+  TagOf<LinkMessage>
 >
 
 export type CollectionBy<
@@ -76,7 +77,9 @@ export type CollectionBy<
   P<B>['S'],
   P<B>['ViewInputs'],
   P<B>['Helpers'],
-  Field
+  Field,
+  string,
+  TagOf<LinkMessage>
 >
 
 /** Keys of the parent Model whose value is exactly the bundle's Model. */
@@ -220,7 +223,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       key: Key,
       wrapper: Wrapper<Tag, ChildMessage>,
       options?: { readonly when?: (parent: Model) => boolean },
-    ) => LinkType<Model, Wrapped<Tag, ChildMessage>, Model[Key], ChildMessage>
+    ) => LinkType<Model, Wrapped<Tag, ChildMessage>, Model[Key], ChildMessage, Key>
     readonly optional: ReturnType<typeof Link.optional<Model>>
     readonly collection: ReturnType<typeof Link.collection<Model>>
     readonly collectionById: ReturnType<typeof Link.collectionById<Model>>

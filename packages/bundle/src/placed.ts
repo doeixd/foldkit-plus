@@ -59,6 +59,12 @@ export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, Out
     outMessage: OutMessage,
     context: Update.FoldContext<Message, LinkMessage>,
   ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
+  /**
+   * Observes each of the child's Messages in parent terms, after the child has
+   * handled it and its `onOut` has run, so the parent's own update needs no arm
+   * for the wrapper. Helpers are not Messages and do not reach it.
+   */
+  readonly onMessage?: (message: Message) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
   /** A gate beside the Link's own: Subscriptions and resources run only while both hold. */
@@ -76,9 +82,18 @@ export type PlacedResources<Parent, ParentMessage, Resources> = Readonly<
         infer Requirements,
         infer Value,
         infer Service,
-        any
+        infer OnAcquired extends (...args: ReadonlyArray<any>) => any
       >
-        ? ManagedResource.Entry<Parent, ParentMessage, Requirements, Value, Service>
+        ? // `onAcquired`'s parameters are kept, as `ManagedResource.lift` keeps them, so a
+          // handler that reads no value asks for none in `Scene.ManagedResource.acquire`.
+          ManagedResource.Entry<
+            Parent,
+            ParentMessage,
+            Requirements,
+            Value,
+            Service,
+            (...args: Parameters<OnAcquired>) => ParentMessage
+          >
         : never
     }[keyof Resources]
   >
@@ -102,10 +117,13 @@ export interface Placed<
   Resources,
   Helpers,
   Field extends string = string,
+  Claimed extends string = string,
 > {
   readonly [PlacedTypeId]: typeof PlacedTypeId
   /** Types only: the top-level Model field this placement owns, or `string` when unknown. */
   readonly field?: Field
+  /** Types only: the parent Message tag this placement routes, or `string` when unknown. */
+  readonly claims?: Claimed
   readonly name: Name
   /** `Name@path`, or the configured `key`: the prefix of every Subscription and resource key. */
   readonly key: string
@@ -177,6 +195,11 @@ export const isPlaced = (value: unknown): value is AnyPlaced =>
 const prefixKeys = <A>(prefix: string, record: Readonly<Record<string, A>>): Record<string, A> =>
   Record.mapKeys(record, key => `${prefix}/${key}`)
 
+/** The tag of a Link's parent variant, or `string` when it cannot be read. */
+export type TagOf<LinkMessage> = LinkMessage extends { readonly _tag: infer Tag extends string }
+  ? Tag
+  : string
+
 /** The precise signature `Bundle.at` exposes; the implementation below works on erased types. */
 export type Place = <
   Name extends string,
@@ -191,11 +214,12 @@ export type Place = <
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
   Parent,
   LinkMessage,
+  Field extends string,
   OutStepMessage,
   R2,
 >(
   bundle: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-  link: Link<Parent, LinkMessage, Model, Message>,
+  link: Link<Parent, LinkMessage, Model, Message, Field>,
   config?: PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>,
 ) => Placed<
   Name,
@@ -207,7 +231,9 @@ export type Place = <
   S,
   ViewInputs,
   Resources,
-  Helpers
+  Helpers,
+  Field,
+  TagOf<LinkMessage>
 >
 
 // Inside the implementation the child's and parent's types are unknowable, so
@@ -308,9 +334,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       }
     },
     update: (parent: unknown, message: AnyMessage) =>
-      Option.map(link.fromParentMessage(message), childMessage =>
-        foldStep(model => bundle.update(model, childMessage, args))(parent),
-      ),
+      Option.map(link.fromParentMessage(message), childMessage => {
+        const fold = foldStep(model => bundle.update(model, childMessage, args))
+        return config.onMessage === undefined
+          ? fold(parent)
+          : Update.combine(parent, [fold, config.onMessage(childMessage)])
+      }),
     subscriptions,
     resources,
     view: viewIn(key),

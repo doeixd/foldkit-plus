@@ -20,6 +20,7 @@ import {
   Tooltip,
   VirtualList,
 } from '@foldkit/ui'
+import { Link } from 'foldkit-bundle'
 
 import { Message as UiMessage } from './message.js'
 import type { City, DemoColumn, DemoTab, ListboxItem, Plan, UiModel } from './model.js'
@@ -73,6 +74,113 @@ const reorderColumns = (
 
 const DemoMenu = Menu.create<string>()
 
+// Where each component lives: its UiModel field and its Got*Message variant.
+// Spread into Update.foldChild, a Link is the fold's read, write and
+// toParentMessage, and its write keeps UiModel when the component is unchanged.
+const Ui = Link.field<UiModel>()
+
+const mobileMenuDialog = Ui('mobileMenuDialog', Link.wrapper(UiMessage.GotMobileMenuDialogMessage))
+const comboboxDemo = Ui('comboboxDemo', Link.wrapper(UiMessage.GotComboboxDemoMessage))
+const comboboxNullableDemo = Ui(
+  'comboboxNullableDemo',
+  Link.wrapper(UiMessage.GotComboboxNullableDemoMessage),
+)
+const comboboxMultiDemo = Ui(
+  'comboboxMultiDemo',
+  Link.wrapper(UiMessage.GotComboboxMultiDemoMessage),
+)
+const comboboxPlacementLockDemo = Ui(
+  'comboboxPlacementLockDemo',
+  Link.wrapper(UiMessage.GotComboboxPlacementLockDemoMessage),
+)
+const comboboxSelectOnFocusDemo = Ui(
+  'comboboxSelectOnFocusDemo',
+  Link.wrapper(UiMessage.GotComboboxSelectOnFocusDemoMessage),
+)
+const dialogDemo = Ui('dialogDemo', Link.wrapper(UiMessage.GotDialogDemoMessage))
+const dialogAnimatedDemo = Ui(
+  'dialogAnimatedDemo',
+  Link.wrapper(UiMessage.GotDialogAnimatedDemoMessage),
+)
+const overlayDialogDemo = Ui(
+  'overlayDialogDemo',
+  Link.wrapper(UiMessage.GotOverlayDialogDemoMessage),
+)
+const overlayComboboxDemo = Ui(
+  'overlayComboboxDemo',
+  Link.wrapper(UiMessage.GotOverlayComboboxDemoMessage),
+)
+const nestedDialogParentDemo = Ui(
+  'nestedDialogParentDemo',
+  Link.wrapper(UiMessage.GotNestedDialogParentDemoMessage),
+)
+const nestedDialogChildDemo = Ui(
+  'nestedDialogChildDemo',
+  Link.wrapper(UiMessage.GotNestedDialogChildDemoMessage),
+)
+const calendarBasicDemo = Ui(
+  'calendarBasicDemo',
+  Link.wrapper(UiMessage.GotCalendarBasicDemoMessage),
+)
+const datePickerBasicDemo = Ui(
+  'datePickerBasicDemo',
+  Link.wrapper(UiMessage.GotDatePickerBasicDemoMessage),
+)
+const dragAndDropDemo = Ui('dragAndDropDemo', Link.wrapper(UiMessage.GotDragAndDropDemoMessage))
+const fileDropBasicDemo = Ui(
+  'fileDropBasicDemo',
+  Link.wrapper(UiMessage.GotFileDropBasicDemoMessage),
+)
+const listboxDemo = Ui('listboxDemo', Link.wrapper(UiMessage.GotListboxDemoMessage))
+const listboxMultiDemo = Ui('listboxMultiDemo', Link.wrapper(UiMessage.GotListboxMultiDemoMessage))
+const listboxGroupedDemo = Ui(
+  'listboxGroupedDemo',
+  Link.wrapper(UiMessage.GotListboxGroupedDemoMessage),
+)
+const menuBasicDemo = Ui('menuBasicDemo', Link.wrapper(UiMessage.GotMenuBasicDemoMessage))
+const menuAnimatedDemo = Ui('menuAnimatedDemo', Link.wrapper(UiMessage.GotMenuAnimatedDemoMessage))
+const popoverBasicDemo = Ui('popoverBasicDemo', Link.wrapper(UiMessage.GotPopoverBasicDemoMessage))
+const popoverAnimatedDemo = Ui(
+  'popoverAnimatedDemo',
+  Link.wrapper(UiMessage.GotPopoverAnimatedDemoMessage),
+)
+const popoverNestedParentDemo = Ui(
+  'popoverNestedParentDemo',
+  Link.wrapper(UiMessage.GotPopoverNestedParentDemoMessage),
+)
+const popoverNestedChildDemo = Ui(
+  'popoverNestedChildDemo',
+  Link.wrapper(UiMessage.GotPopoverNestedChildDemoMessage),
+)
+const verticalRadioGroupDemo = Ui(
+  'verticalRadioGroupDemo',
+  Link.wrapper(UiMessage.GotVerticalRadioGroupDemoMessage),
+)
+const horizontalRadioGroupDemo = Ui(
+  'horizontalRadioGroupDemo',
+  Link.wrapper(UiMessage.GotHorizontalRadioGroupDemoMessage),
+)
+const sliderRatingDemo = Ui('sliderRatingDemo', Link.wrapper(UiMessage.GotSliderRatingDemoMessage))
+const sliderVolumeDemo = Ui('sliderVolumeDemo', Link.wrapper(UiMessage.GotSliderVolumeDemoMessage))
+const horizontalTabsDemo = Ui(
+  'horizontalTabsDemo',
+  Link.wrapper(UiMessage.GotHorizontalTabsDemoMessage),
+)
+const verticalTabsDemo = Ui('verticalTabsDemo', Link.wrapper(UiMessage.GotVerticalTabsDemoMessage))
+const toastDemo = Ui('toastDemo', Link.wrapper(UiMessage.GotToastDemoMessage))
+const tooltipBasicDemo = Ui('tooltipBasicDemo', Link.wrapper(UiMessage.GotTooltipBasicDemoMessage))
+const tooltipNoDelayDemo = Ui(
+  'tooltipNoDelayDemo',
+  Link.wrapper(UiMessage.GotTooltipNoDelayDemoMessage),
+)
+const hoverIntentDemo = Ui('hoverIntentDemo', Link.wrapper(UiMessage.GotHoverIntentDemoMessage))
+const animationDemo = Ui('animationDemo', Link.wrapper(UiMessage.GotAnimationDemoMessage))
+const virtualListDemo = Ui('virtualListDemo', Link.wrapper(UiMessage.GotVirtualListDemoMessage))
+const virtualListVariableDemo = Ui(
+  'virtualListVariableDemo',
+  Link.wrapper(UiMessage.GotVirtualListVariableDemoMessage),
+)
+
 const foldDialogOutMessage = Dialog.OutMessage.match<Update.Step<UiModel, UiMessage>>({
   Opened: () => model => ({ model }),
   Closed: () => model => ({ model }),
@@ -105,330 +213,240 @@ const foldHoverIntentOutMessage = HoverIntent.OutMessage.match<Update.Step<UiMod
 })
 
 const foldMobileMenuDialog = Update.foldChild({
+  ...mobileMenuDialog,
   update: Dialog.update,
-  read: (model: UiModel) => Option.some(model.mobileMenuDialog),
-  write: (model, nextMobileMenuDialog) =>
-    modifyFields(model, { mobileMenuDialog: () => nextMobileMenuDialog }),
-  toParentMessage: message => UiMessage.GotMobileMenuDialogMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldMobileMenuDialogOpen = Update.foldChildStep({
+  ...mobileMenuDialog,
   update: Dialog.open,
-  read: (model: UiModel) => Option.some(model.mobileMenuDialog),
-  write: (model, nextMobileMenuDialog) =>
-    modifyFields(model, { mobileMenuDialog: () => nextMobileMenuDialog }),
-  toParentMessage: message => UiMessage.GotMobileMenuDialogMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldMobileMenuDialogClose = Update.foldChildStep({
+  ...mobileMenuDialog,
   update: Dialog.close,
-  read: (model: UiModel) => Option.some(model.mobileMenuDialog),
-  write: (model, nextMobileMenuDialog) =>
-    modifyFields(model, { mobileMenuDialog: () => nextMobileMenuDialog }),
-  toParentMessage: message => UiMessage.GotMobileMenuDialogMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
-const foldComboboxDemoOutMessage = Combobox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Combobox.OutMessage<City>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeComboboxDemoSelectedCity: () => Option.some(value),
-      }),
-    }),
-  ClearedSelection: () => model => ({ model }),
-})
-
 const foldComboboxDemo = Update.foldChild({
+  ...comboboxDemo,
   update: CityCombobox.update,
-  read: (model: UiModel) => Option.some(model.comboboxDemo),
-  write: (model, nextComboboxDemo) => modifyFields(model, { comboboxDemo: () => nextComboboxDemo }),
-  toParentMessage: message => UiMessage.GotComboboxDemoMessage({ message }),
-  foldOutMessage: foldComboboxDemoOutMessage,
-})
-
-const foldComboboxNullableDemoOutMessage = Combobox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Combobox.OutMessage<City>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeComboboxNullableDemoSelectedCity: maybeComboboxNullableDemoSelectedCity =>
-          Option.contains(maybeComboboxNullableDemoSelectedCity, value)
-            ? Option.none()
-            : Option.some(value),
+  foldOutMessage: Combobox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Combobox.OutMessage<City>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeComboboxDemoSelectedCity: () => Option.some(value),
+        }),
       }),
-    }),
-  ClearedSelection: () => model => ({
-    model: modifyFields(model, {
-      maybeComboboxNullableDemoSelectedCity: () => Option.none(),
-    }),
+    ClearedSelection: () => model => ({ model }),
   }),
 })
 
 const foldComboboxNullableDemo = Update.foldChild({
+  ...comboboxNullableDemo,
   update: CityCombobox.update,
-  read: (model: UiModel) => Option.some(model.comboboxNullableDemo),
-  write: (model, nextComboboxNullableDemo) =>
-    modifyFields(model, {
-      comboboxNullableDemo: () => nextComboboxNullableDemo,
-    }),
-  toParentMessage: message => UiMessage.GotComboboxNullableDemoMessage({ message }),
-  foldOutMessage: foldComboboxNullableDemoOutMessage,
-})
-
-const foldComboboxMultiDemoOutMessage = Combobox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Combobox.OutMessage<City>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
+  foldOutMessage: Combobox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Combobox.OutMessage<City>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeComboboxNullableDemoSelectedCity: maybeComboboxNullableDemoSelectedCity =>
+            Option.contains(maybeComboboxNullableDemoSelectedCity, value)
+              ? Option.none()
+              : Option.some(value),
+        }),
+      }),
+    ClearedSelection: () => model => ({
       model: modifyFields(model, {
-        comboboxMultiDemoSelectedCities: comboboxMultiDemoSelectedCities =>
-          Array.contains(comboboxMultiDemoSelectedCities, value)
-            ? Array.filter(comboboxMultiDemoSelectedCities, city => city !== value)
-            : Array.append(comboboxMultiDemoSelectedCities, value),
+        maybeComboboxNullableDemoSelectedCity: () => Option.none(),
       }),
     }),
-  ClearedSelection: () => model => ({ model }),
+  }),
 })
 
 const foldComboboxMultiDemo = Update.foldChild({
+  ...comboboxMultiDemo,
   update: CityMultiCombobox.update,
-  read: (model: UiModel) => Option.some(model.comboboxMultiDemo),
-  write: (model, nextComboboxMultiDemo) =>
-    modifyFields(model, { comboboxMultiDemo: () => nextComboboxMultiDemo }),
-  toParentMessage: message => UiMessage.GotComboboxMultiDemoMessage({ message }),
-  foldOutMessage: foldComboboxMultiDemoOutMessage,
-})
-
-const foldComboboxPlacementLockDemoOutMessage = Combobox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Combobox.OutMessage<City>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeComboboxPlacementLockDemoSelectedCity: () => Option.some(value),
+  foldOutMessage: Combobox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Combobox.OutMessage<City>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          comboboxMultiDemoSelectedCities: comboboxMultiDemoSelectedCities =>
+            Array.contains(comboboxMultiDemoSelectedCities, value)
+              ? Array.filter(comboboxMultiDemoSelectedCities, city => city !== value)
+              : Array.append(comboboxMultiDemoSelectedCities, value),
+        }),
       }),
-    }),
-  ClearedSelection: () => model => ({ model }),
+    ClearedSelection: () => model => ({ model }),
+  }),
 })
 
 const foldComboboxPlacementLockDemo = Update.foldChild({
+  ...comboboxPlacementLockDemo,
   update: CityCombobox.update,
-  read: (model: UiModel) => Option.some(model.comboboxPlacementLockDemo),
-  write: (model, nextComboboxPlacementLockDemo) =>
-    modifyFields(model, {
-      comboboxPlacementLockDemo: () => nextComboboxPlacementLockDemo,
-    }),
-  toParentMessage: message => UiMessage.GotComboboxPlacementLockDemoMessage({ message }),
-  foldOutMessage: foldComboboxPlacementLockDemoOutMessage,
-})
-
-const foldComboboxSelectOnFocusDemoOutMessage = Combobox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Combobox.OutMessage<City>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeComboboxSelectOnFocusDemoSelectedCity: () => Option.some(value),
+  foldOutMessage: Combobox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Combobox.OutMessage<City>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeComboboxPlacementLockDemoSelectedCity: () => Option.some(value),
+        }),
       }),
-    }),
-  ClearedSelection: () => model => ({ model }),
+    ClearedSelection: () => model => ({ model }),
+  }),
 })
 
 const foldComboboxSelectOnFocusDemo = Update.foldChild({
+  ...comboboxSelectOnFocusDemo,
   update: CityCombobox.update,
-  read: (model: UiModel) => Option.some(model.comboboxSelectOnFocusDemo),
-  write: (model, nextComboboxSelectOnFocusDemo) =>
-    modifyFields(model, {
-      comboboxSelectOnFocusDemo: () => nextComboboxSelectOnFocusDemo,
-    }),
-  toParentMessage: message => UiMessage.GotComboboxSelectOnFocusDemoMessage({ message }),
-  foldOutMessage: foldComboboxSelectOnFocusDemoOutMessage,
+  foldOutMessage: Combobox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Combobox.OutMessage<City>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeComboboxSelectOnFocusDemoSelectedCity: () => Option.some(value),
+        }),
+      }),
+    ClearedSelection: () => model => ({ model }),
+  }),
 })
 
 const foldDialogDemo = Update.foldChild({
+  ...dialogDemo,
   update: Dialog.update,
-  read: (model: UiModel) => Option.some(model.dialogDemo),
-  write: (model, nextDialogDemo) => modifyFields(model, { dialogDemo: () => nextDialogDemo }),
-  toParentMessage: message => UiMessage.GotDialogDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldDialogDemoOpen = Update.foldChildStep({
+  ...dialogDemo,
   update: Dialog.open,
-  read: (model: UiModel) => Option.some(model.dialogDemo),
-  write: (model, nextDialogDemo) => modifyFields(model, { dialogDemo: () => nextDialogDemo }),
-  toParentMessage: message => UiMessage.GotDialogDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldDialogAnimatedDemo = Update.foldChild({
+  ...dialogAnimatedDemo,
   update: Dialog.update,
-  read: (model: UiModel) => Option.some(model.dialogAnimatedDemo),
-  write: (model, nextDialogAnimatedDemo) =>
-    modifyFields(model, { dialogAnimatedDemo: () => nextDialogAnimatedDemo }),
-  toParentMessage: message => UiMessage.GotDialogAnimatedDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldDialogAnimatedDemoOpen = Update.foldChildStep({
+  ...dialogAnimatedDemo,
   update: Dialog.open,
-  read: (model: UiModel) => Option.some(model.dialogAnimatedDemo),
-  write: (model, nextDialogAnimatedDemo) =>
-    modifyFields(model, { dialogAnimatedDemo: () => nextDialogAnimatedDemo }),
-  toParentMessage: message => UiMessage.GotDialogAnimatedDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldOverlayDialogDemo = Update.foldChild({
+  ...overlayDialogDemo,
   update: Dialog.update,
-  read: (model: UiModel) => Option.some(model.overlayDialogDemo),
-  write: (model, nextOverlayDialogDemo) =>
-    modifyFields(model, { overlayDialogDemo: () => nextOverlayDialogDemo }),
-  toParentMessage: message => UiMessage.GotOverlayDialogDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldOverlayDialogDemoOpen = Update.foldChildStep({
+  ...overlayDialogDemo,
   update: Dialog.open,
-  read: (model: UiModel) => Option.some(model.overlayDialogDemo),
-  write: (model, nextOverlayDialogDemo) =>
-    modifyFields(model, { overlayDialogDemo: () => nextOverlayDialogDemo }),
-  toParentMessage: message => UiMessage.GotOverlayDialogDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
-const foldOverlayComboboxDemoOutMessage = Combobox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Combobox.OutMessage<City>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeOverlayComboboxDemoSelectedCity: () => Option.some(value),
-      }),
-    }),
-  ClearedSelection: () => model => ({ model }),
-})
-
 const foldOverlayComboboxDemo = Update.foldChild({
+  ...overlayComboboxDemo,
   update: CityCombobox.update,
-  read: (model: UiModel) => Option.some(model.overlayComboboxDemo),
-  write: (model, nextOverlayComboboxDemo) =>
-    modifyFields(model, { overlayComboboxDemo: () => nextOverlayComboboxDemo }),
-  toParentMessage: message => UiMessage.GotOverlayComboboxDemoMessage({ message }),
-  foldOutMessage: foldOverlayComboboxDemoOutMessage,
+  foldOutMessage: Combobox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Combobox.OutMessage<City>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeOverlayComboboxDemoSelectedCity: () => Option.some(value),
+        }),
+      }),
+    ClearedSelection: () => model => ({ model }),
+  }),
 })
 
 const foldNestedDialogParentDemo = Update.foldChild({
+  ...nestedDialogParentDemo,
   update: Dialog.update,
-  read: (model: UiModel) => Option.some(model.nestedDialogParentDemo),
-  write: (model, nextNestedDialogParentDemo) =>
-    modifyFields(model, {
-      nestedDialogParentDemo: () => nextNestedDialogParentDemo,
-    }),
-  toParentMessage: message => UiMessage.GotNestedDialogParentDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldNestedDialogParentDemoOpen = Update.foldChildStep({
+  ...nestedDialogParentDemo,
   update: Dialog.open,
-  read: (model: UiModel) => Option.some(model.nestedDialogParentDemo),
-  write: (model, nextNestedDialogParentDemo) =>
-    modifyFields(model, {
-      nestedDialogParentDemo: () => nextNestedDialogParentDemo,
-    }),
-  toParentMessage: message => UiMessage.GotNestedDialogParentDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldNestedDialogChildDemo = Update.foldChild({
+  ...nestedDialogChildDemo,
   update: Dialog.update,
-  read: (model: UiModel) => Option.some(model.nestedDialogChildDemo),
-  write: (model, nextNestedDialogChildDemo) =>
-    modifyFields(model, {
-      nestedDialogChildDemo: () => nextNestedDialogChildDemo,
-    }),
-  toParentMessage: message => UiMessage.GotNestedDialogChildDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
 const foldNestedDialogChildDemoOpen = Update.foldChildStep({
+  ...nestedDialogChildDemo,
   update: Dialog.open,
-  read: (model: UiModel) => Option.some(model.nestedDialogChildDemo),
-  write: (model, nextNestedDialogChildDemo) =>
-    modifyFields(model, {
-      nestedDialogChildDemo: () => nextNestedDialogChildDemo,
-    }),
-  toParentMessage: message => UiMessage.GotNestedDialogChildDemoMessage({ message }),
   foldOutMessage: foldDialogOutMessage,
 })
 
-const foldCalendarBasicDemoOutMessage = Calendar.OutMessage.match<Update.Step<UiModel, UiMessage>>({
-  SelectedDate:
-    ({ date }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeCalendarBasicDemoSelectedDate: () => Option.some(date),
-      }),
-    }),
-  ChangedViewMonth: () => model => ({ model }),
-})
-
 const foldCalendarBasicDemo = Update.foldChild({
+  ...calendarBasicDemo,
   update: Calendar.update,
-  read: (model: UiModel) => Option.some(model.calendarBasicDemo),
-  write: (model, nextCalendarBasicDemo) =>
-    modifyFields(model, { calendarBasicDemo: () => nextCalendarBasicDemo }),
-  toParentMessage: message => UiMessage.GotCalendarBasicDemoMessage({ message }),
-  foldOutMessage: foldCalendarBasicDemoOutMessage,
-})
-
-const foldDatePickerBasicDemoOutMessage = DatePicker.OutMessage.match<
-  Update.Step<UiModel, UiMessage>
->({
-  SelectedDate:
-    ({ date }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeDatePickerBasicDemoSelectedDate: () => Option.some(date),
+  foldOutMessage: Calendar.OutMessage.match<Update.Step<UiModel, UiMessage>>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeCalendarBasicDemoSelectedDate: () => Option.some(date),
+        }),
       }),
-    }),
-  ClearedDate: () => model => ({
-    model: modifyFields(model, {
-      maybeDatePickerBasicDemoSelectedDate: () => Option.none(),
-    }),
+    ChangedViewMonth: () => model => ({ model }),
   }),
-  ChangedViewMonth: () => model => ({ model }),
 })
 
 const foldDatePickerBasicDemo = Update.foldChild({
+  ...datePickerBasicDemo,
   update: DatePicker.update,
-  read: (model: UiModel) => Option.some(model.datePickerBasicDemo),
-  write: (model, nextDatePickerBasicDemo) =>
-    modifyFields(model, { datePickerBasicDemo: () => nextDatePickerBasicDemo }),
-  toParentMessage: message => UiMessage.GotDatePickerBasicDemoMessage({ message }),
-  foldOutMessage: foldDatePickerBasicDemoOutMessage,
+  foldOutMessage: DatePicker.OutMessage.match<Update.Step<UiModel, UiMessage>>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeDatePickerBasicDemoSelectedDate: () => Option.some(date),
+        }),
+      }),
+    ClearedDate: () => model => ({
+      model: modifyFields(model, {
+        maybeDatePickerBasicDemoSelectedDate: () => Option.none(),
+      }),
+    }),
+    ChangedViewMonth: () => model => ({ model }),
+  }),
 })
 
-const foldDragAndDropDemoOutMessage = DragAndDrop.OutMessage.match<Update.Step<UiModel, UiMessage>>(
-  {
+const foldDragAndDropDemo = Update.foldChild({
+  ...dragAndDropDemo,
+  update: DragAndDrop.update,
+  foldOutMessage: DragAndDrop.OutMessage.match<Update.Step<UiModel, UiMessage>>({
     Reordered:
       ({ itemId, fromContainerId, toContainerId, toIndex }) =>
       model => ({
@@ -438,331 +456,226 @@ const foldDragAndDropDemoOutMessage = DragAndDrop.OutMessage.match<Update.Step<U
         }),
       }),
     Cancelled: () => model => ({ model }),
-  },
-)
-
-const foldDragAndDropDemo = Update.foldChild({
-  update: DragAndDrop.update,
-  read: (model: UiModel) => Option.some(model.dragAndDropDemo),
-  write: (model, nextDragAndDropDemo) =>
-    modifyFields(model, { dragAndDropDemo: () => nextDragAndDropDemo }),
-  toParentMessage: message => UiMessage.GotDragAndDropDemoMessage({ message }),
-  foldOutMessage: foldDragAndDropDemoOutMessage,
-})
-
-const foldFileDropBasicDemoOutMessage = FileDrop.OutMessage.match<Update.Step<UiModel, UiMessage>>({
-  ReceivedFiles:
-    ({ files }) =>
-    model => ({
-      model: modifyFields(model, {
-        fileDropBasicDemoFiles: Array.appendAll(files),
-      }),
-    }),
-  RejectedNonFiles: () => model => ({ model }),
+  }),
 })
 
 const foldFileDropBasicDemo = Update.foldChild({
+  ...fileDropBasicDemo,
   update: FileDrop.update,
-  read: (model: UiModel) => Option.some(model.fileDropBasicDemo),
-  write: (model, nextFileDropBasicDemo) =>
-    modifyFields(model, { fileDropBasicDemo: () => nextFileDropBasicDemo }),
-  toParentMessage: message => UiMessage.GotFileDropBasicDemoMessage({ message }),
-  foldOutMessage: foldFileDropBasicDemoOutMessage,
-})
-
-const foldListboxDemoOutMessage = Listbox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Listbox.OutMessage<ListboxItem>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeListboxDemoSelectedItem: () => Option.some(value),
+  foldOutMessage: FileDrop.OutMessage.match<Update.Step<UiModel, UiMessage>>({
+    ReceivedFiles:
+      ({ files }) =>
+      model => ({
+        model: modifyFields(model, {
+          fileDropBasicDemoFiles: Array.appendAll(files),
+        }),
       }),
-    }),
+    RejectedNonFiles: () => model => ({ model }),
+  }),
 })
 
 const foldListboxDemo = Update.foldChild({
+  ...listboxDemo,
   update: ItemListbox.update,
-  read: (model: UiModel) => Option.some(model.listboxDemo),
-  write: (model, nextListboxDemo) => modifyFields(model, { listboxDemo: () => nextListboxDemo }),
-  toParentMessage: message => UiMessage.GotListboxDemoMessage({ message }),
-  foldOutMessage: foldListboxDemoOutMessage,
-})
-
-const foldListboxMultiDemoOutMessage = Listbox.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Listbox.OutMessage<ListboxItem>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        listboxMultiDemoSelectedItems: listboxMultiDemoSelectedItems =>
-          Array.contains(listboxMultiDemoSelectedItems, value)
-            ? Array.filter(listboxMultiDemoSelectedItems, item => item !== value)
-            : Array.append(listboxMultiDemoSelectedItems, value),
+  foldOutMessage: Listbox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Listbox.OutMessage<ListboxItem>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeListboxDemoSelectedItem: () => Option.some(value),
+        }),
       }),
-    }),
+  }),
 })
 
 const foldListboxMultiDemo = Update.foldChild({
+  ...listboxMultiDemo,
   update: ItemMultiListbox.update,
-  read: (model: UiModel) => Option.some(model.listboxMultiDemo),
-  write: (model, nextListboxMultiDemo) =>
-    modifyFields(model, { listboxMultiDemo: () => nextListboxMultiDemo }),
-  toParentMessage: message => UiMessage.GotListboxMultiDemoMessage({ message }),
-  foldOutMessage: foldListboxMultiDemoOutMessage,
-})
-
-const foldListboxGroupedDemoOutMessage = Listbox.OutMessage.match<Update.Step<UiModel, UiMessage>>({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        maybeListboxGroupedDemoSelectedItem: () => Option.some(value),
+  foldOutMessage: Listbox.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    Listbox.OutMessage<ListboxItem>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          listboxMultiDemoSelectedItems: listboxMultiDemoSelectedItems =>
+            Array.contains(listboxMultiDemoSelectedItems, value)
+              ? Array.filter(listboxMultiDemoSelectedItems, item => item !== value)
+              : Array.append(listboxMultiDemoSelectedItems, value),
+        }),
       }),
-    }),
+  }),
 })
 
 const foldListboxGroupedDemo = Update.foldChild({
+  ...listboxGroupedDemo,
   update: CharacterListbox.update,
-  read: (model: UiModel) => Option.some(model.listboxGroupedDemo),
-  write: (model, nextListboxGroupedDemo) =>
-    modifyFields(model, { listboxGroupedDemo: () => nextListboxGroupedDemo }),
-  toParentMessage: message => UiMessage.GotListboxGroupedDemoMessage({ message }),
-  foldOutMessage: foldListboxGroupedDemoOutMessage,
+  foldOutMessage: Listbox.OutMessage.match<Update.Step<UiModel, UiMessage>>({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          maybeListboxGroupedDemoSelectedItem: () => Option.some(value),
+        }),
+      }),
+  }),
 })
 
 const foldMenuBasicDemo = Update.foldChild({
+  ...menuBasicDemo,
   update: DemoMenu.update,
-  read: (model: UiModel) => Option.some(model.menuBasicDemo),
-  write: (model, nextMenuBasicDemo) =>
-    modifyFields(model, { menuBasicDemo: () => nextMenuBasicDemo }),
-  toParentMessage: message => UiMessage.GotMenuBasicDemoMessage({ message }),
   foldOutMessage: foldMenuOutMessage,
 })
 
 const foldMenuAnimatedDemo = Update.foldChild({
+  ...menuAnimatedDemo,
   update: DemoMenu.update,
-  read: (model: UiModel) => Option.some(model.menuAnimatedDemo),
-  write: (model, nextMenuAnimatedDemo) =>
-    modifyFields(model, { menuAnimatedDemo: () => nextMenuAnimatedDemo }),
-  toParentMessage: message => UiMessage.GotMenuAnimatedDemoMessage({ message }),
   foldOutMessage: foldMenuOutMessage,
 })
 
 const foldPopoverBasicDemo = Update.foldChild({
+  ...popoverBasicDemo,
   update: Popover.update,
-  read: (model: UiModel) => Option.some(model.popoverBasicDemo),
-  write: (model, nextPopoverBasicDemo) =>
-    modifyFields(model, { popoverBasicDemo: () => nextPopoverBasicDemo }),
-  toParentMessage: message => UiMessage.GotPopoverBasicDemoMessage({ message }),
   foldOutMessage: foldPopoverOutMessage,
 })
 
 const foldPopoverAnimatedDemo = Update.foldChild({
+  ...popoverAnimatedDemo,
   update: Popover.update,
-  read: (model: UiModel) => Option.some(model.popoverAnimatedDemo),
-  write: (model, nextPopoverAnimatedDemo) =>
-    modifyFields(model, { popoverAnimatedDemo: () => nextPopoverAnimatedDemo }),
-  toParentMessage: message => UiMessage.GotPopoverAnimatedDemoMessage({ message }),
   foldOutMessage: foldPopoverOutMessage,
 })
 
 const foldPopoverNestedParentDemo = Update.foldChild({
+  ...popoverNestedParentDemo,
   update: Popover.update,
-  read: (model: UiModel) => Option.some(model.popoverNestedParentDemo),
-  write: (model, nextPopoverNestedParentDemo) =>
-    modifyFields(model, {
-      popoverNestedParentDemo: () => nextPopoverNestedParentDemo,
-    }),
-  toParentMessage: message => UiMessage.GotPopoverNestedParentDemoMessage({ message }),
   foldOutMessage: foldPopoverOutMessage,
 })
 
 const foldPopoverNestedChildDemo = Update.foldChild({
+  ...popoverNestedChildDemo,
   update: Popover.update,
-  read: (model: UiModel) => Option.some(model.popoverNestedChildDemo),
-  write: (model, nextPopoverNestedChildDemo) =>
-    modifyFields(model, {
-      popoverNestedChildDemo: () => nextPopoverNestedChildDemo,
-    }),
-  toParentMessage: message => UiMessage.GotPopoverNestedChildDemoMessage({ message }),
   foldOutMessage: foldPopoverOutMessage,
 })
 
-const foldVerticalRadioGroupDemoOutMessage = RadioGroup.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  RadioGroup.OutMessage<Plan>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        verticalRadioGroupDemoValue: () => Option.some(value),
-      }),
-    }),
-})
-
 const foldVerticalRadioGroupDemo = Update.foldChild({
+  ...verticalRadioGroupDemo,
   update: PlanRadioGroup.update,
-  read: (model: UiModel) => Option.some(model.verticalRadioGroupDemo),
-  write: (model, nextVerticalRadioGroupDemo) =>
-    modifyFields(model, {
-      verticalRadioGroupDemo: () => nextVerticalRadioGroupDemo,
-    }),
-  toParentMessage: message => UiMessage.GotVerticalRadioGroupDemoMessage({ message }),
-  foldOutMessage: foldVerticalRadioGroupDemoOutMessage,
-})
-
-const foldHorizontalRadioGroupDemoOutMessage = RadioGroup.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  RadioGroup.OutMessage<Plan>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, {
-        horizontalRadioGroupDemoValue: () => Option.some(value),
+  foldOutMessage: RadioGroup.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    RadioGroup.OutMessage<Plan>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          verticalRadioGroupDemoValue: () => Option.some(value),
+        }),
       }),
-    }),
+  }),
 })
 
 const foldHorizontalRadioGroupDemo = Update.foldChild({
+  ...horizontalRadioGroupDemo,
   update: PlanRadioGroup.update,
-  read: (model: UiModel) => Option.some(model.horizontalRadioGroupDemo),
-  write: (model, nextHorizontalRadioGroupDemo) =>
-    modifyFields(model, {
-      horizontalRadioGroupDemo: () => nextHorizontalRadioGroupDemo,
-    }),
-  toParentMessage: message => UiMessage.GotHorizontalRadioGroupDemoMessage({ message }),
-  foldOutMessage: foldHorizontalRadioGroupDemoOutMessage,
-})
-
-const foldSliderRatingDemoOutMessage = Slider.OutMessage.match<Update.Step<UiModel, UiMessage>>({
-  ChangedValue:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, { sliderRatingValue: () => value }),
-    }),
+  foldOutMessage: RadioGroup.OutMessage.match<
+    Update.Step<UiModel, UiMessage>,
+    RadioGroup.OutMessage<Plan>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, {
+          horizontalRadioGroupDemoValue: () => Option.some(value),
+        }),
+      }),
+  }),
 })
 
 const foldSliderRatingDemo = Update.foldChild({
+  ...sliderRatingDemo,
   update: Slider.update,
-  read: (model: UiModel) => Option.some(model.sliderRatingDemo),
-  write: (model, nextSliderRatingDemo) =>
-    modifyFields(model, { sliderRatingDemo: () => nextSliderRatingDemo }),
-  toParentMessage: message => UiMessage.GotSliderRatingDemoMessage({ message }),
-  foldOutMessage: foldSliderRatingDemoOutMessage,
-})
-
-const foldSliderVolumeDemoOutMessage = Slider.OutMessage.match<Update.Step<UiModel, UiMessage>>({
-  ChangedValue:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, { sliderVolumeValue: () => value }),
-    }),
+  foldOutMessage: Slider.OutMessage.match<Update.Step<UiModel, UiMessage>>({
+    ChangedValue:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { sliderRatingValue: () => value }),
+      }),
+  }),
 })
 
 const foldSliderVolumeDemo = Update.foldChild({
+  ...sliderVolumeDemo,
   update: Slider.update,
-  read: (model: UiModel) => Option.some(model.sliderVolumeDemo),
-  write: (model, nextSliderVolumeDemo) =>
-    modifyFields(model, { sliderVolumeDemo: () => nextSliderVolumeDemo }),
-  toParentMessage: message => UiMessage.GotSliderVolumeDemoMessage({ message }),
-  foldOutMessage: foldSliderVolumeDemoOutMessage,
-})
-
-const foldHorizontalTabsDemoOutMessage = Tabs.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Tabs.OutMessage<DemoTab>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, { horizontalTabsDemoTab: () => value }),
-    }),
+  foldOutMessage: Slider.OutMessage.match<Update.Step<UiModel, UiMessage>>({
+    ChangedValue:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { sliderVolumeValue: () => value }),
+      }),
+  }),
 })
 
 const foldHorizontalTabsDemo = Update.foldChild({
+  ...horizontalTabsDemo,
   update: DemoTabs.update,
-  read: (model: UiModel) => Option.some(model.horizontalTabsDemo),
-  write: (model, nextHorizontalTabsDemo) =>
-    modifyFields(model, { horizontalTabsDemo: () => nextHorizontalTabsDemo }),
-  toParentMessage: message => UiMessage.GotHorizontalTabsDemoMessage({ message }),
-  foldOutMessage: foldHorizontalTabsDemoOutMessage,
-})
-
-const foldVerticalTabsDemoOutMessage = Tabs.OutMessage.match<
-  Update.Step<UiModel, UiMessage>,
-  Tabs.OutMessage<DemoTab>
->({
-  Selected:
-    ({ value }) =>
-    model => ({
-      model: modifyFields(model, { verticalTabsDemoTab: () => value }),
-    }),
+  foldOutMessage: Tabs.OutMessage.match<Update.Step<UiModel, UiMessage>, Tabs.OutMessage<DemoTab>>({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { horizontalTabsDemoTab: () => value }),
+      }),
+  }),
 })
 
 const foldVerticalTabsDemo = Update.foldChild({
+  ...verticalTabsDemo,
   update: DemoTabs.update,
-  read: (model: UiModel) => Option.some(model.verticalTabsDemo),
-  write: (model, nextVerticalTabsDemo) =>
-    modifyFields(model, { verticalTabsDemo: () => nextVerticalTabsDemo }),
-  toParentMessage: message => UiMessage.GotVerticalTabsDemoMessage({ message }),
-  foldOutMessage: foldVerticalTabsDemoOutMessage,
+  foldOutMessage: Tabs.OutMessage.match<Update.Step<UiModel, UiMessage>, Tabs.OutMessage<DemoTab>>({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { verticalTabsDemoTab: () => value }),
+      }),
+  }),
 })
 
 const foldToastDemo = Update.foldChild({
+  ...toastDemo,
   update: Toast.update,
-  read: (model: UiModel) => Option.some(model.toastDemo),
-  write: (model, nextToastDemo) => modifyFields(model, { toastDemo: () => nextToastDemo }),
-  toParentMessage: message => UiMessage.GotToastDemoMessage({ message }),
   foldOutMessage: foldToastOutMessage,
 })
 
 const foldToastDemoShow = Update.foldChild({
+  ...toastDemo,
   update: Toast.show,
-  read: (model: UiModel) => Option.some(model.toastDemo),
-  write: (model, nextToastDemo) => modifyFields(model, { toastDemo: () => nextToastDemo }),
-  toParentMessage: message => UiMessage.GotToastDemoMessage({ message }),
   foldOutMessage: foldToastOutMessage,
 })
 
 const foldToastDemoDismissAll = Update.foldChildStep({
+  ...toastDemo,
   update: Toast.dismissAll,
-  read: (model: UiModel) => Option.some(model.toastDemo),
-  write: (model, nextToastDemo) => modifyFields(model, { toastDemo: () => nextToastDemo }),
-  toParentMessage: message => UiMessage.GotToastDemoMessage({ message }),
   foldOutMessage: foldToastOutMessage,
 })
 
 const foldTooltipBasicDemo = Update.foldChild({
+  ...tooltipBasicDemo,
   update: Tooltip.update,
-  read: (model: UiModel) => Option.some(model.tooltipBasicDemo),
-  write: (model, nextTooltipBasicDemo) =>
-    modifyFields(model, { tooltipBasicDemo: () => nextTooltipBasicDemo }),
-  toParentMessage: message => UiMessage.GotTooltipBasicDemoMessage({ message }),
   foldOutMessage: foldTooltipOutMessage,
 })
 
 const foldTooltipNoDelayDemo = Update.foldChild({
+  ...tooltipNoDelayDemo,
   update: Tooltip.update,
-  read: (model: UiModel) => Option.some(model.tooltipNoDelayDemo),
-  write: (model, nextTooltipNoDelayDemo) =>
-    modifyFields(model, { tooltipNoDelayDemo: () => nextTooltipNoDelayDemo }),
-  toParentMessage: message => UiMessage.GotTooltipNoDelayDemoMessage({ message }),
   foldOutMessage: foldTooltipOutMessage,
 })
 
 const foldHoverIntentDemo = Update.foldChild({
+  ...hoverIntentDemo,
   update: HoverIntent.update,
-  read: (model: UiModel) => Option.some(model.hoverIntentDemo),
-  write: (model, nextHoverIntentDemo) =>
-    modifyFields(model, { hoverIntentDemo: () => nextHoverIntentDemo }),
-  toParentMessage: message => UiMessage.GotHoverIntentDemoMessage({ message }),
   foldOutMessage: foldHoverIntentOutMessage,
 })
 
@@ -779,65 +692,31 @@ const foldAnimationDemoOutMessage: (
   })
 
 const foldAnimationDemo = Update.foldChild({
+  ...animationDemo,
   update: Animation.update,
-  read: (model: UiModel) => Option.some(model.animationDemo),
-  write: (model, nextAnimationDemo) =>
-    modifyFields(model, { animationDemo: () => nextAnimationDemo }),
-  toParentMessage: message => UiMessage.GotAnimationDemoMessage({ message }),
   foldOutMessage: foldAnimationDemoOutMessage,
 })
 
-const foldAnimationDemoShow = Update.foldChildStep({
-  update: Animation.show,
-  read: (model: UiModel) => Option.some(model.animationDemo),
-  write: (model, nextAnimationDemo) =>
-    modifyFields(model, { animationDemo: () => nextAnimationDemo }),
-  toParentMessage: message => UiMessage.GotAnimationDemoMessage({ message }),
-})
+const foldAnimationDemoShow = Update.foldChildStep({ ...animationDemo, update: Animation.show })
 
-const foldAnimationDemoHide = Update.foldChildStep({
-  update: Animation.hide,
-  read: (model: UiModel) => Option.some(model.animationDemo),
-  write: (model, nextAnimationDemo) =>
-    modifyFields(model, { animationDemo: () => nextAnimationDemo }),
-  toParentMessage: message => UiMessage.GotAnimationDemoMessage({ message }),
-})
+const foldAnimationDemoHide = Update.foldChildStep({ ...animationDemo, update: Animation.hide })
 
-const foldVirtualListDemo = Update.foldChild({
-  update: VirtualList.update,
-  read: (model: UiModel) => Option.some(model.virtualListDemo),
-  write: (model, nextVirtualListDemo) =>
-    modifyFields(model, { virtualListDemo: () => nextVirtualListDemo }),
-  toParentMessage: message => UiMessage.GotVirtualListDemoMessage({ message }),
-})
+const foldVirtualListDemo = Update.foldChild({ ...virtualListDemo, update: VirtualList.update })
 
 const foldVirtualListDemoScrollToIndex = Update.foldChild({
+  ...virtualListDemo,
   update: VirtualList.scrollToIndex,
-  read: (model: UiModel) => Option.some(model.virtualListDemo),
-  write: (model, nextVirtualListDemo) =>
-    modifyFields(model, { virtualListDemo: () => nextVirtualListDemo }),
-  toParentMessage: message => UiMessage.GotVirtualListDemoMessage({ message }),
 })
 
 const foldVirtualListVariableDemo = Update.foldChild({
+  ...virtualListVariableDemo,
   update: VirtualList.update,
-  read: (model: UiModel) => Option.some(model.virtualListVariableDemo),
-  write: (model, nextVirtualListVariableDemo) =>
-    modifyFields(model, {
-      virtualListVariableDemo: () => nextVirtualListVariableDemo,
-    }),
-  toParentMessage: message => UiMessage.GotVirtualListVariableDemoMessage({ message }),
 })
 
 const foldVirtualListVariableDemoScrollToIndex = Update.foldChild({
+  ...virtualListVariableDemo,
   update: (virtualList: VirtualList.Model, index: number) =>
     VirtualList.scrollToIndexVariable(virtualList, variableActivities, variableRowHeightPx, index),
-  read: (model: UiModel) => Option.some(model.virtualListVariableDemo),
-  write: (model, nextVirtualListVariableDemo) =>
-    modifyFields(model, {
-      virtualListVariableDemo: () => nextVirtualListVariableDemo,
-    }),
-  toParentMessage: message => UiMessage.GotVirtualListVariableDemoMessage({ message }),
 })
 
 export const uiUpdate = (model: UiModel, message: UiMessage) =>

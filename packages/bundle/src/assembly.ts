@@ -52,16 +52,45 @@ type CollectionFieldOf<P> =
     ? F
     : never
 
+// A placement whose wrapper tag the types cannot read (`string`) narrows nothing.
+type ClaimedOf<P> =
+  P extends Placed<string, any, any, any, any, any, any, any, any, any, any, infer C>
+    ? KnownTag<C>
+    : P extends PlacedCollection<string, any, any, any, any, any, any, any, any, any, any, infer C>
+      ? KnownTag<C>
+      : never
+type KnownTag<Tag extends string> = string extends Tag ? never : Tag
+
+/** The fields among `Fields` that hold an `Option`, which a placement may start as `None`. */
+type OptionFields<Model, Fields> = {
+  [K in Fields & keyof Model]: Model[K] extends Option.Option<unknown> ? K : never
+}[Fields & keyof Model]
+
 /**
  * What `initial` needs besides the placements: exactly the fields no placement
- * owns, with collection fields optional. When a placement came from a custom
- * Link its field is unknown, so every field is optional.
+ * owns, with collection fields and `Option` fields (`Link.optional`) optional,
+ * since giving one skips its placement's `init`. When a placement's Link names
+ * no field the types can read, every field is optional.
  */
 export type InitialRest<Model, Ps extends ReadonlyArray<unknown>> =
   string extends FieldOf<Ps[number]>
     ? Partial<Model>
     : Omit<Model, FieldOf<Ps[number]>> &
-        Partial<Pick<Model, CollectionFieldOf<Ps[number]> & keyof Model>>
+        Partial<
+          Pick<
+            Model,
+            (CollectionFieldOf<Ps[number]> | OptionFields<Model, FieldOf<Ps[number]>>) & keyof Model
+          >
+        >
+
+/**
+ * The Messages the parent's own update receives from `assembly.update(own)`:
+ * every Message but the wrapper variants its placements route.
+ */
+export type OwnMessage<Message, Ps extends ReadonlyArray<unknown>> = Exclude<
+  Message,
+  { readonly _tag: ClaimedOf<Ps[number]> }
+>
 
 // A wiring counts only when its type declares the part as a required property.
 type ResourceEntriesOf<P> = P extends { readonly resources: infer Resources }
@@ -106,14 +135,18 @@ export interface Assembly<
   ) => Option.Option<Update.Return<Model, Message, RequirementsOf<Ps[number]>>>
   /**
    * The parent's update: a placement's or wiring's Message goes there, and every
-   * other Message to `own`. A shared tag goes to each wiring sharing it and then
-   * to `own` as well. Without `own`, other Messages leave the Model unchanged.
+   * other Message to `own`, typed without the placements' wrapper variants. A
+   * shared tag goes to each wiring sharing it and then to `own` as well. Without
+   * `own`, other Messages leave the Model unchanged.
    */
   // Deliberately not generic: a generic call written inline in `complete`'s config
   // stops TypeScript inferring that config, so the parent's services are stated once
   // on `assemble`.
   readonly update: (
-    own?: (model: Model, message: Message) => Update.Return<Model, Message, Services>,
+    own?: (
+      model: Model,
+      message: OwnMessage<Message, Ps>,
+    ) => Update.Return<Model, Message, Services>,
   ) => (
     model: Model,
     message: Message,

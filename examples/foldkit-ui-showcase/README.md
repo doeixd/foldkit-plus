@@ -50,10 +50,14 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
   second owner of the same keys and the same state.
 - **`foldkit-mirror`.** The route is the only state in the URL, and it is the
   route: nothing the Model owns is copied there.
-- **`foldkit-surface`, `-agent`, `-remote`, `-sync`, `-form`, `-bundle`.**
+- **`foldkit-surface`, `-agent`, `-remote`, `-sync`, `-form`, and Bundles.**
   There is no server, no agent, nothing durable, and no form with validation:
   the fields are components shown for themselves. The component Submodels are
-  wired with `Update.foldChild` as upstream wires them.
+  folded with `Update.foldChild` as upstream folds them, but each fold's `read`,
+  `write` and `toParentMessage` come from one `foldkit-bundle` Link per
+  component (`Update.foldChild({ ...virtualListDemo, update: VirtualList.update })`), so
+  a Message a component ignores leaves the Model as it was instead of redrawing
+  the page.
 
 ## Differences from upstream
 

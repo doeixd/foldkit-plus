@@ -4,6 +4,7 @@
  */
 import { Array, Function, Option, Pipeable, Record, Schema } from 'effect'
 import { taggedStruct, type CallableTaggedStruct } from 'foldkit/schema'
+import type { Invalid } from './placed.js'
 
 const LinkTypeId: unique symbol = Symbol.for('foldkit-bundle/Link')
 
@@ -33,8 +34,15 @@ export interface Wrapper<Tag extends string, ChildMessage> {
 /** Every Foldkit Message is tagged; routing only needs the tag. */
 export type AnyMessage = { readonly _tag: string }
 
-export interface Link<Parent, ParentMessage, Child, ChildMessage> extends Pipeable.Pipeable {
+/**
+ * `Field` is the parent's top-level field the child is written into, when the
+ * Link is one: `never` for a child nested deeper, and `string` when unknown.
+ */
+export interface Link<Parent, ParentMessage, Child, ChildMessage, Field extends string = string>
+  extends Pipeable.Pipeable {
   readonly [LinkTypeId]: typeof LinkTypeId
+  /** Types only: the top-level field, so `placements.initial` knows who writes it. */
+  readonly field?: Field
   readonly read: (parent: Parent) => Option.Option<Child>
   readonly write: (parent: Parent, child: Child) => Parent
   readonly toParentMessage: (message: ChildMessage) => ParentMessage
@@ -53,7 +61,47 @@ export interface Link<Parent, ParentMessage, Child, ChildMessage> extends Pipeab
 export const isLink = (value: unknown): value is Link<unknown, unknown, unknown, unknown> =>
   typeof value === 'object' && value !== null && LinkTypeId in value
 
-const wrapper = <const Tag extends string, ChildMessage>(
+/** A Message union's variant `Tag({ message })`, as `defineMessageUnion` declares it. */
+type Variant = {
+  readonly fields: { readonly _tag: Schema.tag<string>; readonly message: Schema.Top }
+}
+
+type VariantTag<V extends Variant> =
+  V['fields']['_tag'] extends Schema.tag<infer Tag extends string> ? Tag : never
+
+type OnlyMessage<V extends Variant> = [Exclude<keyof V['fields'], '_tag' | 'message'>] extends [
+  never,
+]
+  ? unknown
+  : Invalid<'A wrapper variant carries only `message`; this variant has other fields'>
+
+/**
+ * The parent variant `Tag({ message })` for a child's Messages: from a tag and
+ * the child's Message Schema, whose `cases` then go into the parent's union, or
+ * from a variant the parent's union already declares.
+ */
+function wrapper<const Tag extends string, ChildMessage>(
+  tag: Tag,
+  childMessage: Schema.Codec<ChildMessage, unknown>,
+): Wrapper<Tag, ChildMessage>
+function wrapper<V extends Variant>(
+  variant: V & OnlyMessage<V>,
+): Wrapper<VariantTag<V>, V['fields']['message']['Type']>
+function wrapper(
+  tagOrVariant: string | Variant,
+  childMessage?: Schema.Codec<unknown, unknown>,
+): Wrapper<string, unknown> {
+  return typeof tagOrVariant === 'string'
+    ? wrapperOf(tagOrVariant, childMessage!)
+    : wrapperOf(
+        String(tagOrVariant.fields._tag.ast.literal),
+        // A union holding a declared Schema, such as Foldkit's `File`, types its
+        // decoding services `unknown`; the union decoded it already, so this does too.
+        tagOrVariant.fields.message as Schema.Codec<unknown, unknown>,
+      )
+}
+
+const wrapperOf = <const Tag extends string, ChildMessage>(
   tag: Tag,
   childMessage: Schema.Codec<ChildMessage, unknown>,
 ): Wrapper<Tag, ChildMessage> => {
@@ -73,24 +121,34 @@ const wrapper = <const Tag extends string, ChildMessage>(
   }
 }
 
-interface MakeConfig<Parent, Tag extends string, Child, ChildMessage> {
+interface MakeConfig<Parent, Tag extends string, Child, ChildMessage, Path> {
   readonly read: (parent: Parent) => Option.Option<Child>
   readonly write: (parent: Parent, child: Child) => Parent
   readonly wrapper: Wrapper<Tag, ChildMessage>
   readonly when?: (parent: Parent) => boolean
-  readonly path: ReadonlyArray<string>
+  readonly path: Path
   readonly owner?: object | undefined
 }
 
 type LinkFields<Parent, ParentMessage, Child, ChildMessage> = Omit<
   Link<Parent, ParentMessage, Child, ChildMessage>,
-  typeof LinkTypeId | 'pipe'
+  typeof LinkTypeId | 'pipe' | 'field'
 >
 
+/**
+ * The top-level field a path names. `initial` treats a one-segment path as the
+ * field the placement writes, so a longer one names none.
+ */
+type FieldOfPath<Path> = Path extends readonly [infer Field extends string]
+  ? Field
+  : Path extends readonly [string, ...ReadonlyArray<string>]
+    ? never
+    : string
+
 /** Brands plain link fields as a pipeable Link. */
-const toLink = <Parent, ParentMessage, Child, ChildMessage>(
+const toLink = <Parent, ParentMessage, Child, ChildMessage, Field extends string>(
   fields: LinkFields<Parent, ParentMessage, Child, ChildMessage>,
-): Link<Parent, ParentMessage, Child, ChildMessage> => ({
+): Link<Parent, ParentMessage, Child, ChildMessage, Field> => ({
   ...fields,
   [LinkTypeId]: LinkTypeId,
   pipe() {
@@ -98,9 +156,15 @@ const toLink = <Parent, ParentMessage, Child, ChildMessage>(
   },
 })
 
-const make = <Parent, const Tag extends string, Child, ChildMessage>(
-  config: MakeConfig<Parent, Tag, Child, ChildMessage>,
-): Link<Parent, Wrapped<Tag, ChildMessage>, Child, ChildMessage> =>
+const make = <
+  Parent,
+  const Tag extends string,
+  Child,
+  ChildMessage,
+  const Path extends ReadonlyArray<string> = ReadonlyArray<string>,
+>(
+  config: MakeConfig<Parent, Tag, Child, ChildMessage, Path>,
+): Link<Parent, Wrapped<Tag, ChildMessage>, Child, ChildMessage, FieldOfPath<Path>> =>
   toLink({
     read: config.read,
     write: config.write,
@@ -115,6 +179,13 @@ const make = <Parent, const Tag extends string, Child, ChildMessage>(
 /**
  * A child held in a struct field of the parent. Writes copy the parent with an
  * object spread, so a class-based parent Model needs `Link.make` instead.
+ *
+ * Its `read`, `write` and `toParentMessage` are what `Update.foldChild` takes,
+ * so a component that is not a Bundle folds through it:
+ * `Update.foldChild({ ...link, update: VirtualList.update })`. That fold writes back
+ * even a child its update left alone, so the write keeps the parent when the
+ * child is the one already there: Foldkit renders only when the root Model
+ * changes identity.
  */
 const field =
   <Parent>() =>
@@ -122,10 +193,10 @@ const field =
     key: Key,
     wrap: Wrapper<Tag, ChildMessage>,
     options: { readonly when?: (parent: Parent) => boolean } = {},
-  ): Link<Parent, Wrapped<Tag, ChildMessage>, Parent[Key], ChildMessage> =>
+  ): Link<Parent, Wrapped<Tag, ChildMessage>, Parent[Key], ChildMessage, Key> =>
     make({
       read: parent => Option.some(parent[key]),
-      write: (parent, child) => ({ ...parent, [key]: child }),
+      write: (parent, child) => (parent[key] === child ? parent : { ...parent, [key]: child }),
       wrapper: wrap,
       ...options,
       path: [key],
@@ -138,28 +209,40 @@ type OptionKeys<Parent> = {
 
 type OptionValue<A> = A extends Option.Option<infer Value> ? Value : never
 
-/** A child held as `Option<Child>` in a struct field: absent while the field is `None`. */
+/**
+ * A child held as `Option<Child>` in a struct field: absent while the field is
+ * `None`. Like `field`, it keeps the parent when the child is unchanged.
+ */
 const optional =
   <Parent>() =>
   <const Key extends OptionKeys<Parent>, const Tag extends string, ChildMessage>(
     key: Key,
     wrap: Wrapper<Tag, ChildMessage>,
     options: { readonly when?: (parent: Parent) => boolean } = {},
-  ): Link<Parent, Wrapped<Tag, ChildMessage>, OptionValue<Parent[Key]>, ChildMessage> =>
+  ): Link<Parent, Wrapped<Tag, ChildMessage>, OptionValue<Parent[Key]>, ChildMessage, Key> =>
     make({
       read: (parent): Option.Option<OptionValue<Parent[Key]>> =>
         parent[key] as Option.Option<OptionValue<Parent[Key]>>,
-      write: (parent, child) => ({ ...parent, [key]: Option.some(child) }),
+      write: (parent, child) => {
+        // Absent, not `None`, while a placement's `initial` builds the parent.
+        const current: unknown = parent[key]
+        return Option.isOption(current) && Option.exists(current, value => value === child)
+          ? parent
+          : { ...parent, [key]: Option.some(child) }
+      },
       wrapper: wrap,
       ...options,
       path: [key],
     })
 
-/** A child placed inside another placed child: lenses, Messages, gates, and paths chain. */
+/**
+ * A child placed inside another placed child: lenses, Messages, gates, and paths
+ * chain. The result writes no top-level field of its own.
+ */
 const compose = <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
-  outer: Link<A, AMessage, B, BMessage>,
-  inner: Link<B, BMessage, C, CMessage>,
-): Link<A, AMessage, C, CMessage> =>
+  outer: Link<A, AMessage, B, BMessage, string>,
+  inner: Link<B, BMessage, C, CMessage, string>,
+): Link<A, AMessage, C, CMessage, never> =>
   toLink({
     read: parent => Option.flatMap(outer.read(parent), inner.read),
     write: (parent, child) =>
@@ -191,19 +274,19 @@ const compose = <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
 const when: {
   <Parent>(
     predicate: (parent: Parent) => boolean,
-  ): <ParentMessage, Child, ChildMessage>(
-    self: Link<Parent, ParentMessage, Child, ChildMessage>,
-  ) => Link<Parent, ParentMessage, Child, ChildMessage>
-  <Parent, ParentMessage, Child, ChildMessage>(
-    self: Link<Parent, ParentMessage, Child, ChildMessage>,
+  ): <ParentMessage, Child, ChildMessage, Field extends string>(
+    self: Link<Parent, ParentMessage, Child, ChildMessage, Field>,
+  ) => Link<Parent, ParentMessage, Child, ChildMessage, Field>
+  <Parent, ParentMessage, Child, ChildMessage, Field extends string>(
+    self: Link<Parent, ParentMessage, Child, ChildMessage, Field>,
     predicate: (parent: Parent) => boolean,
-  ): Link<Parent, ParentMessage, Child, ChildMessage>
+  ): Link<Parent, ParentMessage, Child, ChildMessage, Field>
 } = Function.dual(
   2,
-  <Parent, ParentMessage, Child, ChildMessage>(
-    self: Link<Parent, ParentMessage, Child, ChildMessage>,
+  <Parent, ParentMessage, Child, ChildMessage, Field extends string>(
+    self: Link<Parent, ParentMessage, Child, ChildMessage, Field>,
     predicate: (parent: Parent) => boolean,
-  ): Link<Parent, ParentMessage, Child, ChildMessage> =>
+  ): Link<Parent, ParentMessage, Child, ChildMessage, Field> =>
     toLink({
       ...self,
       when: Option.some(
@@ -220,12 +303,14 @@ const when: {
  */
 const andThen: {
   <B, BMessage extends AnyMessage, C, CMessage>(
-    inner: Link<B, BMessage, C, CMessage>,
-  ): <A, AMessage>(outer: Link<A, AMessage, B, BMessage>) => Link<A, AMessage, C, CMessage>
+    inner: Link<B, BMessage, C, CMessage, string>,
+  ): <A, AMessage>(
+    outer: Link<A, AMessage, B, BMessage, string>,
+  ) => Link<A, AMessage, C, CMessage, never>
   <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
-    outer: Link<A, AMessage, B, BMessage>,
-    inner: Link<B, BMessage, C, CMessage>,
-  ): Link<A, AMessage, C, CMessage>
+    outer: Link<A, AMessage, B, BMessage, string>,
+    inner: Link<B, BMessage, C, CMessage, string>,
+  ): Link<A, AMessage, C, CMessage, never>
 } = Function.dual(2, compose)
 
 /** The parent Message variant `Tag({ key, message })` that carries one collection item's Messages. */
@@ -289,7 +374,10 @@ export interface CollectionLink<
   Child,
   ChildMessage,
   Key extends string = string,
+  Field extends string = string,
 > {
+  /** Types only: the top-level field holding the items, or `string` when unknown. */
+  readonly field?: Field
   /** The storage with no items, for a parent's initial Model. */
   readonly empty: unknown
   readonly entries: (parent: Parent) => ReadonlyArray<readonly [key: Key, child: Child]>
@@ -334,7 +422,8 @@ const collection =
     KeyedWrapped<Tag, ChildMessage, Key>,
     RecordValue<Parent[Field]>,
     ChildMessage,
-    Key
+    Key,
+    Field
   > => {
     type Child = RecordValue<Parent[Field]>
     const items = (parent: Parent) => parent[field] as Readonly<Record<string, Child>>
@@ -389,7 +478,8 @@ const collectionById =
     KeyedWrapped<Tag, ChildMessage, Key>,
     ArrayItem<Parent[Field]>,
     ChildMessage,
-    Key
+    Key,
+    Field
   > => {
     type Child = ArrayItem<Parent[Field]>
     const items = (parent: Parent) => parent[field] as ReadonlyArray<Child>

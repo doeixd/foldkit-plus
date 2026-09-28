@@ -11,7 +11,14 @@ import type * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import type { AnyMessage, Link } from './link.js'
 import { each, type EachConfig, type PlacedCollection } from './collection.js'
-import { checkArgs, place, type Invalid, type PlaceConfig, type Placed } from './placed.js'
+import {
+  checkArgs,
+  place,
+  type Invalid,
+  type PlaceConfig,
+  type Placed,
+  type TagOf,
+} from './placed.js'
 import type { CollectionLink } from './link.js'
 
 const BundleTypeId: unique symbol = Symbol.for('foldkit-bundle/Bundle')
@@ -94,8 +101,8 @@ export interface Bundle<
     args: Args,
   ) => Bundle<Name, void, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
   /** Places the bundle where `link` points. */
-  readonly at: <Parent, LinkMessage, OutStepMessage = never, R2 = never>(
-    link: Link<Parent, LinkMessage, Model, Message>,
+  readonly at: <Parent, LinkMessage, Field extends string, OutStepMessage = never, R2 = never>(
+    link: Link<Parent, LinkMessage, Model, Message, Field>,
     ...config: PlaceConfigParam<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
   ) => Placed<
     Name,
@@ -107,12 +114,21 @@ export interface Bundle<
     S,
     ViewInputs,
     Resources,
-    Helpers
+    Helpers,
+    Field,
+    TagOf<LinkMessage>
   >
   /** Places the bundle once per key of the collection `link` points at. */
   readonly each: [keyof Resources] extends [never]
-    ? <Parent, LinkMessage, Key extends string, OutStepMessage = never, R2 = never>(
-        link: CollectionLink<Parent, LinkMessage, Model, Message, Key>,
+    ? <
+        Parent,
+        LinkMessage,
+        Key extends string,
+        Field extends string,
+        OutStepMessage = never,
+        R2 = never,
+      >(
+        link: CollectionLink<Parent, LinkMessage, Model, Message, Key, Field>,
         ...config: EachConfigParam<
           Args,
           Parent,
@@ -133,8 +149,9 @@ export interface Bundle<
         S,
         ViewInputs,
         Helpers,
-        string,
-        Key
+        Field,
+        Key,
+        TagOf<LinkMessage>
       >
     : Invalid<'Bundle.each does not support Managed Resources yet: the runtime provides a resource by one tag, so items would share it'>
 }
@@ -148,6 +165,10 @@ export type PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutS
   readonly key?: string
   /** A gate beside the Link's own: the child's Subscriptions and resources run only while both hold. */
   readonly when?: (parent: Parent) => boolean
+  /** Observes each of the child's Messages in parent terms, after the child handled it. */
+  readonly onMessage?: Required<
+    PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
+  >['onMessage']
 } & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }
@@ -179,6 +200,10 @@ type EachOptions<
   readonly key?: string
   /** A gate per item beside the Link's own: an item's Subscriptions run only while both hold. */
   readonly when?: (parent: Parent, key: Key) => boolean
+  /** Observes each item's Messages in parent terms, after the item handled it. */
+  readonly onMessage?: Required<
+    EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>
+  >['onMessage']
 } & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }
@@ -459,7 +484,7 @@ export type { Declared, DeclaredEach, WrapperTag } from './declare.js'
 export { parent } from './parent.js'
 export type { Parent } from './parent.js'
 export type { BundleParts } from './declare.js'
-export type { InitialRest } from './assembly.js'
+export type { InitialRest, OwnMessage } from './assembly.js'
 export {
   mapInit,
   mapUpdate,

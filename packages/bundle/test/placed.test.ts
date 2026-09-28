@@ -121,6 +121,18 @@ describe('update', () => {
     expect(Option.getOrThrow(Left.update(initial, GotLeft.make(opened))).model).toBe(initial)
     const present: Model = { ...initial, maybe: Option.some(counter) }
     expect(Option.getOrThrow(Maybe.update(present, GotMaybe.make(opened))).model).toBe(present)
+    // `Link.field` and `Link.optional` keep the parent themselves; a write given
+    // to `Link.make` copies it, and the placement keeps the parent all the same.
+    const Made = Counter.at(
+      Link.make({
+        read: (model: Model) => Option.some(model.right),
+        write: (model, right) => ({ ...model, right }),
+        wrapper: GotRight,
+        path: ['right'],
+      }),
+      { args, onOut: recordLimit('made') },
+    )
+    expect(Option.getOrThrow(Made.update(initial, GotRight.make(opened))).model).toBe(initial)
   })
 
   it('leaves the parent unchanged for a Message to an absent optional child', () => {
