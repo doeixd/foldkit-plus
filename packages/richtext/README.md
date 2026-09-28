@@ -799,8 +799,8 @@ shared state --project--> Document --command--> result --translate--> ops
 ```
 
 The editor, its commands and its renderers keep working on a plain `Document`. The state
-holds the blocks, every character ever typed (deleted ones stay, as tombstones, because a
-later op may be anchored on them), and the marks on each:
+holds the blocks, every character typed (deleted ones stay, as tombstones, because a later
+op may be anchored on them, until a `Collect` removes them), and the marks on each:
 
 ```ts
 import * as RichText from 'foldkit-richtext'
@@ -850,6 +850,13 @@ if (result.ok) {
 - Two replicas' concurrent inserts at one place both survive, the later-committed first.
   A mark covers the characters it named, so text another replica typed inside the range
   before the mark arrived stays unmarked.
+- A `Collect` op removes deleted text, in two phases so a deletion is kept for one whole
+  interval: each removes what the previous one found deleted, then marks what is deleted
+  now. Commit it through the log like any op, so every replica removes the same text at
+  the same point. An op made by a replica offline across two collections, anchored on
+  removed text, takes the lost-anchor fallback, and an undo from before then finds less to
+  restore. An insert keeps one deleted character at its end, so its indexes are never
+  reused. Block records stay; only their text goes.
 - `invert(state, ops)` gives the ops that undo `ops`, computed against `state`, the state
   `ops` were applied to. Applied later, after anything else, they take back only what
   `ops` did:

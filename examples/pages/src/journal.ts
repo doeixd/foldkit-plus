@@ -86,8 +86,32 @@ export const openJournal = (file = ':memory:', page = PAGE) => {
     },
   })
 
+  /**
+   * Collects deleted text: one `Collect` op per page, committed by the server like any edit,
+   * so every replica applies it at the same place in the order. Text deleted before the
+   * previous collection is removed, so a tab offline across two of them finds its anchors
+   * on that text gone, and its typing there lands at the end of the block.
+   */
+  const collect = (): void => {
+    for (const { id } of Effect.runSync(journal.load(pages)).snapshot.pages) {
+      const cursor = Effect.runSync(journal.cursor(pages))
+      const operation = PagesSync.codec.normalizeOperation({
+        protocolVersion: 1,
+        schemaVersion: 1,
+        documentId: 'pages',
+        replicaId: 'server',
+        localSequence: cursor + 1,
+        opId: `server:${cursor + 1}`,
+        baseCursor: cursor,
+        message: { _tag: 'EditedPage', id, ops: [{ type: 'Collect' }] },
+      })
+      Effect.runSync(journal.append(pages, operation, { actorId: 'server' }))
+    }
+  }
+
   return {
     transport,
+    collect,
     /** Calls `listener` after each commit; returns the unsubscribe. */
     subscribe: (listener: () => void): (() => void) => {
       const fiber = Effect.runFork(

@@ -73,6 +73,8 @@ const Span = Schema.Struct({
   text: Schema.NonEmptyString,
   marks: Schema.Array(RunMark),
   deleted: Schema.Boolean,
+  /** Deleted when a `Collect` ran, so the next one removes it. */
+  swept: Schema.optionalKey(Schema.Boolean),
 })
 type Span = typeof Span.Type
 
@@ -83,6 +85,8 @@ const Entry = Schema.Struct({
   /** Nested blocks in order, deleted ones included, so a sibling anchor still resolves. */
   children: Schema.Array(ReplicatedId),
   deleted: Schema.Boolean,
+  /** Deleted when a `Collect` ran, so the next one removes the text it holds. */
+  swept: Schema.optionalKey(Schema.Boolean),
   /** Where a joined block's start now is: after this character of `into`, or its start. */
   joined: Schema.optionalKey(Schema.Struct({ into: ReplicatedId, after: Schema.NullOr(CharRef) })),
 })
@@ -168,6 +172,11 @@ export const ReplicatedOp = Schema.Union([
     /** The nested blocks it held, taken back from the container they were joined into. */
     children: Schema.Array(ReplicatedId),
   }),
+  /**
+   * Tombstone collection, in two phases so a deletion is kept for one whole interval:
+   * removes the deleted text the previous `Collect` found, then marks what is deleted now.
+   */
+  Schema.Struct({ type: Schema.Literal('Collect') }),
 ])
 export type ReplicatedOp = typeof ReplicatedOp.Type
 
@@ -323,7 +332,8 @@ const draft = (state: ReplicatedState) => {
     if (holders !== undefined) holderIndexes.set(next, nextHolders(holders, state, next, copied))
     return next
   }
-  return { read, write, siblings, create, finish, holding }
+  const ids = (): ReadonlyArray<string> => Object.keys(blocks)
+  return { read, write, siblings, create, finish, holding, ids }
 }
 type Draft = ReturnType<typeof draft>
 
@@ -663,15 +673,20 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       return
     }
     case 'Undelete':
-      eachCovered(work, op.ranges, span => ({ ...span, deleted: false }))
+      eachCovered(work, op.ranges, ({ swept: _, ...span }) => ({ ...span, deleted: false }))
       return
     case 'UndeleteBlock': {
       // A joined block comes back by `Unjoin`, which returns what it held too.
       const entry = work.read(op.id)
       if (entry === undefined || !entry.deleted || entry.joined !== undefined) return
-      work.write(op.id)!.deleted = false
+      const restored = work.write(op.id)!
+      restored.deleted = false
+      delete restored.swept
       return
     }
+    case 'Collect':
+      collect(work)
+      return
     case 'Unjoin': {
       const entry = work.read(op.id)
       if (entry?.joined === undefined) return
@@ -696,6 +711,49 @@ const applyOp = (work: Draft, op: ReplicatedOp): void => {
       work.write(op.id)!.shape = { ...entry.shape, props: { ...entry.shape.props, ...op.props } }
       return
     }
+  }
+}
+
+/**
+ * Removes the text the last `Collect` found deleted, deleted characters and those of a
+ * deleted block alike, then marks what is deleted now for the next one. A late op that
+ * names a removed character takes the fallback a lost anchor does.
+ *
+ * An insert keeps its highest index: where a removed stretch ended it, its last character
+ * stays, deleted. Otherwise `translate` could continue the insert from a lower index, and a
+ * late op naming the removed character would find the new one.
+ */
+const collect = (work: Draft): void => {
+  const ends = new Map<string, number>()
+  for (const block of work.ids()) {
+    for (const span of work.read(block)?.spans ?? []) {
+      const end = span.offset + span.text.length
+      if (end > (ends.get(span.id) ?? 0)) ends.set(span.id, end)
+    }
+  }
+  for (const block of work.ids()) {
+    const entry = work.read(block)
+    if (entry === undefined) continue
+    const blockGone = entry.deleted && entry.swept === true
+    const collected = (span: Span) => blockGone || (span.deleted && span.swept === true)
+    const unmarked = (span: Span) => span.deleted && span.swept !== true
+    if (!entry.spans.some(span => collected(span) || unmarked(span))) {
+      if (entry.deleted && entry.swept !== true) work.write(block)!.swept = true
+      continue
+    }
+    const spans: Array<Span> = []
+    for (const span of entry.spans) {
+      const end = span.offset + span.text.length
+      if (!collected(span)) {
+        spans.push(unmarked(span) ? { ...span, swept: true } : span)
+      } else if (end === ends.get(span.id)) {
+        const last = span.text.slice(-1)
+        spans.push({ ...span, offset: end - 1, text: last, deleted: true, swept: true })
+      }
+    }
+    const written = work.write(block)!
+    written.spans = spans
+    if (entry.deleted) written.swept = true
   }
 }
 
@@ -895,6 +953,9 @@ const invertOne = (state: ReplicatedState, op: ReplicatedOp): ReadonlyArray<Repl
         before === undefined ? null : charRef(before.id, before.offset + before.text.length - 1)
       return [{ type: 'Join', into: first.block, removed: op.id, after }]
     }
+    case 'Collect':
+      // What it removed is gone for good; undoing an edit made before it finds less.
+      return []
     case 'Retype': {
       const entry = lookup(state, op.id)
       const prior = entry === undefined ? undefined : retypeTargetOf(entry.shape)

@@ -92,7 +92,9 @@ and reach the other window once the server is back.
 
 ## Limits
 
-- Deleted characters are kept as tombstones for good; nothing collects them yet.
+- Deleted text is kept, as tombstones, until the server collects it: `journal.collect()`
+  commits a `Collect` op per page, hourly. A tab offline across two collections finds the
+  deleted text it anchored on gone, and its typing there lands at the end of the block.
 - A new replica replays the whole history, 500 edits per exchange; the server sends no
   checkpoint, because it never compacts.
 - Titles are last-writer-wins by the server's order. Keystrokes the server has not seen

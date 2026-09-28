@@ -181,6 +181,44 @@ describe('two people on one page', () => {
     expect(Effect.runSync(replica.pending)).toEqual([])
   })
 
+  it('collects deleted text through the log, the same on the server and every tab', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const page = model.open!
+    const body = () => Effect.runSync(replica.shared).pages[0]!.body
+    const empty = Replicated.project(body()).children[0]!.children[0]!.id
+    model = await bobEdits(
+      replica,
+      {
+        ...model,
+        pages: Effect.runSync(replica.shared).pages,
+        selection: Replicated.anchor(body(), caretAt(empty, 0)),
+      },
+      Message.GotEditor({ message: EditorMessage.Typed({ text: 'Hello' }) }),
+    )
+    const run = Replicated.project(body()).children[0]!.children[0]!.id
+    const id = Replicated.ReplicatedId.make(run.slice(0, run.lastIndexOf('.')))
+    await bobEdits(
+      replica,
+      model,
+      Message.EditedPage({ id: page, ops: [{ type: 'Delete', ranges: [{ id, from: 1, to: 3 }] }] }),
+    )
+    await synchronize(replica, 'bob')
+    const stored = (shared: Shared) =>
+      Object.values(shared.pages[0]!.body.blocks)
+        .flatMap(entry => entry.spans)
+        .map(span => span.text)
+        .join('')
+    expect(stored(journal.snapshot())).toBe('Hello')
+    journal.collect()
+    journal.collect()
+    await synchronize(replica, 'bob')
+    expect(stored(journal.snapshot())).toBe('Hlo')
+    expect(stored(Effect.runSync(replica.committed))).toBe('Hlo')
+    expect(textOf(Effect.runSync(replica.shared), page)).toEqual(['Hlo'])
+  })
+
   it('refuses one tab’s edits sent under another’s replica', async () => {
     const replica = await open('bob')
     replicas.push(replica)

@@ -1330,3 +1330,184 @@ describe('continuing an insert', () => {
     expect(Replicated.coalesce([...first, between, c!])).toHaveLength(3)
   })
 })
+
+describe('collecting tombstones', () => {
+  const COLLECT: RichText.Replicated.ReplicatedOp = { type: 'Collect' }
+  /** Every character the state keeps, shown or not. */
+  const kept = (state: RichText.Replicated.ReplicatedState): number =>
+    Object.values(state.blocks).reduce(
+      (sum, entry) => sum + entry.spans.reduce((total, span) => total + span.text.length, 0),
+      0,
+    )
+  /** The last paragraph of `base()`, `last`, with its first three characters deleted. */
+  const deleted = () => {
+    const start = base()
+    const view: View = {
+      state: start,
+      selection: caretIn({ state: start, selection: null }, 'last', 3),
+    }
+    for (let step = 0; step < 3; step++) edit(view, { type: 'DeleteBackward' })
+    return view
+  }
+
+  it('removes deleted text on the second collection, and shows the same document', () => {
+    const { state } = deleted()
+    const once = Replicated.applyOps(state, [COLLECT])
+    expect(kept(once)).toBe(kept(state))
+    const twice = Replicated.applyOps(once, [COLLECT])
+    expect(kept(twice)).toBeLessThan(kept(state))
+    expect(Replicated.project(twice)).toEqual(Replicated.project(state))
+  })
+
+  it('keeps a deletion made since the last collection for one more', () => {
+    const view = deleted()
+    view.state = Replicated.applyOps(view.state, [COLLECT])
+    // A character inside its insert, so no marker is kept for it.
+    view.selection = caretIn(view, 'quoted', 3)
+    edit(view, { type: 'DeleteBackward' })
+    const before = kept(view.state)
+    const next = Replicated.applyOps(view.state, [COLLECT])
+    // The three characters deleted first go; the one deleted after that collection stays.
+    expect(kept(next)).toBe(before - 3)
+    expect(kept(Replicated.applyOps(next, [COLLECT]))).toBe(before - 4)
+  })
+
+  it('lands text anchored on a collected character at the end of its block', () => {
+    const start = base()
+    const block = idAt(start, [4])
+    const gone = charAt(start, [4], 1)
+    const late = {
+      type: 'Insert',
+      id: ReplicatedId.make('late:0'),
+      block,
+      after: gone,
+      text: 'X',
+      marks: [],
+    } as const
+    const shown = (ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>) =>
+      texts(Replicated.applyOps(start, ops)).at(-1)
+    const remove: RichText.Replicated.ReplicatedOp = {
+      type: 'Delete',
+      ranges: [{ id: ReplicatedId.make(keyAt(start, [4])), from: 0, to: 2 }],
+    }
+    expect(shown([remove, COLLECT, late])).toBe('Xst')
+    expect(shown([remove, COLLECT, COLLECT, late])).toBe('stX')
+  })
+
+  it('keeps an insert’s last index, so text continued after a collection takes a new one', () => {
+    const start = base()
+    const view: View = {
+      state: start,
+      selection: caretIn({ state: start, selection: null }, 'last', 4),
+    }
+    const mine = { continues: (id: string) => id.startsWith('e') }
+    const [typed] = edit(view, { type: 'InsertText', text: 'abc' }, mine)
+    const id = (typed as { id: RichText.Replicated.ReplicatedId }).id
+    edit(view, { type: 'DeleteBackward' }, mine)
+    edit(view, { type: 'DeleteBackward' }, mine)
+    view.state = Replicated.applyOps(view.state, [COLLECT, COLLECT])
+    view.selection = caretIn(view, 'lasta', 5)
+    const [again] = edit(view, { type: 'InsertText', text: 'Z' }, mine)
+    expect(again).not.toMatchObject({ id, from: 1 })
+    // An op made before the collection, naming the old `b`, cannot delete the new text.
+    const late = { type: 'Delete', ranges: [{ id, from: 1, to: 2 }] } as const
+    expect(texts(Replicated.applyOps(view.state, [late])).at(-1)).toBe('lastaZ')
+  })
+
+  it('does not remove text brought back since it was marked', () => {
+    const marked = Replicated.applyOps(deleted().state, [COLLECT])
+    const id = ReplicatedId.make(keyAt(base(), [4]))
+    const restored = Replicated.applyOps(marked, [
+      { type: 'Undelete', ranges: [{ id, from: 0, to: 3 }] },
+    ])
+    expect(texts(Replicated.applyOps(restored, [COLLECT])).at(-1)).toBe('last')
+  })
+
+  it('removes a deleted block’s text but keeps the block, which comes back empty', () => {
+    const start = base()
+    const block = idAt(start, [4])
+    const gone = Replicated.applyOps(start, [{ type: 'DeleteBlock', id: block }, COLLECT, COLLECT])
+    expect(gone.blocks[block]!.spans.map(span => span.text).join('')).toBe('t')
+    expect(texts(Replicated.applyOps(gone, [{ type: 'UndeleteBlock', id: block }])).at(-1)).toBe('')
+    const back = Replicated.applyOps(start, [
+      { type: 'DeleteBlock', id: block },
+      COLLECT,
+      { type: 'UndeleteBlock', id: block },
+      COLLECT,
+    ])
+    expect(texts(back).at(-1)).toBe('last')
+  })
+
+  it.each<
+    [
+      string,
+      (
+        block: RichText.Replicated.ReplicatedId,
+        id: RichText.Replicated.ReplicatedId,
+      ) => ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+    ]
+  >([
+    [
+      'characters',
+      (_, id) => [
+        { type: 'Delete', ranges: [{ id, from: 0, to: 3 }] },
+        COLLECT,
+        { type: 'Undelete', ranges: [{ id, from: 0, to: 3 }] },
+        { type: 'Delete', ranges: [{ id, from: 0, to: 3 }] },
+      ],
+    ],
+    [
+      'a block',
+      block => [
+        { type: 'DeleteBlock', id: block },
+        COLLECT,
+        { type: 'UndeleteBlock', id: block },
+        { type: 'DeleteBlock', id: block },
+      ],
+    ],
+  ])('keeps %s deleted again after coming back for a whole interval', (_, ops) => {
+    const start = base()
+    const block = idAt(start, [4])
+    const next = Replicated.applyOps(start, [
+      ...ops(block, ReplicatedId.make(keyAt(start, [4]))),
+      COLLECT,
+    ])
+    expect(kept(next)).toBe(kept(start))
+  })
+
+  it('removes the text of a deleted block that also held deleted characters', () => {
+    const start = base()
+    const block = idAt(start, [4])
+    const id = ReplicatedId.make(keyAt(start, [4]))
+    const gone = Replicated.applyOps(start, [
+      { type: 'Delete', ranges: [{ id, from: 0, to: 1 }] },
+      { type: 'DeleteBlock', id: block },
+      COLLECT,
+      COLLECT,
+    ])
+    expect(gone.blocks[block]!.spans.map(span => span.text).join('')).toBe('t')
+  })
+
+  it('takes back nothing when inverted', () => {
+    expect(Replicated.invert(base(), [COLLECT])).toEqual([])
+  })
+
+  it.each([5, 23, 61])('leaves concurrent sessions editable across collections (seed %i)', seed => {
+    const random = seeded(seed)
+    const start = base()
+    const a: View = { state: start, selection: null }
+    const b: View = { state: start, selection: null }
+    const opsA: Array<RichText.Replicated.ReplicatedOp> = []
+    const opsB: Array<RichText.Replicated.ReplicatedOp> = []
+    for (let step = 0; step < 25; step++) {
+      opsA.push(...(randomEdit(a, random) ?? []))
+      opsB.push(...(randomEdit(b, random) ?? []))
+    }
+    // B was offline across two collections: its anchors on what A deleted are gone.
+    const merged = Replicated.applyOps(start, [...opsA, COLLECT, COLLECT, ...opsB])
+    const projected = Replicated.project(merged)
+    expect(RichText.decodeDocument(projected)).toEqual(projected)
+    const view: View = { state: merged, selection: null }
+    for (let step = 0; step < 10; step++) randomEdit(view, random)
+  })
+})

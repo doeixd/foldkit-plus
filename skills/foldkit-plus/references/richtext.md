@@ -342,7 +342,8 @@ ops)` (total, deterministic: replicas applying the same ops in server order conv
 `anchor`/`resolve` for a selection that survives others' edits. `key` is unique per call,
 minted in a Command; `translate`'s `continues` option lets text typed at the end of this
 replica's own insert carry on that insert, and `coalesce(ops)` folds such a run into one op.
-`invert(state, ops)` gives the ops that undo `ops` (against the state they
+A `Collect` op, committed through the log (the server's to issue), removes text deleted
+before the previous `Collect`. `invert(state, ops)` gives the ops that undo `ops` (against the state they
 were applied to) and leave others' edits alone: collaborative undo is applying them as a new
 edit. `examples/pages` wires all of it to `foldkit-sync` and `foldkit-durable`.
 

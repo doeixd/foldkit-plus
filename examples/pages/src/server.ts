@@ -45,4 +45,8 @@ sockets.on('connection', (socket, request) => {
   })
 })
 
+// Deleted text is collected once an hour; a tab offline across two collections finds text
+// it anchored on gone, and its typing there lands at the end of the block.
+setInterval(() => journal.collect(), 60 * 60 * 1000)
+
 console.log('Sync server on ws://127.0.0.1:8787')
