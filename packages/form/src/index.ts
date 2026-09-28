@@ -1257,13 +1257,16 @@ const Core = {
             // Enter in a row submits the form the row is in.
             if (inner._tag === 'Submitted') return submitted(model)
             const answered = plan.form.bundle.update(row.model, inner, undefined)
-            const next = withRows(
-              model,
-              message.key,
-              rowsOf(model)[message.key]!.map(held =>
-                held.id === row.id ? { id: row.id, model: answered.model } : held,
-              ),
-            )
+            const next =
+              answered.model === row.model
+                ? model
+                : withRows(
+                    model,
+                    message.key,
+                    rowsOf(model)[message.key]!.map(held =>
+                      held.id === row.id ? { id: row.id, model: answered.model } : held,
+                    ),
+                  )
             const edit =
               isEdit(inner) || plan.form.engine.authoredChanged(row.model, answered.model)
             return resume(
