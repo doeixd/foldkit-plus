@@ -8,7 +8,7 @@ import { isGridEmpty } from '../grid.js'
 import { Message } from '../message.js'
 import type { Model } from '../model.js'
 import { type PaletteTheme, currentPaletteTheme } from '../palette.js'
-import { PageSlots, PageStyle, SecondaryButtonStyle } from '../style.js'
+import { PixelPage, SecondaryButtonStyle } from '../style.js'
 import { Canvas } from './canvas.js'
 import {
   type ErrorDialogInput,
@@ -19,7 +19,7 @@ import {
 import { HistoryPanel, type HistoryPanelInput } from './history.js'
 import { ToolPanel, type ToolPanelInput } from './toolbar.js'
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof PixelPage.slots, Message>
 
 /**
  * What the page draws from: the Model, and each panel's inputs beside it, so
@@ -72,7 +72,7 @@ const downloadIcon = (slots: Slots, h: HtmlBuilder<Message>): Html =>
 
 /** The title, the links, and Export PNG: drawn once, since it reads nothing. */
 export const Header = SlotView.forMessages<Message>()
-  .define(PageSlots, (_: undefined, slots, h) =>
+  .define(PixelPage.slots, (_: undefined, slots, h) =>
     h.div(slots.header.attrs(), [
       h.div(slots.brand.attrs(), [
         h.h1(slots.title.attrs(), ['PixelForge']),
@@ -105,9 +105,9 @@ export const Header = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(PixelPage.style))
 
-const Parts = SlotView.parts(PageSlots)<PageInput, Message>()
+const Parts = SlotView.parts(PixelPage.slots)<PageInput, Message>()
 
 const HeaderPart = Parts.part('Header', { reads: [] }, (_, __, h) => Header(undefined, h))
 
@@ -158,7 +158,7 @@ const Page = Parts.assemble(
       draw(GridSizeConfirmDialog),
     ]),
   { name: 'Page' },
-).pipe(Style.attach(PageStyle))
+).pipe(Style.attach(PixelPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'Pixel Art',

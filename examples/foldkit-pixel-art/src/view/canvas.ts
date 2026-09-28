@@ -7,7 +7,7 @@ import { floodFill, getMirroredPositions } from '../grid.js'
 import { Message } from '../message.js'
 import type { Cell, Grid, HexColor, Model, PaletteIndex } from '../model.js'
 import { type PaletteTheme, currentPaletteTheme, resolveColor } from '../palette.js'
-import { CanvasSlots, CanvasStyle } from '../style.js'
+import { CanvasPart } from '../style.js'
 
 const EMPTY_PREVIEW_POSITIONS: ReadonlyArray<readonly [number, number]> = []
 
@@ -79,7 +79,7 @@ type RowArgs = Readonly<{
  * the theme. Defined once, so its memo is kept from render to render.
  */
 const drawRow = (
-  slots: SlotBuilders<typeof CanvasSlots, Message>,
+  slots: SlotBuilders<typeof CanvasPart.slots, Message>,
   h: HtmlBuilder<Message>,
   { row, y, previewColor, previewColumns, theme }: RowArgs,
 ): Html => {
@@ -100,7 +100,7 @@ const drawRow = (
 
 /** The canvas: one lazy row per grid row, the hovered cells showing what a press would paint. */
 export const Canvas = SlotView.forMessages<Message>()
-  .define(CanvasSlots, (model: Model, slots, h) => {
+  .define(CanvasPart.slots, (model: Model, slots, h) => {
     const theme = currentPaletteTheme(model)
     const previewColumns = previewColumnsByRow(computePreviewPositions(model))
     const previewColor =
@@ -125,4 +125,4 @@ export const Canvas = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(CanvasStyle))
+  .pipe(Style.attach(CanvasPart.style))

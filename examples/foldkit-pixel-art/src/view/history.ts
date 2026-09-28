@@ -8,9 +8,9 @@ import { VISIBLE_HISTORY_COUNT } from '../constant.js'
 import { Message } from '../message.js'
 import type { Grid } from '../model.js'
 import { type PaletteTheme, resolveColor } from '../palette.js'
-import { HistorySlots, HistoryStyle, ShortcutButtonStyle } from '../style.js'
+import { HistoryPart, ShortcutButtonStyle } from '../style.js'
 
-type Slots = SlotBuilders<typeof HistorySlots, Message>
+type Slots = SlotBuilders<typeof HistoryPart.slots, Message>
 
 export type HistoryPanelInput = Readonly<{
   /** The undo steps, oldest first. */
@@ -86,7 +86,7 @@ const thumbnailEntry = (
 
 /** Undo, Redo, and a thumbnail per step: the redo steps above the current grid, the undo steps below. */
 export const HistoryPanel = SlotView.forMessages<Message>()
-  .define(HistorySlots, (input: HistoryPanelInput, slots, h) => {
+  .define(HistoryPart.slots, (input: HistoryPanelInput, slots, h) => {
     const { past, future, shownGrid, gridSize, theme } = input
     const undoCount = past.length
     const redoCount = future.length
@@ -147,4 +147,4 @@ export const HistoryPanel = SlotView.forMessages<Message>()
       ]),
     ])
   })
-  .pipe(Style.attach(HistoryStyle))
+  .pipe(Style.attach(HistoryPart.style))

@@ -7,7 +7,7 @@ import { Button, Dialog as DialogAdapter } from 'foldkit-mixins-ui'
 import { Dialog } from '@foldkit/ui'
 
 import { Message } from '../message.js'
-import { DangerButtonStyle, DialogContentSlots, DialogContentStyle, DialogStyle } from '../style.js'
+import { DangerButtonStyle, DialogContentPart, DialogStyle } from '../style.js'
 
 const define = SlotView.forMessages<Message>().define
 
@@ -18,7 +18,7 @@ const define = SlotView.forMessages<Message>().define
 
 /** The export error: its message and Dismiss. */
 export const ErrorDialogContent = define(
-  DialogContentSlots,
+  DialogContentPart.slots,
   (
     input: Readonly<{ render: Dialog.RenderInfo; maybeExportError: Option.Option<string> }>,
     _,
@@ -48,11 +48,11 @@ export const ErrorDialogContent = define(
         : [],
     )
   },
-).pipe(Style.attach(DialogContentStyle))
+).pipe(Style.attach(DialogContentPart.style))
 
 /** The grid size change: what it clears, Cancel, and Clear and Resize. */
 export const GridSizeConfirmDialogContent = define(
-  DialogContentSlots,
+  DialogContentPart.slots,
   (
     input: Readonly<{ render: Dialog.RenderInfo; maybePendingGridSize: Option.Option<number> }>,
     slots,
@@ -99,7 +99,7 @@ export const GridSizeConfirmDialogContent = define(
         : [],
     )
   },
-).pipe(Style.attach(DialogContentStyle))
+).pipe(Style.attach(DialogContentPart.style))
 
 // SUBMODEL
 

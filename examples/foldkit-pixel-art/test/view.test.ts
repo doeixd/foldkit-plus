@@ -1,8 +1,7 @@
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
-import { Style } from 'foldkit-mixins'
-import { Inert, type Node as InertNode } from 'foldkit-mixins/testing'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
 
 import { EMPTY_COLOR, GRID_SIZE_STRINGS } from '../src/constant.js'
@@ -72,10 +71,6 @@ const trees: ReadonlyArray<readonly [string, Html]> = [
   ],
 ]
 
-/** The compiled CSS behind the classes on `nodes`. */
-const cssOf = (nodes: ReadonlyArray<InertNode>): string =>
-  Style.usedIn(nodes.flatMap(Inert.classes).join(' '))
-
 const colorsOf = (tree: Html): ReadonlyArray<string | undefined> =>
   Inert.bySlot(tree, 'cell').map(cell => Inert.style(cell)['--pixel-color'])
 
@@ -89,14 +84,10 @@ describe('every view', () => {
   })
 
   test('ships every theme token the drawn styles read in the stylesheet', () => {
-    // A token read without a fallback renders nothing when the sheet lacks it.
-    const read = new Set(
-      trees.flatMap(([, tree]) =>
-        [...cssOf(Inert.all(tree)).matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-      ),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !stylesheet.includes(`${name}:`))).toEqual([])
+    for (const [, tree] of trees) {
+      expect(Inert.css(Inert.all(tree))).toContain('var(--fk-')
+      expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
+    }
   })
 })
 
@@ -114,7 +105,7 @@ describe('the canvas', () => {
 
   test('reads the color a cell gets from its custom property', () => {
     const cells = Inert.bySlot(Inert.draw(Canvas, showing(paintedGrid)), 'cell')
-    expect(cssOf(cells.slice(0, 1))).toContain('background:var(--pixel-color)')
+    expect(Inert.css(cells.slice(0, 1))).toContain('background:var(--pixel-color)')
   })
 
   test.each([
@@ -227,7 +218,7 @@ describe('the export error', () => {
       'h2',
     )
     expect(titles.map(title => Inert.value(title, 'data-tone'))).toEqual(['error'])
-    expect(cssOf(titles)).toContain('[data-tone="error"]{color:var(--fk-forge-danger-ink)}')
+    expect(Inert.css(titles)).toContain('[data-tone="error"]{color:var(--fk-forge-danger-ink)}')
   })
 
   test.each([

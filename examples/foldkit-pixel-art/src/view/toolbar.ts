@@ -17,8 +17,7 @@ import {
   SizeOptionStyle,
   SwatchStyle,
   ToolOptionStyle,
-  ToolbarSlots,
-  ToolbarStyle,
+  ToolbarPart,
 } from '../style.js'
 
 const TOOLS: ReadonlyArray<Tool> = ['Brush', 'Fill', 'Eraser']
@@ -49,7 +48,7 @@ const THEME_LISTBOX_ANCHOR: Listbox.AnchorConfig = {
   padding: 8,
 }
 
-type Slots = SlotBuilders<typeof ToolbarSlots, Message>
+type Slots = SlotBuilders<typeof ToolbarPart.slots, Message>
 
 const define = SlotView.forMessages<Message>().define
 
@@ -107,10 +106,10 @@ const chevronDownIcon = (slots: Slots, h: HtmlBuilder<Message>): Html =>
 
 /** The tool radio group's options. */
 export const ToolOptions: SlotView.SlotView<
-  typeof ToolbarSlots,
+  typeof ToolbarPart.slots,
   RadioGroup.RenderInfo<Tool>,
   Message
-> = define(ToolbarSlots, (render: RadioGroup.RenderInfo<Tool>, slots, h) => {
+> = define(ToolbarPart.slots, (render: RadioGroup.RenderInfo<Tool>, slots, h) => {
   const { group, options } = RadioGroupAdapter.resolve<Tool, undefined, Message>(
     render,
     [ToolOptionStyle.mixin],
@@ -125,25 +124,28 @@ export const ToolOptions: SlotView.SlotView<
       ]),
     ),
   )
-}).pipe(Style.attach(ToolbarStyle))
+}).pipe(Style.attach(ToolbarPart.style))
 
 /** The grid size radio group's options. */
-export const SizeOptions: SlotView.SlotView<typeof ToolbarSlots, RadioGroup.RenderInfo, Message> =
-  define(ToolbarSlots, (render: RadioGroup.RenderInfo, slots, h) => {
-    const { group, options } = RadioGroupAdapter.resolve<string, undefined, Message>(
-      render,
-      [SizeOptionStyle.mixin],
-      { input: undefined, h },
-    )
-    return h.div(
-      slots.sizeGroup.attrs(group),
-      options.map(option => h.button(option.option, [option.value])),
-    )
-  }).pipe(Style.attach(ToolbarStyle))
+export const SizeOptions: SlotView.SlotView<
+  typeof ToolbarPart.slots,
+  RadioGroup.RenderInfo,
+  Message
+> = define(ToolbarPart.slots, (render: RadioGroup.RenderInfo, slots, h) => {
+  const { group, options } = RadioGroupAdapter.resolve<string, undefined, Message>(
+    render,
+    [SizeOptionStyle.mixin],
+    { input: undefined, h },
+  )
+  return h.div(
+    slots.sizeGroup.attrs(group),
+    options.map(option => h.button(option.option, [option.value])),
+  )
+}).pipe(Style.attach(ToolbarPart.style))
 
 /** The palette radio group's swatches, each colored through `--swatch-color`. */
 export const PaletteOptions = define(
-  ToolbarSlots,
+  ToolbarPart.slots,
   (input: Readonly<{ render: RadioGroup.RenderInfo; theme: PaletteTheme }>, slots, h) => {
     const { group, options } = RadioGroupAdapter.resolve<string, undefined, Message>(
       input.render,
@@ -161,30 +163,30 @@ export const PaletteOptions = define(
       }),
     )
   },
-).pipe(Style.attach(ToolbarStyle))
+).pipe(Style.attach(ToolbarPart.style))
 
 /** The theme listbox's button: the theme's name and a chevron. */
-export const ThemeButtonContent = define(ToolbarSlots, (theme: PaletteTheme, slots, h) =>
+export const ThemeButtonContent = define(ToolbarPart.slots, (theme: PaletteTheme, slots, h) =>
   h.div(slots.themeButtonContent.attrs(), [
     h.span(slots.themeName.attrs(), [theme.name]),
     chevronDownIcon(slots, h),
   ]),
-).pipe(Style.attach(ToolbarStyle))
+).pipe(Style.attach(ToolbarPart.style))
 
 /** One theme in the listbox, checked when it is the current one. */
 export const ThemeOption = define(
-  ToolbarSlots,
+  ToolbarPart.slots,
   (input: Readonly<{ themeName: string; isSelected: boolean }>, slots, h) =>
     h.div(slots.themeOption.attrs(), [
       h.span(slots.themeName.attrs(), [input.themeName]),
       ...(input.isSelected ? [h.span(slots.themeCheck.attrs(), ['✓'])] : []),
     ]),
-).pipe(Style.attach(ToolbarStyle))
+).pipe(Style.attach(ToolbarPart.style))
 
 // SECTION
 
 /** The two mirror switches, drawn as H and V toggle buttons. */
-export const MirrorSection = define(ToolbarSlots, (mirrorMode: MirrorMode, slots, h) => {
+export const MirrorSection = define(ToolbarPart.slots, (mirrorMode: MirrorMode, slots, h) => {
   const isMirrorHorizontal = mirrorMode === 'Horizontal' || mirrorMode === 'Both'
   const isMirrorVertical = mirrorMode === 'Vertical' || mirrorMode === 'Both'
 
@@ -234,10 +236,10 @@ export const MirrorSection = define(ToolbarSlots, (mirrorMode: MirrorMode, slots
       }),
     ]),
   ])
-}).pipe(Style.attach(ToolbarStyle))
+}).pipe(Style.attach(ToolbarPart.style))
 
 /** Clear Canvas, disabled while there is nothing to clear. */
-export const ClearCanvas = define(ToolbarSlots, (isCanvasEmpty: boolean, slots, h) =>
+export const ClearCanvas = define(ToolbarPart.slots, (isCanvasEmpty: boolean, slots, h) =>
   UiButton.view(
     {
       onClick: Message.ClickedClear(),
@@ -253,7 +255,7 @@ export const ClearCanvas = define(ToolbarSlots, (isCanvasEmpty: boolean, slots, 
     },
     h,
   ),
-).pipe(Style.attach(ToolbarStyle))
+).pipe(Style.attach(ToolbarPart.style))
 
 // PANEL
 
@@ -363,7 +365,7 @@ const paletteSectionView = (input: ToolPanelInput, slots: Slots, h: HtmlBuilder<
 }
 
 /** The left column: tools, mirror, grid size, palette and theme, and Clear Canvas. */
-export const ToolPanel = define(ToolbarSlots, (input: ToolPanelInput, slots, h) =>
+export const ToolPanel = define(ToolbarPart.slots, (input: ToolPanelInput, slots, h) =>
   h.div(slots.panel.attrs(), [
     toolSectionView(input, slots, h),
     MirrorSection(input.mirrorMode, h),
@@ -371,4 +373,4 @@ export const ToolPanel = define(ToolbarSlots, (input: ToolPanelInput, slots, h) 
     paletteSectionView(input, slots, h),
     ClearCanvas(input.isCanvasEmpty, h),
   ]),
-).pipe(Style.attach(ToolbarStyle))
+).pipe(Style.attach(ToolbarPart.style))
