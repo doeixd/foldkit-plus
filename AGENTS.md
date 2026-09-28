@@ -162,6 +162,20 @@ Slop is also code that looks finished and is wrong. Look for these too:
   - A function whose name no longer says what it does.
   - Comments separated from the thing they document.
   - State threaded through closures where a value would do.
+  - Tag branching the checker cannot see. `x._tag === 'Ready'` on a precisely
+    typed union is checked (a misspelling is `TS2367`), but on a value typed
+    `{ _tag: string }`, or read through a cast, any string compiles; and an
+    `if` run or a `switch` with a catch-all `default` compiles silently when a
+    variant is added. Branch on every variant through the union's own `match`
+    (`defineMessageUnion`, `defineTaggedUnion` from `foldkit/schema`, the
+    `RemoteData` helpers) or Effect `Match.valueTags` / `Match.tagsExhaustive`;
+    on a few with `matchOrElse` or `Match.tags`; narrow one with a single
+    `===` on a typed union. Type a Schema AST as `SchemaAST.AST` and test it
+    with its guards (`SchemaAST.isUnion`, `isNull`, `isLiteral`), never a
+    hand-written `{ _tag: string }`. Where the tag is open by design (another
+    application's Message at a boundary), compare against a typed set, and mark
+    the line above with `// tag-check: open` and why. `pnpm tags:check` finds
+    the rest.
   - `null` or `undefined` standing for "nothing here". A value that may be
     absent is an Effect `Option`: `Option.none()`, `Option.some(x)`,
     `Option.match`, and `Schema.Option` in a Model that is never stored.

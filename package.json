@@ -27,6 +27,7 @@
     "test:watch": "vitest",
     "paths": "node scripts/workspace-paths.mjs",
     "paths:check": "node scripts/workspace-paths.mjs --check",
+    "tags:check": "node scripts/tags-check.mjs",
     "typecheck": "tsc -b",
     "typecheck:force": "tsc -b --force",
     "check": "pnpm format:check && pnpm paths:check && pnpm typecheck && pnpm test && pnpm demo && pnpm pack:check",
