@@ -2227,15 +2227,11 @@ const bindDomain = <
           `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
         )
       }
-      const ref: QueryRef<Q['name'], QueryInput<Q>> = {
-        ...query.ref(input),
-        window: pickWindow(window),
-      }
-      const relation = relationOf(select)
+      const { ref, relation, requirement } = readContract(query.ref(input), select, window)
       const relationKey = stableStringify(relation)
       // The first failed field among the rows a list shows, if any. Decided
-      // outside the memo, which is keyed on the store and the connection: a
-      // failure can arrive without either changing.
+      // outside the memo, which is keyed on what the rows are read from: a
+      // failure can arrive without any of it changing.
       const failedItem = (
         remote: RemoteModel,
         connection: Connection,
@@ -2314,12 +2310,6 @@ const bindDomain = <
             return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
           },
         )
-      }
-      const requirement: QueryRequirement = {
-        identity: ref.identity,
-        window: ref.window,
-        select: relation,
-        ref,
       }
       return {
         Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Codec<

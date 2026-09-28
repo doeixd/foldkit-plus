@@ -13,7 +13,7 @@
  */
 import { Effect } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
-import { items, type Connection, type Edge } from './connection.js'
+import { type Connection, type Edge } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './optimistic.js'
 import { stableStringify } from './query.js'
 import { emptyStore, type EntityEntry, type EntityStore } from './store.js'
