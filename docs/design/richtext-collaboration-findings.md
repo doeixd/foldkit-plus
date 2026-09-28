@@ -347,8 +347,19 @@ The plan above is built on `claude/richtext-commits-review-djbvzn`, in order, on
 - A3, `901b47f` and `8eba2d0`: `Journal.epoch(key)` names a document's history and is new after `reset` or in a new file. The replica stores the server's epoch and sends it back; a server that finds another answers from sequence 0, and the replica rebuilds its committed state from that and resends its outbox. Everything the old server committed is lost, on every replica; only what was pending survives, not the ops another replica still holds, as the design hoped. Durable's `replicaId` option, which Sync's `journalContract` supplies, binds each replica to its first committing actor and refuses anyone else's operations from it; the first actor to use an id claims it.
 - B6, `bb47b1d`: the sequence-per-span design needed the commit sequence inside `update`, which replay never sees, and a server-only purge would have made replicas diverge. It became a `Collect` op instead, committed through the log: each one removes the text the previous one marked deleted and marks what is deleted now, so every replica removes the same text at the same point, and only a replica offline across two collections loses anchors. An insert keeps one deleted character at its end, so a continued insert never reuses an index. The pages server commits one per page every hour.
 
+**Second review**
+
+Nine reviewers read the whole branch against AGENTS.md, and every finding that held was fixed with a test that fails without it. The larger ones:
+- Replicated: a peer's ops could hang every replica, undo diverged after a reload, and late ops after a collection could land out of sight.
+- Sync: a failing replay or listener could stall the replica silently, backoff never grew against a server that drops connections, and an acknowledged edit vanished between pages.
+- Durable: a reset through another connection could be written over, and a server fault made clients drop their edits.
+- richtext-dom: an overlay stole another editor's selection, and patches during composition could be skipped.
+- The examples: the binding broke the sync example's agents, any tab could collect early, and no-op Messages re-rendered the page.
+
 **Still open**
 
 - Finding 19: the LWW clock's write per stamp.
+- The Markdown task rule (`[ ] ` in a list item) breaks the list unless the item is the last of a bulleted list. A correct rule needs a core command that turns the item around the caret into a task in place.
+- Undoing a split puts text typed since at the end of the first half after the rejoined text. Fixing it needs an "end of block" form of `Join`, which changes the op format.
 - A replica that never heard an epoch cannot tell that the server it last saw was reset.
 - The epoch rule is copied into the sync and pages example servers; Sync has no server-side exchange helper to hold it, and `examples/todo-app` neither returns an epoch nor answers from 0.
