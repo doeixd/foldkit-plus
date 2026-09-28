@@ -260,9 +260,11 @@ the stored snapshot only when the row's cursor shows that another connection
 committed since. `snapshotEvery: n` writes the snapshot once every `n` commits
 instead of after each. `load` then replays the few operations committed since
 the snapshot, and `compact` writes a lagging snapshot before it removes any
-payload that snapshot has not folded in. The default is 1. The in-memory state
-assumes that a document reset through another connection is not taken back to
-the same cursor while this journal is open.
+payload that snapshot has not folded in. The default is 1. The remembered state
+is checked against the stored cursor and the operation committed there, so a
+commit or a reset through another connection is noticed; a journal remembers
+the most recent 256 documents. `load` hands out that remembered snapshot itself,
+so treat it as read-only, as `reduce` must.
 
 The exact authority remains application-defined:
 
@@ -361,9 +363,10 @@ const hooks: Pick<
 When operations carry the replica that made them, `replicaId: operation =>
 operation.replicaId` binds each replica to the actor of its first commit, per
 document, and refuses any other actor's operation from it before `validate`
-runs. Without it, one actor could commit an id another replica will use, and
-that replica's own operation would then be answered as already committed.
-`foldkit-sync`'s `journalContract()` supplies it.
+runs, so the replica an operation names is one its actor holds. The first actor
+to commit from an unused replica id claims it, even across `reset`, so replica
+ids should be unguessable or assigned per actor. `foldkit-sync`'s
+`journalContract()` supplies it.
 
 Authorization may return `true` / `false`, a refusal carrying a reason, or an
 Effect producing either. A refusal becomes `OperationRejectedError`; a supplied
@@ -611,7 +614,9 @@ the number of distinct operations/effects, not only to retained payload size.
 Compaction empties payloads, but SQLite keeps the pages they occupied, so the file
 does not shrink by itself. `journal.vacuum()` rebuilds the file and checkpoints
 its write-ahead log, which gives that space back. It holds the database while it
-runs, so it is maintenance to schedule, not a step of each compaction.
+runs, so it is maintenance to schedule, not a step of each compaction. A reader
+on another connection can keep the log from being truncated; `vacuum` then fails
+with a `JournalError`, and running it again later finishes the job.
 
 That retention is part of the retry guarantee. As long as an identity row
 exists, an old retransmission is recognized. If the application rotates or
@@ -692,7 +697,9 @@ EffectFailedError
 The Journal also exposes operational tooling:
 
 - `keys` enumerates documents;
-- `reset` removes one document's snapshot and operations;
+- `reset` removes one document's snapshot and operations, and its `epoch`, so
+  the next differs; replica bindings stay;
+- `epoch` names a document's history, for a server to hand to its clients;
 - `effect`, `unfinished`, and `clearEffect` inspect/manage effect records;
 - `compact` and `floor` manage retained operation payloads, and `vacuum` returns
   the space compaction freed to the file system;
