@@ -609,10 +609,36 @@ const decodeSelection = Schema.decodeUnknownSync(Schema.NullOr(Selection), {
 })
 /**
  * Blocks and documents that have passed validation. They are immutable, and an edit copies
- * only the blocks it touches, so a keystroke re-validates one block rather than the document.
+ * only the blocks on the path to what it touches, so a keystroke re-validates that path
+ * rather than the document or a whole container.
  */
 const validBlocks = new WeakSet<Block>()
 const validDocuments = new WeakSet<Document>()
+
+/**
+ * Throws unless `block` decodes as a `Block`, caching every block that passes, nested ones
+ * included. A block's validity does not depend on where it sits (the codec has no placement
+ * or depth rules; identity is checked document-wide by the caller), so a node block is valid
+ * exactly when its own fields are and each nested block is: those are checked separately, the
+ * fields by decoding the block with its nested blocks emptied.
+ */
+const assertBlock = (block: unknown): void => {
+  if (typeof block !== 'object' || block === null) return void decodeBlock(block)
+  if (validBlocks.has(block as Block)) return
+  const nested = Object.getOwnPropertyDescriptor(block, 'blocks')
+  if ((block as { type?: unknown }).type === 'Node' && Array.isArray(nested?.value)) {
+    // Every other own key, enumerable or not, symbol or not, stays: the decoder refuses
+    // excess keys of each kind, and a spread would drop some of them.
+    decodeBlock(
+      Object.create(Object.getPrototypeOf(block), {
+        ...Object.getOwnPropertyDescriptors(block),
+        blocks: { ...nested, value: [] },
+      }),
+    )
+    for (const child of nested.value) assertBlock(child)
+  } else decodeBlock(block)
+  validBlocks.add(block as Block)
+}
 
 const hasOnlyKeys = (value: object, keys: ReadonlyArray<string>): boolean =>
   Object.keys(value).every(key => keys.includes(key))
@@ -635,11 +661,7 @@ export const assertEditorState = (input: unknown): void => {
       !hasOnlyKeys(document, ['version', 'children'])
     )
       throw new Error('Invalid document')
-    for (const block of children) {
-      if (typeof block === 'object' && block !== null && validBlocks.has(block)) continue
-      decodeBlock(block)
-      validBlocks.add(block)
-    }
+    for (const block of children) assertBlock(block)
     const ids = new Set<NodeId>()
     for (const block of children as ReadonlyArray<Block>) {
       for (const id of subtreeIds(block)) {
