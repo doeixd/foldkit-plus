@@ -155,13 +155,37 @@ describe('FormView markup', () => {
     expect(byId(failed, 'Edit-title-error')?.data?.attrs).toMatchObject({ role: 'alert' })
   })
 
-  it('marks a control busy while its check runs', () => {
+  it('says a check is running, to a screen reader and to a stylesheet, only while it runs', () => {
     const checking = {
       ...initial,
       fields: { ...initial.fields, title: { _tag: 'Validating' as const, value: 'Hello' } },
     }
-    expect(byId(render(checking), 'Edit-title')?.data?.attrs).toMatchObject({ 'aria-busy': 'true' })
-    expect(byId(render(), 'Edit-title')?.data?.attrs?.['aria-busy']).toBeUndefined()
+    const root = render(checking)
+    expect(byId(root, 'Edit-title')?.data?.attrs).toMatchObject({
+      'aria-busy': 'true',
+      'aria-describedby': 'Edit-title-description Edit-title-checking',
+    })
+    expect(Inert.text(byId(root, 'Edit-title-checking'))).toBe('Checking…')
+    expect(byId(root, 'Edit-title-checking')?.data?.attrs).toMatchObject({ role: 'status' })
+    const field = (drawn: Html) =>
+      Inert.all(drawn).find(node =>
+        Inert.children(node).some(child => child.data?.props?.htmlFor === 'Edit-title'),
+      )
+    expect(field(root)?.data?.attrs).toMatchObject({ 'data-validation': 'Validating' })
+
+    const worded = FormView.define(Edit)(
+      { model: checking, errors: [], canSubmit: true, words: { checking: 'Asking…' } },
+      SlotView.inertBuilder(),
+    )
+    expect(Inert.text(byId(worded, 'Edit-title-checking'))).toBe('Asking…')
+
+    const calm = render()
+    expect(byId(calm, 'Edit-title')?.data?.attrs?.['aria-busy']).toBeUndefined()
+    expect(byId(calm, 'Edit-title-checking')).toBeUndefined()
+    expect(field(calm)?.data?.attrs).toMatchObject({ 'data-validation': 'NotValidated' })
+    expect(field(render(send(Edit.Message.Blurred({ key: 'title' }))))?.data?.attrs).toMatchObject({
+      'data-validation': 'Invalid',
+    })
   })
 
   it('disables the submit until the form would submit, and takes its label', () => {
@@ -181,6 +205,41 @@ describe('FormView markup', () => {
     expect(Inert.text(button(saved))).toBe('Save')
   })
 
+  it('shows the form submitting: busy, marked, its button disabled and worded for it', () => {
+    const ready = send(
+      Edit.Message.Changed({ key: 'title', value: 'Hello' }),
+      Edit.Message.Changed({ key: 'status', value: 'draft' }),
+    )
+    const draw = (submitting: boolean, words?: { readonly submitting: string }) =>
+      FormView.define(Edit)(
+        { model: ready, errors: [], canSubmit: true, submitting, words },
+        SlotView.inertBuilder(),
+      )
+    const button = (root: Html) => Inert.all(root).find(node => node.sel === 'button')
+
+    const sending = draw(true)
+    expect(sending?.data?.attrs).toMatchObject({ 'aria-busy': 'true' })
+    expect(sending?.data?.attrs).toMatchObject({ 'data-submitting': '' })
+    expect(button(sending)?.data?.props?.disabled).toBe(true)
+    expect(Inert.text(button(sending))).toBe('Submitting…')
+    expect(Inert.text(button(draw(true, { submitting: 'Saving…' })))).toBe('Saving…')
+
+    const idle = draw(false)
+    expect(idle?.data?.attrs?.['aria-busy']).toBeUndefined()
+    expect(idle?.data?.attrs?.['data-submitting']).toBeUndefined()
+    expect(button(idle)?.data?.props?.disabled).toBe(false)
+    expect(Inert.text(button(idle))).toBe('Submit')
+  })
+
+  it('reads submitting from a submit waiting for a check, or from the application', () => {
+    const view = FormView.submodel(Edit, FormView.define(Edit))
+    const submitting = (model: typeof initial, inputs: { readonly submitting?: boolean }) =>
+      view(model, inputs, SlotView.inertBuilder())?.data?.attrs?.['aria-busy']
+    expect(submitting(initial, {})).toBeUndefined()
+    expect(submitting({ ...initial, submitPending: true }, {})).toBe('true')
+    expect(submitting(initial, { submitting: true })).toBe('true')
+  })
+
   it('draws no submit for someone who may not submit it', () => {
     const withheld = FormView.define(Edit)(
       { model: initial, errors: [], canSubmit: true, submits: false },
@@ -196,6 +255,15 @@ describe('its customization contract', () => {
   it.each([
     ['a first render, every picker with its choices', initial, []],
     ['a form with a failure of its own', initial, ['The title and the slug disagree.']],
+    [
+      'a key being checked, and a submit waiting for it',
+      {
+        ...initial,
+        fields: { ...initial.fields, title: { _tag: 'Validating' as const, value: 'Hello' } },
+        submitPending: true,
+      },
+      [],
+    ],
   ] as const)(
     'draws everything through its Slots, with no fixed inline style: %s',
     (_, model, errors) => {
@@ -203,6 +271,7 @@ describe('its customization contract', () => {
         model,
         errors,
         canSubmit: Edit.canSubmit(model),
+        submitting: model.submitPending,
         options,
       })
       // A control backed by a Bundle draws the Bundle's own view, which is not the form's.

@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-form`, a check running and a submit in flight:** a key
+  whose check runs shows a `Checking…` line in the new `checking` Slot
+  (`role="status"`, named in the control's `aria-describedby`, words
+  `words.checking`), and each field's `root` carries `data-validation` with
+  its state. While a submit waits for a check, or the new view input
+  `submitting` says the application's request is in flight, the `form` is
+  `aria-busy` with `data-submitting` and the submit button is disabled and
+  reads `words.submitting` (default `Submitting…`).
+
 - **`foldkit-bundle`, a shared tag reaches everyone who shares it:** a Message
   tag wirings declare `shared` is folded by each of them in list order, and
   the parent's own update sees it after them. Before, the first claimant took

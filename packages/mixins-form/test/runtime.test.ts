@@ -3,8 +3,10 @@
  * The form drawn and driven on the real Foldkit runtime: DOM events reach the
  * form through its Submodel boundary, and a valid submit reaches the parent.
  */
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -110,6 +112,69 @@ it('types, picks, and submits through the DOM, and hands the parent the decoded 
       editorId: 'a2',
       tagIds: ['t2'],
     })
+  } finally {
+    handle.dispose()
+  }
+})
+
+// A check that never answers: the key stays checked, and a submit stays waiting.
+const Signup = Schema.Struct({
+  email: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Email' }),
+})
+const Join = Form.make('Join', Entity.input(Entity.define('Signup', Signup), Signup), {
+  checks: { email: () => Effect.never },
+  debounce: 0,
+})
+const JoinSlot = Bundle.declare(
+  Join.bundle.pipe(Bundle.withView(FormView.submodel(Join, FormView.define(Join)))),
+  'join',
+)
+const JoinModel = Schema.Struct({ ...JoinSlot.fields })
+type JoinModel = typeof JoinModel.Type
+const JoinMessage = defineMessageUnion({ ...JoinSlot.cases })
+type JoinMessage = typeof JoinMessage.Type
+const JoinPage = Bundle.parent({ Model: JoinModel, Message: JoinMessage })
+const JoinForm = JoinPage.at(JoinSlot, { onOut: () => model => ({ model }) })
+const joinPlacements = JoinPage.assemble(JoinForm)
+
+it('shows a check running under its control, and a submit waiting for it', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'join-runtime'
+  document.body.appendChild(container)
+
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      joinPlacements.complete({
+        Model: JoinModel,
+        container,
+        init: () => joinPlacements.initial({}),
+        update: joinPlacements.update(),
+        view: (model: JoinModel, h: HtmlBuilder<JoinMessage>) =>
+          h.main([], [JoinForm.view(model, h, { words: { submitting: 'Joining…' } })]),
+        subscriptions: joinPlacements.subscriptions(),
+      }),
+    ),
+  )
+  try {
+    await vi.waitFor(() => expect(element('Join-email')).not.toBeNull())
+    const field = () => element('Join-email').parentElement
+    expect(field()?.dataset['validation']).toBe('NotValidated')
+
+    type('Join-email', 'ada@example.com')
+    await vi.waitFor(() => expect(element('Join-email-checking')?.textContent).toBe('Checking…'))
+    expect(field()?.dataset['validation']).toBe('Validating')
+    expect(element('Join-email').getAttribute('aria-describedby')).toBe('Join-email-checking')
+    const submit = document.querySelector('button') as HTMLButtonElement
+    expect(submit.disabled).toBe(false)
+
+    document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(submit.textContent).toBe('Joining…'))
+    expect(submit.disabled).toBe(true)
+    expect(document.querySelector('form')?.getAttribute('aria-busy')).toBe('true')
   } finally {
     handle.dispose()
   }

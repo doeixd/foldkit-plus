@@ -52,14 +52,16 @@ becomes `joinWaitlist`.
 
 ## What is not used, and why
 
-- **`foldkit-mixins-form`**, which draws a form. Its layout is label, control,
-  schema description, error. Upstream's is a label with a status mark beside it
-  (`◐` while checking, `✓` once valid), and one line under the control that
-  says "Checking..." or the first error and is the control's accessible
-  description. Its submit button is enabled while a check runs (a submit then
-  waits) and cannot see the page's `Submitting`; upstream's is disabled in both.
-  So the view draws the form from `WaitlistForm.controls` itself, which that
-  package's README names as the other way.
+- **`foldkit-mixins-form`**, which draws a form. It shows a running check (a
+  "Checking…" line the control describes itself by, and `data-validation` on
+  the field, which a stylesheet can turn into the `◐` and `✓` marks) and takes
+  the page's `Submitting` as its `submitting` input. What keeps it out is the
+  controls: it draws plain inputs through its own Slots, and this port draws
+  `@foldkit/ui`'s Input and Textarea styled by `foldkit-mixins-ui`'s recipes.
+  Its submit button is also enabled while a check runs (a submit then waits);
+  upstream's is disabled. So the view draws the form from
+  `WaitlistForm.controls` itself, which that package's README names as the
+  other way.
 - **`foldkit-bundle`.** The form is one child placed once; `Update.foldChild`
   is the lift upstream's examples use, and a Bundle placement would add a
   second way to wire it.

@@ -182,12 +182,19 @@ Render the placement with `placed.view(model, h, { options, words: { submit: 'Sa
 choices (`{ value, label }`); loading them is the application's query.
 `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
-`label`, `description`, `error`, and one per control kind (`text`, `multiline`,
+`label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
 `submit`. The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
 those throws a two-owners conflict at render.
+
+While a key's check runs, its field draws a `checking` line (`role="status"`,
+words `words.checking`) and its `root` carries `data-validation` with the
+field's state. Pass `submitting: <your in-flight flag>` in the view inputs; the
+form also counts a submit waiting on a check. While submitting, the `form` is
+`aria-busy` with `data-submitting`, and the button is disabled and reads
+`words.submitting`.
 
 ## Nested input
 

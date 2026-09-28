@@ -130,7 +130,7 @@ A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 and naming the picker it controls with `aria-controls`. `words.search` in the
 view inputs replaces the word. The blank choice of a `select` has no words
 unless `words.none` gives it some ("none"). All of the view's words (`submit`,
-`search`, `none`, `add`, `remove`) are text, with `{label}` and `{position}` as
+`submitting`, `checking`, `search`, `none`, `add`, `remove`) are text, with `{label}` and `{position}` as
 blanks; see [words in one place](../form/README.md#words-as-text-in-one-place).
 
 A chosen value its choices lack stays in sight: after the choices comes
@@ -178,7 +178,7 @@ nested form). Such a key has no draft, so `draft` and `input.field.value` are
 renderer.
 
 Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
-`error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
+`checking`, `error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
 renderer that draws text beside its control (a prefix, a unit) with the two
 together. `FormSlots` publishes `root` (the `form`), `errors` (failures that
 belong to no one field), `submit`, and the five slots of a nested key.
@@ -196,13 +196,45 @@ loses its add button once it has its row. View inputs for nested keys:
 same for every row), and `words.add` / `words.remove` word the buttons (defaults
 `Add <label>`, `Remove <label> <position>`).
 
+### A check running, and a submit in flight
+
+A form's own check ([`checks`](../form/README.md)) leaves its key `Validating`
+until it answers. Meanwhile the control carries `aria-busy`, and under it a line
+in the `checking` slot, `role="status"`, says so (`words.checking`, default
+`Checking…`); the control names that line in `aria-describedby`. Each field's
+`root` carries `data-validation`, the field's state by Foldkit's own tag
+(`NotValidated`, `Validating`, `Valid` or `Invalid`), so a stylesheet can mark it
+without a Style: `[data-validation='Valid'] label::after { content: ' ✓' }`. A
+Style reads the same state as `input.field` through `Style.whenInput`.
+
+The form is submitting while a submit waits for a check to pass (the form's
+`submitPending`), or while the application says its own work with the value is
+in flight: the view input `submitting`. The form hands the value over through
+`onOut` and cannot see the request that follows, so that part is the
+application's to pass. While submitting, the `form` carries `aria-busy` and
+`data-submitting`, and the submit button is disabled and reads
+`words.submitting` (default `Submitting…`). Where `saving` is the parent's own
+record of a save in flight:
+
+```ts
+EditForm.view(model, h, {
+  submitting: model.saving,
+  words: { submit: 'Save', submitting: 'Saving…', checking: 'Checking…' },
+})
+```
+
+The submit button is enabled while a check runs and nothing is invalid: a submit
+then waits for the answer, rather than being refused.
+
 ### Accessibility
 
 Each control has an `id` of `<form name>-<key>` (in a row,
 `<form name>-<key>-<row id>-<key>`) and a `label for` it. It carries
-`aria-busy` while a check runs, `aria-invalid`, `aria-required` when the key is required, and `aria-describedby`
-naming its description and, while invalid, its error. An error is `role="alert"`.
-The submit button is disabled until the form would submit.
+`aria-busy` while a check runs, `aria-invalid`, `aria-required` when the key is
+required, and `aria-describedby` naming its description, the `checking` line
+while a check runs, and its error while invalid. An error is `role="alert"`.
+The submit button is disabled until the form would submit, and while it is
+submitting.
 
 Those attributes belong to the view: an attachment that also supplies one is an
 attribute conflict, reported when the view renders. The slots declare
@@ -210,8 +242,8 @@ attribute conflict, reported when the view renders. The slots declare
 
 ## Limits
 
-- One layout: label, control, description, error, in that order, and fields in
-  the input's order. For another arrangement, draw from `form.controls`
+- One layout: label, control, description, the checking line, error, in that
+  order, and fields in the input's order. For another arrangement, draw from `form.controls`
   yourself; this package is the default, not the only way.
 - A relation picker is a `select`, or checkboxes for a `many`. With
   `Input.search()` it searches, but it is not a combobox: the choices are the

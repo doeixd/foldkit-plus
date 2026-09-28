@@ -336,8 +336,12 @@ its README the details.
   Slider, RadioGroup or Calendar; `Textarea.resolve` and `SlotBuilder.attrs()`
   return attributes `h.textarea` rejects; some adapters export no result type.
   `foldkit-ui-showcase`
-- [ ] **Mixins-form: its fixed layout cannot show a check in progress or a
-  page-level submitting state.** `foldkit-form`, `foldkit-auth`
+- [x] **Mixins-form: its fixed layout cannot show a check in progress or a
+  page-level submitting state.** Done: the `checking` Slot, `data-validation`,
+  and the `submitting` view input.
+- [ ] **Mixins-form cannot draw its controls with `@foldkit/ui` and the
+  mixins-ui recipes,** and has no option to disable submit while a check runs,
+  so `foldkit-form` and `foldkit-auth` still draw their own form.
 - [ ] **Testing: `Inert.draw` cannot draw a view containing `h.submodel`.**
   Every port draws the inner SlotView on its own. `foldkit-ui-showcase`
 

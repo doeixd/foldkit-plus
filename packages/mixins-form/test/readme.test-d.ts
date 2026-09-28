@@ -50,3 +50,16 @@ void wrong
   const Drawn = Edit.bundle.pipe(Bundle.withView(FormView.submodel(Edit, FormView.define(Edit))))
   void Drawn
 }
+
+// A check running, and a submit in flight: the page's own `saving` passed in.
+{
+  const model = { saving: true }
+  const inputs = {
+    submitting: model.saving,
+    words: { submit: 'Save', submitting: 'Saving…', checking: 'Checking…' },
+  } satisfies FormViewInputs<Key>
+  void inputs
+  // @ts-expect-error submitting is whether it is, not what the button says
+  const worded: FormViewInputs<Key> = { submitting: 'Saving…' }
+  void worded
+}

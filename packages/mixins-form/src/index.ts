@@ -44,6 +44,10 @@ export interface FormViewWords {
   readonly add?: string | undefined
   /** On the button that removes a row; `{position}` counts from 1. Default `Remove {label} {position}`. */
   readonly remove?: string | undefined
+  /** Under a control while its check runs. Default `Checking…`. */
+  readonly checking?: string | undefined
+  /** On the submit button while the form is submitting. Default `Submitting…`. */
+  readonly submitting?: string | undefined
 }
 
 /**
@@ -73,6 +77,11 @@ export interface FormViewInputs<Key extends string = string> {
    * publishes, so what would be refused is not offered.
    */
   readonly submits?: boolean | undefined
+  /**
+   * Whether the application's own work with a submitted value is in flight, such
+   * as its request: the form hands the value over and cannot see what follows.
+   */
+  readonly submitting?: boolean | undefined
 }
 
 /** What a field's Style and Behavior attachments may read. */
@@ -88,6 +97,8 @@ export interface FieldInput<Key extends string = string> {
   readonly searchWord?: string | undefined
   /** The choice of nothing in a picker: the view's `words.none`. */
   readonly noneWord?: string | undefined
+  /** What is said while the key's check runs: the view's `words.checking`. */
+  readonly checkingWord?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
@@ -127,6 +138,11 @@ export interface FormInput<Model, Key extends string = string> extends FormViewI
   readonly model: Model
   readonly errors: ReadonlyArray<string>
   readonly canSubmit: boolean
+  /**
+   * Whether the form is submitting: a submit waits for a check, or the
+   * application's work with the value is in flight. `FormView.submodel` reads both.
+   */
+  readonly submitting?: boolean | undefined
 }
 
 const textual = {
@@ -141,6 +157,8 @@ export const FieldSlots = Slots.define({
   label: Slot.make({ capability: Capability.Base }),
   description: Slot.make({ capability: Capability.Base }),
   error: Slot.make({ capability: Capability.Base }),
+  /** Says the key's check is running, while it runs. The control names it in `aria-describedby`. */
+  checking: Slot.make({ capability: Capability.Base }),
   text: Slot.make(textual),
   multiline: Slot.make(textual),
   number: Slot.make(textual),
@@ -497,8 +515,11 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const searched = (text: string): Message =>
         send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
       const searches = control.control.searches
+      // A check is running: the control is neither valid nor invalid yet.
+      const checking = input.field._tag === 'Validating'
       const describedBy = [
         ...(description === undefined ? [] : [`${id}-description`]),
+        ...(checking ? [`${id}-checking`] : []),
         ...(invalid ? [`${id}-error`] : []),
       ]
       const state = [
@@ -506,8 +527,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         // The key is the field's name, so a form posts its drafts with scripts off.
         h.Name(key),
         h.AriaInvalid(invalid),
-        // A check is running: the control is neither valid nor invalid yet.
-        ...(input.field._tag === 'Validating' ? [h.AriaBusy(true)] : []),
+        ...(checking ? [h.AriaBusy(true)] : []),
         ...(required ? [h.AriaRequired(true)] : []),
         ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
       ]
@@ -540,7 +560,8 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         h,
       })
 
-      return h.div(slots.root.attrs(), [
+      // The field's state by Foldkit's own tag, for a stylesheet: `[data-validation='Valid']`.
+      return h.div(slots.root.attrs([h.DataAttribute('validation', input.field._tag)]), [
         h.label(slots.label.attrs([h.For(id)]), [label]),
         // Typing here changes which choices the picker below is offered.
         ...(searches
@@ -561,6 +582,13 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(description === undefined
           ? []
           : [h.p(slots.description.attrs([h.Id(`${id}-description`)]), [description])]),
+        ...(checking
+          ? [
+              h.p(slots.checking.attrs([h.Id(`${id}-checking`), h.Role('status')]), [
+                input.checkingWord ?? 'Checking…',
+              ]),
+            ]
+          : []),
         ...(invalid
           ? [h.p(slots.error.attrs([h.Id(`${id}-error`), h.Role('alert')]), [...input.errors])]
           : []),
@@ -629,6 +657,7 @@ export const FormView = {
                     following: walk.following(key),
                     searchWord: input.words?.search,
                     noneWord: input.words?.none,
+                    checkingWord: input.words?.checking,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),
@@ -692,19 +721,34 @@ export const FormView = {
           wrap: message => message as Message,
           make: form.Message as unknown as NestedForm['Message'],
         }
-        return h.form(slots.root.attrs([h.OnSubmit(form.Message.Submitted())]), [
-          ...draw(top, form.bundle.name, ''),
-          ...(input.errors.length === 0
-            ? []
-            : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
-          ...(input.submits === false
-            ? []
-            : [
-                h.button(slots.submit.attrs([h.Type('submit'), h.Disabled(!input.canSubmit)]), [
-                  input.words?.submit ?? 'Submit',
+        const submitting = input.submitting === true
+        return h.form(
+          slots.root.attrs([
+            h.OnSubmit(form.Message.Submitted()),
+            ...(submitting ? [h.AriaBusy(true), h.DataAttribute('submitting', '')] : []),
+          ]),
+          [
+            ...draw(top, form.bundle.name, ''),
+            ...(input.errors.length === 0
+              ? []
+              : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
+            ...(input.submits === false
+              ? []
+              : [
+                  h.button(
+                    slots.submit.attrs([
+                      h.Type('submit'),
+                      h.Disabled(!input.canSubmit || submitting),
+                    ]),
+                    [
+                      submitting
+                        ? (input.words?.submitting ?? 'Submitting…')
+                        : (input.words?.submit ?? 'Submit'),
+                    ],
+                  ),
                 ]),
-              ]),
-        ])
+          ],
+        )
       },
       { name: form.bundle.name },
     )
@@ -720,13 +764,22 @@ export const FormView = {
    */
   submodel: <
     Key extends string,
-    Model extends { readonly errors: ReadonlyArray<string> },
+    Model extends { readonly errors: ReadonlyArray<string>; readonly submitPending: boolean },
     Message extends { readonly _tag: string },
   >(
     form: FormLike<Key, Model, Message>,
     view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, Message>,
   ): Submodel.View<Model, Message, FormViewInputs<Key>> =>
     Submodel.defineView<Model, Message, FormViewInputs<Key>>((model, inputs, h) =>
-      view({ ...inputs, model, errors: model.errors, canSubmit: form.canSubmit(model) }, h),
+      view(
+        {
+          ...inputs,
+          model,
+          errors: model.errors,
+          canSubmit: form.canSubmit(model),
+          submitting: model.submitPending || inputs.submitting === true,
+        },
+        h,
+      ),
     ),
 }
