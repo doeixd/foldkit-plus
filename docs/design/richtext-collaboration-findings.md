@@ -340,10 +340,15 @@ The plan above is built on `claude/richtext-commits-review-djbvzn`, in order, on
   - `636d417`: the editor's `overlay` Command for decorations from application state.
   - `ecd2c8d`: `transport.socket` shares the sync connection with presence, and pages draws remote carets. Checked in Chromium.
 
+**Follow-up: what was left open**
+
+- Merging adjacent inserts, `4728d69`: `Insert` gains an optional `from`. `translate`'s `continues` option carries text typed at the end of this replica's own insert on that insert, and `Replicated.coalesce` folds the run into one op. Pages coalesces its merged edits with it, so a burst of typing the server has not seen is one `Insert`.
+- Presence, `dbe5a27`: a `throttle` option sends at most one value per interval, the latest; a departure goes at once. Pages throttles to 50 ms and still announces only when its page or caret changed.
+- A3, `901b47f` and `8eba2d0`: `Journal.epoch(key)` names a document's history and is new after `reset` or in a new file. The replica stores the server's epoch and sends it back; a server that finds another answers from sequence 0, and the replica rebuilds its committed state from that and resends its outbox. Durable's `replicaId` option, which Sync's `journalContract` supplies, binds each replica to its first committing actor and refuses anyone else's operations from it.
+- B6, `bb47b1d`: the sequence-per-span design needed the commit sequence inside `update`, which replay never sees, and a server-only purge would have made replicas diverge. It became a `Collect` op instead, committed through the log: each one removes the text the previous one marked deleted and marks what is deleted now, so every replica removes the same text at the same point, and only a replica offline across two collections loses anchors. An insert keeps one deleted character at its end, so a continued insert never reuses an index. The pages server commits one per page every hour.
+
 **Still open**
 
-- B6, tombstone collection.
-- The rest of A3: an epoch, recovery after a server reset, and binding a `replicaId` to its actor.
-- Merging adjacent Replicated inserts (the `Insert` start index from B5).
-- Throttling `presence.set`: pages sends only when the caret moves.
 - Finding 19: the LWW clock's write per stamp.
+- A replica that never heard an epoch cannot tell that the server it last saw was reset.
+- The epoch rule is copied into each example server; Sync has no server-side exchange helper to hold it.
