@@ -620,3 +620,33 @@ describe('two people on one page', () => {
     unsubscribe()
   })
 })
+
+describe('an editor Message that changes nothing', () => {
+  /** `update`, with each fact it returns applied as `Sync.mount` would apply it. */
+  const settle = (model: Model, message: Message): Model => {
+    const result = update(model, message)
+    let next = result.model
+    for (const command of result.commands ?? []) {
+      if (command.name === 'foldkit-sync/fact')
+        next = update(next, Effect.runSync(command.effect)).model
+    }
+    return next
+  }
+
+  it.each<[string, (run: RichText.NodeId) => EditorMessage]>([
+    ['the patch Command’s completion', () => EditorMessage.Patched()],
+    [
+      'the same caret, reported again',
+      run => EditorMessage.Selected({ selection: caretAt(run, 0) }),
+    ],
+  ])('keeps the Model for %s', (_, message) => {
+    const added = settle(initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const run = Replicated.project(added.pages[0]!.body).children[0]!.children[0]!.id
+    const placed = settle(
+      added,
+      Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(run, 0) }) }),
+    )
+    expect(placed.selection).not.toBeNull()
+    expect(settle(placed, Message.GotEditor({ message: message(run) }))).toBe(placed)
+  })
+})

@@ -461,11 +461,10 @@ export const update = (model: Model, message: Message): Return =>
       if (incoming._tag === 'Redone') return replay(model, page, 'redo')
       const view = editorViewOf(model, page)
       const result = Editor.update(view, incoming, { hostId })
-      const interaction = {
-        ...model,
-        storedMarks: result.model.storedMarks,
-        menuIndex: result.model.menuIndex,
-      }
+      const interaction =
+        result.model.storedMarks === model.storedMarks && result.model.menuIndex === model.menuIndex
+          ? model
+          : { ...model, storedMarks: result.model.storedMarks, menuIndex: result.model.menuIndex }
       const commands = (result.commands ?? []).map(toApp)
       const out = result.outMessage
       if (out?._tag !== 'Edited') return { model: interaction, commands }
