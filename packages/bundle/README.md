@@ -550,6 +550,15 @@ const update = (model: Model, message: Message) =>
 - **The same Link serves every entry point:** `Update.foldChildStep({ ...link,
   update: Dialog.open, foldOutMessage })` for one that takes no Message, and
   `link.toParentMessage` for the view's `h.submodel` and `Subscription.lift`.
+  Its init folds through `Link.foldInit`, since init has no parent yet to read:
+
+```ts
+const init = (): Update.Return<Model, Message> =>
+  Update.foldChildInit(
+    { model: Tabs.init({ id: 'sections' }) },
+    Link.foldInit(tabs, { section: 'general' }),
+  )
+```
 - **An ignored Message leaves the parent as it was.** `foldChild` writes the
   child back even when its update returned the child it was given; the writes
   of `Link.field` and `Link.optional` then return the parent itself, so the

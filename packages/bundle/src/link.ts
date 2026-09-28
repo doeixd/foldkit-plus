@@ -182,7 +182,9 @@ const make = <
  *
  * Its `read`, `write` and `toParentMessage` are what `Update.foldChild` takes,
  * so a component that is not a Bundle folds through it:
- * `Update.foldChild({ ...link, update: VirtualList.update })`. That fold writes back
+ * `Update.foldChild({ ...link, update: VirtualList.update })`. Its init folds
+ * through `Link.foldInit`: `Update.foldChildInit(boot, Link.foldInit(link, rest))`.
+ * That fold writes back
  * even a child its update left alone, so the write keeps the parent when the
  * child is the one already there: Foldkit renders only when the root Model
  * changes identity.
@@ -266,6 +268,30 @@ const compose = <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
     messages: [...outer.messages, ...inner.messages],
     owner: outer.owner ?? inner.owner,
   })
+
+/**
+ * What `Update.foldChildInit` takes, for a child that is not a Bundle: the
+ * Link's `toParentMessage`, and a `toParentModel` that writes the child's
+ * Model into the rest of the parent. Where `Update.foldChild` spreads the
+ * Link itself (`{ ...link, update }`), init has no parent yet to read, so the
+ * caller hands over everything but the child:
+ * `Update.foldChildInit(Counter.init(args), Link.foldInit(link, rest))`.
+ *
+ * For a composed Link, `rest` must already hold the outer children the Link
+ * passes through; an absent outer child has nowhere to live, so the write
+ * keeps the rest as it is, as a placement's `init` does.
+ */
+const foldInit = <Parent, ParentMessage, Child, ChildMessage, Field extends string>(
+  link: Link<Parent, ParentMessage, Child, ChildMessage, Field>,
+  rest: Omit<Parent, Field>,
+): {
+  readonly toParentModel: (child: Child) => Parent
+  readonly toParentMessage: (message: ChildMessage) => ParentMessage
+} => ({
+  // Copied, so a `Link.make` write that mutates cannot take the caller's rest.
+  toParentModel: child => link.write({ ...rest } as Parent, child),
+  toParentMessage: link.toParentMessage,
+})
 
 /**
  * Adds a gate: the child's Subscriptions and resources run only while every gate
@@ -522,6 +548,7 @@ export const Link = {
   compose,
   andThen,
   when,
+  foldInit,
   keyedWrapper,
   collection,
   collectionById,

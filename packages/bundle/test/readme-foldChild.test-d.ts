@@ -37,6 +37,25 @@ const update = (model: Model, message: Message) =>
 
 expectTypeOf(update).returns.toEqualTypeOf<Update.Return<Model, Message>>()
 
+// Its init folds through the same Link: init has no parent yet to read, so
+// the fold takes the parent's other fields instead.
+const init = (): Update.Return<Model, Message> =>
+  Update.foldChildInit(
+    { model: Tabs.init({ id: 'sections' }) },
+    Link.foldInit(tabs, { section: 'general' }),
+  )
+
+expectTypeOf(init).returns.toEqualTypeOf<Update.Return<Model, Message>>()
+
+Update.foldChildInit(
+  { model: Tabs.init({ id: 'sections' }) },
+  Link.foldInit(
+    tabs,
+    // @ts-expect-error the rest keeps its types: section is not a number
+    { section: 42 },
+  ),
+)
+
 // The Link's Message lift is a member of the parent union, so a fold for the wrong
 // variant is refused where it meets the parent's update.
 const wrong = Link.field<Model>()(
