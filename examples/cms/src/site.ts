@@ -55,7 +55,13 @@ export const dateOf = (at: Option.Option<string>) =>
   Option.match(at, {
     onNone: () => 'Not published',
     onSome: day =>
-      new Date(day).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }),
+      // In UTC: a build and a reader in another time zone draw the same day.
+      new Date(day).toLocaleDateString('en', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC',
+      }),
   })
 
 /** Paragraphs are separated by a blank line. */
