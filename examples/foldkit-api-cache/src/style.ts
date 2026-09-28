@@ -72,7 +72,7 @@ export const CachePage = slots(
       U.text('sm'),
       U.color('text.muted'),
     ],
-    updatedAt: {},
+    updatedAt: Style.self({}),
     refreshing: [U.font('semibold'), U.color('accent.ink')],
     placeholder: [panel, U.p('lg'), U.textCenter, U.color('text.muted')],
     alert: [
