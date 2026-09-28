@@ -324,10 +324,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const renamed = Data.reduce(rename.model, settled)
   lines.push(`mutation RenameProject (${rename.requestId}): ${settled._tag}`)
   lines.push(`after mutation: ${describeData(projection.read(renamed))}`)
-  const due = refreshing.modelToDependencies(renamed).requirements
-  lines.push(
-    `refetch after mutation: ${due.length === 0 ? 'none' : due.map(r => `${r.entity}:${r.id}`).join(', ')}`,
-  )
+  const due = refreshing.modelToDependencies(renamed).requirements.length
+  lines.push(`refetch after mutation: ${due === 0 ? 'none' : `${due} requirements`}`)
 
   // Retention: the roots are what the active Surfaces reach. A project the page
   // does not select, and a connection nobody lists, are collected; the page's
