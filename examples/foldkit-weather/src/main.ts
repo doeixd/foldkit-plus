@@ -9,7 +9,7 @@ import { modifyFields } from 'foldkit/struct'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button, Input } from 'foldkit-mixins-ui'
 
-import { SubmitButtonStyle, WeatherSlots, WeatherStyle, ZipCodeInputStyle } from './style.js'
+import { SubmitButtonStyle, WeatherPage, ZipCodeInputStyle } from './style.js'
 
 // MODEL
 
@@ -214,7 +214,7 @@ export const FetchWeather = Command.define('FetchWeather', {
 
 // VIEW
 
-type Slots = SlotBuilders<typeof WeatherSlots, Message>
+type Slots = SlotBuilders<typeof WeatherPage.slots, Message>
 
 const locationLabel = (weather: WeatherData): string =>
   Option.match(weather.maybeRegion, {
@@ -223,7 +223,7 @@ const locationLabel = (weather: WeatherData): string =>
   })
 
 export const Weather = SlotView.forMessages<Message>()
-  .define(WeatherSlots, (model: Model, slots, h) =>
+  .define(WeatherPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.h1(slots.title.attrs(), ['Weather']),
 
@@ -240,7 +240,7 @@ export const Weather = SlotView.forMessages<Message>()
       }),
     ]),
   )
-  .pipe(Style.attach(WeatherStyle))
+  .pipe(Style.attach(WeatherPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: 'Weather',

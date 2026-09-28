@@ -21,7 +21,7 @@ click -> Message -> update -> Model { count } -> view -> Slots <- Style (foldkit
 | The accessible button (`type="button"`, the click) | `@foldkit/ui` Button | `src/main.ts` |
 | The button's look: the shipped `Recipes.Button`, squared off | `foldkit-mixins-ui` | `src/style.ts` |
 | The page's Slots, layout (`Layout.stack`, `Layout.cluster`) and type | `foldkit-mixins` | `src/style.ts` |
-| Theme tokens, the layer order, body defaults | `foldkit-mixins` (`Theme`, `Layers`, `Defaults`) | `src/style.ts`, installed by `src/entry.ts` |
+| Theme tokens, the layer order, body defaults | `foldkit-mixins` (`AppStyle`, `Theme`) | `src/style.ts`, installed by `src/entry.ts` |
 
 The app uses no Surface, Remote, Sync, Mirror or Agent: nothing here reads from
 a server, persists, replicates or is exposed to an agent, and a Surface with no
@@ -37,16 +37,18 @@ pnpm --filter foldkit-example-foldkit-counter dev
 ## How it is put together
 
 - `src/main.ts` keeps upstream's sections: `MODEL`, `MESSAGE`, `UPDATE`,
-  `INIT`, `VIEW`. The view is a `SlotView` over three Slots (`root`, `count`,
-  `controls`) with `CounterStyle` attached; each button is `@foldkit/ui`'s
+  `INIT`, `VIEW`. The view is a `SlotView` over the three Slots `style.ts`
+  declares (`root`, `count`, `controls`) with their style attached; each button is `@foldkit/ui`'s
   `Button.view`, its attributes resolved against `ButtonSlots` by
   `foldkit-mixins-ui` so `ButtonStyle` applies.
-- `src/style.ts` holds the appearance as data. The palette is `Theme.oklch`
-  with a colorless, near-black accent, so the recipe's solid button is black on
-  white. Every slot style is compiled into the `app` layer, so it overrides the
-  recipe and the layouts by layer order.
+- `src/style.ts` holds the appearance as data. `AppStyle.make` fixes the
+  palette (`Theme.oklch` with a colorless, near-black accent, so the recipe's
+  solid button is black on white), the `app` layer and the page stylesheet
+  once; `slots` declares the page's Slots by their style, written with
+  `Utilities` and plain declarations. Every slot style is compiled into the
+  `app` layer, so it overrides the recipe and the layouts by layer order.
 - `src/entry.ts` installs `stylesheet` (the layer order, the tokens, the body
-  defaults) and runs the application. The slot styles' classes are not in that
+  defaults) with `Style.install` and runs the application. The slot styles' classes are not in that
   sheet: `foldkit-mixins` injects each class's CSS when a Slot first draws it.
   The sheet sets `color-scheme: light`, so the page stays white in a dark
   browser, as upstream's does.

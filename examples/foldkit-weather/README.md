@@ -24,7 +24,7 @@ FetchWeather: geocode -> forecast -> decode -> SucceededFetchWeather | FailedFet
 | The two HTTP requests, decoding Open-Meteo's answers, the failure sentences | plain Foldkit: `Command.define` over Effect's `HttpClient`, provided by Foldkit's `Http.layer` | `src/main.ts`, `// COMMAND` |
 | The accessible input and submit button | `@foldkit/ui` Input and Button | `src/main.ts` |
 | Their look: the shipped `Recipes.Input` and `Recipes.Button`, extended | `foldkit-mixins-ui` | `src/style.ts` |
-| The page's Slots, layout (`Layout.stack`, `Layout.intrinsic`), theme, layer order | `foldkit-mixins` | `src/style.ts`, installed by `src/entry.ts` |
+| The page's Slots (declared by their style with `AppStyle`'s `slots`), layout (`Layout.stack`, `Layout.intrinsic`), theme, layer order | `foldkit-mixins` | `src/style.ts`, installed by `src/entry.ts` with `Style.install` |
 
 ## What is not used, and why
 

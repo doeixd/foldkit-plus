@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins`, a slot named `__proto__`:** `forSlots` kept its piece
+  on a plain object, where the name set the prototype instead.
+
 - **`foldkit-remote`, two policies without losing data:** two
   `Data.subscriptions` calls over one domain no longer collect each other's
   data. Retention is the domain's: every call's `retain` entry roots the
@@ -35,6 +38,25 @@ version changed; `pnpm` skips versions already in the registry.
   applies again on every restore; a failed read counts as an empty store.
 
 ### Added
+
+- **`foldkit-mixins`, slots declared by their style:** `Style.slots(pieces)`
+  declares an application's own Slots from their styles and returns
+  `{ slots, style }`; `Style.slot(options, piece)` gives one a capability,
+  events or attributes. `forSlots` stays for a contract someone else published.
+- **`foldkit-mixins`, short pieces:** wherever a piece is taken, a
+  declarations object means `Style.self` and a list means `Style.compose`.
+- **`foldkit-mixins/app`:** `AppStyle.make({ palette, colorScheme?, global? })`
+  fixes the theme, the `app` layer and the page stylesheet once, giving `t`,
+  `L`, `slots`, `forSlots` and `stylesheet`.
+- **`foldkit-mixins/utilities`:** `Utilities` (`p`, `px`, `gap`, `text`,
+  `font`, `rounded`, `color`, `bg`, `flex`, `truncate`, …) are pieces over the
+  `Theme.tokens` scales and `Theme.oklch` names, so a step the scale lacks is a
+  type error.
+- **`foldkit-mixins`, `Style.install(css)`** puts a stylesheet in the page's
+  head once and returns the element.
+- **`foldkit-mixins/testing`:** `Inert.draw` draws views that use
+  `h.submodel`; `Inert.css(nodes)` and `Inert.missingTokens(root, stylesheet)`
+  replace the checks every view test wrote by hand.
 
 - **`foldkit-mirror`, `Mirror.routing`:** `Mirror.routing({ mirrors,
   urlChanged, init, update, routing })` returns `init`, `update` and `routing`
@@ -529,6 +551,11 @@ version changed; `pnpm` skips versions already in the registry.
   and listening take 12 ms in Chromium, down from 22.
 
 ### Changed
+
+- **`foldkit-mixins`, a branded `StyleValue` (breaking for hand-built
+  values):** a `StyleValue` carries a brand, so a declarations object is never
+  mistaken for one; `NamedStyle.pieces` and a `recipeFor` selection are
+  `StyleValues`.
 
 - **`foldkit-ssr`, Foldkit's config types:** `SSR.hydrate`, `render`,
   `generate`, `entry` and `handle` accept Foldkit's `makeApplication` config

@@ -8,12 +8,14 @@
     "paths": {
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
+      "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/layers": ["../../packages/mixins/src/layers.ts"],
       "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
       "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
       "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]

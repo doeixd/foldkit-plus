@@ -6,9 +6,11 @@
  * and `value` are properties while `aria-label` is an attribute.
  */
 import { Option } from 'effect'
-import type { Html } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { given, scene, tap } from 'foldkit/scene'
+import { usedIn } from './inject.js'
 import { SLOT_MARK, drawMarked } from './slotMark.js'
-import * as SlotView from './slotView.js'
+import type * as SlotView from './slotView.js'
 
 /** An element or text node of an inert tree. */
 export type Node = Exclude<Html, null>
@@ -94,15 +96,43 @@ const pressed = (node: Html | undefined): Option.Option<boolean> =>
     state => state === 'true' || state === true,
   )
 
+/** Ends the Scene `draw` borrows once the view has drawn, before its end-of-test checks. */
+const DRAWN = Symbol('drawn')
+
 /**
  * A SlotView drawn inert, each element a Slot draws marked with the Slot's
  * name, however deeply nested its view, for `bySlot` and `unslotted`. Only
  * here: a view drawn for real carries no mark.
+ *
+ * It draws under a Foldkit Scene's render frame, which `h.submodel` and a
+ * Submodel's `childAttributes` need; nothing is dispatched, and no Command or
+ * Mount the drawing declares is run or checked.
  */
 const draw = <Slots, Input, Message>(
   view: SlotView.SlotView<Slots, Input, Message>,
   input: Input,
-): Html => drawMarked(() => view(input, SlotView.inertBuilder<Message>()))
+): Html => {
+  let drawn: Html = null
+  const drawInto = (model: Input, h: HtmlBuilder<Message>): Html => {
+    drawn = view(model, h)
+    // Scene refuses a view that draws nothing; what it draws is not the result.
+    return h.div([], [])
+  }
+  try {
+    drawMarked(() =>
+      scene(
+        { update: (model: Input) => ({ model }), view: drawInto },
+        given(input),
+        tap(() => {
+          throw DRAWN
+        }),
+      ),
+    )
+  } catch (error) {
+    if (error !== DRAWN) throw error
+  }
+  return drawn
+}
 
 /** The Slot a node was drawn by, in a tree from `draw`; none for one no Slot drew. */
 const slotOf = (node: Html | undefined): Option.Option<string> => {
@@ -175,8 +205,33 @@ const fixedInline = (
   )
 }
 
+/** The compiled CSS behind the classes on `nodes`, after the standard layer order. */
+const css = (nodes: ReadonlyArray<Html>): string => usedIn(nodes.flatMap(classes).join(' '))
+
+const TOKEN_READ = /var\((--fk-[\w-]+)\)/g
+
+/**
+ * The `--fk-*` tokens the tree's Styles read with no fallback and that
+ * nothing defines, in first-read order: not `stylesheet`, not a drawn rule,
+ * not an inline style. Such a read makes its declaration invalid, so a test
+ * asserts `toEqual([])`. A tree whose Styles read no token passes too; check
+ * `css` for `var(--fk-` when that would be a mistake.
+ */
+const missingTokens = (root: Html, stylesheet: string): ReadonlyArray<string> => {
+  const nodes = all(root)
+  const drawn = css(nodes)
+  const inline = nodes.flatMap(node => Object.keys(style(node)))
+  const read = new Set(Array.from(drawn.matchAll(TOKEN_READ), ([, name]) => name ?? ''))
+  return [...read].filter(
+    name =>
+      !stylesheet.includes(`${name}:`) && !drawn.includes(`${name}:`) && !inline.includes(name),
+  )
+}
+
 export const Inert = {
   draw,
+  css,
+  missingTokens,
   bySlot,
   unslotted,
   fixedInline,

@@ -1,31 +1,29 @@
 /**
- * The page's appearance, as `foldkit-mixins` data. `main.ts` publishes the
- * Slots and draws the markup; everything it looks like lives here.
+ * The page's appearance, as `foldkit-mixins` data. `main.ts` draws the markup
+ * through the Slots declared here; everything it looks like lives here.
  *
- * Every slot style is compiled into the `app` layer, the last of
- * `Layers.standard`, so it overrides the shipped recipes and the `Layout`
- * pieces by layer order rather than by specificity.
+ * `AppStyle` compiles every style into the `app` layer, the last of the
+ * standard order, so it overrides the shipped recipes and the `Layout` pieces
+ * by layer order rather than by specificity.
  */
-import { Capability, Event, Layers, Slot, Slots, Style, type StyleValue } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
+import { Event, Style, type StyleValue } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
-
-const L = Layers.standard
-const app = L.layer('app')
-
-// THEME
 
 /**
  * Tailwind's blue-500 as the accent, so the button and the numbers are
  * upstream's blue, over neutral surfaces so the card is a plain near-white.
+ * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
  */
-const palette = Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' }, surfaceSaturation: 0 })
+const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' }, surfaceSaturation: 0 }),
+  colorScheme: 'light',
+})
 
-const theme = Theme.compose(Theme.tokens, palette)
-
-const t = Theme.ref(theme)
+export { stylesheet }
 
 /** The accent at `percent` over the base surface: upstream's blue-50 to blue-300. */
 const wash = (percent: number): string =>
@@ -44,112 +42,76 @@ const centered = (gap: string): StyleValue =>
 
 const intrinsic: StyleValue = L.in('layouts', Layout.intrinsic)
 
-/** Upstream's `w-full max-w-md`; the stack already makes its children full width. */
-const narrow: StyleValue = Style.self({ maxWidth: '28rem' })
-
 // PAGE
 
-export const WeatherSlots = Slots.define({
-  page: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  form: Slot.make({ capability: Capability.Container, events: [Event.Submit] }),
-  loading: Slot.make({ capability: Capability.Container }),
-  error: Slot.make({ capability: Capability.Container }),
-  result: Slot.make({ capability: Capability.Container }),
-  card: Slot.make({ capability: Capability.Container }),
-  zipCode: Slot.make({ capability: Capability.Container }),
-  location: Slot.make({ capability: Capability.Container }),
-  current: Slot.make({ capability: Capability.Container }),
-  temperature: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
-  details: Slot.make({ capability: Capability.Container }),
-  detail: Slot.make({ capability: Capability.Container }),
-  detailLabel: Slot.make({ capability: Capability.Container }),
-  detailValue: Slot.make({ capability: Capability.Container }),
-})
-
-export const WeatherStyle = Style.forSlots(WeatherSlots)(
+export const WeatherPage = slots(
   {
-    page: Style.compose(
+    page: [
       centered(t.space.lg),
-      Style.self({
+      U.p('lg'),
+      U.items('center'),
+      U.justify('center'),
+      {
         boxSizing: 'border-box',
         minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: t.space.lg,
         background: `linear-gradient(to bottom right, ${wash(85)}, ${wash(55)})`,
-      }),
-    ),
-    title: Style.compose(
+      },
+    ],
+    title: [
       intrinsic,
-      Style.self({
+      U.text('4xl'),
+      U.font('bold'),
+      {
         // The stack sets its children's block margins to 0; this is upstream's `mb-8`.
         marginBlockEnd: t.space.xl,
-        fontSize: t.size['4xl'],
-        fontWeight: t.weight.bold,
         // Upstream's blue-900: the accent, darker.
         color: `oklch(from ${t.accent.default} 0.38 calc(c * 0.7) h)`,
-      }),
-    ),
-    form: Style.compose(centered(t.space.md), narrow),
-    loading: Style.compose(
+      },
+    ],
+    // Upstream's `w-full max-w-md`; the stack already makes its children full width.
+    form: Style.slot({ events: [Event.Submit] }, [centered(t.space.md), { maxWidth: '28rem' }]),
+    loading: [intrinsic, U.textCenter, U.font('semibold'), U.color('accent.default')],
+    error: [
       intrinsic,
-      Style.self({ textAlign: 'center', fontWeight: t.weight.semibold, color: t.accent.default }),
-    ),
-    error: Style.compose(
-      intrinsic,
-      Style.self({
-        boxSizing: 'border-box',
-        padding: t.space.md,
-        border: `1px solid ${t.error.outline}`,
-        borderRadius: t.radius.lg,
-        background: t.error.subtle,
-        color: t.error.ink,
-      }),
-    ),
-    result: narrow,
-    card: Style.self({
-      padding: t.space.xl,
-      borderRadius: t.radius.xl,
-      background: t.surface.base,
-      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)',
-    }),
-    zipCode: Style.self({
-      margin: `0 0 ${t.space.sm}`,
-      textAlign: 'center',
-      fontSize: t.size['2xl'],
-      fontWeight: t.weight.bold,
-      color: t.text.overt,
-    }),
-    location: Style.self({
-      margin: `0 0 ${t.space.lg}`,
-      textAlign: 'center',
-      color: t.text.muted,
-    }),
-    current: Style.self({ marginBlockEnd: t.space.lg, textAlign: 'center' }),
-    temperature: Style.self({
-      fontSize: '3.75rem',
-      fontWeight: t.weight.bold,
-      lineHeight: '1',
-      color: t.accent.default,
-    }),
-    description: Style.self({
-      marginBlockStart: t.space.xs,
-      fontSize: t.size.xl,
-      color: t.text.muted,
-    }),
-    details: Style.self({
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: t.space.md,
-      textAlign: 'center',
-    }),
-    detail: Style.self({ padding: t.space.md, borderRadius: t.radius.lg, background: wash(94) }),
-    detailLabel: Style.self({ fontSize: t.size.sm, color: t.text.muted }),
-    detailValue: Style.self({ fontSize: t.size.lg, fontWeight: t.weight.semibold }),
+      U.p('md'),
+      U.rounded('lg'),
+      U.bg('error.subtle'),
+      U.color('error.ink'),
+      { boxSizing: 'border-box', border: `1px solid ${t.error.outline}` },
+    ],
+    result: { maxWidth: '28rem' },
+    card: [
+      U.p('xl'),
+      U.rounded('xl'),
+      U.bg('surface.base'),
+      { boxShadow: '0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)' },
+    ],
+    zipCode: [
+      U.textCenter,
+      U.text('2xl'),
+      U.font('bold'),
+      U.color('text.overt'),
+      { margin: `0 0 ${t.space.sm}` },
+    ],
+    location: [U.textCenter, U.color('text.muted'), { margin: `0 0 ${t.space.lg}` }],
+    current: [U.textCenter, { marginBlockEnd: t.space.lg }],
+    temperature: [
+      U.font('bold'),
+      U.color('accent.default'),
+      { fontSize: '3.75rem', lineHeight: '1' },
+    ],
+    description: [U.text('xl'), U.color('text.muted'), { marginBlockStart: t.space.xs }],
+    details: [
+      U.grid,
+      U.gap('md'),
+      U.textCenter,
+      { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+    ],
+    detail: [U.p('md'), U.rounded('lg'), { background: wash(94) }],
+    detailLabel: [U.text('sm'), U.color('text.muted')],
+    detailValue: [U.text('lg'), U.font('semibold')],
   },
-  { name: 'WeatherStyle', layer: app },
+  { name: 'WeatherStyle' },
 )
 
 // ZIP CODE INPUT
@@ -157,53 +119,26 @@ export const WeatherStyle = Style.forSlots(WeatherSlots)(
 /** The shipped text field, with upstream's thick blue border. */
 const ZipCodeInput = Recipes.Input.extend({
   base: {
-    input: Style.compose(
-      Style.self({
-        boxSizing: 'border-box',
-        border: `${t.border.thick} solid ${wash(55)}`,
-        borderRadius: t.radius.lg,
-        outline: 'none',
-      }),
+    input: [
+      U.rounded('lg'),
+      { boxSizing: 'border-box', border: `${t.border.thick} solid ${wash(55)}`, outline: 'none' },
       Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: wash(40) }),
       Style.pseudo(':focus', { borderColor: t.accent.default }),
-    ),
+    ],
   },
 })
 
-export const ZipCodeInputStyle = Style.forSlots(InputSlots)(ZipCodeInput({ size: 'md' }), {
+export const ZipCodeInputStyle = forSlots(InputSlots)(ZipCodeInput({ size: 'md' }), {
   name: 'ZipCodeInputStyle',
-  layer: app,
 })
 
 // SUBMIT BUTTON
 
 /** The solid accent button, as wide as its label and rounded like upstream's. */
 const SubmitButton = Recipes.Button.extend({
-  base: {
-    button: Style.compose(
-      intrinsic,
-      Style.self({ paddingInline: t.space.lg, borderRadius: t.radius.lg }),
-    ),
-  },
+  base: { button: [intrinsic, U.px('lg'), U.rounded('lg')] },
 })
 
-export const SubmitButtonStyle = Style.forSlots(ButtonSlots)(SubmitButton(), {
+export const SubmitButtonStyle = forSlots(ButtonSlots)(SubmitButton(), {
   name: 'SubmitButtonStyle',
-  layer: app,
 })
-
-// STYLESHEET
-
-/**
- * What a slot cannot carry: the layer order, the tokens the styles read, and
- * the body defaults. The slot styles' own classes are injected when a Slot
- * first draws them, so they are not repeated here. `colorScheme: 'light'`
- * keeps the page light in a dark browser, as upstream's is.
- */
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
-  L.in('theme', Theme.root(palette, { omit: Theme.tokens, colorScheme: 'light' })),
-  L.in('defaults', Defaults.body),
-)

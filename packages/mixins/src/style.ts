@@ -11,7 +11,18 @@ import type { InputContribution, SlotContribution } from './contribution.js'
 import { DiagnosticError } from './diagnostics.js'
 import * as Mixin from './mixin.js'
 import type { Mixin as MixinValue } from './mixin.js'
-import type { Any as AnySlot, HiddenOf } from './slot.js'
+import * as SlotModule from './slot.js'
+import type {
+  Any as AnySlot,
+  AttributeName,
+  EventName,
+  HiddenOf,
+  MakeOptions,
+  RequirementName,
+  SlotCapability,
+  UnnamedSlot,
+} from './slot.js'
+import { define as defineSlots, type Contract as SlotsContract } from './slots.js'
 import type { Placement } from './layers.js'
 import type { SlotItem } from './slotItem.js'
 import * as SlotView from './slotView.js'
@@ -38,19 +49,28 @@ import {
   supports,
   vars,
   viewTransitionName,
+  make,
+  toStyleValue,
+  type Piece,
   type StyleValue,
 } from './styleValue.js'
 
-export type { StyleCondition, StyleValue } from './styleValue.js'
+export type { Piece, StyleCondition, StyleValue } from './styleValue.js'
 
 /** A hidden slot is internal: it is neither styleable nor behavior-targetable. */
-export type StylePieces<Slots> = {
-  readonly [K in keyof Slots as HiddenOf<Slots[K]> extends true ? never : K]?: StyleValue
+export type StylePieces<Slots> = PublicPieces<Slots, Piece>
+
+type PublicPieces<Slots, Value> = {
+  readonly [K in keyof Slots as HiddenOf<Slots[K]> extends true ? never : K]?: Value
 }
+
+/** `StylePieces` with every piece a `StyleValue`, as a recipe or a `NamedStyle` gives them. */
+export type StyleValues<Slots> = PublicPieces<Slots, StyleValue>
 
 export interface NamedStyle<Slots> {
   readonly name?: string
-  readonly pieces: StylePieces<Slots>
+  /** Each piece as compiled, placed in the `layer` when one was given. */
+  readonly pieces: StyleValues<Slots>
   readonly mixin: MixinValue<never>
   /** Concatenated rule CSS for every static piece. */
   readonly css: string
@@ -72,20 +92,15 @@ export interface StyleOptions {
 }
 
 /** A boolean known at authoring time. */
-export const when = (condition: boolean, piece: StyleValue): StyleValue =>
-  condition ? piece : empty
+export const when = (condition: boolean, piece: Piece): StyleValue =>
+  condition ? toStyleValue(piece) : empty
 
 /** A condition read from the view input at render time. The piece applies when
  *  `predicate` returns true for the input the view was rendered with. */
-export const whenInput = <Input>(
-  predicate: (input: Input) => boolean,
-  piece: StyleValue,
-): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+export const whenInput = <Input>(predicate: (input: Input) => boolean, piece: Piece): StyleValue =>
+  make({
     conditions: Object.freeze([
-      { predicate: (input: unknown) => predicate(input as Input), piece },
+      { predicate: (input: unknown) => predicate(input as Input), piece: toStyleValue(piece) },
     ]),
   })
 
@@ -93,12 +108,10 @@ export const whenInput = <Input>(
  * A piece computed from the item the slot is rendered for, when the view
  * passes one to `attrs(base, item)`; nothing for a slot rendered once.
  */
-export const perItem = (piece: (item: SlotItem) => StyleValue): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+export const perItem = (piece: (item: SlotItem) => Piece): StyleValue =>
+  make({
     items: Object.freeze([
-      (item: SlotItem | undefined) => (item === undefined ? empty : piece(item)),
+      (item: SlotItem | undefined) => (item === undefined ? empty : toStyleValue(piece(item))),
     ]),
   })
 
@@ -127,7 +140,7 @@ const resolveStyle = (style: StyleValue, input: unknown, item?: SlotItem): Style
       .map(condition => condition.piece),
     ...(style.items ?? []).map(piece => piece(item)),
   ].map(piece => resolveStyle(piece, input, item))
-  return Object.freeze({
+  return make({
     classes: Object.freeze([...style.classes, ...active.flatMap(piece => piece.classes)]),
     style: Object.freeze(
       Object.assign(Object.create(null), style.style, ...active.map(piece => piece.style)),
@@ -233,12 +246,12 @@ export const forSlots =
     const known = slots as unknown as Record<string, unknown>
     const contributions: Record<string, SlotContribution<never>> = Object.create(null)
     // What was compiled, so `pieces` recomposed elsewhere keeps the layer too.
-    const compiledPieces: Record<string, StyleValue> = {}
+    const compiledPieces: Record<string, StyleValue> = Object.create(null)
     const rules: Array<{ className: string; css: string }> = []
     const globalRules: Array<string> = []
     let css = ''
     let globalCss = ''
-    for (const [key, piece] of Object.entries(pieces as Record<string, StyleValue | undefined>)) {
+    for (const [key, piece] of Object.entries(pieces as Record<string, Piece | undefined>)) {
       if (!Object.hasOwn(known, key)) {
         throw new DiagnosticError({
           source: 'mixins',
@@ -258,7 +271,8 @@ export const forSlots =
         })
       }
       if (piece !== undefined) {
-        const placed = options?.layer === undefined ? piece : options.layer.place(piece)
+        const value = toStyleValue(piece)
+        const placed = options?.layer === undefined ? value : options.layer.place(value)
         compiledPieces[key] = placed
         // Rule and global CSS are static even when the contribution is deferred,
         // so compile once, then build the contribution and gather the CSS.
@@ -276,7 +290,7 @@ export const forSlots =
     }
     return Object.freeze({
       ...(options?.name === undefined ? {} : { name: options.name }),
-      pieces: options?.layer === undefined ? pieces : (compiledPieces as StylePieces<Slots>),
+      pieces: compiledPieces,
       mixin: Mixin.dynamic<never>(options?.name ?? 'Style', contributions),
       css,
       globalCss,
@@ -459,7 +473,7 @@ export interface SlotRecipePatch<Slots, Variants extends SlotRecipeVariants<Slot
 }
 
 export interface SlotRecipe<Slots, Variants extends SlotRecipeVariants<Slots>> {
-  (selection?: SlotRecipeSelection<Variants>): StylePieces<Slots>
+  (selection?: SlotRecipeSelection<Variants>): StyleValues<Slots>
   /** The definition, with `variants` present (`{}` when none was given). */
   readonly def: SlotRecipeDef<Slots, Variants> & { readonly variants: Variants }
   /**
@@ -473,15 +487,15 @@ export interface SlotRecipe<Slots, Variants extends SlotRecipeVariants<Slots>> {
 const mergePieces = <Slots>(
   left: StylePieces<Slots> | undefined,
   right: StylePieces<Slots> | undefined,
-): StylePieces<Slots> => {
+): StyleValues<Slots> => {
   const merged: Record<string, StyleValue> = {}
   for (const source of [left, right]) {
-    for (const [slot, piece] of Object.entries((source ?? {}) as Record<string, StyleValue>)) {
+    for (const [slot, piece] of Object.entries((source ?? {}) as Record<string, Piece>)) {
       const existing = merged[slot]
-      merged[slot] = existing === undefined ? piece : compose(existing, piece)
+      merged[slot] = existing === undefined ? toStyleValue(piece) : compose(existing, piece)
     }
   }
-  return merged as StylePieces<Slots>
+  return merged as StyleValues<Slots>
 }
 
 const assertKnownSlots = <Slots>(
@@ -524,8 +538,8 @@ export const recipeFor =
       }
     }
     for (const entry of def.compound ?? []) assertKnownSlots(slots, entry.style, 'compound')
-    const select = (selection: SlotRecipeSelection<Variants> = {}): StylePieces<Slots> => {
-      let pieces = def.base ?? ({} as StylePieces<Slots>)
+    const select = (selection: SlotRecipeSelection<Variants> = {}): StyleValues<Slots> => {
+      let pieces = mergePieces(def.base, undefined)
       const effective: Record<string, string> = {}
       for (const [axis, values] of Object.entries(axes)) {
         const picked = (selection as Record<string, string | null | undefined>)[axis]
@@ -580,17 +594,127 @@ export const forCapability =
   <Slots>(slots: Slots) =>
   (
     capability: string | Capability.Any,
-    piece: StyleValue,
+    piece: Piece,
     options?: StyleOptions,
   ): NamedStyle<Slots> => {
     const source = slots as unknown as Record<string, AnySlot>
+    const value = toStyleValue(piece)
     const pieces: Record<string, StyleValue> = {}
     for (const [name, slot] of Object.entries(source)) {
       if (slot.hidden) continue
-      if (Capability.extendsCapability(slot.capability, capability)) pieces[name] = piece
+      if (Capability.extendsCapability(slot.capability, capability)) pieces[name] = value
     }
     return forSlots(slots)(pieces as StylePieces<Slots>, options)
   }
+
+export const SlotPieceTypeId: unique symbol = Symbol.for('foldkit-mixins/SlotPiece')
+
+/** A key of `Style.slots` that declares more than a Container: its slot, and its piece. */
+export interface SlotPiece<S = UnnamedSlot> {
+  readonly [SlotPieceTypeId]: S
+  readonly piece: Piece
+}
+
+const isSlotPiece = (value: unknown): value is SlotPiece =>
+  typeof value === 'object' && value !== null && Object.hasOwn(value, SlotPieceTypeId)
+
+/** What `Style.slots` declares for a key given only a piece. */
+export type ContainerSlot = UnnamedSlot<
+  typeof Capability.Container,
+  readonly [],
+  readonly [],
+  readonly [],
+  false
+>
+
+const containerSlot: ContainerSlot = SlotModule.make({ capability: Capability.Container })
+
+/**
+ * A key of `Style.slots` with slot options: `form: Style.slot({ events:
+ * [Event.Submit] }, piece)`. The capability defaults to `Container`; a slot
+ * declared here is the application's own, so it cannot be hidden.
+ */
+export const slot = <
+  const C extends SlotCapability = typeof Capability.Container,
+  const Events extends ReadonlyArray<EventName> = readonly [],
+  const Attributes extends ReadonlyArray<AttributeName> = readonly [],
+  const Requirements extends ReadonlyArray<RequirementName> = readonly [],
+>(
+  options: Pick<
+    MakeOptions<C, Events, Attributes, Requirements, false>,
+    'capability' | 'events' | 'attributes' | 'requirements' | 'protected'
+  >,
+  piece: Piece = empty,
+): SlotPiece<UnnamedSlot<C, Events, Attributes, Requirements, false>> =>
+  Object.freeze({
+    [SlotPieceTypeId]: SlotModule.make({
+      capability: Capability.Container,
+      ...options,
+    }) as UnnamedSlot<C, Events, Attributes, Requirements, false>,
+    piece,
+  })
+
+/** What `Style.slots` takes: per key a piece, or a `Style.slot(options, piece)`. */
+export type DeclaredPieces<S> = { readonly [K in keyof S]: Piece | SlotPiece<S[K]> }
+
+/** The contract `Style.slots` declares: a Container for a piece, the given slot for a `Style.slot`. */
+export type DeclaredSlots<S> = SlotsContract<{
+  readonly [K in keyof S]: S[K] extends UnnamedSlot ? S[K] : ContainerSlot
+}>
+
+/** A contract and the style that declared it. */
+export interface Declared<S> {
+  readonly slots: DeclaredSlots<S>
+  readonly style: NamedStyle<DeclaredSlots<S>>
+}
+
+/**
+ * An application's own Slots declared by their style: each key is a
+ * `Container` slot with that piece, or a `Style.slot(options, piece)`.
+ * `slots` is the contract a `SlotView` draws and `style` the `NamedStyle`
+ * it attaches. To style a contract someone else published (`ButtonSlots`),
+ * use `forSlots` instead.
+ */
+export const slots = <S>(pieces: DeclaredPieces<S>, options?: StyleOptions): Declared<S> => {
+  const entries = Object.entries(pieces as Record<string, Piece | SlotPiece>)
+  const contract = defineSlots(
+    Object.fromEntries(
+      entries.map(([key, value]) => [
+        key,
+        isSlotPiece(value) ? value[SlotPieceTypeId] : containerSlot,
+      ]),
+    ),
+  ) as unknown as DeclaredSlots<S>
+  const style = forSlots(contract)(
+    Object.fromEntries(
+      entries.map(([key, value]) => [key, isSlotPiece(value) ? value.piece : value]),
+    ) as StylePieces<DeclaredSlots<S>>,
+    options,
+  )
+  return Object.freeze({ slots: contract, style })
+}
+
+/**
+ * Puts `css` (typically `Style.stylesheet(…)`) in the page's head as one
+ * `<style>`, unless a `<style>` there already holds exactly this text (a page
+ * rendered with it on the server, a second call). Returns that element, for
+ * a caller that removes it. Browser only: throws where there is no `document`.
+ */
+export const install = (css: string): HTMLStyleElement => {
+  if (typeof document === 'undefined') {
+    throw new Error(
+      'Style.install needs a browser document; a server writes the sheet into the page',
+    )
+  }
+  const present = Array.from(document.head.querySelectorAll('style')).find(
+    element => element.textContent === css,
+  )
+  if (present !== undefined) return present
+  const element = document.createElement('style')
+  element.textContent = css
+  document.head.append(element)
+  return element
+}
 
 export const Style = {
   class: classPiece,
@@ -619,9 +743,12 @@ export const Style = {
   stagger,
   forSlots,
   forCapability,
+  slot,
+  slots,
   attach,
   recipe,
   recipeFor,
   stylesheet,
+  install,
   usedIn,
 } as const

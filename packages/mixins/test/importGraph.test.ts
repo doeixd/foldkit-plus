@@ -23,6 +23,7 @@ const kernelAndSubpaths = [
   'layout.ts',
   'defaults.ts',
   'prose.ts',
+  'utilities.ts',
 ]
 
 const slotSide = [

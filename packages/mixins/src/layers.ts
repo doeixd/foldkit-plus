@@ -10,7 +10,7 @@ import { isLayerStatement, layerOf, topLevelBlocks } from './cssBlocks.js'
 import { DiagnosticError } from './diagnostics.js'
 import type { SlotItem } from './slotItem.js'
 import type { StyleRule } from './styleRules.js'
-import type { StyleValue } from './styleValue.js'
+import { make, type StyleValue } from './styleValue.js'
 
 /**
  * One layer of one order, for `Style.forSlots(S)(pieces, { layer })`: every
@@ -152,11 +152,7 @@ export const define = <const Name extends string>(names: ReadonlyArray<Name>): L
   }
   return Object.freeze({
     names: Object.freeze([...names]),
-    declare: Object.freeze({
-      classes: Object.freeze([]),
-      style: Object.freeze({}),
-      globalCss: Object.freeze([`@layer ${names.join(', ')};`]),
-    }),
+    declare: make({ globalCss: Object.freeze([`@layer ${names.join(', ')};`]) }),
     in: placeIn,
     layer: (name: Name): Placement<Name> =>
       Object.freeze({ layer: name, place: (piece: StyleValue) => place(name, piece, tally()) }),

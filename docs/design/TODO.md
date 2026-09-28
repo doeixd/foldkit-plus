@@ -332,8 +332,8 @@ its README the details.
   page), Foldkit's config types, `SSR.entry`'s `headers` and a 204 OPTIONS.
   `examples/cms` could still move its hand-written root attribute and lazy plan
   to `foldkit-ssr/client`.
-- [ ] **Mixins: no helper installs the stylesheet in the browser;** every entry
-  hand-writes a `<style>`. `foldkit-counter`
+- [x] **Mixins: no helper installs the stylesheet in the browser.** Done:
+  `Style.install`, with `AppStyle.make` for the page sheet.
 - [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
   so under a blue accent they read blue. `foldkit-job-application`
 - [ ] **Mixins: `Recipes.Dialog` does not undo `Defaults.reset`'s `margin: 0`,**
@@ -353,8 +353,9 @@ its README the details.
 - [ ] **Mixins-form cannot draw its controls with `@foldkit/ui` and the
   mixins-ui recipes,** and has no option to disable submit while a check runs,
   so `foldkit-form` and `foldkit-auth` still draw their own form.
-- [ ] **Testing: `Inert.draw` cannot draw a view containing `h.submodel`.**
-  Every port draws the inner SlotView on its own. `foldkit-ui-showcase`
+- [x] **Testing: `Inert.draw` cannot draw a view containing `h.submodel`.**
+  Done: it draws under a Scene frame. `foldkit-ui-showcase`'s `ThroughScene`
+  helper can go.
 
 ## Stale passages inside the design documents
 

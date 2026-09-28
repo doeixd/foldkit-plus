@@ -139,6 +139,41 @@ required? })` deriving `<id>-label`/`-description`/`-error` and the `aria-*` lin
 the spinbutton role, values, and arrow/Page/Home/End stepping. Stateful Behaviors (roving
 tabindex, press, dismiss layers) are Bundles in `foldkit-primitives/interaction`.
 
+### 3b. An application's own look
+
+An application styling its own markup declares the Slots by their style and fixes theme, layer
+and sheet once (`forSlots` stays for a contract someone else published, such as `ButtonSlots`):
+
+```ts
+import { Event, Style, SlotView } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
+import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
+import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+
+const { t, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
+  colorScheme: 'light',
+})
+export const Page = slots({
+  root: [U.p('lg'), U.bg('surface.base')],
+  count: [U.textCenter, U.font('bold'), { fontSize: '3.75rem', color: t.text.default }],
+  form: Style.slot({ events: [Event.Submit] }, [U.flex, U.gap('sm')]),
+})
+export const ButtonStyle = forSlots(ButtonSlots)(Recipes.Button(), { name: 'ButtonStyle' })
+export const Counter = SlotView.forMessages<never>()
+  .define(Page.slots, (count: number, slots, h) =>
+    h.main(slots.root.attrs(), [h.p(slots.count.attrs(), [String(count)])]),
+  )
+  .pipe(Style.attach(Page.style))
+Style.install(stylesheet) // browser entry only; returns the <style>
+```
+
+A piece is a `StyleValue`, a declarations object (`Style.self`), or a list (`Style.compose`).
+`AppStyle`'s `slots`/`forSlots` compile in the `app` layer; its `stylesheet` is layer order,
+reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`). Utilities take token
+names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors.
+
 ## 4. `foldkit-mixins-surface`
 
 Use only if the feature already renders through a `foldkit-surface` Surface. `SurfaceView.define`
@@ -271,6 +306,11 @@ them by layer order alone.
   to build real attributes, then read them with `Attributes.find(bundle, 'Class')?.value`.
 - `Inert` (`foldkit-mixins/testing`) reads a whole inert tree: `all`, `children`, `byTag`,
   `byRole`, `byLabel`, `text`, `value` (attribute or property), `classes`, `style`, `pressed`.
+- `Inert.draw(view, input)` draws under a Scene frame, so a view using `h.submodel` draws whole
+  (nothing dispatched, no Command or Mount checked). `Inert.css(nodes)` is the CSS behind the
+  nodes' classes; `Inert.missingTokens(root, stylesheet)` lists `--fk-*` tokens read without a
+  fallback that nothing defines. A view test: `expect(Inert.unslotted(tree)).toEqual([])` and
+  `expect(Inert.missingTokens(tree, stylesheet)).toEqual([])`.
 
 ## 7. Gotchas (verified)
 

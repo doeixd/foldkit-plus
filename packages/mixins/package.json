@@ -57,6 +57,16 @@
       "types": "./dist/prose.d.mts",
       "import": "./dist/prose.mjs"
     },
+    "./app": {
+      "foldkit-plus:source": "./src/app.ts",
+      "types": "./dist/app.d.mts",
+      "import": "./dist/app.mjs"
+    },
+    "./utilities": {
+      "foldkit-plus:source": "./src/utilities.ts",
+      "types": "./dist/utilities.d.mts",
+      "import": "./dist/utilities.mjs"
+    },
     "./testing": {
       "foldkit-plus:source": "./src/testing.ts",
       "types": "./dist/testing.d.mts",

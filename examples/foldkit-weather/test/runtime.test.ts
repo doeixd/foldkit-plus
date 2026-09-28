@@ -6,6 +6,7 @@
  * reaches the network, and the requests are the ones the browser would send.
  */
 import { Runtime } from 'foldkit'
+import { Style } from 'foldkit-mixins'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { Model, init, update, view } from '../src/main.js'
@@ -39,9 +40,7 @@ const run = () => {
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-  const styles = document.createElement('style')
-  styles.textContent = stylesheet
-  document.head.append(styles)
+  Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'root'
   document.body.append(container)

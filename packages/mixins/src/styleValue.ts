@@ -21,7 +21,11 @@ export type Declarations = { readonly [K in keyof Properties]?: string } & {
   readonly [K: `--${string}`]: string
 }
 
+/** Marks a `StyleValue`, so a piece is told from a declarations object without guessing. */
+export const StyleValueTypeId: unique symbol = Symbol.for('foldkit-mixins/StyleValue')
+
 export interface StyleValue {
+  readonly [StyleValueTypeId]: true
   readonly classes: ReadonlyArray<string>
   readonly style: Readonly<Record<string, string>>
   /** Input-driven pieces resolved at render time; empty for a static style. */
@@ -42,24 +46,58 @@ export interface StyleCondition {
 const tokens = (value: string): ReadonlyArray<string> =>
   value.split(/\s+/).filter(token => token.length > 0)
 
-export const empty: StyleValue = Object.freeze({
-  classes: Object.freeze([]) as ReadonlyArray<string>,
-  style: Object.freeze({}) as Readonly<Record<string, string>>,
-})
+const noClasses: ReadonlyArray<string> = Object.freeze([])
+const noStyle: Readonly<Record<string, string>> = Object.freeze({})
+
+/** A frozen `StyleValue` from its parts; absent classes and style are empty. */
+export const make = (parts: Partial<Omit<StyleValue, typeof StyleValueTypeId>>): StyleValue => {
+  const value: StyleValue = {
+    [StyleValueTypeId]: true,
+    ...parts,
+    classes: parts.classes ?? noClasses,
+    style: parts.style ?? noStyle,
+  }
+  return Object.freeze(value)
+}
+
+export const isStyleValue = (value: unknown): value is StyleValue =>
+  typeof value === 'object' && value !== null && Object.hasOwn(value, StyleValueTypeId)
+
+export const empty: StyleValue = make({})
+
+/**
+ * A piece as written: a `StyleValue`; a declarations object, which means
+ * `Style.self(declarations)`; or pieces composed in order.
+ */
+export type Piece =
+  | StyleValue
+  // Without `classes`, so an object shaped like a StyleValue is not taken for declarations.
+  | (Declarations & { readonly classes?: never })
+  | ReadonlyArray<Piece>
+
+const isPieceList = (value: Piece): value is ReadonlyArray<Piece> => Array.isArray(value)
+
+/** The `StyleValue` a written piece stands for. */
+export const toStyleValue = (value: Piece): StyleValue => {
+  if (isStyleValue(value)) return value
+  if (isPieceList(value)) return compose(...value)
+  return Object.keys(value).length === 0 ? empty : self(value)
+}
 
 export const classPiece = (value: string): StyleValue =>
-  Object.freeze({ classes: Object.freeze(tokens(value)), style: empty.style })
+  make({ classes: Object.freeze(tokens(value)) })
 
 export const inline = (value: Declarations): StyleValue =>
-  Object.freeze({ classes: empty.classes, style: Object.freeze({ ...value }) })
+  make({ style: Object.freeze({ ...value }) })
 
 /** Concatenate classes; later inline declarations win per property. */
-export const compose = (...pieces: ReadonlyArray<StyleValue>): StyleValue => {
+export const compose = (...written: ReadonlyArray<Piece>): StyleValue => {
+  const pieces = written.map(toStyleValue)
   const conditions = pieces.flatMap(piece => piece.conditions ?? [])
   const items = pieces.flatMap(piece => piece.items ?? [])
   const rules = pieces.flatMap(piece => piece.rules ?? [])
   const globalCss = pieces.flatMap(piece => piece.globalCss ?? [])
-  return Object.freeze({
+  return make({
     classes: Object.freeze(pieces.flatMap(piece => piece.classes)),
     style: Object.freeze(Object.assign(Object.create(null), ...pieces.map(piece => piece.style))),
     ...(conditions.length === 0 ? {} : { conditions: Object.freeze(conditions) }),
@@ -71,9 +109,7 @@ export const compose = (...pieces: ReadonlyArray<StyleValue>): StyleValue => {
 
 /** A pseudo-class/element rule, e.g. `Style.pseudo(':hover', { color: 'red' })`. */
 export const pseudo = (suffix: string, declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.pseudo(suffix, declarations)]),
   })
 
@@ -83,33 +119,25 @@ export const pseudo = (suffix: string, declarations: Declarations): StyleValue =
  * later layer can override them. Inline declarations sit outside every layer.
  */
 export const self = (declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.rule('&', declarations)]),
   })
 
 /** An at-rule, e.g. `Style.media('(min-width: 40rem)', { color: 'red' })`. */
 export const media = (query: string, declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.media(query, declarations)]),
   })
 
 /** An at-rule, e.g. `Style.supports('(display: grid)', { display: 'grid' })`. */
 export const supports = (condition: string, declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.supports(condition, declarations)]),
   })
 
 /** A container query, e.g. `Style.container('(min-width: 30rem)', {...})`. */
 export const container = (condition: string, declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.container(condition, declarations)]),
   })
 
@@ -131,9 +159,7 @@ export const at = (prelude: string, piece: StyleValue): StyleValue => {
     refuse('a piece chosen when drawn')
   if ((piece.globalCss ?? []).length > 0) refuse('global CSS')
   const own = Object.keys(piece.style).length === 0 ? [] : [Rules.rule('&', piece.style)]
-  return Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  return make({
     rules: Object.freeze(
       [...own, ...(piece.rules ?? [])].map(rule =>
         rule.at === undefined
@@ -146,9 +172,7 @@ export const at = (prelude: string, piece: StyleValue): StyleValue => {
 
 /** A nested selector relative to the generated class, e.g. `Style.nest('> span', {...})`. */
 export const nest = (selector: string, declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.nest(selector, declarations)]),
   })
 
@@ -162,9 +186,7 @@ export const keyframes = (
   const compiled = Rules.keyframes(frames)
   return Object.freeze({
     name: compiled.name,
-    style: Object.freeze({
-      classes: empty.classes,
-      style: empty.style,
+    style: make({
       globalCss: Object.freeze([compiled.css]),
     }),
   })
@@ -172,9 +194,7 @@ export const keyframes = (
 
 /** Raw class-independent CSS (a layer, a global rule). Prefer typed helpers. */
 export const global = (css: string): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     globalCss: Object.freeze([css]),
   })
 
@@ -188,9 +208,7 @@ export const states = (
   map: Readonly<Record<string, Declarations>>,
   attribute = 'data-state',
 ): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze(
       Object.entries(map).map(([state, declarations]) =>
         Rules.pseudo(`[${attribute}="${state}"]`, declarations),
@@ -210,9 +228,7 @@ export const responsive = <Breakpoints extends Readonly<Record<string, string>>>
   breakpoints: Breakpoints,
   map: Partial<Readonly<Record<keyof Breakpoints & string, Declarations>>>,
 ): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze(
       Object.entries(map).flatMap(([name, declarations]) => {
         const query = breakpoints[name]
@@ -293,9 +309,7 @@ export const grid = <const Area extends string>(
  * animates from these; pair with `allowDiscrete` when `display` takes part.
  */
 export const enter = (declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
+  make({
     rules: Object.freeze([Rules.rule('&', declarations, '@starting-style')]),
   })
 

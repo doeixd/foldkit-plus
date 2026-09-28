@@ -7,7 +7,7 @@ import { modifyFields } from 'foldkit/struct'
 import { SlotView, Style } from 'foldkit-mixins'
 import { Button } from 'foldkit-mixins-ui'
 
-import { ButtonStyle, CounterSlots, CounterStyle } from './style.js'
+import { ButtonStyle, CounterPage } from './style.js'
 
 // MODEL
 
@@ -57,7 +57,7 @@ const counterButton = (onClick: Message, label: string, h: HtmlBuilder<Message>)
   )
 
 export const Counter = SlotView.forMessages<Message>()
-  .define(CounterSlots, (model: Model, slots, h) =>
+  .define(CounterPage.slots, (model: Model, slots, h) =>
     h.div(slots.root.attrs(), [
       h.p(slots.count.attrs(), [model.count.toString()]),
       h.div(slots.controls.attrs(), [
@@ -67,7 +67,7 @@ export const Counter = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(CounterStyle))
+  .pipe(Style.attach(CounterPage.style))
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: `Counter: ${model.count}`,

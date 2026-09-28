@@ -103,7 +103,8 @@ pnpm add foldkit-mixins
 projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
 The design-system pieces are subpaths, so an application that only attaches classes pays for
-none of them: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, and `/prose` (see
+none of them: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, `/prose`, `/utilities`
+and `/app` (see
 [styleImprovements-DESIGN.md](../../docs/design/styleImprovements-DESIGN.md)).
 
 ## Quick start
@@ -248,6 +249,15 @@ string. A misspelled or kebab-case property in an object literal is a type
 error; the compiler writes the kebab-case name. Values are not checked, so
 `var(...)` and `light-dark(...)` pass through.
 
+Wherever a slot's piece is taken (`forSlots`, `slots`, `forCapability`, a
+`recipeFor` definition) and in `compose`, `when`, `whenInput` and `perItem`, a
+piece may also be written short: a declarations object means
+`Style.self(declarations)`, a list means `Style.compose(...list)`, and `{}` is
+`Style.empty`. So `[Style.class('card'), { padding: '1rem' }]` is
+`Style.compose(Style.class('card'), Style.self({ padding: '1rem' }))`. A
+`StyleValue` carries a brand, so a declarations object is never mistaken for
+one.
+
 | Primitive | Meaning |
 | --- | --- |
 | `Style.class(...)` | class tokens |
@@ -259,6 +269,8 @@ error; the compiler writes the kebab-case name. Values are not checked, so
 | `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
+| `Style.slots(pieces, options?)` / `Style.slot(slotOptions, piece)` | an application's own Slots declared by their style: `{ slots, style }` (see [An application's own look](#an-applications-own-look)) |
+| `Style.install(css)` | in a browser, one `<style>` in the head holding `css`, unless one already holds exactly that text; returns the element |
 | `Style.self` / `pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance; `self` is a rule on the element's own class (`&{…}`), for declarations a layer must hold |
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `Theme.ref(theme)` / `variables` | typed tokens; every token as a typed `var(--fk-group-name)` reference (`Theme.ref(theme).surface.base`), built once per theme; the tokens as inline custom properties |
@@ -431,6 +443,80 @@ export const sheet = Style.stylesheet(
   Article,
 )
 ```
+
+### An application's own look
+
+Everything above serves two kinds of author. A component or design system **publishes** a
+contract (`ButtonSlots`) that others style with `Style.forSlots`. An application mostly styles
+**its own** markup: Slots nobody else attaches to, one theme, one layer, one page sheet. For
+that case the contract, the style and the setup can each be written once:
+
+| You are... | Use |
+| --- | --- |
+| styling a contract someone published | `Style.forSlots(ButtonSlots)(pieces, options)` |
+| declaring your own Slots and their look | `Style.slots(pieces, options)` |
+| fixing theme, `app` layer and page sheet for one application | `AppStyle.make` from `foldkit-mixins/app` |
+| writing a token-backed declaration in a word | `Utilities` from `foldkit-mixins/utilities` |
+
+```ts
+import { Event, Style, SlotView } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
+import { Theme } from 'foldkit-mixins/theme'
+import { Utilities as U } from 'foldkit-mixins/utilities'
+
+// The theme over Theme.tokens, its references, the app layer and the page sheet.
+const { t, slots, forSlots, stylesheet } = AppStyle.make({
+  palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
+  colorScheme: 'light',
+})
+
+// Each key is a Container slot with that piece; Style.slot gives a slot options.
+export const Page = slots({
+  root: [U.p('lg'), U.bg('surface.base')],
+  count: [U.textCenter, U.font('bold'), { fontSize: '3.75rem', color: t.text.default }],
+  form: Style.slot({ events: [Event.Submit] }, [U.flex, U.gap('sm')]),
+})
+
+export const Counter = SlotView.forMessages<never>()
+  .define(Page.slots, (count: number, slots, h) =>
+    h.main(slots.root.attrs(), [h.p(slots.count.attrs(), [String(count)])]),
+  )
+  .pipe(Style.attach(Page.style))
+
+// In the browser entry, before the application runs:
+Style.install(stylesheet)
+```
+
+A published contract takes the same layer through the kit's `forSlots`, as
+`forSlots(ButtonSlots)(Recipes.Button())` with `foldkit-mixins-ui`.
+
+What each call does, and does not do:
+
+- `AppStyle.make` computes, once: `theme` is `Theme.compose(Theme.tokens, palette)`, `t` is
+  `Theme.ref(theme)`, `L` is `Layers.standard`, and `stylesheet` is the text of the layer order,
+  `Defaults.reset`, the tokens, the palette and `Defaults.body` (plus any `global` pieces, in the
+  `defaults` layer). It installs nothing and owns no state; a scheme or theme the user picks is
+  still a Model fact (see [Theme from a few knobs](#theme-from-a-few-knobs)).
+- `slots(pieces)` is `Style.slots(pieces, { layer: L.layer('app') })`, and `forSlots` is
+  `Style.forSlots` with the same layer: the options take a `name`, never a layer. Both
+  compile once, where they are defined.
+- `Style.slots` returns `{ slots, style }`: `slots` is the contract (`Slots.define` of a
+  `Container` per key, or the `Style.slot` options, which default to `Container` too and are
+  never `hidden`), and `style` the `NamedStyle` a view attaches. A slot with no look takes `{}`.
+  The view still decides the markup; the contract only names what it may draw.
+- `Style.install(stylesheet)` is the one call that touches the DOM. The sheet holds no slot
+  class: a Slot's CSS is injected when it first draws.
+
+`Utilities` are one-idea pieces whose steps are the shipped scales' token names, so an invalid
+step is a type error and the value still follows the `density` knob and theme overrides:
+`p`, `px`, `py`, `m`, `mx`, `my`, `gap` (a `space` step or `'0'`; margins also `'auto'`), `text`
+(`size`), `font` (`weight`), `leading`, `rounded` (`radius`), `color` and `bg` (a `Theme.oklch`
+color as `'group.name'`), `items` and `justify` (`'between'` is `space-between`), and the
+constants `flex`, `column`, `grid`, `block`, `hidden`, `wFull`, `textCenter`, `uppercase`,
+`truncate`, `pointer` and `selectNone`. Each is a `Style.self` rule, unlayered, so it takes the
+layer of the style it is composed into, and a plain declaration after it wins per property. A
+value off the scale is a plain declaration (`{ fontSize: '3.75rem' }`); a color outside
+`Theme.oklch`'s groups is read through `t`.
 
 ## Behavior: reusable element-level interaction
 
@@ -692,11 +778,29 @@ Inert.value(Inert.byTag(root, 'input')[0], 'value') // 'Ada'
 ```
 
 `Inert.draw(view, input)` draws a SlotView with every element a Slot draws marked with the
-Slot's name, however deeply its views nest; a view drawn for real is never marked. On that tree,
+Slot's name, however deeply its views nest; a view drawn for real is never marked. It draws
+under a Foldkit Scene's render frame, so a view that embeds a Submodel with `h.submodel`
+(every `@foldkit/ui` component page) draws whole, `childAttributes` included; nothing is
+dispatched, and no Command or Mount it declares runs or is checked. On that tree,
 `Inert.bySlot(root, 'input')` finds a Slot's elements, `Inert.unslotted(root, { inside })` lists
 every element no Slot drew (skipping what a Slot named in `inside` holds, such as a canvas drawing
 the application's page), and `Inert.fixedInline(root, { inside })` every inline declaration that
 is not a custom property. A package view's test expects both lists to be empty.
+
+`Inert.css(nodes)` is the compiled CSS behind the nodes' classes, and
+`Inert.missingTokens(root, stylesheet)` lists the `--fk-*` tokens the drawn Styles read with no
+fallback that nothing defines (not the sheet, not a drawn rule, not an inline style), each of
+which makes its declaration invalid in a browser. The two checks every application view test
+repeats are then:
+
+```ts
+const tree = Inert.draw(Counter, 0)
+expect(Inert.unslotted(tree)).toEqual([])
+expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
+```
+
+A tree whose Styles read no token passes the second vacuously; assert that
+`Inert.css(Inert.all(tree))` contains `var(--fk-` where that would be a mistake.
 
 ## `@foldkit/ui`
 

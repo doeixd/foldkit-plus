@@ -8,6 +8,8 @@ export default defineConfig({
     'src/layout.ts',
     'src/defaults.ts',
     'src/prose.ts',
+    'src/app.ts',
+    'src/utilities.ts',
     'src/testing.ts',
   ],
   format: ['esm'],

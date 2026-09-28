@@ -7,6 +7,9 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from '../src/index.js'
 import { Inert } from '../src/testing.js'
+import { AppStyle } from '../src/app.js'
+import { Theme } from '../src/theme.js'
+import { Utilities as U } from '../src/utilities.js'
 
 const Message = defineMessageUnion({ ChangedValue: { value: Schema.String } })
 type Message = typeof Message.Type
@@ -97,3 +100,24 @@ const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
   ),
 )
 void Rows
+
+// "An application's own look".
+{
+  const { t, slots, forSlots, stylesheet } = AppStyle.make({
+    palette: Theme.oklch({ accent: { h: 260, c: 0.21, l: '62%' } }),
+    colorScheme: 'light',
+  })
+  const Page = slots({
+    root: [U.p('lg'), U.bg('surface.base')],
+    count: [U.textCenter, U.font('bold'), { fontSize: '3.75rem', color: t.text.default }],
+    form: Style.slot({ events: [Event.Submit] }, [U.flex, U.gap('sm')]),
+  })
+  const Counter = SlotView.forMessages<never>()
+    .define(Page.slots, (count: number, slots, h) =>
+      h.main(slots.root.attrs(), [h.p(slots.count.attrs(), [String(count)])]),
+    )
+    .pipe(Style.attach(Page.style))
+  void Counter
+  void forSlots
+  Style.install(stylesheet)
+}

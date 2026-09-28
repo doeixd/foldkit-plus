@@ -67,7 +67,18 @@ export type {
 } from './slotView.js'
 export type { Contract as SlotsContract } from './slots.js'
 export type { Layers as LayersValue, Placement } from './layers.js'
-export type { NamedStyle, StyleOptions, StylePieces, StylesheetSource } from './style.js'
-export type { Declarations, StyleCondition, StyleValue } from './styleValue.js'
+export type {
+  ContainerSlot,
+  Declared,
+  DeclaredPieces,
+  DeclaredSlots,
+  NamedStyle,
+  SlotPiece,
+  StyleOptions,
+  StylePieces,
+  StyleValues,
+  StylesheetSource,
+} from './style.js'
+export type { Declarations, Piece, StyleCondition, StyleValue } from './styleValue.js'
 export type { StyleRule } from './styleRules.js'
 export type { Refs, Theme as ThemeValue, ThemeTokens } from './theme/core.js'
