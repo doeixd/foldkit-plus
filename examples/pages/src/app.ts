@@ -206,10 +206,15 @@ const samePlace = (
 export const pageOf = (model: Model, id: string | null): Page | undefined =>
   id === null ? undefined : model.pages.find(page => page.id === id && page.trashed !== true)
 
-const withPage = (model: Model, id: string, change: (page: Page) => Page): Model => ({
-  ...model,
-  pages: model.pages.map(page => (page.id === id ? change(page) : page)),
-})
+/** The Model with one page changed; the Model itself when that changes nothing. */
+const withPage = (model: Model, id: string, change: (page: Page) => Page): Model => {
+  const at = model.pages.findIndex(page => page.id === id)
+  if (at === -1) return model
+  const page = model.pages[at]!
+  const changed = change(page)
+  if (changed === page) return model
+  return { ...model, pages: model.pages.map((other, index) => (index === at ? changed : other)) }
+}
 
 /** The editor's view of the open page: the projected document, and the caret placed in it. */
 export const editorViewOf = (model: Model, page: Page): EditorView => ({
@@ -400,16 +405,27 @@ export const update = (model: Model, message: Message): Return =>
             pages: [...model.pages, { id, title, body: Replicated.fromDocument(blank, key) }],
           },
     }),
-    RenamedPage: ({ id, title }) => ({ model: withPage(model, id, page => ({ ...page, title })) }),
+    RenamedPage: ({ id, title }) => ({
+      model: withPage(model, id, page => (page.title === title ? page : { ...page, title })),
+    }),
     // Durable, so it changes the pages only: a tab showing the page finds it gone.
     DeletedPage: ({ id }) => ({
-      model: withPage(model, id, page => ({ ...page, trashed: true })),
+      model: withPage(model, id, page =>
+        page.trashed === true ? page : { ...page, trashed: true },
+      ),
     }),
     RestoredPage: ({ id }) => ({
-      model: withPage(model, id, ({ trashed: _, ...page }) => page),
+      model: withPage(model, id, page => {
+        if (page.trashed !== true) return page
+        const { trashed: _, ...restored } = page
+        return restored
+      }),
     }),
     EditedPage: ({ id, ops }) => ({
-      model: withPage(model, id, page => ({ ...page, body: Replicated.applyOps(page.body, ops) })),
+      model: withPage(model, id, page => {
+        const body = Replicated.applyOps(page.body, ops)
+        return body === page.body ? page : { ...page, body }
+      }),
     }),
     AddedPage: ({ title }) => {
       const id = `${model.session}:${model.minted}`
@@ -424,11 +440,14 @@ export const update = (model: Model, message: Message): Return =>
       commands: [Sync.fact(Message.DeletedPage({ id }))],
     }),
     OpenedPage: ({ id }) => {
+      if (id === model.open) return { model }
       const page = pageOf(model, id)
       const next = opened(model, id)
       return { model: next, commands: page === undefined ? [] : [carets(next, id, page.body)] }
     },
     GotPeers: ({ peers }) => {
+      // Presence refreshes every few seconds with nothing new; that is not a render.
+      if (JSON.stringify(peers) === JSON.stringify(model.peers)) return { model }
       const next = { ...model, peers }
       const page = pageOf(next, next.open)
       return { model: next, commands: page === undefined ? [] : [carets(next, page.id, page.body)] }

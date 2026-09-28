@@ -544,6 +544,32 @@ describe('two people on one page', () => {
     })
   })
 
+  it.each<[string, (model: Model) => Message]>([
+    ['an edit to a page it does not have', () => Message.EditedPage({ id: 'gone', ops: [] })],
+    [
+      'an edit that changes nothing',
+      model => Message.EditedPage({ id: model.pages[0]!.id, ops: [] }),
+    ],
+    [
+      'a rename to the same title',
+      model => Message.RenamedPage({ id: model.pages[0]!.id, title: 'P' }),
+    ],
+    ['a delete of a page it does not have', () => Message.DeletedPage({ id: 'gone' })],
+    [
+      'a restore of a page not in the trash',
+      model => Message.RestoredPage({ id: model.pages[0]!.id }),
+    ],
+    ['opening the page already open', model => Message.OpenedPage({ id: model.open! })],
+    ['the same peers again', model => Message.GotPeers({ peers: model.peers })],
+  ])('keeps the Model itself for %s', (_, message) => {
+    const created = update(
+      initialModel('alice'),
+      Message.CreatedPage({ id: 'p', title: 'P', key: 'p:seed' }),
+    )
+    const model = { ...created.model, open: 'p' }
+    expect(update(model, message(model)).model).toBe(model)
+  })
+
   it('closes the page it trashes, and trashes it through the log', () => {
     const result = update(carried(), Message.TrashedPage({ id: 'mine' }))
     expect(result.model).toMatchObject({ open: null, ...nothingCarried })
