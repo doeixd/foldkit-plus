@@ -24,6 +24,9 @@ import {
 
 const STATS_MAX_AGE = Duration.seconds(5)
 
+/** How long data no open tab reads stays cached, as a query client's garbage-collection time. */
+const CACHE_GRACE = Duration.minutes(5)
+
 export const TABS_ID = 'api-cache-tabs'
 
 // MODEL
@@ -171,24 +174,21 @@ const readingStats = Data.active('Stats', (model: Model) =>
   model.activeTab === 'Stats' ? Option.some(stats) : Option.none(),
 )
 
-// NOTE: A policy covers a whole `Data.subscriptions` call, so the stats get a
-// call of their own: stale-while-revalidate sleeps until the reading is five
-// seconds old and fetches it again, which is the interval refetch. Only the
-// read entries are installed. Each call's `retain` entry roots only its own
-// reads, so the two would collect each other's data; without one, nothing is
-// collected, and a post opened once stays cached for the session, as upstream.
-export const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => {
-  const cached = foldData.subscriptions({ posts: readingPosts, post: readingPost })
-  const revalidated = foldData.subscriptions(
+// A policy covers a whole `Data.subscriptions` call, so the stats get a call of
+// their own: stale-while-revalidate sleeps until the reading is five seconds
+// old and fetches it again, which is the interval refetch. Retention is the
+// domain's, so the one `retain` entry the spread keeps roots every read; what
+// no open tab reads is collected once it has gone unread for `grace`.
+export const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
+  ...foldData.subscriptions({ posts: readingPosts, post: readingPost }, { grace: CACHE_GRACE }),
+  ...foldData.subscriptions(
     { stats: readingStats },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: Duration.toMillis(STATS_MAX_AGE) }) },
-  )
-  return {
-    'posts.read': cached['posts.read'],
-    'post.read': cached['post.read'],
-    'stats.read': revalidated['stats.read'],
-  }
-})
+    {
+      policy: RemotePolicy.staleWhileRevalidate({ maxAge: Duration.toMillis(STATS_MAX_AGE) }),
+      grace: CACHE_GRACE,
+    },
+  ),
+}))
 
 // VIEW
 

@@ -15,8 +15,8 @@ import { Data, Message, type Model, TABS_ID, postDetail, postList, stats } from 
 
 /**
  * Now, when the tests start: Remote's read entries judge age against
- * `Date.now`, captured when they are made, so a fixed date in the past would
- * read as long expired.
+ * `Date.now`, so a fixed date in the past would read as long expired to a
+ * test that does not fake the date.
  */
 export const FETCHED_AT = Date.now()
 
@@ -52,7 +52,7 @@ const backend = RemoteServer.memory({
   domain: Data,
   rows,
   queries: [
-    RemoteServer.query<undefined, never, {}>(PostsQuery, () =>
+    RemoteServer.query(PostsQuery, () =>
       Effect.succeed({
         edges: rows.Post.map(({ id }) => ({
           entity: Post.name,

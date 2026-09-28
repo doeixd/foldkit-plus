@@ -748,8 +748,34 @@ What Remote should do when the Model already contains the selected fields is a
 
 A refreshing policy emits `RefreshStarted` before the read, so the Projection
 becomes `Refreshing` without discarding the old value. Planning accepts `now`
-(default `Date.now`) as an input, so tests can control time. A mutation's answer
-is dated the same way, by `Data.mutate`'s `now` option.
+as an input, so tests can control time. It defaults to `Date.now`, read at each
+use, so fake timers (`vi.useFakeTimers`) move it; Effect's `TestClock` does not,
+because a plan runs outside Effect, so a test that drives `TestClock` passes
+`now`. A mutation's answer is dated the same way, by `Data.mutate`'s `now`
+option.
+
+A policy belongs to one `subscriptions` call, and covers every read in it. Reads
+under different policies take a call each:
+
+```ts
+const projectPage = Surface.at(ProjectPage, model =>
+  model.route._tag === 'project' ? Option.some({ projectId: model.route.projectId }) : Option.none(),
+)
+const owner = Data.active('Owner', () => Option.some(Data.get(UserSummary, 'u1')))
+
+const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
+  ...Data.subscriptions({ page: projectPage }),
+  ...Data.subscriptions(
+    { owner },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) },
+  ),
+}))
+```
+
+Retention stays the domain's: a call's `retain` entry roots every read any call
+of the domain names, so neither call collects what the other reads. Spreading
+the two records keeps one `retain` entry, which is all it takes; it waits for
+its own call's `grace`.
 
 **Time reaches Remote only as a Message.** The plan is a function of the Remote
 model, what is asked, and `now`, and it runs again only when one of those
@@ -1314,8 +1340,9 @@ failure Message rather than mutating anything out of band.
 Remote is a cache, so it should be allowed to forget facts no active feature
 needs.
 
-`Data.subscriptions` derives retention roots from the active Surfaces. A root
-keeps:
+`Data.subscriptions` derives retention roots from the active Surfaces of every
+call on the domain, so a call's `retain` entry never collects what another call
+reads; `connections` given to any call are kept the same way. A root keeps:
 
 - the entities and fields its Projection requires;
 - referenced targets reached by nested selections;
@@ -1623,8 +1650,9 @@ Remote.retain(projections, toMessage?, { connections?, grace? })
   active roots -> RetentionChanged
 ```
 
-The observe entry's dependencies are the current plan and the Model's refresh
-generation (`{ requirements, queries, refresh }`), so `Data.refresh` restarts
+The observe entry's dependencies are the current plan, the Model's refresh
+generation, and when a held value next ages out
+(`{ requirements, queries, refresh, expires }`), so `Data.refresh` restarts
 it. If entity requirements and queries are both empty, it performs no I/O. A
 refreshing read emits `RefreshStarted` first, then a result Message.
 
@@ -1641,6 +1669,10 @@ cursor; the cursor is only where a stream restarted for another reason resumes.
 Retention uses the Projection requirements/connections as roots and eventually
 emits `RetentionChanged`; the reducer's pure `gc` keeps everything reachable
 from those roots plus pending work and collects the rest.
+
+The entries `Data.subscriptions` returns carry these dependencies in their
+types: `ReadDependencies` for `<key>.read`, `LiveDependencies` for
+`<key>.live`, and `RetentionRoots` for `retain`.
 
 ### Connections by hand
 

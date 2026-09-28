@@ -134,7 +134,7 @@ const StatsSource = RemoteServer.entity<undefined>(Stats, {
     }),
 })
 
-const PostsSource = RemoteServer.query<undefined, never, {}>(PostsQuery, () =>
+const PostsSource = RemoteServer.query(PostsQuery, () =>
   Effect.gen(function* () {
     yield* Effect.sleep(SERVER_LATENCY)
 

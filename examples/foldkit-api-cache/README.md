@@ -38,6 +38,7 @@ npx vitest run examples/foldkit-api-cache   # from the repository root
 | Invalidate, Refresh, Retry | `Data.refresh` in `update`: the old value stays on screen as `Refreshing` and the active read fetches again |
 | Deduplication | Remote: a refresh of what is already refreshing returns the same Model, a read in flight leaves its entry's plan unchanged so it is not sent again, and the client joins an identical request in flight |
 | Refetching the stats every 5 seconds | `RemotePolicy.staleWhileRevalidate({ maxAge: 5000 })`: the stats read sleeps until the reading is 5 seconds old, then fetches it again, only while the Stats tab is open |
+| Forgetting what no tab reads | Remote's `retain` entry, with a five-minute `grace` |
 | Loading, refreshing, stale and failed states | `RemoteData.render`, whose `Stale` freshness keeps the last good value under the error |
 | The fake server: 700 ms latency, a post whose page fails every other read, random stats | `foldkit-remote-server`: `RemoteServer.make` with an entity Source per entity and a query Source, served in process by `Remote.clientLayer` |
 | Look | `foldkit-mixins`: Slots and Styles in `src/style.ts`, a `Theme.oklch` palette, `Layout` pieces, and the `foldkit-mixins-ui` Button and Tabs recipes over `@foldkit/ui` |
@@ -56,7 +57,7 @@ npx vitest run examples/foldkit-api-cache   # from the repository root
   expose when a field was written.
 - **An unknown post is `NotFound`**, not a failure: the server answered with
   nothing about it.
-- **Nothing is collected.** Only Remote's read entries are installed, not its
-  `retain` entry, because a policy covers a whole `Data.subscriptions` call and
-  the stats need their own; each call's `retain` would collect the other's data.
-  Like upstream, everything fetched stays cached for the session.
+- **What no open tab reads is collected after five minutes.** The stats have a
+  `Data.subscriptions` call of their own, for their policy; retention is the
+  domain's, so the `retain` entry left after spreading both calls roots what
+  either reads. Upstream keeps everything it fetched for the session.

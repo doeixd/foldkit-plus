@@ -261,7 +261,7 @@ export interface DomainMutateOptions {
         readonly tempId: string
       }) => ReadonlyArray<OptimisticOperation>)
     | undefined
-  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`. */
+  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
 }
 
@@ -278,13 +278,31 @@ export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
  * and a live entry per key (the live one idles when nothing is read live), and
  * `retain`.
  */
-export type SubscriptionEntries<AppModel, Active> = {
+export type SubscriptionEntries<AppModel, Active, Message = RemoteMessage> = {
   // `Object.entries` turns a numeric key into a string, so numeric keys have entries too.
-  readonly [K in keyof Active & (string | number) as `${K}.read` | `${K}.live`]: RemoteEntry<
+  readonly [K in keyof Active & (string | number) as `${K}.read`]: EntryWithoutKeepAlive<
     AppModel,
-    any
+    Message,
+    ReadDependencies,
+    RemoteClient
   >
-} & { readonly retain: RemoteEntry<AppModel, any> }
+} & {
+  readonly [K in keyof Active & (string | number) as `${K}.live`]: EntryWithoutKeepAlive<
+    AppModel,
+    Message,
+    LiveDependencies,
+    RemoteClient
+  >
+} & {
+  readonly retain: EntryWithoutKeepAlive<AppModel, Message, RetentionRoots, never>
+}
+
+/** The dependencies of a live entry: what it subscribes to, and where a restart resumes. */
+export interface LiveDependencies {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly cursor: LiveCursor
+  readonly floor: number
+}
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
@@ -456,7 +474,9 @@ export interface RemoteDomain<
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
    * entry per Surface that reads through `live` (`Remote.live`), and one
-   * retain entry with every active Surface as a root (`Remote.retain`). A
+   * retain entry (`Remote.retain`). Retention is the domain's: the retain
+   * entry of every call roots the active Surfaces of every call, so reads
+   * split over calls (one per policy) do not collect each other's data. A
    * Surface's params are a function of the Model (`Surface.at`), so what is
    * fetched, subscribed, and retained follows the Model.
    */
@@ -586,14 +606,7 @@ export interface RemoteFold<
   >(
     active: Active,
     options?: SubscriptionsOptions,
-  ) => {
-    readonly [K in keyof SubscriptionEntries<AppModel, Active>]: EntryWithoutKeepAlive<
-      AppModel,
-      ParentMessage,
-      any,
-      RemoteClient
-    >
-  }
+  ) => SubscriptionEntries<AppModel, Active, ParentMessage>
 }
 
 /** The application Model a bound domain is over. */
@@ -830,9 +843,15 @@ const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => 
 export interface MutateOptions {
   /** What the request changes before the server answers; released when it settles. */
   readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
-  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`. */
+  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
 }
+
+/**
+ * The default clock. It reads `Date.now` when called rather than holding the
+ * function, so fake timers installed after the domain was made move it.
+ */
+const wallClock = (): number => Date.now()
 
 /** The default `toMessage`: the application reduces `RemoteMessage` itself. */
 const identityMessage = (message: RemoteMessage): RemoteMessage => message
@@ -848,12 +867,12 @@ export interface RetainOptions {
 export interface ObserveOptions {
   /** Default `RemotePolicy.cacheFirst`. */
   readonly policy?: RemotePolicy | undefined
-  /** The clock a refreshing policy reads; default `Date.now`. */
+  /** The clock a refreshing policy reads; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
 }
 
 export interface LiveOptions {
-  /** The clock `LiveReceived` stamps events with; default `Date.now`. */
+  /** The clock `LiveReceived` stamps events with; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
 }
 
@@ -1360,7 +1379,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   toMessage: (message: RemoteMessage) => Message,
   options: ObserveOptions,
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
-  const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
+  const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
   const read = (requirements: ReadonlyArray<Requirement>) =>
     Effect.map(readMessage(requirements, now), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
@@ -1470,16 +1489,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   requirementsOf: (model: AppModel) => ReadonlyArray<Requirement>,
   toMessage: (message: RemoteMessage) => Message,
   options: LiveOptions,
-): EntryWithoutKeepAlive<
-  AppModel,
-  Message,
-  {
-    readonly requirements: ReadonlyArray<Requirement>
-    readonly cursor: LiveCursor
-    readonly floor: number
-  },
-  RemoteClient
-> => ({
+): EntryWithoutKeepAlive<AppModel, Message, LiveDependencies, RemoteClient> => ({
   dependenciesSchema: Schema.Struct({
     requirements: Schema.Array(ReadRequest),
     cursor: resumeCursor,
@@ -1510,7 +1520,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
               _tag: 'LiveReceived',
               stream: liveStreamKey(requirements),
               event,
-              now: (options.now ?? Date.now)(),
+              now: (options.now ?? wallClock)(),
             }),
           ),
           Stream.catchIf(
@@ -1828,7 +1838,7 @@ export const Remote = {
     options: ObserveOptions = {},
   ) {
     const store = storeOf(bound, model)
-    const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
+    const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
     const at = now()
     const missing = plan(store, requirementsOf(projection), RemotePolicy.toPlan(policy, at))
     if (missing.length === 0) return store
@@ -2096,7 +2106,7 @@ export const Remote = {
       entities: outcome.entities,
       connections: outcome.connections,
       deleted: outcome.deleted,
-      now: (options.now ?? Date.now)(),
+      now: (options.now ?? wallClock)(),
     })
     return {
       output: outcome.output,
@@ -2151,16 +2161,8 @@ export const Remote = {
     params: Params,
     toMessage: (message: RemoteMessage) => Message = identityMessage as never,
     options: LiveOptions = {},
-  ): EntryWithoutKeepAlive<
-    AppModel,
-    Message,
-    {
-      readonly requirements: ReadonlyArray<Requirement>
-      readonly cursor: LiveCursor
-      readonly floor: number
-    },
-    RemoteClient
-  > => liveEntry(bound, () => requirementsOf(surface.projection(params)), toMessage, options),
+  ): EntryWithoutKeepAlive<AppModel, Message, LiveDependencies, RemoteClient> =>
+    liveEntry(bound, () => requirementsOf(surface.projection(params)), toMessage, options),
 }
 
 // A domain's Subscription entries are unbranded so an application can spread
@@ -2197,6 +2199,14 @@ const bindDomain = <
   store: ModelRef<AppModel, Store>,
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const bound = bindRemote(definition, store)
+  // Every reader any `subscriptions` call names, and every connection one keeps:
+  // retention is the domain's, so each call's retain entry roots them all, and
+  // one call with its own policy does not collect what another call reads.
+  const readers = new Map<
+    ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
+    (model: AppModel) => Option.Option<Projection<AppModel, unknown>>
+  >()
+  const keptConnections = new Set<string>()
   /**
    * What to do with a row a live event says was inserted into a connection.
    *
@@ -2282,17 +2292,18 @@ const bindDomain = <
     subscriptions: (active, options = {}) => {
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
-      const projections: Array<(model: AppModel) => Option.Option<Projection<AppModel, unknown>>> =
-        []
-      for (const [key, entry] of Object.entries(active)) {
+      // Checked before any reader joins the domain, so a refused call adds none.
+      for (const entry of Object.values(active)) {
         // Two applications can have the same Model type; the owner token tells them apart.
         if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
           throw new Error(
             `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
           )
         }
-        const projectionAt = memoizedProjectionOf(entry)
-        projections.push(projectionAt)
+      }
+      for (const [key, entry] of Object.entries(active)) {
+        const projectionAt = readers.get(entry) ?? memoizedProjectionOf(entry)
+        readers.set(entry, projectionAt)
         const asked = (model: AppModel) => askedWhile(projectionAt(model))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
@@ -2302,12 +2313,14 @@ const bindDomain = <
           options,
         )
       }
+      for (const identity of options.connections ?? [])
+        keptConnections.add(connectionIdentity(identity))
       entries.retain = {
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model =>
           rootsOf(
-            projections.flatMap(projectionAt => Option.toArray(projectionAt(model))),
-            options,
+            [...readers.values()].flatMap(projectionAt => Option.toArray(projectionAt(model))),
+            { connections: [...keptConnections] },
           ),
         dependenciesToStream: (current: RetentionRoots) =>
           Stream.fromEffect(
@@ -2325,7 +2338,7 @@ const bindDomain = <
     confirmed: projection => confirmed(bound, projection),
     prefetch: (model, projection, options = {}) =>
       Effect.gen(function* () {
-        const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
+        const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
         const client = yield* RemoteClient
         const planOptions = RemotePolicy.toPlan(policy, now())
         let current = model
@@ -2726,7 +2739,7 @@ const bindDomain = <
                 entities: outcome.entities,
                 connections: outcome.connections,
                 deleted: outcome.deleted,
-                now: (options.now ?? Date.now)(),
+                now: (options.now ?? wallClock)(),
               }),
             }),
           ),

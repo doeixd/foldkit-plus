@@ -281,14 +281,18 @@ its README the details.
   initial value before the restore arrives, and could delete the stored
   document if the restore takes longer than the throttle. Unverified; the ports
   read the store into Flags instead. `foldkit-todo`
-- [ ] **Remote: one policy per `Data.subscriptions` call.** Two policies need
-  two calls, and each call's `retain` entry collects the other's data.
+- [x] **Remote: one policy per `Data.subscriptions` call.** Fixed: retention
+  is the domain's, so each call's `retain` roots every call's reads.
+- [x] **Remote: the default clock and `any` dependencies.** Fixed.
+- [ ] **Remote: per-field fetch time.** The store keeps one `updatedAt` per
+  entity and any write refreshes it, so under stale-while-revalidate an old
+  field looks fresh after another is written. Proposal: `writtenAt` per field,
+  aged by `plan`/`deadlineOf`, and `Data.fetchedAt(model, projection)`.
   `foldkit-api-cache`
-- [ ] **Remote: smaller gaps.** The read entry's default clock is `Date.now`
-  captured at construction, so fake timers cannot move it; no per-field fetch
-  time; `Data.subscriptions` entries type their dependencies `any`; and
-  `RemoteServer.query` with `Input: {}` needs explicit generics.
-  `foldkit-api-cache`
+- [ ] **RemoteServer: a typed principal with an inferred `Input`.** Giving `P`
+  explicitly stops TypeScript inferring the rest; a source that ignores the
+  principal can now omit the generics. Proposal: curried
+  `RemoteServer.for<P>().query(Q, run)`.
 - [ ] **Bundle: a child whose first state comes from the URL.** A Bundle's
   `init` takes fixed args where it is placed, so a routed page cannot be one
   without a second fetch, and a Model that is a union cannot hold placements.

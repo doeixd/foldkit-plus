@@ -658,6 +658,53 @@ describe('Data.live and Data.subscriptions', () => {
   })
 })
 
+describe('two Data.subscriptions calls over one domain', () => {
+  // A domain of its own, so no other call in this file is one of its readers.
+  const Own = Remote.make({ model: App.model.remote, entities: [User, Project] })
+  const name = Project.select({ name: true })
+  const first = Own.subscriptions(
+    { one: Own.active('One', () => Option.some(Own.get(name, 'p1'))) },
+    { connections: ['Feed'] },
+  )
+  const second = Own.subscriptions(
+    { two: Own.active('Two', () => Option.some(Own.get(name, 'p2'))) },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5000 }) },
+  )
+  const loaded = Own.reduce(initial, {
+    _tag: 'ReadReceived',
+    requests: [
+      { entity: 'Project', id: 'p1', fields: ['name'] },
+      { entity: 'Project', id: 'p2', fields: ['name'] },
+    ],
+    result: {
+      settled: [],
+      entities: [
+        { entity: 'Project', id: 'p1', values: { name: 'Apollo' } },
+        { entity: 'Project', id: 'p2', values: { name: 'Borealis' } },
+      ],
+    },
+    now: 0,
+  })
+
+  it('the other call’s retain entry keeps the connections one call names', () => {
+    expect(second.retain.modelToDependencies(loaded).connections).toEqual([{ identity: 'Feed' }])
+  })
+
+  it.each([
+    ['first', first.retain],
+    ['second', second.retain],
+  ])('the %s call’s retain entry keeps what the other call reads', async (_, retain) => {
+    const [changed] = await Effect.runPromise(
+      Stream.runCollect(retain.dependenciesToStream(retain.modelToDependencies(loaded))),
+    )
+    const kept = Own.reduce(loaded, changed!)
+    expect(Own.inspect(kept).entities.map(entity => entity.key)).toEqual([
+      'Project:p1',
+      'Project:p2',
+    ])
+  })
+})
+
 describe('what runs on every Model change is built once', () => {
   it('the RemoteData and Page schemas for a selection are shared across projections', () => {
     const summary = Project.select({ name: true })
@@ -1395,9 +1442,10 @@ describe('Data.query reads a connection as a page of selected items', () => {
       expires: null,
     })
     // The connection is a retention root by itself, with what the page selects of each item.
-    expect(subscriptions.retain.modelToDependencies(initial)).toEqual({
-      requirements: [],
-      connections: [{ identity, select: { entity: 'Project', fields: ['name'] } }],
+    // (Only among the roots: every call roots this file's other readers of `Data` too.)
+    expect(subscriptions.retain.modelToDependencies(initial).connections).toContainEqual({
+      identity,
+      select: { entity: 'Project', fields: ['name'] },
     })
 
     const client = paging(['p1', 'p2', 'p3'])

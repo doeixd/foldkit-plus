@@ -2,19 +2,22 @@
  * The interval refetch is Remote's stale-while-revalidate timer: the stats
  * read sleeps, under the Effect clock, until the reading it holds is five
  * seconds old, then marks it stale, and its next plan fetches it again.
- * The fixtures are dated when the tests start, so the reading is fresh here,
- * and the sleep runs on the TestClock.
+ * The date is held at the fixtures' fetch time, so the reading is exactly
+ * fresh, and the sleep runs on the TestClock.
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { modifyFields } from 'foldkit/struct'
-import { describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { api } from '../src/data.js'
-import { Message, type Model, stats, subscriptions, update } from '../src/main.js'
+import { Message, type Model, postList, stats, subscriptions, update } from '../src/main.js'
 import { FETCHED_AT, loadedPostsModel, loadedStatsModel } from './fixtures.js'
 
 const statsRead = subscriptions['stats.read']
+
+beforeEach(() => void vi.useFakeTimers({ toFake: ['Date'], now: FETCHED_AT }))
+afterEach(() => void vi.useRealTimers())
 
 /** What the stats read emits within `millis` of virtual time. */
 const emittedWithin = (model: Model, millis: number): Promise<ReadonlyArray<Message>> =>
@@ -42,8 +45,7 @@ describe('the stats read', () => {
   })
 
   test('marks the reading stale when it ages out, and not before', async () => {
-    // Less than a second of real time has passed since the fixtures were read.
-    expect(await emittedWithin(loadedStatsModel, 4_000)).toEqual([])
+    expect(await emittedWithin(loadedStatsModel, 4_999)).toEqual([])
 
     const [aged, ...rest] = await emittedWithin(loadedStatsModel, 5_000)
     expect(rest).toEqual([])
@@ -65,6 +67,21 @@ describe('the stats read', () => {
       expires: null,
     })
   })
+})
+
+test('collecting keeps what the open tab reads, whichever call reads it', () => {
+  const onPosts = modifyFields(loadedStatsModel, { activeTab: () => 'Posts' as const })
+  const collected = update(
+    onPosts,
+    Message.GotRemoteMessage({
+      message: {
+        _tag: 'RetentionChanged',
+        roots: subscriptions.retain.modelToDependencies(onPosts),
+      },
+    }),
+  ).model
+  expect(postList.read(collected)._tag).toBe('Ready')
+  expect(stats.read(collected)._tag).toBe('Initial')
 })
 
 test('the posts are cached, with no timer to revalidate them by age', () => {

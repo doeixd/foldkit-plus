@@ -19,7 +19,10 @@ import {
   RemoteData,
   RemoteClient,
   RemotePolicy,
+  type LiveDependencies,
+  type ReadDependencies,
   type RemoteRpcClient,
+  type RetentionRoots,
 } from '../src/index.js'
 
 const Route = Schema.Union([
@@ -130,6 +133,40 @@ const clientLayer = Remote.clientLayer(rpcClient)
 
 void subscriptions
 void clientLayer
+
+// Policies: two calls, one retain entry
+declare const model: Model
+{
+  const projectPage = Surface.at(ProjectPage, model =>
+    model.route._tag === 'project'
+      ? Option.some({ projectId: model.route.projectId })
+      : Option.none(),
+  )
+  const owner = Data.active('Owner', () => Option.some(Data.get(UserSummary, 'u1')))
+
+  const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() => ({
+    ...Data.subscriptions({ page: projectPage }),
+    ...Data.subscriptions(
+      { owner },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) },
+    ),
+  }))
+
+  // Each entry's dependencies are typed, not `any`.
+  expectTypeOf(
+    subscriptions['page.read'].modelToDependencies(model),
+  ).toEqualTypeOf<ReadDependencies>()
+  expectTypeOf(
+    subscriptions['owner.live'].modelToDependencies(model),
+  ).toEqualTypeOf<LiveDependencies>()
+  expectTypeOf(subscriptions.retain.modelToDependencies(model)).toEqualTypeOf<RetentionRoots>()
+  // @ts-expect-error a read entry's dependencies have no such field
+  void subscriptions['page.read'].modelToDependencies(model).cursor
+  const folded = Remote.fold(Data, message => message).subscriptions({ owner })
+  expectTypeOf(folded['owner.read'].modelToDependencies(model)).toEqualTypeOf<ReadDependencies>()
+  // @ts-expect-error a folded read entry's dependencies are typed too
+  void folded['owner.read'].modelToDependencies(model).cursor
+}
 
 // 7. One list instead of steps 2–6 by hand. This fixture's union has its own
 // Messages with Commands, so its section-5 update stays on as `own` — and the

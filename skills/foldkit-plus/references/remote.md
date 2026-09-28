@@ -172,6 +172,10 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
 // Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
+// A policy covers one call: use one call per policy and spread the records together.
+// Retention is the domain's: any call's `retain` entry roots the reads of every call.
+// `now` defaults to Date.now read at each use (fake timers move it; pass `now` under TestClock).
+// Entry dependencies are typed: ReadDependencies / LiveDependencies / RetentionRoots.
 // A read that is not a Surface's, active while its function gives it:
 // Data.active('ProjectDetail', m => Option.map(m.openId, id => Data.get(Selection, id)))
 // Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value

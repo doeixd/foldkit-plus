@@ -2,7 +2,6 @@ import * as UiTabs from '@foldkit/ui/tabs'
 import { Option } from 'effect'
 import { Command, given, message, model, story } from 'foldkit/story'
 import { modifyFields } from 'foldkit/struct'
-import type { Requirement } from 'foldkit-remote'
 import { describe, expect, test } from 'vitest'
 
 import {
@@ -27,13 +26,15 @@ const selectedStatsTab = Message.GotTabsMessage({
 const resolveFocusTab = Command.resolve(UiTabs.FocusTab, UiTabs.Message.CompletedFocusTab())
 
 /** What an active read would ask the server for, as `Entity:id[fields]`. */
-const planned = (key: keyof typeof subscriptions, current: Model): ReadonlyArray<string> => {
+const planned = (
+  key: Extract<keyof typeof subscriptions, `${string}.read`>,
+  current: Model,
+): ReadonlyArray<string> => {
   const { requirements, queries } = subscriptions[key].modelToDependencies(current)
   return [
     ...queries.map(() => 'query'),
     ...requirements.map(
-      (requirement: Requirement) =>
-        `${requirement.entity}:${requirement.id}[${requirement.fields.join(',')}]`,
+      requirement => `${requirement.entity}:${requirement.id}[${requirement.fields.join(',')}]`,
     ),
   ]
 }

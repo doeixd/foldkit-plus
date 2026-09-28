@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`, two policies without losing data:** two
+  `Data.subscriptions` calls over one domain no longer collect each other's
+  data. Retention is the domain's: every call's `retain` entry roots the
+  Surfaces and `connections` of every call, so reads under different policies
+  can use a call each.
+- **`foldkit-remote`, the default clock:** it reads `Date.now` at each use
+  instead of capturing it when the domain is made, so fake timers move plans
+  and stamps. A read under `staleWhileRevalidate` planned at the exact
+  millisecond a value expired no longer stalls.
+
 - **`foldkit-form`, optional and `Option` keys:** a key made with
   `Schema.optionalKey` and left empty is valid and left out of the value, as
   it already was for `Schema.optional` (an optional nested key too). A key
@@ -499,6 +509,11 @@ version changed; `pnpm` skips versions already in the registry.
   and listening take 12 ms in Chromium, down from 22.
 
 ### Changed
+
+- **`foldkit-remote`, typed entry dependencies:** `Data.subscriptions` and
+  `Remote.fold(...).subscriptions` type each entry's dependencies
+  (`ReadDependencies`, the new `LiveDependencies`, `RetentionRoots`) instead of
+  `any`; the `retain` entry requires no services.
 
 - **`foldkit-cms`, drafts:** a draft stores the form's Model settled, as it is
   shown again, so nothing in flight is saved; a Builder's undo history was,

@@ -2,7 +2,7 @@ import { Effect, Fiber, Layer, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   Entity,
   Remote,
@@ -162,6 +162,14 @@ describe('a value ageing out under staleWhileRevalidate', () => {
     })
   })
 
+  it('is still awaited at the very moment it ages out, when the plan does not yet fetch it', () => {
+    clock = 1_000
+    expect(entry.modelToDependencies(knownAt(0))).toMatchObject({
+      requirements: [],
+      expires: { at: 1_000, due: [request] },
+    })
+  })
+
   it('moves when a write dates the value anew, so the wait restarts', () => {
     clock = 200
     const before = entry.modelToDependencies(knownAt(0))
@@ -169,6 +177,23 @@ describe('a value ageing out under staleWhileRevalidate', () => {
     expect(before.requirements).toEqual(after.requirements)
     expect(before).not.toEqual(after)
     expect(after.expires).toEqual({ at: 1_150, due: [request] })
+  })
+})
+
+describe('the default clock', () => {
+  it('is read at each use, so fake timers installed after the entry was made move it', () => {
+    const entry = Data.subscriptions(
+      { page: Page },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }) },
+    )['page.read']
+    vi.useFakeTimers({ now: 500 })
+    try {
+      expect(entry.modelToDependencies(knownAt(0)).requirements).toEqual([])
+      vi.setSystemTime(1_001)
+      expect(entry.modelToDependencies(knownAt(0)).requirements).toEqual([request])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
