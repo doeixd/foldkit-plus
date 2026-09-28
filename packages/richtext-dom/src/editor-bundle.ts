@@ -635,6 +635,8 @@ export const placeEditor = (hostId: string, placement: EditorPlacement): void =>
   placeVocabulary(hostId, placement.vocabulary ?? {})
   placeInputRules(hostId, placement.inputRules ?? [])
   placeDecorations(hostId, placement.decorate ?? (() => []))
+  // The overlay is set by Commands after placing, so a placement starts without the last one's.
+  placeOverlay(hostId, [])
   placePlaceholder(hostId, placement.placeholder)
   placeServerRendered(hostId, placement.serverRendered ?? (() => false))
 }

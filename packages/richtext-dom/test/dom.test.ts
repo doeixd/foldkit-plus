@@ -1073,6 +1073,41 @@ describe('decorations over the editable subtree (§129)', () => {
     expect(decorated(patch(rekinded, rekinded.content, unchanged).root)).toEqual([])
   })
 
+  it('draws a decoration that starts in an empty run, and keeps its caret addressable', () => {
+    const lines = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'e', text: '', marks: [] }] },
+        { type: 'Paragraph', id: 'q', children: [{ type: 'Text', id: 'f', text: 'x', marks: [] }] },
+      ],
+    })
+    // Another person's caret on an empty line, as a one-character range past its end.
+    const dom = mount(document, lines, RichText.noRendering, [over('e', 0, 1, 'peer')])
+    expect(decorated(dom.elements.get(id('e')))).toEqual([['peer', '']])
+    const range = positionToRange(dom, at('e', 0))!
+    expect(rangeToPosition(dom, range.startContainer, range.startOffset)).toEqual(at('e', 0))
+    expect(repair(dom, lines)).toBe(dom)
+  })
+
+  it('carries the string fields of a decoration’s data, and redraws when they change', () => {
+    const named = (name: string): RichText.Decoration => ({
+      ...over('a', 0, 1, 'peer'),
+      data: { name, colour: '#f00', count: 1, 'Not A Name': 'x', 'on click': 'y' },
+    })
+    const dom = mount(document, content(), RichText.noRendering, [named('Ada')])
+    const wrapper = dom.root.querySelector('[data-decoration]')!
+    expect(wrapper.getAttributeNames().sort()).toEqual([
+      'data-decoration',
+      'data-decoration-colour',
+      'data-decoration-name',
+    ])
+    expect(wrapper.getAttribute('data-decoration-name')).toBe('Ada')
+    const renamed = patch(dom, dom.content, unchanged, [named('Grace')])
+    expect(
+      renamed.root.querySelector('[data-decoration]')!.getAttribute('data-decoration-name'),
+    ).toBe('Grace')
+  })
+
   it('leaves a decorated subtree alone, and redraws one the browser stripped', () => {
     const before = mount(document, content(), RichText.noRendering, [over('c', 1, 3)])
     expect(repair(before, before.content)).toBe(before)

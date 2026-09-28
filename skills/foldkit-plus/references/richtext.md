@@ -251,7 +251,9 @@ its tokens as decorations (a token outside the text throws; `foldkit-richtext-co
 highlighter into a tokenizer per loaded language, reading scopes into the same `syntax-*`
 kinds), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
-`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter draws the
+`span[data-decoration=<kind>]` with the run's marks inside, and each string field of `data`
+named in lowercase letters, digits, and hyphens as `data-decoration-<name>`; a decoration that
+starts or ends in an empty run is an empty span there. The editable adapter draws the
 same elements: `mount(…, decorations)` and `patch(dom, content, changeSet, decorations)`
 take the render's set, a run whose decorations changed is redrawn with no edit, and the
 position mapping reads across the pieces. An editor placed with

@@ -12,6 +12,7 @@
 import { define } from 'foldkit/customElement'
 import { inertHtml as h, type Html } from 'foldkit/html'
 import * as RichText from 'foldkit-richtext'
+import { decorationAttributes, decorationSpans, piecesOf, type Spans } from './decorations.js'
 
 /** A rendered child is either an element or literal text. */
 type Child = Html | string
@@ -51,6 +52,9 @@ const REPLACEMENT = String.fromCharCode(0xfffd)
 /** Text as markup can carry it: a U+0000, which a parser reads as U+FFFD, is written as one. */
 const representable = (text: string): string => text.replace(NUL, REPLACEMENT)
 
+const decorationElementAttributes = (decoration: RichText.Decoration): ElementAttributes =>
+  decorationAttributes(decoration).map(([name, value]) => h.Attribute(name, value))
+
 const renderElement = (
   element: RichText.ElementRendering,
   children: ReadonlyArray<Child>,
@@ -76,20 +80,14 @@ const renderRun = (
     // A decoration wraps the marked text, so a stylesheet reaches it without knowing
     // which marks the run happens to carry.
     for (const decoration of decorations) {
-      node = h.span([h.DataAttribute('decoration', decoration.kind)], [node])
+      node = h.span(decorationElementAttributes(decoration), [node])
     }
     return node
   }
-  return RichText.runPieces(run.text, spans).map(({ text, decorations }) =>
-    piece(text, decorations),
-  )
+  return piecesOf(run.text, spans).map(({ text, decorations }) => piece(text, decorations))
 }
 
-const renderBlock = (
-  renderer: RichText.Rendering,
-  block: RichText.Block,
-  spans: ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>,
-): Html => {
+const renderBlock = (renderer: RichText.Rendering, block: RichText.Block, spans: Spans): Html => {
   if (block.type === 'Unknown') {
     // Preserved content renders as a diagnostic placeholder, never executed.
     return h.div([h.DataAttribute('unknown', block.originalType)], [`[${block.originalType}]`])
@@ -119,7 +117,7 @@ const renderBlock = (
 const renderBlocksWith = (
   blocks: ReadonlyArray<RichText.Block>,
   renderer: RichText.Rendering,
-  spans: ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>,
+  spans: Spans,
 ): ReadonlyArray<Html> => blocks.map(block => renderBlock(renderer, block, spans))
 
 /** One element per block, ready to place in any Foldkit view. */
@@ -139,10 +137,7 @@ export const renderDocument = (
   renderer: RichText.Rendering = RichText.noRendering,
   decorations: RichText.DecorationSet = [],
 ): Html =>
-  h.div(
-    [],
-    renderBlocksWith(document.children, renderer, RichText.decorationsIn(document, decorations)),
-  )
+  h.div([], renderBlocksWith(document.children, renderer, decorationSpans(document, decorations)))
 
 const MARK_ATTRIBUTE = 'data-marks'
 
@@ -153,11 +148,11 @@ const editableRun = (
   spans: ReadonlyArray<RichText.DecorationSpan>,
 ): Html => {
   const { nest, unrendered } = RichText.runRendering(renderer, run)
-  const pieces = RichText.runPieces(run.text, spans).map(({ text, decorations }) => {
+  const pieces = piecesOf(run.text, spans).map(({ text, decorations }) => {
     let node: Child = representable(text)
     for (const element of nest) node = renderElement(element, [node])
     for (const decoration of decorations) {
-      node = h.span([h.DataAttribute('decoration', decoration.kind)], [node])
+      node = h.span(decorationElementAttributes(decoration), [node])
     }
     return node
   })
@@ -170,11 +165,7 @@ const editableRun = (
   )
 }
 
-const editableBlock = (
-  renderer: RichText.Rendering,
-  block: RichText.Block,
-  spans: ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>,
-): Html => {
+const editableBlock = (renderer: RichText.Rendering, block: RichText.Block, spans: Spans): Html => {
   if (block.type === 'Unknown') {
     return h.div(
       [
@@ -220,7 +211,7 @@ export const renderEditable = (
   renderer: RichText.Rendering = RichText.noRendering,
   decorations: RichText.DecorationSet = [],
 ): Html => {
-  const spans = RichText.decorationsIn(document, decorations)
+  const spans = decorationSpans(document, decorations)
   return h.div(
     [
       h.Attribute('contenteditable', 'true'),

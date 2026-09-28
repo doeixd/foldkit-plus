@@ -111,7 +111,7 @@ What each part does, and does not do:
   from application state, such as a search query or other people's carets, goes through
   the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
   own and leaves the caret where it is. Its positions name the document shown, so set it
-  again when that changes.
+  again when that changes; placing the host id again starts it with none.
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
@@ -315,7 +315,12 @@ swapped for another element.
 
 A decoration set (§64, §126) is projected with `RichText.decorationsIn`: each covered piece of
 a run becomes a `span[data-decoration=<kind>]` with the run's marks inside it, which is also how
-the editor draws one, so one stylesheet serves both. `renderBlocks` takes no set, since a
+the editor draws one, so one stylesheet serves both. Each string field of the decoration's
+`data` whose name is lowercase letters, digits, and hyphens is drawn as
+`data-decoration-<name>` on that span (`data: { name: 'Ada' }` is `data-decoration-name="Ada"`,
+for a stylesheet's `attr()`); any other field is not drawn. A decoration that starts or ends in
+an empty run, such as another person's caret on an empty line, is drawn as an empty span in it,
+where the core's `decorationsIn` has no text to cover. `renderBlocks` takes no set, since a
 slice's positions cannot be resolved without its document. Text holding a NUL, which markup
 cannot carry, is written as the U+FFFD a parser would make of it.
 

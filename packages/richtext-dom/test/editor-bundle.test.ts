@@ -606,6 +606,10 @@ describe('decorations placed for the editor (§129)', () => {
     expect(decorationsFor('overlaid-editor')(document())).toEqual([...decorate(document()), peer])
     placeOverlay('overlaid-editor', [])
     expect(decorationsFor('overlaid-editor')(document())).toEqual(decorate(document()))
+    // Placing the id again starts it without one.
+    placeOverlay('overlaid-editor', [peer])
+    editorAt('overlaid-editor', { decorate })
+    expect(decorationsFor('overlaid-editor')(document())).toEqual(decorate(document()))
   })
 })
 

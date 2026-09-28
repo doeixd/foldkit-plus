@@ -6,6 +6,7 @@
  * browser selection back to a semantic position.
  */
 import * as RichText from 'foldkit-richtext'
+import { decorationAttributes, decorationSpans, piecesOf, type Spans } from './decorations.js'
 
 export interface EditorDom {
   /** The owned subtree root. Everything inside belongs to this interpreter. */
@@ -19,8 +20,6 @@ export interface EditorDom {
   /** The decorations drawn over it (§129); a patch redraws a run whose share of them changed. */
   readonly decorations: RichText.DecorationSet
 }
-
-type Spans = ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>
 
 const MARK_ATTRIBUTE = 'data-marks'
 
@@ -92,7 +91,7 @@ const renderRun = (
   const element = owner.createElement('span')
   element.setAttribute('data-run', run.id)
   const { nest, unrendered } = RichText.runRendering(rendering, run)
-  for (const piece of RichText.runPieces(run.text, spans)) {
+  for (const piece of piecesOf(run.text, spans)) {
     // Always a text node, even when empty: a caret inside an empty run has to be
     // addressable, and an element container has no semantic offset.
     let content: Node = owner.createTextNode(piece.text)
@@ -103,7 +102,8 @@ const renderRun = (
     }
     for (const decoration of piece.decorations) {
       const wrapper = owner.createElement('span')
-      wrapper.setAttribute('data-decoration', decoration.kind)
+      for (const [name, value] of decorationAttributes(decoration))
+        wrapper.setAttribute(name, value)
       wrapper.append(content)
       content = wrapper
     }
@@ -176,7 +176,7 @@ export const mount = (
   root.setAttribute('role', 'textbox')
   root.setAttribute('aria-multiline', 'true')
   const elements = new Map<RichText.NodeId, HTMLElement>()
-  const spans = RichText.decorationsIn(content, decorations)
+  const spans = decorationSpans(content, decorations)
   for (const block of content.children) {
     root.append(renderBlock(owner, block, elements, rendering, spans))
   }
@@ -250,7 +250,14 @@ const nestedIds = (element: Element): ReadonlyArray<string> =>
 const sameIds = (present: ReadonlyArray<string | null>, wanted: ReadonlyArray<string>): boolean =>
   present.length === wanted.length && present.every((id, at) => id === wanted[at])
 
-/** Whether a run is drawn the same under two projections: the same ranges, the same kinds. */
+const sameAttributes = (
+  left: ReadonlyArray<readonly [string, string]>,
+  right: ReadonlyArray<readonly [string, string]>,
+): boolean =>
+  left.length === right.length &&
+  left.every(([name, value], at) => name === right[at]![0] && value === right[at]![1])
+
+/** Whether a run is drawn the same under two projections: the same ranges and attributes. */
 const sameSpans = (
   left: ReadonlyArray<RichText.DecorationSpan> = [],
   right: ReadonlyArray<RichText.DecorationSpan> = [],
@@ -260,7 +267,10 @@ const sameSpans = (
     (span, at) =>
       span.from === right[at]!.from &&
       span.to === right[at]!.to &&
-      span.decoration.kind === right[at]!.decoration.kind,
+      sameAttributes(
+        decorationAttributes(span.decoration),
+        decorationAttributes(right[at]!.decoration),
+      ),
   )
 
 export const patch = (
@@ -271,10 +281,10 @@ export const patch = (
 ): EditorDom => {
   const elements = new Map(dom.elements)
   const root = dom.root
-  const spans = RichText.decorationsIn(content, decorations)
+  const spans = decorationSpans(content, decorations)
   // A decoration change edits no document, so no ChangeSet names it: a run whose share of
   // the decorations differs from what was drawn is redrawn as a dirty run is.
-  const drawn = RichText.decorationsIn(dom.content, dom.decorations)
+  const drawn = decorationSpans(dom.content, dom.decorations)
   const redrawn = new Set(changeSet.dirtyNodes)
   for (const id of new Set([...drawn.keys(), ...spans.keys()])) {
     if (!sameSpans(drawn.get(id), spans.get(id))) redrawn.add(id)
@@ -581,7 +591,7 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
   // dropped from the map as well as the DOM, so `patch` renders it fresh rather
   // than placing a stale element back where it was.
   const elements = new Map(dom.elements)
-  const spans = RichText.decorationsIn(content, dom.decorations)
+  const spans = decorationSpans(content, dom.decorations)
   const inspect = (blocks: ReadonlyArray<RichText.Block>): void => {
     for (const block of blocks) {
       present.add(block.id)
