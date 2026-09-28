@@ -29,7 +29,7 @@ import { Button, Input } from 'foldkit-mixins-ui'
 import { Surface } from 'foldkit-surface'
 
 import { type Dinosaur, dinosaurs } from './data.js'
-import { HeaderButtonStyle, PageSlots, PageStyle, SearchStyle } from './style.js'
+import { HeaderButtonStyle, ExplorerPage, SearchStyle } from './style.js'
 
 const Diet = Schema.Literals(['Carnivore', 'Herbivore', 'Omnivore'])
 const Period = Schema.Literals(['Triassic', 'Jurassic', 'Cretaceous'])
@@ -328,7 +328,7 @@ export const subscriptions = Subscription.make<Model, Message>()(() => ({
 
 // VIEW
 
-type Slots = SlotBuilders<typeof PageSlots, Message>
+type Slots = SlotBuilders<typeof ExplorerPage.slots, Message>
 
 const columnOrders: Record<SortColumn, Order.Order<Dinosaur>> = {
   Name: Order.mapInput(Order.String, ({ name }: Dinosaur) => name),
@@ -600,7 +600,7 @@ const notFoundView = (path: string, slots: Slots, h: HtmlBuilder<Message>): Html
   ])
 
 const Page = SlotView.forMessages<Message>()
-  .define(PageSlots, (model: Model, slots, h) =>
+  .define(ExplorerPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
       h.header(slots.header.attrs(), [
         h.div(slots.headerInner.attrs(), [
@@ -616,7 +616,7 @@ const Page = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(PageStyle))
+  .pipe(Style.attach(ExplorerPage.style))
 
 const routeTitle = (route: AppRoute): string =>
   AppRoute.match(route, {
