@@ -14,11 +14,20 @@ import {
   releaseMount,
   renderingFor,
   vocabularyFor,
+  placeDecorations,
+  decorationsFor,
 } from 'foldkit-richtext-dom/host'
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
-import { parseHtml, safeUrl } from 'foldkit-richtext-dom/html'
+import { parseHtml } from 'foldkit-richtext-dom/html'
 import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
-import { markActive, marksToolbar, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
+import {
+  blockAnchor,
+  blockDrag,
+  markActive,
+  marksToolbar,
+  selectionAnchor,
+  type ToolbarState,
+} from 'foldkit-richtext-dom/toolbar'
 import {
   events,
   Message,
@@ -29,11 +38,18 @@ import {
 } from 'foldkit-richtext-dom/editor'
 import { edited, editorAt, update } from 'foldkit-richtext-dom/editor-bundle'
 import {
+  blockHandle,
+  blockStyles,
+  commandPalette,
+  editorStatus,
+  linkEditor,
   MarkToolbarSlots,
   markToolbar,
   matchingEntries,
   slashEntries,
   slashQuery,
+  sourceEditor,
+  sourcePreview,
 } from 'foldkit-mixins-richtext'
 
 export type Surface = [
@@ -51,6 +67,8 @@ export type Surface = [
   typeof RichText.renderingOver,
   typeof RichText.decorationsIn,
   typeof RichText.searchDecorations,
+  typeof RichText.codeDecorations,
+  RichText.CodeTokenizer,
   typeof RichText.positionInBlock,
   RichText.Decoration,
   RichText.DecorationSet,
@@ -70,11 +88,13 @@ export type Surface = [
   typeof renderingFor,
   typeof placeVocabulary,
   typeof vocabularyFor,
+  typeof placeDecorations,
+  typeof decorationsFor,
   typeof attach,
   typeof intentFor,
   KeyBinding,
   typeof parseHtml,
-  typeof safeUrl,
+  typeof RichText.safeUrl,
   typeof renderDocument,
   typeof markActive,
   typeof marksToolbar,
@@ -93,6 +113,16 @@ export type Surface = [
   typeof slashQuery,
   typeof slashEntries,
   typeof matchingEntries,
+  typeof selectionAnchor,
+  typeof blockAnchor,
+  typeof blockDrag,
+  typeof blockStyles,
+  typeof blockHandle,
+  typeof commandPalette,
+  typeof editorStatus,
+  typeof linkEditor,
+  typeof sourceEditor,
+  typeof sourcePreview,
 ]
 
 /**

@@ -58,8 +58,14 @@ describe('Remote mutations', () => {
   it('reconciles a result at most once per requestId (retry-safe)', () => {
     const patches: NormalizedPatch[] = [{ entity: 'User', id: 'u1', values: { name: 'ada' } }]
 
-    const first = reconcileMutation(emptyStore, emptyMutationState, 'req-1', patches)
-    const second = reconcileMutation(first.store, first.state, 'req-1', patches)
+    const first = reconcileMutation(emptyStore, emptyMutationState, 'req-1', {
+      entities: patches,
+      now: 0,
+    })
+    const second = reconcileMutation(first.store, first.state, 'req-1', {
+      entities: patches,
+      now: 0,
+    })
 
     expect(second.store).toEqual(first.store)
     expect(second.state.applied.size).toBe(1)
@@ -68,7 +74,10 @@ describe('Remote mutations', () => {
 
   it('a mutation result and a live write for the same entity agree', () => {
     const patches: NormalizedPatch[] = [{ entity: 'User', id: 'u1', values: { name: 'ada' } }]
-    const byMutation = reconcileMutation(emptyStore, emptyMutationState, 'req-1', patches).store
+    const byMutation = reconcileMutation(emptyStore, emptyMutationState, 'req-1', {
+      entities: patches,
+      now: 0,
+    }).store
     const byLive = writeEntity(emptyStore, entityKey('User', 'u1'), { name: 'ada' })
     expect(byMutation).toEqual(byLive)
   })
@@ -88,7 +97,7 @@ describe('Remote mutations', () => {
 
   it('reads an applied request, and one it has never seen', () => {
     const started = beginMutation(emptyMutationState, 'req-1')
-    const applied = reconcileMutation(emptyStore, started, 'req-1', []).state
+    const applied = reconcileMutation(emptyStore, started, 'req-1', { entities: [], now: 0 }).state
 
     expect(mutationStatus(applied, 'req-1')).toEqual({ _tag: 'Applied' })
     expect(mutationStatus(applied, 'req-2')).toEqual({ _tag: 'Unknown' })
@@ -98,7 +107,7 @@ describe('Remote mutations', () => {
     const retried = beginMutation(failMutation(emptyMutationState, 'req-1', offline), 'req-1')
     expect(mutationStatus(retried, 'req-1')).toEqual({ _tag: 'Pending' })
 
-    const applied = reconcileMutation(emptyStore, retried, 'req-1', []).state
+    const applied = reconcileMutation(emptyStore, retried, 'req-1', { entities: [], now: 0 }).state
     expect(mutationStatus(applied, 'req-1')).toEqual({ _tag: 'Applied' })
   })
 
@@ -110,21 +119,28 @@ describe('Remote mutations', () => {
       started,
       'req-1',
       // Named both ways: the deletion wins.
-      [{ entity: 'User', id: 'u1', values: { name: 'late' } }],
-      [{ entity: 'User', id: 'u1' }],
+      {
+        entities: [{ entity: 'User', id: 'u1', values: { name: 'late' } }],
+        deleted: [{ entity: 'User', id: 'u1' }],
+        now: 0,
+      },
     )
     expect(isTombstone(gone.store, entityKey('User', 'u1'))).toBe(true)
 
     // A retry of the same request does not delete again what has since come back.
     const back = writeEntity(gone.store, entityKey('User', 'u1'), { name: 'new' })
-    const retried = reconcileMutation(back, gone.state, 'req-1', [], [{ entity: 'User', id: 'u1' }])
+    const retried = reconcileMutation(back, gone.state, 'req-1', {
+      entities: [],
+      deleted: [{ entity: 'User', id: 'u1' }],
+      now: 0,
+    })
     expect(isTombstone(retried.store, entityKey('User', 'u1'))).toBe(false)
   })
 
   it('bounds the settled-request ledger', () => {
     let state = emptyMutationState
     for (let index = 0; index < 4096; index += 1) {
-      state = reconcileMutation(emptyStore, state, `req-${index}`, []).state
+      state = reconcileMutation(emptyStore, state, `req-${index}`, { entities: [], now: 0 }).state
     }
 
     expect(state.applied.size).toBeLessThan(4096)
@@ -146,18 +162,20 @@ describe('Remote mutations', () => {
 
   it('clears pending even when a request is re-begun and reconciled again', () => {
     const started = beginMutation(emptyMutationState, 'req-1')
-    const first = reconcileMutation(emptyStore, started, 'req-1', [
-      { entity: 'User', id: 'u1', values: { name: 'ada' } },
-    ])
+    const first = reconcileMutation(emptyStore, started, 'req-1', {
+      entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }],
+      now: 0,
+    })
     expect(first.state.pending.has('req-1')).toBe(false)
 
     // A retry re-begins the same request; settling it must not leave it pending,
     // and must not re-apply the older entities.
     const retried = beginMutation(first.state, 'req-1')
     expect(retried.pending.has('req-1')).toBe(true)
-    const second = reconcileMutation(first.store, retried, 'req-1', [
-      { entity: 'User', id: 'u1', values: { name: 'grace' } },
-    ])
+    const second = reconcileMutation(first.store, retried, 'req-1', {
+      entities: [{ entity: 'User', id: 'u1', values: { name: 'grace' } }],
+      now: 0,
+    })
     expect(second.state.pending.has('req-1')).toBe(false)
     expect(readField(second.store, entityKey('User', 'u1'), 'name')).toEqual(Option.some('ada'))
   })

@@ -493,6 +493,18 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   new-entry reload cleared its pending state on that repeat and showed "That
   entry does not exist." while every test passed. A `UrlChanged` handler must
   be a no-op for the address the Model already shows, pending work included.
+- **A Mount reads its args once.** `OnMount` acquires on snabbdom's `insert` and releases on
+  `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
+  passes new args to the same element changes nothing, so a block handle's anchor stayed beside
+  the first block the caret visited. Key the element by what the args depend on (`h.Key(node)`).
+  A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
+  `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
+
+- **A no-op must return the Model it was given.** Foldkit renders only when the root Model
+  changes identity, and `Update.foldChild` writes the child back unconditionally, so a
+  `{ ...model }` equal copy (or a placement that re-wrote an unchanged child) rendered the
+  whole page: every `pointerdown` did so through DismissLayer. Test with `toBe(model)`.
+
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
@@ -698,6 +710,27 @@ of its own named a form field "fits the Catalog". Read words with
   duplicating an `Effect.ensuring`. The fix is to delete the redundant guard, not
   to write a test for a window that does not exist. One guard per window, one
   test per guard.
+- **Test a serializer by reading its output back, not by its string.** The Markdown
+  printer's test asserted `\1. not a list` as the escape for an ordered marker; a
+  backslash before a digit is no escape, so the parser kept it as text, and the test
+  locked the bug in. A round trip through the real parser is what catches it.
+- **Server markup has to be what a parser builds from it.** The standard rendering put a table's
+  rows straight in `<table>`; a parser inserts a `tbody`, and Foldkit refuses to serialize a view
+  whose parse differs, so no server-rendered page with a table worked. Tests that built DOM with
+  `createElement` could not see it. Test markup by rendering it to a string (`renderToString`)
+  and parsing it back.
+- **Scene does not model keys.** A handle keyed by its block still showed its old Mount as
+  mounted after the block changed, with or without `h.Key`, so a Scene test of keying passes
+  or fails for reasons unrelated to the key. Test remounting on the real runtime
+  (`Runtime.makeElement` + `embed`, as `packages/bundle/test/runtime.test.ts` does).
+- **A check against a reference is only as good as the reference.** `print` accepts a styled
+  text when it parses like the canonical text, and the canonical text merged two adjacent lists
+  into one, so the check trusted a wrong answer. Read the reference itself back too.
+- **A constant `mint` makes a refusal test pass for any reason.** A test that an
+  `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
+  split a run twice, `apply` refused the duplicate id, and the case stayed green
+  with the props check deleted. Mint distinct ids in every test that expects a
+  refusal, so the refusal can only come from the check under test.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
 - **A fixture too small cannot tell right from wrong.** An ordering test with
@@ -840,9 +873,40 @@ of its own named a form field "fits the Catalog". Read words with
   scripted insert landed in two functions and broke an unrelated one; a later one
   matched nothing and quietly did not apply, so a field was simply absent. Assert
   the anchor, then re-read the diff -- not just the check.
+- **Anchoring an insert on `export const X` lands it under X's doc comment.** Three
+  scripted inserts here (`holdsItem`, `isBlank`, `drawPlaceholder`) went in between a
+  declaration and its comment, leaving each comment documenting the wrong thing; the
+  typecheck and the tests cannot see it. Anchor on the comment's opening `/**`, or read the
+  lines above the insert before committing.
+- **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
+  git commit` committed a file prettier had just flagged, because `tail` succeeded.
+  Redirect instead (`>/dev/null &&`) when a check gates the next command.
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
+- **Nothing reports an unused import here.** `tsconfig.base.json` leaves
+  `noUnusedLocals` off, so moving `propsFailure` out of `kit.ts` left `Schema` and
+  `RunMark` imported for nothing, and seven more dead imports had built up in the
+  richtext packages. After moving or deleting code, run
+  `npx tsc -p packages/<name> --noEmit --noUnusedLocals` over the packages touched.
+- **Run a test from the repo root, not from its package.** The root
+  `vitest.config.ts` aliases every workspace package to its `src`; run from
+  `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
+  and a demo line that passed under `tsx` failed its test for no reason in the
+  change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest does not typecheck.** A demo line mapped over the dependencies of a
+  `Data.subscriptions` entry (typed `any`) passed its test and failed
+  `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
+  example, run the root typecheck, not only its test.
+- **Run a test from the repo root, not from its package.** The root
+  `vitest.config.ts` aliases every workspace package to its `src`; run from
+  `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
+  and a demo line that passed under `tsx` failed its test for no reason in the
+  change. `npx vitest run examples/remote` from the root tests the source.
+- **Vitest does not typecheck.** A demo line mapped over the dependencies of a
+  `Data.subscriptions` entry (typed `any`) passed its test and failed
+  `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
+  example, run the root typecheck, not only its test.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.

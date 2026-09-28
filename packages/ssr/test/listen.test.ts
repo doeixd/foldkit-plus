@@ -11,7 +11,7 @@ import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit/experimental/server'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Result } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Resume, SSR } from 'foldkit-ssr'
+import { BINDING_ATTRIBUTE, Resume, SSR } from 'foldkit-ssr'
 import { Message, config, load, plan, template, type Model } from './bindingsFixture.js'
 
 /** The element the server rendered with this id. */
@@ -47,6 +47,32 @@ const served = async (
 }
 
 describe('Resume.listen answers from the markers', () => {
+  it('listens for the events it is given, and scans for none', async () => {
+    const { root, stop } = await served()
+    stop()
+    // Only the list can say #point handles pointerdown now.
+    byId('point').removeAttribute(`${BINDING_ATTRIBUTE}pointerdown`)
+    const heard: Array<string> = []
+    const given = Resume.listen(root, {
+      bindings: [],
+      events: ['pointerdown'],
+      onAnswer: ({ event }) => heard.push(event.type),
+    })
+    // No marker names `keyup` or, now, `pointerdown`: the second is heard only because it was given.
+    byId('point').dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    byId('keys').dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }))
+    given()
+    expect(heard).toEqual(['pointerdown'])
+    const scanned = Resume.listen(root, {
+      bindings: [],
+      onAnswer: ({ event }) => heard.push(event.type),
+    })
+    byId('keys').dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }))
+    scanned()
+    // Without the list it finds the events the markers name: #keys marks keydown.
+    expect(heard).toEqual(['pointerdown', 'keydown'])
+  })
+
   it('dispatches a click as the Message its binding names', async () => {
     const { messages } = await served()
     byId('like').click()
@@ -221,6 +247,26 @@ describe('Resume.bindings refuses a page that does not add up', () => {
       'a depth that is not a count',
       (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) =>
         bindings.map(binding => ({ ...binding, depth: -1 })),
+    ],
+    [
+      'an entry with no attribute',
+      (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) =>
+        bindings.map(({ attribute: _, ...rest }) => rest),
+    ],
+    [
+      'an entry with no message',
+      (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) =>
+        bindings.map(({ message: _, ...rest }) => rest),
+    ],
+    [
+      'a hole that is not a list of fields',
+      (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) =>
+        bindings.map(binding => ({ ...binding, hole: [1] })),
+    ],
+    [
+      'a depth that is not a whole number',
+      (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) =>
+        bindings.map(binding => ({ ...binding, depth: 0.5 })),
     ],
   ])('when the list is malformed: %s', async (_name, edit) => {
     await served()

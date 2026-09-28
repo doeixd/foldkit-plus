@@ -234,6 +234,11 @@ Model -> subscription -> URL
 URL -> UrlChanged -> reduce -> Model
 ```
 
+The loop closes without a second render: the mirror's own write comes back
+as a `UrlChanged` whose keys hold what the Model already holds, and `reduce`
+then returns the Model it was given. It does the same for a navigation that
+leaves its keys alone, and `Prefs.reduce` for a restore that finds nothing new.
+
 ## Add remembered local state with `Mirror.kv`
 
 For state that should survive reload but does not belong in the URL, use an

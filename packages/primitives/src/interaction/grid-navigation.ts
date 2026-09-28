@@ -13,6 +13,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
+import { perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
   /** The current cell's id, or `null` before any cell has been focused. */
@@ -43,7 +44,9 @@ export const bundle = Bundle.make('GridNavigation', {
   Message,
   args: Args,
   init: () => ({ model: { current: null } }),
-  update: (_model, message) => ({ model: { current: message.id } }),
+  // Moving focus by key dispatches `Focused`, and the cell's `OnFocus` reports it again.
+  update: (model, message) =>
+    model.current === message.id ? { model } : { model: { current: message.id } },
 })
 
 export interface MoveOptions {
@@ -152,6 +155,7 @@ export const behavior =
     const wrap = (id: string): ParentMessage =>
       declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
     const slice = (input: Input): Model => input[declared.field]
+    const itemsOf = perInput(options.items)
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
@@ -163,7 +167,7 @@ export const behavior =
             readonly input: Input
             readonly h: HtmlBuilder<ParentMessage>
           }) => {
-            const items = options.items(input)
+            const items = itemsOf(input)
             const current = slice(input).current
             const from = current === null ? -1 : items.indexOf(current)
             const direction = options.direction?.(input) ?? 'ltr'
@@ -209,7 +213,7 @@ export const behavior =
             if (item === undefined) return []
             return RovingTabindex.itemAttributes(
               h,
-              options.items(input),
+              itemsOf(input),
               slice(input).current,
               item,
               args.virtual,

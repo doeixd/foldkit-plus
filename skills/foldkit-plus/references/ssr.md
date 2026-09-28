@@ -78,6 +78,9 @@ SSR.hydrate(config, Editor, { buildId })
   browser, never rendered there, so what it reads need not be in `state`. It
   changes only with a new document; anything a Message changes belongs in a
   Surface. Duplicate ids fail with `DuplicateStaticRegion`.
+- `SSR.serving()`: true while the server renders a page, false in the browser and outside a
+  render; `foldkit-richtext-dom`'s `editorAt(hostId, { serverRendered: SSR.serving })` sends
+  the document's markup in the editor's host, which the browser's editor adopts.
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.
@@ -95,7 +98,9 @@ SSR.hydrate(config, Editor, { buildId })
   from an unsent field fails with `ViewDependsOnUnsentState`; the plan needs
   the app's Message Schema (make it from `App`), else `UnencodableBinding`.
   A hole form whose field refuses the empty placeholder (`isMinLength(1)`) is
-  marked `*` too.
+  marked `*` too. `SSR.render`'s result lists every `*` as `unnamed`
+  (`{ element, event }`); on a deferred page `SSR.entry` and `SSR.generate`
+  warn about each once per process.
 - A Surface's `messages` is the allow list for the page's bindings. A binding
   whose Message no Surface active for the served Model lists is `Uncovered`
   (naming element and tag); bindings with no `surfaces` in the plan are
@@ -104,7 +109,7 @@ SSR.hydrate(config, Editor, { buildId })
 - In the browser, `Resume.bindings(plan, document, root, model)` decodes the
   page's bindings, keeps them to what the active Surfaces list, and checks
   its markers (a `ResumeRefused` otherwise), then
-  `Resume.listen(root, { bindings, onAnswer })` gives each event one answer,
+  `Resume.listen(root, { bindings, onAnswer, events? })` gives each event one answer,
   `{ event, messages, unnamed? }`: the Messages its bindings dispatch in
   Foldkit's order, and at a `*` the element it stopped at. It returns the
   function that removes the listeners. `SSR.hydrate` uses both itself.

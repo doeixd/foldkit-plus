@@ -1,5 +1,8 @@
 # Async semantics: what Foldkit should learn from Solid 2
 
+> **Implementation status, checked 2026-09-27:** Built in the shapes its Implementation status section records; nothing further is planned. See the
+> [design index](./README.md#where-each-design-stands).
+
 > **Status:** design proposal, not an API contract.
 >
 > This document explores how Foldkit and Foldkit Plus can adopt the useful

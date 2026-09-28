@@ -100,7 +100,12 @@ const renderBlock = (block: Block, renderer: Rendering): string => {
     tag: blockTag(block),
     attributes: block.type === 'Node' ? { 'data-node': block.kind } : {},
   }
-  return renderElement(element, `${runs}${nested}`)
+  return renderElement(
+    element,
+    element.inner === undefined
+      ? `${runs}${nested}`
+      : `${runs}${renderElement({ tag: element.inner, attributes: {} }, nested)}`,
+  )
 }
 
 /** Serializes blocks as HTML, with text and attributes escaped. */

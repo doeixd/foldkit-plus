@@ -3,7 +3,7 @@
  * with a whitelist: known block tags become blocks, known inline tags become marks, our
  * own `data-*` attributes round-trip, and everything else is unwrapped or dropped with a
  * diagnostic. Only a fixed few attributes are ever read — a link's `href`, an image's
- * `src` and `alt` — and each passes a scheme policy first (`safeUrl`), so a pasted
+ * `src` and `alt` — and each passes a scheme policy first (`RichText.safeUrl`), so a pasted
  * `style`, `onclick`, or `javascript:` URL cannot survive as anything executable, and
  * `script`/`style`/`iframe` content is dropped along with its element.
  */
@@ -82,25 +82,6 @@ const MARK_TAGS: Readonly<Record<string, string>> = {
   strike: 'Strikethrough',
 }
 
-/** Schemes a link or a source may carry; anything else — `javascript:`, `data:` — is refused. */
-const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel'])
-
-/**
- * A URL safe to carry into props, or `undefined` when it is not. Control characters are
- * removed first, because `java\tscript:` and a leading NUL are how a scheme check is
- * usually walked past; then a URL that names a scheme outside the allowlist is refused,
- * and one with no scheme — a relative path, a fragment, a protocol-relative URL — is
- * kept. The value is never interpreted, only copied, so what a policy leaves through is
- * still the application's to trust.
- */
-export const safeUrl = (value: string | null): string | undefined => {
-  if (value === null) return undefined
-  const cleaned = value.replace(/[\u0000-\u001F\u007F]/g, '').trim()
-  if (cleaned.length === 0) return undefined
-  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(cleaned)?.[1]?.toLowerCase()
-  return scheme === undefined || SAFE_SCHEMES.has(scheme) ? cleaned : undefined
-}
-
 const headingLevel = (tag: string): number | undefined => {
   const match = /^h([1-6])$/.exec(tag)
   return match === null ? undefined : Number(match[1])
@@ -176,7 +157,7 @@ const collectNode = (
   if (tag === 'a') {
     // A link is imported only through its `href`, and only when the scheme passes the
     // policy; an anchor with no usable href stays plain text (§70, §124 §10).
-    const href = safeUrl(element.getAttribute('href'))
+    const href = RichText.safeUrl(element.getAttribute('href'))
     if (href === undefined && element.hasAttribute('href')) {
       diagnostics.push({ code: 'UnsafeAttribute', detail: 'a:href' })
     }
@@ -369,7 +350,7 @@ const atomFrom = (
     children: [],
   })
   if (tag === 'hr') return block({})
-  const src = safeUrl(element.getAttribute('src'))
+  const src = RichText.safeUrl(element.getAttribute('src'))
   if (src === undefined) {
     diagnostics.push({ code: 'UnsafeAttribute', detail: 'img:src' })
     return undefined
@@ -400,10 +381,17 @@ const codeBlockFrom = (element: Element, mint: () => string): RichText.Block => 
   }
 }
 
-/** A table row is a header when a cell says so, or when our own rendering said so. */
-const isHeaderRow = (row: Element): boolean =>
-  row.getAttribute('data-header') !== null ||
-  Array.from(row.children).some(child => child.tagName.toLowerCase() === 'th')
+/**
+ * A table row is a header when our own rendering said so, when it sits in a `thead`, or when
+ * every cell is a `th`. One `th` is not enough: a body row often leads with a row header
+ * (`<th scope="row">`), and reading that as a header row would mark every row of the table.
+ */
+const isHeaderRow = (row: Element): boolean => {
+  if (row.getAttribute('data-header') !== null) return true
+  if (row.parentElement?.tagName.toLowerCase() === 'thead') return true
+  const cells = Array.from(row.children)
+  return cells.length > 0 && cells.every(cell => cell.tagName.toLowerCase() === 'th')
+}
 
 /** The same row, carrying the header prop the table vocabulary has for it. */
 const asHeaderRow = (block: RichText.Block): RichText.Block =>

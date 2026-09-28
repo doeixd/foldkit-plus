@@ -11,6 +11,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 export const MediaDevice = Schema.Struct({
   deviceId: Schema.String,
@@ -35,6 +36,16 @@ export const MediaDevicesMessage = defineMessageUnion({
   Failed: { message: Schema.String },
 })
 export type MediaDevicesMessage = typeof MediaDevicesMessage.Type
+
+const sameDevices = (a: ReadonlyArray<MediaDevice>, b: ReadonlyArray<MediaDevice>): boolean =>
+  a.length === b.length &&
+  a.every(
+    (device, index) =>
+      device.deviceId === b[index]!.deviceId &&
+      device.groupId === b[index]!.groupId &&
+      device.kind === b[index]!.kind &&
+      device.label === b[index]!.label,
+  )
 
 /** The slice of MediaDevices the bundle needs; satisfied by the platform object. */
 export interface MediaDevicesHandle {
@@ -133,11 +144,13 @@ export const mediaDevices = <const Name extends string>(config: {
       >(message, {
         Scan: () => ({ model, commands: [scan()] }),
         DevicesChanged: () => ({ model, commands: [scan()] }),
-        Refreshed: ({ devices }) => ({
-          model: { ...model, status: 'ready' as const, devices: [...devices] },
-        }),
-        Denied: () => ({ model: { ...model, status: 'denied' as const } }),
-        Failed: ({ message }) => ({ model: { ...model, lastError: message } }),
+        // One plug-in fires several `devicechange`s, and each rescan finds the same list.
+        Refreshed: ({ devices }) =>
+          model.status === 'ready' && sameDevices(model.devices, devices)
+            ? { model }
+            : { model: { ...model, status: 'ready' as const, devices } },
+        Denied: () => ({ model: unlessSame(model, { ...model, status: 'denied' }) }),
+        Failed: ({ message }) => ({ model: unlessSame(model, { ...model, lastError: message }) }),
       }),
     subscriptions: (): Subscription.Subscriptions<MediaDevicesModel, MediaDevicesMessage> =>
       Subscription.make<MediaDevicesModel, MediaDevicesMessage>()(() => ({

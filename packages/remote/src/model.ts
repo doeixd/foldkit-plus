@@ -270,6 +270,8 @@ export type RemoteMessage =
       readonly connections?: ReadonlyArray<ConnectionChange> | undefined
       /** Entities the mutation deleted: tombstoned, which hides them from every connection. */
       readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
+      /** Injected clock reading of the answer: how fresh the written entities are. */
+      readonly now: number
     }
   | { readonly _tag: 'MutationFailed'; readonly requestId: string; readonly error: RemoteError }
   /**
@@ -351,6 +353,7 @@ export const remoteMessageCases = {
     deleted: Schema.optional(
       Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
     ),
+    now: Schema.Number,
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
@@ -448,7 +451,7 @@ const withLoading = (
 ): ReadonlySet<string> => {
   const next = new Set(loading)
   for (const mark of fieldMarks(requests)) next.add(mark)
-  return next
+  return next.size === loading.size ? loading : next
 }
 
 const withoutLoading = (
@@ -458,7 +461,7 @@ const withoutLoading = (
   if (loading.size === 0) return loading
   const next = new Set(loading)
   for (const mark of fieldMarks(requests)) next.delete(mark)
-  return next
+  return next.size === loading.size ? loading : next
 }
 
 /**
@@ -499,6 +502,20 @@ const prunedLoading = (
     mark.startsWith(connectionPrefix) ? named.has(mark) : reached().has(markEntity(mark)),
   )
   return kept.length === loading.size ? loading : new Set(kept)
+}
+
+/**
+ * The windows grown on connections retention keeps; a dropped one starts over.
+ * The same record when every one is kept.
+ */
+const keptWindows = (
+  grown: RemoteModel['grown'],
+  connections: Retained['connections'],
+): RemoteModel['grown'] => {
+  const kept = Object.entries(grown).filter(([key]) =>
+    Object.hasOwn(connections, key.slice(0, key.lastIndexOf('\u0000'))),
+  )
+  return kept.length === Object.keys(grown).length ? grown : Object.fromEntries(kept)
 }
 
 /**
@@ -615,9 +632,16 @@ const setConnectionStale = (
   connection: string,
   stale: boolean,
 ): Readonly<Record<string, Connection>> => {
-  const current = connections[connection] ?? emptyConnection
-  return { ...connections, [connection]: { ...current, stale } }
+  const current = connections[connection]
+  if (current?.stale === stale) return connections
+  return { ...connections, [connection]: { ...(current ?? emptyConnection), stale } }
 }
+
+const withLiveState = (
+  live: RemoteModel['live'],
+  stream: string,
+  state: LiveState,
+): RemoteModel['live'] => (live[stream] === state ? live : { ...live, [stream]: state })
 
 const markGap = (model: RemoteModel, stream: string): RemoteModel =>
   model.gaps.has(stream) ? model : { ...model, gaps: new Set([...model.gaps, stream]) }
@@ -630,9 +654,27 @@ const clearGap = (model: RemoteModel, stream: string): RemoteModel =>
 /**
  * The pure reducer all four producers share. A live event that arrives ahead of
  * its cursor is a gap: it is not applied, and the stream is recorded so the host
- * can resubscribe rather than silently miss facts.
+ * can resubscribe rather than silently miss facts. When every field a Message
+ * touches keeps its identity, `model` itself is returned, so the application's
+ * root keeps its identity and Foldkit does not render. The common no-ops do (a
+ * duplicate live event, a repeated `ReadStarted`); a repeated failure, or a
+ * `preserve-existing` restore of entities already held, still makes an equal
+ * copy.
  */
 export const updateRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
+  const next = reduceRemote(model, message)
+  return next === model || !sameFields(model, next) ? next : model
+}
+
+/** Whether every field of `next` is the one `model` holds. */
+const sameFields = (model: RemoteModel, next: RemoteModel): boolean => {
+  const keys = Object.keys(next) as Array<keyof RemoteModel>
+  return (
+    keys.length === Object.keys(model).length && keys.every(key => Object.is(model[key], next[key]))
+  )
+}
+
+const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
   switch (message._tag) {
     case 'ReadReceived':
       return {
@@ -677,12 +719,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return {
         ...model,
         ...retained,
-        // A window grows a connection that is kept; a dropped one starts over.
-        grown: Object.fromEntries(
-          Object.entries(model.grown).filter(([key]) =>
-            Object.hasOwn(retained.connections, key.slice(0, key.lastIndexOf('\u0000'))),
-          ),
-        ),
+        grown: keptWindows(model.grown, retained.connections),
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, reached),
         loading: prunedLoading(model.loading, message.roots, reached),
@@ -724,9 +761,11 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         entities: RemotePersistence.mergeStores(model.entities, message.entities, message.merge),
         failures: withoutFieldFailures(model.failures, written),
         connections:
-          message.merge === 'replace'
-            ? { ...model.connections, ...Object.fromEntries(restored) }
-            : { ...Object.fromEntries(restored), ...model.connections },
+          restored.length === 0
+            ? model.connections
+            : message.merge === 'replace'
+              ? { ...model.connections, ...Object.fromEntries(restored) }
+              : { ...Object.fromEntries(restored), ...model.connections },
       }
     }
     case 'RefreshStarted': {
@@ -751,9 +790,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         model.failures,
         reachedMarks(model.entities, message.requests),
       )
-      return entities === model.entities && failures === model.failures
-        ? model
-        : { ...model, entities, failures }
+      return { ...model, entities, failures }
     }
     case 'QueryStarted': {
       const loading = new Set(model.loading)
@@ -780,9 +817,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         model.optimistic,
         model.mutations,
         message.requestId,
-        message.entities,
-        message.connections ?? [],
-        message.deleted ?? [],
+        message,
       )
       return {
         ...model,
@@ -838,7 +873,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
           {
             ...model,
             entities: applied.store,
-            live: { ...model.live, [message.stream]: applied.state },
+            live: withLiveState(model.live, message.stream, applied.state),
             failures: withoutFieldFailures(model.failures, settled),
           },
           message.stream,
@@ -850,7 +885,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         {
           ...model,
           optimistic: applied.optimistic,
-          live: { ...model.live, [message.stream]: applied.state },
+          live: withLiveState(model.live, message.stream, applied.state),
         },
         message.stream,
       )
@@ -892,12 +927,6 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       // with the mark.
       // A connection is often both: a failed refresh stays due, and `Hydrated`
       // restores one stale. Asking again must still settle its failure.
-      if (
-        model.connections[message.connection]?.stale === true &&
-        !(message.connection in model.failures.connections)
-      ) {
-        return model
-      }
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),

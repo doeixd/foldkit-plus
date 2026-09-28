@@ -21,7 +21,7 @@ pnpm add foldkit-richtext-markdown
 
 The Markdown *syntax*, and nothing else. The document stays `foldkit-richtext`'s, the
 editable subtree stays `foldkit-richtext-dom`'s, and no state lives here: `print` is a pure
-function of a `Document`.
+function of a `Document`, and a source session is a value the application keeps.
 
 ## Print a document
 
@@ -54,16 +54,20 @@ skipped, because its payload is opaque.
 | --- | --- |
 | `Paragraph`, `Heading` | the text, and `#`…`######` |
 | `Quote` | `>` on every line, a blank one included |
-| `List`, `ListItem`, `TaskItem` | `-` / `1.` and `- [x]`; a nested block stays aligned under its marker |
+| `List`, `ListItem`, `TaskItem` | `-` / `1.` and `- [x]`; a nested block stays aligned under its marker, and a list right after another of the same kind takes the other marker (`*`, `)`) so it reads back as its own list |
 | `CodeBlock` | a fence, its `language`, the text verbatim, and a fence longer than any backticks inside |
 | `ThematicBreak` | `---` |
 | `Image` | `![alt](src)` on its own line |
 | `Table`, `TableRow`, `TableCell` | a GFM pipe table, the first row as its header (`TableRow.header`) |
 | `Bold`, `Italic`, `Code`, `Strikethrough`, `Link` | `**`, `*`, backticks, `~~`, `[label](href)`, with the link outermost |
 
-Text is escaped so it cannot become markup: a backslash before an inline delimiter, and
-before a block marker — or a `1.` — that would open a paragraph's line. A leading space
-becomes `&#32;`.
+Text is escaped so it cannot become markup: a backslash before an inline delimiter (and before
+`!` and `|`, which could start an image or a table), and before a block marker — or a `1.` —
+that would open a paragraph's line. A leading space becomes `&#32;`. Where CommonMark would not
+let a delimiter open or close because punctuation sits on one side and a letter on the other
+(`x**(a)**y`), the letter is written as a character reference (`&#120;**(a)**&#121;`), which
+reads back as the same letter. An empty task item prints as `- [ ]`, which GFM alone would read
+as text; `parse` reads an item holding only `[ ]` or `[x]` back as that empty task.
 
 ## Parse Markdown
 
@@ -79,31 +83,108 @@ is decoded through the codec, so a bad construction fails loudly instead of reac
 editor.
 
 It reads CommonMark, plus GFM's task lists, strikethrough, and tables. It reports instead
-of guessing: raw HTML, a link definition, a footnote, a hard line break (which becomes its
+of guessing: raw HTML, a link definition (a reference to one keeps its text, unlinked), a
+footnote, a hard line break (which becomes its
 own paragraph, because a block holds no line break), and an image inside a paragraph
-(`Image` is a block, so a paragraph holding only one is hoisted to it).
+(`Image` is a block, so a paragraph holding only one is hoisted to it). Markdown is as
+untrusted as pasted HTML, so a link's or an image's URL passes the same `safeUrl` policy
+HTML import uses: a refused link keeps its text unlinked, a refused image is dropped, and
+each is reported as `UnsafeUrl`.
 
 `print(parse(markdown))` returns the same Markdown and `parse(print(document))` a document
 that prints the same, which is how the two directions are tested against each other.
 
-## Input rules
-
-`markdownInputRules` retypes a block when a heading marker is completed at its start — `# `
-through `###### ` — which is the set the command vocabulary can carry out. `foldkit-richtext-dom`
-places and applies them, so this package holds no editor state and the editor holds no
-Markdown:
+The same Markdown means the canonical spellings: `*` for emphasis, `-` for a bullet, backtick
+fences, `#` headings. Text written as `_hello_`, `* item`, or a heading underlined with `===` is kept that way by the `style` `parse` also
+returns — which spelling each construct took, first occurrence each, and never part of the
+document — handed back to `print`:
 
 ```ts
-import { placeInputRules } from 'foldkit-richtext-dom/host'
-
-placeInputRules('article-body', markdownInputRules)
+const parsed = parse('_hello_\n\n* item\n', { mint: () => `id-${++n}` })
+print(parsed.document, { style: parsed.style }).markdown // '_hello_\n\n* item\n'
 ```
 
-The markers that need a block *wrapped* in a container or *replaced* by an atom — `> `,
-`- `, `1. `, and a fence — are not rules yet, because the command vocabulary has no such
-command. Until it does, those markers stay text.
+Blocks also keep their own spelling. `style.blocks` maps the id `parse` gave each list, heading,
+fence, and rule to how that one was written, so a text with a `-` list and a `*` list, or a
+setext title over `##` sections, prints back as it was. A block the text did not have, such as
+a list added in the rich editor, takes its construct's spelling. Emphasis stays per construct,
+because runs split and merge as they are edited and their ids do not last.
+
+A spelling that would change what the text means somewhere — `_` does not open emphasis inside
+a word — is not used: `print` reads its styled text back, and when that reads as a different
+document than the canonical text, the canonical text is what it returns.
+
+## Input rules
+
+`markdownInputRules` reshapes a block when a marker is completed at its start: `# ` through
+`###### ` retype it as a heading (`RetypeBlock`), and `> `, `- `/`* `/`+ `, and an ordered
+marker such as `1. ` or `3) ` wrap it in a quote or a list (`WrapBlock`), an ordered list
+numbered from the number typed, and a marker typed right after a list of the same kind adds an
+item to it; and a fence with an optional language, such as
+`` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). An editor
+placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
+editor state and the editor holds no Markdown:
+
+```ts
+import { editorAt } from 'foldkit-richtext-dom/editor-bundle'
+import { markdownInputRules } from 'foldkit-richtext-markdown'
+
+const body = editorAt('article-body', { inputRules: markdownInputRules })
+```
+
+A fence is completed by a space, not by the line break Markdown reads it at, because Enter
+splits a block and a rule sees only what is typed. Converting gives the block's runs new
+identities. Under the standard vocabulary, whose `CodeBlock` forbids marks, a fence typed into
+a block that carries marks is refused, and the editor keeps the fence as the text it typed. A list marker typed right after a list starts a new list beside it
+rather than adding an item to that one.
+
+## Edit the Markdown itself
+
+A source session lets a person edit the document as Markdown and switch back. It is a value,
+not a store: the application keeps it in its Model while source mode is on, and the rich
+document stands still meanwhile, so only one representation is ever being edited.
+
+```ts
+import { closeSource, openSource } from 'foldkit-richtext-markdown'
+
+// Entering source mode: the draft starts as the printed document.
+const session = openSource(model.document)
+
+// Each keystroke in the source editor replaces the draft.
+const edited = { ...session, draft: '# Title\n\nNew text\n' }
+
+// Leaving it: a pure read, so it serves as a preview too.
+const closed = closeSource(edited, model.document, { mint: () => crypto.randomUUID() })
+```
+
+`openSource` prints the document and keeps what the printer could not show — a mark Markdown
+has no syntax for — as `unprintable`. `closeSource` compares the draft with what was printed:
+unedited, it returns the caller's own document untouched (`changed: false`), identities and
+unprintable marks included, so switching modes without typing loses nothing. Edited, it
+parses the draft into a new document and reports, in `diagnostics`, the unprintable content
+the edit loses followed by what parsing refused. Nothing is committed until the application
+puts `closed.document` in its Model, so it can warn first. `SourceSession` is a schema, so the
+session fits in a Model as it is.
+
+`closed.style` is how the edited draft spelled its constructs, over the style the session
+opened with; its `blocks` are the edited draft's alone, since the blocks it names are new. Keep
+it beside the document and pass it to the next `openSource(document, { style })`, and a writer who typed `_hello_` and `* item` sees them spelled that way when they
+come back to source mode, rather than in the canonical `*hello*` and `- item`.
+
+The caret comes along both ways. `openSource(document, { selection })` sets the session's
+`caret`, an offset in the draft, to where the selection's focus printed; a node selection, or
+none, starts it at 0. Replace `caret` as it moves in the source editor, and
+`closed.selection` is that place in the document `closeSource` returns: in the parsed draft
+when it was edited, and in the caller's own document when it was not. It is null when the
+draft holds no text, or when an unedited draft does not have as many text blocks as the
+caller's document. Keep the old selection then.
 
 ## Limits
+
+- **Smaller losses in a round trip.** A code block's trailing blank lines, a heading's leading
+  space, the words after a fence's language (```` ```ts title ````), and a line break inside a
+  setext heading do not survive; a list item that is only a rule reads back as a rule; a row
+  with fewer cells than the widest is padded. Each is reported by nothing yet.
 
 - **A table's header.** GFM's header is the first row, so that row is printed as the header
   whether or not the document marks one; a row marked as the header anywhere else is
@@ -112,6 +193,11 @@ command. Until it does, those markers stay text.
 - **Inline atoms.** The model has no inline image or break, so an `Image` is a block and
   prints as its own line — which a parser reads back as a paragraph holding an image.
 - **A link with no `href`** prints as its label, with an `UnsupportedMark` diagnostic.
+- **A mark on whitespace at a run's edge.** `**bold **` is not emphasis in CommonMark, so a
+  marked run's leading and trailing whitespace is printed outside its delimiters: the text
+  survives, and the space reads back unmarked.
+- **A bare URL in text.** GFM links `https://…`, `www.…`, and email addresses written as
+  plain text, and no escape stops it, so such text reads back as a link.
 - **A hard line break** has no shape inside a block, so it ends the paragraph and the rest
   starts a new one, with a diagnostic. Raw HTML, link definitions, and footnotes are
   reported and skipped: a document holds none of them.

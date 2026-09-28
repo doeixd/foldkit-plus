@@ -59,15 +59,21 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   `hreflang` alternates in the head and sitemap, words and formats by explicit
   locale.
 
-- [ ] **G1.** Name the handler that makes a page wait for the live runtime.
+- [x] **G1.** Name the handler that makes a page wait for the live runtime.
   This is the resumable design's rule 1. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G2.** Test rule 6 directly: the resumed page reaches the eager page's
+- [x] **G2.** Test rule 6 directly: the resumed page reaches the eager page's
   state. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G3.** Test Phase E the way the resumable design states it.
+- [x] **G3.** Test Phase E the way the resumable design states it.
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G4.** Measure the manifest before optimising it (`bench/manifest.ts`).
+- [x] **G4.** Measure the manifest before optimising it (`bench/manifest.ts`).
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
-- [ ] **G5.** Stop depending on when `hydrate` commits (`afterCommit`).
+- [x] **G5.** Stop depending on when `hydrate` commits (`afterCommit`).
+  [ssr-PLAN.md](./ssr-PLAN.md) Phase G
+- [x] **G6, time.** Decoding and listening at a thousand rows take 12 ms in
+  Chromium, from 22. [ssr-PLAN.md](./ssr-PLAN.md) Phase G
+- [x] **G6, size.** Closed with the numbers: a fifth of the gzipped page at a
+  thousand bare rows, about 2.9 bytes per binding; the design's
+  keyed-placement fix is the answer if a real page shows the cost.
   [ssr-PLAN.md](./ssr-PLAN.md) Phase G
 
 ## Rich text

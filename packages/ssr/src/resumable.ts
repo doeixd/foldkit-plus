@@ -328,6 +328,10 @@ export const builder = <Builder extends AnyBuilder>(
       const list = tokens.get(event) ?? []
       tokens.set(event, list)
       if (binding === undefined) {
+        // One entry per element and event, however many handlers it chains.
+        if (now.mode === 'collect' && !list.includes(UNNAMED_HANDLER)) {
+          now.unnamed.push({ element, event })
+        }
         list.push(UNNAMED_HANDLER)
       } else {
         list.push(String(now.bindings.length))

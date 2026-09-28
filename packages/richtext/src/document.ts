@@ -305,6 +305,15 @@ export const compareRunPlaces = (left: RunPlace, right: RunPlace): number => {
   return left.index - right.index
 }
 
+/** A position's place in document order: its run's place, then its offset in that run. */
+export interface PositionPlace extends RunPlace {
+  readonly offset: number
+}
+
+/** Document order over position places: the run first, then the offset within it. */
+export const comparePositionPlaces = (left: PositionPlace, right: PositionPlace): number =>
+  compareRunPlaces(left, right) || left.offset - right.offset
+
 /** The block a path addresses, or undefined when the path does not resolve. */
 export const blockAtPath = (document: Document, path: BlockPath): Block | undefined => {
   let blocks: ReadonlyArray<Block> = document.children
@@ -341,6 +350,21 @@ export const locateRun = (document: Document, node: NodeId): LocatedRun | undefi
 }
 
 /**
+ * Whether a reader would see nothing: no blocks, or a lone paragraph or heading whose runs
+ * hold no text. What an editor shows its placeholder for; a lone empty list or code block is
+ * content a writer made, so it is not blank.
+ */
+export const isBlank = (document: Document): boolean => {
+  const first = document.children[0]
+  if (first === undefined) return true
+  return (
+    document.children.length === 1 &&
+    (first.type === 'Paragraph' || first.type === 'Heading') &&
+    first.children.every(run => run.text.length === 0)
+  )
+}
+
+/**
  * The text of the block a position addresses, up to that position, in run order.
  * A menu reads this: what a query is typed into is the block's text between its
  * start and the caret, and a query never spans blocks. Affinity is not consulted — a
@@ -361,11 +385,32 @@ export const textBefore = (document: Document, position: Position): string => {
 }
 
 /**
- * The position a block's text offset addresses, or `undefined` when it is past the end. The
- * inverse of `textBefore` for one block: a rule, a search match, or any producer working in
- * a block's own text needs it to say where what it found is.
+ * Whichever end of a range comes first in the document, whatever direction it was made in,
+ * or `undefined` when either end does not resolve. What replaces a range starts here, so a
+ * read of the text before an edit reads from this end rather than the anchor.
+ */
+export const rangeStart = (
+  document: Document,
+  range: Extract<Selection, { readonly type: 'Range' }>,
+): Position | undefined => {
+  const anchor = locateRun(document, range.anchor.node)
+  const focus = locateRun(document, range.focus.node)
+  if (anchor === undefined || focus === undefined) return undefined
+  return comparePositionPlaces(
+    { ...anchor, offset: range.anchor.offset },
+    { ...focus, offset: range.focus.offset },
+  ) <= 0
+    ? range.anchor
+    : range.focus
+}
+
+/**
+ * The position a block's text offset addresses, or `undefined` when it is negative or past
+ * the end. The inverse of `textBefore` for one block: a rule, a search match, or any producer
+ * working in a block's own text needs it to say where what it found is.
  */
 export const positionInBlock = (block: Block, offset: number): Position | undefined => {
+  if (offset < 0) return undefined
   let consumed = 0
   for (const run of block.children) {
     const next = consumed + run.text.length
@@ -402,7 +447,8 @@ export const textRangeBefore = (
   const lead = block.children
     .slice(0, found.index)
     .reduce((total, run) => total + run.text.length, 0)
-  const end = lead + Math.max(0, position.offset)
+  // Clamped to the run as `textBefore` clamps, so an overlong offset never reads into the next run.
+  const end = lead + Math.min(found.run.text.length, Math.max(0, position.offset))
   const start = end - length
   if (start < 0) return undefined
   const anchor = positionInBlock(block, start)
@@ -540,4 +586,24 @@ export const inspect = (document: Document) => {
     depth = Math.max(depth, path.length + (block.children.length > 0 ? 1 : 0))
   })
   return { nodeCount, textLength, depth }
+}
+
+const words = new Intl.Segmenter(undefined, { granularity: 'word' })
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+/**
+ * What a reader would count: words and user-perceived characters, as `Intl.Segmenter` splits
+ * them in the default locale, so a word in a script without spaces still counts. Runs are
+ * joined within a block, so a word that changes mark midway is one word, and blocks never
+ * join, so the last word of one block and the first of the next are two.
+ */
+export const count = (document: Document): { words: number; characters: number } => {
+  let wordCount = 0
+  let characterCount = 0
+  eachBlock(document.children, block => {
+    const text = block.children.map(run => run.text).join('')
+    for (const segment of words.segment(text)) if (segment.isWordLike) wordCount += 1
+    for (const _ of graphemes.segment(text)) characterCount += 1
+  })
+  return { words: wordCount, characters: characterCount }
 }

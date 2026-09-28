@@ -10,6 +10,12 @@ export interface ElementRendering {
   readonly tag: string
   /** Values are escaped when written; a name that would end the markup is refused. */
   readonly attributes: Readonly<Record<string, string>>
+  /**
+   * An element the nested blocks go inside, where HTML's parser would insert one anyway: a
+   * `table`'s rows go in a `tbody`. Without it, markup sent from a server parses to a tree
+   * the renderer did not write, and Foldkit refuses to serialize it.
+   */
+  readonly inner?: string | undefined
 }
 
 /**

@@ -309,9 +309,9 @@ describe('the read-only renderer with a rendering registry', () => {
         { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'a', text: 'x', marks: [] }] },
       ],
     })
-    // `my-widget` is not a tag Foldkit can build, and `Attribute` names an
-    // attribute builder rather than an element — neither may become an element.
-    for (const tag of ['my-widget', 'Attribute']) {
+    // `Attribute` names an attribute builder rather than an element, and `constructor` is
+    // what every object inherits: neither may become an element.
+    for (const tag of ['Attribute', 'constructor']) {
       const renderer = RichText.rendering({ marks: { Bold: { tag, attributes: {} } } })
       const marked = RichText.decodeDocument({
         version: 1,
@@ -326,6 +326,39 @@ describe('the read-only renderer with a rendering registry', () => {
       expect(() => renderDocument(marked, renderer)).toThrow(/no element for/)
     }
     expect(tags(renderDocument(paragraph) as unknown as VNode)).toEqual(['div', 'p'])
+  })
+
+  it('writes a NUL as the U+FFFD a parser would make of it, since markup cannot carry one', () => {
+    const nul = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: `a${String.fromCharCode(0)}b`, marks: [] }],
+        },
+      ],
+    })
+    expect(text(renderDocument(nul) as unknown as VNode)).toBe(`a${String.fromCharCode(0xfffd)}b`)
+  })
+
+  it('draws a custom element, as the editable adapter does, so a server can send it', () => {
+    const widget = RichText.rendering({ marks: { Bold: { tag: 'my-widget', attributes: {} } } })
+    const marked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'x', marks: ['Bold'] }],
+        },
+      ],
+    })
+    expect(tags(renderDocument(marked, widget) as unknown as VNode)).toEqual([
+      'div',
+      'p',
+      'my-widget',
+    ])
   })
 })
 
@@ -361,18 +394,32 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(text(span ?? null)).toBe('plain')
   })
 
-  it('cuts the run at the decoration’s edges, keeping the run’s marks on every piece', () => {
+  it('keeps a run’s marks on the pieces a decoration does not cover', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'b', text: 'bold', marks: ['Bold'] }],
+        },
+      ],
+    })
+    const rendered = renderDocument(content, RichText.noRendering, [
+      decoration(['b', 1], ['b', 3]),
+    ]) as unknown as VNode
+    // Three pieces, `b` `ol` `d`, and every one is still bold.
+    expect(tags(rendered).filter(tag => tag === 'strong')).toHaveLength(3)
+    expect(text(rendered)).toBe('bold')
+  })
+
+  it('cuts the run at the decoration’s edges and leaves the rest bare', () => {
     const rendered = renderDocument(document(), RichText.noRendering, [
       decoration(['b', 1], ['b', 3]),
     ]) as unknown as VNode
-    // Run `b` is `bold`: `b` before, `ol` covered, `d` after — every piece still bold,
-    // because a decoration cuts where it covers without changing what the text is.
+    // Run `b` is `bold`: `b` before, `ol` covered, `d` after.
     expect(text(rendered)).toContain('bold')
     expect(text(decorated(rendered) ?? null)).toBe('ol')
-    const paragraph = (rendered.children ?? []).find(
-      child => typeof child !== 'string' && child !== null && child.sel === 'p',
-    )
-    expect(tags(paragraph ?? null)).toEqual(['p', 'strong', 'span', 'strong', 'strong'])
   })
 
   it('keeps the run’s marks inside the decoration, so a stylesheet sees both', () => {
@@ -408,25 +455,27 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(text(decorated(rendered) ?? null)).toBe('me')
   })
 
-  it('draws code tokens the core produced, under their own kinds', () => {
+  it('draws a code block’s tokens, found by a tokenizer for its language', () => {
     const content = RichText.decodeDocument({
       version: 1,
       children: [
         {
           type: 'Node',
           kind: 'CodeBlock',
-          id: 'code',
-          props: { language: 'plain' },
-          children: [{ type: 'Text', id: 't', text: 'let x', marks: [] }],
+          id: 'c',
+          props: { language: 'json' },
+          children: [{ type: 'Text', id: 'a', text: '[42]', marks: [] }],
         },
       ],
     })
-    const tokens = RichText.codeDecorations(content, [
-      { language: 'plain', tokenize: () => [{ from: 0, to: 3, kind: 'keyword' }] },
-    ])
-    const rendered = renderDocument(content, RichText.noRendering, tokens) as unknown as VNode
-    expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('syntax-keyword')
-    expect(text(decorated(rendered) ?? null)).toBe('let')
+    const numbers: RichText.CodeTokenizer = () => [{ from: 1, to: 3, kind: 'syntax-number' }]
+    const rendered = renderDocument(
+      content,
+      RichText.standardRendering,
+      RichText.codeDecorations(content, new Map([['json', numbers]])),
+    ) as unknown as VNode
+    expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('syntax-number')
+    expect(text(decorated(rendered) ?? null)).toBe('42')
   })
 })
 

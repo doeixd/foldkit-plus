@@ -149,6 +149,15 @@ describe('A row the body can judge', () => {
   })
 })
 
+describe('A list read before an insert', () => {
+  it('shows the row once it lands, though the store did not change', () => {
+    // No entity write rides on the insert, so only the overlay says it is there.
+    const before = loaded([{ id: 'p2', status: 'active' }])
+    expect(shown(before)).toEqual(['p1'])
+    expect(shown(insert(before, 'p2'))).toEqual(['p2', 'p1'])
+  })
+})
+
 describe('A row the body could judge, but only from a stale value', () => {
   it('is not suppressed, because a live event is what the stale value contradicts', () => {
     // `p2` is archived as far as the store knows, and the store has marked that

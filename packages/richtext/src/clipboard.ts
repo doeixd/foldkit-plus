@@ -5,6 +5,7 @@ import {
   NodeId,
   blockAtPath,
   compareRunPlaces,
+  comparePositionPlaces,
   eachBlock,
   locateBlock,
   locateRun,
@@ -138,7 +139,7 @@ export const sliceOf = (document: Document, selection: Selection | null): Slice 
   const anchorPlace = { ...anchor, offset: selection.anchor.offset }
   const focusPlace = { ...focus, offset: selection.focus.offset }
   const span: CoveredSpan =
-    compareRunPlaces(anchor, focus) <= 0
+    comparePositionPlaces(anchorPlace, focusPlace) <= 0
       ? { start: anchorPlace, end: focusPlace }
       : { start: focusPlace, end: anchorPlace }
   // A span inside one block copies that block, as it does at the top level; a

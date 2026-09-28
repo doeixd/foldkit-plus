@@ -8,7 +8,14 @@
 import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from 'foldkit-cms-drizzle'
+import {
+  CmsServer,
+  Transaction,
+  published,
+  sqliteSchema,
+  sqliteTables,
+  type ServedContent,
+} from 'foldkit-cms-drizzle'
 import {
   DrizzleDatabase,
   bind,
@@ -33,7 +40,7 @@ export interface Sqlite {
 
 /** Who is asking. A visitor is nobody. */
 export type Principal = { readonly name: string; readonly role: 'author' | 'editor' } | null
-const isAuthor = (principal: Principal): boolean => principal !== null
+export const isAuthor = (principal: Principal): boolean => principal !== null
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -67,13 +74,27 @@ const Db = bind(
   },
 )
 
-const write = (run: (database: DrizzleWrites) => PromiseLike<unknown>) =>
+export const write = (run: (database: DrizzleWrites) => PromiseLike<unknown>) =>
   Effect.gen(function* () {
     const database = yield* drizzleWrites
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
-export const openServer = (clock: () => Date, sqlite: Sqlite) => {
+/**
+ * More content for the same server: its tables' SQL and how it is served. The article story
+ * keeps its content type in its own module and hands it over here, so nothing exported has to
+ * spell out its form's type.
+ */
+export interface MoreContent {
+  readonly schema: string
+  readonly content: ReadonlyArray<ServedContent<Principal>>
+}
+
+export const openServer = (
+  clock: () => Date,
+  sqlite: Sqlite,
+  more: MoreContent = { schema: '', content: [] },
+) => {
   if (sqlite.fresh)
     sqlite.exec(`
       ${sqliteSchema}
@@ -85,6 +106,7 @@ export const openServer = (clock: () => Date, sqlite: Sqlite) => {
         id text primary key, title text not null, slug text not null unique,
         document text not null, published_at text
       );
+      ${more.schema}
     `)
   // Ids go on from the highest held, so a database kept from an earlier visit mints none twice.
   const highest = (table: string, prefix: string) =>
@@ -156,6 +178,7 @@ export const openServer = (clock: () => Date, sqlite: Sqlite) => {
           ),
         ),
       },
+      ...more.content,
     ],
     // One connection, so begin and commit as statements. Postgres: Transaction.drizzle.
     transaction: Transaction.statements,

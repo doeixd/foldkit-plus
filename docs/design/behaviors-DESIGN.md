@@ -1,5 +1,8 @@
 # A catalog of ready-made Behaviors
 
+> **Implementation status, checked 2026-09-27:** Phases A to I are built, not only A to D as the progress line below says. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Progress (2026-09-23):** Phases A to D are built and committed: the per-item
 context and `Behaviors.Collection` in `foldkit-mixins`; `RovingTabindex`,
 `Typeahead`, `ListNavigation`, `FocusScope`, `Press`, `LongPress`, `Move`,

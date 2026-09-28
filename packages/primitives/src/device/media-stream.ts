@@ -12,6 +12,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as ManagedResource from 'foldkit/managedResource'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 export const MediaStreamModel = Schema.Struct({
   status: Schema.Literals(['idle', 'requesting', 'live', 'denied']),
@@ -94,13 +95,19 @@ export const mediaStream = <const Name extends string>(config: {
       MediaStreamMessage.match<
         Update.ReturnWithOutMessage<MediaStreamModel, MediaStreamMessage, never>
       >(message, {
-        Started: () => ({ model: { ...model, status: 'requesting' as const } }),
-        Stopped: () => ({ model: { ...model, status: 'idle' as const } }),
-        Live: () => ({ model: { ...model, status: 'live' as const, lastError: null } }),
-        Ended: () => ({ model: { ...model, status: 'idle' as const } }),
-        Denied: () => ({ model: { ...model, status: 'denied' as const } }),
+        // Starting a live stream would wait at `requesting` for an acquire
+        // that never comes: the requirements are the same.
+        Started: () =>
+          model.status === 'requesting' || model.status === 'live'
+            ? { model }
+            : { model: { ...model, status: 'requesting' as const } },
+        Stopped: () => ({ model: unlessSame(model, { ...model, status: 'idle' }) }),
+        Live: () => ({ model: unlessSame(model, { ...model, status: 'live', lastError: null }) }),
+        // Stopping releases the stream, whose release reports it ended.
+        Ended: () => ({ model: unlessSame(model, { ...model, status: 'idle' }) }),
+        Denied: () => ({ model: unlessSame(model, { ...model, status: 'denied' }) }),
         Failed: ({ message }) => ({
-          model: { ...model, status: 'idle' as const, lastError: message },
+          model: unlessSame(model, { ...model, status: 'idle', lastError: message }),
         }),
       }),
     resources: args =>

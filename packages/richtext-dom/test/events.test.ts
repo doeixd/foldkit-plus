@@ -354,7 +354,6 @@ describe('the wired editing loop', () => {
 
   it('repairs the subtree when a composition is cancelled', () => {
     const { attachment, intents } = setup()
-    const root = attachment.current().root
     attachment.current().root.dispatchEvent(composition('compositionstart'))
     // A cancelled IME (Escape, a lost focus) leaves text the document never had.
     attachment.current().elements.get(id('a'))!.append(document.createTextNode('にほ'))
@@ -616,17 +615,6 @@ describe('reporting a caret move', () => {
     // The browser reports a programmatic restore too, and it is not news.
     moveCaret(dom, 'a', 1)
     expect(moves).toEqual([])
-    close(attachment)
-  })
-
-  it('draws the decorations a sync brings, and drops them again', () => {
-    const { dom, attachment } = setup()
-    const run = () => attachment.current().elements.get(RichText.NodeId.make('a')) as HTMLElement
-    const state = { document: dom.content, selection: null }
-    attachment.sync(state, noChange, [{ from: at('a', 0), to: at('a', 2), kind: 'search' }])
-    expect(run().querySelector('[data-decoration]')?.getAttribute('data-decoration')).toBe('search')
-    attachment.sync(state, noChange, [])
-    expect(run().querySelector('[data-decoration]')).toBeNull()
     close(attachment)
   })
 

@@ -8,7 +8,6 @@
  * contributions resolve at the element the view creates (§120). The two share
  * `markActive` instead.
  */
-import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { markActive, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
@@ -67,13 +66,38 @@ export const markToolbar = <Message>(): SlotView.SlotView<
     ])
   })
 
+/** The block style picker's view and its slots (§134). */
+export { BlockStyleSlots, blockStyles, type BlockStyleInput } from './style.js'
+
+/** The block handle's view and its slots (§144). */
+export { BlockHandleSlots, blockHandle, type BlockHandleInput } from './handle.js'
+
+/** The command palette's view and its slots (§142). */
+export { CommandPaletteSlots, commandPalette, type CommandPaletteInput } from './palette.js'
+
+/** The status line's view and its slots (§141). */
+export { EditorStatusSlots, editorStatus, type EditorStatusInput } from './status.js'
+
+/** The Markdown source editor's view and its slots (§137). */
+export {
+  SourceEditorSlots,
+  SourcePreviewSlots,
+  sourceEditor,
+  sourcePreview,
+  type SourceEditorInput,
+  type SourcePreviewInput,
+} from './source.js'
+
+/** The link editor's view and its slots (§132). */
+export { LinkEditorSlots, linkEditor, type LinkEditorInput } from './link.js'
+
+/** The menu's view and its slots (§123), beside the vocabulary it renders. */
+export { SlashMenuSlots, slashMenuView, type SlashMenuInput } from './menu.js'
+
 /**
  * The slash menu's vocabulary (§123) travels with the chrome it belongs to, so an
  * application importing the family gets the entries and the query rule too.
  */
-/** The menu's view and its slots (§123), beside the vocabulary it renders. */
-export { SlashMenuSlots, slashMenuView, type SlashMenuInput } from './menu.js'
-
 export {
   matchingEntries,
   slashEntries,

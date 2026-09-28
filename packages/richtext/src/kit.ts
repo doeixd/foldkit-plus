@@ -1,5 +1,6 @@
-import { Schema } from 'effect'
+import type { Schema } from 'effect'
 import {
+  blockAtPath,
   blockContent,
   eachBlock,
   textContent,
@@ -9,9 +10,8 @@ import {
   type NodeBlock,
   type NodeId,
   type PropsSchema,
-  type RunMark,
 } from './document.js'
-import { markName, markProps, type MarkDef } from './marks.js'
+import { markName, markProps, propsFailure, type MarkDef } from './marks.js'
 
 /** Whether a kind's runs may carry formatting marks; `all` unless declared otherwise. */
 export type MarksPolicy = 'all' | 'none'
@@ -56,6 +56,18 @@ export type NodeDefinition =
       readonly marks: MarksPolicy
       /** Validates a `Node` block's `props` at this boundary, not in the codec. */
       readonly props?: PropsSchema | undefined
+      /**
+       * A boundary a lift never crosses: a table cell's content stays in the cell, where a
+       * quote's or a list item's would be lifted out.
+       */
+      readonly isolating?: boolean | undefined
+      /** Props a copy split off this node starts with, over the original's (§135). */
+      readonly splitProps?: NodeBlock['props'] | undefined
+      /**
+       * The kinds this one may stand in (§149); absent, any that holds it. A kind that names
+       * them never stands at the top level, as a `ListItem` stands only in a `List`.
+       */
+      readonly within?: ReadonlyArray<string> | undefined
     }
 
 /**
@@ -73,6 +85,9 @@ export interface NodeDefinitionOf<
   readonly children: Children
   readonly marks: MarksPolicy
   readonly props: Props
+  readonly isolating: boolean
+  readonly splitProps: NodeBlock['props'] | undefined
+  readonly within: ReadonlyArray<string> | undefined
 }
 
 /** Declares a block node kind: a top-level node containing text runs. */
@@ -109,6 +124,17 @@ export const node = <
     readonly Props?: Props
     readonly children?: Children
     readonly marks?: MarksPolicy
+    /** A boundary a lift never crosses, as a table cell is. */
+    readonly isolating?: boolean
+    /**
+     * Props a copy split off this node starts with, laid over the original's: Enter in a
+     * checked task item starts an unchecked one.
+     */
+    readonly splitProps?: Props extends PropsSchema
+      ? Partial<Schema.Schema.Type<Props>>
+      : NodeBlock['props']
+    /** The kinds this one may stand in; it then never stands at the top level (§149). */
+    readonly within?: ReadonlyArray<string>
   } = {},
 ): NodeDefinitionOf<Name, Props, Children> => ({
   name,
@@ -116,6 +142,9 @@ export const node = <
   children: (options.children ?? textContent) as Children,
   marks: options.marks ?? 'all',
   props: options.Props as Props,
+  isolating: options.isolating ?? false,
+  splitProps: options.splitProps,
+  within: options.within,
 })
 
 /**
@@ -142,6 +171,7 @@ export interface Diagnostic {
     | 'InvalidProps'
     | 'MismatchedDefinition'
     | 'UnexpectedChild'
+    | 'MisplacedNode'
     | 'ForbiddenMark'
   readonly message: string
   readonly node?: NodeId
@@ -222,21 +252,16 @@ const childKindDiagnostics = (
 }
 
 /**
- * Whether a node's props decode against its declared schema, and why not. The
- * diagnostic is deliberately stable: a schema's own message can name internals
- * an API boundary should not leak, so only the verdict travels.
+ * Whether a kind may stand in a parent of `parentKind`, or at the top level when that is
+ * undefined: anywhere, unless its declaration names where (§149).
  */
-const propsFailure = (props: PropsSchema | undefined, node: NodeBlock): boolean => {
-  if (props === undefined) return false
-  try {
-    // Strict, like the persisted-content boundary: a field the schema does not
-    // declare is a failure, not something silently kept beside the props.
-    Schema.decodeUnknownSync(props, { onExcessProperty: 'error' })(node.props)
-    return false
-  } catch {
-    return true
-  }
-}
+export const standsWithin = (
+  declared: NodeDefinition | undefined,
+  parentKind: string | undefined,
+): boolean =>
+  declared?.kind !== 'node' ||
+  declared.within === undefined ||
+  (parentKind !== undefined && declared.within.includes(parentKind))
 
 /** Structural summary of a Kit, for tooling and tests. */
 export const inspectKit = (definition: Kit) => ({
@@ -264,21 +289,6 @@ export const nodeRegistry = (definitions: ReadonlyArray<NodeDefinition>): NodeRe
 }
 
 /**
- * Whether a mark's props decode against its declared schema, and why not. The
- * same stability rule as node props: only the verdict travels, not a schema's
- * message. A mark that declares props must carry them.
- */
-const markPropsFailure = (definition: MarkDef, mark: RunMark): boolean => {
-  if (definition.Props === undefined) return false
-  try {
-    Schema.decodeUnknownSync(definition.Props, { onExcessProperty: 'error' })(markProps(mark))
-    return false
-  } catch {
-    return true
-  }
-}
-
-/**
  * Checks a document against a Kit's vocabulary without changing it, walking
  * nested blocks so a container's children are checked too. Reports preserved
  * unknown blocks, known blocks the Kit does not declare, declarations that
@@ -291,7 +301,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
   const byName = new Map(definition.nodes.map(node => [node.name, node]))
   const declaredMarks = new Map(definition.marks.map(mark => [mark.name, mark]))
   const diagnostics: Array<Diagnostic> = []
-  eachBlock(document.children, block => {
+  eachBlock(document.children, (block, path) => {
     if (block.type === 'Unknown') {
       diagnostics.push({
         code: 'UnknownNode',
@@ -323,7 +333,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
         if (
           block.type === 'Node' &&
           declared.kind !== 'block' &&
-          propsFailure(declared.props, block)
+          propsFailure(declared.props, block.props)
         ) {
           diagnostics.push({
             code: 'InvalidProps',
@@ -333,6 +343,16 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
           })
         }
         diagnostics.push(...childKindDiagnostics(declared, block))
+        const parent = path.length > 1 ? blockAtPath(document, path.slice(0, -1)) : undefined
+        const parentKind = parent === undefined ? undefined : blockKind(parent)
+        if (!standsWithin(declared, parentKind)) {
+          diagnostics.push({
+            code: 'MisplacedNode',
+            node: block.id,
+            detail: kind,
+            message: `"${kind}" cannot stand ${parentKind === undefined ? 'at the top level' : `in "${parentKind}"`}`,
+          })
+        }
       }
     }
     // A kind declared mark-free has no formatting to carry, so any mark it does is
@@ -357,7 +377,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
             detail: name,
             message: `The Kit does not declare mark "${name}"`,
           })
-        } else if (markPropsFailure(declaredMark, mark)) {
+        } else if (propsFailure(declaredMark.Props, markProps(mark))) {
           diagnostics.push({
             code: 'InvalidProps',
             node: run.id,

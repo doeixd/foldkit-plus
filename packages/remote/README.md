@@ -748,10 +748,12 @@ What Remote should do when the Model already contains the selected fields is a
 
 A refreshing policy emits `RefreshStarted` before the read, so the Projection
 becomes `Refreshing` without discarding the old value. Planning accepts `now`
-(default `Date.now`) as an input, so tests can control time.
+(default `Date.now`) as an input, so tests can control time. A mutation's answer
+is dated the same way, by `Data.mutate`'s `now` option.
 
-**Time reaches Remote only as a Message.** The plan is a function of the Model
-and `now`, and it runs when the Model changes; a page that sits still past its
+**Time reaches Remote only as a Message.** The plan is a function of the Remote
+model, what is asked, and `now`, and it runs again only when one of those
+changes; a page that sits still past its
 `maxAge` would otherwise never be looked at again. So a read entry under
 `staleWhileRevalidate` knows when the earliest value it holds ages out, sleeps
 until then under the Effect clock, and emits `RefreshStarted` for what is due.
@@ -1575,8 +1577,16 @@ requirements for the concrete target.
 options.
 
 `Remote.storeOf` is the visible store after pending optimistic layers. Reads are
-memoized per visible store (and connection where applicable), so equal reads of
-one Model state assemble/decode once and return one value.
+memoized per visible store (and, for a list, its connection and overlays), so
+equal reads of one Model state assemble/decode once and return one value.
+
+Across Model states, an entity's or row's decoded value stays the same object
+while its entity's fields are equal: a refetch or live patch that brought equal
+data hands the view the value it already rendered, so a keyed row's lazy view
+does not re-run. A write to any field of the entity, even one the row does not
+select, or a pending optimistic patch on it while other writes land, gives the
+row a new value. When the store changed, the `RemoteData` around a value and a
+page's `items` array are new.
 
 `Remote.prefetch(bound, model, projection, options?)` runs the same plans
 imperatively and reduces their results into a new Model.
@@ -1585,7 +1595,10 @@ imperatively and reduces their results into a new Model.
 
 `updateRemote(remote, message)` is the pure reducer over Remote facts;
 `Data.update` applies it to a bound Remote state and `Data.reduce` applies it to
-the application Model.
+the application Model. The common Messages that change nothing (a duplicate live
+event, a repeated `ReadStarted`, an empty `Hydrated`, a retention pass that
+collects nothing) return the Model they were given, so Foldkit neither renders
+nor recomputes Subscription dependencies.
 
 Its Messages cover reads and refreshes, mutations, live events/gaps, query
 connections, retention, and hydration. `Remote.messages` is the case record for
@@ -1615,11 +1628,15 @@ generation (`{ requirements, queries, refresh }`), so `Data.refresh` restarts
 it. If entity requirements and queries are both empty, it performs no I/O. A
 refreshing read emits `RefreshStarted` first, then a result Message.
 
-Every emitted Message changes the Model, so Foldkit recomputes Subscription
+A Message that changes the Model makes Foldkit recompute Subscription
 dependencies. For example, after a query page lands, the next computation sees
 the page's entity ids and plans any selected fields those entities still lack.
 An interrupted identical read is joined by the client coalescer instead of
 needlessly restarted.
+
+The live entry's dependencies are what the Surface reads live, the refresh
+floor, and the stream's cursor. The stream stays open as events advance the
+cursor; the cursor is only where a stream restarted for another reason resumes.
 
 Retention uses the Projection requirements/connections as roots and eventually
 emits `RetentionChanged`; the reducer's pure `gc` keeps everything reachable
@@ -1653,7 +1670,7 @@ them.
 
 ### Mutations by hand
 
-`Remote.mutateInto(bound, model, mutation, input, requestId, { optimistic })` is
+`Remote.mutateInto(bound, model, mutation, input, requestId, { optimistic, now })` is
 the one-step imperative start/run/settle form for SSR and tests.
 
 `Remote.mutate(mutation, input, requestId)` is the transport call itself. It
@@ -1661,7 +1678,10 @@ decodes the typed `Output` and returns normalized entity patches and confirmed
 connection changes for a caller to reduce through `updateRemote`.
 
 `MutationSucceeded` reconciles at most once per `requestId`; an unknown or
-already-applied settlement is a no-op.
+already-applied settlement is a no-op. It carries `now`, the clock reading of
+the answer, which dates the entities it writes as a read's `now` does, so a
+freshness policy ages them from then. `Data.mutate` and `Remote.mutateInto`
+stamp it from their `now` option, `Date.now` by default.
 
 ### The transport seam
 

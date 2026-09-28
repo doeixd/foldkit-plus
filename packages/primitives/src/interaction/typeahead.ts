@@ -11,6 +11,7 @@ import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability } from 'foldkit-mixins'
 import { idSelector } from './roving-tabindex.js'
+import { clearQuery } from '../internal.js'
 
 export const Model = Schema.Struct({
   query: Schema.String,
@@ -60,8 +61,8 @@ export const bundle = Bundle.make('Typeahead', {
         }
       },
       Expired: ({ generation }) =>
-        generation === model.generation ? { model: { ...model, query: '' } } : { model },
-      Cleared: () => ({ model: { ...model, query: '' } }),
+        generation === model.generation ? clearQuery(model) : { model },
+      Cleared: () => clearQuery(model),
     }),
 })
 
@@ -141,11 +142,12 @@ export const behavior =
             const query = input[declared.field].query
             const currentId = options.current(input)
             const current = currentId === null ? -1 : items.indexOf(currentId)
-            const texts = items.ids.map((_, index) => options.text(input, index))
             return [
               h.OnKeyDownFocus((key, modifiers) => {
                 if (!isPrintable(key, modifiers)) return Option.none()
                 if (key === ' ' && query === '') return Option.none()
+                // Read on a key, not on every render.
+                const texts = items.ids.map((_, index) => options.text(input, index))
                 const found = match(texts, items.enabled, query + key, current)
                 const target = found === undefined ? currentId : items.ids[found]
                 return Option.some({

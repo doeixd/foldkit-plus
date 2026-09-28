@@ -77,7 +77,10 @@ const redo = <Value>(model: HistoryModel<Value>): HistoryModel<Value> => {
   }
 }
 
-const clear = <Value>(model: HistoryModel<Value>): HistoryModel<Value> => start(model.present)
+const clear = <Value>(model: HistoryModel<Value>): HistoryModel<Value> =>
+  model.past.length === 0 && model.future.length === 0 && model.group === null
+    ? model
+    : start(model.present)
 
 const close = <Value>(model: HistoryModel<Value>): HistoryModel<Value> =>
   model.group === null ? model : { ...model, group: null }

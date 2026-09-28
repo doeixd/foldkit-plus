@@ -12,6 +12,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
+import { perInput, sameIds } from '../internal.js'
 
 export const Mode = Schema.Literals(['single', 'multiple', 'none'])
 export type Mode = typeof Mode.Type
@@ -83,13 +84,22 @@ export const bundle = Bundle.make('Selection', {
       Ranged: ({ id, order }) => {
         if (args.mode !== 'multiple') return { model }
         const range = between(order, model.anchor, id)
-        const kept = model.selected.filter(other => !range.includes(other))
-        return { model: { selected: [...kept, ...range], anchor: model.anchor ?? id } }
+        const inRange = new Set(range)
+        const selected = [...model.selected.filter(other => !inRange.has(other)), ...range]
+        const anchor = model.anchor ?? id
+        // Shift-clicking the same item twice ranges over what is selected already.
+        return sameIds(selected, model.selected) && anchor === model.anchor
+          ? { model }
+          : { model: { selected, anchor } }
       },
-      Replaced: ({ ids }) => ({
-        model: { selected: args.mode === 'none' ? [] : [...new Set(ids)], anchor: model.anchor },
-      }),
-      Cleared: () => ({ model: { selected: [], anchor: model.anchor } }),
+      Replaced: ({ ids }) => {
+        const selected = args.mode === 'none' ? [] : [...new Set(ids)]
+        return sameIds(selected, model.selected)
+          ? { model }
+          : { model: { selected, anchor: model.anchor } }
+      },
+      Cleared: () =>
+        model.selected.length === 0 ? { model } : { model: { selected: [], anchor: model.anchor } },
     }),
 })
 
@@ -117,6 +127,8 @@ export const behavior =
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
     const wrap = (message: Message): ParentMessage =>
       declared.wrapper.make(message) as unknown as ParentMessage
+    const itemsOf = perInput(options.items)
+    const selectedOf = perInput((input: Input) => new Set(input[declared.field].selected))
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         ...(options.container === undefined
@@ -141,13 +153,13 @@ export const behavior =
             readonly item?: SlotItem
           }) => {
             if (item === undefined) return []
-            const items = options.items(input)
+            const items = itemsOf(input)
             const id = item.id ?? items.ids[item.index]
             if (id === undefined) return []
             const clickable =
               options.click !== false && args.mode !== 'none' && !items.isDisabled(item.index)
             return [
-              h.AriaSelected(input[declared.field].selected.includes(id)),
+              h.AriaSelected(selectedOf(input).has(id)),
               ...(clickable ? [h.OnClick(wrap(Message.Activated({ id })))] : []),
             ]
           },

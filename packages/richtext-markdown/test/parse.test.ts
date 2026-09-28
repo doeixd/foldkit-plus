@@ -53,6 +53,18 @@ describe('parsing Markdown into a document', () => {
     ])
   })
 
+  it('refuses a link or an image whose URL the import policy refuses, and says so', () => {
+    const link = parsed('[f](javascript:alert(1)) [g](JAVA&#9;SCRIPT:x)\n')
+    expect(runs(link.document.children[0]).map(run => [run.text, run.marks])).toEqual([['f g', []]])
+    expect(link.diagnostics).toEqual([
+      { code: 'UnsafeUrl', detail: 'link' },
+      { code: 'UnsafeUrl', detail: 'link' },
+    ])
+    const image = parsed('![a](javascript:alert(1))\n')
+    expect(image.document.children).toEqual([])
+    expect(image.diagnostics).toEqual([{ code: 'UnsafeUrl', detail: 'image' }])
+  })
+
   it('reads a quote, a list, and a task list', () => {
     const quote = at('> one\n>\n> two\n')
     expect(quote.kind).toBe('Quote')

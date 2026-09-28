@@ -177,6 +177,8 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value
 // ages out and emits RefreshStarted for it: time reaches Remote only as a Message, and a
 // Projection never reads the clock. The deadline is a dependency (`expires`), so a write moves it.
+// A mutation's answer dates what it writes too: `MutationSucceeded.now`, from `Data.mutate`'s
+// `now` option (default Date.now).
 
 // In update (Message cases ClickedRename {id,name}, ClickedMore {}, ClickedRefresh {}):
 case 'ClickedRename': {
@@ -578,8 +580,11 @@ is for fields; `visible` is for rows.
   `Initial` as a spinner. Check `Data.plan` and your `Surface.at` wiring.
 - Give `update` an explicit `Update.Return<...>` / `{ model: Model }` return type;
   otherwise `App` and `Data` are mutually inferred and TypeScript errors.
-- `Data.refresh` returns the **same Model** when nothing is refreshable or it is
-  already refreshing.
+- `Data.refresh`, `Data.lift`, and `Data.reduce` of the common no-op Messages
+  (a duplicate live event, a repeated `ReadStarted`) return the **same Model**,
+  so Foldkit does not render.
+- A row's decoded value keeps its identity while its entity's fields are equal,
+  so key list rows and render them with a lazy view.
 - Selections must pick at least one field (`Selection.make` throws otherwise).
 - Presence is not `value === undefined`: missing, present-undefined, present-null,
   stale, and not-found are distinct.

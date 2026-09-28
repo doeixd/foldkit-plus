@@ -14,6 +14,7 @@
       "foldkit-richtext-dom/events": ["../../packages/richtext-dom/src/events.ts"],
       "foldkit-richtext-dom/host": ["../../packages/richtext-dom/src/host.ts"],
       "foldkit-richtext-dom/html": ["../../packages/richtext-dom/src/html.ts"],
+      "foldkit-richtext-dom/input": ["../../packages/richtext-dom/src/input.ts"],
       "foldkit-richtext-dom/toolbar": ["../../packages/richtext-dom/src/toolbar.ts"],
       "foldkit-richtext-dom/view": ["../../packages/richtext-dom/src/view.ts"]
     }

@@ -5,7 +5,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, mountInto, placeRendering, releaseMount, renderingFor } from '../src/host.js'
+import {
+  attachmentIn,
+  decorationsFor,
+  mountInto,
+  placeDecorations,
+  placeRendering,
+  releaseMount,
+  renderingFor,
+} from '../src/host.js'
 
 const at = (node: string, offset: number): RichText.Position => ({
   node: RichText.NodeId.make(node),
@@ -166,5 +174,169 @@ describe('a rendering registry placed for a host id (§122)', () => {
     // A host can unmount and mount again; the placement is the view author's, so
     // the id still renders the way it was placed (§122).
     expect(renderingFor('registry-3')).toBe(placed)
+  })
+})
+
+describe('decorations drawn over a mounted editor (§129)', () => {
+  const found = (element: Element) =>
+    Array.from(element.querySelectorAll('[data-decoration]'), span => span.textContent)
+
+  it('draws what `decorate` derives, at the mount and again on every sync', () => {
+    const element = host()
+    const seen: Array<RichText.Document> = []
+    const decorate = (document: RichText.Document) => {
+      seen.push(document)
+      return RichText.searchDecorations(document, 'b')
+    }
+    const attachment = mountInto(element, content(), { onIntent: () => {}, decorate })
+    expect(found(element)).toEqual(['b'])
+    const next = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'ab', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'q',
+          children: [{ type: 'Text', id: 'c', text: 'bf', marks: [] }],
+        },
+      ],
+    })
+    attachment.sync(
+      { document: next, selection: null },
+      {
+        dirtyNodes: new Set([RichText.NodeId.make('c')]),
+        insertedNodes: new Set(),
+        removedNodes: new Set(),
+        textChanged: new Set([RichText.NodeId.make('c')]),
+        structureChanged: false,
+        selectionChanged: false,
+      },
+    )
+    // The synced document is what it reads, so the new `b` is found too.
+    expect(seen.at(-1)).toBe(next)
+    expect(found(element)).toEqual(['b', 'b'])
+    releaseMount(element)
+  })
+
+  it('records what a placement draws, and draws nothing where none was placed', () => {
+    const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'e')
+    placeDecorations('decorated-host', decorate)
+    expect(decorationsFor('decorated-host')).toBe(decorate)
+    expect(decorationsFor('undecorated-host')(content())).toEqual([])
+  })
+})
+
+describe('adopting markup already in the host (§145)', () => {
+  const served = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: 'Water ', marks: [] },
+            { type: 'Text', id: 'b', text: 'early', marks: ['Bold'] },
+          ],
+        },
+        // An empty run: the markup cannot carry the text node a caret there needs.
+        {
+          type: 'Paragraph',
+          id: 'e',
+          children: [{ type: 'Text', id: 'z', text: '', marks: ['Bold'] }],
+        },
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'ListItem',
+              id: 'i',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'ip',
+                  children: [{ type: 'Text', id: 'it', text: 'one', marks: [] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as never)
+
+  /** What a server sends: the adapter's own subtree for the document, as markup. */
+  const serve = (element: HTMLElement, document_: RichText.Document) => {
+    const scratch = host()
+    mountInto(scratch, document_, { onIntent: () => {} })
+    element.innerHTML = scratch.innerHTML
+    releaseMount(scratch)
+    scratch.remove()
+  }
+
+  it('keeps the served elements and indexes them, adding the empty run its text node', () => {
+    const element = host()
+    serve(element, served())
+    const root = element.firstElementChild
+    const paragraph = element.querySelector('[data-block="p"]')
+    const empty = element.querySelector('[data-run="z"]')!
+    expect(empty.querySelector('strong')?.firstChild).toBeNull()
+
+    const attachment = mountInto(element, served(), { onIntent: () => {} })
+    const dom = attachment.current()
+    expect(dom.root).toBe(root)
+    expect(element.children).toHaveLength(1)
+    expect(dom.elements.get(RichText.NodeId.make('p'))).toBe(paragraph)
+    expect(dom.elements.get(RichText.NodeId.make('it'))).toBe(
+      element.querySelector('[data-run="it"]'),
+    )
+    expect(dom.elements.get(RichText.NodeId.make('z'))).toBe(empty)
+    expect(empty.querySelector('strong')?.firstChild).toBeInstanceOf(Text)
+
+    // It edits like a subtree the adapter built: the patch lands in the served element.
+    const result = RichText.run(
+      { document: served(), selection: { type: 'Range', anchor: at('b', 5), focus: at('b', 5) } },
+      { type: 'InsertText', text: '!' },
+      { mint: () => 'unused' },
+    )
+    if (!result.ok) throw new Error(result.error)
+    attachment.sync(result.state, result.changeSet)
+    expect(paragraph?.textContent).toBe('Water early!')
+    expect(element.querySelector('[data-block="p"]')).toBe(paragraph)
+    releaseMount(element)
+  })
+
+  it.each([
+    ['markup for another document', (element: HTMLElement) => serve(element, content())],
+    [
+      'markup with something extra beside it',
+      (element: HTMLElement) => {
+        serve(element, served())
+        element.append(document.createElement('p'))
+      },
+    ],
+    [
+      'markup the adapter did not write',
+      (element: HTMLElement) => (element.innerHTML = '<p>Water early</p>'),
+    ],
+  ])('builds afresh over %s, leaving one subtree', (_, arrange) => {
+    const element = host()
+    arrange(element)
+    const stale = element.firstElementChild
+    const attachment = mountInto(element, served(), { onIntent: () => {} })
+    expect(attachment.current().root).not.toBe(stale)
+    expect(element.children).toHaveLength(1)
+    expect(element.textContent).toBe('Water earlyone')
+    releaseMount(element)
   })
 })

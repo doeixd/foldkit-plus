@@ -39,6 +39,19 @@ export const checkArgs = (
   }
 }
 
+/**
+ * A child write that returns the parent itself when `update` returned the child
+ * it read. Foldkit renders only when the root Model changes identity, so a
+ * no-op in the child must not copy every Model above it.
+ */
+export const writeIfChanged =
+  <Parent, Child>(
+    read: (parent: Parent) => Option.Option<Child>,
+    write: (parent: Parent, child: Child) => Parent,
+  ) =>
+  (parent: Parent, child: Child): Parent =>
+    Option.exists(read(parent), current => current === child) ? parent : write(parent, child)
+
 export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> {
   readonly args?: Args
   /** Handles the child's OutMessage in parent terms, with the child already written back. */
@@ -218,7 +231,7 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     Update.foldChildStep({
       update: run,
       read: link.read,
-      write: link.write,
+      write: writeIfChanged(link.read, link.write),
       toParentMessage: link.toParentMessage,
       foldOutMessage: onOut,
     })

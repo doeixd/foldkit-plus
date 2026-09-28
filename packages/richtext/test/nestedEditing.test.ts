@@ -247,6 +247,41 @@ describe('editing inside a nested block', () => {
     expect(containerAt(out.state.document, 0).map(block => block.id)).toEqual(['li1', 'li2'])
   })
 
+  it('moves a block out to before the container it left', () => {
+    // Inserting at the container's own index shifts the container, and the removal from it
+    // must survive that.
+    const out = success(RichText.apply(state(null), [RichText.Edit.moveBlock(id('li1'), 0)]))
+    expect(out.state.document.children.map(block => block.id)).toEqual([
+      'li1',
+      'list',
+      'tail',
+      'last',
+    ])
+    expect(containerAt(out.state.document, 1).map(block => block.id)).toEqual(['li2'])
+  })
+
+  it('finds the destination where it is after the move’s own removal', () => {
+    // `tail` moves ahead of `list`, then into it: taking `tail` out shifts `list` back.
+    const result = success(
+      RichText.apply(state(null), [
+        RichText.Edit.moveBlock(id('tail'), 0),
+        RichText.Edit.moveBlock(id('tail'), 0, id('list')),
+      ]),
+    )
+    expect(result.state.document.children.map(block => block.id)).toEqual(['list', 'last'])
+    expect(containerAt(result.state.document, 0).map(block => block.id)).toEqual([
+      'tail',
+      'li1',
+      'li2',
+    ])
+  })
+
+  it('refuses to move a block into itself', () => {
+    expect(
+      RichText.apply(state(null), [RichText.Edit.moveBlock(id('list'), 0, id('list'))]),
+    ).toEqual({ ok: false, error: 'InvalidParent' })
+  })
+
   it('inserts a new block into a container', () => {
     const item = RichText.Paragraph.make({
       type: 'Paragraph',

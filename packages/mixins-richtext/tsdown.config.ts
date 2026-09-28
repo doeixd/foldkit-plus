@@ -7,6 +7,12 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: [/^foldkit(\/.*)?$/, 'foldkit-mixins', 'foldkit-richtext', 'foldkit-richtext-dom'],
+    neverBundle: [
+      /^foldkit(\/.*)?$/,
+      'foldkit-mixins',
+      'foldkit-richtext',
+      'foldkit-richtext-dom',
+      'foldkit-richtext-markdown',
+    ],
   },
 })

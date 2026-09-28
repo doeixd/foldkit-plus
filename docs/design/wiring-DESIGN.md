@@ -1,5 +1,8 @@
 # Wiring: one list for every integration
 
+> **Implementation status, checked 2026-09-27:** Steps 1 to 7 are built, including step 7's documentation ([docs/wiring.md](../wiring.md)); the Deviations and Open questions still stand. See the
+> [design index](./README.md#where-each-design-stands).
+
 > **Status:** steps 1–6 built (wiring type, assembly, `Mirror.wiring`,
 > `Remote.wiring`, Sync/Agent contract wirings, both example migrations).
 > What changed from the proposal is recorded under [Deviations](#deviations).

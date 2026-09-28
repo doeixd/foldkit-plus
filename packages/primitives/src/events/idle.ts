@@ -42,8 +42,9 @@ export const Idle = Bundle.make('Idle', {
   init: () => ({ model: { idle: false } }),
   update: (model, message) =>
     IdleMessage.match<Update.ReturnWithOutMessage<IdleModel, IdleMessage, never>>(message, {
-      BecameIdle: () => ({ model: { ...model, idle: true } }),
-      BecameActive: () => ({ model: { ...model, idle: false } }),
+      // One already in flight when the watch restarts can repeat the state.
+      BecameIdle: () => (model.idle ? { model } : { model: { ...model, idle: true } }),
+      BecameActive: () => (model.idle ? { model: { ...model, idle: false } } : { model }),
     }),
   subscriptions: ({ timeoutMs }): Subscription.Subscriptions<IdleModel, IdleMessage> =>
     Subscription.make<IdleModel, IdleMessage>()(entry => ({

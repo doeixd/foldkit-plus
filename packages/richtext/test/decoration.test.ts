@@ -137,62 +137,36 @@ describe('projecting decorations over a document', () => {
   })
 })
 
-/**
- * The cutting rule both interpreters share (§129): the read-only view and the editable
- * adapter must cut a run the same way, so the rule is stated once, here.
- */
-describe('cutting a run at its decoration edges', () => {
-  /** Each piece as `[text, the kinds covering it]`, so a case reads at a glance. */
-  const pieces = (text: string, set: RichText.DecorationSet) =>
-    RichText.runPieces(text, RichText.decorationsIn(document(), set).get(id('a')) ?? []).map(
-      piece => [piece.text, piece.decorations.map(decoration => decoration.kind)],
-    )
+describe('the pieces a run is drawn as', () => {
+  const span = (from: number, to: number, kind: string): RichText.DecorationSpan => ({
+    from,
+    to,
+    decoration: {
+      from: { node: RichText.NodeId.make('r'), offset: from, affinity: 'before' },
+      to: { node: RichText.NodeId.make('r'), offset: to, affinity: 'before' },
+      kind,
+    },
+  })
+  const drawn = (text: string, spans: ReadonlyArray<RichText.DecorationSpan>) =>
+    RichText.runPieces(text, spans).map(piece => [
+      piece.text,
+      piece.decorations.map(decoration => decoration.kind),
+    ])
 
-  it('comes back as one undecorated piece when nothing covers the run', () => {
-    expect(pieces('ab', [])).toEqual([['ab', []]])
-    expect(pieces('ab', [decoration(['b', 0], ['b', 1])])).toEqual([['ab', []]])
+  it('is the whole run, empty or not, when nothing covers it', () => {
+    expect(drawn('abc', [])).toEqual([['abc', []]])
+    expect(drawn('', [])).toEqual([['', []]])
+    // Spans handed over by a caller, not projected, can still name an empty run.
+    expect(drawn('', [span(0, 1, 'x')])).toEqual([['', []]])
   })
 
-  it('cuts at both edges and gives each piece what covers exactly it', () => {
-    expect(pieces('ab', [decoration(['a', 0], ['a', 1])])).toEqual([
-      ['a', ['search']],
-      ['b', []],
-    ])
-    expect(pieces('ab', [decoration(['a', 1], ['a', 2])])).toEqual([
+  it('cuts at every edge and gives each piece what covers all of it', () => {
+    expect(drawn('abcdef', [span(1, 4, 'x'), span(3, 5, 'y')])).toEqual([
       ['a', []],
-      ['b', ['search']],
+      ['bc', ['x']],
+      ['d', ['x', 'y']],
+      ['e', ['y']],
+      ['f', []],
     ])
-  })
-
-  it('gives a piece every decoration covering it, and clamps an edge past the run', () => {
-    expect(
-      pieces('ab', [
-        decoration(['a', 0], ['a', 2], 'search'),
-        decoration(['a', 1], ['a', 9], 'cursor'),
-      ]),
-    ).toEqual([
-      ['a', ['search']],
-      ['b', ['search', 'cursor']],
-    ])
-  })
-
-  it('clamps an edge past the run, so a hand-built span cannot cut outside it', () => {
-    const span: RichText.DecorationSpan = {
-      from: 1,
-      to: 9,
-      decoration: { from: at('a', 1), to: at('a', 9), kind: 'search' },
-    }
-    expect(RichText.runPieces('ab', [span]).map(piece => piece.text)).toEqual(['a', 'b'])
-  })
-
-  it('accounts for every character of the run', () => {
-    const span = (from: number, to: number, kind: string): RichText.DecorationSpan => ({
-      from,
-      to,
-      decoration: { from: at('a', from), to: at('a', to), kind },
-    })
-    const cut = RichText.runPieces('abcdef', [span(1, 3, 'search'), span(4, 6, 'cursor')])
-    expect(cut.map(piece => piece.text).join('')).toBe('abcdef')
-    expect(cut.map(piece => piece.text)).toEqual(['a', 'bc', 'd', 'ef'])
   })
 })

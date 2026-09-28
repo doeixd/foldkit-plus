@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
   application,
+  applied,
+  cleared,
+  converted,
   editorAt,
+  lifted,
+  moved,
   patched,
   pressed,
   redone,
@@ -17,10 +22,11 @@ import {
   typed,
   undone,
   update,
+  wrapped,
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { renderingFor } from '../src/host.js'
+import { decorationsFor, placeholderFor, renderingFor } from '../src/host.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -337,6 +343,18 @@ describe('stored marks', () => {
     expect(after).toEqual(before)
     expect(after.document).toBe(before.document)
   })
+
+  it('refuses a declared mark whose props a bare name lacks, at the toggle itself', () => {
+    editorAt('link-toggle-editor', {
+      vocabulary: { marks: RichText.markRegistry(RichText.standardMarks) },
+    })
+    const before = start(caret('a', 1))
+    const placed: Model = { ...before, editor: { ...before.editor, hostId: 'link-toggle-editor' } }
+    // Stored, it would refuse every keystroke after it; refused, nothing is stored.
+    expect(step(placed, toggled('Link'))).toEqual(placed)
+    // Control: a declared mark with no props is stored, so the placement is in effect.
+    expect(step(placed, toggled('Strikethrough')).editor.storedMarks).toEqual(['Strikethrough'])
+  })
 })
 
 describe('Enter in a live slash query (§123)', () => {
@@ -368,6 +386,21 @@ describe('Enter in a live slash query (§123)', () => {
       type: 'Range',
       anchor: { node: 'a', offset: 0 },
     })
+  })
+
+  it('wraps the block in a list for the list entry, removing the query', () => {
+    const after = step(asked('/bul'), pressed('Entered'))
+    expect(after.document.children[0]).toMatchObject({ type: 'Node', kind: 'List' })
+    const [list] = after.document.children
+    const item = list?.type === 'Node' ? list.blocks?.[0] : undefined
+    const paragraph = item?.type === 'Node' ? item.blocks?.[0] : undefined
+    expect(paragraph).toMatchObject({ type: 'Paragraph', id: 'p' })
+    expect(paragraph?.children[0]?.text).toBe('')
+  })
+
+  it('converts the block to code for `/code`, whose first match is the block, not the mark', () => {
+    const after = step(asked('/code'), pressed('Entered'))
+    expect(after.document.children[0]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
   })
 
   it('undoes a choice as one step, restoring the block and the query', () => {
@@ -408,6 +441,72 @@ describe('Enter in a live slash query (§123)', () => {
   it('splits when the text before the caret is not a query', () => {
     const after = step(asked('plain text'), pressed('Entered'))
     expect(after.document.children).toHaveLength(2)
+  })
+})
+
+describe('the block Messages an application sends', () => {
+  it('wraps the caret’s block and lifts it back out, each one undoable step', () => {
+    const quoted = step(start(caret('a', 1)), wrapped([{ kind: 'Quote' }]))
+    expect(quoted.document.children[0]).toMatchObject({ type: 'Node', kind: 'Quote' })
+    const back = step(quoted, lifted())
+    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
+    expect(RichText.inspectHistory(back.editor.history).past).toBe(2)
+  })
+
+  it('moves a block beside a sibling, keeping the caret, as one undoable step', () => {
+    const before = start(caret('a', 1))
+    const after = step(before, moved(id('p'), { after: id('q') }))
+    expect(after.document.children.map(block => block.id)).toEqual(['q', 'p'])
+    expect(after.editor.selection).toEqual(caret('a', 1))
+    const back = step(after, undone())
+    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
+  })
+
+  it('moves a block with no selection, since a handle names its block', () => {
+    const after = step(start(null), moved(id('q'), { before: id('p') }))
+    expect(after.document.children.map(block => block.id)).toEqual(['q', 'p'])
+  })
+
+  it('converts the caret’s block to a kind that holds text', () => {
+    // `q`'s run is bold and no vocabulary is placed, so the marks are carried over.
+    const code = step(start(caret('b', 1)), converted({ kind: 'CodeBlock' }))
+    expect(code.document.children[1]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
+  })
+})
+
+describe('editing a link from a caret inside it', () => {
+  it('changes the href and then removes the link, each one undoable step', () => {
+    editorAt('linking-editor', {
+      vocabulary: { marks: RichText.markRegistry(RichText.standardMarks) },
+    })
+    const link = (href: string) => ({ name: 'Link', props: { href } })
+    const initial = application.initial({
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [
+              { type: 'Text', id: 'a', text: 'see ', marks: [] },
+              { type: 'Text', id: 'l', text: 'docs', marks: [link('/a')] },
+            ],
+          },
+        ],
+      }),
+    }).model
+    const model: Model = {
+      ...initial,
+      editor: { ...initial.editor, hostId: 'linking-editor', selection: caret('l', 2) },
+    }
+    const marksOf = (at: Model) => at.document.children[0]!.children.map(run => run.marks)
+
+    const relinked = step(model, applied(link('/z')))
+    expect(marksOf(relinked)).toEqual([[], [link('/z')]])
+    const unlinked = step(relinked, cleared('Link'))
+    expect(unlinked.document.children[0]!.children.map(run => run.text)).toEqual(['see docs'])
+    expect(marksOf(unlinked)).toEqual([[]])
+    expect(RichText.inspectHistory(unlinked.editor.history).past).toBe(2)
   })
 })
 
@@ -479,6 +578,26 @@ describe('placing a vocabulary with the Bundle (§125)', () => {
   })
 })
 
+describe('decorations placed for the editor (§129)', () => {
+  it('records what a placement draws over its document, and nothing when it names none', () => {
+    const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'a')
+    editorAt('decorating-editor', { decorate })
+    expect(decorationsFor('decorating-editor')).toBe(decorate)
+    // Re-placing an id without one replaces what it had.
+    editorAt('decorating-editor')
+    expect(decorationsFor('decorating-editor')(document())).toEqual([])
+  })
+})
+
+describe('a placeholder placed for the editor', () => {
+  it('records the placeholder, and forgets it when the id is placed again without one', () => {
+    editorAt('hinting-editor', { placeholder: 'Write something…' })
+    expect(placeholderFor('hinting-editor')).toBe('Write something…')
+    editorAt('hinting-editor')
+    expect(placeholderFor('hinting-editor')).toBeUndefined()
+  })
+})
+
 describe('an input rule placed for the editor (§124 §4)', () => {
   // The editor carries no syntax of its own: what a marker means is the placement's rule.
   const heading: RichText.InputRule = {
@@ -507,6 +626,48 @@ describe('an input rule placed for the editor (§124 §4)', () => {
     })
     // One undo step covers the marker and the change it made.
     expect(RichText.inspectHistory(after.editor.history).past).toBe(1)
+  })
+
+  it('reads what a backwards range is typed over from its start, not its anchor', () => {
+    editorAt('rule-editor', { inputRules: [heading] })
+    const initial = start(caret('b', 0))
+    const placed: Model = { ...initial, editor: { ...initial.editor, hostId: 'rule-editor' } }
+    const hash = step(placed, typed('#'))
+    // `ab` / `#cd`, selected from after the hash back to after the `a`: the anchor reads `#`,
+    // but typing replaces the range from its start, so the block becomes `a cd`, which no
+    // rule matches.
+    const over = step(
+      { ...hash, editor: { ...hash.editor, selection: range(['b', 1], ['a', 1]) } },
+      typed(' '),
+    )
+    expect(over.document.children).toHaveLength(1)
+    expect(over.document.children[0]).toMatchObject({ type: 'Paragraph' })
+    expect(over.document.children[0]?.children.map(run => run.text).join('')).toBe('a cd')
+  })
+
+  it('keeps what was typed when the rule’s own commands are refused', () => {
+    // A wrap in nothing is always refused, so this rule can never act; the split before it
+    // mints an identity first, so a refused attempt has one to give back.
+    const refused: RichText.InputRule = {
+      name: 'refused',
+      match: textBefore =>
+        textBefore === '# '
+          ? {
+              remove: 2,
+              commands: [{ type: 'SplitBlock' }, { type: 'WrapBlock', containers: [] }],
+            }
+          : undefined,
+    }
+    editorAt('refusing-editor', { inputRules: [refused] })
+    const initial = start(caret('a', 0))
+    const placed: Model = { ...initial, editor: { ...initial.editor, hostId: 'refusing-editor' } }
+    const hash = step(placed, typed('#'))
+    const transition = update(hash, typed(' '))
+    expect(transition.model.document.children[0]?.children.map(run => run.text).join('')).toBe(
+      '# ab',
+    )
+    // The refused attempt minted identities it did not use; they are given back.
+    expect(transition.model.editor.nextId).toBe(update(hash, typed('x')).model.editor.nextId)
   })
 
   it('leaves the text alone when the placement placed no rule', () => {

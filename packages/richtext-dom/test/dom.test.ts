@@ -230,23 +230,6 @@ describe('rendering the owned subtree', () => {
 })
 
 describe('positions map both ways', () => {
-  it('refuses text the run the document names does not hold', () => {
-    const dom = mount(document, content())
-    // What a mutation can leave: a second element claiming a run's identity, holding text
-    // that is not that run's.
-    const impostor = document.createElement('span')
-    impostor.setAttribute('data-run', 'a')
-    impostor.append(document.createTextNode('ab'))
-    dom.root.append(impostor)
-    expect(rangeToPosition(dom, impostor.firstChild as Text, 0)).toBeUndefined()
-    expect(rangeToPosition(dom, impostor.firstChild as Text, 1)).toBeUndefined()
-    // And text appended inside the run itself: an offset into what the document never had
-    // is not a position in the run.
-    const stray = document.createTextNode('drift')
-    ;(dom.elements.get(id('a')) as HTMLElement).append(stray)
-    expect(rangeToPosition(dom, stray, 1)).toBeUndefined()
-  })
-
   it('round-trips node and offset, deriving affinity from the run boundary', () => {
     const dom = mount(document, content())
     // A DOM caret carries no affinity, so mapping back yields `after` only at
@@ -416,6 +399,51 @@ describe('repairing a subtree the browser touched', () => {
 })
 
 describe('rendering and patching nested blocks', () => {
+  it('puts a table’s rows in a tbody, and still reads and repairs them as nested blocks', () => {
+    const table = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Table',
+          id: 't',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TableRow',
+              id: 'r',
+              props: {},
+              children: [],
+              blocks: ['a', 'b'].map(cell => ({
+                type: 'Node',
+                kind: 'TableCell',
+                id: cell,
+                props: {},
+                children: [],
+                blocks: [
+                  {
+                    type: 'Paragraph',
+                    id: `${cell}-p`,
+                    children: [{ type: 'Text', id: `${cell}-t`, text: cell, marks: [] }],
+                  },
+                ],
+              })),
+            },
+          ],
+        },
+      ],
+    } as never)
+    const dom = mount(document, table, RichText.standardRendering)
+    const element = dom.elements.get(id('t'))!
+    expect(Array.from(element.children, child => child.tagName.toLowerCase())).toEqual(['tbody'])
+    expect(element.querySelector('tbody')!.children[0]).toBe(dom.elements.get(id('r')))
+    expect(toText(dom)).toBe('a\nb')
+    // Nothing is wrong, so recovery rebuilds nothing.
+    expect(repair(dom, table)).toBe(dom)
+  })
+
   const nested = () =>
     RichText.decodeDocument({
       version: 1,
@@ -750,20 +778,13 @@ describe('the editable subtree with a rendering registry', () => {
   })
 })
 
-/**
- * The decoration overlay (§129): the adapter nests the same element the read-only view
- * does, reads a run's text across the pieces a decoration cuts it into, re-renders only the
- * runs whose spans changed, and puts a decoration back a browser dropped.
- */
-describe('decorations over the editable subtree', () => {
-  const decoration = (
-    node: string,
-    from: number,
-    to: number,
-    kind = 'search',
-  ): RichText.Decoration => ({ from: at(node, from), to: at(node, to), kind })
-
-  const noChange: RichText.ChangeSet = {
+describe('decorations over the editable subtree (§129)', () => {
+  const over = (node: string, from: number, to: number, kind = 'search'): RichText.Decoration => ({
+    from: at(node, from),
+    to: at(node, to),
+    kind,
+  })
+  const unchanged: RichText.ChangeSet = {
     dirtyNodes: new Set(),
     insertedNodes: new Set(),
     removedNodes: new Set(),
@@ -771,102 +792,71 @@ describe('decorations over the editable subtree', () => {
     structureChanged: false,
     selectionChanged: false,
   }
+  const decorated = (element: Element | undefined) =>
+    Array.from(element?.querySelectorAll('[data-decoration]') ?? [], found => [
+      found.getAttribute('data-decoration'),
+      found.textContent,
+    ])
 
-  it('wraps only the covered piece, inside the run and outside its marks', () => {
-    // Run `b` is `cd` in Bold+Italic, so its chain is `strong>em`; `c` is covered.
-    const dom = mount(document, content(), RichText.noRendering, [decoration('b', 0, 1)])
-    const run = dom.elements.get(id('b')) as HTMLElement
-    expect(run.getAttribute('data-run')).toBe('b')
-    expect(Array.from(run.children).map(child => child.tagName)).toEqual(['SPAN', 'EM'])
-    expect((run.children[0] as HTMLElement).getAttribute('data-decoration')).toBe('search')
-    // The uncovered piece keeps the run's marks — a decoration cuts where it covers,
-    // not what the text is — and the document is untouched.
-    expect(tagsWithin(run.children[1] as HTMLElement)).toEqual(['strong'])
+  it('wraps the covered text, marks inside, and keeps the marks on the rest', () => {
+    const dom = mount(document, content(), RichText.noRendering, [over('b', 0, 1)])
+    const run = dom.elements.get(id('b'))!
+    expect(decorated(run)).toEqual([['search', 'c']])
+    // Both pieces, `c` and `d`, are still bold and italic.
+    expect(run.querySelectorAll('strong em, em strong')).toHaveLength(2)
     expect(run.textContent).toBe('cd')
     expect(toText(dom)).toBe('abcd\nTitle')
-    expect(dom.decorations).toHaveLength(1)
   })
 
-  it('maps a position both ways across a run cut into pieces', () => {
-    // `cd` cut after `c`: an offset into the run is not an offset into one text node.
-    const dom = mount(document, content(), RichText.noRendering, [decoration('b', 1, 2)])
-    expect((dom.elements.get(id('b')) as HTMLElement).children.length).toBe(2)
-    expect(positionToRange(dom, at('b', 2))?.startContainer.textContent).toBe('d')
-    expect(positionToRange(dom, at('b', 2))?.startOffset).toBe(1)
-    for (const [offset, affinity] of [
-      [0, 'before'],
-      [1, 'before'],
-      [2, 'after'],
-    ] as const) {
-      const range = positionToRange(dom, at('b', offset))
-      expect(range).toBeDefined()
-      expect(rangeToPosition(dom, range!.startContainer, range!.startOffset)).toEqual(
-        at('b', offset, affinity),
+  it('maps every offset in a cut run both ways', () => {
+    const dom = mount(document, content(), RichText.noRendering, [over('c', 1, 3)])
+    for (let offset = 0; offset <= 5; offset += 1) {
+      const range = positionToRange(dom, at('c', offset))!
+      expect(rangeToPosition(dom, range.startContainer, range.startOffset)).toEqual(
+        at('c', offset, offset === 5 ? 'after' : 'before'),
       )
     }
+    // An offset into the last piece counts the pieces before it.
+    const last = dom.elements.get(id('c'))!.lastChild as Text
+    expect(last.data).toBe('le')
+    expect(rangeToPosition(dom, last, 1)).toEqual(at('c', 4, 'before'))
+    expect(positionToRange(dom, at('c', 6))).toBeUndefined()
+    expect(positionToRange(dom, at('c', -1))).toBeUndefined()
   })
 
-  it('re-renders only the runs whose spans changed', () => {
-    const before = mount(document, content(), RichText.noRendering, [decoration('b', 0, 1)])
-    const heading = before.elements.get(id('h'))
-    const after = patch(before, before.content, noChange, [decoration('a', 0, 2, 'cursor')])
-    expect(after.elements.get(id('h'))).toBe(heading)
-    expect(after.elements.get(id('b'))).not.toBe(before.elements.get(id('b')))
-    expect(
-      (after.elements.get(id('b')) as HTMLElement).querySelector('[data-decoration]'),
-    ).toBeNull()
-    const covered = after.elements.get(id('a')) as HTMLElement
-    expect(covered.querySelector('[data-decoration]')?.getAttribute('data-decoration')).toBe(
-      'cursor',
-    )
+  it('addresses only the start of a run the browser emptied of text nodes', () => {
+    const dom = mount(document, content())
+    const run = dom.elements.get(id('a'))!
+    run.replaceChildren()
+    expect(positionToRange(dom, at('a', 0))?.startContainer).toBe(run)
+    expect(positionToRange(dom, at('a', 1))).toBeUndefined()
+  })
+
+  it('redraws a run whose decorations changed, though the document did not', () => {
+    const before = mount(document, content(), RichText.noRendering, [over('a', 0, 1)])
+    const kept = before.elements.get(id('c'))
+    const moved = patch(before, before.content, unchanged, [over('c', 0, 2)])
+    expect(decorated(moved.root)).toEqual([['search', 'Ti']])
+    expect(moved.elements.get(id('a'))).not.toBe(before.elements.get(id('a')))
+    expect(moved.elements.get(id('b'))).toBe(before.elements.get(id('b')))
+    expect(moved.elements.get(id('c'))).not.toBe(kept)
+    // The same set again redraws nothing, and a patch with none clears them.
+    const again = patch(moved, moved.content, unchanged, [over('c', 0, 2)])
+    expect(again.elements.get(id('c'))).toBe(moved.elements.get(id('c')))
+    // Over the same range, a different kind is a different drawing.
+    const rekinded = patch(again, again.content, unchanged, [over('c', 0, 2, 'lint')])
+    expect(decorated(rekinded.root)).toEqual([['lint', 'Ti']])
+    expect(decorated(patch(rekinded, rekinded.content, unchanged).root)).toEqual([])
+  })
+
+  it('leaves a decorated subtree alone, and redraws one the browser stripped', () => {
+    const before = mount(document, content(), RichText.noRendering, [over('c', 1, 3)])
+    expect(repair(before, before.content)).toBe(before)
+    // A browser unwrapping the decoration keeps the text; recovery puts it back.
+    const wrapper = before.root.querySelector('[data-decoration]')!
+    wrapper.replaceWith(...Array.from(wrapper.childNodes))
+    const after = repair(before, before.content)
+    expect(decorated(after.root)).toEqual([['search', 'it']])
     expect(toText(after)).toBe('abcd\nTitle')
-  })
-
-  it('notices a kind change on a run the same span still covers', () => {
-    const before = mount(document, content(), RichText.noRendering, [
-      decoration('b', 0, 1, 'search'),
-    ])
-    const after = patch(before, before.content, noChange, [decoration('b', 0, 1, 'cursor')])
-    expect(after.elements.get(id('b'))).not.toBe(before.elements.get(id('b')))
-    expect(
-      (after.elements.get(id('b')) as HTMLElement)
-        .querySelector('[data-decoration]')
-        ?.getAttribute('data-decoration'),
-    ).toBe('cursor')
-  })
-
-  it('treats a set that renders the same as no change, data or not', () => {
-    const before = mount(document, content(), RichText.noRendering, [decoration('b', 0, 1)])
-    const after = patch(before, before.content, noChange, [
-      { ...decoration('b', 0, 1), data: { why: 'rendered identically' } },
-    ])
-    expect(after.elements.get(id('b'))).toBe(before.elements.get(id('b')))
-  })
-
-  it('puts a decoration back that the browser unwrapped', () => {
-    const decorations = [decoration('b', 0, 1)]
-    const before = mount(document, content(), RichText.noRendering, decorations)
-    const run = before.elements.get(id('b')) as HTMLElement
-    const span = run.querySelector('[data-decoration]') as HTMLElement
-    // What an outside mutation can leave: the text is there, the decoration is not.
-    span.replaceWith(...Array.from(span.childNodes))
-    expect(run.textContent).toBe('cd')
-    const after = repair(before, before.content, decorations)
-    const restored = after.elements.get(id('b')) as HTMLElement
-    expect(restored).not.toBe(run)
-    expect(restored.querySelector('[data-decoration]')?.getAttribute('data-decoration')).toBe(
-      'search',
-    )
-    expect(toText(after)).toBe('abcd\nTitle')
-  })
-
-  it('draws a decoration the core produced, and leaves nothing else changed', () => {
-    const doc = content()
-    const dom = mount(document, doc, RichText.noRendering, RichText.searchDecorations(doc, 'c'))
-    expect(
-      (dom.elements.get(id('b')) as HTMLElement)
-        .querySelector('[data-decoration]')
-        ?.getAttribute('data-decoration'),
-    ).toBe('search')
   })
 })

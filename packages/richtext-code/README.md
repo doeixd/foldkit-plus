@@ -1,12 +1,16 @@
 # foldkit-richtext-code
 
-Grammars that turn a [`foldkit-richtext`](../richtext) `CodeBlock`'s text into highlighting
-tokens.
+Grammars for highlighting a [`foldkit-richtext`](../richtext) `CodeBlock`.
 
-Highlighting is a **decoration**, not document content (§124 §7): the block holds the code and
-its language, a tokenizer reads the text, and `codeDecorations` turns the tokens into ranges a
-renderer draws and then discards. This package holds grammars; the contract and the producer
-live in `foldkit-richtext`, because they are format-agnostic.
+A code block's document holds its `language` and its plain text, never tokens. What a
+highlighter finds in that text is presentation: a set of decorations, derived for a render
+and discarded, like a search match. `foldkit-richtext` owns the contract (`CodeTokenizer`)
+and the producer (`codeDecorations`); this package owns grammars — a tokenizer is a pure
+function from a block's text to token ranges.
+
+```text
+CodeBlock { language, text } ── tokenizer ──> tokens ── codeDecorations ──> DecorationSet ──> renderer
+```
 
 ## Install
 
@@ -16,40 +20,75 @@ pnpm add foldkit-richtext-code
 
 ## What it owns
 
-One grammar per language that can be written exactly. JSON is here. TypeScript and JavaScript
-are not, because a lexer that is half right is worse than none — they wait for a highlighter
-that is not hand-rolled (`foldkit-richtext-code-shiki`, §130). The package holds no state and
-imports nothing at runtime beyond types.
+Grammars, and nothing else: no state, no document change, no loading. The document is
+`foldkit-richtext`'s, drawing the result is the renderer's (`foldkit-richtext-dom`'s read-only
+view draws a decoration as `span[data-decoration=<kind>]`), and a grammar that must load
+before it can run — Shiki — is a separate adapter's, because it needs a Command rather than a
+pure call.
 
-## Highlight a code block
+## Highlight JSON
 
 ```ts
 import * as RichText from 'foldkit-richtext'
 import { jsonTokenizer } from 'foldkit-richtext-code'
-import { renderDocument } from 'foldkit-richtext-dom/view'
 
-const decorations = RichText.codeDecorations(document, [jsonTokenizer])
-renderDocument(document, RichText.noRendering, decorations)
-// each token is inside a span carrying data-decoration="syntax-string", "syntax-number", …
+const document = RichText.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Node',
+      kind: 'CodeBlock',
+      id: 'c',
+      props: { language: 'json' },
+      children: [{ type: 'Text', id: 't', text: '{"a": 1}', marks: [] }],
+    },
+  ],
+})
+
+const tokens = RichText.codeDecorations(document, new Map([['json', jsonTokenizer]]))
 ```
 
-`codeDecorations` reads every `CodeBlock` whose `language` a tokenizer names, and a block with
-no tokenizer is left unhighlighted rather than reported: an unknown language is not a mistake.
-The token's own name rides in the decoration's data as well as in its kind, which is what a
-registry over `data` would read (§129).
+`codeDecorations` reads the document; it changes nothing and loads nothing. The `Map` says
+which tokenizer serves which `language` prop, so registering `jsonTokenizer` under `jsonc`
+as well is one more entry. Pass `tokens` to a renderer beside the document, and compute them
+again when the document changes.
 
-| Kind | What it covers |
-| --- | --- |
-| `string` | a quoted string, escapes included; an unterminated one runs to the end of the block |
-| `number` | JSON's own shape, exponent included |
-| `boolean`, `null` | the three literals |
-| `punctuation` | `{`, `}`, `[`, `]`, `:`, `,` |
-| `invalid` | a character that begins no token |
+The kinds are `syntax-property` (an object key), `syntax-string`, `syntax-number`,
+`syntax-keyword` (`true`, `false`, `null`), and `syntax-punctuation`, which a stylesheet
+reaches as `[data-decoration="syntax-number"]` and so on.
+
+## In the editor
+
+`foldkit-richtext-dom`'s editor draws decorations its placement derives from the document:
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { editorAt } from 'foldkit-richtext-dom/editor-bundle'
+import { jsonTokenizer } from 'foldkit-richtext-code'
+
+const tokenizers = new Map([['json', jsonTokenizer]])
+
+const body = editorAt('article-body', {
+  decorate: document => RichText.codeDecorations(document, tokenizers),
+})
+```
+
+The editor calls `decorate` at its mount and on every patch, and draws the result as the
+read-only view does, so one stylesheet serves both.
+
+## Invalid text
+
+A code block being typed is rarely valid JSON, so the tokenizer is total: it never throws,
+every token lies inside the text in order, a string still being typed ends at the line break
+or the end of the text, and a character JSON has no token for gets none. What it can read is
+highlighted and the rest stays plain. It is a lexer, not a validator: it does not check that
+the tokens form a JSON value.
 
 ## Limits
 
-- Whitespace is skipped rather than tokenized.
-- Only the languages listed here are highlighted. An application can pass its own tokenizer to
-  `codeDecorations` without this package; `CodeTokenizer` is the contract.
-- Nothing here reads the DOM or the Model: a tokenizer is text to ranges, and where the result
-  is drawn is the interpreter's business.
+- **JSON only.** TypeScript, JavaScript, and the rest come from
+  [`foldkit-richtext-code-shiki`](../richtext-code-shiki), which reads Shiki's grammars into
+  the same kinds, rather than a hand-written lexer that would be half right.
+- **Highlighting runs on every patch.** An editor placed with a `decorate` (below)
+  retokenizes every code block each time it patches. That is cheap for JSON; caching by block
+  is the Shiki adapter's job.

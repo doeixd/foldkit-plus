@@ -30,8 +30,8 @@ export const Timer = Bundle.make('Timer', {
   init: () => ({ model: { count: 0, running: false } }),
   update: (model, message) =>
     TimerMessage.match(message, {
-      Started: () => ({ model: { ...model, running: true } }),
-      Stopped: () => ({ model: { ...model, running: false } }),
+      Started: () => (model.running ? { model } : { model: { ...model, running: true } }),
+      Stopped: () => (model.running ? { model: { ...model, running: false } } : { model }),
       Ticked: () => ({ model: { ...model, count: model.count + 1 } }),
     }),
   subscriptions: ({ intervalMs }): Subscription.Subscriptions<TimerModel, TimerMessage> =>

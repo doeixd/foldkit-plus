@@ -10,7 +10,7 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import type { AnyMessage, CollectionLink } from './link.js'
-import { checkArgs, type BuilderLike, type ViewBuilder } from './placed.js'
+import { checkArgs, writeIfChanged, type BuilderLike, type ViewBuilder } from './placed.js'
 
 const PlacedCollectionTypeId: unique symbol = Symbol.for('foldkit-bundle/PlacedCollection')
 
@@ -174,11 +174,16 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
   const prefix = config.key ?? `${bundle.name}@${link.path.join('.')}[]`
   const argsSummary = checkArgs(bundle, args, prefix) ?? bundle.preset
 
-  const itemLink = (key: string) => ({
-    read: (parent: unknown) => link.get(parent, key),
-    write: (parent: unknown, child: unknown) => link.write(parent, key, Option.some(child)),
-    toParentMessage: (message: unknown) => link.toParentMessage(key, message),
-  })
+  const itemLink = (key: string) => {
+    const read = (parent: unknown) => link.get(parent, key)
+    return {
+      read,
+      write: writeIfChanged(read, (parent: unknown, child: unknown) =>
+        link.write(parent, key, Option.some(child)),
+      ),
+      toParentMessage: (message: unknown) => link.toParentMessage(key, message),
+    }
+  }
 
   const foldItem = (
     key: string,

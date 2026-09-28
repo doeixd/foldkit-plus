@@ -1,69 +1,61 @@
 /**
- * Code tokenizers (§124 §7, §130): a document's `CodeBlock`s read as decorations, so
- * highlighting is derived presentation rather than document content — the block holds the
- * text, and the colours are discarded with the render.
- *
- * The contract and the producer are here because both are format-agnostic: a tokenizer is
- * text to ranges, and this reads `CodeBlock`s the way `searchDecorations` reads text. A
- * *grammar* is one format's, so it belongs in a package of its own (`foldkit-richtext-code`),
- * and a highlighter with a heavy dependency in another (`foldkit-richtext-code-shiki`).
+ * Code highlighting, as decorations (§124 §7, §130): the document holds a `CodeBlock`'s
+ * language and its plain text, and what a highlighter finds in that text is presentation,
+ * derived and discarded like a search match. The contract lives here because it is
+ * format-agnostic — a tokenizer is a function from text to ranges — while grammars, which
+ * are not, live in `foldkit-richtext-code` and its Shiki adapter.
  */
-import type { Decoration, DecorationSet } from './decoration.js'
 import { eachBlock, positionInBlock, type Document } from './document.js'
+import type { Decoration, DecorationSet } from './decoration.js'
 
-/** One token: the range of a block's text it covers, and what to call it. */
+/**
+ * One token in a code block's text, as offsets into that text. `kind` becomes the
+ * decoration's kind, so it is what a stylesheet reaches the token by — a grammar names its
+ * kinds `syntax-string`, `syntax-number`, and so on (§129).
+ */
 export interface CodeToken {
   readonly from: number
   readonly to: number
-  /** What the token is, which becomes the decoration's kind (`syntax-string`). */
   readonly kind: string
 }
 
-/**
- * One language's lexer. `tokenize` is a pure read of the block's text — no positions, no
- * document, no clock — and the producer maps the ranges it returns onto the runs.
- */
-export interface CodeTokenizer {
-  readonly language: string
-  readonly tokenize: (text: string) => ReadonlyArray<CodeToken>
-}
+/** A pure read of one code block's text. A tokenizer that needs to load first is Shiki's case. */
+export type CodeTokenizer = (text: string) => ReadonlyArray<CodeToken>
 
 /**
- * A token's decoration kind. The *kind* is what a stylesheet reaches a decoration by, so the
- * token's own name is part of it — `syntax-string`, `syntax-number` — and the token's name is
- * also in the decoration's `data`, which is what a registry over `data` would read (§129).
- */
-export const syntaxDecorationKind = (token: string): string => `syntax-${token}`
-
-/**
- * Every `CodeBlock` a tokenizer recognises, read as decorations. A block with no tokenizer for
- * its language yields nothing — an unhighlighted language is not an error — and a token whose
- * range does not resolve is skipped rather than guessed at, as any other read does.
+ * Every token the given tokenizers find in the document's `CodeBlock`s, as decorations. A
+ * block is tokenized by the tokenizer registered for its `language` prop; one with no
+ * language, or one nothing is registered for, yields nothing. The registry is a `Map`
+ * because the language is read from the document, and a plain object would answer a
+ * language named `constructor` from its prototype.
+ *
+ * A token outside its block's text, one that covers nothing, or one at a fractional offset
+ * throws with the language that produced it: it is a tokenizer's bug, and a decoration guessed from it would
+ * highlight the wrong text.
  */
 export const codeDecorations = (
   document: Document,
-  tokenizers: ReadonlyArray<CodeTokenizer>,
+  tokenizers: ReadonlyMap<string, CodeTokenizer>,
 ): DecorationSet => {
-  const byLanguage = new Map(tokenizers.map(tokenizer => [tokenizer.language, tokenizer]))
-  const found: Array<Decoration<{ readonly token: string }>> = []
+  const found: Array<Decoration> = []
   eachBlock(document.children, block => {
     if (block.type !== 'Node' || block.kind !== 'CodeBlock') return
     const language = block.props.language
     if (typeof language !== 'string') return
-    const tokenizer = byLanguage.get(language)
+    const tokenizer = tokenizers.get(language)
     if (tokenizer === undefined) return
     const text = block.children.map(run => run.text).join('')
-    for (const token of tokenizer.tokenize(text)) {
-      if (token.from >= token.to) continue
-      const anchor = positionInBlock(block, token.from)
-      const focus = positionInBlock(block, token.to)
-      if (anchor === undefined || focus === undefined) continue
-      found.push({
-        from: anchor,
-        to: focus,
-        kind: syntaxDecorationKind(token.kind),
-        data: { token: token.kind },
-      })
+    for (const token of tokenizer(text)) {
+      const covers =
+        Number.isInteger(token.from) && Number.isInteger(token.to) && token.from < token.to
+      const from = covers ? positionInBlock(block, token.from) : undefined
+      const to = from === undefined ? undefined : positionInBlock(block, token.to)
+      if (from === undefined || to === undefined) {
+        throw new RangeError(
+          `The ${language} tokenizer produced ${token.kind} at [${token.from}, ${token.to}) in a block of ${text.length} characters`,
+        )
+      }
+      found.push({ from, to, kind: token.kind })
     }
   })
   return found

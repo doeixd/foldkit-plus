@@ -32,12 +32,12 @@ const events = await import('foldkit-richtext-dom/events')
 check('/events', typeof events.attach === 'function' && typeof events.intentFor === 'function')
 
 const html = await import('foldkit-richtext-dom/html')
-check('/html', typeof html.parseHtml === 'function' && typeof html.safeUrl === 'function')
+check('/html', typeof html.parseHtml === 'function')
 
-// §124 §10: the import reads only allowlisted attributes, and a URL whose scheme the
+// §124 §10: an import reads only allowlisted attributes, and a URL whose scheme the
 // policy refuses is reported rather than carried into props.
 const refused =
-  html.safeUrl('javascript:alert(1)') === undefined && html.safeUrl('/x?a=1') === '/x?a=1'
+  richtext.safeUrl('javascript:alert(1)') === undefined && richtext.safeUrl('/x?a=1') === '/x?a=1'
 check('a URL policy through the build', refused)
 
 const view = await import('foldkit-richtext-dom/view')
@@ -46,7 +46,11 @@ check('/view', typeof view.renderDocument === 'function' && typeof view.renderBl
 const toolbar = await import('foldkit-richtext-dom/toolbar')
 check(
   '/toolbar',
-  typeof toolbar.marksToolbar === 'function' && typeof toolbar.markActive === 'function',
+  typeof toolbar.marksToolbar === 'function' &&
+    typeof toolbar.markActive === 'function' &&
+    typeof toolbar.selectionAnchor === 'function' &&
+    typeof toolbar.blockAnchor === 'function' &&
+    typeof toolbar.blockDrag === 'function',
 )
 
 const editor = await import('foldkit-richtext-dom/editor')
@@ -76,6 +80,12 @@ check(
     typeof bundle.edited === 'function',
 )
 
+const input = await import('foldkit-richtext-dom/input')
+check(
+  '/input',
+  typeof input.richTextInput === 'function' && typeof input.EditorInput === 'object',
+)
+
 const family = await import('foldkit-mixins-richtext')
 check(
   'mixins-richtext',
@@ -84,7 +94,20 @@ check(
     typeof family.slashQuery === 'function' &&
     typeof family.slashEntries === 'function' &&
     typeof family.slashMenuView === 'function' &&
-    typeof family.SlashMenuSlots === 'object',
+    typeof family.SlashMenuSlots === 'object' &&
+    typeof family.linkEditor === 'function' &&
+    typeof family.blockStyles === 'function' &&
+    typeof family.sourceEditor === 'function' &&
+    typeof family.sourcePreview === 'function' &&
+    typeof family.SourceEditorSlots === 'object' &&
+    typeof family.BlockStyleSlots === 'object' &&
+    typeof family.editorStatus === 'function' &&
+    typeof family.commandPalette === 'function' &&
+    typeof family.blockHandle === 'function' &&
+    typeof family.BlockHandleSlots === 'object' &&
+    typeof family.CommandPaletteSlots === 'object' &&
+    typeof family.EditorStatusSlots === 'object' &&
+    typeof family.LinkEditorSlots === 'object',
 )
 
 // §123: a slash query opens on `/` at a block's start, and `/head` narrows to the
@@ -205,6 +228,25 @@ check(
   'a search produces decorations through the build',
   richtext.searchDecorations(document, 'a').length === 1 &&
     richtext.positionInBlock(document.children[0], 0)?.offset === 0,
+)
+
+// §130: the code seam, a tokenizer registered by language producing decorations.
+const code = richtext.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Node',
+      kind: 'CodeBlock',
+      id: 'c',
+      props: { language: 'json' },
+      children: [{ type: 'Text', id: 'ct', text: '[1]', marks: [] }],
+    },
+  ],
+})
+const token = () => [{ from: 1, to: 2, kind: 'syntax-number' }]
+check(
+  'code tokens produce decorations through the build',
+  richtext.codeDecorations(code, new Map([['json', token]]))[0]?.kind === 'syntax-number',
 )
 
 // §125: the standard vocabulary's rendering, which is what makes a declared kind an

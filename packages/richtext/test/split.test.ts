@@ -280,3 +280,124 @@ describe('split blocks', () => {
     },
   )
 })
+
+describe('Enter in a heading', () => {
+  /** `Title`, then a bold run holding `trailing`: empty unless a case says otherwise. */
+  const heading = (trailing: string) =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Heading',
+          id: 'h',
+          level: 2,
+          children: [
+            { type: 'Text', id: 'v', text: 'Title', marks: [] },
+            { type: 'Text', id: 'w', text: trailing, marks: ['Bold'] },
+          ],
+        },
+      ],
+    })
+  const caret = (node: string, offset: number): RichText.Selection => ({
+    type: 'Range',
+    anchor: position(node, offset),
+    focus: position(node, offset),
+  })
+
+  it.each<[string, string, RichText.Selection, ReadonlyArray<string>]>([
+    ['at its end starts a paragraph', '', caret('v', 5), ['Heading', 'Paragraph']],
+    [
+      'at the end of a run with text after it keeps a heading',
+      '!',
+      caret('v', 5),
+      ['Heading', 'Heading'],
+    ],
+    ['in its middle keeps both halves headings', '', caret('v', 2), ['Heading', 'Heading']],
+    // Removing a range to the end leaves the caret there, as a caret at the end is.
+    [
+      'over a range to its end starts a paragraph',
+      '',
+      { type: 'Range', anchor: position('v', 2), focus: position('v', 5) },
+      ['Heading', 'Paragraph'],
+    ],
+    [
+      'over a range that stops before text keeps a heading',
+      '!',
+      { type: 'Range', anchor: position('v', 2), focus: position('v', 5) },
+      ['Heading', 'Heading'],
+    ],
+  ])('%s', (_, trailing, selection, blocks) => {
+    let n = 0
+    const result = success(
+      RichText.run(
+        { document: heading(trailing), selection },
+        { type: 'SplitBlock' },
+        { mint: () => `new-${++n}` },
+      ),
+    )
+    expect(result.state.document.children.map(block => block.type)).toEqual(blocks)
+  })
+
+  it('starts a paragraph over a range into the next block, whose text was never the heading’s', () => {
+    let n = 0
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Heading',
+          id: 'h',
+          level: 2,
+          children: [{ type: 'Text', id: 'v', text: 'Title', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'x', text: 'body', marks: [] }],
+        },
+      ],
+    })
+    const result = success(
+      RichText.run(
+        {
+          document,
+          selection: { type: 'Range', anchor: position('v', 5), focus: position('x', 2) },
+        },
+        { type: 'SplitBlock' },
+        { mint: () => `new-${++n}` },
+      ),
+    )
+    expect(
+      result.state.document.children.map(block => [
+        block.type,
+        block.children.map(run => run.text).join(''),
+      ]),
+    ).toEqual([
+      ['Heading', 'Title'],
+      ['Paragraph', 'dy'],
+    ])
+  })
+
+  it('leaves Enter at the end of a code block splitting it, as a retype would be refused', () => {
+    const code = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'c',
+          props: {},
+          children: [{ type: 'Text', id: 'c-t', text: 'let x', marks: [] }],
+        },
+      ],
+    })
+    let n = 0
+    const result = success(
+      RichText.run(
+        { document: code, selection: caret('c-t', 5) },
+        { type: 'SplitBlock' },
+        { mint: () => `new-${++n}` },
+      ),
+    )
+    expect(result.state.document.children).toHaveLength(2)
+  })
+})

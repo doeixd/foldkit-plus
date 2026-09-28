@@ -1,13 +1,13 @@
 {
   "name": "foldkit-richtext-code",
   "version": "0.1.0",
-  "description": "Grammars that turn a foldkit-richtext CodeBlock's text into highlighting tokens.",
+  "description": "Code tokenizers for foldkit-richtext's CodeBlock, producing syntax decorations.",
   "keywords": [
     "foldkit",
     "effect",
     "rich-text",
-    "code",
-    "highlight",
+    "syntax-highlighting",
+    "json",
     "typescript"
   ],
   "type": "module",

@@ -84,15 +84,6 @@ const recordBoundary = (
   return { ...state, boundary: { ...state.boundary, [connection]: next } }
 }
 
-/**
- * A subscriber is woken only if the event changed a field it selects. A
- * change to an unselected field is skipped entirely.
- */
-export const shouldWake = (
-  changed: ReadonlyArray<string>,
-  selected: ReadonlyArray<string>,
-): boolean => changed.some(field => selected.includes(field))
-
 export interface EntityApplied {
   readonly state: LiveState
   readonly store: EntityStore
@@ -134,11 +125,11 @@ const removeEdgeOverlays = (
   key: string,
 ): OptimisticState => ({
   ...optimistic,
-  overlays: optimistic.overlays.map(overlay =>
-    overlay.connection !== connection || overlay.position === 'remove'
-      ? overlay
-      : { ...overlay, edges: overlay.edges.filter(edge => edge.key !== key) },
-  ),
+  overlays: optimistic.overlays.map(overlay => {
+    if (overlay.connection !== connection || overlay.position === 'remove') return overlay
+    const edges = overlay.edges.filter(edge => edge.key !== key)
+    return edges.length === overlay.edges.length ? overlay : { ...overlay, edges }
+  }),
 })
 
 export const applyConnectionEvent = (

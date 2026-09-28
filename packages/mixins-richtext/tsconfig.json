@@ -33,8 +33,10 @@
       "foldkit-richtext-dom/events": ["../richtext-dom/src/events.ts"],
       "foldkit-richtext-dom/host": ["../richtext-dom/src/host.ts"],
       "foldkit-richtext-dom/html": ["../richtext-dom/src/html.ts"],
+      "foldkit-richtext-dom/input": ["../richtext-dom/src/input.ts"],
       "foldkit-richtext-dom/toolbar": ["../richtext-dom/src/toolbar.ts"],
-      "foldkit-richtext-dom/view": ["../richtext-dom/src/view.ts"]
+      "foldkit-richtext-dom/view": ["../richtext-dom/src/view.ts"],
+      "foldkit-richtext-markdown": ["../richtext-markdown/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -43,13 +45,16 @@
       "path": "../mixins/tsconfig.build.json"
     },
     {
+      "path": "../primitives/tsconfig.build.json"
+    },
+    {
       "path": "../richtext/tsconfig.build.json"
     },
     {
       "path": "../richtext-dom/tsconfig.build.json"
     },
     {
-      "path": "../primitives/tsconfig.build.json"
+      "path": "../richtext-markdown/tsconfig.build.json"
     }
   ]
 }

@@ -29,6 +29,9 @@
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
+    "foldkit-richtext": "workspace:*",
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-richtext-markdown": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
     "sql.js": "1.13.0"

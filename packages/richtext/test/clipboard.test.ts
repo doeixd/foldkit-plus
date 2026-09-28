@@ -77,6 +77,11 @@ describe('copying a slice', () => {
     expect(RichText.plainTextOf(slice)).toBe('d\nTit')
   })
 
+  it('normalizes a backwards range inside one run by its offsets', () => {
+    const slice = RichText.sliceOf(document(), range(['c', 3], ['c', 1]))!
+    expect(RichText.plainTextOf(slice)).toBe('it')
+  })
+
   it('takes a whole block for a node selection, including an unknown one', () => {
     const heading = RichText.sliceOf(document(), { type: 'Node', node: id('h') })!
     expect(RichText.plainTextOf(heading)).toBe('Title')

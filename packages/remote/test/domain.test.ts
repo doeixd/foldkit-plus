@@ -220,6 +220,7 @@ describe('Data.mutate starts a mutation from update', () => {
   it('the Command yields MutationSucceeded, which reduce settles', async () => {
     const started = Data.mutate(initial, Rename, rename, {
       optimistic: [Project.patch('p1', { name: 'pending' })],
+      now: () => 42,
     })
     expect(started.command.name).toBe('Remote.mutate(Rename)')
     expect(started.command.args).toEqual({ requestId: 'remote-1' })
@@ -243,6 +244,7 @@ describe('Data.mutate starts a mutation from update', () => {
       entities: [{ entity: 'Project', id: 'p1', values: { name: 'remote-1!' } }],
       connections: [],
       deleted: [],
+      now: 42,
     })
     const after = Data.reduce(started.model, settled)
     expect(after.remote.mutations.pending.size).toBe(0)
@@ -402,6 +404,7 @@ describe('Data.confirmed reads past what is only pending', () => {
 
     const settled = Data.reduce(started.model, {
       _tag: 'MutationSucceeded',
+      now: 0,
       requestId: started.requestId,
       entities: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
     })
@@ -540,6 +543,11 @@ describe('Data.live and Data.subscriptions', () => {
       refresh: 0,
       expires: null,
     })
+  })
+
+  it('the read entry plans once per Remote state and ask, whatever else the Model changes', () => {
+    const planned = subscriptions['page.read'].modelToDependencies(at('p7'))
+    expect(subscriptions['page.read'].modelToDependencies(at('p7'))).toBe(planned)
   })
 
   it('the live entry subscribes only what the Surface reads live', () => {

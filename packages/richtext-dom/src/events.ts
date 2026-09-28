@@ -201,21 +201,23 @@ export interface AttachOptions {
   readonly kit?: RichText.Kit | undefined
   /** Chords the application adds or overrides, checked before the built-ins. */
   readonly keymap?: ReadonlyArray<KeyBinding> | undefined
+  /**
+   * What is drawn over the document (§129), derived from it each time it is synced — code
+   * highlighting, say. A pure read: it sees the document and nothing else.
+   */
+  readonly decorate?: Decorate | undefined
+  /** What a blank document shows (`RichText.isBlank`): "Write something…". */
+  readonly placeholder?: string | undefined
 }
+
+/** What is drawn over a document, derived from it on every render (§129). */
+export type Decorate = (document: RichText.Document) => RichText.DecorationSet
 
 export interface Attachment {
   /** The current subtree; replaced as patches are applied. */
   readonly current: () => EditorDom
-  /**
-   * Applies a committed state, patching and restoring the browser selection. A decoration
-   * set given here replaces the one the subtree draws (§129); leaving it out keeps the set
-   * the subtree was rendered with.
-   */
-  readonly sync: (
-    state: RichText.EditorState,
-    changeSet: RichText.ChangeSet,
-    decorations?: RichText.DecorationSet,
-  ) => void
+  /** Applies a committed state, patching and restoring the browser selection. */
+  readonly sync: (state: RichText.EditorState, changeSet: RichText.ChangeSet) => void
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
   readonly detach: () => void
@@ -236,12 +238,44 @@ const sameSelection = (
 }
 
 /**
+ * Marks the lone block of a blank document with `data-placeholder`, which a stylesheet draws
+ * with `::before { content: attr(data-placeholder) }`, and clears it from any block that no
+ * longer qualifies. It is an attribute rather than a text node, so it never enters the
+ * content the adapter reads back or the caret mapping. The block, not the root, carries it,
+ * so the text sits on the line the caret is on.
+ */
+const drawPlaceholder = (
+  dom: EditorDom,
+  placeholder: string,
+  marked: Element | undefined,
+): Element | undefined => {
+  dom.root.setAttribute('aria-placeholder', placeholder)
+  const first = dom.content.children[0]
+  const target =
+    RichText.isBlank(dom.content) && first !== undefined ? dom.elements.get(first.id) : undefined
+  // Only the element marked last can carry the attribute, so nothing is searched per patch.
+  if (marked !== target) marked?.removeAttribute('data-placeholder')
+  target?.setAttribute('data-placeholder', placeholder)
+  return target
+}
+
+/**
  * Wires the owned subtree to an application. The adapter never decides what an
  * edit means: it translates events into commands, hands them to `onIntent`, and
  * patches whatever the application commits.
  */
 export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let current = dom
+  // Every replacement of the subtree goes through here: a repair or a patch can render the
+  // blank block fresh, without the attribute the last one carried.
+  let marked: Element | undefined
+  const redraw = (next: EditorDom): void => {
+    current = next
+    if (options.placeholder !== undefined) {
+      marked = drawPlaceholder(current, options.placeholder, marked)
+    }
+  }
+  redraw(dom)
   let composing = false
   /**
    * The selection the application last committed, or the adapter last reported.
@@ -283,7 +317,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     // committed or cancelled, so repair the subtree before anything else, then
     // put back the selection composition started from — not the caret the
     // browser moved into its own temporary text.
-    current = repair(current, current.content)
+    redraw(repair(current, current.content))
     restoreSelection(current, composingSelection)
     composingSelection = null
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
@@ -356,8 +390,8 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   return {
     current: () => current,
     composing: () => composing,
-    sync: (state, changeSet, decorations) => {
-      current = patchInto(current, state.document, changeSet, decorations)
+    sync: (state, changeSet) => {
+      redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
       lastSelection = state.selection
       restoreSelection(current, state.selection)
     },

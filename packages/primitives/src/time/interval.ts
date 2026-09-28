@@ -37,8 +37,8 @@ export const Interval = Bundle.make('Interval', {
     IntervalMessage.match<Update.ReturnWithOutMessage<IntervalModel, IntervalMessage, never>>(
       message,
       {
-        Started: () => ({ model: { ...model, running: true } }),
-        Stopped: () => ({ model: { ...model, running: false } }),
+        Started: () => (model.running ? { model } : { model: { ...model, running: true } }),
+        Stopped: () => (model.running ? { model: { ...model, running: false } } : { model }),
         Ticked: ({ at }) => ({ model: { ...model, lastAt: at } }),
       },
     ),

@@ -1,113 +1,86 @@
 /**
- * Code tokenizers (§124 §7, §130): a `CodeBlock`'s text read as decorations, with the token's
- * own name in the decoration's kind and in its data.
+ * Code highlighting as decorations (§124 §7, §130): a tokenizer reads a `CodeBlock`'s text and
+ * its tokens become decorations. Nothing here changes the document.
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 
-const id = RichText.NodeId.make
+const code = (id: string, runs: ReadonlyArray<string>, props: Record<string, unknown> = {}) => ({
+  type: 'Node',
+  kind: 'CodeBlock',
+  id,
+  props,
+  children: runs.map((text, index) => ({ type: 'Text', id: `${id}-${index}`, text, marks: [] })),
+})
 
-const codeBlock = (language?: string, text = 'let x = 1') =>
+const document = () =>
   RichText.decodeDocument({
     version: 1,
     children: [
+      code('json', ['{"a": 1', '2}'], { language: 'json' }),
+      code('other', ['x = 3'], { language: 'python' }),
+      code('bare', ['4']),
+      { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'pt', text: '5', marks: [] }] },
       {
         type: 'Node',
-        kind: 'CodeBlock',
-        id: 'code',
-        props: language === undefined ? {} : { language },
-        children: [{ type: 'Text', id: 'code-t', text, marks: [] }],
+        kind: 'Quote',
+        id: 'quote',
+        props: {},
+        children: [],
+        blocks: [code('nested', ['[6]'], { language: 'json' })],
       },
     ],
   })
 
-/** Names one word, so these assertions are about the producer rather than about a grammar. */
-const words = (language: string, ...named: ReadonlyArray<string>): RichText.CodeTokenizer => ({
-  language,
-  tokenize: text => {
-    const tokens: Array<RichText.CodeToken> = []
-    for (const word of named) {
-      const at = text.indexOf(word)
-      if (at >= 0) tokens.push({ from: at, to: at + word.length, kind: word })
-    }
-    return tokens
-  },
-})
+/** Every run of digits, which is enough grammar to tell the blocks apart. */
+const numbers: RichText.CodeTokenizer = text =>
+  Array.from(text.matchAll(/\d+/g), match => ({
+    from: match.index,
+    to: match.index + match[0].length,
+    kind: 'syntax-number',
+  }))
 
-describe('reading a code block as decorations', () => {
-  it('names the token in the decoration’s kind and in its data', () => {
-    expect(
-      RichText.codeDecorations(codeBlock('plain', 'let x = 1'), [words('plain', 'let')]),
-    ).toEqual([
-      {
-        from: { node: id('code-t'), offset: 0, affinity: 'before' },
-        to: { node: id('code-t'), offset: 3, affinity: 'before' },
-        kind: 'syntax-let',
-        data: { token: 'let' },
-      },
+const spans = (tokenizers: ReadonlyMap<string, RichText.CodeTokenizer>) =>
+  RichText.codeDecorations(document(), tokenizers).map(decoration => [
+    decoration.kind,
+    decoration.from.node,
+    decoration.from.offset,
+    decoration.to.node,
+    decoration.to.offset,
+  ])
+
+describe('code highlighting as decorations', () => {
+  it('tokenizes each code block by its language, nested ones included', () => {
+    // `12` spans the block's two runs and stays one token; `3` is Python, which nothing
+    // tokenizes; `4` names no language; `5` is a paragraph, not code.
+    expect(spans(new Map([['json', numbers]]))).toEqual([
+      ['syntax-number', 'json-0', 6, 'json-1', 1],
+      ['syntax-number', 'nested-0', 1, 'nested-0', 2],
     ])
   })
 
-  it('reads a token that spans two runs as one decoration', () => {
-    const split = RichText.decodeDocument({
-      version: 1,
-      children: [
-        {
-          type: 'Node',
-          kind: 'CodeBlock',
-          id: 'code',
-          props: { language: 'plain' },
-          children: [
-            { type: 'Text', id: 'first', text: 'le', marks: [] },
-            { type: 'Text', id: 'second', text: 't x', marks: [] },
-          ],
-        },
-      ],
-    })
-    expect(RichText.codeDecorations(split, [words('plain', 'let')])[0]).toMatchObject({
-      from: { node: id('first'), offset: 0 },
-      to: { node: id('second'), offset: 1 },
-      kind: 'syntax-let',
-    })
+  it('hands a tokenizer the block’s whole text, across its runs', () => {
+    const seen: Array<string> = []
+    RichText.codeDecorations(
+      document(),
+      new Map([['json', (text: string) => (seen.push(text), [])]]),
+    )
+    expect(seen).toEqual(['{"a": 12}', '[6]'])
   })
 
-  it('leaves a block alone when no tokenizer names its language, or it has none', () => {
-    expect(RichText.codeDecorations(codeBlock('other'), [words('plain', 'let')])).toEqual([])
-    expect(RichText.codeDecorations(codeBlock(), [words('plain', 'let')])).toEqual([])
+  it('is nothing with no tokenizer registered', () => {
+    expect(spans(new Map())).toEqual([])
   })
 
-  it('reads only code blocks, whatever else carries a language', () => {
-    // A kind that is not code, holding runs and a `language` prop of its own: the kind decides.
-    const notCode = RichText.decodeDocument({
-      version: 1,
-      children: [
-        {
-          type: 'Paragraph',
-          id: 'p',
-          children: [{ type: 'Text', id: 'pt', text: 'let', marks: [] }],
-        },
-        {
-          type: 'Node',
-          kind: 'Callout',
-          id: 'c',
-          props: { language: 'plain' },
-          children: [{ type: 'Text', id: 'ct', text: 'let', marks: [] }],
-        },
-      ],
-    })
-    expect(RichText.codeDecorations(notCode, [words('plain', 'let')])).toEqual([])
-  })
-
-  it('skips a token whose range does not land in the block', () => {
-    const beyond: RichText.CodeTokenizer = {
-      language: 'plain',
-      tokenize: () => [{ from: 99, to: 100, kind: 'x' }],
-    }
-    const empty: RichText.CodeTokenizer = {
-      language: 'plain',
-      tokenize: () => [{ from: 0, to: 0, kind: 'x' }],
-    }
-    expect(RichText.codeDecorations(codeBlock('plain'), [beyond])).toEqual([])
-    expect(RichText.codeDecorations(codeBlock('plain'), [empty])).toEqual([])
+  it.each([
+    ['past the text', { from: 7, to: 10 }],
+    ['before the text', { from: -1, to: 1 }],
+    ['covering nothing', { from: 2, to: 2 }],
+    ['between characters', { from: 0.5, to: 2 }],
+  ])('refuses a token %s, naming the language', (_, range) => {
+    const broken: RichText.CodeTokenizer = () => [{ ...range, kind: 'syntax-bad' }]
+    expect(() => RichText.codeDecorations(document(), new Map([['python', broken]]))).toThrow(
+      /python/,
+    )
   })
 })

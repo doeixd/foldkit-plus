@@ -1,5 +1,8 @@
 # `foldkit-mixins`
 
+> **Implementation status, checked 2026-09-27:** Built as `foldkit-mixins` 0.4.0 (public) with its companion packages; Phase 10 and Phases 12–13 are started, not complete. See the
+> [design index](./README.md#where-each-design-stands).
+
 Inside-out Style/Behavior attachment for Foldkit. A view publishes a typed
 slot contract; Style and Behavior attach to those slots without forking the
 view. Application state stays in Model/Submodel. This package does not grow

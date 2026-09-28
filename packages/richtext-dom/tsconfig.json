@@ -8,6 +8,9 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-form": ["../form/src/index.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom": ["./src/index.ts"],
       "foldkit-richtext-dom/editor": ["./src/editor.ts"],
@@ -15,6 +18,7 @@
       "foldkit-richtext-dom/events": ["./src/events.ts"],
       "foldkit-richtext-dom/host": ["./src/host.ts"],
       "foldkit-richtext-dom/html": ["./src/html.ts"],
+      "foldkit-richtext-dom/input": ["./src/input.ts"],
       "foldkit-richtext-dom/toolbar": ["./src/toolbar.ts"],
       "foldkit-richtext-dom/view": ["./src/view.ts"]
     }
@@ -23,6 +27,12 @@
   "references": [
     {
       "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../form/tsconfig.build.json"
     },
     {
       "path": "../richtext/tsconfig.build.json"

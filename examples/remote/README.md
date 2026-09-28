@@ -106,6 +106,7 @@ rendered classes: project-card
 rendered status: active
 mutation RenameProject (remote-1): MutationSucceeded
 after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
+refetch after mutation: none
 retained: Project:p1; 1 entity and 1 connection collected
 corrupt store: Failed DecodeError
 refresh: Refreshing {"id":"p1","name":"Apollo",...}; list Refreshing p1; again unchanged: true
@@ -228,11 +229,14 @@ source.
 ```text
 mutation RenameProject (remote-1): MutationSucceeded
 after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
+refetch after mutation: none
 ```
 
 `Data.mutate` records the request in the Model and returns the Command that asks
 the `RemoteClient` to perform it. The result comes back as Remote Messages and
-settles into the same normalized cache.
+settles into the same normalized cache. The answer is dated by `Data.mutate`'s `now`, as a read
+is, so the stale-while-revalidate entry from step 3 takes the renamed project
+as fresh and plans no refetch.
 
 This is **not** an offline durable intent queue. If an edit must survive restart
 and converge later, that is [`foldkit-sync`](../../packages/sync), not Remote.

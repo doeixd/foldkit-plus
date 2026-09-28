@@ -16,8 +16,10 @@ export {
   locateBlock,
   locateRun,
   textBefore,
+  isBlank,
   textRangeBefore,
   positionInBlock,
+  rangeStart,
   Text,
   Paragraph,
   Heading,
@@ -37,6 +39,7 @@ export {
   decodeDocument,
   selectionIsValid,
   inspect,
+  count,
 } from './document.js'
 export {
   type MarkDef,
@@ -57,9 +60,17 @@ export {
 export {
   type Action,
   type Command,
+  Container,
+  Beside,
   type CommandIds,
   type RunOptions,
   marksInRange,
+  markExtent,
+  type MarkExtent,
+  textBlockAt,
+  blocksAt,
+  moveTargets,
+  coversText,
   run,
   runAction,
 } from './command.js'
@@ -98,12 +109,8 @@ export {
   runPieces,
 } from './decoration.js'
 export { SEARCH_DECORATION, searchDecorations } from './search.js'
-export {
-  type CodeToken,
-  type CodeTokenizer,
-  syntaxDecorationKind,
-  codeDecorations,
-} from './code.js'
+export { type CodeToken, type CodeTokenizer, codeDecorations } from './code.js'
+export { safeUrl } from './url.js'
 export {
   Slice,
   emptySlice,
@@ -133,7 +140,15 @@ export {
   inspectKit,
   validate,
 } from './kit.js'
-export { Strikethrough, Link, standardMarks, standardNodes, standardRendering } from './standard.js'
+export {
+  Strikethrough,
+  Link,
+  linkAt,
+  type LinkAt,
+  standardMarks,
+  standardNodes,
+  standardRendering,
+} from './standard.js'
 export {
   type Migration,
   type MigrationApplied,

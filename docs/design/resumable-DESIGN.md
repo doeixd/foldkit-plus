@@ -1,5 +1,8 @@
 # Resumable Foldkit
 
+> **Implementation status, checked 2026-09-27:** Built in `foldkit-ssr` as ssr-PLAN's Phases A–G, rule 1's diagnostic and rule 6's equivalence test included. Its manifest-size risk was measured (ssr-PLAN G4, G6) and closed with the numbers. See the
+> [design index](./README.md#where-each-design-stands).
+
 **Status:** design, 2026-09-23, revised the same day where checking it against
 the built phases found gaps ([ssr-PLAN.md, "What the resumable design changes
 here"](./ssr-PLAN.md#what-the-resumable-design-changes-here)); its phases are
@@ -130,8 +133,12 @@ These are the rules; each is checked by a type, a render diagnostic, or a
 test, never by convention.
 
 1. **A handler is a value.** A Message, or a member with a hole. A closure
-   handler still works and makes the page eager, with a diagnostic naming the
-   element. *Checked:* the builder's types, and the render collector.
+   handler still works, with a diagnostic naming the element and its event.
+   Built, it keeps the rest of the page answering and boots on that event
+   alone, rather than making the whole page eager as first written: the
+   markers mark it `*`, the delegated listener hands its event to the live
+   page, and `SSR.render` lists it under `unnamed`. *Checked:* the builder's
+   types, and the render collector.
 2. **Everything on the wire is a Schema value.** The Model slice, every
    Message, every projection. *Checked:* `Schema.encode` on the server,
    `Schema.decode` in the browser, with the application's own Message union.
@@ -328,7 +335,10 @@ Two orderings matter and both fall out of the queue:
 
 - A user typed into a search box before boot. Hydration sets the input's
   value to the Model's (empty) draft, then the queued `ChangedSearch` Messages
-  replay and `update` puts the text back. The final Model is what it would
+  replay and `update` puts the text back. (As built, since ssr-PLAN's G2,
+  the runtime's `update` runs the queued Messages ahead of the first Message
+  it processes, rather than a Subscription replaying them, so nothing the
+  live page answers can overtake them.) The final Model is what it would
   have been with an eager boot, because the same Messages went through the
   same `update` in the same order. This is the property component frameworks
   lack: there is no per-component state to lose.

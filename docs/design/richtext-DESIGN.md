@@ -1,7 +1,26 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2 (slice 3 dropped per §123), §120's slice 1, and the slash menu (§123) have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory; §124 proposes a
-Markdown-first reordering of what to build next, and is a plan rather than a status report.
+**Status:** §124's Markdown-first order is the one being followed; its milestones 1–8 are
+built (6 without its keymap layer, which §123 dropped), and 9 has begun. Built: the standard vocabulary and content rules (§125); the
+decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
+Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
+actions, and the block commands they need: retype, wrap (joining the list above), convert,
+and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
+(§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
+mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
+status line, the command palette, the floating toolbar's anchor, and the block handle with its
+drag (§119, §123, §132, §133, §134, §141, §142, §143, §144, §148, §149), with their views in
+`foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
+and none is released yet. Milestone 7's source session, its view, and split mode are built
+(§136, §137), with the writer's spellings per construct and per block (§138, §146) and the
+caret carried across a mode switch (§147).
+Milestone 8's form control and its CMS example are built (§139, §140).
+Milestone 9 has begun: on a server-rendered page the editor's host carries the document and the
+browser's editor adopts it (§145), which found a table bug (§150).
+Still to do: real-browser hardening, collaboration, presence, and agents, in
+§124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
+rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
+the stateful-Form control is built (§139), and the collaboration proof is unstarted.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -2914,8 +2933,8 @@ semantic command, never an automatic round trip.
 
 > **Built (2026-09-25), as §126.** `Decoration`, `DecorationSet`, and `decorationsIn` are
 > the contracts and the shared projection; the read-only view overlays a set as
-> `span[data-decoration]`. The editable adapter's overlay landed as §129: the mapping reads
-> a run's text across its pieces, and `runPieces` states the cut both interpreters share.
+> `span[data-decoration]`. The editable adapter's overlay is deliberately not built yet
+> (§126 records why: one text node per run is what makes a caret mappable).
 
 ---
 
@@ -4559,15 +4578,16 @@ A verified inventory of what is not done, by phase. §124 proposes a different o
 for the work than these phases do; this inventory stays the record of what exists. In
 this section:
 
-- **package** means the core `packages/richtext` (private, unpublished); the DOM
-  package `packages/richtext-dom` and the Mixins family `packages/mixins-richtext`
-  are named where they matter;
+- **package** means the core `packages/richtext`; the DOM package
+  `packages/richtext-dom`, the Mixins family `packages/mixins-richtext`, and the
+  Markdown and code packages are named where they matter. All are public workspace
+  packages at 0.1.0, none released;
 - **harness** means the private `examples/richtext` spike, which has no
   `package.json` and is not supported API;
 - **published** means usable by another workspace package.
 
-Verified against source and tests at commit `0f2c7cc`; see the verification note
-at the end. Re-check this list when a phase lands, because a stale inventory
+Verified against source and tests at commit `0f2c7cc`, and Phase 4 again at `377b59c`;
+see the verification note at the end. Re-check this list when a phase lands, because a stale inventory
 reads as current.
 
 ## Phase 1 — semantic core
@@ -4612,7 +4632,7 @@ Not done:
 
 In `packages/richtext-dom` (`foldkit-richtext-dom/view`): a `Document` or `Slice`
 becomes ordinary Foldkit `Html` through `inertHtml`, with no dispatch and no DOM
-ownership. Not published.
+ownership. Used in the workspace (`examples/cms`); not released.
 
 ## Phase 3 — vertical editing slice
 
@@ -4644,15 +4664,15 @@ Not done:
 ## Phase 4 — editor Bundle features
 
 The controlled-Bundle proof passed (§27), so the gate is met; nothing is
-published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
+released. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
 event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
-`examples/richtext` to `packages/richtext-dom`, a private package with its own
+`examples/richtext` to `packages/richtext-dom`, a package (private then, public now) with its own
 tests, build, and README. §118 decided how a view owns that subtree and its first
 three slices landed: the editor's view renders the host element, the patch Command
 its `update` returns is what moves the DOM, paste and the undo/redo chords travel
 the same path, and the editor Bundle and read-only renderer moved in beside the
-interpreter. The harness is now only the browser page. The toolbar, slash, and
-keymap layers remain.
+interpreter. The harness is now only the browser page. The keymap table, the toolbar,
+the slash menu, link editing, and the rest of §35's chrome (§141–§144, §148) have landed since.
 
 Per item:
 
@@ -4662,21 +4682,41 @@ stored marks              interaction state plus InsertText.marks
 history                   snapshot History committed in the child
 keymaps                   the adapter's built-ins, plus a `keymap` table an
                           application adds to or overrides; the editor's own
-                          binding layer waits for a binding that needs it (§119)
+                          binding layer was dropped (§123)
 copy/paste                routed through the view's Messages (§118 slice 2)
-drag/drop                 not started
+drag/drop                 a block by its handle (`blockDrag`, §148), into any
+                          container the vocabulary lets it stand in (§149)
 mobile virtual keyboards  not started (Phase 3)
 toolbar integration       the mark buttons and their active rule
                           (`foldkit-richtext-dom/toolbar`, `marksToolbar`), and the
                           Mixins family that re-renders them
-                          (`foldkit-mixins-richtext`, `markToolbar`); the rest of
-                          §35's chrome is §120 slice 2
+                          (`foldkit-mixins-richtext`, `markToolbar`), and the
+                          rest of §35's chrome (§141–§144)
 slash commands            the editor's catalogue and menu
                           (`foldkit-richtext-dom/editor`: `slashQuery`,
                           `slashEntries`, `matchingEntries`, `slashMenu`), the family's
                           re-export, `slashMove`, and `slashMenuView`, and the Bundle's
                           `menuIndex` with `Entered` resolved against a live query
-                          (§123)
+                          (§123); entries for the quote, the lists, and the code block
+                          (§131)
+link editing              `SetMark`/`ClearMark` and `linkAt` in the core, the
+                          `AppliedMark`/`ClearedMark` Messages, and `linkEditor` in the
+                          Mixins family (§132)
+input rules               placed per host (`inputRulesFor`); the Markdown rules for
+                          headings, quotes, lists, and fences (§128, §131)
+decorations               placed per host and drawn in the editable subtree (§129)
+placeholder               placed per host, drawn by the adapter (§133)
+block type picker         `textBlockAt` in the core, `blockStyles` in the Mixins
+                          family (§134)
+status                    `count` in the core, `editorStatus` in the Mixins family,
+                          showing the problems the caller passes (§141)
+command palette           `commandPalette` in the Mixins family, over the slash
+                          catalogue (§142)
+floating toolbar          `coversText` in the core, `selectionAnchor` beside the
+                          marks toolbar (§143)
+block handle              `MoveBlock` and `blocksAt` in the core, `MovedBlock` and
+                          `blockAnchor` in the editor, `blockHandle` in the Mixins
+                          family (§144), and its grip's drag (§148)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -4692,15 +4732,17 @@ Commands, a Subscription, and a Resource, and §44 records what the Form API can
 carry yet. Content-change reporting is implemented (`authoredChanged`), and
 `packages/cms/src/editor.ts` consumes it.
 
-Not done: the public Form API for stateful controls, renderer integration,
-lifecycle, persistence and resume coverage, the RichText integration, and the CMS
-autosave switch to the Form transition's authored-content result.
+`Input.bundle` is the public API for a stateful control, and the RichText integration is
+built on it (§139). Not done: renderer integration, lifecycle, persistence and resume coverage
+beyond what `settled` decides, and the CMS autosave switch to the Form transition's
+authored-content result.
 
 ## Phase 6 — CMS example
 
-Not started: a rich-text article in `examples/cms` covering type, autosave,
-reload, resume, preview, publish, visitor rendering, restore revision, and
-scheduled publication.
+Done (§140): an article in `examples/cms` whose body is a document, covering typing through
+input rules, autosave, reload with the caret, preview, publish, visitor rendering, a second
+revision, restore, and scheduled publication. Not done: the article in the browser client,
+and the `TS7056` limit that keeps its content type unexported.
 
 ## Phase 7 — richer Nodes
 
@@ -4751,7 +4793,12 @@ keymap, toolbar, slash, or drag/drop handling; listing
 renderer package); and `foldkit-metadata` appeared in six package manifests, none of
 them richtext. Since then the DOM package and the Mixins family exist, the adapter
 gained a keymap table (§119) and a toolbar (§120), and `marksInRange` joined the
-core.
+core. At `377b59c`, a search of `packages/richtext-dom/src` and
+`packages/mixins-richtext/src` found no drag/drop handling and no editor placeholder
+(the one `placeholder` was the preserved-content diagnostic); §133 added the placeholder and
+§148 the drag. Milestone 9 has its server half (§145); still open there: the placeholder on
+adopted markup, a server render of the source view, and real-browser checks of §143's and
+§148's layout.
 
 ---
 
@@ -5917,6 +5964,10 @@ without turning normalization into a bag of UX behavior.
 > `RetypeBlock`); and the editor applies the rules placed for its host, so it carries no
 > syntax. The markers that need a block wrapped or replaced — `> `, `- `, `1. `, a fence —
 > wait on a command §21 does not have; §128 records both.
+>
+> **Built (2026-09-26), as §131:** `WrapBlock`, with the `> `, `- `, and `1. ` rules on it,
+> and `ConvertBlock`, with the fence rule on it. Every block marker this list names is now a
+> rule.
 
 ---
 
@@ -6064,8 +6115,8 @@ That's a major architectural win.
 
 > **Built (2026-09-25), as §126.** `Decoration`, `DecorationSet`, and `decorationsIn` are in
 > `foldkit-richtext`, and the read-only renderer overlays a set as `span[data-decoration]`
-> with the run's marks inside it. The editable interpreter's overlay landed as §129: `mount`,
-> `patch`, and `repair` take a set, and `runPieces` cuts a run the same way in both.
+> with the run's marks inside it. The editable interpreter's overlay is deliberately not
+> built yet; §126 records the reason and the options.
 
 ---
 
@@ -6140,11 +6191,12 @@ For synchronous/simple tokenizers, the same contract works without Effects.
 
 For async Shiki, let a Bundle Command compute the highlighting and commit the ephemeral result into editor interaction state. Don't introduce a hidden highlighter store.
 
-> **Built (2026-09-25), as §130.** The core has `CodeTokenizer` and `codeDecorations`;
-> `foldkit-richtext-code` ships the JSON lexer; and the read-only view draws the tokens as
-> `syntax-<token>` decorations, which is the path this section asked for. Shiki
-> (`foldkit-richtext-code-shiki`) is not built, and §129 decides how the *editable* adapter will
-> draw the same decorations.
+> **Designed (2026-09-25), as §130.** The seam and its homes are decided — `CodeTokenizer` and
+> `codeDecorations` in the core (format-agnostic, like `searchDecorations`), a JSON lexer in
+> `foldkit-richtext-code`, Shiki in `foldkit-richtext-code-shiki` — and §129 decides how the
+> editable adapter draws the result. The core half is built: `CodeTokenizer` and
+> `codeDecorations`, drawn by the read-only view. The JSON grammar and the editable overlay
+> followed (see §130 and §129).
 
 ---
 
@@ -6910,13 +6962,12 @@ shares with `textRangeBefore`, the block-offset-to-position mapping both need. T
 view draws such a set without any hand-made decoration, so §64's first example now runs end to
 end.
 
-The **editable** adapter could not overlay decorations at first. Its runs mapped a caret by
-keeping one text node per run, and splitting a run at decoration edges broke that mapping unless
-the mapping learned to read across the text nodes. §129 decided the shape — the adapter nests the
-same elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
-Custom Highlight API, which nothing in this repository can test — and that overlay is now built in
-the interpreter: `mount`, `patch`, and `repair` take a set, and `runPieces` states the cut both
-interpreters use. See §129 for what remains (the editor Bundle chooses no set yet).
+The **editable** adapter did not overlay decorations at first (built since; see §129). Its runs mapped a caret by keeping one
+text node per run, and splitting a run at decoration edges breaks that mapping unless the
+mapping learns to read across the text nodes. §129 decides that: the adapter nests the same
+elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
+Custom Highlight API, which nothing in this repository can test. Until the overlay lands the
+editable subtree renders marks only.
 
 Presence (§62) and remote selections (§63) become decorations when collaboration lands;
 nothing here changes for that — a stable selection resolved against a replica produces a
@@ -6993,6 +7044,18 @@ paragraph, because a block holds no break).
   image among other content is reported and skipped. The asymmetry belongs to §116's
   deferred inline content.
 
+## Later: marks that read back
+
+The tests here compared printed strings, so they could not see that CommonMark's flanking rules
+refuse a delimiter with punctuation on one side and a letter on the other (`x**(a)**y` is plain
+text). A later review printed and parsed generated paragraphs and found a quarter lost a mark.
+The printer now writes that letter as a character reference, which reads back as itself and
+whose `;` is punctuation; opens the longest-lasting mark first; gives a delimiter that would
+touch one of its own character the other spelling; joins runs with the same marks; and escapes
+`!` and `|`. None of 30,000 generated paragraphs loses a mark, and a seeded thousand are a test.
+The rule is conservative: it treats a neighbouring delimiter as punctuation, so it sometimes
+writes a reference the parser would not have needed.
+
 ---
 
 # 128. Input rules
@@ -7051,6 +7114,9 @@ and no rule claims them. The inline shortcuts (`**foo**` as the closing run is t
 same story from the other side: they need the text *after* the caret too, which the contract
 deliberately does not read.
 
+> **Since built (§131):** the wrap and the replace. `> `, `- `, `1. `, and the fence are
+> rules now.
+
 ---
 
 # 129. The editable adapter's decoration overlay
@@ -7103,16 +7169,21 @@ tokenizer names its kinds `syntax-string`, `syntax-number` — a registry over `
 over marks, is the alternative), and whether the editable subtree should clip a decoration to
 the rendered window.
 
-> **Built (2026-09-25), in the interpreter.** The adapter nests the same element the view does,
-> and the mapping reads a run's text across its pieces: `mount`, `patch`, and `repair` take a
-> decoration set, a run whose spans differ is re-rendered through the path its marks already use,
-> and `repair` compares a run against a fresh render rather than a hand-written model of one —
-> which closed a real gap, since the old structural check could not see a dropped decoration.
-> `runPieces` in the core states the cut once for both interpreters, and moving the view onto it
-> fixed a bug it had been hiding: a piece no decoration covered was dropping the run's marks.
-> Still open: the editor Bundle has no source for a set, so its patch keeps the one the subtree
-> was rendered with, and the two questions above (a `data` registry, viewport clipping) are
-> untouched.
+> **Built (2026-09-26).** `mount` and `patch` take a decoration set and draw it as the view
+> does, from one shared cut (`RichText.runPieces`), and the mapping reads a run's text nodes
+> in order. One correction to the plan above: a decoration change is *not* carried by the
+> `ChangeSet`. A new search query changes the decorations with no edit at all. So `patch`
+> compares each run's share of the new set with what it drew and redraws the runs that
+> differ; the same set again redraws nothing. `repair` compares a run with a fresh render of
+> it, which covers decorations as well as marks.
+>
+> **Wired (2026-09-26).** A placement names `decorate(document) => DecorationSet`
+> (`editorAt(hostId, { decorate })`, recorded by host id like the rendering, the vocabulary,
+> and the input rules). The mount draws `decorate(content)`, and every `attachment.sync`
+> draws `decorate` of the synced document. It reads the document and nothing else, which
+> covers highlighting derived from the document (code, lint). A decoration derived from
+> application state, such as a search query held in the Model, is not covered: it would need
+> the set held in editor state and passed with the patch, which is undecided.
 
 ---
 
@@ -7144,10 +7215,921 @@ seam — a tokenizer, its decoration kinds, and the read-only view drawing them 
 of a half-right JavaScript lexer. TypeScript and JavaScript should wait for Shiki rather than be
 hand-rolled.
 
-> **Built (2026-09-25).** `CodeTokenizer` and `codeDecorations` are in `foldkit-richtext`, with
-> the token's name in the decoration's kind (`syntax-string`) because the kind is what a
-> stylesheet reaches a decoration by, and in its `data` for a registry to read later.
-> `foldkit-richtext-code` ships `jsonTokenizer`, which lexes JSON exactly — strings with their
-> escapes, numbers by JSON's shape, the literals, the punctuation, and one `invalid` token for a
-> character that begins no token — and the read-only view draws the result. Shiki is not built.
 
+> **Built (2026-09-26): the core half.** `CodeToken`, `CodeTokenizer`, and
+> `codeDecorations(document, tokenizers)` are in `foldkit-richtext`. The registry is a `Map`
+> keyed by language, because the language is read from the document. A token outside its
+> block's text, covering nothing, or at a fractional offset throws with the language, rather
+> than becoming a highlight over the wrong text. The read-only view draws the result with no
+> change of its own.
+>
+> **Built (2026-09-26): the JSON grammar.** `foldkit-richtext-code` exports `jsonTokenizer`,
+> exact on JSON and total on anything else: it never throws, and an unterminated string ends
+> at the line break. A key is `syntax-property`, told from a string value by the colon after
+> it. The editable overlay is built (§129).
+>
+> **Built (2026-09-26): the Shiki adapter,** without the asynchronous Command the plan above
+> expected. Shiki 4's `createHighlighterCoreSync` with its JavaScript regex engine tokenizes
+> synchronously once grammars are loaded, so the adapter is a pure `CodeTokenizer` like the
+> JSON one. The application loads grammars at startup, and `shikiTokenizers(highlighter)`
+> gives one tokenizer per loaded name. Scopes, not colours, become kinds: a table read first
+> match wins, with property before string because a JSON key sits inside `string`, and a test
+> caught that order wrong on its first run. Each tokenizer caches its last 64 texts. Not
+> built: loading a grammar after the editor is placed.
+
+---
+
+# 131. Wrapping a block
+
+§128 left `> `, `- `, and `1. ` as text because no command put a block inside a new container.
+The question it named — what a caret inside a block does when the block becomes a child of a
+new one — has a simple answer once the wrap is a *move*: nothing. The block keeps its identity
+and its runs, so a position on one of its runs is still a position.
+
+```text
+WrapBlock { containers: [outermost, …, innermost] }
+  = InsertNode(chain of empty containers, at the block's index, in the block's parent)
+  + MoveNode(block, into the innermost container, at 0)
+```
+
+Both operations already existed (§21), so history, replay, and the change set needed nothing
+new. The block acted on is `RetypeBlock`'s: the caret's, or the first a range covers.
+
+Constraints are checked before anything is built, against the vocabulary when one is given:
+the parent must accept the outermost container, each container the next, and the innermost
+the block. A container is held to more than an existing parent is: it must be *declared* as
+holding nested blocks. An existing parent the vocabulary does not know is left alone, because
+refusing to edit inside it would strand its content; a new container in an undeclared kind, or
+in a text kind such as `CodeBlock`, would be content the vocabulary itself refuses.
+
+The Markdown rules on it: `> ` wraps in a `Quote`; `- `, `* `, and `+ ` in a `List` holding a
+`ListItem`; `1. ` or `1) ` in an ordered list, whose `start` is the number typed and is left out
+at 1, as the parser writes it.
+
+Not decided here, and not needed until they are:
+
+- **Joining a neighbour.** A list marker typed right after a list started a second list beside
+  it, which the printer wrote as two lists and a Markdown parser read back as one. Built since:
+  given a vocabulary, a wrap whose outer container is declared to hold its next container as an
+  item (`List` holds `ListItem`) joins a previous sibling of the same kind and equal props,
+  inserting only the inner chain as its last item. A quote holds blocks, not items, so two
+  quotes stay two, as Markdown keeps them apart across a blank line. Props compare exactly,
+  so `3. ` under a list numbered from one starts a new list where Markdown would continue it;
+  and a list *below* is not joined, since that would be the merge of two existing containers,
+  its own command.
+- **The fence** turned out to need a *replace*, not a wrap or a retype: see below.
+- **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
+  block back out. Built since: see *The lift* below.
+
+## The replace, for the fence
+
+A `CodeBlock` holds text under its own marks policy, and the `RetypeBlock` *operation*
+deliberately refuses node kinds: a node's content is its Kit's contract. So turning a paragraph
+into a code block is a replace, composed like the wrap from operations that exist:
+
+```text
+ConvertBlock { to: { kind, props } }
+  = DeleteNode(block)
+  + InsertNode(node of that kind, carrying the block's text and marks, where the block stood)
+  + SetSelection(the old selection, moved onto the new runs at the same offsets)
+```
+
+One thing is different from the wrap. Carrying the runs over under their old identities was
+the first attempt, and `apply` refused it (`InvalidInput`): an identity is never reused, even
+one deleted earlier in the same transaction. So the block and its runs get new identities from
+`mint`. The caret survives because the command moves it, not because the identities did, and
+anything else holding the old run identities (a decoration, a remote cursor) has to find the
+new ones. Widening the `RetypeBlock` operation to node kinds would have kept them, at the cost
+of the rule that an operation never rewrites a node's content; a fence is rare enough, and
+typed at the start of an empty block often enough, that the replace is the smaller price.
+
+Given a vocabulary, the kind must be declared to hold text and its parent must accept it
+(`UnexpectedChild`), and a kind whose marks policy is `none` refuses a block that carries marks
+(`ForbiddenMark`) rather than dropping them silently. Only a paragraph or heading converts; a
+node block's content stays its Kit's.
+
+The rule completes a fence — three or more backticks or tildes, then an optional language —
+with a space, since Enter splits a block and a rule sees only what is typed.
+
+Undoing a fence arrived with §134: the `RetypeBlock` command replaces a text-holding kind with
+a paragraph, and Backspace at the start of one uses it, given a vocabulary. Before that,
+Backspace there tried to join the code block's text into the block above, which a join across
+two kinds refuses (`InvalidRange`), so the key did nothing. Without a vocabulary it still does.
+
+## The lift
+
+`LiftBlock` moves the block the selection starts in out of its container, one step at a time:
+
+```text
+first child   MoveNode(block, before the container)   + DeleteNode(container) if now empty
+last child    MoveNode(block, after the container)
+middle child  InsertNode(empty copy of the container, after it)
+              + MoveNode(each later sibling, into the copy)
+              + MoveNode(block, between the two)
+```
+
+With a vocabulary, steps repeat while the new parent's declaration does not hold the block's
+kind: a paragraph lifted out of a `ListItem` lands in a `List`, which holds only items, so it
+leaves the list too. Without a vocabulary nothing says so, and one step is taken. Each step is
+computed against the document the steps before it produced, applied with no normalization,
+because a split or a deletion moves the indices the next step reads.
+
+Two things the plan did not foresee:
+
+- **Isolation.** A table has the list's shape (`TableRow` holds only `TableCell`s), so the
+  repeat would have walked a cell's paragraph out of the cell, the row, and the table,
+  splitting it. A Kit node can now be declared `isolating`, and a lift never leaves one; the
+  standard `TableCell` is. This is ProseMirror's concept under its name.
+- **A MoveNode bug.** Moving a block out to before the container it left lost the removal:
+  the insert shifted the container, and folding the working copies wrote the source list to
+  the container's old index. The block was in two places. The fix folds the removal in and
+  finds the destination again before inserting, which also covers a destination whose path
+  the removal shifts.
+
+Backspace uses the lift only where it did nothing before: at the start of a container's first
+block, which has no sibling to join. It does so only with a vocabulary, the one thing that
+knows a list item must leave the list and a table cell must not be left. Without one, in a
+table cell, and forwards, the edge still does nothing.
+
+## Enter in a list item
+
+Built with the lift, because the wrap made its absence obvious: after `- a` and Enter, the split
+landed inside the same `ListItem`, a second paragraph in one bullet. With a vocabulary, a block's
+container is an *item* when its parent declares it among the kinds it holds (`List` holds
+`ListItem`) and it is not isolating, and Enter works on the item:
+
+```text
+non-empty, or not the item's only block
+  SplitNode(block)                          the halves, as before
+  + InsertNode(new item, same kind and props, after this one)
+  + MoveNode(second half, and each later block of the item, into it)
+empty, and the item's only block
+  the lift                                  leaves the list, as Backspace does
+```
+
+A range inside an item is deleted and then split, composed from `DeleteBackward` and
+`SplitBlock`. A quote is no item — nothing declares it among an item list — so Enter in one
+splits the paragraph, as it does without a vocabulary and in a table cell.
+
+The new item copies the old one's props, which made Enter in a checked `TaskItem` start another
+checked one. The core does not know what `checked` means; the Kit now says it, in §135.
+
+Enter at the end of a heading kept the heading's type too, so a title followed by Enter made a
+second title; the CMS article story (§140) typed straight into it. Now the new block is a
+paragraph when no text follows the caret in the heading, and both halves stay headings when
+Enter splits one in the middle. Over a range, what follows is what follows the range's end: a
+range to the heading's end gets a paragraph, one stopping before its last text keeps a heading,
+and one ending in another block gets a paragraph, since the text after it was never the
+heading's.
+
+
+---
+
+# 132. Editing a link
+
+§124 §11 lists a link popover among the editor UX still missing. Before any popover, the core had
+no way to express what one does: `ToggleMark` keys on the name, so over a link it only removes
+it, and with a caret — where a popover opens — it does nothing at all.
+
+Two commands and a read, built:
+
+```text
+markExtent(document, position, name)   the mark on the caret's run, and the adjacent runs of its
+                                       block carrying the same mark with the same props
+SetMark { mark }                       exactly this mark on every covered run, replacing the
+                                       props of a same-named one (AddMark is already a set)
+ClearMark { mark: name }               the mark off every covered run, whatever its props
+```
+
+At a caret, `SetMark` and `ClearMark` act on `markExtent`, and outside a mark they do nothing,
+as a collapsed toggle does. That is what makes "change this link" one Message from a popover
+opened at the caret, instead of a selection change followed by an edit. A toggle at a caret is
+unchanged: it still has nothing to cover, because what a caret *carries* is the application's
+stored marks, not a run's.
+
+The extent stops at a run whose mark of that name has other props, so two neighbouring links
+stay two, and at the block's edge. It needs no new operation: the extent's ends are run edges,
+so no run is split, and the caret keeps its node.
+
+The editor carries them as `AppliedMark { mark }` and `ClearedMark { mark }`, which the Bundle
+maps to the two commands like any other editing Message, so each is one transition and one
+undo step. The view is `linkEditor` in `foldkit-mixins-richtext`, a SlotView like the toolbar
+and the slash menu: it reads `linkAt` (`markExtent` for `Link`, from a selection's start), the
+application owns the typed address and where the editor appears, and it sends
+`safeUrl(draft)`, so a refused address is never sent (apply is disabled and Enter falls
+through). Floating it over the selection is the application's placement, as the slash menu's
+is.
+
+An added mark's props are checked against its definition (`MarkRegistry.accepts`), so
+`{ href: 4 }` or a bare `Link` is refused. The URL in a string `href` is not: a schema says what
+shape a prop has, not which schemes are safe, so that policy belongs where the link is drawn.
+
+Checking that turned up a gap older than this section: `safeUrl` ran only at import, and
+`standardRendering` wrote any stored `href` or `src` into its attribute. A document decoded
+from storage, arriving through sync, or edited by `SetMark` never passes an importer, so a
+`javascript:` link drawn from one was live. The standard rendering now applies the policy
+too and leaves a refused URL out: an `<a>` with no `href`, an `<img>` with no `src`. The
+document still holds the value, since refusing it there would need every mark's props to
+carry a policy; what is drawn is what an attacker needs.
+
+---
+
+# 133. The placeholder
+
+§35 lists a placeholder among the editor's chrome slots, but §36 keeps Mixins out of the
+editable subtree, and the text belongs inside it: on the line the caret is on, while there is
+nothing to read. So the adapter draws it, from a string the placement names, and a
+stylesheet renders it.
+
+```text
+editorAt(hostId, { placeholder })      placed by host id, beside the other drawing
+RichText.isBlank(document)             no blocks, or a lone paragraph or heading with no text
+blank → the block's data-placeholder   drawn by `[data-placeholder]::before`
+root  → role="textbox", aria-placeholder
+```
+
+It is an attribute, not a text node, so it never enters what the adapter reads back or the
+caret mapping. It is redrawn wherever the subtree is replaced: on each patch, and after a
+composition repair, which renders a block fresh without the attribute the last one carried.
+A lone empty list or code block is not blank: a writer made it, and the placeholder would
+sit inside a bullet or a fence.
+
+The root became a `textbox` for this: `aria-placeholder` is not allowed on a generic element,
+and a `contenteditable` div is otherwise announced as one.
+
+---
+
+# 134. The block style picker
+
+§124 §11 asks for a block type picker. It is built as a *style* picker: Paragraph and Heading 1–3,
+the slash menu's retype entries under the same labels, as a row of buttons in
+`foldkit-mixins-richtext` (`blockStyles`, `BlockStyleSlots`) shaped like the mark toolbar.
+
+```text
+RichText.textBlockAt(document, selection)   the start block's style, as RetypeBlock takes it
+pressed                                     the entry whose block equals it
+click                                       the entry's RetypedBlock, through `wrap`
+disabled                                    no text selection: a node selection, or none
+```
+
+Two things were decided rather than assumed:
+
+- **Lists, quotes, and code blocks are left out.** Choosing "Paragraph" from inside a list would
+  have to mean *leave the list*, which is a lift, so a button for a list would send a
+  `RetypedBlock` that does not undo what it shows. They stay in the slash menu, where an entry
+  says what it does rather than what the block is.
+- **A code block can be retyped out of.** Building the picker showed that nothing turned a code
+  block back into text: the `RetypeBlock` operation refuses node kinds, and `ConvertBlock` only
+  goes in. The `RetypeBlock` *command* now does it, given a vocabulary that declares the kind
+  as holding text: the node is replaced by a paragraph or heading carrying its runs under new
+  identities, with the selection moved onto them, exactly as `ConvertBlock` does going in (the
+  two share the replace). Without a vocabulary a node is refused, because it could be an image
+  whose content a retype would destroy. So inside a code block the picker presses nothing and
+  its buttons stay live.
+- **Buttons, not a `<select>`.** Foldkit's `OnChange` hands back a string and must return a
+  Message for any value, so a select would need a fallback for a value it does not know. A
+  button carries its own Message, and `aria-pressed` says which style the block has.
+
+A heading at a level the row does not list (4–6) presses nothing and can still be retyped.
+
+---
+
+# 135. What a split-off item starts with
+
+§131 left Enter in a checked `TaskItem` starting another checked one: the new item copies the
+old one's props, and the core cannot know that `checked` describes one item rather than the
+kind. A node definition can now say so:
+
+```ts
+node('TaskItem', { Props, children: blockContent, splitProps: { checked: false } })
+```
+
+`splitProps` is laid over the copied props when Enter splits an item of that kind; a kind that
+declares none copies its props whole, as before. It is data, as the rest of a Kit is, and it is
+read only where a split makes a new item, so a wrap, a paste, and a lift are untouched. The
+standard `TaskItem` declares `{ checked: false }`.
+
+---
+
+# 136. The source session
+
+§8 asks for a Markdown source mode, with one representation editable at a time. Its first slice
+is the value underneath the mode, in `foldkit-richtext-markdown`, with no DOM:
+
+```text
+openSource(document)                    → { printed, draft, unprintable }
+edit                                    → replace draft
+closeSource(session, document, { mint })
+  draft = printed                       → { document (the caller's own), changed: false }
+  draft edited                          → { parse(draft).document, changed: true,
+                                            diagnostics: unprintable ++ parse diagnostics }
+```
+
+Decided here:
+
+- **The session holds no document.** While it is open the rich document cannot be edited, so
+  the caller still has the one that was printed; closing an unedited session returns it. A copy
+  in the session would be a second owner of the content (the repository's standing rule), and
+  would go stale if the document changed another way, such as a collaborator's edit. An
+  unedited draft carries no user intent, so the current document is the right answer either
+  way.
+- **Toggling without typing loses nothing.** The printer drops what Markdown cannot say (an
+  undeclared mark, say) and a parse mints new identities; neither happens unless the draft
+  was edited. That is the round-trip guarantee §9's source maps would extend to edited text.
+- **The loss is reported at close, not at open.** Opening only records what the printer could
+  not show. It becomes a loss when an edited draft replaces the document, so `closeSource`
+  puts it first in the diagnostics, followed by what the parser refused, and the caller warns
+  before committing. `closeSource` is pure, so the same call is the preview §8 asks for.
+- **`SourceSession` and `MarkdownDiagnostic` are schemas**, so the session goes in a Model as
+  it is.
+
+Next: the view, and the mode it lives in (§137), then split mode and §9's round-trip hints.
+
+---
+
+# 137. Source mode without a mode Bundle
+
+§8 sketched a `MarkdownEditor` Bundle holding `mode`, the draft, the diagnostics, and the rich
+editor's Model. Building it showed the Bundle has little to own:
+
+- **The mode is `SourceSession | null`.** A session exists exactly while source mode is on, and
+  its `draft` is the text being edited. A separate `mode` field could disagree with it.
+- **The diagnostics are a read.** `closeSource` is pure, so what switching back would report is
+  derived from the session whenever it is drawn, not stored.
+- **The editor Bundle's parent Model is its own.** Wrapping it would fix a second parent shape
+  on top of the first, for an application that already has a Model to put one field in.
+
+So the application keeps `source: SourceSession | null`, its `update` handles three Messages it
+names itself (open: `openSource`; type: replace `draft`; leave: `closeSource`, committing or
+confirming), and the view is `sourceEditor` in `foldkit-mixins-richtext`: a text area bound to
+the draft, one warning per loss (`data-code`, `data-detail`), and the way back. The rich editor
+is not drawn meanwhile, which is how §8's "one representation editable at a time" holds.
+
+The view computes the warnings once per session value (a `WeakMap`), because a render with an
+unchanged draft need not parse it again. That makes `foldkit-mixins-richtext` depend on
+`foldkit-richtext-markdown`; the Markdown package still depends only on the core.
+
+Wiring it exposed a latent build fault: `foldkit-richtext-markdown`'s `tsconfig.build.json` had
+no `references`, which `extends` does not inherit, so the first project to reference it failed
+with `TS6059`/`TS6307`. It references the core now.
+
+Split mode followed as a second view over the same session: `sourcePreview` renders what
+`closeSource` would give through the read-only renderer, beside `sourceEditor`. The two share
+one parse per session value. Only an edited session's result is kept: an unedited one gives
+back the document the application holds now, which can change under an open session (a
+collaborator's edit), so caching it would preview a document that is no longer there.
+
+---
+
+# 138. Keeping the writer's Markdown spelling
+
+§9 asks that toggling modes not turn `_hello_` into `*hello*`. The first slice keeps the
+spelling per construct rather than per node:
+
+```text
+parse(markdown)            → { document, diagnostics, style }
+style                      emphasis * | _, strong ** | __, bullet - | * | +,
+                           delimiter . | ), fence ` | ~, rule - | * | _,
+                           heading atx | setext (levels 1 and 2; deeper stay atx)
+print(document, { style }) the style's spellings, canonical for anything it leaves out
+```
+
+Decided here:
+
+- **First occurrence, per construct.** A text rarely mixes `*` and `_` for one construct, and
+  a per-node map would need identities a re-parse does not keep. §9's source ranges can refine
+  it later; a style is what survives an edit.
+- **Read from the source at each node's start.** mdast keeps positions, so the spelling is the
+  character there. A list item's source begins at its marker, so one test tells a bullet from
+  an ordered delimiter; the list's `ordered` flag was redundant with it, and mutation showed so.
+- **Verified by reading back, not by rules.** `_` does not open emphasis inside a word, and
+  more such cases exist than are worth encoding. `print` parses its styled output and the
+  canonical output, compares the two documents without their identities, and returns the
+  canonical text when they differ. A styled print costs two parses; an unstyled one costs none.
+- **Never document content.** `MarkdownStyle` is a schema of its own, kept by the caller beside
+  the document, as §9 says: interpreter state, not semantics.
+
+The source session carries it across visits: `openSource(document, { style })` prints with it
+and records it, and `closeSource` returns the style to keep — the edited draft's spellings over
+the session's, so a construct the new text no longer contains keeps its old spelling, and an
+unedited session hands back the one it opened with. The application keeps it beside the
+document.
+
+Per-block spellings came next (§146).
+
+---
+
+# 139. The editor as a form control
+
+§124 §12 asks for `RichText.input(ArticleEditor)` over `Input.bundle`. It is
+`richTextInput(hostId, placement)` in `foldkit-richtext-dom/input`.
+
+The editor Bundle could not be the control as it is: it leaves the document to its parent and
+reports each edit as an OutMessage, and `Input.bundle` refuses an OutMessage, because a form key
+has no parent to hand one to. So `EditorInput` is the same Bundle with the document in its own
+Model — `update` is `Editor.update` with each `Edited` and `Replaced` folded back in, and the
+view is the editor's — and the form owns that Model as the key's draft. No second editor is
+written; the two differ only in who holds the document, which is what §27 said standalone and
+controlled would differ in.
+
+§124 §12's resume table, decided:
+
+```text
+document       yes   the key's value
+selection      yes   kept by settled; cleared by fill, whose document lacks its runs
+stored marks   yes   kept by settled
+history        yes   kept by settled (already bounded); a fill starts a fresh one
+slash menu     no    settled clears the highlight
+composition    no    never in the Model
+focus, DOM     no    never in the Model
+```
+
+A new record starts on one empty paragraph, since a caret needs a block, and a blank document
+is no value, so a required body refuses it. `placeEditor` was extracted from `editorAt` so both
+place the same things under one host id (six since §145 added `serverRendered`).
+
+A limit found while checking the README snippet: a form holding this control, `export`ed from
+a project that emits declarations, fails with `TS7056` (the inferred type exceeds what the
+compiler will serialize), because the editor's Model type is large. Declaring the form without
+exporting it, or in a project that does not emit declarations, is fine; a named Model type for
+the editor would fix it at the source.
+
+Not yet: versioning resume state apart from the published document.
+
+---
+
+# 140. An article in the CMS
+
+§124 §12's CMS story, with a document as the body: `examples/cms/src/articleDemo.ts`, pinned by
+`test/articleDemo.test.ts`. An Article is declared like the Post: an Entity with
+`body: RichText.Document`, a form whose `body` control is `richTextInput`, two publish
+mutations, and `Cms.content`. The CMS gains nothing for it. Its drafts, revisions, publish,
+restore and schedule already treat a form key's value as opaque, and a document is a value.
+
+What the story shows:
+
+```text
+typing     "# Tending", Enter, "Water ", Bold, "early": 22 SaveDraft calls, the title and each body keystroke
+resume     a fresh Model opens the entry: same document, caret at 5 in e2
+preview    the form's document through documentToHtml with standardRendering; no mutation
+visitor    the published row's JSON decoded and drawn the same way
+revision   a second publish, then restore of revision 1 as a draft; the live page unchanged
+schedule   ScheduleAsked, then cms.due at that time publishes it
+```
+
+The story caught a core bug: Enter at the end of a heading made a second heading (§131, Enter
+in a list item, last paragraph).
+
+Two things here are the story's, not the package's. The editor's `RichText.patch` Command is
+skipped, because the script has no DOM to draw into; the resume assertion reads the Model,
+which is what a browser would redraw from. And the content type stays inside one module and
+reaches the server through `openServer`'s `MoreContent` argument, because exporting a form
+that holds the editor hits §139's `TS7056` limit.
+
+---
+
+# 141. The status line
+
+§124 §11's "status/diagnostic surface" is `editorStatus` in `foldkit-mixins-richtext`: the document's
+counts, then a list of problems. It sends nothing.
+
+The counts are `RichText.count(document)`, in the core because any view might want one and it
+reads nothing but the document. Words and characters are what `Intl.Segmenter` gives in the
+default locale, not whitespace splits and UTF-16 lengths, so an emoji is one character and
+Chinese text has words. Runs join within a block before segmenting, because a mark boundary is
+not a word boundary (`Wa**ter**` is one word); blocks do not join, because a block boundary is
+one. The view keeps the counts per document value in a `WeakMap`: a caret move redraws the
+status without changing the document, and segmenting the whole document again for each one
+would be wasted work.
+
+The problems are an input, not something the view computes. `validate` needs a Kit, and which
+Kit a document answers to is the application's (the CMS might hold a stricter one for publish
+than the editor's vocabulary). Each item carries `data-code`, and `data-node` when the
+diagnostic names one, so a Behavior can find the block. Clicking a problem does not select its
+block: the adapter draws no node selection (`restoreSelection` clears the page's and stops), so a `Selected` with a
+node would change the Model and show nothing.
+
+Not done: a live region. Announcing counts on every keystroke is noise, and whether a new
+problem should interrupt a writer is the application's call, so the view sets no `aria-live`.
+
+---
+
+# 142. The command palette
+
+§68 says the palette "can be a Bundle or ordinary local Model state". It is neither: it is
+`commandPalette`, a stateless view in `foldkit-mixins-richtext`, and the state is the
+application's `{ query, index } | null`. That is the link editor's shape (§132), and the reason is
+the same. Opening on a chord, where focus goes, and what else the application lists are its
+business, and a Bundle would own those without knowing them.
+
+The entries are `SlashEntry` values, the slash menu's type, and `matchingEntries` filters them,
+so a palette and a slash menu offer the same catalogue matched the same way. The difference is
+where the query lives. The slash menu reads it from the document before the caret, and its
+choice removes that text (`runAction`, §123). The palette's query is in its own field, so a
+choice sends the entry's Message as it is, and the editor applies it at the selection it still
+holds.
+
+A choice has to close the palette as well as reach the editor, and the view cannot know which of
+the caller's Messages closes it. So the caller wraps its entries
+(`slashEntries(event => Message.ChoseCommand({ event }))`), and its `update` closes the palette
+and forwards `event`. That is the seam the toolbar's `toggled` and the picker's `wrap` already
+use.
+
+Keys: ArrowUp and ArrowDown move through `RovingTabindex.move`, wrapping, as the slash menu's do.
+Home and End are left to the field, because in a text field they move the caret, and taking them
+would make the query uneditable from the keyboard. A modified arrow moves nothing, which is
+`move`'s rule. The field is a `combobox` with `aria-activedescendant` naming the highlighted
+`option`, since focus stays in the field while the highlight moves. That is why the view takes an
+`id`.
+
+Not done: entries a selection makes meaningless (a retype under a node selection) are listed
+anyway and refused by the editor when chosen; a palette that greys them out would need the
+picker's `live` rule per entry.
+
+---
+
+# 143. The floating toolbar
+
+A floating toolbar is two decisions, and they belong to different owners. Whether it shows is a
+read of the Model: the selection covers text. Where it goes is a read of the page: the selection's
+rectangle. The first is `RichText.coversText(selection)` in the core, which the link editor
+already needed privately; it now uses the shared one. The second is `selectionAnchor`, a Mount in
+`foldkit-richtext-dom/toolbar`. There is no floating-toolbar view. The toolbar is the marks
+toolbar (or the Mixins family's), drawn inside an element that carries the Mount.
+
+`foldkit-mixins-ui`'s Anchor was the first candidate and does not fit. `anchorSetup` positions
+against an element found by id, and a selection is not an element. `@floating-ui/dom` can take a
+virtual reference, but it is not a dependency of this package, and the placement needed is small
+enough to write: centred `gap` above the selection's rectangle, below it when that would leave the
+viewport's top, clamped to the viewport's width, `position: fixed` so no scroll offset enters the
+arithmetic. That is `placeOver`, a pure function, tested without layout.
+
+The Mount listens only while mounted, and it is mounted only while the view draws the toolbar,
+that is, while there is a range. It re-places on `selectionchange`, on scroll (captured on the
+window, because a scrolling container's scroll does not bubble), and on resize. It ignores a
+selection outside the host it names and a collapsed one, which can be briefly true of the page
+while the Model still holds the previous range.
+
+It writes `position`, `top`, `left`, and `data-placement` on the element, as Anchor does. A Style
+on that element must leave them alone.
+
+Not done:
+- **Real layout.** jsdom has none. The tests stub the rectangles and prove the arithmetic and the
+  wiring; that it looks right in Chromium, Firefox, and WebKit is milestone 9's browser gate.
+- **The Mount wrapper.** Only type-checked; a runtime test of it would need a real render.
+- **Flipping sideways and an arrow.** Neither is needed yet.
+
+---
+
+# 144. The block handle
+
+A block handle stands for one block and offers what can be done to it as a whole: move it up or
+down, and later drag it. The core had `Edit.moveBlock` as an operation but no command, because
+every command so far read the selection. A handle stands beside a block, not inside a selection,
+so `MoveBlock` names its blocks:
+
+```ts
+{ type: 'MoveBlock', node, to: { before: sibling } }   // or { after: sibling }
+```
+
+**Identities, not indices.** `MoveNode`'s index is the block's place after it leaves, so moving a
+block down past two siblings is `index + 1`, not `+ 2`. A caller would have to redo that
+arithmetic, and it is the library's to do. `before`/`after` also say what a drop indicator shows:
+the block the pointer is over, and the side of it.
+
+**Same container only** (superseded by §149, which added the rules and allows such moves). A
+move to a sibling in another container is `InvalidParent`. Moving
+across containers needs rules nothing declares yet. `List` says it holds `ListItem`s, but nothing
+says a `ListItem` may stand only in a `List`, so a move could strand one at the top level. Moving
+a list's last item out would also leave an empty `List`, which a lift deletes but a move would
+not. Drag and drop across containers will need both rules. A handle's up and down need neither.
+
+Moving keeps every identity, so the selection needs no mapping: it points at runs that still
+exist. (§149 added one exception: a node selection on a container a move empties and deletes
+goes to the moved block.) The command runs without a selection too, because it does not read one.
+
+## The handle
+
+The editor sends `MovedBlock { node, to }`, and `edited`'s helper is `moved(node, to)`. No chord
+sends it: a keymap binding names one command for any caret, and a move names its block and its
+place, which only the caller knows, so a key that moves a block is the application's own
+handler sending `moved`. `blockHandle` in `foldkit-mixins-richtext` draws up and down for one block, each disabled at
+its end of the container, and holds no state.
+
+Which block the handle stands for is the caller's choice, because the right answer depends on the
+document. For a caret in a list item's paragraph, moving the paragraph reorders it among the
+item's blocks, moving the item reorders the list, and moving the list moves all of it.
+The core gives the chain instead of choosing: `blocksAt(document, selection)` is every block the
+selection starts in, outermost first, and the caller picks from it. `textBlockAt` and `blocksAt`
+share the lookup of where a selection starts, and a node selection's chain is the one to its
+block.
+
+## Beside its block
+
+`blockAnchor({ hostId, node, gap })` places the handle's element `gap` to the left of the block,
+level with its top edge, beside §143's `selectionAnchor` in the same module and sharing its writes and its
+scroll and resize listeners. It finds the block through the adapter's own index
+(`attachmentIn(host).current().elements`), not a `[data-block]` query, so no selector is built
+from an id. A selection change is the wrong signal here: a patch can move a block with no
+selection change, for example text typed above it or the move the handle itself sent. So it
+watches the host's subtree with a `MutationObserver` instead.
+
+A Mount reads its args once. Foldkit's `OnMount` acquires on insert and releases on destroy, and
+a render with new args patches the same element without telling the Mount. A handle that follows
+the caret therefore keys its element by the block (`h.Key(node)`), and each block gets a fresh
+element and a fresh Mount. AGENTS.md records the trap.
+
+Not done:
+- **Dragging.** Built in §148, and across containers in §149.
+- **Real layout**, as in §143: the arithmetic and wiring are tested with stubbed rectangles.
+
+---
+
+# 145. SSR adoption
+
+§124's milestone 9 asks the DOM package to "cooperate directly with `foldkit-ssr`". The server
+renders a document into the editor's host, and the client adopts that DOM instead of rebuilding
+it. Two halves: the adapter must be able to take over markup it finds, and the page must be able
+to deliver that markup to it. Both are built: the adapter half first, then the page half, by
+route 1 below, once that decision was made.
+
+## What hydration does to the host today
+
+`foldkit-ssr` renders with Foldkit's `renderToString` and resumes with Foldkit's `hydrate`, which
+walks the first client render beside the server DOM and keeps what matches. The editor's view
+renders its host with no children, and a childless vnode owns an empty element: hydration clears
+any server DOM under it (`hydrate.js`, "a childless vnode ... owns an empty element"). Mounts run
+after the patch on adopted elements, so the editor's `events` Mount does run on the served host,
+but by then the host is empty. So before this section's route 1, an SSR page showed an empty
+editor until the client mounted it.
+
+There is one exemption. An autonomous custom element (a tag with a hyphen) keeps its light DOM
+unless the view declares children or `InnerHTML` for it, because that DOM is the component's.
+
+## The adapter half: `adopt`
+
+`mountInto` used to append a fresh subtree beside whatever the host held. Now it adopts:
+- If the host holds one element that is exactly what `mount` would build for this document,
+  rendering and decorations, those elements stay and the identity index is built around them
+  (`adopt`).
+- Otherwise the host's children are replaced, so it never holds two subtrees.
+
+"Exactly" is `isEqualNode` on copies without empty text nodes, because markup cannot carry an
+empty text node. For the same reason an adopted empty run gets its content from `mount`: a caret
+there needs a text node, and an element offers no semantic offset. The run element itself stays,
+so its identity survives. Adoption is all or nothing. A partial match is rebuilt, since a
+half-adopted index is a subtle bug and rebuilding is what happened before.
+
+## The page half: routes considered
+
+The server has to emit the editable subtree inside the host, and the client view must not
+declare it. Otherwise hydration either clears it (childless host) or takes ownership of it
+(declared children), and then fights the adapter on every render. Routes considered:
+
+1. **A custom-element host, children on the server only.** The host becomes, say,
+   `<foldkit-richtext>`, rendered with `customElement`. Hydration keeps its light DOM, and the
+   Mount adopts it. The server needs to know it is the server to emit the children, which is
+   `foldkit-ssr`'s render context (`collect`/`replay`/`resume` in `staticRegion`). So this needs a
+   small `foldkit-ssr` primitive, "server-seeded, client-owned", and the editor view would use
+   it. Costs: the host's tag changes (a custom element is `display: inline` until styled), and
+   two packages gain API.
+2. **`foldkit-ssr`'s static region.** It replays the served markup as constant trusted
+   `InnerHTML`, which Foldkit would then leave alone, so the adapter could mutate inside it. But
+   outside SSR the region renders its children as vnodes on every render, which is exactly the
+   fight to avoid. It would need the same server/client switch as route 1 without route 1's
+   clean exemption.
+3. **Trusted `InnerHTML` from the view.** The value must be constant for the life of the host, or
+   every change resets the adapter's DOM. A view is a function of the Model, and the Model has no
+   "initial document" to render from.
+
+Recommendation: route 1, which is the one chosen. Also needed on the server is an `Html`
+rendering of the editable structure. The read-only `renderDocument` differs from `mount` in the root's attributes,
+`data-block`, and the run spans, so it is a second renderer to keep equal to `mount`. A test that
+round-trips it through `adopt` would hold the two equal.
+
+## Built: route 1
+
+The route chosen was route 1:
+
+- **The host.** It is `<foldkit-richtext>`, defined through `foldkit/customElement` and drawn
+  `display: block`.
+- **The server's markup.** While the placement's `serverRendered()` is true, the host holds
+  `renderEditable` of the document, with the placement's rendering and decorations: the subtree
+  `mount` builds, as `Html`.
+- **Telling the server's render apart.** That is `foldkit-ssr`'s `SSR.serving()`, true through
+  both of `render`'s passes and false while the browser resumes. The editor's placement takes it
+  as a function, so `foldkit-richtext-dom` does not depend on `foldkit-ssr`.
+- **The test.** A page-level test renders an editor page with Foldkit's `renderToString`,
+  hydrates it, and checks the editor's attachment holds the served root and the served block
+  elements. Mutations confirmed each part is load-bearing: a plain `div` host, never seeding, and
+  seeding with the wrong registry or without the decorations.
+
+Testing `renderEditable` the way a server sends it found that no page drawing a table could be
+server-rendered at all (§150).
+
+Not done: the placeholder on adopted markup (drawn after mount, as for a fresh one, and not
+tested there), and SSR of the Markdown source view.
+
+---
+
+# 146. Each block's own spelling
+
+§138 kept one spelling per construct and put per-node spellings aside, "a per-node map would
+need identities a re-parse does not keep". That is true across two parses, but not needed within
+one. `parse` mints each block's id at the moment it converts the mdast node that has the
+spelling, so it can record the spelling under that id. The map then holds for as long as the
+block keeps its id, and a rich edit keeps it: a list stays the same list while items are typed
+into it.
+
+```text
+style.blocks   { [block id]: { bullet | delimiter | fence | rule | heading } }
+print          the block's own spelling, over the construct's, over canonical
+```
+
+- **Blocks only.** Lists, headings, fences, and rules. A run's emphasis would be keyed by a run
+  id, and runs split and merge under ordinary typing, so it stays per construct.
+- **Always present after a parse.** `parse` returns `blocks`, empty or not, so
+  `closeSource`'s merge (`{ ...session.style, ...parsed.style }`) replaces the old map. The old
+  ids are gone from the document, and a caller whose `mint` repeats could otherwise meet them
+  again on unrelated blocks.
+- **A new block takes its construct's spelling.** A list added in rich mode has no entry, so it
+  prints as the text's first list did.
+- **Read where the construct is read.** `blockSpelling` reads one node's spelling from the
+  source at its start. `styleOf` takes the first of them per construct, so the two cannot
+  disagree about what a spelling is. A list is read at its own start, which is its first marker.
+
+Finding the per-block case uncovered a printer bug that no spelling had caused. Two adjacent
+lists of one kind printed with one marker, and CommonMark reads that as one list, so a round trip
+merged them. §138's check compares the styled output with the canonical one, which assumes the
+canonical text round-trips; here it did not. The printer now gives a list right after another of
+its kind the other marker (`-` then `*`, `.` then `)`), because a changed marker is what starts a
+new list.
+
+---
+
+# 147. The caret across a mode switch
+
+§124 §8's source Model lists `sourceSelection`. A writer who switches modes should find the
+caret where they left it, in both directions. The session gains `caret`, an offset in the draft,
+and closing returns `selection`, a caret in the document it gives back.
+
+**Rich to source: read the printed text back.** The first version printed the document again
+with a private-use mark at the caret and took the mark's index. A review showed why that fails:
+the mark changes what it sits beside. Next to a `_` it reads as a letter and stops the delimiter
+opening or closing. At a run's edge it stops a space being an edge, so the space is no longer
+written as `&#32;` or moved outside the delimiters. Either way the caret fell back to 0, including
+in the commonest state, `hello |`. Now `openSource` parses its own printed text, recording source
+ranges as below, carries the position into that parse block by block, and walks the range back
+to a raw offset. One correspondence serves both directions, so they cannot disagree.
+
+**Source to rich: the parse remembers where text came from.** Each mdast text node, inline code
+span, and code block records its source range, the run it went into, and the offset in that run
+(runs that merge keep the right offset). A source offset finds its segment: the one it falls
+in, else the last one before it, else the first. Within a segment, the raw source and the
+decoded text are walked side by side. An escape (`\*`) and a character reference (`&amp;`,
+`&#x1F331;`, the latter two UTF-16 units) are one step each. Source that yields no text is
+skipped, such as a quote's `>` on a continuation line. A fenced block's walk starts after its fence
+line. Otherwise a language such as `ab` over code `ab` would be read as the code.
+
+**An unedited draft goes back to the caller's document.** Its identities are what continue, so
+the caret is read in a throwaway parse of the draft and carried over block by block: the n-th
+block that holds text, at the same offset in its text, clamped to that block's length. The texts
+are not compared. The printer drops a code block's last newline and joins a heading's lines, and
+the first version, which required equal text, lost the caret for the whole document over one
+code block. Where two runs meet, the carried position keeps its side: at a run's start it stays
+at the start of the run after the boundary. The answer is null only when the documents have
+different numbers of text blocks, and the application then keeps its old selection.
+
+The Mixins source view no longer calls `closeSource` for an unedited draft, whose warnings and
+preview are by definition none and the caller's document. It keys its cache of an edited draft's
+result by the session's `unprintable` array, which is one object for the life of a session,
+together with the draft, so a caret move does not parse again. Both are performance-only: no
+test can tell them from the plain call, and they are commented as such.
+
+## The text area's caret
+
+Foldkit's `OnInput` carries the value only, so the source editor's text area has a Mount,
+`followCaret`. When the text area is drawn, it focuses it and puts the caret at `session.caret`.
+From then on it reports the selection's focus whenever it moves (`selectionchange`, `select`,
+`input`, `keyup`, `mouseup`), and only when it changed. A Mount's Messages are its own, but
+`Mount.mapMessage` lifts it into the caller's universe with the view's `moved(caret)` input. So
+the generic view carries it directly, and no Behavior or application Message type is needed.
+Planned first was a Behavior on the `text` slot, which only an application naming the Mount's
+Message could attach. The lift made that unnecessary.
+
+A Mount reads its args once, which suits this: the caret is placed when a session's text area
+appears, and the writer moves it after that. The view test resolves the Mount with the
+application's Message, so the lift itself is tested by running the action against a textarea
+(`caretMount`).
+
+---
+
+# 148. Dragging a block
+
+(§149 later widened this to other containers and replaced the midpoint rule with nearest edges;
+what follows is the first version.)
+
+A block is dragged by its handle's grip, among the blocks of its own container, and dropped with
+§144's `MoveBlock`. That is all the command allows, and all a handle's drag needs. A drag into
+another container waits for the rules §144 names.
+
+**Where it lands is a read of the page.** `dropBeside(blocks, moving, y)` puts the block before
+the first sibling whose middle is below the pointer, else after the last. That is `Beside`, the
+command's own shape. A place that is where the block already is (just before its next sibling,
+or just after its previous one) gives nothing. So the drop sends no Message, and records no undo
+step for a move that changes nothing.
+
+**The pointer, not the target.** The place comes from `clientY` against the blocks' rectangles,
+found through the adapter's own index, as `blockAnchor` finds its block. It never comes from
+`event.target`, which a captured pointer pins to where it went down. Only the pointer that
+pressed is followed. The page is listened to only from the press until the drag ends, as
+`PointerDrag` in `foldkit-primitives` does. Escape and `pointercancel` end it without a drop.
+
+**The line is the Mount's own element.** It is a `div[data-richtext-drop]`, fixed at the edge
+the block would land on and appended to the page body, because the editable subtree is the
+adapter's (§29) and a drop line is not content. A stylesheet draws it.
+
+**The grip is keyed by its block.** The trap AGENTS.md records from §144 showed up here in
+practice. A Mount reads its args once, so an unkeyed grip kept dragging the first block
+it was drawn for after the caret moved on. Scene cannot show this, because it tracks Mounts
+without keys: it reported the old Mount alive with and without the key. So the test runs on the
+real runtime. It points the handle at another block, drags, and checks which block the drop
+names. Without the key, it names the stale one.
+
+Not done: across containers; dragging by touch, where a long press must be told from a scroll;
+and the drop line's appearance in a real browser, for milestone 9.
+
+---
+
+# 149. Where a kind may stand
+
+§144 kept `MoveBlock` inside one container because two rules were missing. Nothing said where a
+kind may *not* go: `List` says it holds `ListItem`s, but nothing says a `ListItem` stands only
+in a `List`, and `blockContent` accepts any kind. And nothing said what happens to a container a
+move empties. Both are decided here, and moves and drags cross containers.
+
+**`within`, the child's side.** A node declaration can name the kinds it may stand in:
+`node('ListItem', { children: blockContent, within: ['List'] })`. A kind that names them never
+stands at the top level. The standard vocabulary gives `within` to `ListItem` and `TaskItem`
+(`List`), `TableRow` (`Table`), and `TableCell` (`TableRow`). `validate` reports a block outside
+its `within` as `MisplacedNode`, saying where it stands. It is declared rather than derived from
+the containers' `blocksOf`: an application kind a grid restricts itself to may still be fine at
+the top level, and inferring otherwise would surprise.
+
+**What a move checks**, all in one `moveFailure` that `MoveBlock` and `moveTargets` share:
+
+```text
+within its own container         always allowed
+into another container           it must hold the kind (blocksOf), and the kind must stand in
+                                 its kind (within), else UnexpectedChild
+leaving an isolating container   refused at any depth, a table cell's content stays in it,
+                                 like a lift (InvalidParent)
+inside itself                    refused (InvalidParent)
+```
+
+With no vocabulary nothing is declared, so only the last rule holds, which matches `run`'s rule
+that a vocabulary-free edit takes no constraints.
+
+**An emptied container goes.** A move out of a container that held nothing else deletes it, and
+its parent too if that held nothing else. It stops at the container the block lands in, which is
+not empty. A lift already did this, and an empty `List` is not a list. An isolating container is
+never reached, because a move may not leave one. So the check that stopped there was
+unreachable, and the mutation run said so.
+
+**`moveTargets` is what a drag offers**: every block the move is allowed beside, in document
+order. `blockDrag` computes it once, at the press, together with each block's place from one walk
+of the document. It measures only the targets' rectangles as the pointer moves. The drop is the
+nearest edge of a target. A container's edge and its first or last block's are one edge: the
+block's wins while the pointer is inside that block, and the container's once the pointer is past
+it. (Letting the deeper always win, as this first did, left "after a list that ends the document"
+unreachable; a review found it.) Of two different edges equally near, the later wins. Within one container
+it lands the block where §148's midpoint rule did, though sometimes named from the other side
+(after the block above rather than before the one below).
+
+Wrap and paste consult `within` too now: a later review found each wrote documents `validate`
+reports as `MisplacedNode` (a paragraph wrapped in a bare `ListItem`, a `ListItem` pasted at
+the top level), and both refuse them with `UnexpectedChild`, as a move does.
+
+---
+
+# 150. Tables on a server-rendered page
+
+Writing `renderEditable`, the editable subtree as `Html` for §145, and testing it the way a server
+sends it (Foldkit's `renderToString`, then the browser's parser, then `adopt`) found a bug older
+than it. The standard rendering puts a table's rows straight in the `table`. HTML's parser
+inserts a `tbody` around bare rows, so the parsed tree is not the rendered one, and Foldkit
+refuses to serialize it at all ("HTML parsing produced <tbody> where the view declared <tr>").
+So every server-rendered page that drew a document with a table failed, the read-only renderer
+included, which is what a CMS visitor page uses.
+
+An element rendering can now name an `inner` element its nested blocks go inside, and the
+standard `Table` names `tbody`. Every interpreter honours it: the HTML serializer, the read-only
+renderer, `renderEditable`, and `mount`. The adapter's structure checks (`patch` deciding whether
+a container is intact, `repair`, `toText`) find a block's nested blocks through such a holder,
+since anything under a block element that is not a block is at most a wrapper. That lookup
+needed no rendering entry, and the mutation run showed that excluding runs from it was
+redundant, since a run holds no blocks.
+
+The importer already reads `tbody`, so a round trip through HTML is unchanged. Any other entry
+whose element HTML's parser completes the same way (a `colgroup`, say) can name its own
+`inner`.

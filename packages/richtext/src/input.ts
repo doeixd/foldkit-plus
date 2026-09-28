@@ -42,12 +42,20 @@ export interface InputContext {
  * Consumption is by deleting backwards rather than by a range, because a range would have
  * to be computed against a state the insertion has not produced yet — the deletes resolve
  * as each one runs. A rule that does not match yields the insertion alone.
+ *
+ * A rule that claims to consume more than it was shown throws: those deletes would run past
+ * the block's start and join it to the one before, which no rule means.
  */
 export const applyInputRules = (rules: ReadonlyArray<InputRule>, input: InputContext): Action => {
   const typed = `${input.textBefore}${input.text}`
   for (const rule of rules) {
     const matched = rule.match(typed)
     if (matched === undefined) continue
+    if (!Number.isInteger(matched.remove) || matched.remove < 0 || matched.remove > typed.length) {
+      throw new RangeError(
+        `Input rule "${rule.name}" removes ${matched.remove} characters of the ${typed.length} it was shown`,
+      )
+    }
     const consumed: ReadonlyArray<Command> = Array.from(
       { length: matched.remove },
       (): Command => ({ type: 'DeleteBackward' }),

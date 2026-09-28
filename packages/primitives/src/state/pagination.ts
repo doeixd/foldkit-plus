@@ -6,6 +6,7 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
+import { unlessSame } from '../internal.js'
 
 export const PaginationModel = Schema.Struct({
   page: Schema.Number,
@@ -53,22 +54,39 @@ export const Pagination = Bundle.make('Pagination', {
   update: (model, message) =>
     PaginationMessage.match(message, {
       GoToPage: ({ page }) => ({
-        model: { ...model, page: clampPage(page, model.perPage, model.total) },
+        model: unlessSame(model, { ...model, page: clampPage(page, model.perPage, model.total) }),
       }),
       NextPage: () => ({
-        model: { ...model, page: clampPage(model.page + 1, model.perPage, model.total) },
+        model: unlessSame(model, {
+          ...model,
+          page: clampPage(model.page + 1, model.perPage, model.total),
+        }),
       }),
       PrevPage: () => ({
-        model: { ...model, page: clampPage(model.page - 1, model.perPage, model.total) },
+        model: unlessSame(model, {
+          ...model,
+          page: clampPage(model.page - 1, model.perPage, model.total),
+        }),
       }),
       SetPerPage: ({ perPage }) =>
         perPage > 0
-          ? { model: { ...model, perPage, page: clampPage(model.page, perPage, model.total) } }
+          ? {
+              model: unlessSame(model, {
+                ...model,
+                perPage,
+                page: clampPage(model.page, perPage, model.total),
+              }),
+            }
           : { model },
+      // Sent again on every refetch, usually with the total already held.
       SetTotal: ({ total }) =>
         total === null || total >= 0
           ? {
-              model: { ...model, total, page: clampPage(model.page, model.perPage, total) },
+              model: unlessSame(model, {
+                ...model,
+                total,
+                page: clampPage(model.page, model.perPage, total),
+              }),
             }
           : { model },
     }),

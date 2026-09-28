@@ -28,6 +28,7 @@ export const Locale = Bundle.make('Locale', {
   }),
   update: (model, message) =>
     LocaleMessage.match(message, {
-      SetLocale: ({ locale }) => ({ model: { ...model, locale } }),
+      SetLocale: ({ locale }) =>
+        locale === model.locale ? { model } : { model: { ...model, locale } },
     }),
 })

@@ -8,6 +8,7 @@
  * copy or a Command that commits half the transition.
  */
 import { Effect, Option, Schema } from 'effect'
+import { define } from 'foldkit/customElement'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
@@ -15,13 +16,21 @@ import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import {
+  decorationsFor,
   inputRulesFor,
+  placeDecorations,
   placeInputRules,
+  placePlaceholder,
   placeRendering,
+  placeServerRendered,
   placeVocabulary,
-  vocabularyFor,
+  renderingFor,
+  serverRenderedFor,
   type Vocabulary,
+  vocabularyFor,
 } from './host.js'
+import type { Decorate } from './events.js'
+import { renderEditable } from './view.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -114,8 +123,20 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'SplitBlock' }
     case 'ToggledMark':
       return { type: 'ToggleMark', mark: message.mark }
+    case 'AppliedMark':
+      return { type: 'SetMark', mark: message.mark }
+    case 'ClearedMark':
+      return { type: 'ClearMark', mark: message.mark }
     case 'RetypedBlock':
       return { type: 'RetypeBlock', to: message.block }
+    case 'WrappedBlock':
+      return { type: 'WrapBlock', containers: message.containers }
+    case 'ConvertedBlock':
+      return { type: 'ConvertBlock', to: message.to }
+    case 'LiftedBlock':
+      return { type: 'LiftBlock' }
+    case 'MovedBlock':
+      return { type: 'MoveBlock', node: message.node, to: message.to }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
     case 'Pasted':
@@ -140,12 +161,213 @@ const patch = (hostId: string, state: RichText.EditorState, changeSet: RichText.
 
 /**
  * The text between the start of the caret's block and the caret, or `''` when the
- * selection names no caret. A menu reads this; nothing about the query is stored.
+ * selection names no caret. A menu and the input rules read this; nothing about the query
+ * is stored. A range is read from its start, which is where what is typed over it lands,
+ * whichever way it was dragged.
  */
-const textBeforeOf = (model: EditorView): string =>
-  model.selection?.type === 'Range'
-    ? RichText.textBefore(model.document, model.selection.anchor)
-    : ''
+const textBeforeOf = (model: EditorView): string => {
+  if (model.selection?.type !== 'Range') return ''
+  const start = RichText.rangeStart(model.document, model.selection)
+  return start === undefined ? '' : RichText.textBefore(model.document, start)
+}
+
+const Host = define({ tag: 'foldkit-richtext', properties: {}, events: {} })
+
+/**
+ * Each host id's keys, by the document shown. The host's Mount reads its document once, so a
+ * document that did not come from an edit here (a form's fill or reset, an entry opened, a
+ * revision restored) needs a fresh host. A committed edit moves its document's key to the next
+ * document (`carryKey`), and the document it leaves keeps none, so returning to it is a new host
+ * too. The first document a host id shows has no key, as the server's render has none.
+ */
+const lineages = new Map<
+  string,
+  { next: number; readonly keys: WeakMap<RichText.Document, number> }
+>()
+
+const lineageOf = (hostId: string) => {
+  const found = lineages.get(hostId)
+  if (found !== undefined) return found
+  const created = { next: 0, keys: new WeakMap<RichText.Document, number>() }
+  lineages.set(hostId, created)
+  return created
+}
+
+const hostKey = (hostId: string, document: RichText.Document): string | undefined => {
+  const lineage = lineageOf(hostId)
+  const key = lineage.keys.get(document) ?? lineage.next++
+  lineage.keys.set(document, key)
+  return key === 0 ? undefined : `${hostId}-${key}`
+}
+
+const carryKey = (hostId: string, from: RichText.Document, to: RichText.Document): void => {
+  const keys = lineageOf(hostId).keys
+  const key = keys.get(from)
+  if (key === undefined || from === to) return
+  keys.delete(from)
+  keys.set(to, key)
+}
+
+/**
+ * The host element the editor mounts into, and whose id the patch Command finds (§118). It is a
+ * custom element so hydration leaves what is inside it alone (§145): on the server it holds the
+ * document's markup, which the editor adopts; in the browser the view declares it empty, and the
+ * editor owns everything below.
+ */
+export const editorView = Submodel.defineView<EditorView, Message>((model, h) => {
+  const serverRendered = serverRenderedFor(model.hostId)()
+  const key = serverRendered ? undefined : hostKey(model.hostId, model.document)
+  return Host.withMessage(h)(
+    [
+      h.Id(model.hostId),
+      ...(key === undefined ? [] : [h.Key(key)]),
+      // A custom element is inline until styled, and the editor inside it is a block.
+      h.Style({ display: 'block' }),
+      h.OnMount(events({ content: model.document })),
+    ],
+    serverRendered
+      ? [
+          renderEditable(
+            model.document,
+            renderingFor(model.hostId),
+            decorationsFor(model.hostId)(model.document),
+          ),
+        ]
+      : [],
+  )
+})
+
+/** What a Message does to the editor; `Editor.update` carries the host's key on a commit. */
+const transition = (
+  model: EditorView,
+  incoming: Message,
+): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
+  const state: RichText.EditorState = { document: model.document, selection: model.selection }
+  // The vocabulary this placement resolves edits against; both fields may be absent.
+  const vocabulary = vocabularyFor(model.hostId)
+  // A live query decides what Enter means before anything else reads the message
+  // (§123): the highlighted entry applies as the Message a click would send, instead
+  // of splitting, and a query that chooses nothing falls through to `incoming` and
+  // still splits. Substituting the Message here rather than recursing is what makes a
+  // mark entry update the caret's stored marks through the path a toggle already uses.
+  const menu =
+    incoming._tag === 'Entered'
+      ? slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)
+      : undefined
+  const message = menu?.highlighted?.message ?? incoming
+  // The patch Command's own completion: the render already happened.
+  if (message._tag === 'Patched') return { model }
+  if (message._tag === 'Undone' || message._tag === 'Redone') {
+    const restored =
+      message._tag === 'Undone'
+        ? RichText.undo(model.history, state)
+        : RichText.redo(model.history, state)
+    if (restored === undefined) {
+      return {
+        model,
+        outMessage: {
+          _tag: 'Rejected',
+          error: message._tag === 'Undone' ? 'NothingToUndo' : 'NothingToRedo',
+        },
+      }
+    }
+    const changeSet = replaceChangeSet(model.document, restored.state.document)
+    return {
+      model: {
+        ...model,
+        selection: restored.state.selection,
+        history: restored.history,
+      },
+      outMessage: { _tag: 'Replaced', state: restored.state, changeSet },
+      commands: [patch(model.hostId, restored.state, changeSet)],
+    }
+  }
+  let nextId = model.nextId
+  // With nothing selected, a mark toggle is the caret's own state: the next
+  // typed text lands with it. A caret move ends the format it was carrying.
+  const collapsed =
+    model.selection?.type === 'Range' &&
+    model.selection.anchor.node === model.selection.focus.node &&
+    model.selection.anchor.offset === model.selection.focus.offset
+  // The caret never carries a mark the vocabulary cannot type — an unknown one, or one
+  // like Link whose props a bare name lacks — so it is refused here rather than at the
+  // first keystroke after it.
+  if (
+    message._tag === 'ToggledMark' &&
+    collapsed &&
+    !(vocabulary.marks ?? RichText.shippedRegistry).accepts(message.mark)
+  ) {
+    return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
+  }
+  const storedMarks =
+    message._tag === 'ToggledMark' && collapsed
+      ? model.storedMarks?.includes(message.mark)
+        ? model.storedMarks.filter(mark => mark !== message.mark)
+        : [...(model.storedMarks ?? []), message.mark]
+      : message._tag === 'Selected'
+        ? null
+        : model.storedMarks
+  const command =
+    message._tag === 'Typed' && storedMarks !== null
+      ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
+      : toCommand(message)
+  // Choosing an entry removes the query it was typed into and applies the choice as
+  // one action (§124 §5), so one transition and one undo step cover both. The range is
+  // a read, not state: `menu.query` is the text the document already holds, and the
+  // `+ 1` is the slash that opened it.
+  const queryRange =
+    menu === undefined || menu.highlighted === undefined || model.selection?.type !== 'Range'
+      ? undefined
+      : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
+  const runAction = (action: RichText.Action) =>
+    RichText.runAction(
+      state,
+      action,
+      { mint: () => `e${nextId++}` },
+      { marks: vocabulary.marks, nodes: vocabulary.nodes },
+    )
+  // What is typed can be a block marker (§124 §4): the rules are the placement's own, so
+  // the editor carries none of any syntax's vocabulary itself.
+  const ruled =
+    queryRange === undefined && message._tag === 'Typed'
+      ? RichText.applyInputRules(inputRulesFor(model.hostId), {
+          textBefore: textBeforeOf(model),
+          text: message.text,
+          insertion: command,
+        })
+      : undefined
+  const attempt = runAction(
+    queryRange !== undefined
+      ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
+      : (ruled ?? [command]),
+  )
+  // A rule the vocabulary refuses — a fence typed into bold text, say — leaves the marker
+  // as the text it is, rather than refusing the keystroke along with it. The refused
+  // attempt's identities are given back first.
+  const fallback = !attempt.ok && ruled !== undefined
+  if (fallback) nextId = model.nextId
+  const result = fallback ? runAction([command]) : attempt
+  if (!result.ok) {
+    // A refused command changes nothing, so it does not burn identities.
+    return { model, outMessage: { _tag: 'Rejected', error: result.error } }
+  }
+  // History holds content, not cursor movement: a selection change keeps the
+  // redo stack, and a no-op edit adds no step to undo.
+  const contentChanged = result.state.document !== model.document
+  return {
+    model: {
+      ...model,
+      selection: result.state.selection,
+      nextId,
+      storedMarks,
+      history: contentChanged
+        ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
+        : model.history,
+    },
+    outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
+    commands: [patch(model.hostId, result.state, result.changeSet)],
+  }
+}
 
 export const Editor = Bundle.make({
   name: 'RichTextEditor',
@@ -168,124 +390,15 @@ export const Editor = Bundle.make({
     },
   }),
   update: (model, incoming): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
-    const state: RichText.EditorState = { document: model.document, selection: model.selection }
-    // The vocabulary this placement resolves edits against; both fields may be absent.
-    const vocabulary = vocabularyFor(model.hostId)
-    // A live query decides what Enter means before anything else reads the message
-    // (§123): the highlighted entry applies as the Message a click would send, instead
-    // of splitting, and a query that chooses nothing falls through to `incoming` and
-    // still splits. Substituting the Message here rather than recursing is what makes a
-    // mark entry update the caret's stored marks through the path a toggle already uses.
-    const menu =
-      incoming._tag === 'Entered'
-        ? slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)
-        : undefined
-    const message = menu?.highlighted?.message ?? incoming
-    // The patch Command's own completion: the render already happened.
-    if (message._tag === 'Patched') return { model }
-    if (message._tag === 'Undone' || message._tag === 'Redone') {
-      const restored =
-        message._tag === 'Undone'
-          ? RichText.undo(model.history, state)
-          : RichText.redo(model.history, state)
-      if (restored === undefined) {
-        return {
-          model,
-          outMessage: {
-            _tag: 'Rejected',
-            error: message._tag === 'Undone' ? 'NothingToUndo' : 'NothingToRedo',
-          },
-        }
-      }
-      const changeSet = replaceChangeSet(model.document, restored.state.document)
-      return {
-        model: {
-          ...model,
-          selection: restored.state.selection,
-          history: restored.history,
-        },
-        outMessage: { _tag: 'Replaced', state: restored.state, changeSet },
-        commands: [patch(model.hostId, restored.state, changeSet)],
-      }
-    }
-    let nextId = model.nextId
-    // With nothing selected, a mark toggle is the caret's own state: the next
-    // typed text lands with it. A caret move ends the format it was carrying.
-    const collapsed =
-      model.selection?.type === 'Range' &&
-      model.selection.anchor.node === model.selection.focus.node &&
-      model.selection.anchor.offset === model.selection.focus.offset
-    // The caret never carries a mark the vocabulary cannot type, so an unknown
-    // one is refused here rather than at the first keystroke after it.
-    if (
-      message._tag === 'ToggledMark' &&
-      collapsed &&
-      !(vocabulary.marks ?? RichText.shippedRegistry).declares(message.mark)
-    ) {
-      return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
-    }
-    const storedMarks =
-      message._tag === 'ToggledMark' && collapsed
-        ? model.storedMarks?.includes(message.mark)
-          ? model.storedMarks.filter(mark => mark !== message.mark)
-          : [...(model.storedMarks ?? []), message.mark]
-        : message._tag === 'Selected'
-          ? null
-          : model.storedMarks
-    const command =
-      message._tag === 'Typed' && storedMarks !== null
-        ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
-        : toCommand(message)
-    // Choosing an entry removes the query it was typed into and applies the choice as
-    // one action (§124 §5), so one transition and one undo step cover both. The range is
-    // a read, not state: `menu.query` is the text the document already holds, and the
-    // `+ 1` is the slash that opened it.
-    const queryRange =
-      menu === undefined || menu.highlighted === undefined || model.selection?.type !== 'Range'
-        ? undefined
-        : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
-    const result = RichText.runAction(
-      state,
-      // What is typed can be a block marker (§124 §4): the rules are the placement's own,
-      // so the editor carries none of any syntax's vocabulary itself.
-      queryRange !== undefined
-        ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
-        : message._tag === 'Typed'
-          ? RichText.applyInputRules(inputRulesFor(model.hostId), {
-              textBefore: textBeforeOf(model),
-              text: message.text,
-              insertion: command,
-            })
-          : [command],
-      { mint: () => `e${nextId++}` },
-      { marks: vocabulary.marks, nodes: vocabulary.nodes },
-    )
-    if (!result.ok) {
-      // A refused command changes nothing, so it does not burn identities.
-      return { model, outMessage: { _tag: 'Rejected', error: result.error } }
-    }
-    // History holds content, not cursor movement: a selection change keeps the
-    // redo stack, and a no-op edit adds no step to undo.
-    const contentChanged = result.state.document !== model.document
-    return {
-      model: {
-        ...model,
-        selection: result.state.selection,
-        nextId,
-        storedMarks,
-        history: contentChanged
-          ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
-          : model.history,
-      },
-      outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
-      commands: [patch(model.hostId, result.state, result.changeSet)],
-    }
+    const result = transition(model, incoming)
+    const out = result.outMessage
+    if (out?._tag === 'Edited' || out?._tag === 'Replaced')
+      carryKey(model.hostId, model.document, out.state.document)
+    return result
   },
   // The host element belongs to the view; everything below it belongs to the
   // interpreter the mount attaches there.
-  view: Submodel.defineView<EditorView, Message>((model, h) =>
-    h.div([h.Id(model.hostId), h.OnMount(events({ content: model.document }))], []),
-  ),
+  view: editorView,
 })
 
 const GotEditor = Link.wrapper('GotEditorMessage', Message)
@@ -328,7 +441,7 @@ const editorLink: Link<
 
 /**
  * What a placement gives its editor. Each is placed by host id rather than passed as an arg
- * (§122): all three hold functions or schemas, which a schema-decoded arg cannot describe.
+ * (§122): each holds functions or schemas, which a schema-decoded arg cannot describe.
  */
 export interface EditorPlacement {
   /** How this editor's marks and node kinds render (§121). Defaults to `noRendering`. */
@@ -337,17 +450,41 @@ export interface EditorPlacement {
   readonly vocabulary?: Vocabulary | undefined
   /** The rules applied to what is typed (§128). Defaults to none. */
   readonly inputRules?: ReadonlyArray<RichText.InputRule> | undefined
+  /**
+   * What is drawn over the document (§129), derived from it on every patch: code
+   * highlighting, for one. Defaults to nothing.
+   */
+  readonly decorate?: Decorate | undefined
+  /** What the editor shows while its document is blank (`RichText.isBlank`). Defaults to none. */
+  readonly placeholder?: string | undefined
+  /**
+   * Whether this render is the server's (§145), such as `foldkit-ssr`'s `SSR.serving`. While it
+   * is, the host carries the document's markup, which the browser's editor adopts instead of
+   * drawing again. Defaults to never, so the host is empty until the editor mounts.
+   */
+  readonly serverRendered?: (() => boolean) | undefined
+}
+
+/**
+ * Records everything a placement names for its host id, replacing what the id had: one call,
+ * so a placement cannot half-apply. `editorAt` and the form control both place through it.
+ */
+export const placeEditor = (hostId: string, placement: EditorPlacement): void => {
+  placeRendering(hostId, placement.rendering ?? RichText.noRendering)
+  placeVocabulary(hostId, placement.vocabulary ?? {})
+  placeInputRules(hostId, placement.inputRules ?? [])
+  placeDecorations(hostId, placement.decorate ?? (() => []))
+  placePlaceholder(hostId, placement.placeholder)
+  placeServerRendered(hostId, placement.serverRendered ?? (() => false))
 }
 
 /**
  * Places one editor, bound to the host element the view renders and the patch Command
  * finds. Each placement picks its own id and names what it places; one call records all
- * three, so a placement cannot half-apply.
+ * of it, so a placement cannot half-apply.
  */
 export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
-  placeRendering(hostId, placement.rendering ?? RichText.noRendering)
-  placeVocabulary(hostId, placement.vocabulary ?? {})
-  placeInputRules(hostId, placement.inputRules ?? [])
+  placeEditor(hostId, placement)
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.
@@ -377,8 +514,18 @@ export const typed = (text: string): ParentMessage => edited(Message.Typed({ tex
 export const pressed = (tag: 'Backspace' | 'DeletedForward' | 'Entered'): ParentMessage =>
   edited(Message[tag]())
 export const toggled = (mark: string): ParentMessage => edited(Message.ToggledMark({ mark }))
+export const applied = (mark: RichText.RunMark): ParentMessage =>
+  edited(Message.AppliedMark({ mark }))
+export const cleared = (mark: string): ParentMessage => edited(Message.ClearedMark({ mark }))
 export const retyped = (block: RichText.TextBlock): ParentMessage =>
   edited(Message.RetypedBlock({ block }))
+export const wrapped = (containers: ReadonlyArray<RichText.Container>): ParentMessage =>
+  edited(Message.WrappedBlock({ containers }))
+export const converted = (to: RichText.Container): ParentMessage =>
+  edited(Message.ConvertedBlock({ to }))
+export const lifted = (): ParentMessage => edited(Message.LiftedBlock())
+export const moved = (node: RichText.NodeId, to: RichText.Beside): ParentMessage =>
+  edited(Message.MovedBlock({ node, to }))
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
   edited(Message.Selected({ selection }))
 export const undone = (): ParentMessage => edited(Message.Undone())

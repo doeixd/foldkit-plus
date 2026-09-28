@@ -5,8 +5,8 @@
  * reference never has to enter a Model.
  */
 import * as RichText from 'foldkit-richtext'
-import { mount } from './index.js'
-import { attach, type AttachOptions, type Attachment } from './events.js'
+import { adopt, mount } from './index.js'
+import { attach, type AttachOptions, type Attachment, type Decorate } from './events.js'
 
 const attachments = new WeakMap<Element, Attachment>()
 const renderings = new Map<string, RichText.Rendering>()
@@ -33,6 +33,47 @@ export const placeVocabulary = (hostId: string, vocabulary: Vocabulary): void =>
 
 /** The vocabulary placed for a host id, or none — `run` then uses its own defaults. */
 export const vocabularyFor = (hostId: string): Vocabulary => vocabularies.get(hostId) ?? {}
+
+const decorators = new Map<string, Decorate>()
+
+/**
+ * Records what a placement's editor draws over its document, by host id, for the reason a
+ * rendering registry is placed: a function cannot ride in the Bundle's schema-decoded args.
+ */
+export const placeDecorations = (hostId: string, decorate: Decorate): void => {
+  decorators.set(hostId, decorate)
+}
+
+/** What is drawn over a host's document, or nothing when none was placed. */
+export const decorationsFor = (hostId: string): Decorate => decorators.get(hostId) ?? (() => [])
+
+const serverRenders = new Map<string, () => boolean>()
+
+/**
+ * Records how a placement tells a server's render from the browser's, by host id (§145): the
+ * host carries the document's markup only while it says the render is the server's.
+ */
+export const placeServerRendered = (hostId: string, serverRendered: () => boolean): void => {
+  serverRenders.set(hostId, serverRendered)
+}
+
+/** Whether this render of a host is the server's; never, when nothing was placed. */
+export const serverRenderedFor = (hostId: string): (() => boolean) =>
+  serverRenders.get(hostId) ?? (() => false)
+
+const placeholders = new Map<string, string>()
+
+/**
+ * Records what a placement's blank editor shows, by host id, beside the rest of how it
+ * draws, so the mount reads all of it from the id it renders.
+ */
+export const placePlaceholder = (hostId: string, placeholder: string | undefined): void => {
+  if (placeholder === undefined) placeholders.delete(hostId)
+  else placeholders.set(hostId, placeholder)
+}
+
+/** The placeholder placed for a host id, or none. */
+export const placeholderFor = (hostId: string): string | undefined => placeholders.get(hostId)
 
 const ruleSets = new Map<string, ReadonlyArray<RichText.InputRule>>()
 
@@ -68,21 +109,23 @@ export const renderingFor = (hostId: string): RichText.Rendering =>
  * Renders `content` into `host` and records the attachment. The host is the
  * view's element; the subtree the interpreter creates goes inside it, and the
  * interpreter owns everything below. A rendering registry decides how a declared
- * mark or node kind renders, a decoration set is overlaid on the runs it covers
- * (§129), and the same two are kept for later patches.
+ * mark or node kind renders, and the same one is kept for later patches.
  */
 export const mountInto = (
   host: Element,
   content: RichText.Document,
   options: AttachOptions,
   rendering: RichText.Rendering = RichText.noRendering,
-  decorations: RichText.DecorationSet = [],
 ): Attachment => {
   // A mount runs once per element, so this is defensive: a remount replaces the
   // subtree rather than leaving two.
   releaseMount(host)
-  const dom = mount(host.ownerDocument, content, rendering, decorations)
-  host.append(dom.root)
+  const decorations = options.decorate?.(content)
+  // Server markup for this document is kept (§145); anything else in the host is replaced.
+  const existing = host.children.length === 1 ? host.firstElementChild : null
+  const adopted = existing === null ? undefined : adopt(existing, content, rendering, decorations)
+  const dom = adopted ?? mount(host.ownerDocument, content, rendering, decorations)
+  if (adopted === undefined) host.replaceChildren(dom.root)
   const attachment = attach(dom, options)
   attachments.set(host, attachment)
   return attachment
