@@ -138,6 +138,22 @@ const texts = (state: RichText.Replicated.ReplicatedState): ReadonlyArray<string
   return out
 }
 
+/**
+ * Applies ops to a state and to a copy of it, as a replica that reloaded the state would,
+ * and expects both to show the same document: nothing `applyOps` decides may depend on
+ * what it remembers about how the state was reached.
+ */
+const applyReloaded = (
+  state: RichText.Replicated.ReplicatedState,
+  ops: ReadonlyArray<RichText.Replicated.ReplicatedOp>,
+): RichText.Replicated.ReplicatedState => {
+  const next = Replicated.applyOps(state, ops)
+  expect(Replicated.project(Replicated.applyOps(structuredClone(state), ops))).toEqual(
+    Replicated.project(next),
+  )
+  return next
+}
+
 const base = () =>
   Replicated.fromDocument(
     decode([
@@ -423,7 +439,7 @@ describe('undoing', () => {
       const after = view.state
       const undo = Replicated.invert(before, ops)
       for (const op of undo) kinds.add(op.type)
-      const undone = Replicated.applyOps(after, undo)
+      const undone = applyReloaded(after, undo)
       expect(unordered(Replicated.project(undone))).toEqual(unordered(Replicated.project(before)))
       const redone = Replicated.applyOps(undone, Replicated.invert(after, undo))
       expect(unordered(Replicated.project(redone))).toEqual(unordered(Replicated.project(after)))
@@ -506,6 +522,49 @@ describe('undoing', () => {
     expect(Replicated.project(joined).children).toHaveLength(1)
     const undone = Replicated.applyOps(joined, Replicated.invert(start, join))
     expect(Replicated.project(undone)).toEqual(Replicated.project(start))
+  })
+
+  it('puts back a joined block’s text in its own order, however the state was reached', () => {
+    const P = ReplicatedId.make('b:P')
+    const I = ReplicatedId.make('b:I')
+    const R = ReplicatedId.make('b:R')
+    const S = ReplicatedId.make('b:S')
+    const char = Replicated.CharRef.make
+    const shape = { type: 'Paragraph' } as const
+    const insert = (id: string, block: typeof P, value: string) =>
+      ({
+        type: 'Insert',
+        id: ReplicatedId.make(id),
+        block,
+        after: null,
+        text: value,
+        marks: [],
+      }) as const
+    const start = Replicated.applyOps(Replicated.empty, [
+      { type: 'InsertBlock', id: P, shape, parent: null, after: null },
+      { type: 'InsertBlock', id: I, shape, parent: null, after: P },
+      { type: 'InsertBlock', id: R, shape, parent: null, after: I },
+      insert('t:p', P, 'pp'),
+      insert('t:i', I, 'ii'),
+      insert('t:x', R, 'abcdef'),
+    ])
+    const join: ReadonlyArray<RichText.Replicated.ReplicatedOp> = [
+      { type: 'Join', into: I, removed: R, after: char('t:i.1') },
+    ]
+    // The joined text is split in two, and the half before the split joined on again, so
+    // its two halves end up indexed in the opposite order to a fresh index's.
+    const later = Replicated.applyOps(start, [
+      ...join,
+      { type: 'Split', block: I, after: char('t:x.2'), into: S },
+      { type: 'Join', into: P, removed: I, after: char('t:p.1') },
+    ])
+    const undo = Replicated.invert(start, join)
+    const undone = applyReloaded(later, undo)
+    expect(texts(undone)).toEqual(['ppii', '', 'abcdef'])
+    // Redone, it joins again after the character now before its text, found the same way.
+    const redo = Replicated.invert(later, undo)
+    expect(Replicated.invert(structuredClone(later), undo)).toEqual(redo)
+    expect(texts(applyReloaded(undone, redo))).toEqual(['ppiiabcdef', ''])
   })
 
   it('takes back one person’s edit and keeps what someone else did meanwhile', () => {
@@ -734,7 +793,7 @@ describe('random concurrent sessions', () => {
     expect(Replicated.project(Replicated.applyOps(start, opsA))).toEqual(
       Replicated.project(a.state),
     )
-    const merged = Replicated.applyOps(Replicated.applyOps(start, opsA), opsB)
+    const merged = applyReloaded(Replicated.applyOps(start, opsA), opsB)
     const projected = Replicated.project(merged)
     expect(RichText.decodeDocument(projected)).toEqual(projected)
     const view: View = { state: merged, selection: null }
@@ -1065,12 +1124,10 @@ describe('ops that no longer fit', () => {
 
 describe('unjoining containers', () => {
   const list = { type: 'Node', kind: 'List', props: {}, holds: 'blocks' } as const
-  const [L1, L2, C, X] = ['c:1', 'c:2', 'c:3', 'c:4'].map(id => ReplicatedId.make(id)) as [
-    RichText.Replicated.ReplicatedId,
-    RichText.Replicated.ReplicatedId,
-    RichText.Replicated.ReplicatedId,
-    RichText.Replicated.ReplicatedId,
-  ]
+  const L1 = ReplicatedId.make('c:1')
+  const L2 = ReplicatedId.make('c:2')
+  const C = ReplicatedId.make('c:3')
+  const X = ReplicatedId.make('c:4')
   /** Each visible block's id, with the ids nested in it. */
   const tree = (state: RichText.Replicated.ReplicatedState): unknown => {
     const shape = (blocks: ReadonlyArray<RichText.Block>): unknown =>

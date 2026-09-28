@@ -481,11 +481,14 @@ const eachCovered = (
 
 /**
  * Takes the spans a set of ranges covers out of whatever blocks hold them, cut so each lies
- * wholly inside, and gives them back in range order.
+ * wholly inside, and gives them back in range order, and each range's in character order:
+ * the order of the blocks holding them depends on how the state was reached, not on what
+ * it holds, so it would give two replicas different text.
  */
 const takeCovered = (work: Draft, ranges: ReadonlyArray<CharRange>): Array<Span> => {
   const taken: Array<Span> = []
   for (const range of ranges) {
+    const ofRange: Array<Span> = []
     for (const block of work.holding(range.id)) {
       if (!work.read(block)!.spans.some(span => span.id === range.id)) continue
       const spans = work.write(block)!.spans
@@ -498,10 +501,11 @@ const takeCovered = (work: Draft, ranges: ReadonlyArray<CharRange>): Array<Span>
         const inside = spans[index]!
         if (inside.offset < range.from) continue
         cut(spans, index, range.to - inside.offset)
-        taken.push(...spans.splice(index, 1))
+        ofRange.push(...spans.splice(index, 1))
         index--
       }
     }
+    taken.push(...ofRange.sort((left, right) => left.offset - right.offset))
   }
   return taken
 }
@@ -844,7 +848,10 @@ export const coalesce = (ops: ReadonlyArray<ReplicatedOp>): ReadonlyArray<Replic
 // Undoing
 // ---------------------------------------------------------------------------------------
 
-/** The stretches of `state`'s spans each range covers, with where each span is. */
+/**
+ * The stretches of `state`'s spans each range covers, with where each span is: in range
+ * order, and each range's in character order, whatever order the blocks are indexed in.
+ */
 const coveredParts = (
   state: ReplicatedState,
   ranges: ReadonlyArray<CharRange>,
@@ -855,14 +862,16 @@ const coveredParts = (
   readonly range: CharRange
 }> =>
   ranges.flatMap(range =>
-    (holdersIn(holdersOf(state), range.id) ?? []).flatMap(block =>
-      lookup(state, block)!.spans.flatMap((span, index) => {
-        if (span.id !== range.id) return []
-        const from = Math.max(range.from, span.offset)
-        const to = Math.min(range.to, span.offset + span.text.length)
-        return from < to ? [{ block, index, span, range: { id: range.id, from, to } }] : []
-      }),
-    ),
+    (holdersIn(holdersOf(state), range.id) ?? [])
+      .flatMap(block =>
+        lookup(state, block)!.spans.flatMap((span, index) => {
+          if (span.id !== range.id) return []
+          const from = Math.max(range.from, span.offset)
+          const to = Math.min(range.to, span.offset + span.text.length)
+          return from < to ? [{ block, index, span, range: { id: range.id, from, to } }] : []
+        }),
+      )
+      .sort((left, right) => left.span.offset - right.span.offset),
   )
 
 /** What a block that holds text is, as a retype names it. */
