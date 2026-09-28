@@ -13,6 +13,7 @@ import {
   type BlockPath,
   type Document,
   type NodeReference,
+  type RunPlace,
   type Text,
 } from './document.js'
 import { defaultTransforms, type Transform } from './transform.js'
@@ -451,8 +452,11 @@ export const apply = (
   }
   const initial = indexDocument(state.document)
   let { blockPaths, runPaths } = initial
+  /** The index as this transaction's own copy, once `indexInserted` has written to it. */
+  let owned: { blocks: Map<NodeId, BlockPath>; runs: Map<NodeId, RunPlace> } | undefined
   const reindex = () => {
     ;({ blockPaths, runPaths } = indexDocument(document))
+    owned = undefined
   }
   // Identities stay reserved for the whole transaction so a reused id can never
   // silently address two nodes across structural edits: the input's, and every one
@@ -502,6 +506,27 @@ export const apply = (
     const copy = [...(blockAt(path)?.children ?? [])]
     workingRuns.set(key, copy)
     return copy
+  }
+  /**
+   * Indexes a block just inserted at `at` in a container, and moves each later sibling's
+   * subtree one place on, rather than indexing the whole document again: a paste inserts one
+   * block at a time, and reindexing after each made it quadratic in the blocks pasted.
+   */
+  const indexInserted = (containerPath: BlockPath, at: number): void => {
+    const index = (owned ??= { blocks: new Map(blockPaths), runs: new Map(runPaths) })
+    blockPaths = index.blocks
+    runPaths = index.runs
+    const record = (block: Block, path: BlockPath): void => {
+      index.blocks.set(block.id, path)
+      block.children.forEach((run, place) => index.runs.set(run.id, { path, index: place }))
+      if (block.type === 'Node' && block.blocks !== undefined) {
+        block.blocks.forEach((child, place) => record(child, [...path, place]))
+      }
+    }
+    const blocks = blocksAt(containerPath)
+    for (let place = at; place < blocks.length; place++) {
+      record(blocks[place]!, [...containerPath, place])
+    }
   }
   const writeBlock = (path: BlockPath, block: Block): void => {
     const container = ensureContainer(path.slice(0, -1))
@@ -853,9 +878,19 @@ export const apply = (
       continue
     }
     if (operation.type === 'InsertNode') {
-      materialize()
       const target = containerPathOf(operation.parent)
       if ('error' in target) return { ok: false, error: target.error }
+      // A pending copy under a place the insert shifts would be folded back at the wrong
+      // path. The container and its ancestors do not shift, so a run of inserts into one
+      // container, as a paste is, keeps its copy rather than copying the list each time.
+      const unshifted = new Set(
+        Array.from({ length: target.path.length + 1 }, (_, depth) =>
+          pathKey(target.path.slice(0, depth)),
+        ),
+      )
+      if (workingRuns.size > 0 || [...workingBlocks.keys()].some(key => !unshifted.has(key))) {
+        materialize()
+      }
       if (operation.at > blocksAt(target.path).length) return { ok: false, error: 'InvalidRange' }
       const carried = [
         operation.block.id,
@@ -872,13 +907,12 @@ export const apply = (
       }
       const container = ensureContainer(target.path)
       container.splice(operation.at, 0, operation.block)
-      materialize()
       for (const id of carried) {
         usedIds.add(id)
         dirtyNodes.add(id)
         insertedNodes.add(id)
       }
-      reindex()
+      indexInserted(target.path, operation.at)
       structureChanged = true
       continue
     }

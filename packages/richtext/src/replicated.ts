@@ -539,14 +539,29 @@ const takeCovered = (work: Draft, ranges: ReadonlyArray<CharRange>): Array<Span>
   return taken
 }
 
+/**
+ * Where a block was last inserted into each sibling list. A paste inserts each block after the
+ * one before it, so the next anchor is usually found there rather than by a scan of the list,
+ * which made applying a paste quadratic in its blocks. A hint that no longer names the anchor
+ * falls back to the scan.
+ */
+const lastInserted = new WeakMap<Array<ReplicatedId>, number>()
+
 const insertAfterSibling = (
   list: Array<ReplicatedId>,
   id: ReplicatedId,
   after: string | null,
 ): void => {
-  const at = after === null ? 0 : list.indexOf(after as ReplicatedId) + 1
+  const hint = lastInserted.get(list)
+  const at =
+    after === null
+      ? 0
+      : (hint !== undefined && list[hint] === after ? hint : list.indexOf(after as ReplicatedId)) +
+        1
   // A sibling that has left this container puts the block at the container's end.
-  list.splice(after !== null && at === 0 ? list.length : at, 0, id)
+  const place = after !== null && at === 0 ? list.length : at
+  list.splice(place, 0, id)
+  lastInserted.set(list, place)
 }
 
 /**

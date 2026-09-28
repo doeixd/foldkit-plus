@@ -189,6 +189,49 @@ describe('retyping a block', () => {
   })
 })
 
+describe('inserting blocks after other edits in one transaction', () => {
+  // A retype leaves a pending copy of the quote's block list; the inserts before the quote
+  // move it, so that copy has to be folded in before they land, or the retype is lost.
+  it('keeps an edit inside a container that later inserts move', () => {
+    const paragraph = (name: string) => ({
+      type: 'Paragraph' as const,
+      id: id(name),
+      children: [{ type: 'Text' as const, id: id(`${name}-t`), text: name, marks: [] }],
+    })
+    const state = {
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [
+          paragraph('first'),
+          {
+            type: 'Node',
+            kind: 'Quote',
+            id: 'q',
+            props: {},
+            children: [],
+            blocks: [paragraph('qp')],
+          },
+        ],
+      }),
+      selection: null,
+    }
+    const result = success(
+      RichText.apply(state, [
+        RichText.Edit.retypeBlock(id('qp'), { type: 'Heading', level: 2 }),
+        RichText.Edit.insertBlock(paragraph('a'), 0),
+        RichText.Edit.insertBlock(paragraph('b'), 1),
+        RichText.Edit.insertText(RichText.Node.make('qp-t').at(2, 'after'), '!'),
+      ]),
+    )
+    expect(result.state.document.children.map(block => block.id)).toEqual(['a', 'b', 'first', 'q'])
+    expect(RichText.blockAtPath(result.state.document, [3, 0])).toMatchObject({
+      type: 'Heading',
+      level: 2,
+      children: [{ text: 'qp!' }],
+    })
+  })
+})
+
 describe('text transactions', () => {
   it('applies sequential edits and maps backward selections in the same transition', () => {
     const state = initial()

@@ -82,6 +82,27 @@ A long offline outbox is also exercised deterministically in CI: `sync.test.ts`'
 `recovers a long offline outbox and converges on the committed order` submits 500
 operations offline and reconciles them in one exchange.
 
+## foldkit-richtext: pasting many blocks
+
+`packages/richtext/bench/replicated.bench.ts` pastes `n` paragraphs into the middle of a
+100-paragraph document: `RichText.run` for the `Paste`, `Replicated.translate` for its
+transaction, and `Replicated.applyOps` for the ops. Medians on Linux, Node 22.22.2:
+
+| blocks | `run`, before | `run`, after | `translate`, before | `translate`, after | `applyOps`, before | `applyOps`, after |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 73 ms | 10 ms | 64 ms | 7 ms | 1.6 ms | 1.5 ms |
+| 1000 | 214 ms | 11 ms | 211 ms | 11 ms | 8.4 ms | 2.2 ms |
+| 2000 | 801 ms | 26 ms | 841 ms | 24 ms | 17 ms | 6.9 ms |
+| 4000 | 3053 ms | 60 ms | 3004 ms | 44 ms | 66 ms | 10 ms |
+
+A paste is one `InsertNode` per block, and `apply` indexed the whole document again after
+each, so a paste was quadratic in its blocks; `translate` replays the transaction through
+`apply`, so it paid the same again. `apply` now indexes only the inserted block and the
+siblings after it, and keeps its copy of the container across a run of inserts rather than
+folding it back and copying it for each. `applyOps` looked up each `InsertBlock`'s sibling
+anchor with a scan of the list; it now tries the place of the previous insert first. The
+results are unchanged: the Replicated and transaction tests pass as before.
+
 ## Initial supported limits
 
 With one replica per document, from the recorded run:

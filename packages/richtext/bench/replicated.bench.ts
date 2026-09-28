@@ -1,5 +1,5 @@
 /**
- * What one keystroke costs in a replicated document, by document size.
+ * What one keystroke, and one large paste, cost in a replicated document.
  *
  * The collaborative path does four things per edit: `translate` restates the
  * editor's transaction as ops, `applyOps` applies them, and `project` and
@@ -65,4 +65,33 @@ describe.each([100, 1000, 4000])('%i paragraphs', paragraphs => {
   benchmark(`project after one insert (${paragraphs})`, () =>
     Replicated.project(Replicated.applyOps(typing.state, [...ops])),
   )
+})
+
+/**
+ * A paste of `n` paragraphs at the end of the middle paragraph of a 100-paragraph document:
+ * the command, its translation, and applying the ops. Each pasted block is its own
+ * `InsertNode`, so any per-block cost that grows with the blocks before it shows here.
+ */
+describe.each([500, 2000])('a paste of %i paragraphs', blocks => {
+  const { state, projected } = scene(100)
+  const run = projected.children[50]!.children[0]!
+  const at = { node: run.id, offset: run.text.length, affinity: 'after' as const }
+  const selection: RichText.Selection = { type: 'Range', anchor: at, focus: at }
+  const slice = { version: 1 as const, blocks: document(blocks).children }
+  let minted = 0
+  const paste = () =>
+    RichText.run(
+      { document: projected, selection },
+      { type: 'Paste', slice },
+      { mint: () => `m${minted++}` },
+    )
+  const edit = paste()
+  if (!edit.ok) throw new Error(edit.error)
+  const { ops } = Replicated.translate(state, edit, 'paste:0')
+
+  benchmark(`run the paste (${blocks})`, paste)
+  benchmark(`translate the paste (${blocks})`, () =>
+    Replicated.translate(state, edit, `paste:${keys++}`),
+  )
+  benchmark(`apply the paste's ops (${blocks})`, () => Replicated.applyOps(state, [...ops]))
 })
