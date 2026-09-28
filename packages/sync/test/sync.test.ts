@@ -550,6 +550,34 @@ describe('the replica', () => {
     expect((await status(replica)).lastError).toBeUndefined()
   })
 
+  it('records a committed operation whose replay throws as the exchange failure', async () => {
+    const Throwing = defineSync({
+      ...definition,
+      replay: (shared, message) => {
+        if (message._tag === 'CreatedTodo' && message.id === 'bad') throw new Error('cannot replay')
+        return definition.replay(shared, message)
+      },
+    })
+    const replica = await Effect.runPromise(Throwing.openReplica(replicaId('a'), memoryStorage()))
+
+    const exit = await Effect.runPromiseExit(
+      Effect.provide(
+        replica.synchronize,
+        layerFromPromise({
+          exchange: async () => ({
+            operations: [committed('b', 1, 1, created('bad'))],
+            rejected: [],
+          }),
+        }),
+      ),
+    )
+
+    expect(exit).toMatchObject({ _tag: 'Failure', cause: { reasons: [{ _tag: 'Fail' }] } })
+    expect((await status(replica)).lastError).toBe('cannot replay')
+    expect(cursor(replica)).toBe(0)
+    await close(replica)
+  })
+
   it('reports an unsupported newer version without overwriting the stored state', async () => {
     const saved = {
       protocolVersion: 1,

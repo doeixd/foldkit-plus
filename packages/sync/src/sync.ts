@@ -695,7 +695,17 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                   actual: operation.serverSequence,
                   message: 'Invalid committed order',
                 })
-              committed = definition.replay(committed, message)
+              // A throw here would be a defect, which bypasses `lastError` and leaves
+              // `start` retrying the same page in silence.
+              const replaying = committed
+              committed = yield* Effect.try({
+                try: () => definition.replay(replaying, message),
+                catch: cause =>
+                  new ReplayError({
+                    message: cause instanceof Error ? cause.message : 'Replay failed',
+                    cause,
+                  }),
+              })
               ids.add(operation.opId)
               cursor = operation.serverSequence
               applied += 1
