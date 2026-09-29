@@ -102,6 +102,12 @@ export const routing: Runtime.RoutingConfig<Message> = {
 const App = Surface.application({ Model, Message })
 
 /**
+ * The static routes the build generates: `prerender.ts` renders each with
+ * `SSR.generate`, and the server entry names them for Foldkit's own pipeline.
+ */
+export const prerenderPaths = ['/', '/about'] as const
+
+/**
  * What crosses from the build to the browser: the route. The browser sets it
  * onto `initial` and never runs `init`; the count starts at 0 there, as `init`
  * starts it, and `SSR.render` refuses the page should the two ever disagree.

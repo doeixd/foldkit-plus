@@ -1,13 +1,26 @@
 import { Effect } from 'effect'
+import { Style } from 'foldkit-mixins'
+import { SSR } from 'foldkit-ssr'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { generatePages } from '../src/entry.server.js'
+import { Model, init, plan, prerenderPaths, routing, update, view } from '../src/main.js'
+import { stylesheet } from '../src/style.js'
 
 /** The example's own `index.html`, which the build renders each page into. */
 export const template = readFileSync(join(import.meta.dirname, '../index.html'), 'utf8')
 
-/** The template loading `src` as its entry script, as Vite's build rewrites it. */
-export const loading = (src: string): string => template.replace('/src/entry.ts', src)
+const head = (rendered: { readonly html: string }): string =>
+  `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
 
-export const generate = (from: string = template) => Effect.runPromise(generatePages(from))
+/** Every page in `prerenderPaths`, rendered into `from` as build `buildId` saw it. */
+export const generate = (from: string, buildId: string) =>
+  Effect.runPromise(
+    SSR.generate({ Model, init, update, view, container: null, routing }, plan, {
+      buildId,
+      template: from,
+      origin: 'https://example.com',
+      paths: prerenderPaths,
+      head,
+    }),
+  )

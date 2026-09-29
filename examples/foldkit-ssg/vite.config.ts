@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite'
+import { foldkit } from '@foldkit/vite-plugin'
 
 /**
  * `vite preview` as a static host serves the build: `/about` is the page
@@ -21,7 +22,11 @@ const staticHost = (): Plugin => ({
 export default defineConfig(({ isPreview }) => ({
   // Workspace packages resolve to their source, so an edit shows without a build.
   resolve: { conditions: ['foldkit-plus:source'] },
+  ssr: { resolve: { conditions: ['foldkit-plus:source'] } },
   server: { host: '127.0.0.1' },
-  plugins: [staticHost()],
+  // The dev server renders each page through `src/entry.server.ts`, so
+  // development serves the same pages the build generates; `FOLDKIT_BUILD_ID`
+  // in the environment names the build, as it does for `vite build`.
+  plugins: [foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } }), staticHost()],
   appType: isPreview === true ? 'mpa' : 'spa',
 }))

@@ -6,9 +6,10 @@
  */
 import { describe, expect, test } from 'vitest'
 
-import { buildIdOf } from '../src/entry.server.js'
 import { stylesheet } from '../src/style.js'
-import { generate, loading, template } from './helpers.js'
+import { generate, template } from './helpers.js'
+
+const BUILD_ID = 'test-build'
 
 const parse = (html: string): Document => new DOMParser().parseFromString(html, 'text/html')
 
@@ -18,9 +19,13 @@ const rootOf = (page: Document): HTMLElement => {
   return root
 }
 
+/** The envelope off a served page, as the browser reads it. */
+const envelopeOf = (page: Document): unknown =>
+  JSON.parse(rootOf(page).getAttribute('data-foldkit-plus-resume') ?? '')
+
 describe('the generated pages', () => {
   test('are one per prerendered path, written where a static host serves it', async () => {
-    const pages = await generate()
+    const pages = await generate(template, BUILD_ID)
     expect(pages.map(page => [page.path, page.file])).toEqual([
       ['/', 'index.html'],
       ['/about', 'about/index.html'],
@@ -36,39 +41,26 @@ describe('the generated pages', () => {
       { _tag: 'About' },
     ],
   ])('%s carries its title, its content and its route', async (path, title, heading, route) => {
-    const pages = await generate()
+    const pages = await generate(template, BUILD_ID)
     const page = parse(pages.find(each => each.path === path)?.html ?? '')
     expect(page.title).toBe(title)
     expect(page.getElementById('page-title')?.textContent).toBe(heading)
-    const envelope = page.querySelector('script[data-foldkit-plus-resume]')?.textContent ?? ''
-    expect(JSON.parse(envelope)).toMatchObject({ plan: 'ssg', state: { route }, route: path })
+    expect(envelopeOf(page)).toMatchObject({ plan: 'ssg', state: { route }, route: path })
   })
 
   test('is the markup a parser builds from it', async () => {
-    for (const { html } of await generate()) {
+    for (const { html } of await generate(template, BUILD_ID)) {
       expect(html).toContain(rootOf(parse(html)).outerHTML)
     }
   })
 
-  test('is stamped with the build of the entry script its template loads', async () => {
-    const [home] = await generate(loading('/assets/index-abc123.js'))
-    expect(rootOf(parse(home.html)).getAttribute('data-foldkit-build')).toBe(
-      '/assets/index-abc123.js',
-    )
-    expect(buildIdOf(template)).toBe('/src/entry.ts')
-  })
-
-  test('reads a Windows file path as the forward-slash id the browser reads of itself', () => {
-    // `new URL` keeps backslashes while `import.meta.url` never has them, so
-    // without the normalization the two build ids disagree and hydration
-    // refuses the page on Windows.
-    expect(buildIdOf(loading('C:\\build\\assets\\index-abc123.js'))).toBe(
-      '/C:/build/assets/index-abc123.js',
-    )
+  test('is stamped with the build both sides were compiled as', async () => {
+    const [home] = await generate(template, BUILD_ID)
+    expect(rootOf(parse(home.html)).getAttribute('data-foldkit-build')).toBe(BUILD_ID)
   })
 
   test('styles its first paint: the stylesheet and every class it draws, with every token they read', async () => {
-    for (const { html } of await generate()) {
+    for (const { html } of await generate(template, BUILD_ID)) {
       const page = parse(html)
       const css = Array.from(page.head.querySelectorAll('style'), style => style.textContent).join(
         '',
