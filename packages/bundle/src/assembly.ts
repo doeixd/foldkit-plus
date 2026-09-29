@@ -444,6 +444,16 @@ type RuntimeChecks<Config, Model, Message, Ps extends ReadonlyArray<unknown>> = 
         readonly update: Invalid<"update must accept every placement's Messages; placements are already routed inside it, so narrow it nowhere. If it does, annotate the parameters of the callbacks written inline in this input (an init function, routing's url): unannotated, they keep TypeScript from inferring it">
       }
   : unknown) &
+  (Config extends { readonly subscriptions: { readonly [Wired]: true } }
+    ? {
+        readonly subscriptions: Invalid<'subscriptions come from the assembly: omit them, or pass unbranded own Subscriptions to merge'>
+      }
+    : unknown) &
+  (Config extends { readonly managedResources: { readonly [Wired]: true } }
+    ? {
+        readonly managedResources: Invalid<'managedResources come from the assembly: omit them, or pass unbranded own entries to merge'>
+      }
+    : unknown) &
   (Config extends { readonly initial: infer Seed }
     ? Seed extends (...args: ReadonlyArray<any>) => unknown
       ? [HasInit<Ps[number]>] extends [never]

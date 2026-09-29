@@ -23,9 +23,16 @@ const assembly = Bundle.assemble<Model, Message>()([placed])
 
 const update = (model: Model, message: Message) => ({ model })
 
-// Rest form: init is derived, and the result passes `complete`.
+// Rest form: init is derived, and the result passes `complete`. Already-wired
+// records are refused as own instead of failing later on duplicate keys.
 const fromRest = assembly.runtime({ initial: {}, update })
 assembly.complete(fromRest)
+assembly.runtime({
+  initial: {},
+  update,
+  // @ts-expect-error: subscriptions come from the assembly
+  subscriptions: assembly.subscriptions(),
+})
 
 // Function form: the init passes through.
 const initFn = () => assembly.initial({})
