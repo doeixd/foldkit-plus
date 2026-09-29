@@ -142,3 +142,40 @@ describe('assembly.runtime with update omitted', () => {
     expect(Object.keys(config.subscriptions)).toEqual(['Counter@a/ticks'])
   })
 })
+
+describe('factory memoization', () => {
+  const seed = { ticks: 0 }
+
+  it('runs once per seed across records and init', () => {
+    const calls = { count: 0 }
+    const counted = Counter.at(Link.field<Model>()('a', GotA), {
+      args: () => {
+        calls.count += 1
+        return { limit: 9, start: 1 }
+      },
+      onOut: Bundle.ignore,
+    })
+    const countedAssembly = Bundle.assemble<Model, Message>()([counted])
+    const config = countedAssembly.runtime({ initial: seed, update: update })
+    expect(calls.count).toBe(1)
+    expect(config.init().model.a).toEqual({ count: 1, running: false })
+    expect(calls.count).toBe(1)
+  })
+
+  it('re-runs for a new seed', () => {
+    const calls = { count: 0 }
+    const counted = Counter.at(Link.field<Model>()('a', GotA), {
+      args: () => {
+        calls.count += 1
+        return { limit: 9, start: 1 }
+      },
+      onOut: Bundle.ignore,
+    })
+    const countedAssembly = Bundle.assemble<Model, Message>()([counted])
+    countedAssembly.initial({ ticks: 0 })
+    countedAssembly.initial({ ticks: 1 })
+    expect(calls.count).toBe(2)
+    countedAssembly.initial({ ticks: 1 })
+    expect(calls.count).toBe(2)
+  })
+})

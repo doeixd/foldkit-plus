@@ -394,11 +394,11 @@ is checked against the bundle's args Schema, naming the placement, then
 retained for `update`, helpers, Subscriptions, and resources. Subscriptions
 and resources that ignore `args` are readable before `initial()` runs; ones
 built from a factory need it (or `runtime()`) first, and name the placement
-when read too early. It never re-runs
-against live state, so keep it pure of its seed — and deterministic: through
-`runtime` it may run twice with the same seed (once for the records,
-once for `init`), so return the same args every time and generate ids outside
-it. A factory on an optional child is skipped when `rest` starts the child as
+when read too early. A factory runs once per seed it has seen: repeat
+initializations over equal seeds reuse the retained args, so one `runtime`
+flow derives once for its records and once is enough for its `init`. It never
+re-runs against live state, so keep it pure of its seed — return the same args
+for the same seed, and generate ids outside it. A factory on an optional child is skipped when `rest` starts the child as
 `None`. On a Model no initialization produced, `update` derives per use
 without retaining, so hand-built Models in tests fold with their own seed.
 
