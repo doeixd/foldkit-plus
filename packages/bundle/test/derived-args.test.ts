@@ -154,6 +154,23 @@ describe('args as a factory of the parent seed', () => {
     assembly.initial({ route: { _tag: 'People', searchText: 'alice' }, ticks: 0 })
     expect(assembly.placements[0]?.argsSummary).toBe('{"searchText":"alice"}')
   })
+
+  it('resolves a standalone init from the parent minus its own field', () => {
+    let sawOwn = false
+    const placed = Page.at(Bundle.declare(People, 'people'), {
+      args: parent => {
+        sawOwn = 'people' in parent
+        return { searchText: searchFromRoute(parent.route) }
+      },
+    })
+    const result = placed.init({
+      route: { _tag: 'People', searchText: 'alice' },
+      people: { searchText: 'stale', submitted: 'stale' },
+      ticks: 0,
+    })
+    expect(result.model.people).toEqual({ searchText: 'alice', submitted: '' })
+    expect(sawOwn).toBe(false)
+  })
 })
 
 describe('a factory feeding Subscriptions', () => {
@@ -201,6 +218,57 @@ describe('a factory feeding Subscriptions', () => {
   })
 })
 
+describe('a factory on a collection', () => {
+  const RowModel = Schema.Struct({ count: Schema.Number })
+  const RowMessage = defineMessageUnion({ Incremented: {} })
+  const Row = Bundle.make('Row', {
+    Model: RowModel,
+    Message: RowMessage,
+    args: Schema.Struct({ start: Schema.Number }),
+    init: ({ start }) => ({ model: { count: start } }),
+    update: model => ({ model: { count: model.count + 1 } }),
+  })
+  const GotRowsMessage = Link.keyedWrapper('GotRowsMessage', RowMessage)
+  const RowsModel = Schema.Struct({
+    filter: Schema.String,
+    rows: Schema.Record(Schema.String, RowModel),
+  })
+  type RowsModel = typeof RowsModel.Type
+  const RowsMessage = defineMessageUnion({ ...GotRowsMessage.cases })
+  type RowsMessage = typeof RowsMessage.Type
+  const RowsPage = Bundle.parent({ Model: RowsModel, Message: RowsMessage })
+  const placeRows = (calls?: { count: number }) =>
+    Row.each(Link.collection<RowsModel>()('rows', GotRowsMessage), {
+      args: parent => {
+        if (calls !== undefined) calls.count += 1
+        return { start: parent.filter.length }
+      },
+    })
+
+  it('ignores a Message for a missing item before any initialization', () => {
+    const assembly = RowsPage.assemble(placeRows())
+    const parent: RowsModel = { filter: 'ab', rows: {} }
+    const result = assembly.update()(parent, GotRowsMessage.make('gone', RowMessage.Incremented()))
+    expect(result.model).toBe(parent)
+  })
+
+  it('derives item args from the seed once and retains them', () => {
+    const calls = { count: 0 }
+    const assembly = RowsPage.assemble(placeRows(calls))
+    const seeded = assembly.initial({ filter: 'abc' })
+    expect(calls.count).toBe(1)
+    const rows = assembly.placements[0]
+    if (rows === undefined) throw new Error('no placement')
+    const added = rows.add('a')(seeded.model)
+    expect(added.model.rows).toEqual({ a: { count: 3 } })
+    const ticked = assembly.update()(
+      added.model,
+      GotRowsMessage.make('a', RowMessage.Incremented()),
+    )
+    expect(ticked.model.rows).toEqual({ a: { count: 4 } })
+    expect(calls.count).toBe(1)
+  })
+})
 describe('a factory through assembly.config', () => {
   it('derives args for init and Subscriptions from the config seed', () => {
     const assembly = Page.assemble(placePeople())

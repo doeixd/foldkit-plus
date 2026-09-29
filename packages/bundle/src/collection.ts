@@ -12,6 +12,7 @@ import type { AnyMessage, CollectionLink } from './link.js'
 import {
   checkArgs,
   isArgsFactory,
+  seedWithoutOwn,
   UnresolvedArgsError,
   writeIfChanged,
   type ArgsSource,
@@ -375,6 +376,9 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     link,
     update: (parent: unknown, message: AnyMessage) =>
       Option.map(link.fromParentMessage(message), ([key, childMessage]) => {
+        // A Message for an item that was never added leaves the parent as it is.
+        if (factory && !hasResolved && Option.isNone(link.get(parent, key)))
+          return { model: parent }
         const args = needArgs()
         const fold = foldItem(key, model => bundle.update(model, childMessage, args))
         return config.onMessage === undefined
@@ -385,8 +389,11 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
       (key: string, prepare: (model: unknown) => unknown = model => model): ErasedStep =>
       parent => {
         // The assembly pre-resolves the factory from the base seed; adding
-        // items standalone, the current parent is the seed.
-        const args = factory && !hasResolved ? (resolveFrom(parent), resolved) : needArgs()
+        // items standalone, the parent minus this collection's own field is it.
+        const args =
+          factory && !hasResolved
+            ? (resolveFrom(seedWithoutOwn(link.path, parent)), resolved)
+            : needArgs()
         return Update.foldChildInit(bundle.init(args), {
           toParentModel: child => link.write(parent, key, Option.some(prepare(child))),
           toParentMessage: message => link.toParentMessage(key, message),

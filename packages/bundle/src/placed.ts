@@ -57,6 +57,19 @@ export const isArgsFactory = <Seed, Args>(
   args: ArgsSource<Seed, Args> | undefined,
 ): args is (seed: Seed) => Args => typeof args === 'function'
 
+/**
+ * The seed for a standalone fallback (`placed.init` or collection `add`
+ * called without an assembly): the parent without the placement's own
+ * top-level field, matching what the factory's type omits. Longer paths name
+ * no top-level field of their own, so the parent passes through.
+ */
+export const seedWithoutOwn = (path: ReadonlyArray<string>, parent: unknown): unknown => {
+  if (path.length !== 1) return parent
+  const seed = { ...(parent as Record<string, unknown>) }
+  delete seed[path[0]!]
+  return seed
+}
+
 /** Thrown when a seed factory's args are read before any initialization derived them. */
 export class UnresolvedArgsError extends Error {
   constructor(key: string, usage: string) {
@@ -438,8 +451,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     link,
     init: (parent: unknown) => {
       // The assembly pre-resolves every factory from the base seed, so this
-      // uses the retained value; placed alone, the given parent is the seed.
-      const args = factory && !hasResolved ? (resolveFrom(parent), resolved) : needArgs()
+      // uses the retained value; placed alone, the parent minus this
+      // placement's own field is the seed.
+      const args =
+        factory && !hasResolved
+          ? (resolveFrom(seedWithoutOwn(link.path, parent)), resolved)
+          : needArgs()
       const lifted = Update.foldChildInit(bundle.init(args), {
         toParentModel: child => link.write(parent, child),
         toParentMessage: link.toParentMessage,
