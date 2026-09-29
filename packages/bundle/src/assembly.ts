@@ -173,30 +173,31 @@ type InitialKeysCheck<Input, Model, Ps extends ReadonlyArray<unknown>> = Input e
  * to `init` and the own update, Subscriptions, and Managed Resources derived
  * through the assembly. The derived fields carry the `complete` brands, so
  * `complete` accepts the result unchanged.
+ *
+ * Takes the assembly's already-derived unions — `Requirements`, `ItemServices`,
+ * and `Entries` — rather than the placements, so naming the result in a
+ * declaration file never names a placement's own types (a bundle's view inputs
+ * may name a module nothing can import). The `config` method defaults each
+ * from its assembly.
  */
-export type ConfigResult<
-  Input,
-  Model,
-  Message,
-  Ps extends ReadonlyArray<PlacedIn<Model, Message>>,
-  Services,
-> = Omit<Input, 'initial' | 'update' | 'subscriptions' | 'managedResources'> & {
-  readonly init: () => WiredRecord<Update.Return<Model, Message, RequirementsOf<Ps[number]>>>
-  readonly update: (
-    model: Model,
-    message: Message,
-  ) => Update.Return<Model, Message, RequirementsOf<Ps[number]> | Services>
-  readonly subscriptions: WiredRecord<
-    Subscription.Subscriptions<
-      Model,
-      Message,
-      OwnSubscriptionServices<Input, Model, Message> | ServicesOf<Ps[number]>
+export type ConfigResult<Input, Model, Message, Requirements, Services, ItemServices, Entries> =
+  Omit<Input, 'initial' | 'update' | 'subscriptions' | 'managedResources'> & {
+    readonly init: () => WiredRecord<Update.Return<Model, Message, Requirements>>
+    readonly update: (
+      model: Model,
+      message: Message,
+    ) => Update.Return<Model, Message, Requirements | Services>
+    readonly subscriptions: WiredRecord<
+      Subscription.Subscriptions<
+        Model,
+        Message,
+        OwnSubscriptionServices<Input, Model, Message> | ItemServices
+      >
     >
-  >
-  readonly managedResources: WiredRecord<
-    Readonly<Record<string, ResourceEntriesOf<Ps[number]> | OwnManagedEntries<Input>>>
-  >
-}
+    readonly managedResources: WiredRecord<
+      Readonly<Record<string, Entries | OwnManagedEntries<Input>>>
+    >
+  }
 
 /** `Services` are what the parent's own update may require, as in `Update.Commands<Message, Services>`. */
 export interface Assembly<
@@ -283,9 +284,14 @@ export interface Assembly<
    * at runtime.
    */
   readonly config: [HasUrl<Ps[number]>] extends [never]
-    ? <Input extends ConfigInput<Model, Message, Ps, Services>>(
+    ? <
+        Input extends ConfigInput<Model, Message, Ps, Services>,
+        Requirements = RequirementsOf<Ps[number]>,
+        ItemServices = ServicesOf<Ps[number]>,
+        Entries = ResourceEntriesOf<Ps[number]>,
+      >(
         input: Input & NoInfer<InitialKeysCheck<Input, Model, Ps>>,
-      ) => ConfigResult<Input, Model, Message, Ps, Services>
+      ) => ConfigResult<Input, Model, Message, Requirements, Services, ItemServices, Entries>
     : Invalid<'config does not derive url yet: use complete with assembly.url for URL-mirror assemblies'>
 }
 
