@@ -23,14 +23,13 @@ import { icon } from './icons.js'
 import {
   badge,
   chair,
-  failed,
+  editorBar,
   historyCard,
   moreCard,
+  revisionsOf,
   shell,
   stateIs,
   statusLine,
-  statusText,
-  type RevisionRow,
 } from './shell.js'
 import { pageHref } from '../content/site.js'
 import { AdminSlots, AdminStyle } from '../styles/style.js'
@@ -100,26 +99,13 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
     },
   )
   return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
-    h.div(slots.editorBar.attrs(), [
-      h.button(slots.ghost.attrs([h.Id('close'), h.OnClick(Message.ClosedEditor())]), [
-        icon(h, 'back'),
-        'Pages',
-      ]),
-      // An entry still being read is not New: no badge until its state is known.
-      ...(status === 'Loading' ? [] : [badge(slots, h, state)]),
-      h.p(
-        slots.status.attrs([
-          h.Id('status'),
-          h.Role('status'),
-          ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
-          ...(status === 'Loading' ? [h.AriaBusy(true)] : []),
-        ]),
-        [
-          statusText(status, state),
-          Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
-        ],
-      ),
-      h.div(slots.barActions.attrs(), [
+    editorBar(slots, h, {
+      closeLabel: 'Pages',
+      close: Message.ClosedEditor(),
+      status,
+      state,
+      error,
+      actions: [
         ...Option.match(live, {
           onNone: () => [],
           onSome: slug => [
@@ -142,8 +128,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
               ),
             ]
           : []),
-      ]),
-    ]),
+      ],
+    }),
     // Folded until asked for: the page being built keeps the room. A page never
     // saved has no history and nothing to put away.
     ...(loaded && Option.isSome(state)
@@ -154,7 +140,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
               h.span(slots.manageHint.attrs(), ['Revisions, unpublish and archive']),
             ]),
             h.div(slots.manageCards.attrs(), [
-              historyCard(slots, h, revisionsOf(model), {
+              historyCard(slots, h, revisionsOf(model, revisions), {
                 state,
                 restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
               }),
@@ -186,16 +172,6 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
 }
 
 const ask = (message: typeof Editor.Message.Type) => Message.GotEditorMessage({ message })
-
-/** The open page's published revisions, as they have been read. */
-const revisionsOf = (model: Model): ReadonlyArray<RevisionRow> =>
-  Option.match(revisions(model), {
-    onNone: () => [],
-    onSome: projection => {
-      const read = projection.read(model)
-      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
-    },
-  })
 
 /** The studio's pages shell, for a parent drawing it as a submodel. */
 export const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>

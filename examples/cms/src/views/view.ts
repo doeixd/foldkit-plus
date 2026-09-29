@@ -30,17 +30,15 @@ import {
 import { PostForm, type PostPreview } from '../content/domain.js'
 import { icon } from './icons.js'
 import {
-  badge,
   chair,
-  failed,
+  editorBar,
   historyCard,
   intro,
   moreCard,
+  revisionsOf,
   shell,
   stateIs,
   statusLine,
-  statusText,
-  type RevisionRow,
 } from './shell.js'
 import { article, postHref } from '../content/site.js'
 import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from '../styles/style.js'
@@ -138,16 +136,6 @@ const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =
   })
 }
 
-/** The open post's published revisions, as they have been read. */
-const revisionsOf = (model: Model): ReadonlyArray<RevisionRow> =>
-  Option.match(history(model), {
-    onNone: () => [],
-    onSome: projection => {
-      const read = projection.read(model)
-      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
-    },
-  })
-
 const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PostEditor.status(model)
   const state = PostEditor.state(model)
@@ -167,26 +155,13 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       : Option.none()
   })
 
-  const bar = h.div(slots.editorBar.attrs(), [
-    h.button(slots.ghost.attrs([h.Id('close'), h.OnClick(Message.ClosedEditor())]), [
-      icon(h, 'back'),
-      'Posts',
-    ]),
-    // An entry still being read is not New: no badge until its state is known.
-    ...(status === 'Loading' ? [] : [badge(slots, h, state)]),
-    h.p(
-      slots.status.attrs([
-        h.Id('status'),
-        h.Role('status'),
-        ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
-        ...(status === 'Loading' ? [h.AriaBusy(true)] : []),
-      ]),
-      [
-        statusText(status, state),
-        Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
-      ],
-    ),
-    h.div(slots.barActions.attrs(), [
+  const bar = editorBar(slots, h, {
+    closeLabel: 'Posts',
+    close: Message.ClosedEditor(),
+    status,
+    state,
+    error,
+    actions: [
       ...(loaded && PostEditor.canPreview
         ? [
             h.button(
@@ -216,8 +191,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ),
           ]
         : []),
-    ]),
-  ])
+    ],
+  })
 
   if (!loaded)
     return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
@@ -336,7 +311,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ? [action('unschedule', 'Cancel the schedule', ask(Editor.Message.UnscheduleAsked()))]
             : []),
         ]),
-        historyCard(slots, h, revisionsOf(model), {
+        historyCard(slots, h, revisionsOf(model, history), {
           state,
           restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
         }),

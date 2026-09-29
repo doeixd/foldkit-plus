@@ -8,6 +8,7 @@ import type { SlotView } from 'foldkit-mixins'
 import { Option } from 'effect'
 import { Cms, type EditorStatus, type State, type Transition } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
+import type { RemoteData } from 'foldkit-remote'
 import type { AdminSlots } from '../styles/style.js'
 import { icon } from './icons.js'
 import { chairOf, chairs, type Chair } from '../server/transport.js'
@@ -134,6 +135,66 @@ export interface RevisionRow {
   readonly publishedAt: string
   readonly publishedBy: string | null
 }
+
+/**
+ * What an entry is closed from, and what it says: the bar above an open
+ * entry. The posts' bar and the pages' own differ only in where back goes
+ * and which actions they offer.
+ */
+export interface EditorBar<M> {
+  /** Where back goes: the section label and the message that closes the entry. */
+  readonly closeLabel: string
+  readonly close: M
+  readonly status: EditorStatus
+  readonly state: Option.Option<State>
+  readonly error: Option.Option<{ readonly message: string }>
+  /** What can be done next: the preview toggle, the site link, the publish button. */
+  readonly actions: ReadonlyArray<Html>
+}
+
+export const editorBar = <M>(
+  slots: SlotView.SlotBuilders<typeof AdminSlots, M>,
+  h: HtmlBuilder<M>,
+  bar: EditorBar<M>,
+): Html =>
+  h.div(slots.editorBar.attrs(), [
+    h.button(slots.ghost.attrs([h.Id('close'), h.OnClick(bar.close)]), [
+      icon(h, 'back'),
+      bar.closeLabel,
+    ]),
+    // An entry still being read is not New: no badge until its state is known.
+    ...(bar.status === 'Loading' ? [] : [badge(slots, h, bar.state)]),
+    h.p(
+      slots.status.attrs([
+        h.Id('status'),
+        h.Role('status'),
+        ...(failed(bar.status) ? [h.DataAttribute('tone', 'error')] : []),
+        ...(bar.status === 'Loading' ? [h.AriaBusy(true)] : []),
+      ]),
+      [
+        statusText(bar.status, bar.state),
+        Option.match(bar.error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
+      ],
+    ),
+    h.div(slots.barActions.attrs(), [...bar.actions]),
+  ])
+
+/**
+ * The open entry's published revisions, as they have been read. The posts'
+ * history and the pages' revisions read through the same shape, so one
+ * helper serves both: which read is the section's to name.
+ */
+export const revisionsOf = <M, Value extends { readonly revisions: ReadonlyArray<RevisionRow> }>(
+  model: M,
+  history: (model: M) => Option.Option<{ readonly read: (model: M) => RemoteData<Value> }>,
+): ReadonlyArray<RevisionRow> =>
+  Option.match(history(model), {
+    onNone: () => [],
+    onSome: projection => {
+      const read = projection.read(model)
+      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
+    },
+  })
 
 /** A moment as the History says it: "Sep 27, 2026" and "9:12 PM", apart. */
 const momentOf = (iso: string) => {
