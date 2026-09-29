@@ -11,7 +11,7 @@ import * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
 import type { AnyMessage } from './link.js'
 import { isPlacedCollection, type PlacedCollection } from './collection.js'
-import { isPlaced, type Invalid, type Placed } from './placed.js'
+import { isPlaced, UnresolvedArgsError, type Invalid, type Placed } from './placed.js'
 import { isWiring, type AnyWiring, type Wiring } from './wiring.js'
 
 const Wired: unique symbol = Symbol.for('foldkit-bundle/Wired')
@@ -236,7 +236,10 @@ export interface Assembly<
    * The parent's initial Model and Commands: `rest` for the fields no placement
    * owns, each single placement's `init`, and empty storage for a collection `rest`
    * leaves out. A placement whose top-level field `rest` gives keeps that value and
-   * skips its `init`, so an optional child can start as `None`. Each wiring's `init`
+   * skips its `init`, so an optional child can start as `None`. A placement whose
+   * `args` is a factory derives it from the base seed (`rest` plus empty
+   * collections) before its `init` runs, and retains it for `update`, helpers,
+   * Subscriptions, and resources. Each wiring's `init`
    * runs after the placements', in list order. For `init` in the runtime config.
    */
   readonly initial: (
@@ -367,6 +370,21 @@ const isPlacement = (item: unknown): item is AnyPlacement =>
   isPlaced(item) || isPlacedCollection(item)
 
 /**
+ * A placement's resources for the tag check. A seed factory's records exist
+ * only once its args are derived, so assembling a factory placement reads as
+ * empty here; the check runs again over the resolved records at each
+ * initialization.
+ */
+const readPlacementResources = (placed: { readonly resources: unknown }): ResourceRecord => {
+  try {
+    return placed.resources as ResourceRecord
+  } catch (error) {
+    if (error instanceof UnresolvedArgsError) return {}
+    throw error
+  }
+}
+
+/**
  * Collects a parent's placements and wiring. Curried so the parent Model and
  * Message are stated once and every item is checked against them.
  */
@@ -423,7 +441,7 @@ export const assemble =
     const resourceUsers = [
       ...singles.map(placed => ({
         key: placed.key,
-        resources: placed.resources as ResourceRecord,
+        resources: readPlacementResources(placed),
       })),
       ...wirings.map(wiring => ({ key: wiring.key, resources: wiring.resources ?? {} })),
     ]
@@ -469,10 +487,55 @@ export const assemble =
     // child that was already initialised inside it. Wiring runs after placements.
     const byDepth = [...singles].sort((a, b) => a.link.path.length - b.link.path.length)
     const wiringInits = wirings.flatMap(wiring => (wiring.init === undefined ? [] : [wiring.init]))
-    const init: Update.Step<Model, Message, RequirementsOf<Ps[number]>> = Update.combine([
-      ...byDepth.map(placed => placed.init),
-      ...wiringInits,
-    ])
+
+    // A factory derives its args from the base seed: `rest` plus empty
+    // collection storage, before any placement initialised. Every factory sees
+    // the same seed, so placement order never matters and sibling fields are
+    // consistently absent. The result is retained for `update`, helpers,
+    // Subscriptions, and resources; factories never re-run against live state.
+    type Resolvable = {
+      readonly resolveArgs?: (seed: unknown) => void
+      readonly skipArgs?: () => void
+    }
+    const topFields = [...singles, ...collections].flatMap(item =>
+      item.link.path.length === 1 ? [item.link.path[0]!] : [],
+    )
+    const resourceOwners = () => [
+      ...singles.map(placed => ({
+        key: placed.key,
+        resources: readPlacementResources(placed),
+      })),
+      ...wirings.map(wiring => ({ key: wiring.key, resources: wiring.resources ?? {} })),
+    ]
+    const resolveAll = (base: unknown, skip: ReadonlySet<string>) => {
+      for (const placed of singles) {
+        // `rest` provides the field: its `init` is skipped, so its factory
+        // never runs and its records stay empty while the child is absent.
+        if (placed.link.path.length === 1 && skip.has(placed.link.path[0]!)) {
+          ;(placed as unknown as Resolvable).skipArgs?.()
+          continue
+        }
+        ;(placed as unknown as Resolvable).resolveArgs?.(base)
+      }
+      for (const collection of collections) {
+        ;(collection as unknown as Resolvable).resolveArgs?.(base)
+      }
+      // Factories can now hold resources, so collisions surface here, at each
+      // initialization, rather than only at assembly.
+      assertDistinctResources(resourceOwners())
+    }
+    // The bare `init` step receives a live parent, so its seed strips what
+    // placements own back out: factories observe the seed, never siblings.
+    const seedOf = (parent: Model): Model => {
+      const base = { ...(parent as Record<string, unknown>) }
+      for (const field of topFields) delete base[field]
+      return base as Model
+    }
+    const runInits = Update.combine([...byDepth.map(placed => placed.init), ...wiringInits])
+    const init = ((parent: Model) => {
+      resolveAll(seedOf(parent), new Set())
+      return runInits(parent)
+    }) as typeof runInits
 
     const updateWith =
       (own?: (model: Model, message: Message) => Update.Return<Model, Message, unknown>) =>
@@ -488,19 +551,23 @@ export const assemble =
       // placement at a top-level field is initialised unless `rest` gives that
       // field, which is how an optional child (Link.optional) starts absent. A
       // nested placement is always initialised, inside whatever `rest` gave.
+      // Factories resolve from the base first, so `initial` both derives args
+      // and runs inits; a skipped optional child's factory never runs.
       const given = new Set(Object.keys(rest))
       const empties = Object.fromEntries(
         collections
           .filter(collection => collection.link.path.length === 1)
           .map(collection => [collection.link.path[0], collection.link.empty]),
       )
+      const base = { ...empties, ...rest } as Model
+      resolveAll(base, given)
       const steps: ReadonlyArray<Update.Step<Model, Message, RequirementsOf<Ps[number]>>> = [
         ...byDepth
           .filter(placed => !(placed.link.path.length === 1 && given.has(placed.link.path[0]!)))
           .map(placed => placed.init),
         ...wiringInits,
       ]
-      return brand({ ...Update.combine({ ...empties, ...rest } as Model, steps) })
+      return brand({ ...Update.combine(base, steps) })
     }
     const urlFrom = <UrlMessage extends Message>(onUrlChange: (url: Url) => UrlMessage) =>
       brand({
@@ -578,6 +645,19 @@ export const assemble =
               'and use complete with assembly.url for URL-mirror assemblies.',
           )
         }
+        // Resolve factories from the seed before deriving Subscriptions and
+        // resources, whose records close over the retained args. The `init`
+        // below re-resolves with the same seed when it runs, so a factory may
+        // run twice through `config`; keep it pure of its seed.
+        const seedEmpties = Object.fromEntries(
+          collections
+            .filter(collection => collection.link.path.length === 1)
+            .map(collection => [collection.link.path[0], collection.link.empty]),
+        )
+        resolveAll(
+          { ...seedEmpties, ...(rest as Record<string, unknown>) },
+          new Set(Object.keys(rest)),
+        )
         return {
           ...passthrough,
           init: () => initialFrom(rest),

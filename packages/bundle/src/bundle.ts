@@ -14,12 +14,21 @@ import { each, type EachConfig, type PlacedCollection } from './collection.js'
 import {
   checkArgs,
   place,
+  type ArgsSource,
   type Invalid,
   type PlaceConfig,
   type Placed,
   type TagOf,
 } from './placed.js'
 import type { CollectionLink } from './link.js'
+
+/**
+ * The parent seed a factory observes: the parent without the placement's own
+ * field, or the whole parent where the field is unknown (`string`).
+ */
+export type SeedFor<Parent, Field extends string> = string extends Field
+  ? Parent
+  : Omit<Parent, Field>
 
 const BundleTypeId: unique symbol = Symbol.for('foldkit-bundle/Bundle')
 
@@ -103,7 +112,16 @@ export interface Bundle<
   /** Places the bundle where `link` points. */
   readonly at: <Parent, LinkMessage, Field extends string, OutStepMessage = never, R2 = never>(
     link: Link<Parent, LinkMessage, Model, Message, Field>,
-    ...config: PlaceConfigParam<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
+    ...config: PlaceConfigParam<
+      Args,
+      Parent,
+      LinkMessage,
+      Message,
+      OutMessage,
+      OutStepMessage,
+      R2,
+      SeedFor<Parent, Field>
+    >
   ) => Placed<
     Name,
     Parent,
@@ -137,7 +155,8 @@ export interface Bundle<
           OutMessage,
           OutStepMessage,
           R2,
-          Key
+          Key,
+          SeedFor<Parent, Field>
         >
       ) => PlacedCollection<
         Name,
@@ -159,33 +178,96 @@ export interface Bundle<
 /**
  * What placing needs: `args` when `init` takes them, and `onOut` when the
  * bundle has an OutMessage, so an OutMessage is never dropped by omission.
+ * `args` is a static value or a factory from the parent seed (the parent
+ * without this placement's own field); the seed type defaults to the whole
+ * parent where the field is unknown.
  */
-export type PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = {
+export type PlacementConfig<
+  Args,
+  Parent,
+  LinkMessage,
+  Message,
+  OutMessage,
+  OutStepMessage,
+  R2,
+  ParentSeed = Parent,
+> = {
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
   /** A gate beside the Link's own: the child's Subscriptions and resources run only while both hold. */
   readonly when?: (parent: Parent) => boolean
   /** Observes each of the child's Messages in parent terms, after the child handled it. */
   readonly onMessage?: Required<
-    PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
+    PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, ParentSeed>
   >['onMessage']
-} & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
+} & ([Args] extends [void]
+  ? { readonly args?: never }
+  : { readonly args: ArgsSource<ParentSeed, Args> }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }
     : {
         readonly onOut: Required<
-          PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
+          PlaceConfig<
+            Args,
+            Parent,
+            LinkMessage,
+            Message,
+            OutMessage,
+            OutStepMessage,
+            R2,
+            ParentSeed
+          >
         >['onOut']
       })
 
 /** The config argument is optional only when it would be empty. */
-export type PlaceConfigParam<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = [
+export type PlaceConfigParam<
   Args,
-] extends [void]
+  Parent,
+  LinkMessage,
+  Message,
+  OutMessage,
+  OutStepMessage,
+  R2,
+  ParentSeed = Parent,
+> = [Args] extends [void]
   ? [OutMessage] extends [never]
-    ? [config?: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
-    : [config: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
-  : [config: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
+    ? [
+        config?: PlacementConfig<
+          Args,
+          Parent,
+          LinkMessage,
+          Message,
+          OutMessage,
+          OutStepMessage,
+          R2,
+          ParentSeed
+        >,
+      ]
+    : [
+        config: PlacementConfig<
+          Args,
+          Parent,
+          LinkMessage,
+          Message,
+          OutMessage,
+          OutStepMessage,
+          R2,
+          ParentSeed
+        >,
+      ]
+  : [
+      config: PlacementConfig<
+        Args,
+        Parent,
+        LinkMessage,
+        Message,
+        OutMessage,
+        OutStepMessage,
+        R2,
+        ParentSeed
+      >,
+    ]
 
 type EachOptions<
   Args,
@@ -196,20 +278,33 @@ type EachOptions<
   OutStepMessage,
   R2,
   Key extends string = string,
+  ParentSeed = Parent,
 > = {
   readonly key?: string
   /** A gate per item beside the Link's own: an item's Subscriptions run only while both hold. */
   readonly when?: (parent: Parent, key: Key) => boolean
   /** Observes each item's Messages in parent terms, after the item handled it. */
   readonly onMessage?: Required<
-    EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>
+    EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key, ParentSeed>
   >['onMessage']
-} & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
+} & ([Args] extends [void]
+  ? { readonly args?: never }
+  : { readonly args: ArgsSource<ParentSeed, Args> }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }
     : {
         readonly onOut: Required<
-          EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>
+          EachConfig<
+            Args,
+            Parent,
+            LinkMessage,
+            Message,
+            OutMessage,
+            OutStepMessage,
+            R2,
+            Key,
+            ParentSeed
+          >
         >['onOut']
       })
 
@@ -222,6 +317,7 @@ export type EachConfigParam<
   OutStepMessage,
   R2,
   Key extends string = string,
+  ParentSeed = Parent,
 > = [Args] extends [void]
   ? [OutMessage] extends [never]
     ? [
@@ -233,11 +329,36 @@ export type EachConfigParam<
           OutMessage,
           OutStepMessage,
           R2,
-          Key
+          Key,
+          ParentSeed
         >,
       ]
-    : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>]
-  : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>]
+    : [
+        config: EachOptions<
+          Args,
+          Parent,
+          LinkMessage,
+          Message,
+          OutMessage,
+          OutStepMessage,
+          R2,
+          Key,
+          ParentSeed
+        >,
+      ]
+  : [
+      config: EachOptions<
+        Args,
+        Parent,
+        LinkMessage,
+        Message,
+        OutMessage,
+        OutStepMessage,
+        R2,
+        Key,
+        ParentSeed
+      >,
+    ]
 
 /** Any bundle, for APIs that accept one without caring about its types. */
 export type AnyBundle = Bundle<string, any, any, any, any, any, any, any, any, any>

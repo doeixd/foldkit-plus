@@ -121,7 +121,8 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       P<B>['Message'],
       P<B>['OutMessage'],
       OutStepMessage,
-      R2
+      R2,
+      Omit<Model, Field>
     > &
       VariantCheck<Wrapped<WrapperTag<Field>, P<B>['Message']>, Message>
   ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>
@@ -142,7 +143,8 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       P<B>['Message'],
       P<B>['OutMessage'],
       OutStepMessage,
-      R2
+      R2,
+      Omit<Model, Field>
     > &
       VariantCheck<Wrapped<WrapperTag<Field>, P<B>['Message']>, Message>
   ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>
@@ -162,7 +164,9 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       P<B>['Message'],
       P<B>['OutMessage'],
       OutStepMessage,
-      R2
+      R2,
+      string,
+      Omit<Model, Field>
     > &
       VariantCheck<KeyedWrapped<WrapperTag<Field>, P<B>['Message']>, Message>
   ) => CollectionBy<
@@ -190,7 +194,9 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       P<B>['Message'],
       P<B>['OutMessage'],
       OutStepMessage,
-      R2
+      R2,
+      string,
+      Omit<Model, Field>
     > &
       VariantCheck<KeyedWrapped<WrapperTag<Field>, P<B>['Message']>, Message>
   ) => CollectionBy<

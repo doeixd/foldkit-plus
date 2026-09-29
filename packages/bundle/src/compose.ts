@@ -328,7 +328,8 @@ type PlaceConfig<Fields, Field extends string, B, OutStepMessage, R2> = NonNulla
     P<B>['Message'],
     P<B>['OutMessage'],
     OutStepMessage,
-    R2
+    R2,
+    Omit<ModelOf<WithOne<Fields, Field, B>>, Field>
   >[0]
 >
 
@@ -415,7 +416,9 @@ type EachConfigFor<Fields, Field extends string, B, OutStepMessage, R2> = NonNul
     P<B>['Message'],
     P<B>['OutMessage'],
     OutStepMessage,
-    R2
+    R2,
+    string,
+    Omit<ModelOf<WithEach<Fields, Field, B>>, Field>
   >[0]
 >
 

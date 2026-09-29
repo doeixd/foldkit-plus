@@ -60,7 +60,8 @@ export interface Declared<B extends AnyBundle, Field extends string> {
       BundleParts<B>['Message'],
       BundleParts<B>['OutMessage'],
       OutStepMessage,
-      R2
+      R2,
+      Omit<Parent, Field>
     >
   ) => Placed<
     BundleParts<B>['Name'],
@@ -100,7 +101,9 @@ export interface DeclaredEach<B extends AnyBundle, Field extends string> {
       BundleParts<B>['Message'],
       BundleParts<B>['OutMessage'],
       OutStepMessage,
-      R2
+      R2,
+      string,
+      Omit<Parent, Field>
     >
   ) => PlacedCollection<
     BundleParts<B>['Name'],

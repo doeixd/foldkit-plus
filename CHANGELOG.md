@@ -7,6 +7,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-bundle`, derived args:** a placement's `args` is a static value
+  or a factory from the parent seed, `args: parent => ({ searchText:
+  searchFromRoute(parent.route) })`. The seed is what
+  `assembly.initial(rest)` was given, before any placement initialised; the
+  factory's parameter omits the placement's own field, and every factory sees
+  the same base seed, so placement order never matters. The result is checked
+  against the bundle's args Schema and retained for `update`, helpers,
+  Subscriptions, and resources, never re-run against live state.
+
 ### Fixed
 
 - **`foldkit-bundle`, placement typing:** `PlacedResources` keeps

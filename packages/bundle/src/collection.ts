@@ -11,7 +11,11 @@ import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import type { AnyMessage, CollectionLink } from './link.js'
 import {
   checkArgs,
+  isArgsFactory,
+  seedWithoutOwn,
+  UnresolvedArgsError,
   writeIfChanged,
+  type ArgsSource,
   type BuilderLike,
   type TagOf,
   type ViewBuilder,
@@ -28,9 +32,14 @@ export interface EachConfig<
   OutStepMessage,
   R2,
   Key extends string = string,
+  ParentSeed = Parent,
 > {
-  /** The args every item's `init` and `update` receive. */
-  readonly args?: Args
+  /**
+   * The args every item's `init` and `update` receive: a static value, or a
+   * factory from the parent seed, computed once per initialization and
+   * retained. Requires `initial`/`config` to have run before items are added.
+   */
+  readonly args?: ArgsSource<ParentSeed, Args>
   /** Handles an item's OutMessage in parent terms, with the item already written back. */
   readonly onOut?: (
     outMessage: OutMessage,
@@ -88,6 +97,13 @@ export interface PlacedCollection<
   readonly key: string
   /** The encoded args as text, when the bundle has an args Schema. */
   readonly argsSummary: string | undefined
+  /** Whether `args` was given as a seed factory; resolved once per initialization. */
+  readonly hasDynamicArgs: boolean
+  /**
+   * Derives the factory's args from `seed` and retains them for `add`,
+   * `update`, and Subscriptions. A no-op for static args.
+   */
+  readonly resolveArgs: (seed: unknown) => void
   readonly link: CollectionLink<Parent, ParentMessage, Model, Message, Key>
   /** Folds the Message into its item; `None` when it is not this collection's. A missing key leaves the parent unchanged. */
   readonly update: (
@@ -155,7 +171,17 @@ export type Each = <
 >(
   bundle: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
   link: CollectionLink<Parent, LinkMessage, Model, Message, Key, Field>,
-  config?: EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>,
+  config?: EachConfig<
+    Args,
+    Parent,
+    LinkMessage,
+    Message,
+    OutMessage,
+    OutStepMessage,
+    R2,
+    Key,
+    string extends Field ? Parent : Omit<Parent, Field>
+  >,
 ) => PlacedCollection<
   Name,
   Parent,
@@ -186,9 +212,39 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
       `Bundle.each: ${bundle.name} has Managed Resources, which a collection cannot place: the runtime provides a resource by one tag, so every item would share it.`,
     )
   }
-  const args = config.args
+  const rawArgs = config.args
+  const factory = isArgsFactory(rawArgs)
   const prefix = config.key ?? `${bundle.name}@${link.path.join('.')}[]`
-  const argsSummary = checkArgs(bundle, args, prefix) ?? bundle.preset
+  let summary = factory ? undefined : (checkArgs(bundle, rawArgs, prefix) ?? bundle.preset)
+  let resolved: unknown
+  let hasResolved = false
+
+  const needArgs = (): unknown => {
+    if (!factory) return rawArgs
+    if (!hasResolved) {
+      throw new UnresolvedArgsError(prefix, 'items are added, updated, or Subscriptions read')
+    }
+    return resolved
+  }
+
+  const resolveFrom = (seed: unknown): void => {
+    if (!factory) return
+    const value = (rawArgs as (seed: unknown) => unknown)(seed)
+    summary = checkArgs(bundle, value, prefix) ?? bundle.preset
+    resolved = value
+    hasResolved = true
+    subsRecord = buildSubscriptions(value)
+  }
+
+  const buildSubscriptions = (args: unknown) =>
+    bundle.subscriptions
+      ? Subscription.make<any, any, any>()(() =>
+          Record.mapKeys(
+            Record.map(bundle.subscriptions!(args), liftEntry),
+            key => `${prefix}/${key}`,
+          ),
+        )
+      : {}
 
   const itemLink = (key: string) => {
     const read = (parent: unknown) => link.get(parent, key)
@@ -278,14 +334,11 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     }
   }
 
-  const subscriptions = bundle.subscriptions
-    ? Subscription.make<any, any, any>()(() =>
-        Record.mapKeys(
-          Record.map(bundle.subscriptions!(args), liftEntry),
-          key => `${prefix}/${key}`,
-        ),
-      )
-    : {}
+  // `liftEntry` is defined, so static args can build Subscriptions now; a
+  // factory rebuilds them in `resolveFrom` once the seed exists.
+  let subsRecord: Subscription.Subscriptions<any, any, any> = factory
+    ? {}
+    : buildSubscriptions(rawArgs)
 
   const childView = bundle.view
   const view = (parent: unknown, h: HtmlBuilder<any>, key: string, viewInputs?: unknown): Html =>
@@ -315,10 +368,18 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     [PlacedCollectionTypeId]: PlacedCollectionTypeId,
     name: bundle.name,
     key: prefix,
-    argsSummary,
+    get argsSummary() {
+      return summary
+    },
+    hasDynamicArgs: factory,
+    resolveArgs: resolveFrom,
     link,
     update: (parent: unknown, message: AnyMessage) =>
       Option.map(link.fromParentMessage(message), ([key, childMessage]) => {
+        // A Message for an item that was never added leaves the parent as it is.
+        if (factory && !hasResolved && Option.isNone(link.get(parent, key)))
+          return { model: parent }
+        const args = needArgs()
         const fold = foldItem(key, model => bundle.update(model, childMessage, args))
         return config.onMessage === undefined
           ? fold(parent)
@@ -326,15 +387,25 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
       }),
     add:
       (key: string, prepare: (model: unknown) => unknown = model => model): ErasedStep =>
-      parent =>
-        Update.foldChildInit(bundle.init(args), {
+      parent => {
+        // The assembly pre-resolves the factory from the base seed; adding
+        // items standalone, the parent minus this collection's own field is it.
+        const args =
+          factory && !hasResolved
+            ? (resolveFrom(seedWithoutOwn(link.path, parent)), resolved)
+            : needArgs()
+        return Update.foldChildInit(bundle.init(args), {
           toParentModel: child => link.write(parent, key, Option.some(prepare(child))),
           toParentMessage: message => link.toParentMessage(key, message),
-        }),
+        })
+      },
     remove:
       (key: string): ErasedStep =>
       parent => ({ model: link.write(parent, key, Option.none()) }),
-    subscriptions,
+    get subscriptions() {
+      if (factory && !hasResolved) needArgs()
+      return subsRecord
+    },
     view,
     viewAll: (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown) =>
       Array.map(link.entries(parent), ([key]) => view(parent, h, key, viewInputs)),
