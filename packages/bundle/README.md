@@ -287,7 +287,8 @@ derivations with `placements.complete` instead (below).
   passes through checked; the own `subscriptions` and `managedResources`
   merge with the items', defaulting to the items', so an application that adds
   none passes neither. Assemblies that read the URL pass their `url` from
-  `assembly.url`, as with `complete`.
+  `assembly.url`, as with `complete`. To route a narrow own update instead of
+  a pre-routed one, compose it first: `update: assembly.update(own)`.
 - **`placements.update(own)`** is the parent's update: a placement's or
   wiring's Message goes to its item and every other Message to `own`, whose
   Message is typed without the placements' wrappers (see

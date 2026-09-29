@@ -97,6 +97,26 @@ describe('assembly.runtime with an init function', () => {
   })
 })
 
+describe('assembly.runtime with a composed update', () => {
+  it('routes a narrow own update composed in, with a function seed', () => {
+    const narrow = (model: Model, message: { readonly _tag: 'Ticked' }) => ({
+      model: { ...model, ticks: model.ticks + 1 },
+    })
+    const config = assembly.runtime({
+      initial: () => assembly.initial({ ticks: 0 }),
+      update: assembly.update(narrow),
+    })
+    expect(config.init().model).toEqual({ a: { count: 1, running: false }, ticks: 0 })
+    const ticked = config.update({ a: { count: 0, running: false }, ticks: 0 }, Message.Ticked())
+    expect(ticked.model.ticks).toBe(1)
+    const incremented = config.update(
+      { a: { count: 0, running: false }, ticks: 0 },
+      GotA.make(CounterMessage.Incremented()),
+    )
+    expect(incremented.model.a.count).toBe(1)
+  })
+})
+
 describe('assembly.runtime with derived args', () => {
   it('reads a factory placement’s resources once initial ran', () => {
     const dynamic = Counter.at(Link.field<Model>()('a', GotA), {
