@@ -3,21 +3,10 @@
  * inspector's forms, and the worklist's table.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { ListSlots } from 'foldkit-mixins-crud'
+import { ListSlots, Loading } from 'foldkit-mixins-crud'
 import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
 import { Layout } from 'foldkit-mixins/layout'
-import {
-  app,
-  button,
-  control,
-  field,
-  L,
-  serif,
-  stateBadge,
-  t,
-  visuallyHidden,
-  waitShown,
-} from './style.js'
+import { app, button, control, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
 
 // --- the form, the worklist, and the Builder --------------------------------------
 
@@ -236,7 +225,7 @@ export const ListStyle = Style.forSlots(ListSlots)(
       }),
       // Loading is a wait, not an empty list: no box around it.
       Style.nest('&[aria-busy="true"]', { borderColor: 'transparent' }),
-      waitShown,
+      Loading.shown,
     ),
     more: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
   },

@@ -3,6 +3,7 @@
  */
 import { PAGE_CONTAINER } from 'foldkit-composition/foldkit'
 import { Slots, Style } from 'foldkit-mixins'
+import { Loading } from 'foldkit-mixins-crud'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
 import {
@@ -17,7 +18,6 @@ import {
   t,
   touchTarget,
   touchTargets,
-  waitShown,
 } from './style.js'
 
 // --- the public site --------------------------------------------------------------
@@ -245,7 +245,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         padding: `${t.space['3xl']} 0`,
         textAlign: 'center',
       }),
-      waitShown,
+      Loading.shown,
     ),
   },
   { name: 'SiteStyle', layer: app },

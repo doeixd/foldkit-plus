@@ -53,19 +53,6 @@ export const touchTargets = Style.at(
   Style.nest(':is(a, button, summary, select)', { minHeight: '2.75rem' }),
 )
 
-const appear = Style.keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })
-
-/**
- * Something busy (`aria-busy`), said only once the wait is noticeable: a read
- * that answers quickly shows nothing, where a "Loading…" drawn for a frame
- * read as a flash. Its space is held from the start, so nothing moves when it
- * shows.
- */
-export const waitShown = Style.compose(
-  appear.style,
-  Style.nest('&[aria-busy="true"]', { animation: `${appear.name} 0.2s 0.6s both` }),
-)
-
 /**
  * A disclosure's summary: a drawn chevron in place of the browser's marker,
  * pointing along the line while closed and turned down while open (the turn

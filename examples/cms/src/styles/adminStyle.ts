@@ -4,6 +4,7 @@
  * links, buttons, badges, disclosures) lives in `style.ts`.
  */
 import { Slots, Style } from 'foldkit-mixins'
+import { Loading } from 'foldkit-mixins-crud'
 import { Layout } from 'foldkit-mixins/layout'
 import {
   app,
@@ -22,7 +23,6 @@ import {
   t,
   touchTarget,
   touchTargets,
-  waitShown,
 } from './style.js'
 
 // --- the authoring shell --------------------------------------------------------
@@ -612,9 +612,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         whiteSpace: 'nowrap',
       }),
       Style.nest('&[data-tone="error"]', { color: t.error.ink }),
-      waitShown,
+      Loading.shown,
     ),
-    muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), waitShown),
+    muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
     list: Style.compose(
       Style.self({
         border: `1px solid ${t.outline.subtle}`,

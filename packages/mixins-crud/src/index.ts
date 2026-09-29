@@ -12,7 +12,7 @@ import { Display, type DisplayColumn, type DisplayWords, type SortedColumn } fro
 import { fillWords } from 'foldkit-form'
 
 type AnyDisplay = DisplayColumn['display']
-import { Attr, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Attr, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import type { Page, RemoteData, RemoteError } from 'foldkit-remote'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
@@ -137,6 +137,54 @@ const shown = <Key extends string>(
 const failedWords = (words: ViewWords | undefined, error: RemoteError): string =>
   fillWords(words?.failed ?? '{message}', { message: error.message })
 
+const appear = Style.keyframes({ from: { opacity: '0' }, to: { opacity: '1' } })
+
+/**
+ * What a read says before it has an answer, wherever rows or a value are not
+ * the thing to draw. Each draws one paragraph on the application's own status
+ * slot: the words are the caller's, the `role` and `aria-busy` are not
+ * negotiable. `ListView` and `DetailView` draw these for their own states.
+ */
+export const Loading = {
+  /** Busy while the first answer is awaited, so loading is told from empty. */
+  view: <Message>(
+    status: SlotView.SlotBuilder<Message>,
+    h: HtmlBuilder<Message>,
+    text: string,
+  ): Html => h.p(status.attrs([h.Role('status'), h.AriaBusy(true)]), [text]),
+  /**
+   * Busy text said only once the wait is noticeable: a read that answers
+   * quickly shows nothing, where a "Loading…" drawn for a frame read as a
+   * flash. Attach it to the status slot. The paragraph itself always renders,
+   * so its space is held from the start and nothing moves when the text
+   * shows; answering in time removes `aria-busy` before the delay ends, so
+   * the text never appears. No spinner art: the text and this delayed fade
+   * are the whole convention.
+   */
+  shown: Style.compose(
+    appear.style,
+    Style.nest('&[aria-busy="true"]', { animation: `${appear.name} 0.2s 0.6s both` }),
+  ),
+}
+
+export const Empty = {
+  /** Nothing to show, once read: said as a status, never as busy. */
+  view: <Message>(
+    status: SlotView.SlotBuilder<Message>,
+    h: HtmlBuilder<Message>,
+    text: string,
+  ): Html => h.p(status.attrs([h.Role('status')]), [text]),
+}
+
+export const Failure = {
+  /** A read that failed: said as an alert, so it interrupts. */
+  view: <Message>(
+    status: SlotView.SlotBuilder<Message>,
+    h: HtmlBuilder<Message>,
+    text: string,
+  ): Html => h.p(status.attrs([h.Role('alert')]), [text]),
+}
+
 const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descending' | 'none' =>
   direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'
 
@@ -157,7 +205,7 @@ const list = <Message>() => ({
         const { words } = input
         // What a failed read says, and the way to ask again when one was given.
         const failure = (error: RemoteError): ReadonlyArray<Html> => [
-          h.p(slots.status.attrs([h.Role('alert')]), [failedWords(words, error)]),
+          Failure.view(slots.status, h, failedWords(words, error)),
           ...(input.onRetry === undefined
             ? []
             : [
@@ -169,9 +217,7 @@ const list = <Message>() => ({
         // Busy while the first answer is awaited, so loading is told from empty.
         const status = (text: string, busy = false): Html =>
           h.div(slots.root.attrs([h.Id(listed.name)]), [
-            h.p(slots.status.attrs([h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]), [
-              text,
-            ]),
+            busy ? Loading.view(slots.status, h, text) : Empty.view(slots.status, h, text),
           ])
 
         const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
@@ -307,7 +353,7 @@ const detail = <Message>() => ({
       (input: DetailInput<Value, Message, Key>, slots, h) => {
         const { words } = input
         const failure = (error: RemoteError): ReadonlyArray<Html> => [
-          h.p(slots.status.attrs([h.Role('alert')]), [failedWords(words, error)]),
+          Failure.view(slots.status, h, failedWords(words, error)),
           ...(input.onRetry === undefined
             ? []
             : [
@@ -319,9 +365,7 @@ const detail = <Message>() => ({
         // Busy while the first answer is awaited, so loading is told from empty.
         const status = (text: string, busy = false): Html =>
           h.div(slots.root.attrs([h.Id(detailed.name)]), [
-            h.p(slots.status.attrs([h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]), [
-              text,
-            ]),
+            busy ? Loading.view(slots.status, h, text) : Empty.view(slots.status, h, text),
           ])
         // `notice` goes above the list: a failure that left the value on screen.
         // The root is the same `div` whatever the state, as a list's is, so a

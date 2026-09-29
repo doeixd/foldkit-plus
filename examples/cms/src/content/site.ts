@@ -858,8 +858,11 @@ export const Site = Catalog.make({
   ],
 })
 
-const waiting = <M>(h: HtmlBuilder<M>, what: string): Html =>
-  h.p([h.Style({ color: t.text.muted })], [what])
+const waiting = <M>(h: HtmlBuilder<M>, what: string, busy = false): Html =>
+  h.p(
+    [h.Role('status'), ...(busy ? [h.AriaBusy(true)] : []), h.Style({ color: t.text.muted })],
+    [what],
+  )
 
 /** The same views draw the public page, the preview, and the editor's canvas. */
 export const SiteRenderer = Renderer.make(Site, {
@@ -928,7 +931,7 @@ export const SiteRenderer = Renderer.make(Site, {
         ? rows.value.items.length === 0
           ? waiting(h, 'Nothing is published yet.')
           : postCards(h, drawn, rows.value.items)
-        : waiting(h, 'Loading posts…'),
+        : waiting(h, 'Loading posts…', true),
     ])
   },
   FeaturedPost: ({ props, data, appearance, h }) => {
@@ -938,7 +941,9 @@ export const SiteRenderer = Renderer.make(Site, {
       rows._tag === 'Ready' || rows._tag === 'Refreshing'
         ? Arr.head(rows.value.items)
         : Option.none()
-    if (Option.isNone(found))
+    if (Option.isNone(found)) {
+      // The only busy case is a chosen post still on its way.
+      const loading = Option.isSome(props.post) && rows._tag !== 'Ready'
       return waiting(
         h,
         Option.isNone(props.post)
@@ -946,7 +951,9 @@ export const SiteRenderer = Renderer.make(Site, {
           : rows._tag === 'Ready'
             ? 'That post is not published.'
             : 'Loading the post…',
+        loading,
       )
+    }
     const post = found.value
     return h.article(drawn.root.attrs(), [
       h.div(drawn.cover.attrs([h.Style({ background: coverOf(post) })]), []),

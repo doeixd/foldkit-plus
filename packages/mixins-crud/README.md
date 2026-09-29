@@ -118,6 +118,26 @@ case 'RetriedPosts':
 
 `examples/entity` does exactly this, and its page test checks where focus lands.
 
+## Loading, empty, and failure elsewhere
+
+The list's and the detail's status lines are three exported views over any
+status slot, for reads that are not a list or a detail:
+
+```ts
+import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
+
+Loading.view(slots.status, h, 'Loading…')
+Empty.view(slots.status, h, 'Nothing yet.')
+Failure.view(slots.status, h, 'The pages could not be read.')
+```
+
+The words are the caller's; the `role` and `aria-busy` are the views':
+`role="status"` with `aria-busy` while loading, `role="status"` when empty,
+`role="alert"` when failed. Attach `Loading.shown` to the status slot and busy
+text appears only once the wait is noticeable: the paragraph always renders,
+so its space is held, and answering in time removes `aria-busy` before the
+delay ends, so a quick answer never flashes.
+
 ## Sorting, more, and special cells
 
 ```ts

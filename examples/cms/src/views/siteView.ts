@@ -6,6 +6,7 @@
 import { Option } from 'effect'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
+import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import {
   actives,
@@ -33,9 +34,6 @@ export const BLOG_LEDE =
 const siteLink = (reader: Chair, path: string) =>
   reader === 'visitor' ? path : `${path}?as=${reader}`
 
-const status = (slots: Slots, h: HtmlBuilder<Message>, text: string): Html =>
-  h.p(slots.status.attrs(), [text])
-
 /** A read with nothing to show: loading, failed, or, once read, missing, with a way home. */
 const nothing = (
   model: Model,
@@ -52,11 +50,11 @@ const nothing = (
       ])
     : pending(slots, h, tag)
 
-/** What a read says before it has an answer: busy while it waits, which shows only once the wait does. */
+/** What a read says before it has an answer: failed, or busy while it waits. */
 const pending = (slots: Slots, h: HtmlBuilder<Message>, tag: string): Html =>
   tag === 'Failed'
-    ? status(slots, h, 'This could not be read.')
-    : h.p(slots.status.attrs([h.AriaBusy(true)]), ['Loading…'])
+    ? Failure.view(slots.status, h, 'This could not be read.')
+    : Loading.view(slots.status, h, 'Loading…')
 
 /** A route's read as its tag: each view runs on its own route, where its read is. */
 const tagOf = <A extends { readonly _tag: string }>(
@@ -112,7 +110,9 @@ const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
     Option.match(posts, {
       onNone: () => pending(slots, h, tagOf(blogRead(model), model)),
       onSome: items =>
-        items.length === 0 ? status(slots, h, 'Nothing is published yet.') : postGrid(h, items),
+        items.length === 0
+          ? Empty.view(slots.status, h, 'Nothing is published yet.')
+          : postGrid(h, items),
     }),
   ]
 }

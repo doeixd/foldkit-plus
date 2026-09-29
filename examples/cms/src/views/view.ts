@@ -15,7 +15,7 @@ import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import type { Selected } from 'foldkit-entity'
 import { SlotView, Style } from 'foldkit-mixins'
-import { ListView } from 'foldkit-mixins-crud'
+import { Empty, Failure, ListView, Loading } from 'foldkit-mixins-crud'
 import {
   Editor,
   EditorSlot,
@@ -32,6 +32,7 @@ import { icon } from './icons.js'
 import {
   chair,
   editorBar,
+  failed,
   historyCard,
   intro,
   moreCard,
@@ -202,9 +203,12 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
     return h.div(slots.editorScreen.attrs([h.Id('editor')]), [
       bar,
       h.div(slots.canvas.attrs(), [
-        h.p(slots.muted.attrs([...(status === 'Loading' ? [h.AriaBusy(true)] : [])]), [
-          statusLine[status],
-        ]),
+        // What the editor has not opened yet: loading, failed, or missing.
+        status === 'Loading'
+          ? Loading.view(slots.muted, h, statusLine[status])
+          : failed(status)
+            ? Failure.view(slots.muted, h, statusLine[status])
+            : Empty.view(slots.muted, h, statusLine[status]),
       ]),
     ])
 

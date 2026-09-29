@@ -17,6 +17,14 @@ version changed; `pnpm` skips versions already in the registry.
   the map leaves out keep the base. The CMS demo adopts it for both badges
   and keeps only the state-to-tone map.
 
+- **`foldkit-mixins-crud`, Loading/Empty/Failure views:** what a read says
+  before it has an answer, over any status slot — `Loading.view` is
+  `role="status"` with `aria-busy`, `Empty.view` is `role="status"`,
+  `Failure.view` is `role="alert"`, and `Loading.shown` fades busy text in
+  late so a quick answer never flashes. `ListView` and `DetailView` draw
+  these for their own states; the CMS demo adopts them for its lists, site
+  reads, and editor branches.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

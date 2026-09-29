@@ -4,10 +4,11 @@ import { Crud, Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Query, Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
-import { DetailView, ListView } from '../src/index.js'
+import { DetailView, Empty, Failure, ListView, Loading } from '../src/index.js'
 
 const PostSort = Schema.Literals(['oldest', 'title'])
 const Post = Entity.define(
@@ -86,3 +87,17 @@ export const wrong = (model: Model, h: HtmlBuilder<Message>): Html =>
     },
     h,
   )
+
+const StatusSlots = Slots.define({
+  status: Slot.make({ capability: Capability.Container }),
+})
+type StatusSlots = SlotView.SlotBuilders<typeof StatusSlots, Message>
+
+export const statuses = (slots: StatusSlots, h: HtmlBuilder<Message>): Html => {
+  const loading = Loading.view(slots.status, h, 'Loading…')
+  const empty = Empty.view(slots.status, h, 'Nothing yet.')
+  const failure = Failure.view(slots.status, h, 'The pages could not be read.')
+  const styled = Style.forSlots(StatusSlots)({ status: Loading.shown })
+  void styled
+  return h.div([], [loading, empty, failure])
+}

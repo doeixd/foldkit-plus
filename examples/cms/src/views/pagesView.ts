@@ -9,6 +9,7 @@
 import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style } from 'foldkit-mixins'
+import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import {
   Editor,
   Message,
@@ -24,6 +25,7 @@ import {
   badge,
   chair,
   editorBar,
+  failed,
   historyCard,
   moreCard,
   revisionsOf,
@@ -61,10 +63,10 @@ const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => 
     ]),
     pages.length === 0
       ? read._tag === 'Ready' || read._tag === 'Refreshing'
-        ? h.p(slots.muted.attrs(), ['Nothing yet.'])
+        ? Empty.view(slots.muted, h, 'Nothing yet.')
         : read._tag === 'Failed'
-          ? h.p(slots.muted.attrs([h.Role('alert')]), ['The pages could not be read.'])
-          : h.p(slots.muted.attrs([h.AriaBusy(true)]), ['Loading…'])
+          ? Failure.view(slots.muted, h, 'The pages could not be read.')
+          : Loading.view(slots.muted, h, 'Loading…')
       : h.ul(
           slots.list.attrs(),
           pages.map(page =>
@@ -167,9 +169,12 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       loaded
         ? [editorView(model, h)]
         : [
-            h.p(slots.muted.attrs([...(status === 'Loading' ? [h.AriaBusy(true)] : [])]), [
-              statusLine[status],
-            ]),
+            // What the editor has not opened yet: loading, failed, or missing.
+            status === 'Loading'
+              ? Loading.view(slots.muted, h, statusLine[status])
+              : failed(status)
+                ? Failure.view(slots.muted, h, statusLine[status])
+                : Empty.view(slots.muted, h, statusLine[status]),
           ],
     ),
   ])
