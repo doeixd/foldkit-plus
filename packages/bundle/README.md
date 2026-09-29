@@ -278,7 +278,9 @@ pass their `url` from `placements.url`. For a hand-built `init` or config,
 - **`placements.runtime(input)`** is the same assembled runtime config for an
   application whose `update` already routes every placement: `initial` rest
   becomes `init`, or an init function returning `assembly.initial(...)` is
-  used as `init` when the seed needs runtime input, like the URL. The `update`
+  used as `init` when the seed needs runtime input, like the URL — never a
+  full Model, so placement and wiring inits always run with their Commands.
+  The `update`
   passes through checked; the own `subscriptions` and `managedResources`
   merge with the items', defaulting to the items', so an application that adds
   none passes neither. Assemblies that read the URL pass their `url` from
@@ -384,13 +386,17 @@ const people = Page.at(PeopleDeclared, {
 assembly.initial({ route: urlToAppRoute(url) })
 ```
 
-The factory's parameter omits the placement's own field, so reading it is a
-type error. Read only seed fields, never sibling placement fields: every
-factory sees the same base seed, so placement order never matters. The result
+The seed is `rest` plus empty collections, with no placement's fields in it.
+The factory's parameter omits its own field, so reading it is a type error;
+sibling fields are consistently absent at runtime, so read only seed fields
+and placement order never matters. The result
 is checked against the bundle's args Schema, naming the placement, then
-retained for `update`, helpers, Subscriptions, and resources. It never re-runs
+retained for `update`, helpers, Subscriptions, and resources. Subscriptions
+and resources that ignore `args` are readable before `initial()` runs; ones
+built from a factory need it (or `runtime()`) first, and name the placement
+when read too early. It never re-runs
 against live state, so keep it pure of its seed — and deterministic: through
-`config`/`runtime` it may run twice with the same seed (once for the records,
+`runtime` it may run twice with the same seed (once for the records,
 once for `init`), so return the same args every time and generate ids outside
 it. A factory on an optional child is skipped when `rest` starts the child as
 `None`. On a Model no initialization produced, `update` derives per use

@@ -85,7 +85,7 @@ export const config = placements.runtime({
 })
 ```
 
-Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
+Spread the resulting config into `Runtime.makeApplication` or `Runtime.makeElement`.
 
 ## Derived args
 
@@ -106,7 +106,8 @@ whose Model holds `route` and `search`. The seed is what
 `assembly.initial(rest)` was given, minus the placement's own field; every
 factory sees the same seed, so placement order never matters. The result is
 checked against the bundle's args Schema and retained for `update` and
-Subscriptions, never re-run against live state.
+Subscriptions, never re-run against live state. Records ignoring `args` read
+before `initial()`; derived ones need it first.
 
 ## Joining integrations
 
