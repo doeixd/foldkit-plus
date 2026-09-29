@@ -35,7 +35,9 @@ const recorded = (calls: Array<string>) =>
           return client.read(batch)
         },
         query: request => {
-          calls.push(`query ${request.query}`)
+          calls.push(
+            `query ${request.query}${request.select === undefined ? '' : `[${request.select.fields.join(',')}]`}`,
+          )
           return client.query(request)
         },
       })
@@ -81,11 +83,10 @@ test('a revisited post renders from the Model without a second read', async () =
   const { calls, dispose } = mount()
   try {
     await waitFor(() => expect(text()).toContain('The Model Is the Cache'))
-    // The page of posts, then the fields its rows select.
-    expect(calls[0]).toBe('query Posts')
-    expect(calls.slice(1)).toEqual(
-      expect.arrayContaining(['Post:model-is-the-cache[id,title,excerpt]']),
-    )
+    // One response carries the page and the fields its rows select: no
+    // second read for the list.
+    expect(calls[0]).toBe('query Posts[id,title,excerpt]')
+    expect(calls.slice(1)).toEqual([])
     expect(text()).not.toContain('Cached')
 
     button('The Model Is the Cache').click()
@@ -118,7 +119,7 @@ test('invalidating keeps the list on screen and asks once however often it is cl
     button('Refreshing...').click()
 
     await waitFor(() => expect(text()).toContain('Invalidate'))
-    expect(calls.slice(before).filter(call => call === 'query Posts')).toHaveLength(1)
+    expect(calls.slice(before).filter(call => call.startsWith('query Posts'))).toHaveLength(1)
   } finally {
     dispose()
   }

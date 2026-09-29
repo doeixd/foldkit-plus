@@ -166,6 +166,8 @@ const RenameProject = Mutation.make('RenameProject', {
 
 // Query Projection: RemoteData<Page<Value>>; Loading while its page or its rows' fields are in flight, Ready once all are present.
 const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
+// The select travels with the query: the server returns those fields with the page, so a fresh list lands Ready in one response.
+// Data.meta(model, projects) is when what is shown was last received ({ updatedAt, stale, loading }), pure for "updated 5s ago".
 
 // Data.live: same as get, but also opens a live stream while the Surface is active.
 // model: ({ params }) => ({ project: Data.live(ProjectSummary, params.projectId), projects })

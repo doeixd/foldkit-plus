@@ -968,8 +968,13 @@ Remote represents an honest gap instead of pretending the visible rows are
 adjacent.
 
 A query Projection is `Initial` until the page **and every selected field of its
-visible items** are present. Once a page lands, those items become ordinary
-entity requirements and can be fulfilled in the same planning loop.
+visible items** are present. The `select` travels with the query: the server
+returns the selected fields of the page's items with the edges, and one
+`ConnectionMerged` merges the page and writes them, so a fresh list usually
+lands `Ready` in one response. What the server leaves out (withheld fields,
+nested targets it does not expand) becomes ordinary entity requirements and
+is fetched next, as before; a server that predates payloads sends edges only
+and the list reads the old two-round-trip way.
 
 **A read shows at most its window.** Remote keeps one connection per query and
 input, whatever window asks for it, so a picker's `first: 50` and a card's
@@ -1515,10 +1520,16 @@ into private state:
 ```ts
 Data.inspect(model)            // serializable cache/domain summary
 Data.plan(model, projection)   // the entity plan a read would execute
+Data.meta(model, projection)   // when what is shown was received, stale/loading
 Data.explain(model, query)     // what one query read is, and currently is
 Remote.planQueries(...)        // missing/stale query work
 Remote.inspectEntity(...)      // one normalized entity
 ```
+
+`Data.meta` is for views, not debugging: `updatedAt` is the newest server
+write among what the projection shows (`undefined` when nothing shown was
+received), with `stale` and `loading` beside it, so "updated 5s ago" reads
+the Model like any other render.
 
 These are pure and useful in tests, tooling, and debugging. For a read that
 stays `Initial`, `Data.why` and `Data.plan` are the tools; see

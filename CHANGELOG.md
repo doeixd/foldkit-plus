@@ -49,6 +49,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`, query payloads in one response:** `Data.query(Query,
+  input, { select })` sends the selection with the query, and the server
+  returns the selected fields of the page's items with the edges. One
+  `ConnectionMerged` merges the page and writes the fields, so a fresh list
+  lands `Ready` without a second read. Edges-only servers still work: no
+  selection sent means edges only, and absent entities read as empty.
+
+- **`foldkit-remote`, `Data.meta(model, projection)`:** when what is shown
+  was last received (`updatedAt`, newest server write among it, `undefined`
+  when nothing shown was received), and whether any of it is stale or
+  loading. Pure, for "updated 5s ago" without I/O.
+
 - **`foldkit-bundle`, `assembly.config(input)`:** the assembled runtime
   config from one call (`initial` rest becomes `init`, the own `update`,
   `subscriptions`, and `managedResources` merge with the items', everything

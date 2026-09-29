@@ -123,7 +123,12 @@ export const coalesceQueries = (
     return request =>
       Effect.request(
         new QueryRead({
-          key: stableStringify([request.query, request.input, request.window]),
+          key: stableStringify([
+            request.query,
+            request.input,
+            request.window,
+            request.select ?? null,
+          ]),
           request,
         }),
         resolver,

@@ -202,6 +202,12 @@ type Slots = SlotBuilders<typeof CachePage.slots, Message>
 
 const formatTime = (millis: number): string => new Date(millis).toLocaleTimeString()
 
+/** When the shown post was last received, as footnote text; nothing when it never was. */
+const footnoteReceivedAt = (model: Model, postId: string): string => {
+  const received = Data.meta(model, postDetail(postId)).updatedAt
+  return received === undefined ? '' : ` Fetched at ${formatTime(received)}.`
+}
+
 const isPending = <A>(data: RemoteData<A>): boolean =>
   RemoteData.match(data, {
     Initial: () => false,
@@ -404,7 +410,9 @@ const postDetailView = (
             h.h2(slots.cardTitle.attrs(), [detail.title]),
             h.p(slots.byline.attrs(), [`By ${detail.author}`]),
             h.p(slots.body.attrs(), [detail.body]),
-            h.p(slots.footnote.attrs(), ['Future visits render instantly from the Model.']),
+            h.p(slots.footnote.attrs(), [
+              `Future visits render instantly from the Model.${footnoteReceivedAt(model, postId)}`,
+            ]),
           ]),
         ]),
     }),
