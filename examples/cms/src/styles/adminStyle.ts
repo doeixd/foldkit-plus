@@ -5,7 +5,7 @@
  */
 import { Slots, Style } from 'foldkit-mixins'
 import { Loading } from 'foldkit-mixins-crud'
-import { Touch } from 'foldkit-mixins-ui'
+import { Recipes, Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import {
   app,
@@ -384,27 +384,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         paddingBlockEnd: t.space.sm,
       }),
     ),
-    tabs: Style.self({ display: 'flex', gap: t.space['3xs'] }),
-    tab: Style.compose(
-      Style.self({
-        background: 'transparent',
-        border: '0',
-        borderRadius: t.radius.md,
-        color: t.text.muted,
-        cursor: 'pointer',
-        font: 'inherit',
-        fontSize: t.size.sm,
-        fontWeight: t.weight.medium,
-        padding: '0.4rem 0.75rem',
-      }),
-      Style.pseudo(':hover', { color: t.text.overt }),
-      Style.nest('&[aria-pressed="true"]', {
-        background: t.surface.muted,
-        color: t.text.overt,
-        cursor: 'default',
-        fontWeight: t.weight.semibold,
-      }),
-    ),
+    tabs: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
+    tab: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
     searchBox: Style.compose(
       Style.self({
         alignItems: 'center',

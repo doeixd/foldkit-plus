@@ -23,6 +23,7 @@ import {
   DialogSlots,
   InputSlots,
   Recipes,
+  SegmentedSlots,
   SwitchSlots,
   TabsSlots,
   TextareaSlots,
@@ -70,6 +71,7 @@ const allPieces = [
   ...selections(Recipes.Switch.def.variants).map(selection => Recipes.Switch(selection)),
   ...selections(Recipes.Dialog.def.variants).map(selection => Recipes.Dialog(selection)),
   ...selections(Recipes.Tabs.def.variants).map(selection => Recipes.Tabs(selection)),
+  ...selections(Recipes.Segmented.def.variants).map(selection => Recipes.Segmented(selection)),
 ].flatMap(pieces => Object.values(pieces))
 
 const compiled = {
@@ -93,6 +95,9 @@ const compiled = {
   ),
   Tabs: selections(Recipes.Tabs.def.variants).map(
     selection => Style.forSlots(TabsSlots)(Recipes.Tabs(selection)).css,
+  ),
+  Segmented: selections(Recipes.Segmented.def.variants).map(
+    selection => Style.forSlots(SegmentedSlots)(Recipes.Segmented(selection)).css,
   ),
 }
 
@@ -210,6 +215,30 @@ describe('Recipes', () => {
     expect(css).toContain('height:2rem')
     expect(css).toContain('padding:0')
     expect(css).toContain('font-size:0')
+  })
+
+  describe('Segmented', () => {
+    const css = (selection: Parameters<typeof Recipes.Segmented>[0]): string =>
+      Style.forSlots(SegmentedSlots)(Recipes.Segmented(selection)).css
+
+    it('raises the pressed option from the group, for text and icon tiles alike', () => {
+      expect(css({})).toContain('> [aria-pressed="true"]')
+      expect(css({})).toContain('background:var(--fk-surface-base)')
+      expect(css({})).toContain('0 1px 2px rgb(0 0 0 / 10%)')
+      expect(css({})).toContain('font-weight:var(--fk-weight-semibold)')
+    })
+
+    it('lays a tray or a plain row', () => {
+      expect(css({ tray: 'tray' })).toContain('background:var(--fk-surface-muted)')
+      expect(css({ tray: 'plain' })).toContain('display:flex')
+      expect(css({ tray: 'plain' })).not.toContain('background:var(--fk-surface-muted)')
+    })
+
+    it('densities text options without touching the pressed rule', () => {
+      expect(css({ size: 'sm' })).toContain('font-size:var(--fk-size-sm)')
+      expect(css({ size: 'sm' })).toContain('padding:0.4rem 0.75rem')
+      expect(css({ size: 'xs' })).toContain('font-size:var(--fk-size-xs)')
+    })
   })
 
   describe('Badge', () => {

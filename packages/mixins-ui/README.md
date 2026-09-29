@@ -352,7 +352,7 @@ adapter.
 
 The adapters only name slots. `Recipes` gives those slots a look: one
 `Style.recipeFor` per contract (`Button`, `Input`, `Textarea`, `Checkbox`,
-`Switch`, `Dialog`, `Tabs`), built on the tokens of `foldkit-mixins/theme`.
+`Switch`, `Dialog`, `Tabs`, `Segmented`), built on the tokens of `foldkit-mixins/theme`.
 Select variants, hand the pieces to `Style.forSlots`, and attach the result
 like any other Style:
 
@@ -436,6 +436,23 @@ const EntryStyle = Style.forSlots(EntrySlots)(
 
 Like the variant recipes it reads `Theme.tokens` and `Theme.oklch` tokens and
 keeps the base in `components` with each tone in `variants`.
+
+`Recipes.Segmented` is a tray of toggle buttons where pressing selects — plain
+buttons, not `Tabs` (the group is `role="group"`, each option `aria-pressed`).
+The pressed option rises from the tray: that rule lives on the group, so icon
+tiles take the group piece alone. `tray` is a muted tray or a plain row (which
+sets no `display`: the Builder owns its narrow tabs' visibility); `size` is
+text density:
+
+```ts
+const SegmentedStyle = Style.forSlots(SegmentedSlots)(
+  {
+    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
+    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+  },
+  { layer: L.layer('app') },
+)
+```
 
 ## Mechanisms
 

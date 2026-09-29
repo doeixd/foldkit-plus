@@ -7,6 +7,7 @@
  */
 export { Badge, type BadgeOptions, type BadgeTone } from './badge.js'
 export { Button } from './button.js'
+export { Segmented } from './segmented.js'
 export { Dialog } from './dialog.js'
 export { Input, Textarea } from './field.js'
 export { Tabs } from './tabs.js'

@@ -4,7 +4,7 @@
 import { Style } from 'foldkit-mixins'
 import { BuilderSlots } from 'foldkit-mixins-builder'
 import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
-import { Icons } from 'foldkit-mixins-ui'
+import { Icons, Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { iconUrl, type IconName } from '../views/icons.js'
 import { app, button, control, field, L, t, visuallyHidden } from './style.js'
@@ -361,32 +361,13 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       fontSize: t.size.sm,
       gap: t.space['2xs'],
     }),
-    choices: Style.self({
-      background: t.surface.muted,
-      borderRadius: t.radius.md,
-      display: 'flex',
-      gap: '2px',
-      padding: '2px',
-    }),
+    choices: Style.compose(
+      Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
+      Style.self({ display: 'flex' }),
+    ),
     choice: Style.compose(
-      Style.self({
-        background: 'transparent',
-        border: '0',
-        borderRadius: t.radius.sm,
-        color: t.text.muted,
-        cursor: 'pointer',
-        flex: '1',
-        font: 'inherit',
-        fontSize: t.size.xs,
-        fontWeight: t.weight.medium,
-        padding: '0.35rem 0.4rem',
-      }),
-      Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', { color: t.text.overt }),
-      Style.nest('&[aria-pressed="true"]', {
-        background: t.surface.base,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
-        color: t.text.overt,
-      }),
+      Recipes.Segmented({ size: 'xs' }).option ?? Style.empty,
+      Style.self({ flex: '1' }),
     ),
     shortcuts: Style.self({
       alignItems: 'baseline',
@@ -451,50 +432,20 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.nest('&[aria-current]', { color: t.text.overt, fontWeight: t.weight.semibold }),
     ),
     viewports: Style.compose(
-      Style.self({
-        background: t.surface.muted,
-        borderRadius: t.radius.md,
-        display: 'flex',
-        gap: '2px',
-        padding: '2px',
-      }),
+      Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
+      Style.self({ display: 'flex' }),
     ),
     // The narrow editor's tabs, a segmented control like the viewports. Their `display`
     // is the Builder's: hidden while the editor is wide.
-    panelTabs: Style.self({
-      background: t.surface.muted,
-      borderRadius: t.radius.md,
-      gap: '2px',
-      padding: '2px',
-    }),
+    panelTabs: Recipes.Segmented({ tray: 'tray' }).group ?? Style.empty,
     panelTab: Style.compose(
-      Style.self({
-        background: 'transparent',
-        border: '0',
-        borderRadius: t.radius.sm,
-        color: t.text.muted,
-        cursor: 'pointer',
-        flex: '1',
-        font: 'inherit',
-        fontSize: t.size.sm,
-        padding: '0.4rem 0.75rem',
-      }),
-      Style.nest('&[aria-pressed="true"]', {
-        background: t.surface.base,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
-        color: t.text.overt,
-        fontWeight: t.weight.semibold,
-      }),
+      Recipes.Segmented({ size: 'sm' }).option ?? Style.empty,
+      Style.self({ flex: '1' }),
     ),
     viewport: Style.compose(
       iconButton,
       iconsBy('data-viewport', { wide: 'monitor', medium: 'tablet', narrow: 'phone' }),
       Style.self({ height: '1.75rem', width: '2.25rem' }),
-      Style.nest('&[aria-pressed="true"]', {
-        background: t.surface.base,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
-        color: t.text.overt,
-      }),
     ),
     alert: Style.compose(
       Style.self({

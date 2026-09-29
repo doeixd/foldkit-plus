@@ -4,7 +4,7 @@
 import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ref } from '../src/recipes/design.js'
-import { ButtonSlots, Icons, Recipes, Touch } from '../src/index.js'
+import { ButtonSlots, Icons, Recipes, SegmentedSlots, Touch } from '../src/index.js'
 
 void ref.surface.overt
 void ref.space.md
@@ -25,6 +25,11 @@ Recipes.Button({ tone: 'neutral', variant: 'icon', size: null })
 
 // @ts-expect-error a variant the recipe does not offer.
 Recipes.Button({ variant: 'raised' })
+
+Recipes.Segmented({ tray: 'plain', size: 'sm' })
+
+// @ts-expect-error a tray the recipe does not offer.
+Recipes.Segmented({ tray: 'box' })
 
 Recipes.Badge({
   attribute: 'data-state',
@@ -93,3 +98,13 @@ const TileStyle = Style.forSlots(TileSlots)(
   { layer: L.layer('app') },
 )
 void TileStyle
+
+// The README's Segmented section, kept compiling.
+const SegmentedStyle = Style.forSlots(SegmentedSlots)(
+  {
+    group: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
+    option: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+  },
+  { layer: L.layer('app') },
+)
+void SegmentedStyle

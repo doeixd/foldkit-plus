@@ -45,6 +45,13 @@ version changed; `pnpm` skips versions already in the registry.
   The CMS demo adopts them with `ghost` for its buttons and deletes its
   bespoke `primaryButton`/`iconButton`.
 
+- **`foldkit-mixins-ui`, Segmented recipe:** a tray of toggle buttons where
+  pressing selects (`role="group"` + `aria-pressed`, not `Tabs`) — `tray`
+  picks a muted tray or a plain row, `size` the text density, and the pressed
+  option rises from the group so icon tiles share the rule. The CMS demo
+  adopts it for its worklist tabs, viewport switcher, panel tabs, and
+  inspector choices.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

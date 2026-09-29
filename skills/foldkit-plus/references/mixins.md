@@ -291,7 +291,7 @@ input-driven Mixin reads. `X.resolve(attributes, mixins, { h, input })` stays fo
 hand, such as a Calendar whose Mixins read `attributes._tag`. Result types: `ResolvedButton<M>`,
 `ResolvedRadioGroup<V, M>`, and so on.
 
-`Recipes.Button | Input | Textarea | Checkbox | Switch | Dialog | Tabs` are shipped
+`Recipes.Button | Input | Textarea | Checkbox | Switch | Dialog | Tabs | Segmented` are shipped
 `Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
