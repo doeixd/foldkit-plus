@@ -69,7 +69,7 @@ and the checks that the browser can start from it.
 ## The mental model
 
 ```text
-server   init ──▶ Model ──┬── plan.state ──▶ slice ──▶ envelope   (JSON in the page)
+server   init ──▶ Model ──┬── plan.state ──▶ slice ──▶ envelope   (JSON on the stamped root)
                           └── view ──▶ HTML                        (checked, see below)
 
 browser  envelope ──▶ baseline with the slice set on it ──▶ Model
@@ -139,14 +139,14 @@ What each call does:
 - **`SSR.plan`** is a declaration. It does no I/O and holds no state. It
   throws only for a plan that could never work, such as two parts with one id.
 - **`SSR.render`** is an Effect. It runs `init` once, renders the view twice,
-  checks the plan, and returns the rendered application and the envelope
-  script. It fails with `ResumeUnsafe` when the browser could not start where
+  checks the plan, and returns the rendered application and the envelope it
+  carries on the stamped root. It fails with `ResumeUnsafe` when the browser could not start where
   the server did; [the refusals](#when-a-page-is-refused) say why and how to
   fix each.
-- **`SSR.page`** is pure: the template with the application and the envelope in
-  it. The envelope goes before the template's last `</body>`, and a template
-  without one is refused, by `SSR.page` and by `SSR.entry` when it is made. An
-  optional `head` adds markup before `</head>`, given what was rendered.
+- **`SSR.page`** is pure: the rendered application in the template, through
+  Foldkit's `injectIntoTemplate`. The envelope rides on the rendered root, so
+  the template needs no place for it. An optional `head` adds markup before
+  `</head>`, given what was rendered.
 - **`SSR.hydrate`** reads the envelope, starts Foldkit's runtime from the
   resumed Model, and runs the plan's `boot` Commands. `init` does not run. A
   page with no server render at all starts on the client as usual.
@@ -177,8 +177,8 @@ boot: model => assembly.init(model).commands ?? []
 
 ### Styles in the first paint
 
-A page styled with `foldkit-mixins` can ship the CSS its markup uses in the
-head, so it is styled before any script runs. `head` is given the rendered
+A generated page styled with `foldkit-mixins` can ship the CSS its markup uses
+in the head, so it is styled before any script runs. `head` is given the rendered
 application; `Style.usedIn` returns the CSS of every compiled class the markup
 carries. In the browser, Styles bring their rules as they draw and skip what
 this sheet already carries, so nothing is added twice.
@@ -191,9 +191,10 @@ const html = SSR.page(template, result, {
 })
 ```
 
-`SSR.entry` and `SSR.generate` take the same `head`. `SSR.entry` refuses a
-template with no `</head>` when it is made, and answers a `head` that throws
-`500`, as it does a render that fails.
+`SSR.generate` takes the same `head`, and answers a `head` that throws `500`,
+as it does a render that fails. `SSR.entry` takes no `head`: the host owns
+the template in dynamic serving, so a served page carries no per-page head
+markup, and the script brings what the first paint needs.
 
 ### The head is part of the view
 
@@ -226,14 +227,14 @@ const Post = SSR.plan(App, {
 })
 ```
 
-`SSR.render` writes the tags (`description`, `og:*`, `twitter:card`,
-`article:*`, `robots`, `link rel="alternate"`, and one JSON-LD script per
-entry) before `</head>`, every value escaped, and checks them like the view:
-a `meta` that reads a field `state` does not send is `ViewDependsOnUnsentState`.
-`SSR.hydrate` keeps them in step with the Model, so a move to another post
-replaces the description too. Each carries `data-foldkit-meta`
-(`META_ATTRIBUTE`), which is how the browser finds the ones to replace; leave
-such tags out of the template.
+`SSR.page` and `SSR.generate` write the tags (`description`, `og:*`,
+`twitter:card`, `article:*`, `robots`, `link rel="alternate"`, and one JSON-LD
+script per entry) before `</head>`, every value escaped, and `SSR.render`
+checks them like the view: a `meta` that reads a field `state` does not send
+is `ViewDependsOnUnsentState`. `SSR.hydrate` keeps them in step with the Model,
+so a move to another post replaces the description too. Each carries
+`data-foldkit-meta` (`META_ATTRIBUTE`), which is how the browser finds the
+ones to replace; leave such tags out of the template.
 
 ## Serving pages
 
@@ -241,19 +242,42 @@ such tags out of the template.
 
 Foldkit's server entry is one function, `renderPage(request)`, which
 `handleRequest` calls for every request that is not a static file, on Node and
-on Workers alike. `SSR.entry` is that function for a plan:
+on Workers alike. `SSR.entry` is that function for a plan. The host owns the
+template: the entry answers `Rendered`, with the envelope on the rendered
+root, and the host injects it into its own template, in development through
+the `foldkit` Vite plugin and in production through the fetch handler a
+`vite build` emits.
 
 ```ts
 import { handleRequest } from 'foldkit/experimental/server'
 
 // The server entry.
-export const { renderPage } = SSR.entry(config, Post, { buildId, template })
+export const { renderPage } = SSR.entry(config, Post, { buildId })
 
 // A Worker, or any host that hands you a Web Request.
 export default {
   fetch: (request: Request) => handleRequest(request, { renderPage, template }),
 }
 ```
+
+```ts
+// vite.config.ts, for the dev server and the build id both entries compile in.
+import { foldkit } from '@foldkit/vite-plugin'
+
+export default defineConfig({
+  plugins: [foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } })],
+})
+```
+
+```ts
+// entry.server.ts and the browser's entry.ts alike.
+buildId: import.meta.env.FOLDKIT_BUILD_ID,
+```
+
+`FOLDKIT_BUILD_ID` names the deployment, from the environment: a commit or a
+release tag, public and unique per deployment. The plugin compiles it into
+both bundles; a script outside Vite, such as a prerender, reads
+`process.env.FOLDKIT_BUILD_ID`, the same value the build saw.
 
 `GET` and `HEAD` render the page for the request's URL; an application with
 Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
@@ -263,26 +287,25 @@ Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
 render refuses are answered `500` with the reason logged, never with a page
 the browser could not resume.
 
-`headers: request => ...` adds headers to every response the entry answers,
-set over its own: a cache policy for a page that is one visitor's, or the CORS
-answer to a preflight, which reaches the entry and not the host.
+`headers: request => ...` rides on the `Rendered` result, set over the host's
+own: a cache policy for a page that is one visitor's, or the CORS answer to a
+preflight, which reaches the entry and not the host.
 
 ```ts
 SSR.entry(config, Post, {
   buildId,
-  template,
   headers: () => ({ 'cache-control': 'private, no-store', vary: 'cookie' }),
 })
 ```
 
 A `headers` that throws is answered `500`, as a failed render is.
 
-The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
-`toResponse`. A `Rendered` result has no room for the envelope, which is why
-the entry takes the template itself, and why Foldkit's built-in `prerender`
-cannot generate these pages; `SSR.generate` below does.
+What the page says of itself (`meta`) and per-page `head` markup are written
+into a template's head, which the host owns here: a plan with `meta` is
+refused when the entry is made, and served with `SSR.generate` below, which
+owns its template.
 [foldkit#1448](https://github.com/foldkit/foldkit/issues/1448) asks Foldkit
-for that room.
+for a per-request head channel beside the envelope.
 
 ### At build time
 
@@ -623,11 +646,12 @@ of:
 | `UngeneratablePath`        | `SSR.generate` was given a path no file can be served at                      | Leave out the query and fragment; keep paths to distinct files      |
 
 In the browser, `SSR.hydrate` checks in Foldkit's order: the build id first,
-then the envelope. `SSR.resume` returns the envelope's refusal as
-`ResumeRefused`: `Missing` or `Duplicate` envelope, `Unreadable` JSON, another
-`Protocol` version or `Plan`, state, parts or bindings that are `Invalid`, or a
-`Route` other than the one the page was rendered for. A page is resumed whole or
-not at all.
+then the envelope. `SSR.resume` reads the envelope off the stamped root and
+returns its refusal as `ResumeRefused`: a page with no stamped root or more
+than one, a root with no envelope (`Missing`, also for a second root as
+`Duplicate`), `Unreadable` JSON, another `Protocol` version or `Plan`, state,
+parts or bindings that are `Invalid`, or a `Route` other than the one the page
+was rendered for. A page is resumed whole or not at all.
 
 ## Costs and limits
 
@@ -657,10 +681,13 @@ not at all.
 
 `SSR.render` and `SSR.hydrate` are built from pieces usable on their own:
 
-- **`SSR.envelope(plan, model, { route? })`** returns the envelope script for a
-  Model, and **`SSR.resume(plan, document, { route? })`** reads it back as a
-  `Result`. The envelope escapes `<` as Foldkit escapes its Flags, and U+2028
-  and U+2029, so no string in the Model can close the script.
+- **`SSR.envelope(plan, model, { route? })`** returns the envelope for a
+  Model, as JSON, and **`SSR.resume(plan, document, { route? })`** reads it back
+  as a `Result`. `SSR.render` carries it on the stamped root, beside Foldkit's
+  own stamps; the JSON escapes `<` as Foldkit escapes its Flags, and U+2028
+  and U+2029, and the attribute escapes `&` and `"` besides, so no string in
+  the Model can break out of the value. Hydration drops the attribute on its
+  first patch, so the browser reads it before it boots.
 - **`SSR.inspect(plan, model)`**: the plan's coverage as data.
 - **`Resume.bindings(plan, document, root, model)`** decodes and checks a
   page's bindings, and **`Resume.listen(root, { bindings, onAnswer, events? })`**
@@ -670,9 +697,9 @@ not at all.
   `SSR.hydrate` uses both, passing the list; they are there for a custom
   boot.
 - **Attribute names**, for tools and tests: `RESUME_ATTRIBUTE` (the envelope
-  script), `STATIC_ATTRIBUTE`, `BINDING_ATTRIBUTE` (a prefix, followed by the
-  event), `SLOT_ATTRIBUTE` (a placement's root while the server renders) and
-  `FALLBACK_FIELD` (the posted Message).
+  on the stamped root), `STATIC_ATTRIBUTE`, `BINDING_ATTRIBUTE` (a prefix,
+  followed by the event), `SLOT_ATTRIBUTE` (a placement's root while the server
+  renders) and `FALLBACK_FIELD` (the posted Message).
 
 ## The application in these examples
 

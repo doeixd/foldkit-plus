@@ -699,6 +699,19 @@ version changed; `pnpm` skips versions already in the registry.
 - **`examples/foldkit-ssr` serves as upstream does:** Effect's HTTP server on
   `@effect/platform-node` instead of a hand-written `node:http` host.
 
+- **`foldkit-ssr`, the envelope rides the stamped root (breaking):**
+  `SSR.render` carries the envelope as `data-foldkit-plus-resume` on the
+  rendered root, beside Foldkit's own stamps, instead of a script before
+  `</body>`; hydration adopts the nodes and drops the attribute on its first
+  patch. `SSR.resume` reads it there, refusing a page with no stamped root or
+  more than one. `SSR.entry` answers `Rendered` and takes no `template`,
+  `containerId` or `head`: the host owns the template, through `handleRequest`
+  or the `foldkit` Vite plugin's dev server, and a plan with `meta` is refused
+  at construction (serve it with `SSR.generate`, which keeps the template,
+  `head` and `meta`). The build id is the `FOLDKIT_BUILD_ID` deployment both
+  bundles are compiled with. The `foldkit-ssg` and `foldkit-ssr` examples serve
+  through `foldkit({ ssr })`, and the CMS example stamps pages with the same
+  deployment id instead of the entry script's address.
 - **`foldkit-remote`, typed entry dependencies:** `Data.subscriptions` and
   `Remote.fold(...).subscriptions` type each entry's dependencies
   (`ReadDependencies`, the new `LiveDependencies`, `RetentionRoots`) instead of
