@@ -264,9 +264,9 @@ its own Entity.
 
 ## Queries
 
-A Query Source answers the ordered connection itself. Entity fields for the page
-items remain normal Entity reads, so query membership and entity data stay
-separate:
+A Query Source answers the ordered connection itself. The client's `select`
+travels with the request, and the handlers return the selected fields of the
+page's items with the edges, so one response carries both:
 
 ```ts
 import { Query } from 'foldkit-remote'
@@ -278,7 +278,7 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', {
 
 const ProjectsByOwnerSource = RemoteServer.query(
   ProjectsByOwner,
-  ({ input, window, principal }) =>
+  ({ input, window, principal, select }) =>
     projectsPage({ ownerId: input.ownerId, window, principal }),
 )
 
@@ -298,13 +298,18 @@ A Query returns:
 }
 ```
 
+A Source answers membership only; it may ignore `select`. The handlers fetch
+the selected fields through the entity sources (authorization included) and
+return them as `entities`/`settled` beside the page. Query membership and
+entity data stay separate on the way in and travel together on the way out.
+
 `start` and `end` are Remote `Boundary` values (`Terminal`, `Cursor`, or
 `Unknown`). The client uses those explicit boundaries when merging pages instead
 of guessing from row count.
 
 Query input is decoded through the Query's own Schema before your callback runs.
-The callback receives the decoded input, the requested `QueryWindow`, and the
-principal.
+The callback receives the decoded input, the requested `QueryWindow`, the
+`select` slice when the client sent one, and the principal.
 
 ### Running a query body over rows you already hold
 
