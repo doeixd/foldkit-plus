@@ -15,7 +15,7 @@ application.
   adopted.
 - **Phase 1, the envelope:** the slice round-trips onto the baseline, nothing
   outside it is in the page, each refusal has its test, and a hostile string in
-  the Model cannot break out of the script.
+  the Model cannot break out of the root attribute that carries it.
 - **Phase 2, the handover:** `init` runs once, on the server; the browser adopts
   the server's nodes and the page works; a large field left out of the plan is
   nowhere in the page; Flags never reach it; `boot` runs, including a
@@ -97,9 +97,8 @@ application.
   not a binding, a negative depth) and parts that are not an object are each
   refused as `Invalid`, never thrown on.
 - **Second review:** a `$` pattern in the Model's data reaches the envelope as
-  written; a template's `</BODY>` in capitals takes the envelope and one with
-  none is refused, by `SSR.page` and when `SSR.entry` is made; an event that
-  does not bubble is answered at its target alone; a custom element's string
+  written; the envelope rides the stamped root, so a template needs no `</body>`
+  for it; an event that does not bubble is answered at its target alone; a custom element's string
   `value` fills a hole; the server fallback runs `boot` before the posted
   Message, and no `init` Command; an event no binding answers reaches the
   document and boots the page; while lazy bodies load, a held event goes back

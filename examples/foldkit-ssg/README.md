@@ -80,7 +80,7 @@ pnpm --filter foldkit-example-foldkit-ssg preview  # serves dist/ as a static ho
   `foldkit-ssr/client`, which leaves Foldkit's server renderer out: 389 kB
   minified (125 kB gzip) against 343 kB (114 kB gzip) for the same app on
   `Runtime.run`, and 574 kB (183 kB gzip) through `foldkit-ssr`'s main entry.
-- **The About page says "The same generatePages call produced this route"**,
+- **The About page says "The same prerender produced this route"**,
   where upstream names its `renderPage` function, which serves requests here
   rather than generating files.
 - **A `ChangedUrl` for the page already shown returns the same Model**

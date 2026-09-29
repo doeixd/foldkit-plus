@@ -158,7 +158,8 @@ itself. Each is decided here or in the phase it lands in.
   no page using Remote could ever defer. Asked "does starting late change what
   happens?", all three say no. That cannot be inferred from an entry, so it is
   declared (decision 10), and Phase R declares Remote's.
-- **The envelope stays one script, and its version stays 1.** The manifest is
+- **The envelope stays one carrier, and its version stays 1.** Since Phase V
+  that carrier is the stamped root's attribute, not a script. The manifest is
   one more optional field. A page from another build is refused on its build
   id before the envelope is read, so a server and a browser that disagree on
   the envelope's fields cannot meet; the version moves when a field changes
@@ -325,7 +326,9 @@ decision 3 belongs with hydration, and is in Phase 2.
   through its Schema, render the view from baseline plus that slice (as
   Foldkit renders from decoded Flags), and write the envelope into the
   **template**, not into `rendered.html`, which `injectIntoTemplate` requires to
-  hold only the root and Foldkit's own payload.
+  hold only the root and Foldkit's own payload. (Revisited in Phase V: the
+  envelope rides the stamped root as an attribute, which `injectIntoTemplate`
+  accepts as part of the root, so `rendered.html` carries it after all.)
 - Client: decision 3's checks, then set the slice onto the baseline and hydrate
   a program whose `init` returns that Model plus `boot`'s Commands.
 - Tests:
@@ -1227,6 +1230,46 @@ would need the following. Who owns each part is decided in
 - Test: a page generated for two locales carries each language's text, `lang`
   and alternates, and resumes under each.
 
+### Phase V: serve through Foldkit's pipeline
+
+Phase 6's first cut answered `Responded`, with the entry owning the template,
+because a `Rendered` result had no room for the envelope; S7 took the build id
+from the entry script's address. Both were partial duplications of Foldkit's
+pipeline, and both are now gone:
+
+- The envelope rides the stamped root as `data-foldkit-plus-resume`, beside
+  Foldkit's own app and build stamps. `injectIntoTemplate` accepts it there
+  and refuses it beside the root, so `SSR.render` returns a rendered
+  application any host injects into its own template, and hydration adopts the
+  nodes and drops the attribute on its first patch. The JSON escapes `<` and
+  the line separators, the attribute `&` and `"` besides; a void root, which
+  can carry no child script, carries it the same way.
+- `SSR.entry` answers `Rendered` and takes no `template`, `containerId` or
+  `head`: the template is the host's, through `handleRequest`, the `foldkit`
+  Vite plugin's dev server, or the fetch handler a build emits. `headers` ride
+  on the result; a bare `Rendered` with no custom headers stays generatable.
+  A plan with `meta` is refused at construction, since `meta` is written into
+  a head the host owns; `SSR.generate` keeps the template, `head` and `meta`
+  for static pages.
+- The build id is the `FOLDKIT_BUILD_ID` deployment both bundles are compiled
+  with: the plugin's define in entries that Vite transforms, `process.env` in
+  scripts outside Vite. The entry-script-address derivation and its Windows
+  path normalization are deleted from every example.
+- Tests: the envelope on the root as JSON (placement, hostile round trip
+  through a hosted page, each escape mutation-caught); the entry as
+  `Rendered` with no headers key; a `meta` plan refused at construction; both
+  examples rendering through the dev server and resuming.
+
+**Done.** `SSR.entry(config, plan, { buildId, flags?, headers? })` returns
+Foldkit's `EntryModule` with no template of its own; the `foldkit-ssg` and
+`foldkit-ssr` examples serve development through `foldkit({ ssr })` and take
+their build ids from the deployment. What stays duplicated is the file writer:
+built-in `prerender` records the full route and takes no per-path flags or
+head, while the envelope records the path alone, so `SSR.generate` keeps
+writing static files; [the upstream
+tracker](../upstream-foldkit-ssr.md) carries the per-request head channel as
+proposal 2.
+
 ### Beyond this plan
 
 These wait on something outside this repository, and are not scheduled.
@@ -1247,8 +1290,10 @@ proposals for Foldkit, checked against its `main`, and says which are dropped:
   than when the design proposed it: since 0.163 a server render depends only on
   config, URL and build id, with no request-derived `canonical` to thread
   through.
-- **A payload slot in a `Rendered` result**, so Phase 6 can return `Rendered`.
-  New with 0.159.
+- **A payload slot in a `Rendered` result** is no longer asked for the
+  envelope: since Phase V it rides the stamped root and Phase 6 returns
+  `Rendered`. What still wants an upstream slot is per-request head markup
+  (proposal 2 in the upstream tracker).
 - **Removing static code from the client bundle** (design Phase 5) needs a Vite
   plugin on `@foldkit/vite-plugin`'s `ssr.serverEntry`, and is worth building
   only once static regions are used.

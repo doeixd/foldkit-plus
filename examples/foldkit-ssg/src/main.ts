@@ -150,7 +150,7 @@ const pageView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
       h.section(slots.section.attrs(), [
         h.h1(slots.heading.attrs([h.Id('page-title')]), ['Statically generated about page']),
         h.p(slots.text.attrs(), [
-          'The same generatePages call produced this route in the same build.',
+          'The same prerender produced this route in the same build.',
         ]),
       ]),
     NotFound: ({ path }) =>

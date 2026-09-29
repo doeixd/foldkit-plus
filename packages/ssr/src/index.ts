@@ -92,8 +92,9 @@ interface EnvelopeOptions {
 /**
  * The envelope for `model`: the plan's slice, each part's capture, and
  * the route it was rendered for, if it was rendered for one. `SSR.render`
- * carries it on the stamped root, beside Foldkit's own stamps; this is the
- * same JSON, for tests and hosts that place the page themselves.
+ * carries it on the stamped root, beside Foldkit's own stamps, escaped for
+ * the attribute; this is the same JSON unescaped, for tests and hosts that
+ * place the page themselves.
  */
 const envelope = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,

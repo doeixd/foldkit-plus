@@ -36,9 +36,10 @@ const pageHeaders = {
 }
 
 /**
- * A Web `fetch` handler for the page requests no static file answered, through
- * Foldkit's `handleRequest` into `foldkit-ssr`'s entry, which renders `GET` and
- * `HEAD`, answers `OPTIONS`, and refuses the other methods with `405`.
+ * The `renderPage` Foldkit's pipeline calls for the page requests no static
+ * file answered: through `handleRequest` into `foldkit-ssr`'s entry, which
+ * renders `GET` and `HEAD`, answers `OPTIONS`, and refuses the other methods
+ * with `405`.
  */
 export const makeRenderPage = (buildId: string): ((request: Request) => Promise<EntryResult>) =>
   SSR.entry({ Model, Flags, init, update, view, container: null }, plan, {
