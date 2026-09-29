@@ -16,16 +16,24 @@ place where state changes. A mirror only observes the state, so it never owns it
 Only use a mirror for disposable per-device state. It is last-write-wins, with
 no log and no ordering, so two tabs writing to it do not converge.
 
-## Mental model: three seams
+## Mental model: four seams
 
 ```text
 subscriptions  Model slice -> encode (defaults elided) -> URL / store   (throttled, deduped)
 reduce         URL or MirrorRestored Message -> Model slice
 restore        Command that reads the store on cold load -> MirrorRestored
+bootstrap      pre-read keys (Flags) -> initial Model, before the first render
 ```
 
 A URL mirror has no `restore` because startup already has the URL. A KV mirror
 does have one. Cold-load precedence is: URL value, then KV restore, then initial.
+When the store's keys are already in hand at boot (Flags the server embedded,
+a synchronous read, a test fixture), `Prefs.bootstrap(keys)` folds them into
+the initial Model instead of waiting for `restore`, and
+`Mirror.bootstrap(initial, ...steps)` composes store steps with the URL step
+(`model => Filters.reduce(model, url)`), stores first and URL last. A bootstrap
+is pure: no Command, no Message. It is deliberately not part of `Wiring`, whose
+`init` runs startup Commands after the Model exists.
 
 ## Minimal example
 
