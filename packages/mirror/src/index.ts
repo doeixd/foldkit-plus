@@ -1113,7 +1113,7 @@ export const Mirror = {
     }
   },
 
-  /** The kernel form: a slice kept in any `MirrorStore`, read back with `fromKeys` or `restoreKeys`. */
+  /** The kernel form: a slice kept in any `MirrorStore`, read back with `fromKeys` or `restoreKeys`, bootstrapped with `bootstrap`. */
   make: <S extends Slice, R, Name extends string = string>(
     app: MirrorApp<SliceRoot<S>>,
     store: MirrorStore<R>,
