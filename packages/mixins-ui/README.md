@@ -435,6 +435,28 @@ const EntryStyle = Style.forSlots(EntrySlots)(
 Like the variant recipes it reads `Theme.tokens` and `Theme.oklch` tokens and
 keeps the base in `components` with each tone in `variants`.
 
+## Mechanisms
+
+`Touch` and `Icons` are style mechanisms, not components: no slots, no views.
+Compose them into your own slots. `Touch.target` floors one control at 44px
+where the pointer is coarse; `Touch.targets` floors every boxed control a
+region draws. `Icons.glyph(size)` draws the icon in `--icon` before the
+element's words, and `Icons.byAttribute(attribute, icons)` sets `--icon` from
+an attribute's value, where `icons` maps each value to its resolved `url(…)`:
+
+```ts
+const TileStyle = Style.forSlots(TileSlots)(
+  {
+    tile: Style.compose(
+      Touch.target,
+      Icons.glyph('1rem'),
+      Icons.byAttribute('data-block', { Hero: iconUrl('hero') }),
+    ),
+  },
+  { layer: L.layer('app') },
+)
+```
+
 ## Accessibility patterns
 
 Every adapter has an `A11y.pattern` beside its Slots, under `Patterns`: the

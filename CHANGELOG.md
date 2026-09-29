@@ -32,6 +32,13 @@ version changed; `pnpm` skips versions already in the registry.
   for states come from `Cms.Display`. The CMS demo adopts them and keeps
   only its slots, styles, and chair names.
 
+- **`foldkit-mixins-ui`, Touch/Icons mechanisms:** no slots, no views —
+  `Touch.target`/`Touch.targets` floor controls at 44px where the pointer is
+  coarse, `Icons.glyph(size)` draws the icon in `--icon`, and
+  `Icons.byAttribute(attribute, icons)` sets it per value from resolved
+  `url(…)` strings. The CMS demo adopts them and keeps only its Lucide
+  paths.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

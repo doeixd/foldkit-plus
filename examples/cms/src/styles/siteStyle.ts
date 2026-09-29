@@ -4,21 +4,10 @@
 import { PAGE_CONTAINER } from 'foldkit-composition/foldkit'
 import { Slots, Style } from 'foldkit-mixins'
 import { Loading } from 'foldkit-mixins-crud'
+import { Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
-import {
-  app,
-  control,
-  L,
-  navLink,
-  part,
-  phone,
-  primaryButton,
-  serif,
-  t,
-  touchTarget,
-  touchTargets,
-} from './style.js'
+import { app, control, L, navLink, part, phone, primaryButton, serif, t } from './style.js'
 
 // --- the public site --------------------------------------------------------------
 
@@ -86,7 +75,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
       }),
     ),
     brand: Style.compose(
-      touchTarget,
+      Touch.target,
       Style.self({
         alignItems: 'center',
         color: t.text.overt,
@@ -126,7 +115,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         paddingBlock: `${t.space.xl} ${t.space['3xl']}`,
         paddingInline: t.space.lg,
       }),
-      touchTargets,
+      Touch.targets,
     ),
     masthead: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.xs })),

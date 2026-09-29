@@ -4,6 +4,7 @@
 import { Style } from 'foldkit-mixins'
 import { BuilderSlots } from 'foldkit-mixins-builder'
 import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
+import { Icons } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { iconUrl, type IconName } from '../views/icons.js'
 import { app, control, field, L, t, visuallyHidden } from './style.js'
@@ -43,24 +44,11 @@ const smallCaps = Style.self({
   textTransform: 'uppercase',
 })
 
-/** Draws the icon in `--icon` before the element's words, in their color. */
-const glyph = (size: string) =>
-  Style.nest('&::before', {
-    WebkitMask: 'var(--icon) center / contain no-repeat',
-    background: 'currentColor',
-    content: '""',
-    flexShrink: '0',
-    height: size,
-    mask: 'var(--icon) center / contain no-repeat',
-    width: size,
-  })
-
-/** Sets `--icon` by an attribute's value: each Block, action or viewport its own. */
+/** Sets `--icon` by an attribute's value, resolving each name to its drawing. */
 const iconsBy = (attribute: string, names: Readonly<Record<string, IconName>>) =>
-  Style.compose(
-    ...Object.entries(names).map(([value, name]) =>
-      Style.nest(`&[${attribute}="${value}"]`, { '--icon': iconUrl(name) }),
-    ),
+  Icons.byAttribute(
+    attribute,
+    Object.fromEntries(Object.entries(names).map(([value, name]) => [value, iconUrl(name)])),
   )
 
 const blockIcons = iconsBy('data-block', {
@@ -96,7 +84,7 @@ const iconButton = Style.compose(
     padding: '0',
     width: '2rem',
   }),
-  glyph('1rem'),
+  Icons.glyph('1rem'),
   Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
     background: t.surface.muted,
     color: t.text.overt,
@@ -247,7 +235,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         padding: '0.6rem 0.2rem 0.5rem',
         transition: 'background 120ms ease, border-color 120ms ease',
       }),
-      glyph('1.15rem'),
+      Icons.glyph('1.15rem'),
       Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
         background: t.accent.subtle,
         borderColor: t.accent.default,
@@ -316,7 +304,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         justifyContent: 'center',
         width: '1rem',
       }),
-      glyph('0.8rem'),
+      Icons.glyph('0.8rem'),
       Style.nest('&::before', { transition: 'transform 120ms ease' }),
       Style.nest('[aria-expanded="true"] > &::before', { transform: 'rotate(90deg)' }),
     ),
@@ -328,7 +316,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         fontWeight: t.weight.medium,
         gap: '0.4rem',
       }),
-      glyph('0.9rem'),
+      Icons.glyph('0.9rem'),
     ),
     rowSummary: Style.self({
       color: t.text.muted,

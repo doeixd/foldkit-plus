@@ -5,6 +5,7 @@
  */
 import { Slots, Style } from 'foldkit-mixins'
 import { Loading } from 'foldkit-mixins-crud'
+import { Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import {
   app,
@@ -21,8 +22,6 @@ import {
   readOnly,
   stateBadge,
   t,
-  touchTarget,
-  touchTargets,
 } from './style.js'
 
 // --- the authoring shell --------------------------------------------------------
@@ -150,7 +149,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     ),
     brand: Style.compose(
       Style.media(phone, { gridArea: 'brand' }),
-      touchTarget,
+      Touch.target,
       Style.self({
         alignItems: 'center',
         color: t.text.overt,
@@ -258,7 +257,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         color: t.tertiary['on-fill'],
       }),
     ),
-    main: Style.compose(Style.self({ minWidth: '0' }), touchTargets),
+    main: Style.compose(Style.self({ minWidth: '0' }), Touch.targets),
     // A card whose header is its summary: one even row closed, and open, the
     // row over a divider and the words below it.
     intro: Style.compose(
@@ -308,7 +307,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         outlineOffset: '-2px',
       }),
       Style.media(phone, { paddingInline: t.space.md }),
-      touchTarget,
+      Touch.target,
     ),
     manage: Style.compose(
       Style.self({ borderBlockEnd: `1px solid ${t.outline.subtle}`, fontSize: t.size.sm }),
@@ -333,7 +332,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         outlineOffset: '-2px',
       }),
       Style.media(phone, { paddingInline: t.space.md }),
-      touchTarget,
+      Touch.target,
     ),
     manageHint: Style.compose(
       Style.self({ color: t.text.muted, fontWeight: t.weight.normal }),
@@ -594,7 +593,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         outline: `2px solid ${t.accent.default}`,
         outlineOffset: '2px',
       }),
-      touchTarget,
+      Touch.target,
     ),
     preview: Style.self({ paddingBlockEnd: t.space['2xl'] }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),

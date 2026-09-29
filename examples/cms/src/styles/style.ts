@@ -9,7 +9,7 @@
  * (`sheet.ts`) holds only the foundations.
  */
 import { Capability, Layers, Slot, Style } from 'foldkit-mixins'
-import { Recipes } from 'foldkit-mixins-ui'
+import { Recipes, Touch } from 'foldkit-mixins-ui'
 import { Theme } from 'foldkit-mixins/theme'
 
 export const theme = Theme.compose(
@@ -34,24 +34,6 @@ export const control = Slot.make({ capability: Capability.Interactive })
 
 /** Where the studio lays itself out for a phone rather than beside a sidebar. */
 export const phone = '(max-width: 52rem)'
-/**
- * On a touch screen, a control a finger can hit: 44px, as the platforms advise.
- * Only where the pointer is coarse, so a desktop keeps its density.
- */
-export const touchTarget = Style.media('(pointer: coarse)', {
-  minHeight: '2.75rem',
-  minWidth: '2.75rem',
-})
-
-/**
- * The same, for every control a region draws: a link or button laid out as a
- * box. A link inside a sentence is inline, where `min-height` does nothing, so
- * prose keeps its lines.
- */
-export const touchTargets = Style.at(
-  '@media (pointer: coarse)',
-  Style.nest(':is(a, button, summary, select)', { minHeight: '2.75rem' }),
-)
 
 /**
  * A disclosure's summary: a drawn chevron in place of the browser's marker,
@@ -145,7 +127,7 @@ export const navLink = Style.compose(
   }),
   // In a phone's row of sections: whole, side by side.
   Style.media(phone, { flexShrink: '0', whiteSpace: 'nowrap' }),
-  touchTarget,
+  Touch.target,
   Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
   Style.nest('&[aria-current="page"]', {
     background: t.surface.default,
@@ -172,7 +154,7 @@ export const primaryButton = Style.compose(
     textDecoration: 'none',
     whiteSpace: 'nowrap',
   }),
-  touchTarget,
+  Touch.target,
   Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
     background: `color-mix(in oklch, ${t.text.overt} 85%, ${t.surface.base})`,
   }),

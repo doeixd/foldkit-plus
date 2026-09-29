@@ -4,7 +4,7 @@
 import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ref } from '../src/recipes/design.js'
-import { ButtonSlots, Recipes } from '../src/index.js'
+import { ButtonSlots, Icons, Recipes, Touch } from '../src/index.js'
 
 void ref.surface.overt
 void ref.space.md
@@ -70,3 +70,20 @@ const _brand = Recipes.Button.extend({
   variants: { size: { lg: { button: Style.class('brand-button-lg') } } },
 })
 void _brand
+
+// The README's Mechanisms section, kept compiling.
+const TileSlots = Slots.define({
+  tile: Slot.make({ capability: Capability.Container }),
+})
+const iconUrl = (name: string): string => `url("${name}")`
+const TileStyle = Style.forSlots(TileSlots)(
+  {
+    tile: Style.compose(
+      Touch.target,
+      Icons.glyph('1rem'),
+      Icons.byAttribute('data-block', { Hero: iconUrl('hero') }),
+    ),
+  },
+  { layer: L.layer('app') },
+)
+void TileStyle
