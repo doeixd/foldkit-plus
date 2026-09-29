@@ -1239,6 +1239,7 @@ const itemsOf = (
 const queryRequestOf = (query: {
   readonly identity: string
   readonly window: QueryWindow
+  readonly select?: RelationRequirement | undefined
 }): Effect.Effect<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> => {
   const separator = query.identity.indexOf('\u0000')
   if (separator < 0) {
@@ -1253,6 +1254,7 @@ const queryRequestOf = (query: {
       query: query.identity.slice(0, separator),
       input: JSON.parse(query.identity.slice(separator + 1)) as unknown,
       window: query.window,
+      ...(query.select === undefined ? {} : { select: query.select }),
     }),
     catch: () =>
       new RemoteQueryError({ message: `connection "${query.identity}" carries no encoded input` }),
@@ -1289,6 +1291,8 @@ const pageMessage = (
   result: Schema.Schema.Type<typeof QueryResult>,
   refreshes = false,
   window: QueryWindow = {},
+  select?: RelationRequirement | undefined,
+  now?: number | undefined,
 ): RemoteMessage => {
   // Failed the way any query fails, with a named protocol error, rather than
   // the page being silently accepted or an exception escaping a subscription.
@@ -1303,6 +1307,9 @@ const pageMessage = (
       },
     }
   }
+  const hasPayload =
+    (result.entities !== undefined && result.entities.length > 0) ||
+    (result.settled !== undefined && result.settled.length > 0)
   return {
     _tag: 'ConnectionMerged',
     connection,
@@ -1315,6 +1322,14 @@ const pageMessage = (
       end: result.end,
     },
     ...(refreshes ? { refreshes } : {}),
+    ...(select === undefined || !hasPayload ? {} : { select }),
+    ...(hasPayload
+      ? {
+          entities: [...(result.entities ?? [])],
+          settled: [...(result.settled ?? [])],
+          now: now ?? 0,
+        }
+      : {}),
   }
 }
 
@@ -1361,10 +1376,14 @@ const readMessage = (
   })
 
 /** Runs a query and reports the page that refreshes its connection, or the failure. Never fails. */
-const queryMessage = (query: {
-  readonly identity: string
-  readonly window: QueryWindow
-}): Effect.Effect<RemoteMessage, never, RemoteClient> =>
+const queryMessage = (
+  query: {
+    readonly identity: string
+    readonly window: QueryWindow
+    readonly select?: RelationRequirement | undefined
+  },
+  now: () => number = wallClock,
+): Effect.Effect<RemoteMessage, never, RemoteClient> =>
   Effect.gen(function* () {
     const client = yield* RemoteClient
     const result = yield* Effect.result(
@@ -1372,7 +1391,7 @@ const queryMessage = (query: {
     )
     return Result.isFailure(result)
       ? { _tag: 'QueryFailed', connection: query.identity, error: remoteError(result.failure) }
-      : pageMessage(query.identity, result.success, true, query.window)
+      : pageMessage(query.identity, result.success, true, query.window, query.select, now())
   })
 
 /** A query the read entry runs, as its dependencies carry it: plain data Foldkit compares. */
@@ -1421,7 +1440,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   const read = (requirements: ReadonlyArray<Requirement>) =>
     Effect.map(readMessage(requirements, now), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
-    Effect.map(queryMessage(query), toMessage)
+    Effect.map(queryMessage(query, now), toMessage)
   // A plan is a function of the Remote model, what is asked, and the clock only
   // until the next value ages out (`expires`, which `deadlineOf` computes as
   // exactly that moment), so a Model change the Remote model is not part of
@@ -2064,9 +2083,12 @@ export const Remote = {
   /**
    * Runs a `Query` through `RemoteClient`, encoding its input from the ref.
    * Pair the result with `Remote.queryMessage` to merge the page into the Model.
+   * With `select`, the server also returns the selected fields of the page's
+   * items, so one response populates both the connection and the store.
    */
   query: Effect.fn('Remote.query')(function* <Name extends string, Input>(
     ref: QueryRef<Name, Input>,
+    select?: RelationRequirement | undefined,
   ) {
     const client = yield* RemoteClient
     const input = yield* Schema.encodeUnknownEffect(ref.Input)(ref.input).pipe(
@@ -2074,14 +2096,21 @@ export const Remote = {
         Effect.fail(new RemoteQueryError({ message: error.message })),
       ),
     )
-    return yield* client.query({ query: ref.query, input, window: ref.window })
+    return yield* client.query({
+      query: ref.query,
+      input,
+      window: ref.window,
+      ...(select === undefined ? {} : { select }),
+    })
   }),
 
   /** The `RemoteMessage` that merges a query page into its connection. */
   queryMessage: <Name extends string, Input>(
     ref: QueryRef<Name, Input>,
     result: Schema.Schema.Type<typeof QueryResult>,
-  ): RemoteMessage => pageMessage(ref.identity, result, false, ref.window),
+    select?: RelationRequirement | undefined,
+    now?: number | undefined,
+  ): RemoteMessage => pageMessage(ref.identity, result, false, ref.window, select, now),
 
   /**
    * The edges a connection shows: its server-known region with pending and
@@ -2381,13 +2410,18 @@ const bindDomain = <
         const client = yield* RemoteClient
         const planOptions = RemotePolicy.toPlan(policy, now())
         let current = model
-        // The pages first, so their items join the one entity read below.
+        // The pages first, so their items join the one entity read below. A
+        // page with a payload already writes its items' selected fields, so
+        // the read below is only for what the server left out.
         for (const query of planAsked(store.get(current), askedOf(projection), planOptions)
           .queries) {
           const page = yield* queryRequestOf(query).pipe(
             Effect.flatMap(request => client.query(request)),
           )
-          current = reduce(current, pageMessage(query.identity, page, true, query.window))
+          current = reduce(
+            current,
+            pageMessage(query.identity, page, true, query.window, query.select, now()),
+          )
         }
         const requirements = planAsked(
           store.get(current),

@@ -159,6 +159,13 @@ export interface QuerySource<P, R = never> {
     readonly input: unknown
     readonly window: QueryWindow
     readonly principal: P
+    /**
+     * What the client reads of each item. A source may use it to answer
+     * fields with the page, or ignore it: the handlers fetch what the page
+     * leaves out through the entity sources, so one response still carries
+     * both either way.
+     */
+    readonly select?: RelationRequirement | undefined
   }) => Effect.Effect<QueryPage, RemoteServerError, R>
 }
 
@@ -893,12 +900,18 @@ export const RemoteServer = {
       readonly input: Input
       readonly window: QueryWindow
       readonly principal: P
+      readonly select?: RelationRequirement | undefined
     }) => Effect.Effect<QueryPage, RemoteServerError, R>,
   ): QuerySource<P, R> => ({
     query: query.name,
     Input: query.Input,
     run: context =>
-      run({ input: context.input as Input, window: context.window, principal: context.principal }),
+      run({
+        input: context.input as Input,
+        window: context.window,
+        principal: context.principal,
+        ...(context.select === undefined ? {} : { select: context.select }),
+      }),
   }),
 
   /** Streams live entity patches for a client's live requirements. */
@@ -959,25 +972,39 @@ export const RemoteServer = {
    * entities, entities with no allowed fields, and unknown mutations return an
    * error or nothing rather than leaking existence.
    */
-  handlers: <P, R>(
+  /**
+   * Reads entity requirements through the entity sources, level by level,
+   * following relations as `FoldkitRemoteRead` does. Shared by the read
+   * handler and the query handler's payload: a query page's items are just
+   * requirements the page names, so one response carries both.
+   */
+  readHelper: <P, R>(
     server: ServerDefinition<P, R>,
     principal: P,
-    options: HandlerOptions<P, R> = {},
-  ): RemoteRpcClient<R> => ({
-    FoldkitRemoteRead: Effect.fn('RemoteServer.FoldkitRemoteRead')(function* (payload) {
-      const mismatch = protocolMismatch(payload.version)
-      if (mismatch !== undefined) return yield* mismatch
-
+    options: HandlerOptions<P, R>,
+    requests: ReadonlyArray<Requirement>,
+  ): Effect.Effect<
+    {
+      readonly entities: Array<{
+        readonly entity: string
+        readonly id: string
+        readonly values: Record<string, unknown>
+      }>
+      readonly settled: Array<{
+        readonly entity: string
+        readonly id: string
+        readonly fields: Array<string>
+      }>
+    },
+    RemoteReadError,
+    R
+  > =>
+    Effect.gen(function* () {
       const entities: Array<{
         readonly entity: string
         readonly id: string
         readonly values: Record<string, unknown>
       }> = []
-      // Fields asked for that this answer does not carry and a later one would
-      // not either: withheld by `authorize`, or left out of a record the Source
-      // returned. Answered as settled, so the client stops asking; the reason
-      // stays here. A field an id was asked for and settled is remembered under
-      // the name it was asked by.
       const settled = new Map<string, { entity: string; id: string; fields: Set<string> }>()
       const settle = (entity: string, id: string, fields: ReadonlyArray<string>): void => {
         if (fields.length === 0) return
@@ -986,29 +1013,21 @@ export const RemoteServer = {
         for (const field of fields) entry.fields.add(field)
         settled.set(key, entry)
       }
-      // What this batch has already read per entity:id (fields and values), so
-      // a target several relations share is fetched once, a later spec's nested
-      // relation is followed from the values already in hand, and a cyclic
-      // selection stays finite.
       const fetched = new Map<string, Set<string>>()
       const fetchedValues = new Map<string, Record<string, unknown>>()
       const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
       const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
 
-      // The limit guards the client's batch, whatever windows split it into;
-      // a nested level's fan-out is the server's own doing, so it is chunked
-      // rather than refused.
-      const over = checkIdsPerEntity(payload.requests, maxIds)
+      const over = checkIdsPerEntity(requests, maxIds)
       if (over !== undefined) {
         return yield* new RemoteReadError({ message: `Too many "${over}" ids in one read batch` })
       }
-      const paged = checkPagesPerRelation(payload.requests)
+      const paged = checkPagesPerRelation(requests)
       if (paged !== undefined) {
         return yield* new RemoteReadError({ message: `Too many pages of "${paged}" in one read` })
       }
 
-      // Level by level: a level's relation refs become the next level's requests.
-      let pending: ReadonlyArray<Requirement> = payload.requests
+      let pending: ReadonlyArray<Requirement> = requests
       for (let depth = 0; pending.length > 0; depth++) {
         if (depth > maxDepth) {
           return yield* new RemoteReadError({
@@ -1017,11 +1036,6 @@ export const RemoteServer = {
         }
         const next: Requirement[] = []
 
-        /**
-         * Follows each relation's refs in `values` into the next level, asking
-         * only for fields this batch has not read of the target; a target read
-         * in full already is followed further from its fetched values.
-         */
         const follow = (
           values: Record<string, unknown>,
           relations: Readonly<Record<string, RelationRequirement>>,
@@ -1055,8 +1069,6 @@ export const RemoteServer = {
           const allowed = allowedFields(source, principal, slice.fields)
           const allowedSet = new Set(allowed)
           const idList = [...ids.keys()]
-          // Every id asked for, whether the Source knows it or not: existence
-          // is not told by which ids come back settled.
           for (const [id, asked] of ids) {
             settle(
               name,
@@ -1088,9 +1100,6 @@ export const RemoteServer = {
           }
 
           for (const record of records) {
-            // Null-prototype so a crafted field name (`__proto__`) cannot reach
-            // the prototype, and `Object.hasOwn` so inherited names are ignored.
-            // A field read under an alias is answered, and remembered, under the alias.
             const values: Record<string, unknown> = Object.create(null)
             const omitted: string[] = []
             const asked = ids.get(record.id)
@@ -1108,13 +1117,9 @@ export const RemoteServer = {
             fetched.set(key, known)
             fetchedValues.set(key, { ...fetchedValues.get(key), ...values })
 
-            // `values` holds only allowed fields, so a relation the principal
-            // may not read is never followed.
             follow(values, slice.relations ?? {})
           }
         }
-        // A target read by this level (as another group's request) is not
-        // read again by the next.
         pending = next.flatMap(request => {
           const read = fetched.get(`${request.entity}:${request.id}`)
           const fields = request.fields.filter(field => read?.has(field) !== true)
@@ -1126,6 +1131,17 @@ export const RemoteServer = {
         entities,
         settled: [...settled.values()].map(entry => ({ ...entry, fields: [...entry.fields] })),
       }
+    }),
+
+  handlers: <P, R>(
+    server: ServerDefinition<P, R>,
+    principal: P,
+    options: HandlerOptions<P, R> = {},
+  ): RemoteRpcClient<R> => ({
+    FoldkitRemoteRead: Effect.fn('RemoteServer.FoldkitRemoteRead')(function* (payload) {
+      const mismatch = protocolMismatch(payload.version)
+      if (mismatch !== undefined) return yield* mismatch
+      return yield* RemoteServer.readHelper(server, principal, options, payload.requests)
     }),
 
     FoldkitRemoteMutate: Effect.fn('RemoteServer.FoldkitRemoteMutate')(function* (payload) {
@@ -1180,15 +1196,54 @@ export const RemoteServer = {
         ),
       )
 
+      const select = payload.select
+      if (select !== undefined) {
+        const paged = checkPagesPerRelation([select])
+        if (paged !== undefined) {
+          return yield* new RemoteQueryError({
+            message: `Too many pages of "${paged}" in one query select`,
+          })
+        }
+      }
+
       const page = yield* source
-        .run({ input, window: payload.window, principal })
+        .run({
+          input,
+          window: payload.window,
+          principal,
+          ...(select === undefined ? {} : { select }),
+        })
         .pipe(
           Effect.catchTag('RemoteServerError', error =>
             Effect.fail(new RemoteQueryError({ message: error.message })),
           ),
         )
 
-      return { edges: page.edges, start: page.start, end: page.end }
+      if (select === undefined) return { edges: page.edges, start: page.start, end: page.end }
+      // The page's items as requirements, so the selected fields ride back
+      // with the edges in one response. Edges of another entity (a query
+      // lists one) take no fields: the client's planner asks for them next.
+      const requirements: Requirement[] = page.edges.flatMap(edge =>
+        edge.entity === select.entity
+          ? [
+              {
+                entity: select.entity,
+                id: edge.id,
+                fields: [...select.fields],
+                ...(select.windows === undefined ? {} : { windows: select.windows }),
+                ...(select.relations === undefined ? {} : { relations: select.relations }),
+              },
+            ]
+          : [],
+      )
+      if (requirements.length === 0)
+        return { edges: page.edges, start: page.start, end: page.end, entities: [], settled: [] }
+      const read = yield* RemoteServer.readHelper(server, principal, options, requirements).pipe(
+        Effect.catchTag('RemoteReadError', error =>
+          Effect.fail(new RemoteQueryError({ message: error.message })),
+        ),
+      )
+      return { edges: page.edges, start: page.start, end: page.end, ...read }
     }),
 
     FoldkitRemoteLive: payload => {

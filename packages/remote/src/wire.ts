@@ -223,6 +223,12 @@ export const QueryRequest = Schema.Struct({
   query: Schema.String,
   input: Schema.Unknown,
   window: WindowSchema,
+  /**
+   * What to read of each item, as the relation slice a read asks the server
+   * for. Absent for a query run without one: the response carries only edges,
+   * and the client's read entry fetches fields in a second round trip.
+   */
+  select: Schema.optional(RelationRequest),
 })
 
 export const QueryEdge = Schema.Struct({
@@ -235,6 +241,13 @@ export const QueryResult = Schema.Struct({
   edges: Schema.Array(QueryEdge),
   start: WireBoundary,
   end: WireBoundary,
+  /**
+   * The selected fields of the page's items, in the same shape a read batch
+   * returns. Absent from a server that predates payload planning: the client
+   * reads it as empty and fetches fields as before.
+   */
+  entities: Schema.optional(Schema.Array(NormalizedEntity)),
+  settled: Schema.optional(Schema.Array(SettledFields)),
 })
 
 export const QueryRpc = Rpc.make('FoldkitRemoteQuery', {

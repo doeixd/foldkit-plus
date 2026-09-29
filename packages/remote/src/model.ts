@@ -54,7 +54,13 @@ import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
 import { gc, reachable, type Retained, type RetentionRoots } from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
-import { NormalizedEntity, ReadBatchResult, ReadRequest, RelationRequest } from './wire.js'
+import {
+  NormalizedEntity,
+  ReadBatchResult,
+  ReadRequest,
+  RelationRequest,
+  SettledFields,
+} from './wire.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import type { LivePolicy } from './query.js'
 
@@ -301,6 +307,30 @@ export type RemoteMessage =
       readonly page: Segment
       /** The page answers the connection's refresh, so the merge also clears `stale`. */
       readonly refreshes?: boolean | undefined
+      /**
+       * The slice the query asked for, so the payload's entities write like a
+       * read: one request per matching edge. Absent for a page from a server
+       * that predates payload planning, which carries edges only.
+       */
+      readonly select?: RelationRequirement | undefined
+      /** The selected fields of the page's items, as a read batch returns them. */
+      readonly entities?:
+        | ReadonlyArray<{
+            readonly entity: string
+            readonly id: string
+            readonly values: Record<string, unknown>
+          }>
+        | undefined
+      /** Fields asked for that the server settled without a value. */
+      readonly settled?:
+        | ReadonlyArray<{
+            readonly entity: string
+            readonly id: string
+            readonly fields: ReadonlyArray<string>
+          }>
+        | undefined
+      /** Injected clock reading of the answer, dating what the payload writes. */
+      readonly now?: number | undefined
     }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
   | { readonly _tag: 'ConnectionRefreshed'; readonly connection: string }
@@ -370,6 +400,10 @@ export const remoteMessageCases = {
     connection: Schema.String,
     page: Schema.Unknown,
     refreshes: Schema.optional(Schema.Boolean),
+    select: Schema.optional(RelationRequest),
+    entities: Schema.optional(Schema.Array(NormalizedEntity)),
+    settled: Schema.optional(Schema.Array(SettledFields)),
+    now: Schema.optional(Schema.Number),
   },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
@@ -899,15 +933,39 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       return clearGap(model, message.stream)
     case 'ConnectionMerged': {
       const current = model.connections[message.connection] ?? emptyConnection
-      const failures = withoutConnectionFailure(model.failures, message.connection)
       const loading = withoutQueryLoading(model.loading, message.connection)
       // The page answering an invalidation is the server's list as it now is, so it
       // replaces the pages: removed and reordered items go, and later pages are paged
       // again. A re-run of a connection that was not invalidated still merges.
       const replaces = message.refreshes === true && current.stale
       const merged = merge(replaces ? emptyConnection : current, message.page)
+      // A query payload writes like a read: one synthetic request per matching
+      // edge, so windows, nested relations and settled fields behave as they do
+      // for `ReadReceived`. A page without a payload only merges the connection.
+      const payload = message.entities ?? []
+      const settled = message.settled ?? []
+      const requests =
+        message.select === undefined || payload.length === 0
+          ? []
+          : message.page.edges
+              .filter(edge => edge.ref.entity === message.select!.entity)
+              .map(edge => ({ ...message.select!, id: edge.ref.id }))
+      const entities =
+        requests.length === 0
+          ? model.entities
+          : writeRead(
+              model.entities,
+              requests,
+              { entities: [...payload], settled: [...settled] },
+              message.now ?? 0,
+            )
+      const failures = withoutFieldFailures(
+        withoutConnectionFailure(model.failures, message.connection),
+        patchedMarks(payload),
+      )
       return {
         ...model,
+        entities,
         connections: {
           ...model.connections,
           [message.connection]: message.refreshes === true ? { ...merged, stale: false } : merged,
