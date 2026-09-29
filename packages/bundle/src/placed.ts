@@ -39,6 +39,36 @@ export const checkArgs = (
 }
 
 /**
+ * Args for a placement: a static value, or a factory deriving them from the
+ * parent seed — the fields `assembly.initial(rest)` was given, before any
+ * placement initialised. A factory runs once per initialization and its result
+ * is retained for the placement's `init`, `update`, helpers, Subscriptions,
+ * and resources; it never re-runs against changing parent state, so keep it
+ * pure of its seed.
+ *
+ * Read only seed fields (route, auth, workspace, ...), never sibling
+ * placement fields: every factory sees the same base seed, so a sibling read
+ * is consistently absent rather than order-dependent.
+ */
+export type ArgsSource<Seed, Args> = Args | ((seed: Seed) => Args)
+
+/** Whether a placement's `args` is a seed factory rather than a static value. */
+export const isArgsFactory = <Seed, Args>(
+  args: ArgsSource<Seed, Args> | undefined,
+): args is (seed: Seed) => Args => typeof args === 'function'
+
+/** Thrown when a seed factory's args are read before any initialization derived them. */
+export class UnresolvedArgsError extends Error {
+  constructor(key: string, usage: string) {
+    super(
+      `${key}: args is a function of the parent seed, which no initialization has derived yet. ` +
+        `Run assembly.initial(rest) first, or use assembly.config(), so the seed exists before ${usage}.`,
+    )
+    this.name = 'UnresolvedArgsError'
+  }
+}
+
+/**
  * A child write that returns the parent itself when `update` returned the child
  * it read. Foldkit renders only when the root Model changes identity, so a
  * no-op in the child must not copy every Model above it.
@@ -51,8 +81,24 @@ export const writeIfChanged =
   (parent: Parent, child: Child): Parent =>
     Option.exists(read(parent), current => current === child) ? parent : write(parent, child)
 
-export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> {
-  readonly args?: Args
+export interface PlaceConfig<
+  Args,
+  Parent,
+  LinkMessage,
+  Message,
+  OutMessage,
+  OutStepMessage,
+  R2,
+  ParentSeed = Parent,
+> {
+  /**
+   * The bundle's args: a static value, or a factory from the parent seed (the
+   * fields `assembly.initial(rest)` was given, minus this placement's own
+   * field). A factory is computed once per initialization and retained for
+   * `update` and helpers; Subscriptions and resources built from it require
+   * `initial`/`config` to have run first.
+   */
+  readonly args?: ArgsSource<ParentSeed, Args>
   /** Handles the child's OutMessage in parent terms, with the child already written back. */
   readonly onOut?: (
     outMessage: OutMessage,
@@ -128,6 +174,22 @@ export interface Placed<
   readonly key: string
   /** The encoded args as text, when the bundle has an args Schema. */
   readonly argsSummary: string | undefined
+  /** Whether `args` was given as a seed factory; resolved once per initialization. */
+  readonly hasDynamicArgs: boolean
+  /**
+   * Derives the factory's args from `seed`, validates them against the
+   * bundle's args Schema, and retains them for `init`, `update`, helpers,
+   * Subscriptions, and resources. A no-op for static args. The assembly calls
+   * this with the base seed before running inits, so every factory sees the
+   * same parent state whatever the placement order.
+   */
+  readonly resolveArgs: (seed: unknown) => void
+  /**
+   * Assembly use: marks the placement skipped because `rest` provides its
+   * top-level field, so its factory never runs and its records contribute
+   * nothing while the child is absent. Cleared by the next `resolveArgs`.
+   */
+  readonly skipArgs: () => void
   readonly link: Link<Parent, ParentMessage, Model, Message>
   /** Writes the child's initial Model and starts its `init` Commands. */
   readonly init: Update.Step<Parent, ParentMessage, R>
@@ -219,7 +281,16 @@ export type Place = <
 >(
   bundle: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
   link: Link<Parent, LinkMessage, Model, Message, Field>,
-  config?: PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>,
+  config?: PlaceConfig<
+    Args,
+    Parent,
+    LinkMessage,
+    Message,
+    OutMessage,
+    OutStepMessage,
+    R2,
+    string extends Field ? Parent : Omit<Parent, Field>
+  >,
 ) => Placed<
   Name,
   Parent,
@@ -245,9 +316,18 @@ type ErasedView = Submodel.View<any, any, any>
 type ErasedHelper = Helper<any, any, any, any>
 
 const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig = {}) => {
-  const args = config.args
+  const rawArgs = config.args
+  const factory = isArgsFactory(rawArgs)
   const key = config.key ?? `${bundle.name}@${link.path.join('.')}`
-  const argsSummary = checkArgs(bundle, args, key) ?? bundle.preset
+  // Static args are checked where the placement is made; a factory's result is
+  // checked where it is derived, in `resolveFrom`, naming the placement.
+  let summary = factory ? undefined : (checkArgs(bundle, rawArgs, key) ?? bundle.preset)
+  let resolved: unknown
+  let hasResolved = false
+  // Set when `rest` provides this placement's top-level field: its `init` is
+  // skipped, so no derivation runs, and its records contribute nothing while
+  // the child is absent.
+  let skipped = false
   const onOut = config.onOut ?? ((): ErasedStep => parent => ({ model: parent }))
 
   const foldStep = (
@@ -266,27 +346,57 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     Option.match(link.when, { onNone: () => true, onSome: when => when(parent) }) &&
     (config.when === undefined || config.when(parent))
 
-  const subscriptions = bundle.subscriptions
-    ? prefixKeys(
-        key,
-        Subscription.lift(bundle.subscriptions(args))({
-          // The gate runs before `toChildModel`, so the child is present whenever it is read.
-          toChildModel: parent => Option.getOrThrow(link.read(parent)),
-          toParentMessage: link.toParentMessage,
-          when: isOpen,
-        }),
-      )
-    : {}
+  const buildSubscriptions = (args: unknown) =>
+    bundle.subscriptions
+      ? prefixKeys(
+          key,
+          Subscription.lift(bundle.subscriptions(args))({
+            // The gate runs before `toChildModel`, so the child is present whenever it is read.
+            toChildModel: parent => Option.getOrThrow(link.read(parent)),
+            toParentMessage: link.toParentMessage,
+            when: isOpen,
+          }),
+        )
+      : {}
 
-  const resources = bundle.resources
-    ? prefixKeys(
-        key,
-        ManagedResource.lift(bundle.resources(args))({
-          toChildModel: parent => (isOpen(parent) ? link.read(parent) : Option.none()),
-          toParentMessage: link.toParentMessage,
-        }),
-      )
-    : {}
+  const buildResources = (args: unknown) =>
+    bundle.resources
+      ? prefixKeys(
+          key,
+          ManagedResource.lift(bundle.resources(args))({
+            toChildModel: parent => (isOpen(parent) ? link.read(parent) : Option.none()),
+            toParentMessage: link.toParentMessage,
+          }),
+        )
+      : {}
+
+  let subsRecord: Subscription.Subscriptions<any, any, any> = factory
+    ? {}
+    : buildSubscriptions(rawArgs)
+  let resRecord = factory ? {} : buildResources(rawArgs)
+
+  const needArgs = (): unknown => {
+    if (!factory) return rawArgs
+    if (!hasResolved) {
+      throw new UnresolvedArgsError(key, 'update, helpers, Subscriptions, or resources read it')
+    }
+    return resolved
+  }
+
+  const resolveFrom = (seed: unknown): void => {
+    if (!factory) return
+    const value = (rawArgs as (seed: unknown) => unknown)(seed)
+    summary = checkArgs(bundle, value, key) ?? bundle.preset
+    resolved = value
+    hasResolved = true
+    skipped = false
+    subsRecord = buildSubscriptions(value)
+    resRecord = buildResources(value)
+  }
+
+  const skipArgs = (): void => {
+    skipped = true
+  }
 
   const childView: ErasedView | undefined = bundle.view
   const viewIn =
@@ -319,9 +429,17 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     [PlacedTypeId]: PlacedTypeId,
     name: bundle.name,
     key,
-    argsSummary,
+    get argsSummary() {
+      return summary
+    },
+    hasDynamicArgs: factory,
+    resolveArgs: resolveFrom,
+    skipArgs,
     link,
     init: (parent: unknown) => {
+      // The assembly pre-resolves every factory from the base seed, so this
+      // uses the retained value; placed alone, the given parent is the seed.
+      const args = factory && !hasResolved ? (resolveFrom(parent), resolved) : needArgs()
       const lifted = Update.foldChildInit(bundle.init(args), {
         toParentModel: child => link.write(parent, child),
         toParentMessage: link.toParentMessage,
@@ -333,13 +451,27 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     },
     update: (parent: unknown, message: AnyMessage) =>
       Option.map(link.fromParentMessage(message), childMessage => {
+        // A Message for a child that was never initialised (an optional child
+        // `rest` started as `None`) leaves the parent as it is.
+        if (factory && !hasResolved && Option.isNone(link.read(parent))) return { model: parent }
+        const args = needArgs()
         const fold = foldStep(model => bundle.update(model, childMessage, args))
         return config.onMessage === undefined
           ? fold(parent)
           : Update.combine(parent, [fold, config.onMessage(childMessage)])
       }),
-    subscriptions,
-    resources,
+    get subscriptions() {
+      // A skipped placement (its field came with `rest`) contributes no
+      // Subscriptions while its child is absent.
+      if (factory && !hasResolved && skipped) return subsRecord
+      if (factory && !hasResolved) needArgs()
+      return subsRecord
+    },
+    get resources() {
+      if (factory && !hasResolved && skipped) return resRecord
+      if (factory && !hasResolved) needArgs()
+      return resRecord
+    },
     view: viewIn(key),
     viewIn: (slot: string) => viewIn(`${key}#${slot}`),
     helpers: Record.map(

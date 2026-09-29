@@ -9,9 +9,10 @@ export type {
 } from './link.js'
 export * as Bundle from './bundle.js'
 export type { Declared, DeclaredEach } from './declare.js'
-export { isPlaced } from './placed.js'
+export { isPlaced, isArgsFactory, UnresolvedArgsError } from './placed.js'
 export type {
   AnyPlaced,
+  ArgsSource,
   Invalid,
   PlaceConfig,
   Placed,
