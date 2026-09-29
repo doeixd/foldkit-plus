@@ -5,7 +5,11 @@
 [foldkit#1448](https://github.com/foldkit/foldkit/issues/1448), and
 proposal 3 as the question
 [foldkit#1449](https://github.com/foldkit/foldkit/issues/1449), filed early at
-the owner's request rather than after `foldkit-ssr` is published. Checked against Foldkit `main` at `95fed7fdaf`
+the owner's request rather than after `foldkit-ssr` is published. On
+2026-09-29 the envelope moved onto the stamped root, so a resumed page is a
+`Rendered` result with no upstream change, and proposal 2 now asks for a
+per-request head channel instead of JSON payloads; the issue needs a comment
+to that effect. Checked against Foldkit `main` at `95fed7fdaf`
 (2026-09-23) and the published 0.163.0.
 
 `foldkit-ssr` works on Foldkit 0.163 with no upstream change: every phase of
@@ -103,82 +107,56 @@ attribute as something to rely on.
 **Afterwards, here.** Replace the local constant with the import and delete
 the pinning test.
 
-## Proposal 2: let a `Rendered` result carry the entry's own JSON payloads
+## Proposal 2: let a `Rendered` result carry the entry's own head markup
 
-**Ask.** A way for a server entry to put its own `<script
-type="application/json">` payloads beside the root while still returning
+**Ask.** A way for a server entry to add its own per-request `<head>` markup
+(a plan's `meta` tags, the CSS its markup uses) while still returning
 `Rendered`, so `toResponse`, `handleRequest` and the built-in `prerender`
-place them with the same safety they give the Flags payload.
+place it with the same safety they give the `Document` head fields.
+
+**History.** This proposal started as JSON payloads beside the root, for the
+resume envelope: a `Rendered` result then had no room for per-request data, so
+an entry with any had to answer `Responded`, which `prerender` refuses, and
+`foldkit-ssr` shipped its own `SSR.generate` for that reason alone. The
+envelope has since moved onto the stamped root as an attribute, beside
+Foldkit's own app and build stamps, which `injectIntoTemplate` accepts and
+hydration adopts: a resumed page is a `Rendered` result today, with no
+upstream change. What still has no channel is the head: `meta` and per-page
+styles stay behind in `SSR.generate`, which owns its template, and a served
+page goes without them.
 
 **The gap.** A `Rendered` result holds a `RenderedApplication` plus status and
 headers. `injectIntoTemplate` accepts, beside the root, only Foldkit's own
-Flags script, and it verifies the page parses back to exactly that. So an
-entry with any other per-request data has one option: build the page itself
-and answer `Responded`. That costs three things:
+`Document` head fields and Flags script, so an entry with any other per-request
+head markup has nowhere to put it. That costs two things:
 
-- **Static generation.** Foldkit's built-in `prerender` refuses a `Responded`
-  result, by design, since a `Responded` body could need headers a file
-  cannot keep. So an entry that must answer `Responded` cannot use Foldkit's
-  own static generation. `foldkit-ssr` has to ship its own `SSR.generate` for
-  that reason alone.
-- **The template.** The entry takes the template as its own argument and
-  injects into it, duplicating what `handleRequest` already owns.
-- **The checks.** The entry's payload does not get the parser-stability
-  checks `injectIntoTemplate` gives the root and the Flags script.
+- **Static generation.** `foldkit-ssr`'s `SSR.generate` owns its template and
+  writes `meta` and per-page styles into the head. A served page carries its
+  styles in its root (`styles`) but goes without `meta`: the script brings
+  what the first paint needs, and crawlers never see the tags.
+- **The checks.** Whatever channel carries the markup should get the
+  parser-stability checks `injectIntoTemplate` gives the root and the head
+  fields.
 
-**Who has such data.** Anything the browser needs that is not `init`'s input.
-In this repository: `foldkit-ssr`'s resume envelope, and `foldkit-remote`'s
-snapshot text form for a server-rendered cache (`dehydrate` and `hydrate`).
-Outside it: any query-cache or store library that serializes its state for the
-first paint.
+**Who has such markup.** Anything the page says of itself beyond `Document`:
+in this repository, `foldkit-ssr`'s plan `meta` (description, Open Graph, link
+previews, structured data) and the CSS its markup uses (`Style.usedIn`).
 
-**Why not Flags.** Flags are `init`'s input, decoded through the application's
-Flags Schema at boot. Putting a library's state there couples every
-application's Flags Schema to that library's wire format, and makes `init`
-decode and discard data it does not use. The Flags docs also frame Flags as
-what both sides feed `init`; this data is not that.
-
-**API sketch, for the issue.**
-
-```ts
-Server.Rendered(application, {
-  payloads: [Server.Payload({ attribute: 'data-foldkit-plus-resume', json: envelope })],
-})
-```
-
-- `Payload` is `Readonly<{ attribute: string; json: unknown }>`. `json` is
-  serialized with the escaping Foldkit already applies to Flags, so a value
-  cannot close its script element.
-- The attribute must be a `data-*` name outside Foldkit's reserved
-  `data-foldkit-*` namespace, and each attribute appears at most once.
-  `Rendered` refuses otherwise with a typed error, as the server module
-  refuses other malformed input.
-- `injectIntoTemplate` places the payloads after the root and after the Flags
-  script, and its parser-stability check covers them.
-- `prerender` accepts a `Rendered` with payloads and writes them into the
-  file, since they are part of the page, not response metadata.
-- The client does nothing with them. Reading its own payload is the
-  library's job, the way `foldkit-ssr` reads its envelope today.
-
-**Questions to leave open in the issue.** Whether the option belongs on
-`Rendered` or on `RenderedApplication`. Whether Foldkit wants to take a Schema
-and encode, rather than taking JSON. Whether the payloads go before `</body>`
-instead, if a maintainer prefers them away from the root. The issue should
-ask rather than decide these.
+**API sketch, for the issue.** Extend the `RenderedApplication` head contract
+the way the body already works: the entry returns head markup with the render,
+and `injectIntoTemplate` places it before `</head>` with the same
+parser-stability check it gives the root. The issue should ask for a shape
+rather than decide one: whether the option is markup or structured fields,
+and how it composes with the template's own head.
 
 **Route.** An issue first, titled for the gap: "A server entry cannot add its
-own JSON payload without leaving `Rendered`, which `prerender` refuses". Lead
-with the `prerender` consequence, which is Foldkit's own feature. Include the
-sketch and the three questions. Build the pull request only once a maintainer
-agrees on a shape. The pull request then carries tests for placement, escaping,
-the reserved namespace, duplicates, the parser check with scripting on and
-off, and `prerender` writing a file with payloads. It also adds a docs
-subsection under "The result contract" and a changeset,
-`rendered-entry-payloads.md`.
+own head markup without leaving `Rendered`". Lead with the served-page
+consequence, which is Foldkit's own feature. Build the pull request only once
+a maintainer agrees on a shape.
 
-**Afterwards, here.** `SSR.entry` returns `Rendered`, its `template` option
-goes, and a resumable page generates through Foldkit's `prerender`. Whether
-`SSR.generate` then stays or becomes a thin wrapper is our decision.
+**Afterwards, here.** `SSR.entry` takes `head` again and `SSR.generate`
+becomes one head writer beside the host's, instead of the only one. A plan
+with `meta` stops being refused at entry construction.
 
 ## Proposal 3: hydrate from a Model the server hands over
 

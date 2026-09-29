@@ -8,15 +8,17 @@ import { stylesheet } from './style.js'
 // `install` finds and keeps; the dev server's empty page is given it here.
 Style.install(stylesheet)
 
-// `#root` is where the dev server's empty page draws; a page the build rendered
-// replaced it with the application's own root.
+// `#root` is where a page without a server render draws, such as the source
+// `index.html` opened without the dev server; a rendered page replaced it with
+// the application's own root.
 const container =
   document.getElementById('root') ??
   document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 if (container === null) throw new Error('the page has no #root and no rendered application')
 
-// The build's id is this script's address, which `entry.server.ts` read from
-// the template the page was rendered into.
+// No `Flags`: the browser starts from the Model the page carries, not from
+// `init`. The build's id is the deployment `FOLDKIT_BUILD_ID` named, compiled
+// into this bundle and into the server entry by the `foldkit` Vite plugin.
 SSR.hydrate({ Model, init, update, view, container, routing, devTools: { Message } }, plan, {
-  buildId: new URL(import.meta.url).pathname,
+  buildId: import.meta.env.FOLDKIT_BUILD_ID,
 })

@@ -3,7 +3,7 @@
  * post, each with its text, its metadata and what the browser takes over.
  */
 import { readFileSync } from 'node:fs'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { SSR } from 'foldkit-ssr'
 import { ORIGIN } from '../src/content/domain.js'
 import { generateSite, siteTemplate, type Generated } from '../src/ssr/prerender.js'
@@ -12,7 +12,10 @@ const template = siteTemplate(readFileSync(new URL('../index.html', import.meta.
 
 let pages: ReadonlyArray<Generated> = []
 beforeAll(async () => {
+  // The deployment the pages are generated as, as `FOLDKIT_BUILD_ID` names it.
+  vi.stubEnv('FOLDKIT_BUILD_ID', 'test-build')
   pages = await generateSite(template)
+  vi.unstubAllEnvs()
 }, 60_000)
 
 const at = (path: string) => {

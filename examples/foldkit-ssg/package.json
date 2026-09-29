@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsx src/prerender.ts",
+    "build": "vite build && tsx --conditions=foldkit-plus:source src/prerender.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b"
   },
@@ -19,9 +19,10 @@
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-rc.116",
+    "@foldkit/vite-plugin": "0.24.0",
     "jsdom": "26.1.0",
     "tsx": "^4.23.13",
     "typescript": "5.9.3",
-    "vite": "5.4.21"
+    "vite": "^8.3.0"
   }
 }

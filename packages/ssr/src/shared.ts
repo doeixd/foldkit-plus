@@ -11,7 +11,18 @@ import type { ActiveSurface, Metadata, WritableProjection } from 'foldkit-surfac
 import { current, type Region } from './context.js'
 import { decodeBindings, readBindings, type DecodedBinding } from './listen.js'
 
-/** The attribute on the script that carries a page's resume envelope. */
+/**
+ * The attribute Foldkit's server stamps on an application's root, as
+ * `foldkit/experimental/server` exports it. Written out here so a page can
+ * find its root without that module; a test pins the two together.
+ */
+export const FOLDKIT_APP_ATTRIBUTE = 'data-foldkit-app'
+
+/**
+ * The attribute on the stamped root that carries a page's resume envelope.
+ * Foldkit pairs its own handoff the same way: the build id rides on the root
+ * beside the app stamp, and the client reads it before adopting anything.
+ */
 export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
 
 /** The envelope format this package writes and reads. */
@@ -32,6 +43,15 @@ export const serializeJsonScript = (value: unknown): string =>
     .replaceAll(PARAGRAPH_SEPARATOR, '\\u2029')
 
 /**
+ * The envelope JSON as the stamped root carries it: `serializeJsonScript`
+ * already escaped `<` and the line separators, and an attribute must escape
+ * `&` and `"` besides, so no string in the Model can break out of the value.
+ * `getAttribute` resolves the entities back, which is exactly the JSON.
+ */
+export const attributeOf = (json: string): string =>
+  ` ${RESUME_ATTRIBUTE}="${json.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"`
+
+/**
  * What a page says of itself beyond Foldkit's `Document` (`title`, `lang`,
  * `dir`, `canonical`, `ogUrl`): what a search result and a link preview show.
  * `title` is the preview's title (`og:title`), when it differs from the
@@ -45,12 +65,10 @@ export interface Meta {
   readonly type?: 'website' | 'article' | undefined
   readonly siteName?: string | undefined
   readonly article?:
-    | { readonly published?: string | undefined; readonly modified?: string | undefined }
-    | undefined
+    { readonly published?: string | undefined; readonly modified?: string | undefined } | undefined
   readonly robots?: string | undefined
   readonly alternates?:
-    | ReadonlyArray<{ readonly hreflang: string; readonly href: string }>
-    | undefined
+    ReadonlyArray<{ readonly hreflang: string; readonly href: string }> | undefined
   readonly jsonLd?: ReadonlyArray<Readonly<Record<string, unknown>>> | undefined
 }
 
@@ -58,7 +76,11 @@ export interface Meta {
 export const META_ATTRIBUTE = 'data-foldkit-meta'
 
 const attributeText = (text: string): string =>
-  text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
 
 /** The head markup of a `Meta`, every value escaped, one element per line. */
 export const metaMarkup = (meta: Meta): string => {
@@ -337,17 +359,21 @@ export const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
   return Result.succeed(model)
 }
 
-/** The page's one envelope, parsed; refused when there is none, more than one, or not JSON. */
+/** The page's envelope, read off its stamped root; refused when there is no root, more than one, no envelope, or not JSON. */
 const readEnvelope = (
   page: ParentNode,
 ): Result.Result<Readonly<Record<string, unknown>>, ResumeRefused> => {
-  const scripts = page.querySelectorAll(`script[${RESUME_ATTRIBUTE}]`)
-  if (scripts.length === 0) return refuse('Missing', 'the page holds no resume envelope')
-  if (scripts.length > 1) {
-    return refuse('Duplicate', `the page holds ${scripts.length} resume envelopes`)
+  const roots = page.querySelectorAll(`[${FOLDKIT_APP_ATTRIBUTE}]`)
+  if (roots.length === 0) return refuse('Missing', 'the page holds no stamped application root')
+  if (roots.length > 1) {
+    return refuse('Duplicate', `the page holds ${roots.length} stamped application roots`)
+  }
+  const carried = roots[0]?.getAttribute(RESUME_ATTRIBUTE)
+  if (carried === null || carried === undefined) {
+    return refuse('Missing', 'the page holds no resume envelope')
   }
   try {
-    const parsed: unknown = JSON.parse(scripts[0]!.textContent ?? '')
+    const parsed: unknown = JSON.parse(carried)
     return Result.succeed((parsed ?? {}) as Readonly<Record<string, unknown>>)
   } catch (error) {
     return refuse('Unreadable', `the resume envelope is not JSON: ${String(error)}`)
@@ -355,10 +381,11 @@ const readEnvelope = (
 }
 
 /**
- * The Model a page resumes from: the baseline with the envelope's slice set
- * onto it. Refused, with the reason, when the page holds no envelope or more
- * than one, when it is not this protocol or this plan, or when the slice does
- * not decode through the plan's Schema. A page is never half-restored.
+ * The Model a page resumes from: the baseline with the stamped root's envelope
+ * set onto it. Refused, with the reason, when the page holds no stamped root
+ * or more than one, when the root carries no envelope or not JSON, when it is
+ * not this protocol or this plan, or when the slice does not decode through
+ * the plan's Schema. A page is never half-restored.
  */
 export const resume = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,

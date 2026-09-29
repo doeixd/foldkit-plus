@@ -4,14 +4,11 @@
  * takes one over in place, counts, and persists the count in the cookie the
  * next request is rendered from.
  */
-import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { COUNT_COOKIE } from '../src/cookie.js'
-import { loading, pageRequest, respond, template } from './helpers.js'
-
-// The build id `entry.ts` reads of itself: its own address, a file path under Vitest.
-const entry = join(import.meta.dirname, '../src/entry.ts')
+import { stylesheet } from '../src/style.js'
+import { pageRequest, respond, template } from './helpers.js'
 
 beforeEach(() => {
   vi.resetModules()
@@ -23,19 +20,23 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
   document.head.replaceChildren()
   document.body.replaceChildren()
   document.cookie = `${COUNT_COOKIE}=; path=/; max-age=0`
 })
 
-/** The page rendered for `cookie` from `from`, put in the document as the browser loads it. */
-const open = async (from: string, cookie: string): Promise<void> => {
-  const html = await (await respond(pageRequest({ cookie }), from)).text()
+/**
+ * The page rendered for `cookie`, put in the document as the browser loads
+ * it, with `entry.ts` running as `buildId` saw it.
+ */
+const open = async (cookie: string, buildId: string): Promise<void> => {
+  const html = await (await respond(pageRequest({ cookie }))).text()
   const page = new DOMParser().parseFromString(html, 'text/html')
   document.title = page.title
   document.head.replaceChildren(...Array.from(page.head.childNodes))
   document.body.replaceChildren(...Array.from(page.body.childNodes))
+  vi.stubEnv('FOLDKIT_BUILD_ID', buildId)
   await import('../src/entry.js')
 }
 
@@ -49,9 +50,15 @@ const button = (name: string): HTMLButtonElement => {
   return found
 }
 
+/** The stylesheet `entry.ts` installs when it boots. */
+const installed = () =>
+  Array.from(document.head.querySelectorAll('style')).filter(
+    style => style.textContent === stylesheet,
+  )
+
 test('takes the rendered page over in place, counts, and persists the count', async () => {
   const errors = vi.spyOn(console, 'error')
-  await open(loading(entry), `${COUNT_COOKIE}=5`)
+  await open(`${COUNT_COOKIE}=5`, 'test-build')
   const served = document.getElementById('count')
   const provenance = document.getElementById('provenance')?.textContent
 
@@ -69,10 +76,11 @@ test('takes the rendered page over in place, counts, and persists the count', as
   expect(document.getElementById('provenance')?.textContent).toBe(provenance)
   expect(provenance).toMatch(/^Rendered on the Server at /)
   expect(errors).not.toHaveBeenCalled()
+  expect(installed()).toHaveLength(1)
 })
 
 test('the count it persists is the one the next request renders', async () => {
-  await open(loading(entry), `${COUNT_COOKIE}=1`)
+  await open(`${COUNT_COOKIE}=1`, 'test-build')
   button('+').click()
   await waitFor(() => expect(document.cookie).toBe(`${COUNT_COOKIE}=2`))
   const next = await (await respond(pageRequest({ cookie: document.cookie }))).text()
@@ -83,7 +91,7 @@ test('the count it persists is the one the next request renders', async () => {
 
 test('refuses a page rendered by another build', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  await open(loading('/assets/index-other.js'), `${COUNT_COOKIE}=5`)
+  await open(`${COUNT_COOKIE}=5`, 'other-build')
   await waitFor(() => expect(document.body.inert).toBe(true))
 })
 

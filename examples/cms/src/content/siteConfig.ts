@@ -37,7 +37,9 @@ export const siteConfig = <Container extends HTMLElement | null>(options: {
  * place, from the visitor's own sandbox and with their chair's links.
  */
 export const takesOver = (page: ParentNode, reader: Chair, edited: boolean): boolean =>
-  page.querySelector('script[data-foldkit-plus-resume]') !== null && reader === 'visitor' && !edited
+  page.querySelector(`[${APP_ROOT}][data-foldkit-plus-resume]`) !== null &&
+  reader === 'visitor' &&
+  !edited
 
 /**
  * Foldkit's mark on a rendered application's root (`FOLDKIT_APP_ATTRIBUTE`).

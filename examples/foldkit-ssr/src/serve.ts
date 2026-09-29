@@ -1,13 +1,14 @@
 /**
- * `pnpm dev` serves the source; `pnpm start` (after `pnpm build`) serves
- * `dist/`. `PORT` (3000) and `ORIGIN` (`http://localhost:<port>`) configure it.
+ * `pnpm start` (after `pnpm build`) serves `dist/`. `PORT` (3000) and `ORIGIN`
+ * (`http://localhost:<port>`) configure it, and `FOLDKIT_BUILD_ID` names the
+ * deployment, the same value `vite build` saw.
  */
 import { NodeRuntime } from '@effect/platform-node'
 import { Config, Effect, Layer, Option, String } from 'effect'
 import { HttpServer } from 'effect/unstable/http'
 import { join } from 'node:path'
 
-import { development, host, production } from './host.js'
+import { host, production } from './host.js'
 
 const PORT = Config.withDefault(Config.Port('PORT'), 3000)
 
@@ -20,9 +21,7 @@ const Main = Layer.unwrap(
     return host({
       port: yield* PORT,
       origin: yield* ORIGIN,
-      assets: process.argv.includes('--production')
-        ? production(join(import.meta.dirname, '../dist'))
-        : development,
+      assets: production(join(import.meta.dirname, '../dist')),
     })
   }),
 ).pipe(HttpServer.withLogAddress)

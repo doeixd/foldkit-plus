@@ -8,12 +8,11 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { COUNT_COOKIE } from '../src/cookie.js'
 import { production, startServer } from '../src/host.js'
-import { loading } from './helpers.js'
-
+import { template } from './helpers.js'
 const SCRIPT = 'console.log("the page")'
 const SECRET = 'not for the web'
 
@@ -21,11 +20,13 @@ let root: string
 let server: { readonly url: string; readonly close: () => Promise<void> }
 
 beforeEach(async () => {
+  // The deployment the server answers for, as `FOLDKIT_BUILD_ID` names it.
+  vi.stubEnv('FOLDKIT_BUILD_ID', 'test-build')
   // `dist/` as `vite build` leaves it, beside a file the host must never serve.
   root = await mkdtemp(join(tmpdir(), 'foldkit-ssr-host-'))
   const dist = join(root, 'dist')
   await mkdir(join(dist, 'assets'), { recursive: true })
-  await writeFile(join(dist, 'index.html'), loading('/assets/app.js'))
+  await writeFile(join(dist, 'index.html'), template)
   await writeFile(join(dist, 'assets', 'app.js'), SCRIPT)
   await writeFile(join(root, 'secret.txt'), SECRET)
   server = await startServer({ port: 0, origin: Option.none(), assets: production(dist) })
@@ -34,6 +35,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await server.close()
   await rm(root, { recursive: true })
+  vi.unstubAllEnvs()
 })
 
 /** Sends `target` as written, which `fetch` would normalize first. */
@@ -78,7 +80,7 @@ describe('the host', () => {
       const response = await send(target, { headers: { cookie: `${COUNT_COOKIE}=9` } })
       expect(response.status).toBe(200)
       expect(response.body).toContain('id="count">9</p>')
-      expect(response.body).toContain('data-foldkit-build="/assets/app.js"')
+      expect(response.body).toContain('data-foldkit-build="test-build"')
       expect(response.headers).toMatchObject({
         'cache-control': 'private, no-store',
         vary: 'cookie',

@@ -11,7 +11,7 @@ import { FALLBACK_FIELD, Resume, SSR } from 'foldkit-ssr'
 import { App, Message, config, plan, template, type Model } from './fallbackFixture.js'
 
 const html = { accept: 'text/html' }
-const entry = SSR.entry(config, plan, { buildId: 'b', template })
+const entry = SSR.entry(config, plan, { buildId: 'b' })
 const serve = (request: Request, used = entry) =>
   handleRequest(request, { renderPage: used.renderPage, template })
 
@@ -72,8 +72,18 @@ describe('SSR.handle through handleRequest', () => {
     // The plan's boot ran before the Message did.
     expect(body).toContain('<p id="booted">true</p>')
     // The page is a resumable one, for the browser that gets it.
-    expect(body).toContain('"plan":"todos"')
-    expect(body).toContain('"todos":["Served","Milk"]')
+    expect(body).toContain('&quot;plan&quot;:&quot;todos&quot;')
+    expect(body).toContain('&quot;todos&quot;:[&quot;Served&quot;,&quot;Milk&quot;]')
+  })
+
+  it('carries `styles` on the page a post renders, as on a GET', async () => {
+    const styled = SSR.entry(config, plan, {
+      buildId: 'b',
+      styles: () => '<style>ul{list-style:none}</style>',
+    })
+    const response = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), styled)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<style>ul{list-style:none}</style>')
   })
 
   it('folds nothing for a Command that yields no Message, and still answers the page', async () => {
@@ -101,7 +111,7 @@ describe('SSR.handle through handleRequest', () => {
     }
     const response = await serve(
       post({ title: 'Milk', [FALLBACK_FIELD]: added }),
-      SSR.entry(recording, plan, { buildId: 'b', template }),
+      SSR.entry(recording, plan, { buildId: 'b' }),
     )
     expect(response.status).toBe(200)
     expect(seen).toEqual(['Booted', 'Added', 'Noted'])
@@ -133,7 +143,7 @@ describe('SSR.handle through handleRequest', () => {
     const eager = SSR.plan(App, { id: 'todos', state: plan.state, surfaces: plan.surfaces })
     const response = await serve(
       post({ [FALLBACK_FIELD]: added }),
-      SSR.entry(config, eager, { buildId: 'b', template }),
+      SSR.entry(config, eager, { buildId: 'b' }),
     )
     expect(response.status).toBe(405)
     expect(response.headers.get('allow')).toBe('GET, HEAD, OPTIONS')

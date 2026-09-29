@@ -11,6 +11,7 @@ import { withContext, type RenderContext } from './context.js'
 import { listen, type DecodedBinding } from './listen.js'
 import { builder, view } from './resumable.js'
 import {
+  FOLDKIT_APP_ATTRIBUTE,
   STATIC_ATTRIBUTE,
   bindings,
   bindingsAndEvents,
@@ -27,12 +28,8 @@ import {
   type Start,
 } from './shared.js'
 
-/**
- * The attribute Foldkit's server stamps on an application's root, as
- * `foldkit/experimental/server` exports it. Written out here so a page can
- * find its root without that module; a test pins the two together.
- */
-export const FOLDKIT_APP_ATTRIBUTE = 'data-foldkit-app'
+/** Foldkit's root stamp, defined beside the envelope that rides on the same root. */
+export { FOLDKIT_APP_ATTRIBUTE } from './shared.js'
 
 /** Each static region's markup in the page, read before hydration touches it. */
 const snapshotsOf = (root: Element): ReadonlyMap<string, string> =>

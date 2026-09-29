@@ -1,13 +1,14 @@
+import { handleRequest } from 'foldkit/experimental/server'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { buildIdOf, makePageHandler } from '../src/entry.server.js'
+import { makeRenderPage } from '../src/renderPage.js'
 
-/** The example's own `index.html`, which each page is rendered into. */
+/** The example's own `index.html`, which the host renders each page into. */
 export const template = readFileSync(join(import.meta.dirname, '../index.html'), 'utf8')
 
-/** The template loading `src` as its entry script, as Vite's build rewrites it. */
-export const loading = (src: string): string => template.replace('/src/entry.ts', src)
+/** The deployment the pages are rendered as: what the plugin compiles in. */
+export const buildId = 'test-build'
 
 /** A request for `/` as a browser sends one, with `cookie` if given. */
 export const pageRequest = (init: { readonly method?: string; readonly cookie?: string } = {}) =>
@@ -16,6 +17,6 @@ export const pageRequest = (init: { readonly method?: string; readonly cookie?: 
     headers: { accept: 'text/html', ...(init.cookie === undefined ? {} : { cookie: init.cookie }) },
   })
 
-/** The response to `request`, rendered in process from `from`. */
-export const respond = (request: Request, from: string = template): Promise<Response> =>
-  makePageHandler({ template: from, buildId: buildIdOf(from) })(request)
+/** The response to `request`, rendered in process through the real entry. */
+export const respond = (request: Request): Promise<Response> =>
+  handleRequest(request, { renderPage: makeRenderPage(buildId), template })

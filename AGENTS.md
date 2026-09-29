@@ -990,6 +990,23 @@ of its own named a form field "fits the Catalog". Read words with
   the browser tools sat on "Loading…" while its Model had long filled, and an
   hour went to a bug that was not there. Before calling a screen stuck, check
   `document.visibilityState` and read the Model, not the DOM.
+- **The root Vitest config runs its own projects.** `vitest.config.ts` defines
+  `projects` with workspace-wide globs, so a per-example `vitest.config.ts`
+  never loads on a root run: `setupFiles` in one silently never ran and every
+  test that needed its env failed. Scope env and setup to what the test file
+  itself imports (a factory with an explicit argument, `vi.stubEnv` before a
+  dynamic import), which works from any working directory.
+- **`import.meta.env` is undefined under tsx.** A bare
+  `import.meta.env.FOLDKIT_BUILD_ID` throws there, so a module that both Vite
+  and tsx load cannot read it at the top level. Keep the bare read in entries
+  only Vite transforms, and read `process.env` in scripts tsx runs; a server
+  entry shared by both is a factory taking the id, with one thin Vite-only
+  module applying the define.
+- **Flags go before `--`, and new files need `git add`.** `git commit --
+  <paths> -m` parses `-m` as a pathspec and fails, and a pathspec commit skips
+  untracked files, so a new module rode an `--amend` into the wrong commit.
+  Put `-m` before `--`, add new files first, and check `git show --stat HEAD`
+  for strays.
 
 ## Repository
 

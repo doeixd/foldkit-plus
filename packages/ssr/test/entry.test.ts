@@ -1,6 +1,8 @@
 /**
- * Phase 6: `SSR.entry` is the `renderPage` Foldkit's fetch handler calls, so a
- * resumed page is served through `handleRequest` as any Foldkit page is.
+ * Phase 6: `SSR.entry` is the `renderPage` Foldkit's pipeline calls, so a
+ * resumed page is served through `handleRequest` as any Foldkit page is. The
+ * host owns the template: the entry answers `Rendered`, with the envelope in
+ * the rendered root, and never splices markup into a template of its own.
  */
 import { Effect } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
@@ -11,7 +13,7 @@ import { config as themed, plan as themedPlan } from './flagsFixture.js'
 import { App, calls, config, plan, template } from './handoverFixture.js'
 
 const html = { accept: 'text/html' }
-const serve = (request: Request, entry = SSR.entry(config, plan, { buildId: 'b', template })) =>
+const serve = (request: Request, entry = SSR.entry(config, plan, { buildId: 'b' })) =>
   handleRequest(request, { renderPage: entry.renderPage, template })
 
 afterEach(() => {
@@ -29,39 +31,35 @@ describe('SSR.entry through handleRequest', () => {
     expect(body).not.toContain('HUGE server-only report')
   })
 
-  it('puts what `head` returns in the page’s head', async () => {
+  it('carries the envelope on the rendered root, as `Rendered`', async () => {
+    const entry = SSR.entry(config, plan, { buildId: 'b' })
+    const result = await entry.renderPage(new Request('https://example.test/'))
+    expect(result._tag).toBe('Rendered')
+    if (result._tag !== 'Rendered') throw new Error('unreachable')
+    expect(result.application.html).toMatch(/data-foldkit-app="[^"]*" data-foldkit-plus-resume="/)
+    expect(result.headers).toBeUndefined()
+  })
+
+  it('carries `styles` as the rendered root’s last child', async () => {
     const entry = SSR.entry(config, plan, {
       buildId: 'b',
-      template,
-      head: () => '<style id="used"></style>',
+      styles: () => '<style>p{color:red}</style>',
     })
     const body = await (
       await serve(new Request('https://example.test/', { headers: html }), entry)
     ).text()
-    expect(body).toMatch(/<style id="used"><\/style><\/head>/)
+    expect(body).toMatch(/<style>p\{color:red\}<\/style><\/[^<>]+>/)
   })
 
-  it('answers a head that throws 500, as a failed render', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    const entry = SSR.entry(config, plan, {
-      buildId: 'b',
-      template,
-      head: () => {
-        throw new Error('no styles today')
-      },
+  it('refuses a plan with `meta`, which is written into a template the host owns', () => {
+    const said = SSR.plan(App, {
+      id: 'counter',
+      state: Projection.pick(App.model.count),
+      meta: () => ({ description: 'a counter' }),
     })
-    const response = await serve(new Request('https://example.test/', { headers: html }), entry)
-    expect(response.status).toBe(500)
-  })
-
-  it('refuses, when it is made, a template with no </head> for its head', () => {
-    expect(() =>
-      SSR.entry(config, plan, {
-        buildId: 'b',
-        template: template.replace('</head>', ''),
-        head: () => '',
-      }),
-    ).toThrow('the template has no </head> to put the head in')
+    expect(() => SSR.entry(config, said, { buildId: 'b' })).toThrow(
+      'serve it with SSR.generate, not SSR.entry',
+    )
   })
 
   it('answers HEAD with the same status and no body', async () => {
@@ -91,7 +89,6 @@ describe('SSR.entry through handleRequest', () => {
   it('sets `headers(request)` over its own on every response, a preflight included', async () => {
     const entry = SSR.entry(config, plan, {
       buildId: 'b',
-      template,
       headers: request => {
         const headers = new Headers({ 'cache-control': 'no-store', 'content-type': 'text/x-page' })
         headers.append('set-cookie', 'a=1')
@@ -121,7 +118,6 @@ describe('SSR.entry through handleRequest', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const entry = SSR.entry(config, plan, {
       buildId: 'b',
-      template,
       headers: () => {
         throw new Error('no policy today')
       },
@@ -150,7 +146,7 @@ describe('SSR.entry through handleRequest', () => {
     const unbooted = SSR.plan(App, { id: 'counter', state: Projection.pick(App.model.count) })
     const response = await serve(
       new Request('https://example.test/', { headers: html }),
-      SSR.entry(starting, unbooted, { buildId: 'b', template }),
+      SSR.entry(starting, unbooted, { buildId: 'b' }),
     )
     expect(response.status).toBe(500)
     expect(await response.text()).toBe('The page could not be rendered.')
@@ -169,7 +165,7 @@ describe('SSR.entry through handleRequest', () => {
     }
     const broken = await serve(
       new Request('https://example.test/', { headers: html }),
-      SSR.entry(throwing, plan, { buildId: 'b', template }),
+      SSR.entry(throwing, plan, { buildId: 'b' }),
     )
     expect(broken.status).toBe(500)
 
@@ -177,7 +173,6 @@ describe('SSR.entry through handleRequest', () => {
       new Request('https://example.test/', { headers: html }),
       SSR.entry(themed, themedPlan, {
         buildId: 'b',
-        template,
         flags: () => Promise.reject(new Error('the database is down')),
       }),
     )
@@ -190,7 +185,6 @@ describe('SSR.entry through handleRequest', () => {
   it('gives each request its own Flags, which stay out of the page', async () => {
     const entry = SSR.entry(themed, themedPlan, {
       buildId: 'b',
-      template,
       flags: request => ({
         theme: new URL(request.url).searchParams.get('theme') ?? 'light',
         secret: 'server-only token',

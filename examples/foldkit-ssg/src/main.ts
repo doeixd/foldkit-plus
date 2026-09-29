@@ -102,6 +102,12 @@ export const routing: Runtime.RoutingConfig<Message> = {
 const App = Surface.application({ Model, Message })
 
 /**
+ * The static routes the build generates: `prerender.ts` renders each with
+ * `SSR.generate`, and the server entry names them for Foldkit's own pipeline.
+ */
+export const prerenderPaths = ['/', '/about'] as const
+
+/**
  * What crosses from the build to the browser: the route. The browser sets it
  * onto `initial` and never runs `init`; the count starts at 0 there, as `init`
  * starts it, and `SSR.render` refuses the page should the two ever disagree.
@@ -144,7 +150,7 @@ const pageView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
       h.section(slots.section.attrs(), [
         h.h1(slots.heading.attrs([h.Id('page-title')]), ['Statically generated about page']),
         h.p(slots.text.attrs(), [
-          'The same generatePages call produced this route in the same build.',
+          'The same prerender produced this route in the same build.',
         ]),
       ]),
     NotFound: ({ path }) =>

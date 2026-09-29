@@ -1,11 +1,11 @@
 /**
- * The host, as upstream's `scripts/serve.ts` builds it: an Effect HTTP server
- * on Node that resolves the request target against the origin, answers a file
- * when one exists, and renders every other request through `entry.server.ts`.
- * In development Vite answers the files; in production they are `vite build`'s
- * `dist/`.
+ * The production host, as upstream's `scripts/serve.ts` builds it: an Effect
+ * HTTP server on Node that resolves the request target against the origin,
+ * answers a file when one exists, and renders every other request through the
+ * server entry. Development is plain `vite`, which renders through the same
+ * entry; here they are `vite build`'s `dist/`.
  */
-import { NodeHttpServer, NodeHttpServerRequest } from '@effect/platform-node'
+import { NodeHttpServer } from '@effect/platform-node'
 import { Context, Effect, Exit, FileSystem, Layer, Match, Option, Path, Scope } from 'effect'
 import type { PlatformError } from 'effect/PlatformError'
 import {
@@ -18,6 +18,7 @@ import {
 } from 'effect/unstable/http'
 import {
   HOST_METHOD_ANSWERS,
+  handleRequest,
   isHostSettledMethod,
   resolveRequestUrl,
   resolvesToIndexHtml,
@@ -26,7 +27,7 @@ import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 
-import { buildIdOf, makePageHandler } from './entry.server.js'
+import { makeRenderPage } from './renderPage.js'
 
 type PageHandler = (request: Request) => Promise<Response>
 
@@ -51,67 +52,27 @@ export type AssetsOf = Effect.Effect<
   Scope.Scope | FileSystem.FileSystem | Path.Path | HttpPlatform.HttpPlatform
 >
 
-const EXAMPLE_DIR = resolve(import.meta.dirname, '..')
-
-const notFound = (request: HttpServerRequest.HttpServerRequest) =>
-  new HttpServerError.HttpServerError({ reason: new HttpServerError.RouteNotFound({ request }) })
-
-/**
- * Vite's middleware on the Node request under this one: it answers the
- * modules and its client, and hands on what it does not know. Node's response
- * is then already written, so Effect writes nothing more.
- */
-const viteFiles = (middlewares: import('vite').Connect.Server): Files =>
-  HttpServerRequest.HttpServerRequest.use(request =>
-    Effect.callback(resume => {
-      const incoming = NodeHttpServerRequest.toIncomingMessage(request)
-      const outgoing = NodeHttpServerRequest.toServerResponse(request)
-      incoming.url = request.url
-      outgoing.once('finish', () => resume(Effect.succeed(HttpServerResponse.empty())))
-      middlewares(incoming, outgoing, (error?: unknown) =>
-        resume(error === undefined ? Effect.fail(notFound(request)) : Effect.die(error)),
-      )
-    }),
-  )
-
-/**
- * The source, through Vite in middleware mode: Vite answers the modules and
- * its client, and each page is rendered into `index.html` as Vite transforms
- * it. The server's own code is loaded once, by tsx; restart to see an edit.
- */
-export const development: AssetsOf = Effect.gen(function* () {
-  const vite = yield* Effect.acquireRelease(
-    Effect.promise(async () => {
-      const { createServer: createViteServer } = await import('vite')
-      return createViteServer({
-        root: EXAMPLE_DIR,
-        appType: 'custom',
-        server: { middlewareMode: true },
-      })
-    }),
-    server => Effect.promise(() => server.close()),
-  )
-  const template = yield* Effect.promise(() => readFile(join(EXAMPLE_DIR, 'index.html'), 'utf8'))
-  const buildId = buildIdOf(template)
-  return {
-    files: viteFiles(vite.middlewares),
-    pages: async url =>
-      makePageHandler({ template: await vite.transformIndexHtml(url, template), buildId }),
-  }
-})
-
 /** What `vite build` wrote to `dist`: its files, and its `index.html` as the template. */
-export const production = (dist: string): AssetsOf =>
-  Effect.gen(function* () {
+export const production = (dist: string): AssetsOf => {
+  // The deployment the pages belong to: the same `FOLDKIT_BUILD_ID` value
+  // `vite build` compiled into the client bundle, or every page is refused.
+  const buildId = process.env.FOLDKIT_BUILD_ID
+  if (buildId === undefined || buildId === '') {
+    throw new Error(
+      'set FOLDKIT_BUILD_ID to the deployment this server answers for, the same value `vite build` saw',
+    )
+  }
+  const renderPage = makeRenderPage(buildId)
+  return Effect.gen(function* () {
     const template = yield* Effect.promise(() => readFile(join(dist, 'index.html'), 'utf8'))
-    const handler = makePageHandler({ template, buildId: buildIdOf(template) })
     // NOTE: `index: undefined`, so `/` reaches the page, never the raw template.
     const files = yield* HttpStaticServer.make({ root: resolve(dist), index: undefined })
     return {
       files: Effect.map(files, HttpServerResponse.setHeader('x-content-type-options', 'nosniff')),
-      pages: async () => handler,
+      pages: async () => request => handleRequest(request, { renderPage, template }),
     }
   })
+}
 
 const pageResponse = (assets: Assets, request: HttpServerRequest.HttpServerRequest, url: string) =>
   Effect.gen(function* () {

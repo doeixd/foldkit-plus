@@ -10,24 +10,18 @@ import { RESUME_ATTRIBUTE, SSR, type ResumePart } from 'foldkit-ssr'
 import { Projection } from 'foldkit-surface'
 import { App, config, loaded, plan, type Model } from './remoteFixture.js'
 
-/** A page holding one envelope script with this body. */
+/** A page holding one envelope on its stamped root, set through the DOM. */
 const page = (body: unknown): ParentNode => {
+  const document = new DOMParser().parseFromString('<body><main>page</main></body>', 'text/html')
   const root = document.createElement('div')
-  const script = document.createElement('script')
-  script.type = 'application/json'
-  script.setAttribute(RESUME_ATTRIBUTE, '')
-  script.textContent = JSON.stringify(body)
-  root.append(script)
-  return root
+  root.setAttribute('data-foldkit-app', 'app')
+  root.setAttribute(RESUME_ATTRIBUTE, JSON.stringify(body))
+  document.body.append(root)
+  return document
 }
 
 /** The body of the envelope a server writes for `model`. */
-const envelopeBody = (model: Model) =>
-  JSON.parse(
-    SSR.envelope(plan, model)
-      .replace(/^<script[^>]*>/, '')
-      .replace(/<\/script>$/, ''),
-  )
+const envelopeBody = (model: Model) => JSON.parse(SSR.envelope(plan, model))
 
 describe('parts in the envelope', () => {
   it('carries each part beside the state, and restores it', () => {

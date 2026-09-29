@@ -61,10 +61,10 @@ const remote = Remote.clientLayer(remoteClient(send, chair))
 if (path.startsWith('/site')) {
   const config = siteConfig({ init: (url: Url) => Site.initial(url), resources: remote, container })
   if (takesOver(document, chair, edited()))
-    // The build's id is its entry script's address, which the page loads as this
-    // module. Should the takeover's code not load, the page is drawn afresh.
+    // The deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and
+    // into the pages. Should the takeover's code not load, the page is drawn afresh.
     void import('./ssr/sitePlan.js').then(
-      ({ takeOver }) => takeOver(config, new URL(import.meta.url).pathname),
+      ({ takeOver }) => takeOver(config, import.meta.env.FOLDKIT_BUILD_ID),
       () => Runtime.run(Runtime.makeApplication(config)),
     )
   else Runtime.run(Runtime.makeApplication(config))

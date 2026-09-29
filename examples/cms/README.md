@@ -66,8 +66,12 @@ replaces the address in place ([address.ts](src/routing/address.ts)).
 ### As a static site
 
 ```bash
-pnpm --filter foldkit-example-cms build:sandbox   # to examples/cms/dist
+FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-cms build:sandbox   # to examples/cms/dist
 ```
+
+`FOLDKIT_BUILD_ID` names the deployment: the `foldkit` pipeline compiles it
+into the client bundle, and the prerender writes it into the pages, so the
+browser adopts them instead of refusing them.
 
 The same application with the same server, run in the page on SQLite compiled
 to WebAssembly (`sql.js`, in [browser.ts](src/server/browser.ts)), so it needs no

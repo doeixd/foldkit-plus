@@ -10,7 +10,7 @@ import { load, settle, template } from './handoverFixture.js'
 import { calls, config, plan } from './routeFixture.js'
 
 it('resumes a page served by handleRequest', async () => {
-  const entry = SSR.entry(config, plan, { buildId: 'b', template })
+  const entry = SSR.entry(config, plan, { buildId: 'b' })
   const response = await handleRequest(
     new Request('https://example.test/about?tab=2', { headers: { accept: 'text/html' } }),
     { renderPage: entry.renderPage, template },

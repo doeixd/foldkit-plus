@@ -15,8 +15,13 @@ Surfaces list, `fallback: 'server'` makes a form work with scripts off, and
 
 Only the handover from a server render to the browser. Rendering to HTML and
 adopting it stay Foldkit's (`foldkit/experimental/server`, `foldkit/runtime`);
-`foldkit-ssr` calls them. It adds a **resume plan**: which slice of the Model
-crosses, as a JSON script read back through the slice's own Schema. `init`
+`foldkit-ssr` calls them. Placing a served page into its template stays the
+host's (`handleRequest`, the Vite plugin's dev server, the fetch handler the
+build emits): the envelope rides the stamped root, so the entry answers
+`Rendered` and never splices markup into a template. `SSR.page` and
+`SSR.generate` place pages only where Plus owns the template: a static file
+it writes itself. It adds a **resume plan**: which slice of the Model
+crosses, as JSON on the stamped root read back through the slice's own Schema. `init`
 runs once, on the server; nothing outside the slice crosses, Flags included.
 
 ## Basic use
@@ -36,7 +41,7 @@ const Editor = SSR.plan(App, {
 
 // server
 const result = await Effect.runPromise(SSR.render(config, Editor, { buildId, url }))
-const html = SSR.page(template, result) // before the template's last </body>; none is refused
+const html = SSR.page(template, result) // the envelope rides the stamped root; the host owns the template
 
 // browser, instead of Runtime.hydrate: import { SSR } from 'foldkit-ssr/client'
 SSR.hydrate(config, Editor, { buildId })
@@ -136,16 +141,23 @@ SSR.hydrate(config, Editor, { buildId })
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
-- `SSR.page(template, result, { head? })`, `SSR.generate` and `SSR.entry` take
+- `SSR.page(template, result, { head? })` and `SSR.generate` take
   `head: rendered => string`, put before `</head>`: with `foldkit-mixins`,
-  `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships the
-  page's CSS in its first paint.
-- `SSR.entry(config, plan, { buildId, template, flags?, head? })` returns the
-  `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
-  and `HEAD` render, `POST` is handled for a plan with `fallback: 'server'`;
-  other methods get `405`; a refused, failed or throwing render, or `flags`
-  that reject, get `500` with the reason logged. It answers `Responded`, since
-  a `Rendered` result has no room for the envelope.
+  `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships a
+  generated page's CSS in its first paint. `SSR.render`, `SSR.entry` and
+  `SSR.handle` take the same function as `styles`, carried as the rendered
+  root's last child for a served page, which has no template head to write
+  to; hydration drops it on its first patch, and styles for a void root are
+  refused with `VoidRootWithStyles`.
+- `SSR.entry(config, plan, { buildId, flags?, headers? })` returns the
+  `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
+  `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
+  handled for a plan with `fallback: 'server'`; other methods get `405`; a
+  refused, failed or throwing render, or `flags` that reject, get `500` with
+  the reason logged. It answers `Rendered`, with the envelope on the rendered
+  root beside Foldkit's own stamps. A plan with `meta` is refused at
+  construction: `meta` is written into a head the host owns, so serve it with
+  `SSR.generate`.
 - `lazy: [Upload]` in the config (each a `Bundle.lazy`): `SSR.render` loads
   the bodies first; `SSR.hydrate` loads them before boot, answering from the
   markers meanwhile whatever `start` is, then replays. A placement's view
@@ -175,5 +187,6 @@ SSR.hydrate(config, Editor, { buildId })
 - `Projection.pick` refuses two fields with the same last key (`post.id` and
   `viewer.id`), which would otherwise merge into one.
 - Lower level: `SSR.envelope(plan, model, { route? })` and
-  `SSR.resume(plan, document, { route? })`. The envelope goes in the template,
-  not in Foldkit's rendered HTML.
+  `SSR.resume(plan, document, { route? })`. The envelope rides the stamped
+  root as `data-foldkit-plus-resume`, beside Foldkit's own stamps, so any host
+  injects the page whole.
