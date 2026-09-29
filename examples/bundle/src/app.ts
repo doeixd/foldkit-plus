@@ -153,9 +153,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>) =>
     [h.p([], [model.dark.matches ? 'dark' : 'light']), h.ul([], Uploads.viewAll(model, h))],
   )
 
-export const config = placements.config({
+export const config = placements.runtime({
   initial: { section: 'general', finished: [], savedAt: null },
-  update: updateOwn,
+  update,
   view,
 })
 

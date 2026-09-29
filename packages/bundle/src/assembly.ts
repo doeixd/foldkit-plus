@@ -117,28 +117,6 @@ export type WiredUrl<Model, UrlMessage> = WiredRecord<{
   readonly onUrlChange: (url: Url) => UrlMessage
 }>
 
-/**
- * What `config` takes: the fields no placement owns, the parent's own update,
- * Subscriptions, and Managed Resources, plus whatever the runtime takes
- * (Model, container, view, routing, the resources Layer, ...). The index
- * signature carries the passthrough; `init` and `url` are reserved with a
- * message naming `complete` instead.
- */
-export interface ConfigInput<Model, Message, Ps extends ReadonlyArray<unknown>, Services> {
-  readonly initial: InitialRest<Model, Ps>
-  readonly update?: (
-    model: Model,
-    message: OwnMessage<Message, Ps>,
-  ) => Update.Return<Model, Message, Services>
-  readonly subscriptions?: Subscription.Subscriptions<Model, Message, any>
-  readonly managedResources?: Readonly<
-    Record<string, ManagedResource.Entry<Model, Message, any, any, any>>
-  >
-  readonly init?: Invalid<'config owns init: pass initial rest instead, or use complete for a custom init'>
-  readonly url?: Invalid<'config does not derive url yet: use complete with assembly.url for URL-mirror assemblies'>
-  readonly [key: string]: unknown
-}
-
 type OwnSubscriptionServices<Input, Model, Message> = Input extends {
   readonly subscriptions: Subscription.Subscriptions<Model, Message, infer S>
 }
@@ -154,50 +132,79 @@ type OwnManagedEntries<Input> = Input extends {
   : never
 
 /**
- * Generic inference keeps the caller's literal (so a placement's field in
- * `initial` slips past the constraint's excess check); this names it at the
- * property. Dissolves to `unknown` for valid input, the way `complete` does.
+ * What `runtime` takes: how the application starts, as `initial` rest or an
+ * init function returning `assembly.initial(...)`; the parent's whole update,
+ * which already routes every placement (route a narrow one with
+ * `assembly.update` first, or omit it when the parent adds no Messages);
+ * the parent's own Subscriptions and Managed Resources, merged with the
+ * items' when given; plus whatever the runtime takes (Model, container, view,
+ * routing, the resources Layer, ...). The index signature carries the
+ * passthrough; `init` is reserved with a message naming `initial` instead.
  */
-type InitialKeysCheck<Input, Model, Ps extends ReadonlyArray<unknown>> = Input extends {
-  readonly initial: infer Rest
+export interface RuntimeInput<Model, Message, Ps extends ReadonlyArray<unknown>> {
+  readonly initial: InitialRest<Model, Ps> | RuntimeInitFn<Model, Message, any>
+  readonly update?: (model: Model, message: Message) => Update.Return<Model, Message, any>
+  readonly subscriptions?: Subscription.Subscriptions<Model, Message, any>
+  readonly managedResources?: Readonly<
+    Record<string, ManagedResource.Entry<Model, Message, any, any, any>>
+  >
+  readonly init?: Invalid<'runtime owns init: pass initial rest or an init function returning assembly.initial(...) instead'>
+  readonly url?: unknown
+  readonly [key: string]: unknown
 }
-  ? Exclude<keyof Rest, keyof InitialRest<Model, Ps>> extends never
-    ? unknown
-    : {
-        readonly initial: Invalid<'initial is exactly the fields no placement owns; a placement field is initialised from its args'>
-      }
-  : unknown
 
 /**
- * What `config` returns: the passthrough unchanged, with `initial` compiled
- * to `init` and the own update, Subscriptions, and Managed Resources derived
- * through the assembly. The derived fields carry the `complete` brands, so
- * `complete` accepts the result unchanged.
+ * An init function for `runtime`, when the seed needs runtime input (the
+ * URL): it runs at boot and returns `assembly.initial(...)`. Where a wiring
+ * runs startup Commands, returning the branded result proves it.
+ */
+export type RuntimeInitFn<Model, Message, Requirements> = (
+  ...args: ReadonlyArray<any>
+) => Update.Return<Model, Message, Requirements>
+
+/** What `runtime` uses when `update` is omitted: routing only, with own Messages leaving the Model unchanged. */
+type RoutedUpdate<Model, Message, Requirements> = (
+  model: Model,
+  message: Message,
+) => Update.Return<Model, Message, Requirements>
+
+/**
+ * What `runtime` returns: the passthrough with `initial` compiled to `init`
+ * (rest becomes `() => initialFrom(rest)`, a function passes through), the
+ * `update` unchanged, and the own Subscriptions and Managed Resources merged
+ * with the items', defaulting to the items'. The derived fields carry the
+ * `complete` brands.
  *
  * Takes the assembly's already-derived unions — `Requirements`, `ItemServices`,
  * and `Entries` — rather than the placements, so naming the result in a
- * declaration file never names a placement's own types (a bundle's view inputs
- * may name a module nothing can import). The `config` method defaults each
- * from its assembly.
+ * declaration file never names a placement's own types. The `runtime` method
+ * defaults each from its assembly.
  */
-export type ConfigResult<Input, Model, Message, Requirements, Services, ItemServices, Entries> =
-  Omit<Input, 'initial' | 'update' | 'subscriptions' | 'managedResources'> & {
-    readonly init: () => WiredRecord<Update.Return<Model, Message, Requirements>>
-    readonly update: (
-      model: Model,
-      message: Message,
-    ) => Update.Return<Model, Message, Requirements | Services>
-    readonly subscriptions: WiredRecord<
-      Subscription.Subscriptions<
-        Model,
-        Message,
-        OwnSubscriptionServices<Input, Model, Message> | ItemServices
-      >
+export type RuntimeResult<Input, Model, Message, Requirements, ItemServices, Entries> = Omit<
+  Input,
+  'initial' | 'update' | 'subscriptions' | 'managedResources' | 'init'
+> & {
+  readonly init: Input extends { readonly initial: infer Seed }
+    ? Seed extends (...args: ReadonlyArray<any>) => unknown
+      ? Seed
+      : () => WiredRecord<Update.Return<Model, Message, Requirements>>
+    : never
+  readonly update: Input extends { readonly update: infer Own }
+    ? Own extends (...args: ReadonlyArray<any>) => unknown
+      ? Own
+      : RoutedUpdate<Model, Message, Requirements>
+    : RoutedUpdate<Model, Message, Requirements>
+  readonly subscriptions: WiredRecord<
+    Subscription.Subscriptions<
+      Model,
+      Message,
+      OwnSubscriptionServices<Input, Model, Message> | ItemServices
     >
-    readonly managedResources: WiredRecord<
-      Readonly<Record<string, Entries | OwnManagedEntries<Input>>>
-    >
-  }
+  >
+  readonly managedResources: WiredRecord<
+    Readonly<Record<string, Entries | OwnManagedEntries<Input>>>
+  >
+}
 
 /** `Services` are what the parent's own update may require, as in `Update.Commands<Message, Services>`. */
 export interface Assembly<
@@ -275,24 +282,24 @@ export interface Assembly<
     config: Config & NoInfer<CompletenessChecks<Config, Message, Ps>>,
   ) => Config
   /**
-   * The assembled runtime config for `Runtime.makeApplication` or `makeElement`:
-   * `initial` rest becomes `init`, the own `update`, `subscriptions`, and
-   * `managedResources` merge with the items', and everything else (Model,
-   * container, view, routing, the resources Layer, ...) passes through. URL
-   * wiring stays on the lower-level derivations with `complete`: calling this
-   * on an assembly that reads the URL is a type error naming them, and throws
-   * at runtime.
+   * The runtime config for `Runtime.makeApplication`, `makeElement`, or
+   * `Sync.mount`: `initial` rest becomes `init`, or an init function returning
+   * `assembly.initial(...)` is used as `init` when the seed needs runtime
+   * input, like the URL. The `update` already routes every placement and
+   * passes through checked; the own `subscriptions` and `managedResources`
+   * merge with the items', defaulting to the items'; and everything else
+   * (Model, container, view, routing, the resources Layer, ...) passes
+   * through. Assemblies that read the URL pass their `url` from
+   * `assembly.url`, as with `complete`.
    */
-  readonly config: [HasUrl<Ps[number]>] extends [never]
-    ? <
-        Input extends ConfigInput<Model, Message, Ps, Services>,
-        Requirements = RequirementsOf<Ps[number]>,
-        ItemServices = ServicesOf<Ps[number]>,
-        Entries = ResourceEntriesOf<Ps[number]>,
-      >(
-        input: Input & NoInfer<InitialKeysCheck<Input, Model, Ps>>,
-      ) => ConfigResult<Input, Model, Message, Requirements, Services, ItemServices, Entries>
-    : Invalid<'config does not derive url yet: use complete with assembly.url for URL-mirror assemblies'>
+  readonly runtime: <
+    Input extends RuntimeInput<Model, Message, Ps>,
+    Requirements = RequirementsOf<Ps[number]>,
+    ItemServices = ServicesOf<Ps[number]>,
+    Entries = ResourceEntriesOf<Ps[number]>,
+  >(
+    input: Input & NoInfer<RuntimeChecks<Input, Model, Message, Ps>>,
+  ) => RuntimeResult<Input, Model, Message, Requirements, ItemServices, Entries>
 }
 
 interface CompletableConfig<Model> {
@@ -334,6 +341,62 @@ type CompletenessChecks<Config, Message, Ps extends ReadonlyArray<unknown>> = (C
       : {
           readonly init: Invalid<'init must return assembly.initial(rest), or a wiring never runs its startup Commands'>
         }) &
+  ([HasUrl<Ps[number]>] extends [never]
+    ? unknown
+    : Config extends { readonly url: { readonly [Wired]: true } }
+      ? unknown
+      : {
+          readonly url: Invalid<'url must come from assembly.url(onUrlChange), or a wiring never reads the URL'>
+        })
+
+/**
+ * What `runtime` checks: the `update` accepts the whole parent Message (the
+ * placements are already routed inside it, so it is narrowed nowhere); an
+ * `initial` function returns `assembly.initial(...)` where a wiring runs
+ * startup Commands, while rest holds exactly the fields no placement owns;
+ * and `url` comes from `assembly.url` where a wiring reads the URL.
+ * Dissolves to `unknown` for valid input, the way `complete` does.
+ */
+type RuntimeChecks<Config, Model, Message, Ps extends ReadonlyArray<unknown>> = (Config extends {
+  readonly update: (model: any, message: infer Accepted) => unknown
+}
+  ? [Message] extends [Accepted]
+    ? unknown
+    : {
+        // A callback with an unannotated parameter written inline in the input keeps
+        // TypeScript from inferring the input at all, so it falls back to the
+        // constraint and this check fails first, whatever `update` accepts.
+        readonly update: Invalid<"update must accept every placement's Messages; placements are already routed inside it, so narrow it nowhere. If it does, annotate the parameters of the callbacks written inline in this input (an init function, routing's url): unannotated, they keep TypeScript from inferring it">
+      }
+  : unknown) &
+  (Config extends { readonly subscriptions: { readonly [Wired]: true } }
+    ? {
+        readonly subscriptions: Invalid<'subscriptions come from the assembly: omit them, or pass unbranded own Subscriptions to merge'>
+      }
+    : unknown) &
+  (Config extends { readonly managedResources: { readonly [Wired]: true } }
+    ? {
+        readonly managedResources: Invalid<'managedResources come from the assembly: omit them, or pass unbranded own entries to merge'>
+      }
+    : unknown) &
+  (Config extends { readonly initial: infer Seed }
+    ? Seed extends (...args: ReadonlyArray<any>) => unknown
+      ? [HasInit<Ps[number]>] extends [never]
+        ? unknown
+        : Seed extends (...args: ReadonlyArray<any>) => { readonly [Wired]: true }
+          ? unknown
+          : {
+              readonly initial: Invalid<'an init function must return assembly.initial(...), or a wiring never runs its startup Commands'>
+            }
+      : Exclude<keyof Seed, keyof InitialRest<Model, Ps>> extends never
+        ? unknown
+        : {
+            // Generic inference keeps the caller's literal (so a placement's
+            // field in `initial` slips past the constraint's excess check);
+            // this names it at the property.
+            readonly initial: Invalid<'initial rest is exactly the fields no placement owns; a placement field is initialised from its args, or pass an init function instead'>
+          }
+    : unknown) &
   ([HasUrl<Ps[number]>] extends [never]
     ? unknown
     : Config extends { readonly url: { readonly [Wired]: true } }
@@ -552,6 +615,13 @@ export const assemble =
           onNone: () => Option.getOrElse(routeClaimed(model, message), () => rest(model)),
         })
       }
+    // Empty storage for collections at a top-level field, under `rest` in the base seed.
+    const seedEmpties = () =>
+      Object.fromEntries(
+        collections
+          .filter(collection => collection.link.path.length === 1)
+          .map(collection => [collection.link.path[0], collection.link.empty]),
+      )
     const initialFrom = (rest: InitialRest<Model, Ps>) => {
       // Collections at a top-level field start as their Link's empty storage. A
       // placement at a top-level field is initialised unless `rest` gives that
@@ -560,12 +630,7 @@ export const assemble =
       // Factories resolve from the base first, so `initial` both derives args
       // and runs inits; a skipped optional child's factory never runs.
       const given = new Set(Object.keys(rest))
-      const empties = Object.fromEntries(
-        collections
-          .filter(collection => collection.link.path.length === 1)
-          .map(collection => [collection.link.path[0], collection.link.empty]),
-      )
-      const base = { ...empties, ...rest } as Model
+      const base = { ...seedEmpties(), ...rest } as Model
       resolveAll(base, given)
       const steps: ReadonlyArray<Update.Step<Model, Message, RequirementsOf<Ps[number]>>> = [
         ...byDepth
@@ -592,14 +657,21 @@ export const assemble =
         ),
       )
     const resourcesWith = (own?: ResourceRecord) => {
+      // Read live: a factory placement's records exist only once its args are
+      // derived, so the assemble-time snapshot would miss them. An
+      // underived factory with resources throws here, as its Subscriptions do.
+      const users = [
+        ...singles.map(placed => ({
+          key: placed.key,
+          resources: placed.resources as ResourceRecord,
+        })),
+        ...wirings.map(wiring => ({ key: wiring.key, resources: wiring.resources ?? {} })),
+      ]
       if (own !== undefined)
-        assertDistinctResources([
-          ...resourceUsers,
-          { key: "the parent's own resources", resources: own },
-        ])
+        assertDistinctResources([...users, { key: "the parent's own resources", resources: own }])
       return brand(
         ManagedResource.aggregate<Model, Message>()(
-          ...resourceUsers.map(user => user.resources),
+          ...users.map(user => user.resources),
           own ?? {},
         ),
       )
@@ -615,62 +687,57 @@ export const assemble =
       subscriptions: subscriptionsWith,
       resources: resourcesWith,
       complete: config => config,
-      config: ((
+      runtime: ((
         input: {
-          readonly initial: InitialRest<Model, Ps>
-          readonly update?: (
+          readonly initial:
+            | InitialRest<Model, Ps>
+            | ((...args: ReadonlyArray<any>) => Update.Return<Model, Message, unknown>)
+          readonly update: (
             model: Model,
             message: Message,
           ) => Update.Return<Model, Message, unknown>
           readonly subscriptions?: Subscription.Subscriptions<Model, Message, any>
           readonly managedResources?: ResourceRecord
+          readonly url?: unknown
         } & Readonly<Record<string, unknown>>,
       ) => {
         const {
-          initial: rest,
+          initial,
           update: own,
           subscriptions: ownSubscriptions,
           managedResources: ownManaged,
+          url,
           ...passthrough
         } = input
-        // `config` derives no `url`: calling it on an assembly that reads the
-        // URL would silently unwire a mirror, so refuse instead of returning
-        // a config the runtime would accept. `init` and `url` are reserved by
-        // the types above; a JavaScript caller can still pass them, and
-        // dropping either would silently unwire a placement or a mirror, so
-        // refuse those too.
-        if (wirings.some(wiring => wiring.onUrl !== undefined)) {
+        // `runtime` owns `init`: a JavaScript caller passing it would silently
+        // replace the derived startup, so refuse instead.
+        if ('init' in passthrough) {
           throw new Error(
-            'Bundle.assemble: config does not derive url; ' +
-              'use complete with assembly.url for URL-mirror assemblies.',
+            'Bundle.assemble: runtime owns init; pass initial rest or an init function ' +
+              'returning assembly.initial(...) instead.',
           )
         }
-        if ('init' in passthrough || 'url' in passthrough) {
-          throw new Error(
-            'Bundle.assemble: config owns init and url; pass initial rest (not init), ' +
-              'and use complete with assembly.url for URL-mirror assemblies.',
+        // Rest-form seeds resolve factories before records are derived, since
+        // the records close over the retained args. A function is used as
+        // `init` unchanged.
+        const init =
+          typeof initial === 'function'
+            ? initial
+            : () => initialFrom(initial as InitialRest<Model, Ps>)
+        if (typeof initial !== 'function') {
+          resolveAll(
+            { ...seedEmpties(), ...(initial as Record<string, unknown>) },
+            new Set(Object.keys(initial)),
           )
         }
-        // Resolve factories from the seed before deriving Subscriptions and
-        // resources, whose records close over the retained args. The `init`
-        // below re-resolves with the same seed when it runs, so a factory may
-        // run twice through `config`; keep it pure of its seed.
-        const seedEmpties = Object.fromEntries(
-          collections
-            .filter(collection => collection.link.path.length === 1)
-            .map(collection => [collection.link.path[0], collection.link.empty]),
-        )
-        resolveAll(
-          { ...seedEmpties, ...(rest as Record<string, unknown>) },
-          new Set(Object.keys(rest)),
-        )
         return {
           ...passthrough,
-          init: () => initialFrom(rest),
-          update: updateWith(own),
+          ...(url === undefined ? {} : { url }),
+          init,
+          update: own ?? updateWith(undefined),
           subscriptions: subscriptionsWith(ownSubscriptions),
           managedResources: resourcesWith(ownManaged),
         }
-      }) as Assembly<Model, Message, Ps, Services>['config'],
+      }) as unknown as Assembly<Model, Message, Ps, Services>['runtime'],
     }
   }

@@ -13,6 +13,7 @@ import {
   checkArgs,
   isArgsFactory,
   seedWithoutOwn,
+  seedsEqual,
   UnresolvedArgsError,
   writeIfChanged,
   type ArgsSource,
@@ -219,6 +220,8 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
   let summary = factory ? undefined : (checkArgs(bundle, rawArgs, prefix) ?? bundle.preset)
   let resolved: unknown
   let hasResolved = false
+  // The seed the retained args were derived from. An equal seed reuses them.
+  let lastSeed: unknown
 
   const needArgs = (): unknown => {
     if (!factory) return rawArgs
@@ -230,10 +233,12 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
 
   const resolveFrom = (seed: unknown): void => {
     if (!factory) return
+    if (hasResolved && seedsEqual(seed, lastSeed)) return
     const derived = derive(seed)
     summary = derived.summary
     resolved = derived.value
     hasResolved = true
+    lastSeed = seed
     subsRecord = buildSubscriptions(resolved)
   }
 

@@ -69,6 +69,7 @@ integration + its config ──▶ Wiring
 Wiring + Wiring + placement + … ──Page.assemble──▶ Assembly
 Assembly ──update / initial / subscriptions / resources / url / module──▶ runtime config + Module
 runtime config ──complete──▶ checked (type-level), unchanged (runtime)
+Assembly ──runtime──▶ runtime config, with the derivations filled in
 ```
 
 ## Why it exists, and whether you need it
@@ -89,6 +90,14 @@ with resources, a wiring with startup Commands, a wiring that reads the URL).
 Two items claiming one Message tag fail `assemble` at startup naming both
 (unless every claimant declares the tag `shared`: each folds it in turn, like
 per-name `MirrorRestored` and the URL Message).
+
+Where the update already routes every placement, `assembly.runtime({
+initial, update, … })` builds the config instead of checking it: `initial`
+rest becomes `init` (or an init function returning `assembly.initial(...)`
+is used as `init`), and the own Subscriptions and Managed Resources default
+to the items'. The mistakes it can still make — a narrowed update, an
+unbranded init function, a missing `url` — are type errors at the property,
+as with `complete`.
 
 Whether you need it depends on the size of the list:
 

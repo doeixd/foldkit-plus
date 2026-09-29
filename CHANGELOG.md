@@ -16,7 +16,8 @@ version changed; `pnpm` skips versions already in the registry.
   factory's parameter omits the placement's own field, and every factory sees
   the same base seed, so placement order never matters. The result is checked
   against the bundle's args Schema and retained for `update`, helpers,
-  Subscriptions, and resources, never re-run against live state. On a Model
+  Subscriptions, and resources, never re-run against live state — a factory
+  runs once per seed it has seen. On a Model
   no initialization produced, `update` derives per use without retaining.
 
 - **Routing example, derived placement args:** the People page is a Bundle
@@ -24,6 +25,17 @@ version changed; `pnpm` skips versions already in the registry.
   `init(url)` is `assembly.initial({ route })` with no second fetch and no
   post-init Message. Route changes after startup still arrive as Messages,
   folded through the same placement, and the view keeps its `people` slot.
+
+- **`foldkit-bundle`, `assembly.runtime`:** the runtime config in one call for
+  an application whose `update` already routes every placement. `initial`
+  rest becomes `init`, or an init function returning
+  `assembly.initial(...)` is used as `init` when the seed needs runtime
+  input, like the URL. The `update` passes through checked (route a narrow
+  one with `assembly.update(own)` first, or omit it when the parent adds no
+  Messages); the own `subscriptions` and `managedResources` merge with the
+  items', defaulting to the items', so an application that adds none passes
+  neither. `assembly.config` is removed in its favour; the CMS
+  `siteConfig` and the entity client use it.
 
 ### Fixed
 
@@ -78,14 +90,6 @@ version changed; `pnpm` skips versions already in the registry.
   was last received (`updatedAt`, newest server write among it, `undefined`
   when nothing shown was received), and whether any of it is stale or
   loading. Pure, for "updated 5s ago" without I/O.
-
-- **`foldkit-bundle`, `assembly.config(input)`:** the assembled runtime
-  config from one call (`initial` rest becomes `init`, the own `update`,
-  `subscriptions`, and `managedResources` merge with the items', everything
-  else passes through to `Runtime.makeApplication`/`makeElement`). The result
-  carries the `complete` brands, so `complete` accepts it unchanged; custom
-  inits and URL-mirror assemblies stay on the lower-level derivations
-  (calling `config` on a URL-mirror assembly throws at runtime).
 
 - **CMS example, one studio application:** posts and pages share a document,
   a runtime and an address (`examples/cms/src/apps/studioApp.ts`); moving

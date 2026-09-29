@@ -13,13 +13,12 @@ if (container === null) throw new Error('index.html has no #app')
 
 Runtime.run(
   Runtime.makeElement(
-    placements.complete({
+    placements.runtime({
       Model,
       container,
-      init: () => ({ model: initial() }),
+      initial: () => ({ model: initial() }),
       update,
       view,
-      subscriptions: placements.subscriptions(),
       // Vite proxies `/remote` to the server, so the browser talks to one origin.
       resources: Remote.clientLayer(httpClient('/remote')),
     }),

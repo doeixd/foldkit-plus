@@ -72,18 +72,20 @@ const placements = Page.assemble(
 
 declare const view: (model: Model, h: HtmlBuilder<Message>) => Html
 
-// `config` derives init, update, subscriptions, and managedResources from the
-// assembly; the rest (Model, view, ...) passes through.
-export const config = placements.config({
+// `runtime` derives init, subscriptions, and managedResources from the
+// assembly; the update routes the narrow own-update first, and the rest
+// (Model, view, ...) passes through.
+export const config = placements.runtime({
   Model,
   initial: { helpOpen: false },
-  update: (model, message) =>
+  update: placements.update((model, message) =>
     message._tag === 'ClickedHelp' ? { model: { ...model, helpOpen: true } } : { model },
+  ),
   view,
 })
 ```
 
-Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
+Spread the resulting config into `Runtime.makeApplication` or `Runtime.makeElement`.
 
 ## Derived args
 
@@ -104,7 +106,8 @@ whose Model holds `route` and `search`. The seed is what
 `assembly.initial(rest)` was given, minus the placement's own field; every
 factory sees the same seed, so placement order never matters. The result is
 checked against the bundle's args Schema and retained for `update` and
-Subscriptions, never re-run against live state.
+Subscriptions, never re-run against live state. Records ignoring `args` read
+before `initial()`; derived ones need it first.
 
 ## Joining integrations
 
@@ -155,6 +158,13 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 - **Parent update:** `placements.update(own)` routes placement Messages and
   passes the rest to `own`. Name the parent's services once:
   `Page.withServices<AppServices>()`.
+- **Runtime config:** `placements.runtime({ initial, update, … })` builds it in
+  one call: `initial` rest becomes `init`, or an init function returning
+  `assembly.initial(...)` passes through; the update already routes every
+  placement (route a narrow one with `placements.update(own)` first, or omit
+  it); own records merge with the items' (omit what the application doesn't
+  add); the rest passes through. URL-mirror assemblies pass their `url` from
+  `assembly.url`.
 - **OutMessage:** a bundle whose `update` returns `outMessage` must be placed
   with `onOut: outMessage => model => ({ model: … })` (typed from the scope), or
   `onOut: Bundle.ignore` to drop it deliberately. Omitting it is a type error.

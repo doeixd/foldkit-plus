@@ -74,12 +74,29 @@ export const seedWithoutOwn = (path: ReadonlyArray<string>, parent: unknown): un
   return seed
 }
 
+/**
+ * Whether two seeds hold the same top-level fields. A factory runs once per
+ * seed it has seen: repeat initializations over equal seeds reuse the
+ * retained args instead of running again, so one `config`/`runtime` flow
+ * derives once for its records and once is enough for its `init`.
+ */
+export const seedsEqual = (a: unknown, b: unknown): boolean => {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  const left = a as Readonly<Record<string, unknown>>
+  const right = b as Readonly<Record<string, unknown>>
+  const keys = Object.keys(left)
+  return (
+    keys.length === Object.keys(right).length && keys.every(key => Object.is(left[key], right[key]))
+  )
+}
+
 /** Thrown when a seed factory's args are read before any initialization derived them. */
 export class UnresolvedArgsError extends Error {
   constructor(key: string, usage: string) {
     super(
       `${key}: args is a function of the parent seed, which no initialization has derived yet. ` +
-        `Run assembly.initial(rest) first, or use assembly.config(), so the seed exists before ${usage}.`,
+        `Run assembly.initial(rest) first, or use assembly.runtime(), so the seed exists before ${usage}.`,
     )
     this.name = 'UnresolvedArgsError'
   }
@@ -346,6 +363,8 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
   // skipped, so no derivation runs, and its records contribute nothing while
   // the child is absent.
   let skipped = false
+  // The seed the retained args were derived from. An equal seed reuses them.
+  let lastSeed: unknown
   const onOut = config.onOut ?? ((): ErasedStep => parent => ({ model: parent }))
 
   const foldStep = (
@@ -407,10 +426,17 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
 
   const resolveFrom = (seed: unknown): void => {
     if (!factory) return
+    // An equal seed reuses the retained args. Resolving still clears a skip,
+    // so the flag always means "skipped since the last resolution".
+    if (hasResolved && seedsEqual(seed, lastSeed)) {
+      skipped = false
+      return
+    }
     const derived = derive(seed)
     summary = derived.summary
     resolved = derived.value
     hasResolved = true
+    lastSeed = seed
     skipped = false
     subsRecord = buildSubscriptions(resolved)
     resRecord = buildResources(resolved)

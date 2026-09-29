@@ -59,7 +59,11 @@ const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visito
 const remote = Remote.clientLayer(remoteClient(send, chair))
 
 if (path.startsWith('/site')) {
-  const config = siteConfig({ init: (url: Url) => Site.initial(url), resources: remote, container })
+  const config = siteConfig({
+    initial: (url: Url) => Site.initial(url),
+    resources: remote,
+    container,
+  })
   if (takesOver(document, chair, edited()))
     // The deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and
     // into the pages. Should the takeover's code not load, the page is drawn afresh.

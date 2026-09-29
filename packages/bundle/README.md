@@ -229,14 +229,14 @@ const placements = Page.assemble(
 
 **Wire it once.** The assembly builds the parent's runtime config from the
 parent's own pieces. `initial` gives exactly the fields no placement owns,
-`update` is the parent's own update for `ClickedHelp`, and everything else
-(`Model`, `view`, ...) passes through:
+`update` is the parent's own update for `ClickedHelp` routed through the
+assembly, and everything else (`Model`, `view`, ...) passes through:
 
 ```ts
-const config = placements.config({
+const config = placements.runtime({
   Model,
   initial: { helpOpen: false },
-  update: ownUpdate,
+  update: placements.update(ownUpdate),
   view,
 })
 ```
@@ -244,8 +244,9 @@ const config = placements.config({
 Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement` with the
 rest of your options. The parent's own Subscriptions go in `subscriptions` and
 its own Managed Resources in `managedResources`; the assembly merges them with
-the items'. For a custom `init` or a URL-mirror assembly, use the lower-level
-derivations with `placements.complete` instead (below).
+the items', defaulting to the items' when omitted. Assemblies that read the URL
+pass their `url` from `placements.url`. For a hand-built `init` or config,
+`placements.complete` checks it instead (below).
 
 ### What each call does
 
@@ -274,12 +275,17 @@ derivations with `placements.complete` instead (below).
   `Option` (below), to start the child as `None`. The check reads each
   placement's field from its Link; one whose path the types cannot read, a
   `Link.make` given a `string[]`, relaxes `rest` to `Partial<Model>`.
-- **`placements.config(input)`** is the assembled runtime config for
-  `Runtime.makeApplication` or `makeElement`: `initial` rest becomes `init`,
-  the own `update`, `subscriptions`, and `managedResources` merge with the
-  items', and everything else passes through. Calling it on an assembly that
-  reads the URL is a type error and throws at runtime; that stays on the
-  derivations with `complete`.
+- **`placements.runtime(input)`** is the same assembled runtime config for an
+  application whose `update` already routes every placement: `initial` rest
+  becomes `init`, or an init function returning `assembly.initial(...)` is
+  used as `init` when the seed needs runtime input, like the URL — never a
+  full Model, so placement and wiring inits always run with their Commands.
+  The `update`
+  passes through checked; the own `subscriptions` and `managedResources`
+  merge with the items', defaulting to the items', so an application that adds
+  none passes neither. Assemblies that read the URL pass their `url` from
+  `assembly.url`, as with `complete`. To route a narrow own update instead of
+  a pre-routed one, compose it first: `update: assembly.update(own)`.
 - **`placements.update(own)`** is the parent's update: a placement's or
   wiring's Message goes to its item and every other Message to `own`, whose
   Message is typed without the placements' wrappers (see
@@ -380,14 +386,21 @@ const people = Page.at(PeopleDeclared, {
 assembly.initial({ route: urlToAppRoute(url) })
 ```
 
-The factory's parameter omits the placement's own field, so reading it is a
-type error. Read only seed fields, never sibling placement fields: every
-factory sees the same base seed, so placement order never matters. The result
+The seed is `rest` plus empty collections, with no placement's fields in it.
+The factory's parameter omits its own field, so reading it is a type error;
+sibling fields are consistently absent at runtime, so read only seed fields
+and placement order never matters. The result
 is checked against the bundle's args Schema, naming the placement, then
-retained for `update`, helpers, Subscriptions, and resources. It never re-runs
-against live state, so keep it pure of its seed; `assembly.config({
-initial })` derives the same way. A factory on an optional child is skipped
-when `rest` starts the child as `None`.
+retained for `update`, helpers, Subscriptions, and resources. Subscriptions
+and resources that ignore `args` are readable before `initial()` runs; ones
+built from a factory need it (or `runtime()`) first, and name the placement
+when read too early. A factory runs once per seed it has seen: repeat
+initializations over equal seeds reuse the retained args, so one `runtime`
+flow derives once for its records and once is enough for its `init`. It never
+re-runs against live state, so keep it pure of its seed — return the same args
+for the same seed, and generate ids outside it. A factory on an optional child is skipped when `rest` starts the child as
+`None`. On a Model no initialization produced, `update` derives per use
+without retaining, so hand-built Models in tests fold with their own seed.
 
 ## Reacting to a child's Messages
 
@@ -759,6 +772,14 @@ property that is wrong:
 | `managedResources` not built with `placements.resources(own)`, when a placement has resources | `managedResources` |
 | `init` not returning `placements.initial(rest)`, when a wiring runs startup Commands | `init` |
 | `url` not built with `placements.url(onUrlChange)`, when a wiring reads the URL | `url` |
+
+`placements.runtime(input)` checks the same mistakes it can still make —
+`update`, an unbranded init function, and `url` — and derives the rest:
+`subscriptions` and `managedResources` default to the items', so an
+application that adds none passes neither. Prefer it wherever the `update`
+already routes every placement (route a narrow one with
+`assembly.update(own)` first); keep `complete` for configs assembled by
+hand.
 
 **Annotate the parameters of callbacks written inline in the config.**
 `makeApplication`'s `init: (url: Url) => …` and `routing.onUrlChange: (url: Url)
