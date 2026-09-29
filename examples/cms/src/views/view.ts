@@ -41,7 +41,9 @@ import {
   statusLine,
 } from './shell.js'
 import { article, postHref } from '../content/site.js'
-import { AdminSlots, AdminStyle, ListStyle, SiteSlots, SiteStyle } from '../styles/style.js'
+import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
+import { ListStyle } from '../styles/formStyles.js'
+import { SiteSlots, SiteStyle } from '../styles/siteStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 

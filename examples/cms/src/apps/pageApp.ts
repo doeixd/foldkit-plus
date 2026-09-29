@@ -25,7 +25,7 @@ import { QueryBlock } from 'foldkit-composition/remote'
 import { Post, PostById, RecentPosts } from '../content/domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from '../content/pageDomain.js'
 import { PageBuilder, Site } from '../content/site.js'
-import { PageFieldStyle, PageFormStyle } from '../styles/style.js'
+import { PageFieldStyle, PageFormStyle } from '../styles/formStyles.js'
 import {
   beginMissing,
   entryIn,

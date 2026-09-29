@@ -10,7 +10,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it } from 'vitest'
 import { historyCard, type RevisionRow } from '../src/views/shell.js'
-import { AdminSlots } from '../src/styles/style.js'
+import { AdminSlots } from '../src/styles/adminStyle.js'
 
 const Message = defineMessageUnion({ RestoreAsked: { revision: Schema.Number } })
 type Message = typeof Message.Type

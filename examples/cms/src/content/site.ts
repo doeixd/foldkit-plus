@@ -29,9 +29,9 @@ import {
   InspectorFieldStyle,
   InspectorFormStyle,
   narrowWidth,
-  SiteSlots,
-  t,
-} from '../styles/style.js'
+} from '../styles/builderStyle.js'
+import { SiteSlots } from '../styles/siteStyle.js'
+import { t } from '../styles/style.js'
 
 /** The looks' base rules sit in `components`, below the application's own. */
 const components = Layers.standard.layer('components')

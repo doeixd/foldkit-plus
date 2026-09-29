@@ -38,7 +38,7 @@ import {
   PostPreview,
   Posts,
 } from '../content/domain.js'
-import { FormStyle, WritingFieldStyle } from '../styles/style.js'
+import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
 

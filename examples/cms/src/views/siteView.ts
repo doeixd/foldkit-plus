@@ -20,7 +20,7 @@ import {
 } from '../apps/siteApp.js'
 import { ORIGIN, SOURCE } from '../content/domain.js'
 import { SiteRenderer, article, postGrid } from '../content/site.js'
-import { SiteSlots, SiteStyle } from '../styles/style.js'
+import { SiteSlots, SiteStyle } from '../styles/siteStyle.js'
 import type { Chair } from '../server/transport.js'
 
 type Slots = SlotView.SlotBuilders<typeof SiteSlots, Message>

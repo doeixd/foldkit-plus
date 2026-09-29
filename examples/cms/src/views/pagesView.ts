@@ -32,7 +32,7 @@ import {
   statusLine,
 } from './shell.js'
 import { pageHref } from '../content/site.js'
-import { AdminSlots, AdminStyle } from '../styles/style.js'
+import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 

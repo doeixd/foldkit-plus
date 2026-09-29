@@ -9,7 +9,7 @@ import { Option } from 'effect'
 import { Cms, type EditorStatus, type State, type Transition } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import type { RemoteData } from 'foldkit-remote'
-import type { AdminSlots } from '../styles/style.js'
+import type { AdminSlots } from '../styles/adminStyle.js'
 import { icon } from './icons.js'
 import { chairOf, chairs, type Chair } from '../server/transport.js'
 
