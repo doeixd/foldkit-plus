@@ -46,6 +46,10 @@ export const checkArgs = (
  * and resources; it never re-runs against changing parent state, so keep it
  * pure of its seed.
  *
+ * When no initialization ran — a hand-built Model in a test, which never went
+ * through `initial` — `update` derives from the given parent per use, without
+ * retaining, so each Model is folded with its own seed.
+ *
  * Read only seed fields (route, auth, workspace, ...), never sibling
  * placement fields: every factory sees the same base seed, so a sibling read
  * is consistently absent rather than order-dependent.
@@ -108,8 +112,9 @@ export interface PlaceConfig<
    * The bundle's args: a static value, or a factory from the parent seed (the
    * fields `assembly.initial(rest)` was given, minus this placement's own
    * field). A factory is computed once per initialization and retained for
-   * `update` and helpers; Subscriptions and resources built from it require
-   * `initial`/`config` to have run first.
+   * `init`, `update`, and helpers. Subscriptions and resources built from it
+   * require `initial`/`config` to have run first; a bundle with neither
+   * contributes empty records either way.
    */
   readonly args?: ArgsSource<ParentSeed, Args>
   /** Handles the child's OutMessage in parent terms, with the child already written back. */
@@ -387,6 +392,10 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     ? {}
     : buildSubscriptions(rawArgs)
   let resRecord = factory ? {} : buildResources(rawArgs)
+  // Records only need the derived args when the bundle defines them; a bundle
+  // with no Subscriptions or resources contributes nothing either way.
+  const needsSubsArgs = bundle.subscriptions !== undefined
+  const needsResArgs = bundle.resources !== undefined
 
   const needArgs = (): unknown => {
     if (!factory) return rawArgs
@@ -398,13 +407,21 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
 
   const resolveFrom = (seed: unknown): void => {
     if (!factory) return
-    const value = (rawArgs as (seed: unknown) => unknown)(seed)
-    summary = checkArgs(bundle, value, key) ?? bundle.preset
-    resolved = value
+    const derived = derive(seed)
+    summary = derived.summary
+    resolved = derived.value
     hasResolved = true
     skipped = false
-    subsRecord = buildSubscriptions(value)
-    resRecord = buildResources(value)
+    subsRecord = buildSubscriptions(resolved)
+    resRecord = buildResources(resolved)
+  }
+
+  /** Runs the factory against `seed` and checks the result, without retaining. */
+  const derive = (
+    seed: unknown,
+  ): { readonly value: unknown; readonly summary: string | undefined } => {
+    const value = (rawArgs as (seed: unknown) => unknown)(seed)
+    return { value, summary: checkArgs(bundle, value, key) ?? bundle.preset }
   }
 
   const skipArgs = (): void => {
@@ -471,7 +488,10 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
         // A Message for a child that was never initialised (an optional child
         // `rest` started as `None`) leaves the parent as it is.
         if (factory && !hasResolved && Option.isNone(link.read(parent))) return { model: parent }
-        const args = needArgs()
+        // Past initialization the retained value runs; a Model no
+        // initialization produced derives from the given parent per use.
+        const args =
+          factory && !hasResolved ? derive(seedWithoutOwn(link.path, parent)).value : needArgs()
         const fold = foldStep(model => bundle.update(model, childMessage, args))
         return config.onMessage === undefined
           ? fold(parent)
@@ -480,13 +500,11 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     get subscriptions() {
       // A skipped placement (its field came with `rest`) contributes no
       // Subscriptions while its child is absent.
-      if (factory && !hasResolved && skipped) return subsRecord
-      if (factory && !hasResolved) needArgs()
+      if (factory && !hasResolved && needsSubsArgs && !skipped) needArgs()
       return subsRecord
     },
     get resources() {
-      if (factory && !hasResolved && skipped) return resRecord
-      if (factory && !hasResolved) needArgs()
+      if (factory && !hasResolved && needsResArgs && !skipped) needArgs()
       return resRecord
     },
     view: viewIn(key),

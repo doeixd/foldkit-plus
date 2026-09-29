@@ -37,7 +37,8 @@ export interface EachConfig<
   /**
    * The args every item's `init` and `update` receive: a static value, or a
    * factory from the parent seed, computed once per initialization and
-   * retained. Requires `initial`/`config` to have run before items are added.
+   * retained. Adding items requires `initial`/`config` to have run; `update`
+   * on a Model no initialization produced derives per use instead.
    */
   readonly args?: ArgsSource<ParentSeed, Args>
   /** Handles an item's OutMessage in parent terms, with the item already written back. */
@@ -229,11 +230,19 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
 
   const resolveFrom = (seed: unknown): void => {
     if (!factory) return
-    const value = (rawArgs as (seed: unknown) => unknown)(seed)
-    summary = checkArgs(bundle, value, prefix) ?? bundle.preset
-    resolved = value
+    const derived = derive(seed)
+    summary = derived.summary
+    resolved = derived.value
     hasResolved = true
-    subsRecord = buildSubscriptions(value)
+    subsRecord = buildSubscriptions(resolved)
+  }
+
+  /** Runs the factory against `seed` and checks the result, without retaining. */
+  const derive = (
+    seed: unknown,
+  ): { readonly value: unknown; readonly summary: string | undefined } => {
+    const value = (rawArgs as (seed: unknown) => unknown)(seed)
+    return { value, summary: checkArgs(bundle, value, prefix) ?? bundle.preset }
   }
 
   const buildSubscriptions = (args: unknown) =>
@@ -379,7 +388,10 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
         // A Message for an item that was never added leaves the parent as it is.
         if (factory && !hasResolved && Option.isNone(link.get(parent, key)))
           return { model: parent }
-        const args = needArgs()
+        // Past initialization the retained value runs; a Model no
+        // initialization produced derives from the given parent per use.
+        const args =
+          factory && !hasResolved ? derive(seedWithoutOwn(link.path, parent)).value : needArgs()
         const fold = foldItem(key, model => bundle.update(model, childMessage, args))
         return config.onMessage === undefined
           ? fold(parent)
@@ -403,7 +415,9 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
       (key: string): ErasedStep =>
       parent => ({ model: link.write(parent, key, Option.none()) }),
     get subscriptions() {
-      if (factory && !hasResolved) needArgs()
+      // Records only need the derived args when the bundle defines
+      // Subscriptions; otherwise the collection contributes nothing either way.
+      if (factory && !hasResolved && bundle.subscriptions !== undefined) needArgs()
       return subsRecord
     },
     view,
