@@ -111,8 +111,8 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
       ),
     )
     const config = siteConfig({
-      // The prepared Model through the assembly's own `initial`, as `init` must return it.
-      init: () =>
+      // The prepared Model through the assembly's own `initial`, as `initial` must return it.
+      initial: () =>
         Site.placements.initial({
           remote: prepared.remote,
           route: prepared.route,

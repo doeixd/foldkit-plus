@@ -155,6 +155,13 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 - **Parent update:** `placements.update(own)` routes placement Messages and
   passes the rest to `own`. Name the parent's services once:
   `Page.withServices<AppServices>()`.
+- **Runtime config:** `placements.config({ initial, update: own, … })` derives
+  `init`/`update`/`subscriptions`/`managedResources` (own records merge in);
+  URL-mirror assemblies stay on `complete` with `assembly.url`. When the
+  update already routes every placement, `placements.runtime({ initial, update,
+  … })` instead: `initial` rest becomes `init`, or an init function returning
+  `assembly.initial(...)` is used as `init`; own records default to the
+  items', so pass only what the application adds.
 - **OutMessage:** a bundle whose `update` returns `outMessage` must be placed
   with `onOut: outMessage => model => ({ model: … })` (typed from the scope), or
   `onOut: Bundle.ignore` to drop it deliberately. Omitting it is a type error.

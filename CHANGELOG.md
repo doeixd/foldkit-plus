@@ -25,6 +25,15 @@ version changed; `pnpm` skips versions already in the registry.
   post-init Message. Route changes after startup still arrive as Messages,
   folded through the same placement, and the view keeps its `people` slot.
 
+- **`foldkit-bundle`, `assembly.runtime`:** the runtime config in one call for
+  an application whose `update` already routes every placement. `initial`
+  rest becomes `init`, or an init function returning
+  `assembly.initial(...)` is used as `init` when the seed needs runtime
+  input, like the URL. The `update` passes through checked; the own
+  `subscriptions` and `managedResources` merge with the items', defaulting
+  to the items', so an application that adds none passes neither. The CMS
+  `siteConfig` and the entity client use it.
+
 ### Fixed
 
 - **`foldkit-bundle`, placement typing:** `PlacedResources` keeps

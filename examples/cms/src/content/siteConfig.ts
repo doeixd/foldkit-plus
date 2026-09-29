@@ -11,22 +11,21 @@ import type { Chair } from '../server/transport.js'
 import { view } from '../views/siteView.js'
 
 export const siteConfig = <Container extends HTMLElement | null>(options: {
-  readonly init: (url: Url) => ReturnType<typeof Site.initial>
+  readonly initial: (url: Url) => ReturnType<typeof Site.initial>
   readonly resources: Layer.Layer<RemoteClient>
   /** The page's element in the browser; none where the build renders. */
   readonly container: Container
 }) =>
-  Site.placements.complete({
+  Site.placements.runtime({
     Model: Site.Model,
     container: options.container,
-    init: options.init,
+    initial: options.initial,
     update: Site.update,
     view,
     routing: {
       onUrlChange: (url: Url) => Site.Message.UrlChanged({ url }),
       onUrlRequest: (request: UrlRequest) => Site.Message.UrlRequested({ request }),
     },
-    subscriptions: Site.placements.subscriptions(),
     resources: options.resources,
   })
 
