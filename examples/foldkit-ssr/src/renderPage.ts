@@ -4,11 +4,13 @@
  * Foldkit's pipeline calls. Loaded by the dev server and the production host
  * alike; only the build id differs, which the caller passes.
  */
+import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 import type { EntryResult } from 'foldkit/experimental/server'
 
 import { readCountCookie } from './cookie.js'
 import { Flags, Model, init, plan, update, view } from './main.js'
+import { stylesheet } from './style.js'
 
 const flagsForRequest = (cookieHeader: string): Flags => ({
   initialCount: readCountCookie(cookieHeader),
@@ -41,9 +43,19 @@ const pageHeaders = {
  * renders `GET` and `HEAD`, answers `OPTIONS`, and refuses the other methods
  * with `405`.
  */
+/**
+ * The foundations and the classes the page draws, so the first paint is
+ * styled before any script runs. The host owns the template in dynamic
+ * serving, so they ride in the rendered root; the browser's Styles find
+ * these classes present and add none of them again.
+ */
+const styles = (rendered: { readonly html: string }): string =>
+  `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
+
 export const makeRenderPage = (buildId: string): ((request: Request) => Promise<EntryResult>) =>
   SSR.entry({ Model, Flags, init, update, view, container: null }, plan, {
     buildId,
     headers: () => pageHeaders,
     flags: request => flagsForRequest(request.headers.get('cookie') ?? ''),
+    styles,
   }).renderPage

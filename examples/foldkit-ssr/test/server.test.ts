@@ -93,9 +93,21 @@ describe('a page request', () => {
     vi.unstubAllEnvs()
   })
 
-  test('carries no head styles: the script brings them when it boots', async () => {
+  test('styles its first paint from the rendered root, with no head styles', async () => {
     const { page } = await pageFor()
     expect(Array.from(page.head.querySelectorAll('style'))).toEqual([])
+    const root = rootOf(page)
+    const css = Array.from(
+      root.querySelectorAll(':scope > style'),
+      style => style.textContent ?? '',
+    ).join('')
+    const drawn = new Set(
+      Array.from(root.querySelectorAll('[class]')).flatMap(element =>
+        Array.from(element.classList),
+      ),
+    )
+    expect(drawn.size).toBeGreaterThan(0)
+    expect([...drawn].filter(name => !css.includes(`.${name}{`))).toEqual([])
   })
 
   test('may be kept by no cache, since it is one visitor’s count', async () => {

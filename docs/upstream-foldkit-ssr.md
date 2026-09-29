@@ -131,9 +131,9 @@ headers. `injectIntoTemplate` accepts, beside the root, only Foldkit's own
 head markup has nowhere to put it. That costs two things:
 
 - **Static generation.** `foldkit-ssr`'s `SSR.generate` owns its template and
-  writes `meta` and per-page styles into the head. A served page goes without
-  them: the script brings what the first paint needs, and crawlers never see
-  the tags.
+  writes `meta` and per-page styles into the head. A served page carries its
+  styles in its root (`styles`) but goes without `meta`: the script brings
+  what the first paint needs, and crawlers never see the tags.
 - **The checks.** Whatever channel carries the markup should get the
   parser-stability checks `injectIntoTemplate` gives the root and the head
   fields.

@@ -191,6 +191,14 @@ const html = SSR.page(template, result, {
 })
 ```
 
+A served page has no template head to write to, so `SSR.render`, `SSR.entry`
+and `SSR.handle` take the same function as `styles` instead, carried as the
+rendered root's last child. Keep it to `<style>`: hydration adopts the nodes
+around it and drops it on its first patch, and the browser's Styles skip what
+it already carries. A void root holds no children, so styles for one are
+refused with `VoidRootWithStyles`, naming the tag. Anything a head owns
+(`meta`, links) stays with `SSR.generate`.
+
 `SSR.generate` takes the same `head`, and answers a `head` that throws `500`,
 as it does a render that fails. `SSR.entry` takes no `head`: the host owns
 the template in dynamic serving, so a served page carries no per-page head
@@ -643,6 +651,7 @@ of:
 | `UndeclaredSurfaces`       | The page has bindings and the plan no `surfaces`                              | Name the Surfaces the page may activate                              |
 | `UnencodableBinding`       | The plan has no Message Schema, or a binding's Message does not encode through it | Make the plan from the application; build the Message with its constructor |
 | `EagerStartRequired`       | A deferred plan would start a Subscription or Managed Resource late           | Declare it in `deferrable`, or start `'now'`                         |
+| `VoidRootWithStyles`       | `styles` were given for a view whose root is void and holds nothing           | Put the styles in the template's head with `SSR.generate`, or return an element root |
 | `UngeneratablePath`        | `SSR.generate` was given a path no file can be served at                      | Leave out the query and fragment; keep paths to distinct files      |
 
 In the browser, `SSR.hydrate` checks in Foldkit's order: the build id first,

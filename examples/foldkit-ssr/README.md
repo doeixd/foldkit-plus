@@ -53,17 +53,17 @@ FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-fol
 | The build id both sides compare | the deployment, compiled into both bundles | `FOLDKIT_BUILD_ID`, read as `import.meta.env.FOLDKIT_BUILD_ID` in `src/entry.server.ts` and `src/entry.ts` |
 | Static files, the request target, host-refused methods | the host, on Effect's HTTP server and `@effect/platform-node` as upstream's (`HttpStaticServer`; Foldkit's `resolveRequestUrl`, `resolvesToIndexHtml`, `isHostSettledMethod`) | `src/host.ts`, run by `src/serve.ts` |
 | The accessible buttons | `@foldkit/ui` Button, styled through `foldkit-mixins-ui` | `src/main.ts`, `src/style.ts` |
-| Appearance, and the CSS the script installs on boot | `foldkit-mixins` (`Style.install`) | `src/main.ts`, `src/style.ts`, `src/entry.ts` |
+| Appearance, and the CSS in each page's first paint | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a served page carries) | `src/style.ts`, `styles` in `src/renderPage.ts`, `src/entry.ts` |
 
 `foldkit-surface` appears only to name the Model's fields for the plan
 (`Surface.application(...).model`); no Surface is declared.
 
 ### What is not used, and why
 
-- **Per-page head styles.** The host owns the template in dynamic serving, so
-  `SSR.entry` writes no `head`: the script installs the stylesheet on boot
-  (`Style.install`), and the first paint is unstyled until it runs. Static
-  pages keep per-page styles in the head through `SSR.generate`.
+- **Per-page head markup.** The host owns the template in dynamic serving, so
+  a served page carries its styles in its root (`styles`) and no `meta`: the
+  script installs the stylesheet on boot, while `meta` stays a static path
+  (`SSR.generate`).
 - **Resumable pages** (`Resume.builder`, `start: 'on-interaction'`). The two
   buttons could answer before the runtime boots, but only after a Surface
   listed their Messages, and the cookie write still waits for the runtime. The
@@ -109,8 +109,8 @@ From the repository root: `npx vitest run examples/foldkit-ssr`.
 - `test/server.test.ts`: `entry.server.ts` answering requests in process, the
   page parsed back with `DOMParser`: the count from the cookie, the title, the
   provenance line, the envelope (the Model, no Flags script), the markup a
-  parser builds from it, the build id, no head styles, the headers, the
-  preflight, `HEAD`, and the refused methods.
+  parser builds from it, the build id, the styles in the rendered root and
+  none in the head, the headers, the preflight, `HEAD`, and the refused methods.
 - `test/runtime.test.ts`: the real `entry.ts` in jsdom over a rendered page:
   adopted in place, counts, writes the cookie the next request renders from;
   refuses a page from another build and a page the server did not render.

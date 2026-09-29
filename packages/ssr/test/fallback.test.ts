@@ -76,6 +76,16 @@ describe('SSR.handle through handleRequest', () => {
     expect(body).toContain('&quot;todos&quot;:[&quot;Served&quot;,&quot;Milk&quot;]')
   })
 
+  it('carries `styles` on the page a post renders, as on a GET', async () => {
+    const styled = SSR.entry(config, plan, {
+      buildId: 'b',
+      styles: () => '<style>ul{list-style:none}</style>',
+    })
+    const response = await serve(post({ title: 'Milk', [FALLBACK_FIELD]: added }), styled)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<style>ul{list-style:none}</style>')
+  })
+
   it('folds nothing for a Command that yields no Message, and still answers the page', async () => {
     const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Pinged()) }))
     expect(response.status).toBe(200)

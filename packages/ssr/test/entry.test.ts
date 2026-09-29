@@ -40,6 +40,17 @@ describe('SSR.entry through handleRequest', () => {
     expect(result.headers).toBeUndefined()
   })
 
+  it('carries `styles` as the rendered root’s last child', async () => {
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      styles: () => '<style>p{color:red}</style>',
+    })
+    const body = await (
+      await serve(new Request('https://example.test/', { headers: html }), entry)
+    ).text()
+    expect(body).toMatch(/<style>p\{color:red\}<\/style><\/[^<>]+>/)
+  })
+
   it('refuses a plan with `meta`, which is written into a template the host owns', () => {
     const said = SSR.plan(App, {
       id: 'counter',

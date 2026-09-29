@@ -100,6 +100,14 @@ version changed; `pnpm` skips versions already in the registry.
   which Foldkit would otherwise leave out silently. The CMS example's
   hand-built head is now its plan's `meta`.
 
+- **`foldkit-ssr`, `styles` for the first paint of a served page:**
+  `SSR.render`, `SSR.entry` and `SSR.handle` take `styles: rendered =>
+  string`, carried as the rendered root's last child where no template head
+  can take it. Hydration adopts the nodes around it and drops it on its first
+  patch; styles for a void root are refused with `VoidRootWithStyles`. The
+  `foldkit-ssr` example ships its stylesheet this way again, as `SSR.generate`
+  pages do in the head.
+
 - **`foldkit-ssr`, `SSR.sitemap(pages, { origin })` and
   `SSR.robots({ origin, sitemap?, disallow? })`:** a generated site's sitemap
   (each page's full address, its `modified` date as the UTC day) and the

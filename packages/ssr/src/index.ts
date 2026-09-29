@@ -180,6 +180,26 @@ const isInRootTag = (html: string, at: number): boolean => {
 }
 
 /**
+ * The rendered markup with `extra` as the root's last child, so the first
+ * paint is styled before any script runs where no template head can take it.
+ * A void root holds no children: styles for one are refused, naming the tag,
+ * rather than served where no browser could keep them.
+ */
+const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUnsafe> => {
+  const tag = /^<([A-Za-z][A-Za-z0-9-]*)/.exec(html)?.[1]
+  const at = tag === undefined ? -1 : html.search(new RegExp(`</${tag}>\\s*$`))
+  if (tag === undefined || at === -1) {
+    return Result.fail(
+      new ResumeUnsafe({
+        reason: 'VoidRootWithStyles',
+        message: `styles need a root element that can hold them, but the view returned <${tag ?? '?'}>: put the styles in the template's head with SSR.generate, or return an element root`,
+      }),
+    )
+  }
+  return Result.succeed(`${html.slice(0, at)}${extra}${html.slice(at)}`)
+}
+
+/**
  * The Model the browser will start from when the server's Model is `model`:
  * the payload taken through the page as the envelope carries it, as JSON, and
  * resumed exactly as `SSR.resume` resumes it. A part that cannot restore its
@@ -349,6 +369,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'EagerStartRequired',
     'UndeclaredSurfaces',
     'BindingInStaticRegion',
+    'VoidRootWithStyles',
   ]),
   message: Schema.String,
 }) {}
@@ -501,6 +522,13 @@ const render = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly buildId: string
     readonly url?: string | undefined
     readonly flags?: unknown
+    /**
+     * Markup for the first paint, given what was rendered, carried as the
+     * root's last child: keep it to `<style>`, which the browser drops on
+     * hydration. Anything a head owns (`meta`, links) stays with `SSR.page`
+     * and `SSR.generate`.
+     */
+    readonly styles?: Head | undefined
   },
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
   renderMatching(config, plan, options, 'full')
@@ -512,6 +540,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly buildId: string
     readonly url?: string | undefined
     readonly flags?: unknown
+    readonly styles?: Head | undefined
   },
   match: RouteMatch,
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
@@ -645,8 +674,13 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         ]),
       ].sort(),
     })
+    const styled =
+      options.styles === undefined
+        ? Result.succeed(rendered.html)
+        : withInRoot(rendered.html, options.styles(rendered))
+    if (Result.isFailure(styled)) return yield* styled.failure
     return {
-      rendered: { ...rendered, html: withEnvelopeAttribute(rendered.html, envelope) },
+      rendered: { ...rendered, html: withEnvelopeAttribute(styled.success, envelope) },
       meta,
       envelope,
       unnamed,
@@ -655,7 +689,9 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
 
 /**
  * What a page adds to its head, given what it rendered: such as a stylesheet
- * of the classes the markup uses (`Style.usedIn` in `foldkit-mixins`).
+ * of the classes the markup uses (`Style.usedIn` in `foldkit-mixins`). The
+ * same shape describes `styles`, which rides in the rendered root instead,
+ * for pages whose template the host owns.
  */
 export type Head = (rendered: RenderedApplication) => string
 
@@ -936,6 +972,12 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly buildId: string
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
     readonly headers?: ((request: Request) => HeadersInit) | undefined
+    /**
+     * Markup for the first paint, carried as the rendered root's last child.
+     * The host owns the template in dynamic serving, so this is where
+     * per-page styles go; anything a head owns stays with `SSR.generate`.
+     */
+    readonly styles?: Head | undefined
   },
 ): EntryModule => {
   if (plan.meta !== undefined) {
@@ -973,6 +1015,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       return responded(new Response(null, { status: 405, headers: { allow } }))
     }
     const flagsOf = options.flags
+    const styled = options.styles === undefined ? {} : { styles: options.styles }
     // `Effect.result` would miss a defect, such as a view that throws, and a
     // `flags` that throws or rejects is not in the Effect at all: both would
     // reject `renderPage` instead of answering it.
@@ -982,12 +1025,17 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
         const flagged = flagsOf === undefined ? {} : { flags }
         if (posting) {
-          return yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
+          return yield* handle(request, config, plan, {
+            buildId: options.buildId,
+            ...flagged,
+            ...styled,
+          })
         }
         return yield* render(config, plan, {
           buildId: options.buildId,
           url: request.url,
           ...flagged,
+          ...styled,
         })
       }),
     )
@@ -1143,7 +1191,11 @@ const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   request: Request,
   config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
-  options: { readonly buildId: string; readonly flags?: unknown },
+  options: {
+    readonly buildId: string
+    readonly flags?: unknown
+    readonly styles?: Head | undefined
+  },
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
   Effect.gen(function* () {
     if (plan.fallback !== 'server' || plan.Message === undefined) {
@@ -1210,6 +1262,7 @@ const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     return yield* render(startingFrom(config, { model }) as ResumableConfig<Model>, plan, {
       buildId: options.buildId,
       url: request.url,
+      ...(options.styles === undefined ? {} : { styles: options.styles }),
     })
   })
 

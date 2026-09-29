@@ -144,8 +144,11 @@ SSR.hydrate(config, Editor, { buildId })
 - `SSR.page(template, result, { head? })` and `SSR.generate` take
   `head: rendered => string`, put before `</head>`: with `foldkit-mixins`,
   `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships a
-  generated page's CSS in its first paint. `SSR.entry` takes no `head`: the
-  host owns the template in dynamic serving.
+  generated page's CSS in its first paint. `SSR.render`, `SSR.entry` and
+  `SSR.handle` take the same function as `styles`, carried as the rendered
+  root's last child for a served page, which has no template head to write
+  to; hydration drops it on its first patch, and styles for a void root are
+  refused with `VoidRootWithStyles`.
 - `SSR.entry(config, plan, { buildId, flags?, headers? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is

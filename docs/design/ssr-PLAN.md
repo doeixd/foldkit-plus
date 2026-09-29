@@ -1259,6 +1259,10 @@ pipeline, and both are now gone:
   through a hosted page, each escape mutation-caught); the entry as
   `Rendered` with no headers key; a `meta` plan refused at construction; both
   examples rendering through the dev server and resuming.
+- Per-page styles ride the same way (`styles` on `render`, `entry` and
+  `handle`, as the root's last child), since a served page has no template
+  head to write to; styles for a void root are refused with
+  `VoidRootWithStyles`. `head` and `meta` stay with `SSR.generate`.
 
 **Done.** `SSR.entry(config, plan, { buildId, flags?, headers? })` returns
 Foldkit's `EntryModule` with no template of its own; the `foldkit-ssg` and
