@@ -152,6 +152,17 @@ version changed; `pnpm` skips versions already in the registry.
   `h.submodel`; `Inert.css(nodes)` and `Inert.missingTokens(root, stylesheet)`
   replace the checks every view test wrote by hand.
 
+- **`foldkit-mirror`, `Mirror.bootstrap` and `mirror.bootstrap(keys)`:** a
+  first-class pre-init seam. When a store's keys are already in hand at boot
+  (Flags the server embedded, a synchronous read, a test fixture),
+  `Prefs.bootstrap(keys)` folds them into the initial Model before the first
+  render — the same conservative read `reduce` applies to a `MirrorRestored`,
+  with no Command and no flash — and `Mirror.bootstrap(initial, ...steps)`
+  composes store steps with the URL step (`model => Filters.reduce(model,
+  url)`), keeping URL > store > initial. This is deliberately not part of
+  `Wiring`: a bootstrap runs inside `init` before the Model exists, while
+  `Wiring.init` runs startup Commands (such as `restore`) after it.
+
 - **`foldkit-mirror`, `Mirror.routing`:** `Mirror.routing({ mirrors,
   urlChanged, init, update, routing })` returns `init`, `update` and `routing`
   for `Runtime.makeApplication`. URL mirrors read the starting URL and each URL
