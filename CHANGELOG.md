@@ -58,6 +58,13 @@ version changed; `pnpm` skips versions already in the registry.
   button fork is deleted in the same spirit: its views call the package
   `Button.view` instead of their subset copy.
 
+- **`foldkit-mixins-form`, per-key element attrs:** `FormView.fields` takes
+  `attrs` beside `overrides` and `styles` — what one key's element takes
+  beyond the base field view (`type`, `placeholder`, textarea `rows`). The
+  default renderers forward what fits their element and ignore the rest, and
+  overrides receive the same map. The waitlist example moves its email type
+  there and drops the thread-through.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

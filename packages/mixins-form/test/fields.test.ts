@@ -5,7 +5,13 @@ import { SlotView, Style } from 'foldkit-mixins'
 import { Inert, type Node } from 'foldkit-mixins/testing'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
-import { FieldSlots, FormSlots, FormView, type FieldOverride, type FormInput } from '../src/index.js'
+import {
+  FieldSlots,
+  FormSlots,
+  FormView,
+  type FieldOverride,
+  type FormInput,
+} from '../src/index.js'
 
 const Note = Entity.define(
   'Note',
@@ -129,5 +135,54 @@ describe('FormView.fields', () => {
     expect(() => Fields.field(nested, initial, 'F-title', SlotView.inertBuilder())).toThrow(
       'FormView.fields: "title" nests rows or a Bundle',
     )
+  })
+
+  it('forwards a key’s type, placeholder, and rows to its element', () => {
+    const Fields = FormView.fields(NoteForm, {
+      attrs: {
+        email: { type: 'email', placeholder: 'you@example.com' },
+        title: { placeholder: 'A title' },
+        body: { placeholder: 'Write…', rows: 8 },
+      },
+    })
+    const root = renderView(Fields.view)
+    expect(drawn(root, 'Note-email')).toEqual(['input', 'email'])
+    expect(byId(root, 'Note-email')?.data?.props?.placeholder).toBe('you@example.com')
+    expect(byId(root, 'Note-title')?.data?.props?.placeholder).toBe('A title')
+    expect(byId(root, 'Note-body')?.data?.props?.placeholder).toBe('Write…')
+    expect(byId(root, 'Note-body')?.data?.attrs).toMatchObject({ rows: '8' })
+  })
+
+  it('leaves what does not fit an element out', () => {
+    const Fields = FormView.fields(NoteForm, {
+      attrs: {
+        title: { rows: 8 },
+        body: { type: 'email' },
+      },
+    })
+    const root = renderView(Fields.view)
+    expect(drawn(root, 'Note-title')).toEqual(['input', 'text'])
+    expect(byId(root, 'Note-title')?.data?.attrs?.rows).toBeUndefined()
+    expect(drawn(root, 'Note-body')).toEqual(['textarea', undefined])
+  })
+
+  it('hands an override its key’s attrs, or none', () => {
+    const seen: Record<string, unknown> = {}
+    const Fields = FormView.fields(NoteForm, {
+      attrs: { email: { type: 'email' } },
+      overrides: {
+        email: (input, h) => {
+          seen.email = input.attrs
+          return h.p([], ['custom-email'])
+        },
+        title: (input, h) => {
+          seen.title = input.attrs
+          return h.p([], ['custom-title'])
+        },
+      },
+    })
+    renderView(Fields.view)
+    expect(seen.email).toEqual({ type: 'email' })
+    expect(seen.title).toEqual({})
   })
 })

@@ -199,7 +199,9 @@ const isFormValid = (model: Model): boolean => WaitlistForm.engine.value(model.f
 
 type FormMessage = typeof WaitlistForm.Message.Type
 
-const Fields = FormView.fields(WaitlistForm)
+const Fields = FormView.fields(WaitlistForm, {
+  attrs: { email: { type: 'email' } },
+})
 
 type FieldOverride = (
   input: FieldOverrideInput<FieldKey, FormMessage>,
@@ -209,7 +211,7 @@ type FieldOverride = (
 const changed = (message: FormMessage): Message => Message.GotFormMessage({ message })
 
 const textOverride =
-  (slots: Slots, type: string): FieldOverride =>
+  (slots: Slots): FieldOverride =>
   (input, h) =>
     Input.view(
       {
@@ -218,7 +220,7 @@ const textOverride =
         onInput: value => changed(input.changed(value)),
         invalid: input.invalid,
         described: Option.isSome(descriptionOf(input.field)),
-        type,
+        type: input.attrs.type ?? 'text',
         style: InputStyle,
         input: input.field,
         draw: (resolved, h) =>
@@ -265,11 +267,10 @@ const textareaOverride =
       h,
     )
 
-/** How each key is drawn: the control's kind decides, with email's HTML type the one per-key fact. */
+/** How each key is drawn: the control's kind decides. */
 const overrideOf = (control: FormControl<FieldKey>, slots: Slots): FieldOverride => {
   if (control.control.kind === FormInput.Multiline.kind) return textareaOverride(slots)
-  if (control.control.kind === FormInput.Text.kind)
-    return textOverride(slots, control.key === 'email' ? 'email' : 'text')
+  if (control.control.kind === FormInput.Text.kind) return textOverride(slots)
   throw new Error(`no override for a "${control.control.kind}" control ("${control.key}")`)
 }
 

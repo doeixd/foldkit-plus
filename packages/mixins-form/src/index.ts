@@ -343,6 +343,8 @@ export interface RenderContext<Message> {
     | undefined
   /** The control's id and its accessibility state. Put them on the element that holds the value. */
   readonly state: ReadonlyArray<Attribute<Message>>
+  /** What the key's element takes beyond the base field view. */
+  readonly attrs: FieldAttrs
   readonly slots: SlotBuilders<typeof FieldSlots, Message>
   readonly h: HtmlBuilder<Message>
 }
@@ -436,12 +438,28 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
     ])
   return {
     [Input.Text.kind]: context =>
-      context.h.input(context.slots.text.attrs([...typed(context), context.h.Type('text')])),
+      context.h.input(
+        context.slots.text.attrs([
+          ...typed(context),
+          context.h.Type(context.attrs.type ?? 'text'),
+          ...(context.attrs.placeholder === undefined
+            ? []
+            : [context.h.Placeholder(context.attrs.placeholder)]),
+        ]),
+      ),
     [Input.Multiline.kind]: context =>
       // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
       // and no mixin can supply, so the narrowing loses nothing.
       context.h.textarea(
-        context.slots.multiline.attrs(typed(context)) as Parameters<typeof context.h.textarea>[0],
+        context.slots.multiline.attrs([
+          ...typed(context),
+          ...(context.attrs.placeholder === undefined
+            ? []
+            : [context.h.Placeholder(context.attrs.placeholder)]),
+          ...(context.attrs.rows === undefined
+            ? []
+            : [context.h.Attribute('rows', String(context.attrs.rows))]),
+        ]) as Parameters<typeof context.h.textarea>[0],
       ),
     // A number is a text input because its draft is text: `"4."` is a fine thing to
     // have typed, and `type="number"` would refuse to report it.
@@ -451,6 +469,9 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
           ...typed(context),
           context.h.Type('text'),
           context.h.InputMode('decimal'),
+          ...(context.attrs.placeholder === undefined
+            ? []
+            : [context.h.Placeholder(context.attrs.placeholder)]),
         ]),
       ),
     [Input.Toggle.kind]: ({ state, draft, change, blurred, slots, h }) =>
@@ -516,6 +537,8 @@ export interface FieldOverrideInput<Key extends string = string, Changed = unkno
   readonly errors: ReadonlyArray<string>
   readonly changed: (value: Draft) => Changed
   readonly blurred: Changed
+  /** What the key's element takes beyond the base field view. */
+  readonly attrs: FieldAttrs
 }
 
 /**
@@ -530,6 +553,17 @@ export type FieldOverride<Key extends string = string, Changed = unknown, Messag
 ) => Html
 
 /**
+ * What one key's element takes beyond the base field view: an HTML input
+ * type, a placeholder, a textarea's rows. A renderer reads what fits its
+ * element and ignores the rest.
+ */
+export interface FieldAttrs {
+  readonly type?: string | undefined
+  readonly placeholder?: string | undefined
+  readonly rows?: number | undefined
+}
+
+/**
  * Per-key overrides for `FormView.fields`. `overrides` draw through the
  * whole-form view; `styles` style one key's base field view there. Unknown
  * keys in either are type errors. A custom layout passes its override to
@@ -540,6 +574,8 @@ export interface FieldsOptions<Key extends string, Changed> {
   readonly overrides?: { readonly [K in Key]?: FieldOverride<Key, Changed, Changed> } | undefined
   /** A style around a key's base field view, kept for keys with no override. */
   readonly styles?: { readonly [K in Key]?: NamedStyle<typeof FieldSlots> } | undefined
+  /** What one key's element takes beyond the base field view. */
+  readonly attrs?: { readonly [K in Key]?: FieldAttrs } | undefined
 }
 
 /**
@@ -548,7 +584,11 @@ export interface FieldsOptions<Key extends string, Changed> {
  * with any `h`. A call with neither a form `h` nor an override is a type
  * error, since the base view's Messages are the form's own.
  */
-export interface FieldsField<Key extends string, Model, FormMessage extends { readonly _tag: string }> {
+export interface FieldsField<
+  Key extends string,
+  Model,
+  FormMessage extends { readonly _tag: string },
+> {
   (
     control: FormControl<Key>,
     model: Model,
@@ -580,8 +620,7 @@ const blurredOf = <Key extends string, Model, Message>(
   form: FormLike<Key, Model, Message>,
   key: Key,
   send: FieldInput<Key>['send'],
-): Message =>
-  (send === undefined ? form.Message.Blurred({ key }) : send.blurred) as Message
+): Message => (send === undefined ? form.Message.Blurred({ key }) : send.blurred) as Message
 
 /** The view of one field, to style or extend before handing it to `FormView.define`. */
 const field = <Key extends string, Model, Message extends { readonly _tag: string }>(
@@ -589,6 +628,8 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
   options: {
     /** Renderers by kind, beside the ones shipped: a new kind, or another way to draw a shipped one. */
     readonly renderers?: Renderers<Message>
+    /** What one key's element takes beyond the base field view. */
+    readonly attrs?: { readonly [K in Key]?: FieldAttrs }
   } = {},
 ): FieldView<Key, Message> => {
   const renderers: Renderers<Message> = { ...defaultRenderers<Message>(), ...options.renderers }
@@ -645,6 +686,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         blurred,
         bundle,
         state,
+        attrs: options.attrs?.[key] ?? {},
         slots,
         h,
       })
@@ -847,10 +889,11 @@ export const FormView = {
    * The whole form, as `define` draws it, with per-key overrides; and one flat
    * key's control, for a layout the caller owns. Keys with no override render
    * through the base field view (a new key of a known kind needs nothing new),
-   * each through its style when one is given. `field` draws through the base
-   * view with a form-universe `h`, or through the override it is given, with
-   * any `h`. Nested keys and Bundle-backed keys draw only through `view` (or
-   * an override); `field` without one refuses them, naming the key.
+   * each through its style when one is given and with its element attrs. `field`
+   * draws through the base view with a form-universe `h`, or through the
+   * override it is given, with any `h`. Nested keys and Bundle-backed keys draw
+   * only through `view` (or an override); `field` without one refuses them,
+   * naming the key.
    */
   fields: <Key extends string, Model, FormMessage extends { readonly _tag: string }>(
     form: FormLike<Key, Model, FormMessage> & { readonly bundle: { readonly name: string } },
@@ -865,7 +908,15 @@ export const FormView = {
   } => {
     const base =
       options.field ??
-      field(form, options.renderers === undefined ? {} : { renderers: options.renderers })
+      field(
+        form,
+        options.renderers === undefined && options.attrs === undefined
+          ? {}
+          : {
+              ...(options.renderers === undefined ? {} : { renderers: options.renderers }),
+              ...(options.attrs === undefined ? {} : { attrs: options.attrs }),
+            },
+      )
     const styled = new Map<Key, FieldView<Key, FormMessage>>()
     const viewOf = (key: Key): FieldView<Key, FormMessage> => {
       const known = styled.get(key)
@@ -887,6 +938,7 @@ export const FormView = {
           errors: input.errors,
           changed: changedOf(form, input.control.key, input.send),
           blurred: blurredOf(form, input.control.key, input.send),
+          attrs: options.attrs?.[input.control.key] ?? {},
         },
         h,
       )
@@ -917,6 +969,7 @@ export const FormView = {
               errors: errorsOf(state),
               changed: value => form.Message.Changed({ key: control.key, value }),
               blurred: form.Message.Blurred({ key: control.key }),
+              attrs: options.attrs?.[control.key] ?? {},
             },
             h as HtmlBuilder<M>,
           )

@@ -180,11 +180,15 @@ const Fields = FormView.fields(PriceForm, {
     // A style around one key's base field view.
     total: Style.forSlots(FieldSlots)({ root: Style.class('total') }),
   },
+  attrs: {
+    // What one key's element takes: an email type, a placeholder, textarea rows.
+    email: { type: 'email' },
+  },
 })
 ```
 
 Keys with no override render through the base field view, so a new key of a
-known kind needs nothing new; unknown keys in either map are type errors.
+known kind needs nothing new; unknown keys in every map are type errors.
 `Fields.view` is the whole form. `Fields.field(control, model, id, h)` draws
 one flat key for a custom layout, or with the override it is given, in any `h`:
 
@@ -194,10 +198,12 @@ Fields.field(control, formModel, control.key, h, (input, draw) =>
 )
 ```
 
-A override receives the control, its field, id, validity, errors, and the
-`changed`/`blurred` Messages, so a custom layout reconstructs no form
-plumbing. Nested keys and Bundle-backed keys draw only through `view` (or a
-override); `field` without one refuses them, naming the key.
+A override receives the control, its field, id, validity, errors, element
+attrs, and the `changed`/`blurred` Messages, so a custom layout reconstructs
+no form plumbing. A renderer reads the attrs that fit its element — `type` and
+`placeholder` on a text input, `placeholder` and `rows` on a textarea — and
+ignores the rest. Nested keys and Bundle-backed keys draw only through `view`
+(or a override); `field` without one refuses them, naming the key.
 
 A number is a text input because its draft is text: `"4."` is a fine thing to
 have typed, and `type="number"` would refuse to report it.

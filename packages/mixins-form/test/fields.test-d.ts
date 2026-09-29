@@ -15,3 +15,9 @@ FormView.fields(Edit, {
     headline: Style.forSlots(FieldSlots)({ root: Style.class('titled') }),
   },
 })
+FormView.fields(Edit, {
+  attrs: {
+    // @ts-expect-error no key "headline"
+    headline: { type: 'email' },
+  },
+})

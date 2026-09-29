@@ -45,6 +45,8 @@ test('checks the email for real, enables the submit, and injects the CSS of ever
 
   await vi.waitFor(() => expect(document.getElementById('email')).not.toBeNull())
   expect(isSubmitDisabled()).toBe(true)
+  // The email key's type comes from the form's per-key attrs, through the override.
+  expect(document.getElementById('email')?.getAttribute('type')).toBe('email')
 
   typeInto('email', 'test@example.com')
   await vi.waitFor(() => expect(text()).toContain('Checking...'))
