@@ -214,6 +214,28 @@ const saveButton = (disabled: boolean, h: HtmlBuilder<Message>) =>
   )
 ```
 
+An input or a textarea places its own bundles, so its `view` takes a `draw`.
+`Input.view` and `Textarea.view` take the value and Messages, a style, and
+`@foldkit/ui`'s own config (`type` and `placeholder`, `rows` for a textarea):
+
+```ts
+import { Input } from 'foldkit-mixins-ui'
+
+const emailField = (value: string, h: HtmlBuilder<Message>) =>
+  Input.view(
+    {
+      id: 'email',
+      value,
+      onInput: value => Message.TypedEmail({ value }),
+      type: 'email',
+      placeholder: 'you@example.com',
+      style: FieldStyle,
+      draw: ({ input, label }, h) => h.div([], [h.label(label, ['Email']), h.input(input)]),
+    },
+    h,
+  )
+```
+
 `resolve` is the seam underneath, for bundles already in hand: a view that
 receives a Tabs `render` as its input, or a Calendar whose Mixins read the
 mode it is showing, which is only known once the attributes arrive:

@@ -2,13 +2,13 @@ import { Array, Option, pipe } from 'effect'
 import { File } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { Button } from 'foldkit-mixins-ui'
 
 import { Step } from '../domain/index.js'
 import { Message } from '../message.js'
 import { type Model, Submission } from '../model.js'
 import { Education, PersonalInfo, Skills, WorkHistory } from '../step/index.js'
 import { ReviewPart, SubmitButtonStyle, SubmittingButtonStyle } from '../style.js'
-import * as Button from './button.js'
 import { employmentRange, pluralize } from './format.js'
 
 type Slots = SlotBuilders<typeof ReviewPart.slots, Message>

@@ -2,9 +2,10 @@ import { Array } from 'effect'
 import { Submodel } from 'foldkit'
 import { type CalendarDate } from 'foldkit/calendar'
 import { SlotView, Style } from 'foldkit-mixins'
+import { Button } from 'foldkit-mixins-ui'
 
 import { RemoveButtonStyle, StepPart } from '../../../style.js'
-import { Button, Choice, Field } from '../../../view/index.js'
+import { Choice, Field } from '../../../view/index.js'
 import { type Degree, DegreeForm, GraduationYearListbox, Message, type Model } from './entry.js'
 
 const GRADUATION_YEAR_WINDOW_SIZE = 30

@@ -1,11 +1,11 @@
 import { Option } from 'effect'
 import { Submodel } from 'foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
-import { RadioGroup } from 'foldkit-mixins-ui'
+import { Button, RadioGroup } from 'foldkit-mixins-ui'
 
 import { ProficiencyLevel } from '../../../domain/index.js'
 import { ProficiencyStyle, RemoveButtonStyle, StepPart } from '../../../style.js'
-import { Button, Field } from '../../../view/index.js'
+import { Field } from '../../../view/index.js'
 import { Message, type Model, ProficiencyRadioGroup, SkillForm } from './entry.js'
 
 const controls = Field.controlsOf(SkillForm.controls)

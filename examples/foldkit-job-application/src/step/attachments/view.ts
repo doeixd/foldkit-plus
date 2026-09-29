@@ -3,9 +3,9 @@ import { Array, Match, Number, Option } from 'effect'
 import { File, Submodel } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { Button } from 'foldkit-mixins-ui'
 
 import { AttachmentPart, RemoveButtonStyle } from '../../style.js'
-import { Button } from '../../view/index.js'
 import { Message, type Model } from './attachments.js'
 
 type Slots = SlotBuilders<typeof AttachmentPart.slots, Message>

@@ -52,6 +52,12 @@ version changed; `pnpm` skips versions already in the registry.
   adopts it for its worklist tabs, viewport switcher, panel tabs, and
   inspector choices.
 
+- **`foldkit-mixins-ui`, `Input.view`/`Textarea.view`:** one call drawing a
+  field — the value and Messages, a style, `type`/`placeholder` (`rows` for a
+  textarea), and a `draw` placing the resolved bundles. The job application's
+  button fork is deleted in the same spirit: its views call the package
+  `Button.view` instead of their subset copy.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

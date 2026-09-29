@@ -1,6 +1,6 @@
-import type { TextareaAttributes } from '@foldkit/ui/textarea'
-import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
-import type { ChildAttribute, Html, TextareaAttribute } from 'foldkit/html'
+import { view as textareaView, type TextareaAttributes } from '@foldkit/ui/textarea'
+import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
+import type { ChildAttribute, Html, HtmlBuilder, TextareaAttribute } from 'foldkit/html'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 export const TextareaSlots = Slots.define({
@@ -43,3 +43,46 @@ export const toView =
   ) =>
   (attributes: TextareaAttributes<Message>): Html =>
     draw(resolve(attributes, mixins, context))
+
+/**
+ * A textarea in one call: its value and Messages, a style for its slots, and
+ * the rest of `@foldkit/ui`'s own config. `draw` places the resolved
+ * `textarea`, `label`, and `description` bundles.
+ */
+export interface TextareaView<Message> {
+  readonly id: string
+  readonly value?: string | undefined
+  readonly onInput?: ((value: string) => Message) | undefined
+  readonly disabled?: boolean | undefined
+  readonly invalid?: boolean | undefined
+  readonly described?: boolean | undefined
+  readonly rows?: number | undefined
+  readonly placeholder?: string | undefined
+  /** A style of `TextareaSlots`, for the textarea's own look. */
+  readonly style?: NamedStyle<typeof TextareaSlots> | undefined
+  /** Mixins beside the style, for state or behavior the style does not own. */
+  readonly mixins?: MixinList<Message> | undefined
+  /** What an input-driven Mixin reads; omit it when no attached Mixin reads one. */
+  readonly input?: unknown
+  readonly draw: (resolved: ResolvedTextarea<Message>, h: HtmlBuilder<Message>) => Html
+}
+
+export const view = <Message>(options: TextareaView<Message>, h: HtmlBuilder<Message>): Html =>
+  textareaView(
+    {
+      id: options.id,
+      ...(options.value === undefined ? {} : { value: options.value }),
+      ...(options.onInput === undefined ? {} : { onInput: options.onInput }),
+      ...(options.disabled === undefined ? {} : { isDisabled: options.disabled }),
+      ...(options.invalid === undefined ? {} : { isInvalid: options.invalid }),
+      ...(options.described === undefined ? {} : { hasDescription: options.described }),
+      ...(options.rows === undefined ? {} : { rows: options.rows }),
+      ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
+      toView: toView(
+        [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+        { input: options.input, h },
+        resolved => options.draw(resolved, h),
+      ),
+    },
+    h,
+  )

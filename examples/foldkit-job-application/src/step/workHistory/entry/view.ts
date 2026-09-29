@@ -1,8 +1,9 @@
 import { Submodel } from 'foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
+import { Button } from 'foldkit-mixins-ui'
 
 import { RemoveButtonStyle, StepPart } from '../../../style.js'
-import { Button, DatePicker, Field } from '../../../view/index.js'
+import { DatePicker, Field } from '../../../view/index.js'
 import { Message, type Model, type Position, PositionForm } from './entry.js'
 
 const controls = Field.controlsOf(PositionForm.controls)

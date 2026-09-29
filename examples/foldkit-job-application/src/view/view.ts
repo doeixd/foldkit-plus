@@ -3,6 +3,7 @@ import { Array, Equal, HashSet, Match, Option, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import { Tabs } from 'foldkit-mixins-ui'
+import { Button } from 'foldkit-mixins-ui'
 
 import { Step } from '../domain/index.js'
 import { Message } from '../message.js'
@@ -22,7 +23,6 @@ import {
   SecondaryButtonStyle,
   StepTabsStyle,
 } from '../style.js'
-import * as Button from './button.js'
 import { Preview } from './preview.js'
 import { Review } from './review.js'
 import { stepMenu, stepTabButton } from './stepNav.js'

@@ -1,8 +1,8 @@
 import { Submodel } from 'foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
+import { Button } from 'foldkit-mixins-ui'
 
 import { AddEntryButtonStyle, StepPart } from '../../style.js'
-import { Button } from '../../view/index.js'
 import * as Entry from './entry/index.js'
 import { Message, type Model } from './skills.js'
 

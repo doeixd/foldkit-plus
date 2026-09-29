@@ -9,7 +9,6 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { Behavior, Style } from 'foldkit-mixins'
 import { Button, ButtonSlots, Input, RadioGroup, Textarea } from '../src/index.js'
 import { h, message } from './fixture.js'
-
 const Look = Style.forSlots(ButtonSlots)({ button: Style.class('look') })
 
 // The Message comes from `h` and the config; no generics at the call.
@@ -76,5 +75,44 @@ Button.toView([], { h }, ({ missing }) => h.button(missing, []))
 UiButton.view(
   // @ts-expect-error an Input's `toView` is not a Button's.
   { toView: Input.toView([], { h }, ({ input }) => h.input(input)) },
+  h,
+)
+
+// `Input.view` hides the UiInput wiring; `draw` places the resolved bundles.
+Input.view(
+  {
+    id: 'email',
+    type: 'email',
+    draw: ({ input }, h) => h.input(input),
+  },
+  h,
+)
+
+// @ts-expect-error `draw` sees only the slots the component publishes.
+Input.view({ id: 'email', draw: ({ missing }) => h.input(missing) }, h)
+
+// @ts-expect-error an input needs an id.
+Input.view({ draw: ({ input }, h) => h.input(input) }, h)
+
+// `Textarea.view` forwards rows the same way.
+Textarea.view(
+  {
+    id: 'bio',
+    rows: 8,
+    draw: ({ textarea }, h) => h.textarea(textarea),
+  },
+  h,
+)
+
+// The README's input view, kept compiling.
+Input.view(
+  {
+    id: 'email',
+    value: 'a@b.c',
+    onInput: () => message('Other'),
+    type: 'email',
+    placeholder: 'you@example.com',
+    draw: ({ input, label }, h) => h.div([], [h.label(label, ['Email']), h.input(input)]),
+  },
   h,
 )

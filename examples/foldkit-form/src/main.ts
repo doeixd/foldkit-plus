@@ -1,5 +1,3 @@
-import * as UiInput from '@foldkit/ui/input'
-import * as UiTextarea from '@foldkit/ui/textarea'
 import { Array, Duration, Effect, Option, Random, Schema } from 'effect'
 import { Command, FieldValidation, Runtime, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
@@ -7,7 +5,13 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import { Entity } from 'foldkit-entity'
-import { Form, Input as FormInput, type Draft, type FormControl, type Submitted } from 'foldkit-form'
+import {
+  Form,
+  Input as FormInput,
+  type Draft,
+  type FormControl,
+  type Submitted,
+} from 'foldkit-form'
 import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import { FormView, type FieldOverrideInput } from 'foldkit-mixins-form'
 import { Button, Input, Textarea } from 'foldkit-mixins-ui'
@@ -207,20 +211,18 @@ const changed = (message: FormMessage): Message => Message.GotFormMessage({ mess
 const textOverride =
   (slots: Slots, type: string): FieldOverride =>
   (input, h) =>
-    UiInput.view(
+    Input.view(
       {
         id: input.id,
         value: String(input.field.value),
         onInput: value => changed(input.changed(value)),
-        isInvalid: input.invalid,
-        hasDescription: Option.isSome(descriptionOf(input.field)),
+        invalid: input.invalid,
+        described: Option.isSome(descriptionOf(input.field)),
         type,
-        toView: attributes => {
-          const resolved = Input.resolve<Field, Message>(attributes, [InputStyle.mixin], {
-            input: input.field,
-            h,
-          })
-          return fieldLayout(
+        style: InputStyle,
+        input: input.field,
+        draw: (resolved, h) =>
+          fieldLayout(
             {
               field: input.field,
               label: h.label(resolved.label, [input.control.label]),
@@ -229,8 +231,7 @@ const textOverride =
             },
             slots,
             h,
-          )
-        },
+          ),
       },
       h,
     )
@@ -238,19 +239,17 @@ const textOverride =
 const textareaOverride =
   (slots: Slots): FieldOverride =>
   (input, h) =>
-    UiTextarea.view(
+    Textarea.view(
       {
         id: input.id,
         value: String(input.field.value),
         onInput: value => changed(input.changed(value)),
-        isInvalid: input.invalid,
-        hasDescription: Option.isSome(descriptionOf(input.field)),
-        toView: attributes => {
-          const resolved = Textarea.resolve<Field, Message>(attributes, [TextareaStyle.mixin], {
-            input: input.field,
-            h,
-          })
-          return fieldLayout(
+        invalid: input.invalid,
+        described: Option.isSome(descriptionOf(input.field)),
+        style: TextareaStyle,
+        input: input.field,
+        draw: (resolved, h) =>
+          fieldLayout(
             {
               field: input.field,
               label: h.label(resolved.label, [input.control.label]),
@@ -261,8 +260,7 @@ const textareaOverride =
             },
             slots,
             h,
-          )
-        },
+          ),
       },
       h,
     )
