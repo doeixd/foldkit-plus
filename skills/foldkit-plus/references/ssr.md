@@ -16,7 +16,7 @@ Surfaces list, `fallback: 'server'` makes a form work with scripts off, and
 Only the handover from a server render to the browser. Rendering to HTML and
 adopting it stay Foldkit's (`foldkit/experimental/server`, `foldkit/runtime`);
 `foldkit-ssr` calls them. It adds a **resume plan**: which slice of the Model
-crosses, as a JSON script read back through the slice's own Schema. `init`
+crosses, as JSON on the stamped root read back through the slice's own Schema. `init`
 runs once, on the server; nothing outside the slice crosses, Flags included.
 
 ## Basic use
@@ -179,5 +179,6 @@ SSR.hydrate(config, Editor, { buildId })
 - `Projection.pick` refuses two fields with the same last key (`post.id` and
   `viewer.id`), which would otherwise merge into one.
 - Lower level: `SSR.envelope(plan, model, { route? })` and
-  `SSR.resume(plan, document, { route? })`. The envelope goes in the template,
-  not in Foldkit's rendered HTML.
+  `SSR.resume(plan, document, { route? })`. The envelope rides the stamped
+  root as `data-foldkit-plus-resume`, beside Foldkit's own stamps, so any host
+  injects the page whole.
