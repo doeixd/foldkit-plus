@@ -20,13 +20,14 @@ remembers the columns:
 ```text
 pointer / keys -> DragAndDrop (Submodel) -> Reordered -> update (Column.reorder) -> Model.columns
 Model.columns -> BoardMirror subscription -> localStorage
-localStorage -> flags (BoardMirror.restore) -> init (BoardMirror.reduce) -> Model.columns
+localStorage -> flags (BoardMirror.restore) -> init (Mirror.bootstrap) -> Model.columns
 ```
 
 Upstream returned a `SaveBoard` Command from each branch that changed the
 columns. Here `update` only changes the Model, and a `foldkit-mirror`
 key-value mirror writes the store whenever the columns change. The store is
-still read into Flags, as upstream read it, so the first frame shows the saved
+still read into Flags, as upstream read it, and `init` bootstraps the stored
+keys into the first Model, so the first frame shows the saved
 board. Writing is last-write-wins: two tabs do not merge their boards, as
 upstream's did not.
 

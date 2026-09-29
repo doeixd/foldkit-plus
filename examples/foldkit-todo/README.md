@@ -17,11 +17,12 @@ list changes:
 
 ```text
 click -> Message -> update (modifyFields) -> Model.todos -> TodosMirror subscription -> localStorage
-localStorage -> flags (TodosMirror.restore) -> init (TodosMirror.reduce) -> Model.todos
+localStorage -> flags (TodosMirror.restore) -> init (Mirror.bootstrap) -> Model.todos
 ```
 
-The store is still read into Flags, as upstream read it, so the first frame
-already shows the stored list. A stored document the page cannot read (not
+The store is still read into Flags, as upstream read it, and `init` bootstraps
+the stored keys into the first Model, so the first frame already shows the
+stored list. A stored document the page cannot read (not
 JSON, another version, a malformed todo) loads as an empty list, as upstream's
 did. Writing is last-write-wins with no log: two tabs do not merge their
 lists, as upstream's did not.
@@ -56,9 +57,10 @@ tests and `npx tsc -b examples/foldkit-todo` type-checks them.
   upstream's is. Sync is for edits that must survive offline and converge
   across devices.
 - **`Mirror.fold` and a restore Message.** The mirror's documented cold-load
-  path runs `restore` as a Command after `init`. Running the same Effect as
-  the Flags keeps upstream's order (read, then `init`), so the first frame is
-  never the empty state, and no `MirrorRestored` variant joins the union.
+  path runs `restore` as a Command after `init`. Reading the store into Flags
+  and bootstrapping the keys in `init` keeps upstream's order (read, then
+  `init`), so the first frame is never the empty state, and no
+  `MirrorRestored` variant joins the union.
 - **`foldkit-bundle`, `foldkit-agent`, `foldkit-remote`.** Nothing is placed
   twice, exposed to an agent, or read from a server.
 

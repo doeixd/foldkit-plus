@@ -19,7 +19,7 @@ mousedown / mouseenter on a cell ─> Message -> update ─> History.push (a str
 keydown on document (Ctrl+Z, B, F, E) ─┘          History.undo / redo / goTo ─┘       │
                                                                                       ├─> view (lazy rows) -> Slots <- Style
                                                           CanvasMirror subscription <─┘-> localStorage
-localStorage -> flags (CanvasMirror.restore) -> init (CanvasMirror.reduce, grid size from the grid)
+localStorage -> flags (CanvasMirror.restore) -> init (Mirror.bootstrap, grid size from the grid)
 ```
 
 A brush or eraser stroke pushes every cell it paints under one group, so the
@@ -58,7 +58,8 @@ pnpm --filter foldkit-example-foldkit-pixel-art dev
   press-and-sweep painting, so each cell keeps upstream's `OnMouseDown` and
   `OnMouseEnter`, and the document's `mouseup` ends the stroke.
 - **`Mirror.fold` and a restore Message.** Reading the store into Flags, as
-  upstream did, draws the saved canvas in the first frame.
+  upstream did, and bootstrapping the keys in `init` draws the saved canvas
+  in the first frame.
 - **`foldkit-durable`, `foldkit-sync`.** The canvas is one device's draft,
   last-write-wins, as upstream's is.
 - **`foldkit-bundle`, `foldkit-remote`, `foldkit-agent`, `foldkit-form`.**
