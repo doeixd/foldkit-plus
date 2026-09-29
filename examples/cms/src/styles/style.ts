@@ -70,6 +70,10 @@ export const waitShown = Style.compose(
  * A disclosure's summary: a drawn chevron in place of the browser's marker,
  * pointing along the line while closed and turned down while open (the turn
  * is `chevronOpen`, on the `details`).
+ *
+ * Not the Disclosure contract: that is a JS-driven button[aria-expanded] plus
+ * panel, while this is the browser's own details/summary with CSS keyed on
+ * details[open]. Adopting it would replace the element model, not restyle it.
  */
 export const chevron = Style.compose(
   Style.nest('&::-webkit-details-marker', { display: 'none' }),
@@ -103,7 +107,12 @@ export const readOnly = {
 export const button = (selection: Parameters<typeof Recipes.Button>[0]) =>
   Recipes.Button(selection).button ?? Style.empty
 
-/** What a text box looks like, in a form and in the Builder's inspector. */
+/**
+ * What a text box looks like, in a form and in the Builder's inspector.
+ *
+ * Not Recipes.Input restyled: the views draw raw h.input on control slots and
+ * the forms go through FieldSlots, so adopting it means rewiring to InputSlots.
+ */
 export const field = Style.compose(
   Style.self({
     background: t.surface.base,

@@ -36,6 +36,10 @@ import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 
+/**
+ * The pages as a list of rows, not a table: ListView draws table/thead/tbody
+ * only, so adopting it would change the markup contract, not just the style.
+ */
 const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const read = sitePages.read(model)
   const pages = read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.items : []
