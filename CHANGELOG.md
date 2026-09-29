@@ -29,9 +29,11 @@ version changed; `pnpm` skips versions already in the registry.
   an application whose `update` already routes every placement. `initial`
   rest becomes `init`, or an init function returning
   `assembly.initial(...)` is used as `init` when the seed needs runtime
-  input, like the URL. The `update` passes through checked; the own
-  `subscriptions` and `managedResources` merge with the items', defaulting
-  to the items', so an application that adds none passes neither. The CMS
+  input, like the URL. The `update` passes through checked (route a narrow
+  one with `assembly.update(own)` first, or omit it when the parent adds no
+  Messages); the own `subscriptions` and `managedResources` merge with the
+  items', defaulting to the items', so an application that adds none passes
+  neither. `assembly.config` is deprecated in its favour; the CMS
   `siteConfig` and the entity client use it.
 
 ### Fixed

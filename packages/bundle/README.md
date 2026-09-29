@@ -229,14 +229,14 @@ const placements = Page.assemble(
 
 **Wire it once.** The assembly builds the parent's runtime config from the
 parent's own pieces. `initial` gives exactly the fields no placement owns,
-`update` is the parent's own update for `ClickedHelp`, and everything else
-(`Model`, `view`, ...) passes through:
+`update` is the parent's own update for `ClickedHelp` routed through the
+assembly, and everything else (`Model`, `view`, ...) passes through:
 
 ```ts
-const config = placements.config({
+const config = placements.runtime({
   Model,
   initial: { helpOpen: false },
-  update: ownUpdate,
+  update: placements.update(ownUpdate),
   view,
 })
 ```
@@ -244,8 +244,9 @@ const config = placements.config({
 Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement` with the
 rest of your options. The parent's own Subscriptions go in `subscriptions` and
 its own Managed Resources in `managedResources`; the assembly merges them with
-the items'. For a custom `init` or a URL-mirror assembly, use the lower-level
-derivations with `placements.complete` instead (below).
+the items', defaulting to the items' when omitted. Assemblies that read the URL
+pass their `url` from `placements.url`. For a hand-built `init` or config,
+`placements.complete` checks it instead (below).
 
 ### What each call does
 
@@ -274,12 +275,11 @@ derivations with `placements.complete` instead (below).
   `Option` (below), to start the child as `None`. The check reads each
   placement's field from its Link; one whose path the types cannot read, a
   `Link.make` given a `string[]`, relaxes `rest` to `Partial<Model>`.
-- **`placements.config(input)`** is the assembled runtime config for
-  `Runtime.makeApplication` or `makeElement`: `initial` rest becomes `init`,
-  the own `update`, `subscriptions`, and `managedResources` merge with the
-  items', and everything else passes through. Calling it on an assembly that
-  reads the URL is a type error and throws at runtime; that stays on the
-  derivations with `complete`.
+- **`placements.config(input)`** is deprecated: prefer `runtime` below, which
+  builds the same config. It takes `initial` rest, routes a narrow own
+  `update`, merges own `subscriptions` and `managedResources` with the items',
+  and passes everything else through. Calling it on an assembly that
+  reads the URL is a type error and throws at runtime.
 - **`placements.runtime(input)`** is the same assembled runtime config for an
   application whose `update` already routes every placement: `initial` rest
   becomes `init`, or an init function returning `assembly.initial(...)` is
