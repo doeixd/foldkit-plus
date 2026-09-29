@@ -280,6 +280,14 @@ derivations with `placements.complete` instead (below).
   items', and everything else passes through. Calling it on an assembly that
   reads the URL is a type error and throws at runtime; that stays on the
   derivations with `complete`.
+- **`placements.runtime(input)`** is the same assembled runtime config for an
+  application whose `update` already routes every placement: `initial` rest
+  becomes `init`, or an init function returning `assembly.initial(...)` is
+  used as `init` when the seed needs runtime input, like the URL. The `update`
+  passes through checked; the own `subscriptions` and `managedResources`
+  merge with the items', defaulting to the items', so an application that adds
+  none passes neither. Assemblies that read the URL pass their `url` from
+  `assembly.url`, as with `complete`.
 - **`placements.update(own)`** is the parent's update: a placement's or
   wiring's Message goes to its item and every other Message to `own`, whose
   Message is typed without the placements' wrappers (see
@@ -759,6 +767,13 @@ property that is wrong:
 | `managedResources` not built with `placements.resources(own)`, when a placement has resources | `managedResources` |
 | `init` not returning `placements.initial(rest)`, when a wiring runs startup Commands | `init` |
 | `url` not built with `placements.url(onUrlChange)`, when a wiring reads the URL | `url` |
+
+`placements.runtime(input)` checks the same mistakes it can still make —
+`update`, an unbranded init function, and `url` — and derives the rest:
+`subscriptions` and `managedResources` default to the items', so an
+application that adds none passes neither. Prefer it wherever the `update`
+already routes every placement; keep `complete` for configs assembled by
+hand, and `config` where the parent's own update still needs routing.
 
 **Annotate the parameters of callbacks written inline in the config.**
 `makeApplication`'s `init: (url: Url) => …` and `routing.onUrlChange: (url: Url)
