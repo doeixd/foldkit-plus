@@ -16,7 +16,8 @@ version changed; `pnpm` skips versions already in the registry.
   factory's parameter omits the placement's own field, and every factory sees
   the same base seed, so placement order never matters. The result is checked
   against the bundle's args Schema and retained for `update`, helpers,
-  Subscriptions, and resources, never re-run against live state. On a Model
+  Subscriptions, and resources, never re-run against live state — a factory
+  runs once per seed it has seen. On a Model
   no initialization produced, `update` derives per use without retaining.
 
 - **Routing example, derived placement args:** the People page is a Bundle
