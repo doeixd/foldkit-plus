@@ -1,6 +1,9 @@
 import { view as inputView, type InputAttributes } from '@foldkit/ui/input'
+import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
+import { FieldValidation } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { descriptionOf, type FieldParts } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 export const InputSlots = Slots.define({
@@ -76,3 +79,57 @@ export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Messag
     },
     h,
   )
+
+/**
+ * A text field in one call: a field's state drawn through `view` with its
+ * label, control, and description placed. The value is drawn with
+ * `String()`, as the base field view draws any draft. `draw` places
+ * the parts; the default stacks them. `type` and `placeholder` ride through
+ * only where given. Custom drawers stay for controls with no shipped
+ * renderer.
+ */
+export interface InputField<Message> {
+  readonly id: string
+  readonly label: string
+  readonly field: FieldValidation.Field<unknown>
+  readonly changed: (value: string) => Message
+  readonly type?: string | undefined
+  readonly placeholder?: string | undefined
+  /** A style of `InputSlots`, for the field's own look. */
+  readonly style?: NamedStyle<typeof InputSlots> | undefined
+  /** Mixins beside the style, for state or behavior the style does not own. */
+  readonly mixins?: MixinList<Message> | undefined
+  readonly draw?: ((parts: FieldParts, h: HtmlBuilder<Message>) => Html) | undefined
+}
+
+export const field = <Message>(options: InputField<Message>, h: HtmlBuilder<Message>): Html => {
+  const description = descriptionOf(options.field)
+  return view(
+    {
+      id: options.id,
+      value: String(options.field.value),
+      onInput: options.changed,
+      invalid: FieldValidation.isInvalid(options.field),
+      described: Option.isSome(description),
+      ...(options.type === undefined ? {} : { type: options.type }),
+      ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
+      style: options.style,
+      mixins: options.mixins,
+      input: options.field,
+      draw: (resolved, h) => {
+        const parts: FieldParts = {
+          label: h.label(resolved.label, [options.label]),
+          control: h.input(resolved.input),
+          description: Option.match(description, {
+            onNone: () => h.empty,
+            onSome: text => h.span(resolved.description, [text]),
+          }),
+        }
+        return options.draw === undefined
+          ? h.div([], [parts.label, parts.control, parts.description])
+          : options.draw(parts, h)
+      },
+    },
+    h,
+  )
+}

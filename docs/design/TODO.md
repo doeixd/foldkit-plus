@@ -237,13 +237,17 @@ and server/SSR sequences.
   Built 2026-09-29 (Badge, Loading/Empty/Failure, entry views companion,
   Touch/Icons, Button variants, Segmented — each adopted in the demo in
   the same change).
-- [ ] **4. Form view:** `Button.view`, `Input.field`, `FormView.fields`
+- [x] **4. Form view:** `Button.view`, `Input.field`, `FormView.fields`
   with per-field overrides (keeping exhaustive-over-`FieldKey`), explicit
-  submit-gating predicate. Partial 2026-09-29: `Button.view`,
-  `FormView.fields` with per-field overrides, per-key element attrs, and
-  explicit submit gating landed and are adopted by the waitlist form; the
-  `Input.field`/`Textarea` wrapper (area 4 item 2) is still open — the
-  example's per-key text/textarea overrides remain hand-rolled.
+  submit-gating predicate. Built 2026-09-29: `Button.view`,
+  `FormView.fields` with per-field overrides, per-key element attrs,
+  explicit submit gating, and `Input.field`/`Textarea.field` (a field's
+  state with label/control/description placed, `type`/`placeholder`/`rows`
+  riding through, `draw` hatch for custom layouts) — adopted by the
+  waitlist per-kind overrides and the job-application field view, which
+  keep only their layouts and status marks. The job application's cover
+  letter stays on `UiTextarea.view` directly: it holds a plain string with
+  a length counter, not a field state.
 - [x] **5. Primitives:** websocket/sse status + `isConnected` + error
   selectors and 4-state view-union derivation; shrink `reactToSocket` to
   payload commands. Built 2026-09-29 as `isOpen`/`viewOf`/`SocketView`

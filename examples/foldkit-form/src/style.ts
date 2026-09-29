@@ -124,7 +124,7 @@ const label: StyleValue = Style.self({
   color: t.text.subtle,
 })
 
-/** "Checking..." in blue, the first error in red. */
+/** "Checking…" in blue, the first error in red. */
 const description: StyleValue = Style.compose(
   Style.self({ display: 'block', marginBlockStart: t.space['2xs'] }),
   whenTone('checking', Style.self({ color: t.accent.ink })),

@@ -1,8 +1,7 @@
 # What the CMS demo's rough edges ask of the packages
 
-> **Status:** partially built (2026-09-29). Areas 0, 1b, 3, 5 are built;
-> area 4 is partial (`Input.field` wrapper still open); areas 1, 2, 6 are
-> not started. Each area names the example files that hand-roll it and the
+> **Status:** partially built (2026-09-29). Areas 0, 1b, 3, 4, 5 are built;
+> areas 1, 2, 6 are not started. Each area names the example files that hand-roll it and the
 > package/design that should own it. Work the areas in order; the example is
 > the acceptance test (area 0's rule).
 
@@ -189,11 +188,15 @@ the recipe lands first, then the demo adopts it.
 
 ## 4. Form view ceremony (`foldkit-form` example + websocket-adjacent lesson)
 
-> **Partial** (2026-09-29): items 1, 3, 4 landed (`Button.view`,
+> **Built** (2026-09-29): items 1, 3, 4 landed earlier (`Button.view`,
 > `FormView.fields` with per-field overrides, per-key element attrs,
-> explicit submit-gating predicate) and are adopted by the waitlist form.
-> Item 2 (`Input.field`/`Textarea` wrapper) is still open: the example's
-> per-key text/textarea overrides remain hand-rolled.
+> explicit submit-gating predicate); item 2 landed as `Input.field` /
+> `Textarea.field` in `foldkit-mixins-ui` — a field's state with
+> label/control/description placed and a `draw` hatch, taking the resolved
+> field rather than `{form, key}` (the sketch predates `Fields.field`,
+> which already threads control/model/id). Both form examples adopt them;
+> the job application's cover letter stays direct (a plain string, not a
+> field state).
 
 Backend semantics are declarative (`Form.make`); rendering is still
 mechanical. Three wrappers, each with an escape hatch, in this order:

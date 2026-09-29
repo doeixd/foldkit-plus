@@ -12,7 +12,7 @@ import {
   type FormControl,
   type Submitted,
 } from 'foldkit-form'
-import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
+import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { FormView, type FieldOverrideInput } from 'foldkit-mixins-form'
 import { Button, Input, Textarea } from 'foldkit-mixins-ui'
 
@@ -213,23 +213,21 @@ const changed = (message: FormMessage): Message => Message.GotFormMessage({ mess
 const textOverride =
   (slots: Slots): FieldOverride =>
   (input, h) =>
-    Input.view(
+    Input.field(
       {
         id: input.id,
-        value: String(input.field.value),
-        onInput: value => changed(input.changed(value)),
-        invalid: input.invalid,
-        described: Option.isSome(descriptionOf(input.field)),
+        label: input.control.label,
+        field: input.field,
+        changed: value => changed(input.changed(value)),
         type: input.attrs.type ?? 'text',
         style: InputStyle,
-        input: input.field,
-        draw: (resolved, h) =>
+        draw: (parts, h) =>
           fieldLayout(
             {
               field: input.field,
-              label: h.label(resolved.label, [input.control.label]),
-              control: h.input(resolved.input),
-              description: descriptionView(input.field, resolved.description, h),
+              label: parts.label,
+              control: parts.control,
+              description: parts.description,
             },
             slots,
             h,
@@ -241,24 +239,22 @@ const textOverride =
 const textareaOverride =
   (slots: Slots): FieldOverride =>
   (input, h) =>
-    Textarea.view(
+    Textarea.field(
       {
         id: input.id,
-        value: String(input.field.value),
-        onInput: value => changed(input.changed(value)),
-        invalid: input.invalid,
-        described: Option.isSome(descriptionOf(input.field)),
+        label: input.control.label,
+        field: input.field,
+        changed: value => changed(input.changed(value)),
+        rows: input.attrs.rows,
+        placeholder: input.attrs.placeholder,
         style: TextareaStyle,
-        input: input.field,
-        draw: (resolved, h) =>
+        draw: (parts, h) =>
           fieldLayout(
             {
               field: input.field,
-              label: h.label(resolved.label, [input.control.label]),
-              // A slot's attributes are typed for every element, and Foldkit's textarea
-              // excludes `InnerHTML`; nothing here sets one.
-              control: h.textarea(resolved.textarea as Parameters<typeof h.textarea>[0]),
-              description: descriptionView(input.field, resolved.description, h),
+              label: parts.label,
+              control: parts.control,
+              description: parts.description,
             },
             slots,
             h,
@@ -274,31 +270,12 @@ const overrideOf = (control: FormControl<FieldKey>, slots: Slots): FieldOverride
   throw new Error(`no override for a "${control.control.kind}" control ("${control.key}")`)
 }
 
-/** What is said under a field: that it is being checked, or its first error. */
-const descriptionOf = (field: Field): Option.Option<string> =>
-  FieldValidation.match(field, {
-    onNotValidated: () => Option.none(),
-    onValidating: () => Option.some('Checking...'),
-    onValid: () => Option.none(),
-    onInvalid: ({ errors }) => Option.some(Array.headNonEmpty(errors)),
-  })
-
 const statusMark = (field: Field, slots: Slots, h: HtmlBuilder<Message>): Html =>
   FieldValidation.match(field, {
     onNotValidated: () => h.empty,
     onValidating: () => h.span(slots.checkingMark.attrs(), ['◐']),
     onValid: () => h.span(slots.validMark.attrs(), ['✓']),
     onInvalid: () => h.empty,
-  })
-
-const descriptionView = (
-  field: Field,
-  attributes: SlotAttributes<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Option.match(descriptionOf(field), {
-    onNone: () => h.empty,
-    onSome: text => h.span(attributes, [text]),
   })
 
 interface FieldParts {

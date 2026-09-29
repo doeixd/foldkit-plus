@@ -1,11 +1,10 @@
 import * as UiCheckbox from '@foldkit/ui/checkbox'
-import * as UiInput from '@foldkit/ui/input'
 import * as UiTextarea from '@foldkit/ui/textarea'
-import { Array, Option } from 'effect'
+import { Array } from 'effect'
 import { FieldValidation } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { FormControl } from 'foldkit-form'
-import { SlotView, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
+import { SlotView, type SlotBuilders } from 'foldkit-mixins'
 import { Checkbox, Input, Textarea } from 'foldkit-mixins-ui'
 
 import { CheckboxStyle, FieldPart, InputStyle, TextareaStyle } from '../style.js'
@@ -26,15 +25,6 @@ export const controlsOf = <Key extends string>(
     readonly [K in Key]: FormControl<K>
   }
 
-/** The field's first error, shown under it and read as its description. */
-const errorOf = (field: FieldState): Option.Option<string> =>
-  FieldValidation.match(field, {
-    onNotValidated: () => Option.none(),
-    onValidating: () => Option.none(),
-    onValid: () => Option.none(),
-    onInvalid: ({ errors }) => Array.head(errors),
-  })
-
 const statusMark = <Message>(field: FieldState, slots: Slots<Message>, h: HtmlBuilder<Message>) =>
   FieldValidation.match(field, {
     onNotValidated: () => h.empty,
@@ -43,20 +33,10 @@ const statusMark = <Message>(field: FieldState, slots: Slots<Message>, h: HtmlBu
     onInvalid: () => h.empty,
   })
 
-const errorView = <Message>(
-  field: FieldState,
-  attributes: SlotAttributes<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Option.match(errorOf(field), {
-    onNone: () => h.empty,
-    onSome: error => h.span(attributes, [error]),
-  })
-
 /**
  * A labelled text input, marked `◐` while it is checked and `✓` once valid,
- * with its first error under it. Drawn through `FieldPart.slots` and the Input
- * recipe, from whichever view places it.
+ * with its first error (or the check) under it. Drawn through
+ * `FieldPart.slots` and the Input recipe, from whichever view places it.
  */
 export const input = <Message>(
   config: Readonly<{
@@ -69,27 +49,25 @@ export const input = <Message>(
   }>,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const context = { input: config.field, h }
-  const slots = SlotView.buildersFor(FieldPart.slots, [FieldPart.style.mixin], context)
-  return UiInput.view(
+  const slots = SlotView.buildersFor(FieldPart.slots, [FieldPart.style.mixin], {
+    input: config.field,
+    h,
+  })
+  return Input.field(
     {
       id: config.id,
-      value: config.field.value,
-      onInput: config.onInput,
-      isInvalid: FieldValidation.isInvalid(config.field),
-      hasDescription: Option.isSome(errorOf(config.field)),
+      label: config.label,
+      field: config.field,
+      changed: config.onInput,
       ...(config.type !== undefined && { type: config.type }),
       ...(config.placeholder !== undefined && { placeholder: config.placeholder }),
-      toView: Input.toView([InputStyle.mixin], context, ({ input, label, description }) =>
+      style: InputStyle,
+      draw: (parts, h) =>
         h.keyed('div')(config.id, slots.field.attrs(), [
-          h.div(slots.header.attrs(), [
-            h.label(label, [config.label]),
-            statusMark(config.field, slots, h),
-          ]),
-          h.input(input),
-          errorView(config.field, description, h),
+          h.div(slots.header.attrs(), [parts.label, statusMark(config.field, slots, h)]),
+          parts.control,
+          parts.description,
         ]),
-      ),
     },
     h,
   )

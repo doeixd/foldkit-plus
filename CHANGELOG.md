@@ -58,6 +58,15 @@ version changed; `pnpm` skips versions already in the registry.
   button fork is deleted in the same spirit: its views call the package
   `Button.view` instead of their subset copy.
 
+- **`foldkit-mixins-ui`, `Input.field`/`Textarea.field`:** a text field in
+  one call — a field's state drawn with its label, control, and description
+  placed (first error, or the check while it runs), `type`/`placeholder`
+  (`rows` for a textarea) riding through, and a `draw` placing the parts
+  for layouts the default stack does not own. The waitlist example's
+  per-kind overrides and the job application's field view adopt them and
+  keep only their layouts and status marks; both now read the platform
+  `Checking…` spelling.
+
 - **`foldkit-mixins-form`, per-key element attrs:** `FormView.fields` takes
   `attrs` beside `overrides` and `styles` — what one key's element takes
   beyond the base field view (`type`, `placeholder`, textarea `rows`). The

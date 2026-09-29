@@ -49,13 +49,13 @@ test('checks the email for real, enables the submit, and injects the CSS of ever
   expect(document.getElementById('email')?.getAttribute('type')).toBe('email')
 
   typeInto('email', 'test@example.com')
-  await vi.waitFor(() => expect(text()).toContain('Checking...'))
+  await vi.waitFor(() => expect(text()).toContain('Checking…'))
   expect(isSubmitDisabled()).toBe(true)
   await vi.waitFor(() => expect(text()).toContain('This email is already on our waitlist'))
 
   typeInto('email', 'alice@example.com')
   await vi.waitFor(() => expect(text()).toContain('✓'))
-  expect(text()).not.toContain('Checking...')
+  expect(text()).not.toContain('Checking…')
   expect(isSubmitDisabled()).toBe(false)
   expect(document.title).toBe('Foldkit Form Example')
 

@@ -57,7 +57,7 @@ describe('view', () => {
       { update, view },
       given(withFields({ name: FieldValidation.Valid({ value: 'Alice' }) })),
       type(label('Email'), 'alice@example.com'),
-      expect(label('Email')).toHaveAccessibleDescription('Checking...'),
+      expect(label('Email')).toHaveAccessibleDescription('Checking…'),
       expect(text('◐')).toExist(),
       expect(role('button', { name: 'Join Waitlist' })).toBeDisabled(),
       Command.expectExact(CheckEmail),
