@@ -4,10 +4,10 @@
  * through an HTML parser, as a browser reads them: a server markup the parser
  * rebuilds differently is one the browser cannot adopt.
  */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import { COUNT_COOKIE } from '../src/cookie.js'
-import { pageRequest, respond } from './helpers.js'
+import { buildId, pageRequest, respond } from './helpers.js'
 
 const parse = (html: string): Document => new DOMParser().parseFromString(html, 'text/html')
 
@@ -27,7 +27,7 @@ const pageFor = async (
 }
 
 const envelopeOf = (page: Document): unknown =>
-  JSON.parse(page.querySelector('script[data-foldkit-plus-resume]')?.textContent ?? 'null')
+  JSON.parse(rootOf(page).getAttribute('data-foldkit-plus-resume') ?? 'null')
 
 describe('a page request', () => {
   test.each([
@@ -80,26 +80,22 @@ describe('a page request', () => {
     expect(page.querySelector('select')?.value).toBe('a')
   })
 
-  test('is stamped with the build of the entry script its template loads', async () => {
+  test('is stamped with the build both entries were compiled as', async () => {
     const { page } = await pageFor()
-    expect(rootOf(page).getAttribute('data-foldkit-build')).toBe('/src/entry.ts')
+    expect(rootOf(page).getAttribute('data-foldkit-build')).toBe(buildId)
   })
 
-  test('styles its first paint: the stylesheet and every class it draws, with every token they read', async () => {
+  test('entry.server.ts exposes the pipeline renderPage', async () => {
+    vi.stubEnv('FOLDKIT_BUILD_ID', buildId)
+    const { renderPage } = await import('../src/entry.server.js')
+    const result = await renderPage(new Request('http://localhost/'))
+    expect(result._tag).toBe('Rendered')
+    vi.unstubAllEnvs()
+  })
+
+  test('carries no head styles: the script brings them when it boots', async () => {
     const { page } = await pageFor()
-    const css = Array.from(page.head.querySelectorAll('style'), style => style.textContent).join('')
-    const drawn = new Set(
-      Array.from(page.body.querySelectorAll('[class]')).flatMap(element =>
-        Array.from(element.classList),
-      ),
-    )
-    expect(drawn.size).toBeGreaterThan(0)
-    expect([...drawn].filter(name => !css.includes(`.${name}{`))).toEqual([])
-    const read = new Set(
-      [...`${css}${page.body.innerHTML}`.matchAll(/var\((--fk-[\w-]+)\)/g)].map(([, name]) => name),
-    )
-    expect(read.size).toBeGreaterThan(0)
-    expect([...read].filter(name => !css.includes(`${name}:`))).toEqual([])
+    expect(Array.from(page.head.querySelectorAll('style'))).toEqual([])
   })
 
   test('may be kept by no cache, since it is one visitor’s count', async () => {

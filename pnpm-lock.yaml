@@ -742,6 +742,9 @@ importers:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+      '@foldkit/vite-plugin':
+        specifier: 0.24.0
+        version: 0.24.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -752,8 +755,8 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: 5.4.21
-        version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
+        specifier: ^8.3.0
+        version: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
 
   examples/foldkit-todo:
     dependencies:

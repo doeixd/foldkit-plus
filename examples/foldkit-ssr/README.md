@@ -29,41 +29,41 @@ on the server, never a page the browser silently redraws.
 
 ## Run it
 
+`FOLDKIT_BUILD_ID` names the deployment being built and served: a commit or
+release tag, public and unique per deployment. The `foldkit` Vite plugin
+compiles it into both bundles, and `serve.ts` renders pages as it.
+
 ```bash
 pnpm --filter foldkit-example-foldkit-ssr dev     # renders each request; Vite serves the modules
-pnpm --filter foldkit-example-foldkit-ssr build   # vite build, into dist/
-pnpm --filter foldkit-example-foldkit-ssr start   # renders each request; serves dist/
+FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-foldkit-ssr build   # vite build, into dist/
+FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-foldkit-ssr start   # renders each request; serves dist/
 ```
 
-Both servers listen on `PORT` (3000) and take `ORIGIN` (default
-`http://localhost:<port>`) as the origin they serve.
+`dev` is Vite on its own port; `start` listens on `PORT` (3000) and takes
+`ORIGIN` (default `http://localhost:<port>`) as the origin it serves.
 
 | Concern | Owner | Where |
 | --- | --- | --- |
 | The count, the Messages, `update`, the cookie write (`PersistCount`) | plain Foldkit | `src/main.ts` |
 | Reading the cookie (parsed, decoded to a safe integer, else 0) | plain Effect (`Cookies.parseHeader`), as upstream | `src/cookie.ts` |
 | What crosses to the browser (the Model, not the Flags) | `foldkit-ssr` (`SSR.plan`, over a `foldkit-surface` Projection) | `src/main.ts`, `// SSR` |
-| Rendering a request: `GET`/`HEAD` render, `OPTIONS` `204`, other methods `405`, a refused render `500` | `foldkit-ssr` (`SSR.entry`) inside Foldkit's `handleRequest` | `src/entry.server.ts` |
-| The no-cache headers, on every answer, where a CORS policy would go too | the application, through `SSR.entry`'s `headers` | `src/entry.server.ts` |
+| Rendering a request: `GET`/`HEAD` render, `OPTIONS` `204`, other methods `405`, a refused render `500` | `foldkit-ssr` (`SSR.entry`) inside Foldkit's `handleRequest` | `src/renderPage.ts`, served by `src/entry.server.ts` in development and `src/host.ts` in production |
+| The no-cache headers, on every answer, where a CORS policy would go too | the application, through `SSR.entry`'s `headers` | `src/renderPage.ts` |
 | Taking the page over without rerunning `init` | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
-| The build id both sides compare | the entry script's address | `buildIdOf` in `src/entry.server.ts`, `import.meta.url` in `src/entry.ts` |
+| The build id both sides compare | the deployment, compiled into both bundles | `FOLDKIT_BUILD_ID`, read as `import.meta.env.FOLDKIT_BUILD_ID` in `src/entry.server.ts` and `src/entry.ts` |
 | Static files, the request target, host-refused methods | the host, on Effect's HTTP server and `@effect/platform-node` as upstream's (`HttpStaticServer`; Foldkit's `resolveRequestUrl`, `resolvesToIndexHtml`, `isHostSettledMethod`) | `src/host.ts`, run by `src/serve.ts` |
 | The accessible buttons | `@foldkit/ui` Button, styled through `foldkit-mixins-ui` | `src/main.ts`, `src/style.ts` |
-| Appearance, and the CSS in each page's head | `foldkit-mixins` (`Style.usedIn` for the page's classes) | `src/style.ts`, `head` in `src/entry.server.ts` |
+| Appearance, and the CSS the script installs on boot | `foldkit-mixins` (`Style.install`) | `src/main.ts`, `src/style.ts`, `src/entry.ts` |
 
 `foldkit-surface` appears only to name the Model's fields for the plan
 (`Surface.application(...).model`); no Surface is declared.
 
 ### What is not used, and why
 
-- **`@foldkit/vite-plugin`** renders upstream's requests in development and
-  builds its server bundle; it is not installed (it needs Vite 8). In
-  development `src/host.ts` puts Vite, in middleware mode, where upstream's
-  host serves `dist/client`: Vite answers the modules and the host renders
-  each page itself, and Vite's reload socket listens on a port of its own
-  (24678), since the Effect server answers every upgrade on its port. In
-  production the host serves `vite build`'s `dist/`. The server's code runs
-  under tsx in both, unbundled.
+- **Per-page head styles.** The host owns the template in dynamic serving, so
+  `SSR.entry` writes no `head`: the script installs the stylesheet on boot
+  (`Style.install`), and the first paint is unstyled until it runs. Static
+  pages keep per-page styles in the head through `SSR.generate`.
 - **Resumable pages** (`Resume.builder`, `start: 'on-interaction'`). The two
   buttons could answer before the runtime boots, but only after a Surface
   listed their Messages, and the cookie write still waits for the runtime. The
@@ -89,14 +89,10 @@ Both servers listen on `PORT` (3000) and take `ORIGIN` (default
 - **The preflight's `allow` names what the page answers** (`GET, HEAD,
   OPTIONS`), where upstream's names every method a host passes on.
 - **A page the server did not render is refused.** `entry.ts` throws, naming
-  `pnpm dev`: without a render there is no Model to start from. Upstream never
-  meets such a page, since its Vite plugin renders every request; running
-  plain `vite` here shows the error.
+  `pnpm dev`: without a render there is no Model to start from.
 - **The browser imports `foldkit-ssr/client`,** which leaves Foldkit's server
   renderer and HTML parser out: 372 kB minified (124 kB gzip), against 575 kB
   (183 kB gzip) through `foldkit-ssr`'s main entry.
-- **Server code is not reloaded in development.** An edit to it needs a
-  restart of `pnpm dev`; the browser's modules reload through Vite.
 - **The hidden select renders its first option selected.** That is Foldkit
   0.163's server rendering of `h.Value('a')` over two options valued `a`; the
   browser, parsing the markup and hydrated, agrees with it, which is what the
@@ -113,8 +109,8 @@ From the repository root: `npx vitest run examples/foldkit-ssr`.
 - `test/server.test.ts`: `entry.server.ts` answering requests in process, the
   page parsed back with `DOMParser`: the count from the cookie, the title, the
   provenance line, the envelope (the Model, no Flags script), the markup a
-  parser builds from it, the build id, every class and token styled from its
-  own head, the headers, the preflight, `HEAD`, and the refused methods.
+  parser builds from it, the build id, no head styles, the headers, the
+  preflight, `HEAD`, and the refused methods.
 - `test/runtime.test.ts`: the real `entry.ts` in jsdom over a rendered page:
   adopted in place, counts, writes the cookie the next request renders from;
   refuses a page from another build and a page the server did not render.
