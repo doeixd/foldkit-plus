@@ -46,15 +46,16 @@ npx vitest run examples/foldkit-api-cache   # from the repository root
 
 ## Differences from upstream
 
-- **The list takes two round trips.** A query answers with the posts' ids; the
-  fields each row shows are then read like any other. Upstream's list is one
-  request.
+- **The list takes one round trip.** A query answers with the posts' ids and
+  the fields each row shows, which one `ConnectionMerged` merges and writes
+  together. Opening a post then reads just `author` and `body` (the list
+  brought the title), and a second visit reads nothing.
 - **Returning to the Stats tab after 5 seconds refetches at once**, the old
   numbers on screen. Upstream shows the cached numbers and resumes its ticker.
   Here the timer is the data's age, not the tab's.
 - **"Updated at" is the time the server sampled the stats**, a field of the
-  reading. The post page no longer says when it was fetched: Remote does not
-  expose when a field was written.
+  reading; `Data.meta(model, projection)` also reports when what is shown was
+  last received (`updatedAt`, with `stale` and `loading` beside it).
 - **An unknown post is `NotFound`**, not a failure: the server answered with
   nothing about it.
 - **What no open tab reads is collected after five minutes.** The stats have a

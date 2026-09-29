@@ -101,6 +101,7 @@ before fetch: Initial
 after fetch: Ready {"id":"p1","name":"Apollo","status":"active"}
 stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
 query page: Ready p1 Apollo; next page: none
+meta: updatedAt 2000, stale false, loading false
 inspect: 1 entities, 1 connection, 1 registered queries
 rendered classes: project-card
 rendered status: active
@@ -110,7 +111,7 @@ refetch after mutation: none
 retained: Project:p1; 1 entity and 1 connection collected
 corrupt store: Failed DecodeError
 refresh: Refreshing {"id":"p1","name":"Apollo",...}; list Refreshing p1; again unchanged: true
-after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...,"name":"Artemis",...}; list Ready p2 Borealis
+after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged; Ready {...,"name":"Artemis",...}; list Ready p2 Borealis
 ```
 
 Read those lines in this order:
@@ -199,9 +200,12 @@ query page: Ready p1 Apollo; next page: none
 `Data.query(ProjectsByOwner, input, { select, first })` creates another pure
 Projection. This one reads a normalized connection as a `Page<ProjectSummary>`.
 
-`Data.prefetch` first resolves the connection, then fetches any entity fields the
-page references but the cache still lacks. The read shows at most its `first`
-rows; `Data.more` is the Model with one page more, when there is more.
+`Data.prefetch` runs the query, whose response already carries the selected
+fields of the page's items with the edges; a read follows only for what the
+page leaves out. The read shows at most its `first` rows; `Data.more` is the
+Model with one page more, when there is more. `Data.meta(model, projects)`
+says when what the page shows was last received (`updatedAt`, with `stale`
+and `loading` beside it).
 
 ### 5. The cache is inspectable
 
@@ -265,7 +269,7 @@ the requested value.
 
 ```text
 refresh: Refreshing {...Apollo...}; list Refreshing p1; again unchanged: true
-after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...Artemis...}; list Ready p2 Borealis
+after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged; Ready {...Artemis...}; list Ready p2 Borealis
 ```
 
 The server renames `p1` and its owner's list becomes `p2` alone. A refresh
@@ -276,7 +280,8 @@ or a Surface without params):
   `Refreshing` over the old value and the loaded connection invalidated.
   Refreshing it again returns the same Model.
 - The `Data.subscriptions` read entry then refetches what was marked, once: the
-  project and the query page, then a read of `p2`, which the new page references.
+  project and the query page, whose response carries the new page's fields
+  with it — no second read for `p2`.
 - The refreshed first page **replaces** the connection's pages, so `p1`, which
   the server removed, leaves the list; later pages would be paged again.
 

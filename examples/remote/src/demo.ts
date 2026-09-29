@@ -176,11 +176,28 @@ const FakeClient = Layer.succeed(RemoteClient, {
       })),
       settled: [],
     })),
-  query: () =>
+  // Like a real server since payload planning: the page carries the selected
+  // fields of its items with the edges, so one response populates both.
+  query: request =>
     Effect.sync(() => ({
       edges: server.owned.map(id => ({ entity: 'Project', id, key: `Project:${id}` })),
       start: { _tag: 'Terminal' as const },
       end: { _tag: 'Terminal' as const },
+      entities: server.owned.map(id => ({
+        entity: 'Project',
+        id,
+        values: {
+          id,
+          ...Object.fromEntries(
+            ['name', 'status'].flatMap(field =>
+              (request.select?.fields ?? ['id', 'name', 'status']).includes(field)
+                ? [[field, field === 'name' ? server.names[id] : 'active'] as const]
+                : [],
+            ),
+          ),
+        },
+      })),
+      settled: [],
     })),
   mutate: request =>
     Effect.sync(() => {
@@ -269,16 +286,22 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   )
 
   // A query is a Projection too: the connection read as a page of the selected
-  // items. The prefetch runs the query, then one read for whatever the page's
-  // items still lack (nothing here: p1 is already known), and `Data.more` is
-  // the Model with one page more, or nothing when every row is shown.
+  // items. The prefetch runs the query, whose response already carries the
+  // selected fields with the edges; a read follows only for what the page
+  // left out (nothing here: the payload names every selected field, and p1
+  // is already known besides). `Data.more` is the Model with one page more,
+  // or nothing when every row is shown.
   const queried = await Effect.runPromise(
-    Data.prefetch(loaded, projects).pipe(Effect.provide(FakeClient)),
+    Data.prefetch(loaded, projects, { now: () => 2_000 }).pipe(Effect.provide(FakeClient)),
   )
   lines.push(
     `query page: ${describePage(projects.read(queried))}; next page: ${
       Option.isNone(Data.more(queried, projects)) ? 'none' : 'available'
     }`,
+  )
+  const meta = Data.meta(queried, projects)
+  lines.push(
+    `meta: updatedAt ${meta.updatedAt ?? 'never'}, stale ${meta.stale}, loading ${meta.loading}`,
   )
   const inspection = Data.inspect(queried)
   lines.push(

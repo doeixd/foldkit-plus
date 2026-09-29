@@ -12,6 +12,7 @@ describe('foldkit-remote example', () => {
       'stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {"id":"p1","name":"Apollo","status":"active"} -> Ready {"id":"p1","name":"Apollo","status":"active"}',
     )
     expect(lines).toContain('query page: Ready p1 Apollo; next page: none')
+    expect(lines).toContain('meta: updatedAt 2000, stale false, loading false')
     expect(lines).toContain('inspect: 1 entities, 1 connection, 1 registered queries')
     expect(lines).toContain('rendered classes: project-card')
     expect(lines).toContain('rendered status: active')
@@ -27,7 +28,7 @@ describe('foldkit-remote example', () => {
       'refresh: Refreshing {"id":"p1","name":"Apollo","status":"active"}; list Refreshing p1; again unchanged: true',
     )
     expect(lines).toContain(
-      'after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {"id":"p1","name":"Artemis","status":"active"}; list Ready p2 Borealis',
+      'after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged; Ready {"id":"p1","name":"Artemis","status":"active"}; list Ready p2 Borealis',
     )
   })
 })

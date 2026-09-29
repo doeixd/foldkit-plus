@@ -155,8 +155,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   )
 
   // A query is a Projection: the connection read as a page of the selected
-  // items. The prefetch runs the query through the Drizzle source, then one
-  // read for the page's items the store lacks (p2, with its owner).
+  // items. The prefetch runs the query through the Drizzle source, whose
+  // response already carries the selected fields with the edges; a read
+  // follows only for what the page leaves out.
   const projects = Data.query(
     ProjectsByOwner,
     { ownerId: 'u1' },

@@ -138,6 +138,8 @@ const PostsSource = RemoteServer.query(PostsQuery, () =>
   Effect.gen(function* () {
     yield* Effect.sleep(SERVER_LATENCY)
 
+    // Membership only: the handlers fetch the client's selected fields
+    // through PostSource and return them with the edges in one response.
     return {
       edges: articles.map(({ id }) => ({ entity: Post.name, id, key: entityKey(Post.name, id) })),
       start: { _tag: 'Terminal' as const },
