@@ -97,6 +97,21 @@ RemoteServer.make({
   so `allow` is not asked. Writing the CMS's tables by hand has to match what a
   publish writes, and drifts.
 
+### Seeding
+
+A seed is a runner over `cms.import` — one item per entry, in dependency order:
+
+- **Fix the clock.** Pass `now` to `CmsServer.make` and `at` to each import,
+  so every run writes the same dates: the build's pages and every sandbox agree.
+- **Name entries that are pointed at.** Pass `entry` where another import names
+  it (a page naming its featured post), and import what is pointed at first so
+  the id is known. Anything else takes the default new id.
+- **Fix `as` once.** Import as an editor and vary the rest; the input is
+  `ImportItem<P>` less `as`, so the runner and the tool cannot drift.
+
+The CMS example's `seed.ts` is the worked shape: dated posts, then the pages
+that point at them.
+
 ## Verify the audience boundary
 
 Before connecting the editor, exercise the same content read as an author and

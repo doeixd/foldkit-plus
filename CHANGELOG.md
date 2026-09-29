@@ -101,6 +101,13 @@ version changed; `pnpm` skips versions already in the registry.
   post-init Message. Route changes after startup still arrive as Messages,
   folded through the same placement, and the view keeps its `people` slot.
 
+- **`foldkit-cms-drizzle`, `ImportItem<P>`:** the input of `cms.import`,
+  named and exported — what a seed or a migration passes per entry (`type`,
+  `values`, `as`, `at?`, `entry?`). The package's own tests and the CMS
+  example's `seed.ts` read it instead of re-declaring it, and the README
+  gains the seeding shape beside it: a fixed clock, named entries imported
+  dependencies-first, `as` fixed once.
+
 - **`foldkit-bundle`, `assembly.runtime`:** the runtime config in one call for
   an application whose `update` already routes every placement. `initial`
   rest becomes `init`, or an init function returning

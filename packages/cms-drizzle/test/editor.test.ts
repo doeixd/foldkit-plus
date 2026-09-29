@@ -18,7 +18,14 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
-import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from '../src/index.js'
+import {
+  CmsServer,
+  Transaction,
+  published,
+  sqliteSchema,
+  sqliteTables,
+  type ImportItem,
+} from '../src/index.js'
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -274,7 +281,7 @@ const world = () => {
   const rows = (query: string) =>
     sqlite.prepare(query).all() as ReadonlyArray<Record<string, unknown>>
   /** Content brought in by the server, as a seed or a migration would. */
-  const imported = (item: Parameters<typeof cms.import>[0]) =>
+  const imported = (item: ImportItem<Principal>) =>
     Effect.runPromise(cms.import(item).pipe(Effect.provide(database)))
   return { author, rows, sent, reads, sqlite, imported }
 }

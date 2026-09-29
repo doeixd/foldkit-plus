@@ -255,8 +255,12 @@ and server/SSR sequences.
   (`isLive`/`viewOfSse`/`SseView`); the chat example keeps no connection
   state machine and `reactToSocket` covers payload commands plus the
   page's own wanting.
-- [ ] **6. Seeding:** `seed.ts` runner shape into cms/cms-drizzle import
-  tooling and docs.
+- [x] **6. Seeding:** `seed.ts` runner shape into cms/cms-drizzle import
+  tooling and docs. Built 2026-09-29: the import input named and exported
+  as `ImportItem<P>`, read by the package's own tests and the example's
+  `seed.ts` (whose contract is now what `cms.import` takes less `as`)
+  instead of re-declared, with the seeding shape (fixed clock, named
+  entries dependencies-first, `as` fixed once) in the cms-drizzle README.
 
 ## Server
 

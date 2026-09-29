@@ -1,7 +1,7 @@
 # What the CMS demo's rough edges ask of the packages
 
-> **Status:** partially built (2026-09-29). Areas 0, 1b, 3, 4, 5 are built;
-> areas 1, 2, 6 are not started. Each area names the example files that hand-roll it and the
+> **Status:** partially built (2026-09-29). Areas 0, 1b, 3, 4, 5, 6 are
+> built; areas 1, 2 are not started. Each area names the example files that hand-roll it and the
 > package/design that should own it. Work the areas in order; the example is
 > the acceptance test (area 0's rule).
 
@@ -251,6 +251,13 @@ app-owned — today implicit), and a 4-state view union derivation
 applies to `sse.ts`.
 
 ## 6. Seeding story
+
+> **Built** (2026-09-29): the import input named and exported as
+> `ImportItem<P>` from `foldkit-cms-drizzle`, read by the package's tests
+> and the example's `seed.ts` (whose runner contract is now what
+> `cms.import` takes less `as`) instead of re-declared, with the seeding
+> shape in the package README. The seed content itself stays
+> example-local, as it should.
 
 `seed.ts` (fixed clock, entry-keyed ids, pages-after-posts, `cms.import`
 so publish/revision bookkeeping runs) stays example-local, but the runner

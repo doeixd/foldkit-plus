@@ -172,6 +172,22 @@ export interface EntryRow {
   readonly revision: number | null
 }
 
+/**
+ * One import: content published already, such as a site's first pages or what
+ * another CMS held. `as` is whom it is imported as (an editor, so the create
+ * handler writes the row); a runner that imports many fixes `as` once and
+ * varies the rest. `at` is when it was published (default now); `entry`
+ * names the entry (default a new id) — name it where another import points
+ * at it, and import what is pointed at first.
+ */
+export interface ImportItem<P> {
+  readonly type: string
+  readonly values: unknown
+  readonly as: P
+  readonly at?: Date | undefined
+  readonly entry?: string | undefined
+}
+
 const refuse = (message: string) => new RemoteServerError({ message })
 
 /**
@@ -1029,13 +1045,7 @@ export const CmsServer = {
      * `allow` is not asked. `at` is when it was published (default now); `entry`
      * names the entry (default a new id). One transaction: it all lands or none.
      */
-    const importing = (item: {
-      readonly type: string
-      readonly values: unknown
-      readonly as: P
-      readonly at?: Date | undefined
-      readonly entry?: string | undefined
-    }) =>
+    const importing = (item: ImportItem<P>) =>
       config.transaction(
         Effect.gen(function* () {
           const served = byType.get(item.type)

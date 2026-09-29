@@ -5,15 +5,8 @@
  * its first revision follow. The scripted run starts empty and builds its own.
  */
 import { Effect } from 'effect'
+import type { ImportItem } from 'foldkit-cms-drizzle'
 import { SOURCE } from './domain.js'
-
-/** What `cms.import` takes, less whom it is imported as, which the server fixes. */
-interface Imported {
-  readonly type: 'posts' | 'pages'
-  readonly values: unknown
-  readonly at: Date
-  readonly entry: string
-}
 
 interface Seeded {
   /** The name the rest of the seed knows it by; the row's id is the create handler's. */
@@ -861,9 +854,13 @@ const posts: ReadonlyArray<Seeded> = [
  */
 export const SEEDED_AT = new Date('2026-09-27T09:00:00.000Z')
 
-/** Imports the seed, as `imported` imports each item: the posts, then the pages that point at them. */
-export const seed = <E, R>(
-  imported: (item: Imported) => Effect.Effect<{ readonly targetId: string }, E, R>,
+/**
+ * Imports the seed, as `imported` imports each item: the posts, then the
+ * pages that point at them. Whom each item is imported as is the server's
+ * to fix, so the runner takes what `cms.import` takes less `as`.
+ */
+export const seed = <E, R, A>(
+  imported: (item: Omit<ImportItem<A>, 'as'>) => Effect.Effect<{ readonly targetId: string }, E, R>,
   now: Date,
 ): Effect.Effect<void, E, R> =>
   Effect.gen(function* () {
