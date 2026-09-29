@@ -217,10 +217,13 @@ What running `examples/cms` end to end asks of the packages.
 area 0 first, then areas 3–5 alongside, with areas 1–2 feeding the routing
 and server/SSR sequences.
 
-- [ ] **0. In-example hygiene:** exhaustive tag matches (no `switch` +
+- [x] **0. In-example hygiene:** exhaustive tag matches (no `switch` +
   `default` in `app.ts`/`pageApp.ts`/`siteApp.ts`); `src/demo/` folder with
   shared `harness.ts`; split `style.ts` by owner; unify the editor-bar
   clone and `revisionsOf`; adopt shipped recipes where the demo forks them.
+  Built 2026-09-29 (harness extraction, exhaustive matches, shell
+  unification, style split, recipe gaps recorded where the fork is a
+  semantic mismatch, not a restyle).
 - [ ] **1. Routing items** (already tracked above via §34/§33.3/§33.4 plus
   `scroll.ts` → primitives/upstream in the §33.5 item).
 - [ ] **2. Server/transport/SSG:** `http.ts` → `Server.mount` + scheduler;
@@ -228,15 +231,26 @@ and server/SSR sequences.
   shape into server/local-execution designs; prerender/generate/sitePlan
   into SSR Phase S (S2 `Data.satisfy`, S3 head-from-Model, S4 sitemap,
   S7 build step).
-- [ ] **3. `mixins-ui` gaps:** `Badge`, `Loading`/`Empty`/`Failure`,
+- [x] **3. `mixins-ui` gaps:** `Badge`, `Loading`/`Empty`/`Failure`,
   Button variants, icon machinery, touch targets; `historyCard`/`moreCard`
   as a CMS view companion; adopt each in the demo in the same change.
+  Built 2026-09-29 (Badge, Loading/Empty/Failure, entry views companion,
+  Touch/Icons, Button variants, Segmented — each adopted in the demo in
+  the same change).
 - [ ] **4. Form view:** `Button.view`, `Input.field`, `FormView.fields`
   with per-field overrides (keeping exhaustive-over-`FieldKey`), explicit
-  submit-gating predicate.
-- [ ] **5. Primitives:** websocket/sse status + `isConnected` + error
+  submit-gating predicate. Partial 2026-09-29: `Button.view`,
+  `FormView.fields` with per-field overrides, per-key element attrs, and
+  explicit submit gating landed and are adopted by the waitlist form; the
+  `Input.field`/`Textarea` wrapper (area 4 item 2) is still open — the
+  example's per-key text/textarea overrides remain hand-rolled.
+- [x] **5. Primitives:** websocket/sse status + `isConnected` + error
   selectors and 4-state view-union derivation; shrink `reactToSocket` to
-  payload commands.
+  payload commands. Built 2026-09-29 as `isOpen`/`viewOf`/`SocketView`
+  (`Disconnected|Connecting|Connected|Error`) with SSE parity
+  (`isLive`/`viewOfSse`/`SseView`); the chat example keeps no connection
+  state machine and `reactToSocket` covers payload commands plus the
+  page's own wanting.
 - [ ] **6. Seeding:** `seed.ts` runner shape into cms/cms-drizzle import
   tooling and docs.
 

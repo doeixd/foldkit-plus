@@ -1,8 +1,10 @@
 # What the CMS demo's rough edges ask of the packages
 
-> **Status:** plan, not built (2026-09-28). Each area names the example files
-> that hand-roll it and the package/design that should own it. Work the areas
-> in order; the example is the acceptance test (area 0's rule).
+> **Status:** partially built (2026-09-29). Areas 0, 1b, 3, 5 are built;
+> area 4 is partial (`Input.field` wrapper still open); areas 1, 2, 6 are
+> not started. Each area names the example files that hand-roll it and the
+> package/design that should own it. Work the areas in order; the example is
+> the acceptance test (area 0's rule).
 
 Running `examples/cms` end to end (studio, site, prerender, demos) surfaced
 rough edges that group into six kinds. None is a CMS bug; every one is a seam
@@ -15,6 +17,14 @@ Prior art: [cms-example-FINDINGS.md](./cms-example-FINDINGS.md) /
 plan → workarounds deleted from the example). This doc is the second round.
 
 ## 0. In-example hygiene first (no package change)
+
+> **Built** (2026-09-29): exhaustive `Match.valueTags` updates, `src/demo/`
+> with shared `harness.ts`, `style.ts` split by owner (150-line shared
+> theme remains), editor bar + `revisionsOf` unified into `shell.ts` via
+> the CMS companion, recipe forks adopted or recorded as semantic
+> mismatches. The `app.ts:206`/`pageApp.ts:179`/`siteApp.ts:130` line refs
+> below predate the move into `src/apps/` + `src/demo/`; the remaining
+> `switch`es are exhaustive over their own unions with no `default`.
 
 Do these before anything else; they delete lines without changing APIs.
 
@@ -142,6 +152,15 @@ prototype of the Site graph — route-driven section activation inside one
 
 ## 3. `mixins-ui` gaps the demo proves (Badge, Loading, buttons, icons)
 
+> **Built** (2026-09-29): Badge, Loading/Empty/Failure, Button
+> primary/icon variants, Segmented, Touch/Icons mechanisms, and the CMS
+> entry-views companion each landed with its adopt-in-demo follow-up in
+> the same change. The demo keeps only tone→state maps, slots, styles,
+> words, and its Lucide paths; the recorded non-adoptions (details/summary
+> chevron vs Disclosure, raw-input `field` vs InputSlots, row-list vs
+> ListView tables, `aria-pressed` toggles vs Tabs) are semantic mismatches,
+> not restyles.
+
 Rule: where `mixins-ui` publishes a recipe, the demo selects variants
 instead of forking styles; where it publishes nothing, the gap is real and
 the recipe lands first, then the demo adopts it.
@@ -169,6 +188,12 @@ the recipe lands first, then the demo adopts it.
   `statusLine` must derive from the `EditorStatus` union, not re-spell it.
 
 ## 4. Form view ceremony (`foldkit-form` example + websocket-adjacent lesson)
+
+> **Partial** (2026-09-29): items 1, 3, 4 landed (`Button.view`,
+> `FormView.fields` with per-field overrides, per-key element attrs,
+> explicit submit-gating predicate) and are adopted by the waitlist form.
+> Item 2 (`Input.field`/`Textarea` wrapper) is still open: the example's
+> per-key text/textarea overrides remain hand-rolled.
 
 Backend semantics are declarative (`Form.make`); rendering is still
 mechanical. Three wrappers, each with an escape hatch, in this order:
@@ -201,6 +226,12 @@ mechanical. Three wrappers, each with an escape hatch, in this order:
    instead of hiding the choice.
 
 ## 5. Primitives: websocket selectors
+
+> **Built** (2026-09-29) as `isOpen`/`viewOf`/`SocketView`
+> (`Disconnected|Connecting|Connected|Error`) with worded errors, plus SSE
+> parity (`isLive`/`viewOfSse`/`SseView`). The chat example keeps no
+> connection state machine; `reactToSocket` covers payload commands plus
+> the page's own wanting.
 
 `examples/foldkit-websocket-chat/src/main.ts` carries `connection:
 ConnectionState` beside `...ChatSocket.fields` (`chatSocket.status/
