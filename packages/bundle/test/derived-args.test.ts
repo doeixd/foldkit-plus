@@ -155,6 +155,32 @@ describe('args as a factory of the parent seed', () => {
     expect(assembly.placements[0]?.argsSummary).toBe('{"searchText":"alice"}')
   })
 
+  it('derives per use on a Model no initialization produced', () => {
+    const calls = { count: 0 }
+    const assembly = Page.assemble(placePeople(calls))
+    const update = assembly.update()
+    const model: Model = {
+      route: { _tag: 'People', searchText: 'alice' },
+      people: { searchText: 'typed', submitted: '' },
+      ticks: 0,
+    }
+    const reset = update(model, {
+      _tag: 'GotPeopleMessage',
+      message: PeopleMessage.Reset(),
+    })
+    // No initialization ran, so Reset restores this Model's own seed, and the
+    // factory ran for this update alone, without retaining.
+    expect(reset.model.people.searchText).toBe('alice')
+    expect(calls.count).toBe(1)
+    const moved: Model = { ...model, route: { _tag: 'People', searchText: 'carol' } }
+    const resetAgain = update(moved, {
+      _tag: 'GotPeopleMessage',
+      message: PeopleMessage.Reset(),
+    })
+    expect(resetAgain.model.people.searchText).toBe('carol')
+    expect(calls.count).toBe(2)
+  })
+
   it('resolves a standalone init from the parent minus its own field', () => {
     let sawOwn = false
     const placed = Page.at(Bundle.declare(People, 'people'), {
