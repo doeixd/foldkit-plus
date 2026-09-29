@@ -269,7 +269,8 @@ derivations with `placements.complete` instead (below).
 - **`placements.initial(rest)`** is the parent's initial Model and Commands:
   `rest` gives exactly the fields no placement owns, each placement's `init`
   writes its own slice, and each wiring's `init` runs after the placements',
-  in list order. A placement's field may be given only when it holds an
+  in list order. A placement whose `args` is a factory derives it from the
+  base seed first (below). A placement's field may be given only when it holds an
   `Option` (below), to start the child as `None`. The check reads each
   placement's field from its Link; one whose path the types cannot read, a
   `Link.make` given a `string[]`, relaxes `rest` to `Partial<Model>`.
@@ -359,6 +360,33 @@ ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
   dropped by omission. Write `onOut: Bundle.ignore` to drop it on purpose.
 - **Without an args Schema**, `Args` is inferred from `init`'s parameter
   annotation instead.
+
+### Derived args: `args` from the parent seed
+
+`args` is a static value or a factory from the parent seed: the fields
+`assembly.initial(rest)` was given, before any placement initialised. A child
+whose initial state depends on what only the parent knows at startup — the
+route, the authenticated user, the workspace — derives it instead of taking a
+fixed value:
+
+```ts
+const people = Page.at(PeopleDeclared, {
+  args: parent => ({
+    searchText: searchFromRoute(parent.route),
+  }),
+})
+
+assembly.initial({ route: urlToAppRoute(url) })
+```
+
+The factory's parameter omits the placement's own field, so reading it is a
+type error. Read only seed fields, never sibling placement fields: every
+factory sees the same base seed, so placement order never matters. The result
+is checked against the bundle's args Schema, naming the placement, then
+retained for `update`, helpers, Subscriptions, and resources. It never re-runs
+against live state, so keep it pure of its seed; `assembly.config({
+initial })` derives the same way. A factory on an optional child is skipped
+when `rest` starts the child as `None`.
 
 ## Reacting to a child's Messages
 
