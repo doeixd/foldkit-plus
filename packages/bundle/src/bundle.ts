@@ -608,8 +608,6 @@ export type { BundleParts } from './declare.js'
 export type {
   InitialRest,
   OwnMessage,
-  ConfigInput,
-  ConfigResult,
   RuntimeInput,
   RuntimeInitFn,
   RuntimeResult,

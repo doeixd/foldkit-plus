@@ -163,8 +163,7 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement (route a narrow one with `placements.update(own)` first, or omit
   it); own records merge with the items' (omit what the application doesn't
   add); the rest passes through. URL-mirror assemblies pass their `url` from
-  `assembly.url`. (`placements.config` routed a narrow update itself; it is
-  deprecated.)
+  `assembly.url`.
 - **OutMessage:** a bundle whose `update` returns `outMessage` must be placed
   with `onOut: outMessage => model => ({ model: … })` (typed from the scope), or
   `onOut: Bundle.ignore` to drop it deliberately. Omitting it is a type error.

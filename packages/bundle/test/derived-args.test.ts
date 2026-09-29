@@ -295,10 +295,10 @@ describe('a factory on a collection', () => {
     expect(calls.count).toBe(1)
   })
 })
-describe('a factory through assembly.config', () => {
-  it('derives args for init and Subscriptions from the config seed', () => {
+describe('a factory through assembly.runtime', () => {
+  it('derives args for init and Subscriptions from the runtime seed', () => {
     const assembly = Page.assemble(placePeople())
-    const config = assembly.config({
+    const config = assembly.runtime({
       initial: { route: { _tag: 'People', searchText: 'alice' }, ticks: 0 },
     })
     expect(config.init().model.people).toEqual({ searchText: 'alice', submitted: '' })

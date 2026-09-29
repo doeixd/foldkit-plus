@@ -275,11 +275,6 @@ pass their `url` from `placements.url`. For a hand-built `init` or config,
   `Option` (below), to start the child as `None`. The check reads each
   placement's field from its Link; one whose path the types cannot read, a
   `Link.make` given a `string[]`, relaxes `rest` to `Partial<Model>`.
-- **`placements.config(input)`** is deprecated: prefer `runtime` below, which
-  builds the same config. It takes `initial` rest, routes a narrow own
-  `update`, merges own `subscriptions` and `managedResources` with the items',
-  and passes everything else through. Calling it on an assembly that
-  reads the URL is a type error and throws at runtime.
 - **`placements.runtime(input)`** is the same assembled runtime config for an
   application whose `update` already routes every placement: `initial` rest
   becomes `init`, or an init function returning `assembly.initial(...)` is
@@ -776,8 +771,9 @@ property that is wrong:
 `update`, an unbranded init function, and `url` — and derives the rest:
 `subscriptions` and `managedResources` default to the items', so an
 application that adds none passes neither. Prefer it wherever the `update`
-already routes every placement; keep `complete` for configs assembled by
-hand, and `config` where the parent's own update still needs routing.
+already routes every placement (route a narrow one with
+`assembly.update(own)` first); keep `complete` for configs assembled by
+hand.
 
 **Annotate the parameters of callbacks written inline in the config.**
 `makeApplication`'s `init: (url: Url) => …` and `routing.onUrlChange: (url: Url)
