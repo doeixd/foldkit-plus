@@ -9,7 +9,7 @@ import * as ManagedResource from 'foldkit/managedResource'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import { describe, expect, it } from 'vitest'
-import { Bundle, Link } from '../src/index.js'
+import { Bundle, Link, type Wiring } from '../src/index.js'
 import { Counter, CounterMessage, CounterModel } from './fixture.js'
 
 const GotCounter = Link.wrapper('GotCounterMessage', CounterMessage)
@@ -94,9 +94,34 @@ describe('assembly.config', () => {
     )
   })
 
+  it('routes placement Messages with no own update, leaving own Messages untouched', () => {
+    const config = assembly.config({ initial: {} })
+
+    const started = config.init()
+    const clicked = config.update(started.model, GotCounter.make(CounterMessage.Incremented()))
+    expect(clicked.model.counter.count).toBe(1)
+    expect(config.update(started.model, Message.Reset()).model).toBe(started.model)
+  })
+
   it('refuses a custom init or url instead of silently dropping it', () => {
     expect(() => assembly.config({ initial: {}, init: () => ({ model: {} }) } as never)).toThrow(
       /config owns init/,
     )
+    expect(() => assembly.config({ initial: {}, url: () => Message.Reset() } as never)).toThrow(
+      /config owns init and url/,
+    )
+  })
+
+  it('refuses a URL-mirror assembly instead of silently unwiring its mirror', () => {
+    const mirror: Wiring<Model, Message> = {
+      key: 'mirror:test',
+      handles: [],
+      onUrl: model => model,
+    }
+    const urlAssembly = Bundle.assemble<Model, Message>()([mirror])
+    const config = urlAssembly.config as unknown as (input: {
+      readonly initial: Record<string, never>
+    }) => unknown
+    expect(() => config({ initial: {} })).toThrow(/does not derive url/)
   })
 })

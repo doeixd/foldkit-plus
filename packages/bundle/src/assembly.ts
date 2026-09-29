@@ -276,7 +276,8 @@ export interface Assembly<
    * `managedResources` merge with the items', and everything else (Model,
    * container, view, routing, the resources Layer, ...) passes through. URL
    * wiring stays on the lower-level derivations with `complete`: calling this
-   * on an assembly that reads the URL is a type error naming them.
+   * on an assembly that reads the URL is a type error naming them, and throws
+   * at runtime.
    */
   readonly config: [HasUrl<Ps[number]>] extends [never]
     ? <Input extends ConfigInput<Model, Message, Ps, Services>>(
@@ -559,9 +560,18 @@ export const assemble =
           managedResources: ownManaged,
           ...passthrough
         } = input
-        // `init` and `url` are reserved by the types above; a JavaScript caller
-        // can still pass them, and dropping either would silently unwire a
-        // placement or a mirror, so refuse instead.
+        // `config` derives no `url`: calling it on an assembly that reads the
+        // URL would silently unwire a mirror, so refuse instead of returning
+        // a config the runtime would accept. `init` and `url` are reserved by
+        // the types above; a JavaScript caller can still pass them, and
+        // dropping either would silently unwire a placement or a mirror, so
+        // refuse those too.
+        if (wirings.some(wiring => wiring.onUrl !== undefined)) {
+          throw new Error(
+            'Bundle.assemble: config does not derive url; ' +
+              'use complete with assembly.url for URL-mirror assemblies.',
+          )
+        }
         if ('init' in passthrough || 'url' in passthrough) {
           throw new Error(
             'Bundle.assemble: config owns init and url; pass initial rest (not init), ' +
