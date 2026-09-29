@@ -426,7 +426,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
 
   const resolveFrom = (seed: unknown): void => {
     if (!factory) return
-    if (hasResolved && seedsEqual(seed, lastSeed)) return
+    // An equal seed reuses the retained args. Resolving still clears a skip,
+    // so the flag always means "skipped since the last resolution".
+    if (hasResolved && seedsEqual(seed, lastSeed)) {
+      skipped = false
+      return
+    }
     const derived = derive(seed)
     summary = derived.summary
     resolved = derived.value
