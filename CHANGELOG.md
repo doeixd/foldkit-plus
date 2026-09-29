@@ -54,7 +54,8 @@ version changed; `pnpm` skips versions already in the registry.
   `subscriptions`, and `managedResources` merge with the items', everything
   else passes through to `Runtime.makeApplication`/`makeElement`). The result
   carries the `complete` brands, so `complete` accepts it unchanged; custom
-  inits and URL-mirror assemblies stay on the lower-level derivations.
+  inits and URL-mirror assemblies stay on the lower-level derivations
+  (calling `config` on a URL-mirror assembly throws at runtime).
 
 - **CMS example, one studio application:** posts and pages share a document,
   a runtime and an address (`examples/cms/src/apps/studioApp.ts`); moving

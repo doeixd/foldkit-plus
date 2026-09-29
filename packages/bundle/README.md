@@ -277,7 +277,8 @@ derivations with `placements.complete` instead (below).
   `Runtime.makeApplication` or `makeElement`: `initial` rest becomes `init`,
   the own `update`, `subscriptions`, and `managedResources` merge with the
   items', and everything else passes through. Calling it on an assembly that
-  reads the URL is a type error; that stays on the derivations with `complete`.
+  reads the URL is a type error and throws at runtime; that stays on the
+  derivations with `complete`.
 - **`placements.update(own)`** is the parent's update: a placement's or
   wiring's Message goes to its item and every other Message to `own`, whose
   Message is typed without the placements' wrappers (see
