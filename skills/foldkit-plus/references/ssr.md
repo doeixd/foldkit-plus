@@ -15,7 +15,12 @@ Surfaces list, `fallback: 'server'` makes a form work with scripts off, and
 
 Only the handover from a server render to the browser. Rendering to HTML and
 adopting it stay Foldkit's (`foldkit/experimental/server`, `foldkit/runtime`);
-`foldkit-ssr` calls them. It adds a **resume plan**: which slice of the Model
+`foldkit-ssr` calls them. Placing a served page into its template stays the
+host's (`handleRequest`, the Vite plugin's dev server, the fetch handler the
+build emits): the envelope rides the stamped root, so the entry answers
+`Rendered` and never splices markup into a template. `SSR.page` and
+`SSR.generate` place pages only where Plus owns the template: a static file
+it writes itself. It adds a **resume plan**: which slice of the Model
 crosses, as JSON on the stamped root read back through the slice's own Schema. `init`
 runs once, on the server; nothing outside the slice crosses, Flags included.
 
