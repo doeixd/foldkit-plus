@@ -52,13 +52,15 @@ export const siteTemplate = (built: string): string => {
     )
 }
 
-/** The build a page belongs to: the entry script the template loads, which `client.ts` reads of itself. A file path built with `path.join` carries the platform's separators, which `new URL` keeps as backslashes on Windows while the browser reads forward slashes, and a drive letter parses as a scheme that drops the drive; a drive path is read as a `file:` URL like the browser reads of itself. */
-export const buildIdOf = (template: string): string => {
-  const entry = template.match(/<script type="module"[^>]*src="([^"]+)"/)?.[1]
-  if (entry === undefined) throw new Error('index.html loads no module script')
-  const normalized = entry.replaceAll('\\', '/')
-  return new URL(/^[A-Za-z]:\//.test(normalized) ? `file:///${normalized}` : normalized, ORIGIN)
-    .pathname
+/** The build the pages belong to: the `FOLDKIT_BUILD_ID` deployment `vite build` saw. */
+const deploymentId = (): string => {
+  const buildId = process.env.FOLDKIT_BUILD_ID
+  if (buildId === undefined || buildId === '') {
+    throw new Error(
+      'set FOLDKIT_BUILD_ID to the deployment this build belongs to, the same value `vite build` saw',
+    )
+  }
+  return buildId
 }
 
 /** The page's own styles, so its first paint is styled before any script runs. */
@@ -79,7 +81,7 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
   await backend.seed()
   const send: Send = (chair, body) => answer(backend, chair, JSON.parse(body))
   const remote = Remote.clientLayer(remoteClient(send, 'visitor'))
-  const buildId = buildIdOf(template)
+  const buildId = deploymentId()
 
   const posts = backend.rows(
     'select slug, published_at from posts where published_at is not null order by published_at',
@@ -106,9 +108,7 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
   const generated: Array<Generated> = []
   for (const { path, modified } of paths) {
     const prepared = await Effect.runPromise(
-      Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives).pipe(
-        Effect.provide(remote),
-      ),
+      Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives).pipe(Effect.provide(remote)),
     )
     const config = siteConfig({
       // The prepared Model through the assembly's own `initial`, as `init` must return it.

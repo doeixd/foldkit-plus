@@ -79,6 +79,12 @@ const preloadSandbox = (): Plugin => ({
 export default defineConfig({
   resolve: { conditions },
   ssr: { resolve: { conditions } },
+  define: {
+    // The deployment the takeover compares, from the `FOLDKIT_BUILD_ID` the
+    // build saw. Without the `foldkit` plugin this is the whole of it: a
+    // static replacement, and an empty id refuses every page it should adopt.
+    'import.meta.env.FOLDKIT_BUILD_ID': JSON.stringify(process.env.FOLDKIT_BUILD_ID ?? ''),
+  },
   plugins: [foundations(), preloadSandbox()],
   build: { target: 'es2022' },
   server: {

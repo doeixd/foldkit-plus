@@ -9,7 +9,7 @@ import type { Chair } from '../src/server/transport.js'
 
 const page = (body: string) => new DOMParser().parseFromString(body, 'text/html')
 const generated = page(
-  '<main></main><script type="application/json" data-foldkit-plus-resume>{}</script>',
+  '<main></main><div data-foldkit-app="app" data-foldkit-plus-resume="{}"></div>',
 )
 const shell = page('<div id="app"></div>')
 
