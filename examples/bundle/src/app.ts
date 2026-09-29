@@ -6,6 +6,7 @@
 import * as Tabs from '@foldkit/ui/tabs'
 import { Schema, Stream } from 'effect'
 import { modifyFields } from 'foldkit/struct'
+import type * as Update from 'foldkit/update'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Submodel from 'foldkit/submodel'
@@ -130,7 +131,8 @@ const placements = Page.assemble(
 
 export const placementKeys: ReadonlyArray<string> = placements.placements.map(placed => placed.key)
 
-export const update = placements.update((model, message) => {
+/** The parent's own update: placement Messages never reach it. */
+const updateOwn = (model: Model, message: Message): Update.Return<Model, Message, never> => {
   switch (message._tag) {
     case 'ChoseFile':
       return Uploads.add(message.id, upload => modifyFields(upload, { name: () => message.name }))(
@@ -141,7 +143,9 @@ export const update = placements.update((model, message) => {
     default:
       return { model }
   }
-})
+}
+
+export const update = placements.update(updateOwn)
 
 export const view = (model: Model, h: HtmlBuilder<Message>) =>
   h.main(
@@ -149,11 +153,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>) =>
     [h.p([], [model.dark.matches ? 'dark' : 'light']), h.ul([], Uploads.viewAll(model, h))],
   )
 
-export const config = placements.complete({
-  init: () => placements.initial({ section: 'general', finished: [], savedAt: null }),
-  update,
+export const config = placements.config({
+  initial: { section: 'general', finished: [], savedAt: null },
+  update: updateOwn,
   view,
-  subscriptions: placements.subscriptions(),
 })
 
 /** Who owns what, for Module.validate: the placements and the page's own settings sync. */
