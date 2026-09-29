@@ -153,6 +153,62 @@ describe('query payload', () => {
     )
     expect(result._tag).toBe('Failure')
   })
+
+  it('a settled-only payload still settles, with nothing to write', () => {
+    const projects = Data.query(PostsQuery, {}, { select: summary })
+    const merged = Data.reduce(
+      initial,
+      Remote.queryMessage(
+        projects.ref,
+        {
+          edges: [{ entity: 'Post', id: 'p1', key: 'Post:p1' }],
+          start: { _tag: 'Terminal' as const },
+          end: { _tag: 'Terminal' as const },
+          entities: [],
+          settled: [{ entity: 'Post', id: 'p1', fields: ['excerpt'] }],
+        },
+        { entity: 'Post', fields: ['id', 'title', 'excerpt'] },
+        7,
+      ),
+    )
+    // Withheld: not planned again, and reads as unavailable rather than missing.
+    const excerpt = Data.get(Post.select({ excerpt: true }), 'p1')
+    expect(Data.plan(merged, excerpt)).toEqual([])
+    expect(excerpt.read(merged)).toMatchObject({
+      _tag: 'Failed',
+      error: { _tag: 'Unavailable' },
+    })
+  })
+
+  it('entities without a select are unsolicited and ignored', () => {
+    const projects = Data.query(PostsQuery, {}, { select: summary })
+    const failed = Data.reduce(initial, {
+      _tag: 'ReadFailed',
+      requests: [{ entity: 'Post', id: 'p1', fields: ['title'] }],
+      error: { _tag: 'RemoteReadError', message: 'boom' },
+    })
+    const merged = Data.reduce(failed, {
+      _tag: 'ConnectionMerged',
+      connection: projects.ref.identity,
+      page: {
+        edges: [{ key: 'Post:p1', ref: { entity: 'Post', id: 'p1' } }],
+        start: { _tag: 'Terminal' as const },
+        end: { _tag: 'Terminal' as const },
+      },
+      entities: [{ entity: 'Post', id: 'p1', values: { id: 'p1', title: 'T', excerpt: 'E' } }],
+      settled: [],
+    })
+    // Nowhere to write them: the failure survives (the read stays Failed
+    // with it) and the fields are still planned minus the failed one.
+    expect(projects.read(merged)).toEqual({
+      _tag: 'Failed',
+      error: { _tag: 'RemoteReadError', message: 'boom' },
+    })
+    expect(Data.plan(merged, projects)).toEqual([
+      { entity: 'Post', id: 'p1', fields: ['id', 'excerpt'] },
+    ])
+    expect(Object.keys(Data.inspect(merged).failures.fields)).toContain('Post:p1\u0000title')
+  })
 })
 
 describe('Data.meta', () => {

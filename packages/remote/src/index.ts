@@ -1375,8 +1375,9 @@ const pageMessage = (
     }
   }
   const hasPayload =
-    (result.entities !== undefined && result.entities.length > 0) ||
-    (result.settled !== undefined && result.settled.length > 0)
+    select !== undefined &&
+    ((result.entities !== undefined && result.entities.length > 0) ||
+      (result.settled !== undefined && result.settled.length > 0))
   return {
     _tag: 'ConnectionMerged',
     connection,

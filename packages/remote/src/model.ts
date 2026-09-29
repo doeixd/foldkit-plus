@@ -942,10 +942,12 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // A query payload writes like a read: one synthetic request per matching
       // edge, so windows, nested relations and settled fields behave as they do
       // for `ReadReceived`. A page without a payload only merges the connection.
-      const payload = message.entities ?? []
-      const settled = message.settled ?? []
+      // Entities without a select are unsolicited and ignored: there is nowhere
+      // to write them, and they must not clear failures they do not answer.
+      const payload = message.select === undefined ? [] : (message.entities ?? [])
+      const settled = message.select === undefined ? [] : (message.settled ?? [])
       const requests =
-        message.select === undefined || payload.length === 0
+        message.select === undefined || (payload.length === 0 && settled.length === 0)
           ? []
           : message.page.edges
               .filter(edge => edge.ref.entity === message.select!.entity)
@@ -959,9 +961,11 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
               { entities: [...payload], settled: [...settled] },
               message.now ?? 0,
             )
+      // Like `ReadReceived`: the answer settles what it was asked, whether
+      // with values or as settled, so a prior failure does not outlive it.
       const failures = withoutFieldFailures(
         withoutConnectionFailure(model.failures, message.connection),
-        patchedMarks(payload),
+        [...fieldMarks(requests), ...patchedMarks(payload)],
       )
       return {
         ...model,
