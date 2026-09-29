@@ -9,7 +9,7 @@
  *   /site/blog/<slug> a post
  *   /site/<slug>      any other page
  */
-import { Array as Arr, Effect, Option, Schema } from 'effect'
+import { Array as Arr, Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import type { Document } from 'foldkit-composition'
@@ -126,12 +126,13 @@ export const actives = {
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 export const placements = Parent.assemble(Data.wiring(actives))
 
-export const update = placements.update((model: Model, message: Message) => {
-  switch (message._tag) {
-    case 'UrlChanged':
-      return { model: { ...model, route: routeOf(message.url) } }
-    case 'UrlRequested': {
-      const { request } = message
+export const update = placements.update((model, message) => {
+  // Remote's Messages go to its wiring, so they never reach here; the guard
+  // narrows to the application's own tags, which the match below covers all of.
+  if (Remote.reduces(message)) return { model }
+  return Match.valueTags(message, {
+    UrlChanged: ({ url }) => ({ model: { ...model, route: routeOf(url) } }),
+    UrlRequested: ({ request }) => {
       // A link within the site is a route change; anything else is another application.
       const effect =
         request._tag === 'Internal' && request.url.pathname.startsWith('/site')
@@ -141,10 +142,9 @@ export const update = placements.update((model: Model, message: Message) => {
         model,
         commands: [{ name: 'FollowLink', effect: effect.pipe(Effect.as(Message.Ticked())) }],
       }
-    }
-    default:
-      return { model }
-  }
+    },
+    Ticked: () => ({ model }),
+  })
 })
 
 export const initial = (url: Url) =>

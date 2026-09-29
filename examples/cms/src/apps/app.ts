@@ -4,7 +4,7 @@
  * through. The scripted run and the browser both drive this one `update`.
  * Nothing about how any of it is placed is CMS-specific.
  */
-import { Effect, Equal, Option, Schema, Stream } from 'effect'
+import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
@@ -204,56 +204,49 @@ const routed = {
   close: () => EditorSlot.helpers.close(),
 } satisfies EntryEditor<Model, unknown>
 
-const placed = placements.update((model: Model, message: Message) => {
+const placed = placements.update((model, message) => {
   // Leaving drops what is in the form, so what has not been saved is saved first:
   // an author who types and leaves within the rest loses nothing.
   const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
     const flushed = PostEditor.flush(model)
     return { model: next(flushed.model).model, commands: flushed.commands ?? [] }
   }
-  switch (message._tag) {
-    case 'OpenedEntry':
-      return leaving(EditorSlot.helpers.open(message.entry))
-    case 'AskedForPost':
-      return { model, commands: [newPost] }
-    case 'StartedPost':
-      return leaving(EditorSlot.helpers.create(message.entry))
-    case 'ClosedEditor':
-      return leaving(EditorSlot.helpers.close())
-    case 'TypedSchedule':
-      return { model: modifyFields(model, { scheduleAt: () => message.text }) }
-    case 'Searched':
-      return { model: modifyFields(model, { search: () => message.text }) }
-    case 'ToggledArchive':
-      return { model: modifyFields(model, { archived: archived => !archived }) }
-    case 'UrlChanged': {
-      const { preview, ...named } = linkIn(message.url)
+  // Remote's Messages go to its wiring, so they never reach here; the guard
+  // narrows to the application's own tags, which the match below covers all of.
+  if (Remote.reduces(message)) return { model }
+  return Match.valueTags(message, {
+    OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
+    AskedForPost: () => ({ model, commands: [newPost] }),
+    StartedPost: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
+    ClosedEditor: () => leaving(EditorSlot.helpers.close()),
+    TypedSchedule: ({ text }) => ({ model: modifyFields(model, { scheduleAt: () => text }) }),
+    Searched: ({ text }) => ({ model: modifyFields(model, { search: () => text }) }),
+    ToggledArchive: () => ({ model: modifyFields(model, { archived: archived => !archived }) }),
+    UrlChanged: ({ url }) => {
+      const { preview, ...named } = linkIn(url)
       // The worklist's narrowing is the mirror's to read; which post is open is routing.
-      const narrowed = Narrowing.reduce(model, message.url)
+      const narrowed = Narrowing.reduce(model, url)
       const opened = openNamed(routed, narrowed, named, model.fresh)
       return {
         model: { ...opened.model, previewAsked: Option.some(preview), fresh: opened.fresh },
         commands: opened.commands,
       }
-    }
-    case 'UrlRequested':
+    },
+    UrlRequested: ({ request }) =>
       // Another address is another chair or another application: load it.
-      return {
+      ({
         model,
         commands: [
           {
             name: 'FollowLink',
             effect: Navigation.load(
-              message.request._tag === 'Internal'
-                ? urlToString(message.request.url)
-                : message.request.href,
+              request._tag === 'Internal' ? urlToString(request.url) : request.href,
             ).pipe(Effect.as(Message.Ticked())),
           },
         ],
-      }
-    default:
-      return { model }
-  }
+      }),
+    Ticked: () => ({ model }),
+  })
 })
 
 /** The open post (saved, or new), and whether it is previewed, as an address names them. */

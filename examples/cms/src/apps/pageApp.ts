@@ -4,7 +4,7 @@
  * nothing about the Builder is CMS-specific, and nothing about the CMS knows
  * there is a Builder.
  */
-import { Effect, Equal, Option, Schema, Stream } from 'effect'
+import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
 import { Message as BuilderMessage, Panel, Viewport } from 'foldkit-builder'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
@@ -170,47 +170,43 @@ const routed = {
   close: () => EditorSlot.helpers.close(),
 } satisfies EntryEditor<Model, unknown>
 
-const placed = placements.update((model: Model, message: Message) => {
+const placed = placements.update((model, message) => {
   // Leaving saves what the rest has not saved yet.
   const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
     const flushed = PageEditor.flush(model)
     return { model: next(flushed.model).model, commands: flushed.commands ?? [] }
   }
-  switch (message._tag) {
-    case 'OpenedEntry':
-      return leaving(EditorSlot.helpers.open(message.entry))
-    case 'AskedForPage':
-      return { model, commands: [newPage] }
-    case 'StartedPage':
-      return leaving(EditorSlot.helpers.create(message.entry))
-    case 'ClosedEditor':
-      return leaving(EditorSlot.helpers.close())
-    case 'UrlChanged': {
-      const { stored, fresh, ...asked } = linkIn(message.url)
+  // Remote's Messages go to its wiring, so they never reach here; the guard
+  // narrows to the application's own tags, which the match below covers all of.
+  if (Remote.reduces(message)) return { model }
+  return Match.valueTags(message, {
+    OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
+    AskedForPage: () => ({ model, commands: [newPage] }),
+    StartedPage: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
+    ClosedEditor: () => leaving(EditorSlot.helpers.close()),
+    UrlChanged: ({ url }) => {
+      const { stored, fresh, ...asked } = linkIn(url)
       const opened = openNamed(routed, model, { stored, fresh }, model.fresh)
       return {
         model: { ...opened.model, linked: Option.some(asked), fresh: opened.fresh },
         commands: opened.commands,
       }
-    }
-    case 'UrlRequested':
+    },
+    UrlRequested: ({ request }) =>
       // Another address is another chair or another application: load it.
-      return {
+      ({
         model,
         commands: [
           {
             name: 'FollowLink',
             effect: Navigation.load(
-              message.request._tag === 'Internal'
-                ? urlToString(message.request.url)
-                : message.request.href,
+              request._tag === 'Internal' ? urlToString(request.url) : request.href,
             ).pipe(Effect.as(Message.Ticked())),
           },
         ],
-      }
-    default:
-      return { model }
-  }
+      }),
+    Ticked: () => ({ model }),
+  })
 })
 
 const stepped = PageEditor.after(placed)

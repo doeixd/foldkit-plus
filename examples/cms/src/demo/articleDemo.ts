@@ -12,7 +12,7 @@
  */
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { eq } from 'drizzle-orm'
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Layer, Match, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import { published } from 'foldkit-cms-drizzle'
@@ -137,15 +137,15 @@ const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 const EditorSlot = Parent.at(Slot, { onOut: ArticleEditor.onOut })
 const placements = Parent.assemble(EditorSlot, Data.wiring(actives))
 const update = ArticleEditor.after(
-  placements.update((model: Model, message: Message) => {
-    switch (message._tag) {
-      case 'OpenedEntry':
-        return EditorSlot.helpers.open(message.entry)(model)
-      case 'StartedArticle':
-        return EditorSlot.helpers.create(message.entry)(model)
-      default:
-        return { model }
-    }
+  placements.update((model, message) => {
+    // Remote's Messages go to its wiring, so they never reach here; the guard
+    // narrows to the demo's own tags, which the match below covers all of.
+    if (Remote.reduces(message)) return { model }
+    return Match.valueTags(message, {
+      OpenedEntry: ({ entry }) => EditorSlot.helpers.open(entry)(model),
+      StartedArticle: ({ entry }) => EditorSlot.helpers.create(entry)(model),
+      Ticked: () => ({ model }),
+    })
   }),
 )
 const initial: Model = placements.initial({ remote: Remote.initial }).model
