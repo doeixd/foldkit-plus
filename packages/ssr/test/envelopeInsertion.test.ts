@@ -7,9 +7,10 @@
  * needs no `</body>` for the envelope.
  */
 import { Effect, Result } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { SSR } from 'foldkit-ssr'
-import { config, load, plan, template } from './bindingsFixture.js'
+import { Message, config, load, plan, template, type Model } from './bindingsFixture.js'
 
 const withSearch = (search: string) => ({
   ...config,
@@ -45,6 +46,49 @@ describe('SSR.page', () => {
     load(SSR.page(template, result))
     expect(SSR.resume(plan, document)).toEqual(
       Result.succeed({ id: 'p1', likes: 0, search: hostile, pressed: '' }),
+    )
+  })
+
+  it('carries the envelope past a `>` in the root’s own attributes', async () => {
+    const result = await Effect.runPromise(
+      SSR.render(
+        {
+          ...config,
+          view: (model: Model, h: HtmlBuilder<Message>) => ({
+            title: 't',
+            body: h.div([h.Title('a>b'), h.Id('root')], [String(model.likes)]),
+          }),
+        },
+        plan,
+        { buildId: 'b' },
+      ),
+    )
+    expect(result.rendered.html).toContain('title="a>b"')
+    expect(carried(result.rendered.html)).toBe(result.envelope)
+    load(SSR.page(template, result))
+    expect(SSR.resume(plan, document)).toEqual(
+      Result.succeed({ id: 'p1', likes: 0, search: '', pressed: '' }),
+    )
+  })
+
+  it('takes the real stamp past one quoted inside an earlier value', async () => {
+    const result = await Effect.runPromise(
+      SSR.render(
+        {
+          ...config,
+          view: (model: Model, h: HtmlBuilder<Message>) => ({
+            title: 't',
+            body: h.div([h.Title('say data-foldkit-app="x"'), h.Id('root')], [String(model.likes)]),
+          }),
+        },
+        plan,
+        { buildId: 'b' },
+      ),
+    )
+    expect(carried(result.rendered.html)).toBe(result.envelope)
+    load(SSR.page(template, result))
+    expect(SSR.resume(plan, document)).toEqual(
+      Result.succeed({ id: 'p1', likes: 0, search: '', pressed: '' }),
     )
   })
 

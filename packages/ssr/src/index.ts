@@ -134,14 +134,49 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
  * boots.
  */
 const withEnvelopeAttribute = (html: string, json: string): string => {
-  const found = /<[^>]*?\bdata-foldkit-app="[^"]*"/.exec(html)
-  if (found === null) {
-    throw new Error(
-      'foldkit-ssr: the rendered application has no stamped root to carry the resume envelope',
-    )
+  const stamp = 'data-foldkit-app="'
+  // The stamp names the root's open tag: it opens the markup, and no quoted
+  // attribute value before it may hold a `>` of its own, which would end a
+  // naive scan early, or the stamp string itself. A stamp past the tag's end,
+  // or in text, is not the root.
+  let from = 0
+  for (;;) {
+    const at = html.indexOf(stamp, from)
+    if (at === -1) {
+      throw new Error(
+        'foldkit-ssr: the rendered application has no stamped root to carry the resume envelope',
+      )
+    }
+    if (isInRootTag(html, at)) {
+      const end = html.indexOf('"', at + stamp.length)
+      if (end === -1) {
+        throw new Error(
+          'foldkit-ssr: the rendered application has no stamped root to carry the resume envelope',
+        )
+      }
+      return `${html.slice(0, end + 1)}${attributeOf(json)}${html.slice(end + 1)}`
+    }
+    from = at + stamp.length
   }
-  const at = found.index + found[0].length
-  return `${html.slice(0, at)}${attributeOf(json)}${html.slice(at)}`
+}
+
+/** Whether `at` sits inside the markup's first tag: quoted values skipped whole. */
+const isInRootTag = (html: string, at: number): boolean => {
+  if (!html.startsWith('<')) return false
+  let index = 1
+  while (index < at) {
+    const char = html[index]
+    if (char === '"' || char === "'") {
+      const close = html.indexOf(char, index + 1)
+      if (close === -1 || close >= at) return false
+      index = close + 1
+    } else if (char === '>') {
+      return false
+    } else {
+      index++
+    }
+  }
+  return true
 }
 
 /**
