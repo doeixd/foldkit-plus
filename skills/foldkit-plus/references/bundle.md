@@ -85,6 +85,27 @@ export const config = placements.config({
 
 Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
 
+## Derived args
+
+`args` is a static value or a factory from the parent seed, for a child whose
+initial state depends on what only the parent knows at startup (the route,
+the user, the workspace):
+
+```ts
+const SearchPlaced = SearchPage.at(Bundle.declare(Search, 'search'), {
+  args: parent => ({
+    searchText: parent.route._tag === 'People' ? parent.route.searchText : '',
+  }),
+})
+```
+
+with `Search` a bundle taking `{ searchText }` and `SearchPage` a parent
+whose Model holds `route` and `search`. The seed is what
+`assembly.initial(rest)` was given, minus the placement's own field; every
+factory sees the same seed, so placement order never matters. The result is
+checked against the bundle's args Schema and retained for `update` and
+Subscriptions, never re-run against live state.
+
 ## Joining integrations
 
 Placements are not the only thing an assembly holds. Remote, Mirror, Sync,
