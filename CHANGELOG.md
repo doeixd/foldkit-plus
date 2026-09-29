@@ -70,6 +70,11 @@ version changed; `pnpm` skips versions already in the registry.
   (disabled through checks), or `() => true` (never pre-disable). The lenient
   default is unchanged.
 
+- **`foldkit-primitives`, SSE view parity:** `SseView` with `isLive` and
+  `viewOfSse(model, wanted)`, the same shape as the socket's `SocketView` —
+  a page derives what the reader sees instead of keeping its own connection
+  state.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

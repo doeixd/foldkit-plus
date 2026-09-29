@@ -6,6 +6,7 @@
  */
 import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { defineTaggedUnion } from 'foldkit/schema'
 import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -37,6 +38,41 @@ export const SseMessage = defineMessageUnion({
   Failed: { message: Schema.String },
 })
 export type SseMessage = typeof SseMessage.Type
+
+/**
+ * What the reader sees: the stream's state, or its error. A page derives
+ * this instead of keeping its own connection state machine. `lastError`
+ * already words the failure for the reader, never the source's own text.
+ */
+export const SseView = defineTaggedUnion({
+  Disconnected: {},
+  Connecting: {},
+  Connected: {},
+  Error: { error: Schema.String },
+})
+export type SseView = typeof SseView.Type
+
+/**
+ * Whether the stream is live: open with no error outstanding. The browser
+ * reconnects a dropped stream itself; a `Failed` only records the error.
+ */
+export const isLive = (model: SseModel): boolean =>
+  model.status === 'open' && model.lastError === null
+
+/**
+ * The view of a stream, and whether its page still wants it. An error stands
+ * until the page stops wanting the stream; a retry still waiting for its
+ * stream reads as connecting, so it answers at once.
+ */
+export const viewOfSse = (model: SseModel, wanted: boolean): SseView => {
+  if (model.lastError !== null)
+    return model.status === 'open' || !wanted
+      ? SseView.Error({ error: model.lastError })
+      : SseView.Connecting()
+  if (model.status === 'open') return SseView.Connected()
+  if (model.status === 'connecting' || wanted) return SseView.Connecting()
+  return SseView.Disconnected()
+}
 
 /** The registry value behind the source tag: the live source and its incoming queue. */
 export interface AcquiredSource {

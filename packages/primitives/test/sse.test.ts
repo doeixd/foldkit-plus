@@ -8,7 +8,7 @@ import { Effect, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { sse, SseMessage } from '../src/net/index.js'
+import { isLive, sse, SseMessage, SseView, viewOfSse, type SseModel } from '../src/net/index.js'
 import { takeMessages } from './support.js'
 
 const fake = {
@@ -94,6 +94,43 @@ describe('SSE acquire and stream', () => {
       if (saved === undefined) Reflect.deleteProperty(globalThis, 'EventSource')
       else (globalThis as Record<string, unknown>).EventSource = saved
     }
+  })
+})
+
+describe('SseView', () => {
+  const url = 'https://example.com/feed'
+  const source = (status: SseModel['status'], lastError: string | null): SseModel => ({
+    url,
+    status,
+    lastError,
+  })
+
+  it('reads live only from an open stream with no error outstanding', () => {
+    expect(isLive(source('open', null))).toBe(true)
+    expect(isLive(source('open', 'event stream error for https://example.com/feed'))).toBe(false)
+    expect(isLive(source('connecting', null))).toBe(false)
+    expect(isLive(source('closed', null))).toBe(false)
+  })
+
+  it('derives what the reader sees from the stream and whether it is wanted', () => {
+    const seen = (status: SseModel['status'], lastError: string | null, wanted: boolean) =>
+      SseView.match(viewOfSse(source(status, lastError), wanted), {
+        Disconnected: () => 'disconnected',
+        Connecting: () => 'connecting',
+        Connected: () => 'connected',
+        Error: ({ error }) => `error: ${error}`,
+      })
+    expect(seen('closed', null, false)).toBe('disconnected')
+    expect(seen('closed', null, true)).toBe('connecting')
+    expect(seen('connecting', null, false)).toBe('connecting')
+    expect(seen('open', null, false)).toBe('connected')
+    expect(seen('connecting', 'event stream error for https://example.com/feed', false)).toBe(
+      'error: event stream error for https://example.com/feed',
+    )
+    // A retry still waiting for its stream reads as connecting.
+    expect(seen('connecting', 'event stream error for https://example.com/feed', true)).toBe(
+      'connecting',
+    )
   })
 })
 

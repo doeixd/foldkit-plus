@@ -55,7 +55,7 @@ guide](../../bundle/README.md) for mounting and composing placements.
 | --- | --- | --- |
 | `Online` | bundle `{ online }` + `Changed` | none |
 | `websocket` | factory bundle `{ url, status, lastError, opened }` + `send` helper, `isOpen`, `SocketView` + `viewOf(model, wanted)` | `{ url, connectTimeoutMs? }` |
-| `sse` | factory bundle `{ url, status, lastError }`, no send | `{ url }` |
+| `sse` | factory bundle `{ url, status, lastError }`, no send, `isLive`, `SseView` + `viewOfSse(model, wanted)` | `{ url }` |
 | `broadcastMessages` | entry: `Received { data }` | channel name |
 | `postBroadcast` | Command: `Posted` / `BroadcastFailed` | channel name + data |
 
