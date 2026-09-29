@@ -18,7 +18,6 @@ import {
   navLink,
   part,
   phone,
-  primaryButton,
   readOnly,
   stateBadge,
   t,
@@ -494,22 +493,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       textTransform: 'uppercase',
     }),
     ghost: Style.compose(
-      Style.self({
-        alignItems: 'center',
-        background: 'transparent',
-        border: '0',
-        borderRadius: t.radius.md,
-        color: t.text.default,
-        cursor: 'pointer',
-        display: 'inline-flex',
-        font: 'inherit',
-        fontSize: t.size.sm,
-        fontWeight: t.weight.medium,
-        gap: t.space['2xs'],
-        padding: '0.45rem 0.65rem',
-        textDecoration: 'none',
-      }),
-      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+      button({ variant: 'ghost', size: 'sm' }),
+      // A pressed toggle reads selected, as the tabs do.
       Style.nest('&[aria-pressed="true"]', { background: t.surface.muted, color: t.text.overt }),
     ),
     timeline: Style.self({ display: 'grid', listStyle: 'none', margin: '0', padding: '0' }),
@@ -598,7 +583,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     preview: Style.self({ paddingBlockEnd: t.space['2xl'] }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
     button: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-    primary: primaryButton,
+    primary: Style.compose(button({ variant: 'primary', size: 'sm' }), Touch.target),
     danger: button({ tone: 'danger', variant: 'outline', size: 'sm' }),
     status: Style.compose(
       Style.self({

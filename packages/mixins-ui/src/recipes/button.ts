@@ -1,7 +1,9 @@
 /**
  * A button: `tone` picks the colors, `variant` how they are applied, `size`
  * the density. Tone and variant are independent because a tone only sets the
- * private custom properties the variants read.
+ * private custom properties the variants read — except `primary`, which is
+ * ink by definition, and `icon`, which fixes its own square geometry (combine
+ * it with `size: null`, since a density would un-square it).
  */
 import { Style } from 'foldkit-mixins'
 import { ButtonSlots } from '../button.js'
@@ -76,6 +78,36 @@ export const Button = Style.recipeFor(ButtonSlots)({
         button: variant(
           Style.self({ background: 'transparent', color: unfilledInk }),
           hover({ background: toneVar('wash') }),
+        ),
+      },
+      /**
+       * The main action, dark as the page's ink: tone-independent, so it reads
+       * on any surface. Density still comes from `size`.
+       */
+      primary: {
+        button: variant(
+          Style.self({ background: ref.text.overt, color: ref.surface.base }),
+          hover({
+            background: `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
+          }),
+        ),
+      },
+      /**
+       * An icon with no words beside it: a square that centers its glyph. The
+       * words stay the accessible name; only the icon shows, so label it with
+       * `aria-label` or visually-hidden text.
+       */
+      icon: {
+        button: variant(
+          Style.self({
+            background: 'transparent',
+            color: ref.text.muted,
+            width: '2rem',
+            height: '2rem',
+            padding: '0',
+            fontSize: '0',
+          }),
+          hover({ background: toneVar('wash'), color: ref.text.overt }),
         ),
       },
     },

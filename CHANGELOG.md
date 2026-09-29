@@ -39,6 +39,12 @@ version changed; `pnpm` skips versions already in the registry.
   `url(…)` strings. The CMS demo adopts them and keeps only its Lucide
   paths.
 
+- **`foldkit-mixins-ui`, Button `primary`/`icon` variants:** the main action
+  in ink (`variant: 'primary'`, tone-independent) and the square icon-only
+  button (`variant: 'icon'` with `size: null`, words as the accessible name).
+  The CMS demo adopts them with `ghost` for its buttons and deletes its
+  bespoke `primaryButton`/`iconButton`.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

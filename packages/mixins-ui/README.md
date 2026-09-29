@@ -399,7 +399,9 @@ What a recipe assumes and does:
   disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
   which `@foldkit/ui` already writes; no `whenInput` is needed.
 - **Tone and variant are independent.** A tone sets a few private custom
-  properties that `solid`, `outline`, and `ghost` read.
+  properties that `solid`, `outline`, and `ghost` read — except `primary`,
+  which is ink by definition, and `icon`, which fixes its own square geometry
+  (combine it with `size: null`, since a density would un-square it).
 - **On a colored band, unfilled buttons take the band's color.** `outline` and
   `ghost` draw their text in the tone's ink, which reads on the page's surface
   and not on a band of the accent. A band sets

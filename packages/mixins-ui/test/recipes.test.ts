@@ -195,6 +195,23 @@ describe('Recipes', () => {
     expect(css('accent')).not.toContain(outline)
   })
 
+  it('draws primary in ink whatever the tone', () => {
+    const css = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'primary', size: 'sm' })).css
+    expect(css).toContain('background:var(--fk-text-overt)')
+    expect(css).toContain('color:var(--fk-surface-base)')
+    expect(css).toContain('color-mix(in oklch, var(--fk-text-overt) 85%, var(--fk-surface-base))')
+  })
+
+  it('draws an icon button square with only its glyph showing', () => {
+    const css = Style.forSlots(ButtonSlots)(
+      Recipes.Button({ tone: 'neutral', variant: 'icon', size: null }),
+    ).css
+    expect(css).toContain('width:2rem')
+    expect(css).toContain('height:2rem')
+    expect(css).toContain('padding:0')
+    expect(css).toContain('font-size:0')
+  })
+
   describe('Badge', () => {
     const BadgeSlots = Slots.define({
       badge: Slot.make({ capability: Capability.Container }),

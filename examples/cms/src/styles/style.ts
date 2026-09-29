@@ -136,38 +136,6 @@ export const navLink = Style.compose(
   }),
 )
 
-/** The studio's main action, dark as the page's ink, in the manner of an editor's publish. */
-export const primaryButton = Style.compose(
-  Style.self({
-    alignItems: 'center',
-    background: t.text.overt,
-    border: '0',
-    borderRadius: t.radius.md,
-    color: t.surface.base,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    font: 'inherit',
-    fontSize: t.size.sm,
-    fontWeight: t.weight.semibold,
-    gap: t.space['2xs'],
-    padding: '0.5rem 0.9rem',
-    textDecoration: 'none',
-    whiteSpace: 'nowrap',
-  }),
-  Touch.target,
-  Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
-    background: `color-mix(in oklch, ${t.text.overt} 85%, ${t.surface.base})`,
-  }),
-  Style.pseudo(':is(:disabled, [aria-disabled="true"])', {
-    cursor: 'not-allowed',
-    opacity: '0.45',
-  }),
-  Style.pseudo(':focus-visible', {
-    outline: `2px solid ${t.accent.default}`,
-    outlineOffset: '2px',
-  }),
-)
-
 /** An entry's state as a pill, colored by its tag: which tone each state takes. */
 export const stateTones: Record<string, Recipes.BadgeTone> = {
   Published: 'success',

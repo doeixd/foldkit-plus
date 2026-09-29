@@ -7,7 +7,7 @@ import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 import { Icons } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { iconUrl, type IconName } from '../views/icons.js'
-import { app, control, field, L, t, visuallyHidden } from './style.js'
+import { app, button, control, field, L, t, visuallyHidden } from './style.js'
 
 /** A panel of the Builder's: a white card on the editor's grey, scrolling on its own. */
 const builderPanel = Style.self({
@@ -67,33 +67,10 @@ const blockIcons = iconsBy('data-block', {
   LatestPages: 'files',
 })
 
-/** A square button showing only its icon; its words stay its accessible name. */
+/** A square button showing only its icon, backed by the recipe. */
 const iconButton = Style.compose(
-  Style.self({
-    alignItems: 'center',
-    background: 'transparent',
-    border: '0',
-    borderRadius: t.radius.md,
-    color: t.text.muted,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    // The words are there to be read, not seen: the icon is drawn at its own size.
-    fontSize: '0',
-    height: '2rem',
-    justifyContent: 'center',
-    padding: '0',
-    width: '2rem',
-  }),
+  button({ tone: 'neutral', variant: 'icon', size: null }),
   Icons.glyph('1rem'),
-  Style.pseudo(':hover:not(:disabled, [aria-disabled="true"])', {
-    background: t.surface.muted,
-    color: t.text.overt,
-  }),
-  Style.pseudo(':is(:disabled, [aria-disabled="true"])', { cursor: 'default', opacity: '0.35' }),
-  Style.pseudo(':focus-visible', {
-    outline: `2px solid ${t.accent.default}`,
-    outlineOffset: '1px',
-  }),
 )
 
 /** Where the selection is marked on the page: a blue that shows on the site's colors. */

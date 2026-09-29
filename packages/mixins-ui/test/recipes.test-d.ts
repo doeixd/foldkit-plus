@@ -20,6 +20,12 @@ Recipes.Button({ tone: 'danger', variant: 'ghost', size: 'sm' })
 // @ts-expect-error a tone the recipe does not offer.
 Recipes.Button({ tone: 'brand' })
 
+Recipes.Button({ variant: 'primary', size: 'sm' })
+Recipes.Button({ tone: 'neutral', variant: 'icon', size: null })
+
+// @ts-expect-error a variant the recipe does not offer.
+Recipes.Button({ variant: 'raised' })
+
 Recipes.Badge({
   attribute: 'data-state',
   tones: { Published: 'success', Changed: 'warning' },
