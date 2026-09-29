@@ -103,7 +103,8 @@ import {
   type Page,
 } from './selection.js'
 import { sameData } from './data.js'
-import { entityKey, isTombstone, missingFields, type EntityStore } from './store.js'
+import { entityKey, isTombstone, missingFields, readField, type EntityStore } from './store.js'
+import { targetsOf } from './relation.js'
 import {
   QueryRequest,
   QueryResult,
@@ -494,6 +495,8 @@ export interface RemoteDomain<
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<Requirement>
+  /** `Remote.meta`: when what a projection shows was last received, and whether it is stale or loading. */
+  meta<Value>(model: AppModel, projection: Projection<AppModel, Value>): ReadMeta
   /** `Remote.storeOf`: the visible store, base under the pending optimistic layers. */
   storeOf(model: AppModel): EntityStore
   /**
@@ -715,6 +718,70 @@ const readContract = <Name extends string, Input, Value, Entity extends string>(
     relation,
     requirement: { identity: ref.identity, window: ref.window, select: relation, ref },
   }
+}
+
+/**
+ * When what a projection shows was last received, and whether it is stale
+ * or loading. See `Remote.meta`.
+ */
+export interface ReadMeta {
+  /** The newest server write among what is shown; none received reads `undefined`. */
+  readonly updatedAt: number | undefined
+  /** Any shown field or connection is marked stale. */
+  readonly stale: boolean
+  /** Any shown field or connection is in flight. */
+  readonly loading: boolean
+}
+
+const metaOf = (remote: RemoteModel, asked: Asked): ReadMeta => {
+  const visible = visibleStoreOf(remote.entities, remote.optimistic)
+  let updatedAt: number | undefined
+  let stale = false
+  let loading = false
+  const seen = new Set<string>()
+  const touch = (entity: string, id: string, requirement: RelationRequirement): void => {
+    const key = entityKey(entity, id)
+    const memo = `${key}\u0000${stableStringify(requirement)}`
+    if (seen.has(memo)) return
+    seen.add(memo)
+    const entry = visible[key]
+    if (entry !== undefined && !entry.tombstone) {
+      for (const field of requirement.fields) {
+        if (!entry.present.has(field)) continue
+        if (Number.isFinite(entry.updatedAt))
+          updatedAt =
+            updatedAt === undefined ? entry.updatedAt : Math.max(updatedAt, entry.updatedAt)
+        if (entry.stale.has(field)) stale = true
+      }
+    }
+    if (isLoadingThrough(remote, entity, id, requirement)) loading = true
+    for (const [field, relation] of Object.entries(requirement.relations ?? {})) {
+      const value = readField(visible, key, field)
+      if (value._tag === 'None' || value.value === null || value.value === undefined) continue
+      for (const ref of targetsOf(value.value, relation)) touch(ref.entity, ref.id, relation)
+    }
+  }
+  for (const requirement of asked.requirements)
+    touch(requirement.entity, requirement.id, requirement)
+  for (const connection of asked.connections) {
+    const known = remote.connections[connection.identity]
+    if (known === undefined) {
+      if (isQueryLoading(remote, connection.identity)) loading = true
+      continue
+    }
+    if (known.stale) stale = true
+    if (isQueryLoading(remote, connection.identity)) loading = true
+    for (const edge of visibleItems(
+      known,
+      connection.identity,
+      remote.optimistic.overlays,
+      remote.entities,
+    )) {
+      if (edge.ref.entity !== connection.select.entity) continue
+      touch(edge.ref.entity, edge.ref.id, connection.select)
+    }
+  }
+  return { updatedAt, stale, loading }
 }
 
 /**
@@ -1836,6 +1903,22 @@ export const Remote = {
   },
 
   /**
+   * When what a projection shows was last received, and whether it is stale
+   * or loading. Pure, so a view can show "updated 5s ago" without I/O.
+   *
+   * `updatedAt` is the newest server write among what is shown, as the
+   * store dates it; `undefined` when nothing shown was received (nothing
+   * loaded, or only an optimistic preview). `stale` is any shown field or
+   * connection marked stale; `loading` is any of them in flight. Optimistic
+   * previews do not date: showing only one reads `updatedAt: undefined`.
+   */
+  meta: <AppModel, Store extends RemoteModel, Value>(
+    bound: BoundRemote<AppModel, Store>,
+    model: AppModel,
+    projection: Projection<AppModel, Value>,
+  ): ReadMeta => metaOf(bound.store.get(model), askedOf(projection)),
+
+  /**
    * The pure plan for a projection against a Model: the requirements its
    * remote store does not satisfy, under `options` (freshness, force). A
    * Surface's projection is `surface.projection(params)`.
@@ -2402,6 +2485,7 @@ const bindDomain = <
       return entries as SubscriptionEntries<AppModel, typeof active>
     },
     plan: (model, projection, options) => Remote.plan(bound, model, projection, options),
+    meta: (model, projection) => Remote.meta(bound, model, projection),
     storeOf: model => storeOf(bound, model),
     confirmed: projection => confirmed(bound, projection),
     prefetch: (model, projection, options = {}) =>
