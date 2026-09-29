@@ -202,15 +202,16 @@ export type ConfigResult<Input, Model, Message, Requirements, Services, ItemServ
 /**
  * What `runtime` takes: how the application starts, as `initial` rest or an
  * init function returning `assembly.initial(...)`; the parent's whole update,
- * which already routes every placement; the parent's own Subscriptions and
- * Managed Resources, merged with the items' when given; plus whatever the
- * runtime takes (Model, container, view, routing, the resources Layer, ...).
- * The index signature carries the passthrough; `init` is reserved with a
- * message naming `initial` instead.
+ * which already routes every placement (route a narrow one with
+ * `assembly.update` first, or omit it when the parent adds no Messages);
+ * the parent's own Subscriptions and Managed Resources, merged with the
+ * items' when given; plus whatever the runtime takes (Model, container, view,
+ * routing, the resources Layer, ...). The index signature carries the
+ * passthrough; `init` is reserved with a message naming `initial` instead.
  */
 export interface RuntimeInput<Model, Message, Ps extends ReadonlyArray<unknown>> {
   readonly initial: InitialRest<Model, Ps> | RuntimeInitFn<Model, Message, any>
-  readonly update: (model: Model, message: Message) => Update.Return<Model, Message, any>
+  readonly update?: (model: Model, message: Message) => Update.Return<Model, Message, any>
   readonly subscriptions?: Subscription.Subscriptions<Model, Message, any>
   readonly managedResources?: Readonly<
     Record<string, ManagedResource.Entry<Model, Message, any, any, any>>
@@ -229,6 +230,12 @@ export type RuntimeInitFn<Model, Message, Requirements> = (
   ...args: ReadonlyArray<any>
 ) => Update.Return<Model, Message, Requirements>
 
+/** What `runtime` uses when `update` is omitted: routing only, with own Messages leaving the Model unchanged. */
+type RoutedUpdate<Model, Message, Requirements> = (
+  model: Model,
+  message: Message,
+) => Update.Return<Model, Message, Requirements>
+
 /**
  * What `runtime` returns: the passthrough with `initial` compiled to `init`
  * (rest becomes `() => initialFrom(rest)`, a function passes through), the
@@ -243,13 +250,18 @@ export type RuntimeInitFn<Model, Message, Requirements> = (
  */
 export type RuntimeResult<Input, Model, Message, Requirements, ItemServices, Entries> = Omit<
   Input,
-  'initial' | 'subscriptions' | 'managedResources' | 'init'
+  'initial' | 'update' | 'subscriptions' | 'managedResources' | 'init'
 > & {
   readonly init: Input extends { readonly initial: infer Seed }
     ? Seed extends (...args: ReadonlyArray<any>) => unknown
       ? Seed
       : () => WiredRecord<Update.Return<Model, Message, Requirements>>
     : never
+  readonly update: Input extends { readonly update: infer Own }
+    ? Own extends (...args: ReadonlyArray<any>) => unknown
+      ? Own
+      : RoutedUpdate<Model, Message, Requirements>
+    : RoutedUpdate<Model, Message, Requirements>
   readonly subscriptions: WiredRecord<
     Subscription.Subscriptions<
       Model,
@@ -345,6 +357,11 @@ export interface Assembly<
    * wiring stays on the lower-level derivations with `complete`: calling this
    * on an assembly that reads the URL is a type error naming them, and throws
    * at runtime.
+   *
+   * @deprecated Prefer `runtime`: it builds the same config from `initial`
+   * rest, routes a narrow own update composed as `update:
+   * assembly.update(own)` (or omit `update` when the parent adds none), and
+   * serves URL-mirror assemblies too.
    */
   readonly config: [HasUrl<Ps[number]>] extends [never]
     ? <
@@ -857,7 +874,7 @@ export const assemble =
           ...passthrough,
           ...(url === undefined ? {} : { url }),
           init,
-          update: own,
+          update: own ?? updateWith(undefined),
           subscriptions: subscriptionsWith(ownSubscriptions),
           managedResources: resourcesWith(ownManaged),
         }

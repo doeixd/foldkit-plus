@@ -79,7 +79,7 @@ export class UnresolvedArgsError extends Error {
   constructor(key: string, usage: string) {
     super(
       `${key}: args is a function of the parent seed, which no initialization has derived yet. ` +
-        `Run assembly.initial(rest) first, or use assembly.config(), so the seed exists before ${usage}.`,
+        `Run assembly.initial(rest) first, or use assembly.runtime(), so the seed exists before ${usage}.`,
     )
     this.name = 'UnresolvedArgsError'
   }

@@ -131,3 +131,14 @@ describe('assembly.runtime with derived args', () => {
     expect(config.init().model.a).toEqual({ count: 2, running: false })
   })
 })
+
+describe('assembly.runtime with update omitted', () => {
+  it('routes placements and leaves own Messages unchanged', () => {
+    const config = assembly.runtime({ initial: { ticks: 0 } })
+    expect(config.init().model).toEqual({ a: { count: 1, running: false }, ticks: 0 })
+    const model: Model = { a: { count: 0, running: false }, ticks: 0 }
+    expect(config.update(model, GotA.make(CounterMessage.Incremented())).model.a.count).toBe(1)
+    expect(config.update(model, Message.Ticked()).model).toBe(model)
+    expect(Object.keys(config.subscriptions)).toEqual(['Counter@a/ticks'])
+  })
+})

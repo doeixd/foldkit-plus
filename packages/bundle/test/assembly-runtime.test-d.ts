@@ -34,6 +34,11 @@ assembly.runtime({
   subscriptions: assembly.subscriptions(),
 })
 
+// `update` may be omitted when the parent adds no Messages: placements route,
+// own Messages leave the Model unchanged, and the result passes `complete`.
+const withoutOwn = assembly.runtime({ initial: {} })
+assembly.complete(withoutOwn)
+
 // Function form: the init passes through.
 const initFn = () => assembly.initial({})
 const fromFn = assembly.runtime({ initial: initFn, update })
