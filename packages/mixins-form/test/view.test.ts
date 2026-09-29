@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from '../src/index.js'
 import { Edit, options } from './fixture.js'
 import { Inert, type Node } from 'foldkit-mixins/testing'
-import type { Html } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 
 const byId = (root: Html, id: string): Node | undefined =>
   Inert.all(root).find(node => node.data?.props?.id === id)
@@ -503,5 +503,38 @@ describe('a control backed by a Bundle', () => {
         WallForm.control('color').send(SwatchMessage.Chose({ hex: '#ff0000' })),
       ),
     ])
+  })
+})
+
+describe('FormView.submodel submit gating', () => {
+  const button = (root: Html) => Inert.all(root).find(node => node.sel === 'button')
+  const drawn = <M, I>(
+    view: (model: M, inputs: I, h: HtmlBuilder<typeof Edit.Message.Type>) => Html,
+    model: M,
+  ): Html => view(model, {} as I, SlotView.inertBuilder<typeof Edit.Message.Type>())
+  const ready = send(
+    Edit.Message.Changed({ key: 'title', value: 'Hello' }),
+    Edit.Message.Changed({ key: 'status', value: 'draft' }),
+  )
+
+  it('lets a submit made mid-check wait by default', () => {
+    const root = drawn(FormView.submodel(Edit, FormView.define(Edit)), ready)
+    expect(button(root)?.data?.props?.disabled).toBe(false)
+  })
+
+  it('takes a strict predicate that disables through checks', () => {
+    const root = drawn(
+      FormView.submodel(Edit, FormView.define(Edit), { canSubmit: () => false }),
+      ready,
+    )
+    expect(button(root)?.data?.props?.disabled).toBe(true)
+  })
+
+  it('takes never pre-disabling that validates wholly at submit', () => {
+    const root = drawn(
+      FormView.submodel(Edit, FormView.define(Edit), { canSubmit: () => true }),
+      initial,
+    )
+    expect(button(root)?.data?.props?.disabled).toBe(false)
   })
 })

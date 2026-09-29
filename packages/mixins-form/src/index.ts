@@ -1010,6 +1010,19 @@ export const FormView = {
   >(
     form: FormLike<Key, Model, Message>,
     view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, Message>,
+    options: {
+      /**
+       * When the submit waits instead of staying disabled. `true` while a
+       * check is running means submitted work waits for it, and the button
+       * stays enabled; `false` keeps the button disabled until every key is
+       * valid. Default `form.canSubmit` (lenient): a submit made mid-check
+       * waits for it. Pass a strict predicate to disable through checks
+       * instead, such as `model => PostForm.engine.value(model.form) !==
+       * undefined`, or `() => true` to never pre-disable and validate wholly
+       * at submit.
+       */
+      readonly canSubmit?: (model: Model) => boolean
+    } = {},
   ): Submodel.View<Model, Message, FormViewInputs<Key>> =>
     Submodel.defineView<Model, Message, FormViewInputs<Key>>((model, inputs, h) =>
       view(
@@ -1017,7 +1030,7 @@ export const FormView = {
           ...inputs,
           model,
           errors: model.errors,
-          canSubmit: form.canSubmit(model),
+          canSubmit: (options.canSubmit ?? form.canSubmit)(model),
           submitting: model.submitPending || inputs.submitting === true,
         },
         h,

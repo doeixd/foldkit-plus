@@ -65,6 +65,11 @@ version changed; `pnpm` skips versions already in the registry.
   overrides receive the same map. The waitlist example moves its email type
   there and drops the thread-through.
 
+- **`foldkit-mixins-form`, submit gating:** `FormView.submodel` takes the
+  submit gate explicitly — `canSubmit` (a submit waits), a strict predicate
+  (disabled through checks), or `() => true` (never pre-disable). The lenient
+  default is unchanged.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

@@ -264,7 +264,16 @@ EditForm.view(model, h, {
 ```
 
 The submit button is enabled while a check runs and nothing is invalid: a submit
-then waits for the answer, rather than being refused.
+then waits for the answer, rather than being refused. That leniency is
+`form.canSubmit`, and `FormView.submodel` takes the predicate explicitly so
+the choice stays visible: pass a strict one to disable through checks, or
+`() => true` to never pre-disable and validate wholly at submit.
+
+```ts
+const Drawn = Edit.bundle.pipe(
+  Bundle.withView(FormView.submodel(Edit, View, { canSubmit: () => true })),
+)
+```
 
 ### Accessibility
 

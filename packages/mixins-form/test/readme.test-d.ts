@@ -27,6 +27,12 @@ const View = FormView.define(Edit, { field: Field }).pipe(
 
 const Drawn = Edit.bundle.pipe(Bundle.withView(FormView.submodel(Edit, View)))
 
+// The README's gating choice, kept compiling.
+const NeverPreDisabled = Edit.bundle.pipe(
+  Bundle.withView(FormView.submodel(Edit, View, { canSubmit: () => true })),
+)
+void NeverPreDisabled
+
 type Key = (typeof Edit.controls)[number]['key']
 expectTypeOf(Drawn.view).toExtend<
   | Submodel.View<
