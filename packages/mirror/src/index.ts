@@ -398,6 +398,19 @@ export interface Decoded<Value> {
 }
 
 /**
+ * A synchronous pre-init step: `Bootstrap` / Flags into the initial Model.
+ * Pure: no Commands, no Messages, no Effects. It runs inside `init(flags, url)`
+ * before the first render, when the store's keys are already in hand (Flags the
+ * server embedded, a synchronous read, a test fixture). `Wiring.init` is the
+ * other lifecycle: startup Commands after the Model exists, such as the
+ * key-value mirror's `restore`, whose answer arrives later through `update`.
+ * Compose steps with `Mirror.bootstrap`; a step that changes nothing returns
+ * the Model it was given. Deliberately not part of `Wiring`, so the two
+ * lifecycles cannot be confused.
+ */
+export type Bootstrap<AppModel> = (model: AppModel) => AppModel
+
+/**
  * A Model slice kept in a store. `Value` is the slice's value type; the keys,
  * codecs, and intents are values on the mirror, not type parameters.
  * `Mirror.url` and `Mirror.kv` add the `reduce` their store calls for.
@@ -428,6 +441,15 @@ export interface Mirror<
    * their initial value, so a change made before the store answered is kept.
    */
   readonly restoreKeys: (model: AppModel, keys: Encoded) => AppModel
+  /**
+   * A pre-init step applying pre-read keys before the first render:
+   * `restoreKeys`, so a store step composed after a URL step (a `reduce` of
+   * the starting URL) keeps the URL's values. Takes the store's keys as the
+   * store holds them (`Encoded`), which is what Flags carry when the server
+   * embedded the store's document. A URL mirror inherits this too; its URL
+   * step is `(model) => reduce(model, url)`.
+   */
+  readonly bootstrap: (keys: Encoded) => Bootstrap<AppModel>
   /** A link: the keys of `model` with `patch` applied, on `base` (default the current URL, else `/`). */
   readonly href: (model: AppModel, patch?: Partial<Value>, base?: string) => string
   /**
@@ -856,6 +878,7 @@ const make = <S extends Slice, R, Name extends string>(
     decode,
     fromKeys,
     restoreKeys,
+    bootstrap: keys => model => restoreKeys(model, keys),
     href,
     restore,
     subscriptions: { [`${name}.mirror`]: entry } as Mirror<
@@ -925,6 +948,33 @@ export const Mirror = {
     message: M,
   ): message is Extract<M, { readonly _tag: 'MirrorRestored' }> =>
     Object.hasOwn(mirrorMessageCases, message._tag),
+
+  /**
+   * Folds pre-init steps into the initial Model, in list order: stores first,
+   * the URL last. Either order keeps URL > store > initial (a store bootstrap
+   * only fills fields still at their initial value, while a URL `reduce` sets
+   * its whole slice), but listing the URL last states the precedence. Among
+   * store bootstraps sharing a field, the first one wins.
+   *
+   * Use this when the keys are already in hand at boot: Flags the server
+   * embedded, a synchronous read, a test fixture. When the store can only be
+   * read asynchronously, use the `restore` Command (`wiring.init`,
+   * `fold.init`) instead: bootstrapping what the store holds needs the keys,
+   * and `restore` is how they arrive.
+   *
+   * @example
+   * ```ts
+   * const init = (flags: { prefs: Encoded }, url: Url): Return => ({
+   *   model: Mirror.bootstrap(
+   *     initial,
+   *     Prefs.bootstrap(flags.prefs),
+   *     model => Filters.reduce(model, url),
+   *   ),
+   * })
+   * ```
+   */
+  bootstrap: <AppModel>(model: AppModel, ...steps: ReadonlyArray<Bootstrap<AppModel>>): AppModel =>
+    steps.reduce((next, step) => step(next), model),
 
   /**
    * A slice kept in the URL: `Projection.pick(App.model.filter, App.model.q)`
@@ -1063,7 +1113,7 @@ export const Mirror = {
     }
   },
 
-  /** The kernel form: a slice kept in any `MirrorStore`, read back with `fromKeys` or `restoreKeys`. */
+  /** The kernel form: a slice kept in any `MirrorStore`, read back with `fromKeys` or `restoreKeys`, bootstrapped with `bootstrap`. */
   make: <S extends Slice, R, Name extends string = string>(
     app: MirrorApp<SliceRoot<S>>,
     store: MirrorStore<R>,

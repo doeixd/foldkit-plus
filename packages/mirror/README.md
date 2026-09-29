@@ -125,7 +125,9 @@ subscriptions  write Model changes outward
 ```
 
 A URL mirror does not need a restore Command because the initial URL is already
-available to application startup. A store mirror does.
+available to application startup. A store mirror does — unless the store's keys
+are already in hand at boot, in which case it bootstraps them into the initial
+Model instead (see "Restore before the first render with bootstrap").
 
 ## Install
 
@@ -395,6 +397,56 @@ const subscriptions = Subscription.make<
 The important part is what did **not** change: `sidebar` and `draft` are still
 ordinary Model fields. The key-value store is merely how those fields are
 remembered between sessions.
+
+## Restore before the first render with bootstrap
+
+A key-value mirror normally restores asynchronously: `restore` reads the store
+and its `MirrorRestored` arrives later through `update`, leaving the first
+render on defaults. When the store's keys are already in hand at boot — Flags
+the server embedded in the page, a synchronous read, a test fixture — fold
+them into the initial Model instead, with no Command and no flash:
+
+```ts
+import type { Encoded } from 'foldkit-mirror'
+
+const init = (flags: { prefs: Encoded }, url: Url): Return => ({
+  model: Mirror.bootstrap(
+    initial,
+    Prefs.bootstrap(flags.prefs),
+    model => Filters.reduce(model, url),
+  ),
+})
+```
+
+What each piece does, and does not do:
+
+- `Prefs.bootstrap(keys)` is a pure step applying pre-read keys to the fields
+  still at their initial value — the same conservative read `reduce` applies
+  to a `MirrorRestored`, run before the first render instead of after a
+  Command. It sends no Message and runs no Effect.
+- `model => Filters.reduce(model, url)` is the URL mirror's step: the starting
+  URL as the whole slice, the same call `Mirror.routing` folds into
+  `makeApplication`'s `init`.
+- `Mirror.bootstrap(model, ...steps)` folds the steps in list order: stores
+  first, the URL last. Either order keeps URL > store > initial, but listing
+  the URL last states the precedence.
+
+A step that changes nothing returns the Model it was given, so an empty store
+renders nothing extra. Flags carry the store's keys as the store holds them
+(`Encoded`: `Record<string, string>`), and the mirror decodes them with its
+own codecs — the Flags schema does not repeat the text format.
+
+When the store can only be read asynchronously, keep the `restore` Command
+(`Prefs.wiring()`'s `init`, `foldPrefs.init`): bootstrapping needs the keys,
+and `restore` is how they arrive. A bootstrapped value also wins over a later
+`restore` for the fields it set, and the usual Subscription writes it outward
+like any Model change — so bootstrapping from Flags while still running
+`restore` is safe, not a conflict.
+
+This is deliberately not part of `Wiring`: `Wiring.init` runs startup Commands
+after the Model exists, while a bootstrap runs before it, inside `init`
+itself. One is `Bootstrap` / Flags into the initial Model; the other is the
+Model into Commands.
 
 ## One list per application with wiring
 

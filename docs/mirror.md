@@ -100,6 +100,14 @@ still at their initial value, so an edit made before the store answered is kept.
 On a cold load the URL wins where it names a key, then the store, then the
 initial value.
 
+When the store's keys are already in hand at boot (Flags the server embedded,
+a synchronous read), there is no need to wait for the `restore` Command:
+`Prefs.bootstrap(keys)` folds them into the initial Model before the first
+render, and `Mirror.bootstrap(initial, ...steps)` composes store steps with
+the URL step. See "Restore before the first render with bootstrap" in the
+[package README](../packages/mirror/README.md). `Wiring.init` stays the other
+lifecycle: startup Commands after the Model exists.
+
 ## One owner per datum
 
 A mirror is not an owner. It observes fields and owns nothing, which is what

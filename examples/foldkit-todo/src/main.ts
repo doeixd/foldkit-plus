@@ -114,14 +114,14 @@ export const TodosMirror = Mirror.kv(App, {
 // FLAGS
 
 export const Flags = Schema.Struct({
-  restored: Mirror.Message,
+  todos: Schema.Record(Schema.String, Schema.String),
 })
 export type Flags = typeof Flags.Type
 
 // INIT
 
 export const init: Runtime.ApplicationInit<Model, Message, Flags> = flags => ({
-  model: TodosMirror.reduce(initialModel, flags.restored),
+  model: Mirror.bootstrap(initialModel, TodosMirror.bootstrap(flags.todos)),
 })
 
 // UPDATE
@@ -536,4 +536,4 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
 
 /** The stored list, read before `init` as upstream's Flags read it, so the first frame shows it. */
 export const flags: Effect.Effect<Flags, never, KeyValueStore.KeyValueStore> =
-  TodosMirror.restore.effect.pipe(Effect.map(restored => ({ restored })))
+  TodosMirror.restore.effect.pipe(Effect.map(({ keys }) => ({ todos: keys })))
