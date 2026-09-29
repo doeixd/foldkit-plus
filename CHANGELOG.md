@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`, Badge recipe:** a status pill with a dot, toned by
+  an attribute's value — `Recipes.Badge({ attribute: 'data-state', tones: {
+  Published: 'success' } }).badge`. Unlike the variant recipes every tone is
+  present at once (one style serves badges in every state), so it takes the
+  attribute and the value-to-tone map instead of a variant selection; values
+  the map leaves out keep the base. The CMS demo adopts it for both badges
+  and keeps only the state-to-tone map.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

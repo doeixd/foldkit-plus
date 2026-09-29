@@ -1,7 +1,7 @@
 /**
  * Compile-time recipe contracts. Type-checked, not executed.
  */
-import { Layers, Style } from 'foldkit-mixins'
+import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ref } from '../src/recipes/design.js'
 import { ButtonSlots, Recipes } from '../src/index.js'
@@ -19,6 +19,29 @@ Recipes.Button({ tone: 'danger', variant: 'ghost', size: 'sm' })
 
 // @ts-expect-error a tone the recipe does not offer.
 Recipes.Button({ tone: 'brand' })
+
+Recipes.Badge({
+  attribute: 'data-state',
+  tones: { Published: 'success', Changed: 'warning' },
+})
+
+// @ts-expect-error a badge tone is one of the four palette families.
+Recipes.Badge({ attribute: 'data-state', tones: { Published: 'brand' } })
+
+// @ts-expect-error the badge's attribute is required.
+Recipes.Badge({ tones: { Published: 'success' } })
+
+// The README's Badge section, kept compiling.
+const EntrySlots = Slots.define({
+  badge: Slot.make({ capability: Capability.Container }),
+})
+const EntryStyle = Style.forSlots(EntrySlots)({
+  badge: Recipes.Badge({
+    attribute: 'data-state',
+    tones: { Published: 'success', Changed: 'warning' },
+  }).badge,
+})
+void EntryStyle
 
 // @ts-expect-error Dialog's recipe has no `open` axis.
 Recipes.Dialog({ size: 'md', open: 'yes' })

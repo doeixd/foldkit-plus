@@ -5,6 +5,7 @@
  * instead of forking it. Bases are in the `components` layer and variants in
  * `variants`, of `Layers.standard`.
  */
+export { Badge, type BadgeOptions, type BadgeTone } from './badge.js'
 export { Button } from './button.js'
 export { Dialog } from './dialog.js'
 export { Input, Textarea } from './field.js'

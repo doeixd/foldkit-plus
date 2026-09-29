@@ -6,7 +6,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import { view as buttonView } from '@foldkit/ui/button'
-import { Layers, Style, type SlotAttributes, type StyleValues } from 'foldkit-mixins'
+import {
+  Capability,
+  Layers,
+  Slot,
+  Slots,
+  Style,
+  type SlotAttributes,
+  type StyleValues,
+} from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
@@ -185,6 +193,60 @@ describe('Recipes', () => {
       Style.forSlots(ButtonSlots)(Recipes.Button({ tone, variant: 'solid' })).css
     expect(css('danger')).toContain(outline)
     expect(css('accent')).not.toContain(outline)
+  })
+
+  describe('Badge', () => {
+    const BadgeSlots = Slots.define({
+      badge: Slot.make({ capability: Capability.Container }),
+    })
+    const tones = { Published: 'success', Changed: 'warning', New: 'info' } as const
+    const css = (attribute = 'data-state'): string =>
+      Style.forSlots(BadgeSlots)({ badge: Recipes.Badge({ attribute, tones }).badge }).css
+
+    it('compiles the pill, its dot, and one rule per mapped value', () => {
+      expect(css()).toContain('border-radius:var(--fk-radius-full)')
+      expect(css()).toContain('::before')
+      expect(css()).toContain('background:currentColor')
+      expect(css()).toContain('[data-state="Published"]')
+      expect(css()).toContain('[data-state="Changed"]')
+      expect(css()).toContain('[data-state="New"]')
+    })
+
+    it('tones a value with its family wash and ink', () => {
+      expect(css()).toContain(
+        'color-mix(in oklch, var(--fk-success-default) 14%, var(--fk-surface-base))',
+      )
+      expect(css()).toContain('color:var(--fk-success-ink)')
+      expect(css()).toContain('color:var(--fk-warning-ink)')
+    })
+
+    it('leaves an unmapped value on the base and takes the attribute', () => {
+      expect(css()).not.toContain('[data-state="Archived"]')
+      expect(css('data-cms-state')).toContain('[data-cms-state="Published"]')
+      expect(css('data-cms-state')).not.toContain('[data-state="Published"]')
+    })
+
+    it('references only defined tokens', () => {
+      const references = [...css().matchAll(/var\(--fk-([a-z0-9-]+)/g)].map(match => match[1] ?? '')
+      expect(references.length).toBeGreaterThan(0)
+      expect(references.filter(reference => !defined.has(reference))).toEqual([])
+    })
+
+    it('emits every rule inside a layer, base in components and tones in variants', () => {
+      for (const block of blocks(css())) {
+        expect(block).toMatch(/^@layer (components|variants)\{/)
+      }
+      const layered = blocks(css())
+      expect(layered.some(block => /^@layer components\{/.test(block))).toBe(true)
+      expect(layered.some(block => /^@layer variants\{.*data-state/.test(block))).toBe(true)
+    })
+
+    it('writes no inline declarations', () => {
+      const piece = Recipes.Badge({ attribute: 'data-state', tones }).badge
+      expect(piece.style).toEqual({})
+      expect(piece.conditions ?? []).toEqual([])
+      expect(piece.items ?? []).toEqual([])
+    })
   })
 
   it('extend composes a patch onto a variant and the base', () => {

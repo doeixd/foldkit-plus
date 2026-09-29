@@ -199,38 +199,15 @@ export const primaryButton = Style.compose(
   }),
 )
 
-/** An entry's state as a pill, colored by its tag, which `attribute` names. */
-export const stateBadge = (attribute: string) => {
-  const tone = (state: string, family: 'success' | 'warning' | 'info' | 'error') =>
-    Style.nest(`&[${attribute}="${state}"]`, {
-      background: `color-mix(in oklch, ${t[family].default} 14%, ${t.surface.base})`,
-      color: t[family].ink,
-    })
-  return Style.compose(
-    Style.self({
-      alignItems: 'center',
-      background: t.surface.muted,
-      borderRadius: t.radius.full,
-      color: t.text.muted,
-      display: 'inline-flex',
-      fontSize: t.size.xs,
-      fontWeight: t.weight.semibold,
-      gap: '0.35rem',
-      padding: '0.15rem 0.6rem',
-      whiteSpace: 'nowrap',
-    }),
-    // A dot before the words, in the pill's own color.
-    Style.nest('&::before', {
-      background: 'currentColor',
-      borderRadius: '50%',
-      content: '""',
-      height: '0.4rem',
-      width: '0.4rem',
-    }),
-    tone('Published', 'success'),
-    tone('Changed', 'warning'),
-    tone('New', 'info'),
-    tone('Unpublished', 'warning'),
-    tone('Archived', 'error'),
-  )
+/** An entry's state as a pill, colored by its tag: which tone each state takes. */
+export const stateTones: Record<string, Recipes.BadgeTone> = {
+  Published: 'success',
+  Changed: 'warning',
+  New: 'info',
+  Unpublished: 'warning',
+  Archived: 'error',
 }
+
+/** An entry's state as a pill: the recipe with the entry's tones. */
+export const stateBadge = (attribute: string) =>
+  Recipes.Badge({ attribute, tones: stateTones }).badge

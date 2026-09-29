@@ -416,6 +416,25 @@ const BrandButton = Recipes.Button.extend({
 })
 ```
 
+`Recipes.Badge` is a function rather than a variant selection: one style serves
+badges in every state, so every tone is present at once and there is no axis
+to select. It takes the attribute carrying the value and the value-to-tone
+map; values the map leaves out keep the base pill:
+
+```ts
+const EntryStyle = Style.forSlots(EntrySlots)(
+  {
+    badge: Recipes.Badge({
+      attribute: 'data-state',
+      tones: { Published: 'success', Changed: 'warning' },
+    }).badge,
+  },
+)
+```
+
+Like the variant recipes it reads `Theme.tokens` and `Theme.oklch` tokens and
+keeps the base in `components` with each tone in `variants`.
+
 ## Accessibility patterns
 
 Every adapter has an `A11y.pattern` beside its Slots, under `Patterns`: the

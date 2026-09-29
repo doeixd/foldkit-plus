@@ -298,7 +298,9 @@ hand, such as a Calendar whose Mixins read `attributes._tag`. Result types: `Res
 `components` layer and variants in `variants` of `Layers.standard`, and style state from the
 component's own `aria-checked` / `aria-selected` / `aria-disabled`. No recipe declaration is inline
 style, so `Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }, { layer: L.layer('app') })` overrides any of
-them by layer order alone.
+them by layer order alone. `Recipes.Badge` differs: it is a function taking the attribute and a
+value-to-tone map (`Badge({ attribute: 'data-state', tones: { Published: 'success' } }).badge`),
+because one style serves badges in every state and every tone is present at once.
 
 ## 6. Testing helpers
 
