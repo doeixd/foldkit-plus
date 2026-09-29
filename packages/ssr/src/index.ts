@@ -3,8 +3,9 @@
  * rendered on one and resumed on the other.
  *
  * Built from the plan in `docs/design/ssr-PLAN.md`. A resume plan names the
- * slice of the Model the browser owns. The server writes that slice into the
- * page as a JSON script; the browser reads it back and sets it onto a baseline
+ * slice of the Model the browser owns. The server writes that slice onto the
+ * stamped root as a JSON attribute, beside Foldkit's own stamps; the browser
+ * reads it back and sets it onto a baseline
  * Model. Nothing outside the slice crosses, and a payload that cannot be read
  * back exactly is refused, never half-restored.
  *
@@ -19,8 +20,8 @@ import {
   Responded,
   injectIntoTemplate,
   renderToString,
-  toResponse,
   type EntryModule,
+  type EntryResult,
   type RenderError,
   type RenderedApplication,
 } from 'foldkit/experimental/server'
@@ -31,8 +32,8 @@ import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD } from './resumable.js'
 import { SSR as Client } from './client.js'
 import {
   PROTOCOL,
-  RESUME_ATTRIBUTE,
   allowedTags,
+  attributeOf,
   codecOf,
   modelFrom,
   metaMarkup,
@@ -89,9 +90,10 @@ interface EnvelopeOptions {
 }
 
 /**
- * The script a server writes into its page's template: the plan's slice of
- * `model`, encoded through the slice's own Schema, each part's capture, and
- * the route it was rendered for, if it was rendered for one.
+ * The envelope for `model`: the plan's slice, each part's capture, and
+ * the route it was rendered for, if it was rendered for one. `SSR.render`
+ * carries it on the stamped root, beside Foldkit's own stamps; this is the
+ * same JSON, for tests and hosts that place the page themselves.
  */
 const envelope = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,
@@ -99,13 +101,15 @@ const envelope = <Model, Fields extends Schema.Struct.Fields>(
   options: EnvelopeOptions = {},
 ): string => envelopeOf(resume, payloadOf(resume, model), options)
 
-/** The envelope script for a payload already built. */
+/**
+ * The envelope for a payload already built: the JSON the stamped root carries.
+ */
 const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,
   payload: Payload,
   options: EnvelopeOptions,
-): string => {
-  const body = serializeJsonScript({
+): string =>
+  serializeJsonScript({
     v: PROTOCOL,
     plan: resume.id,
     ...payload,
@@ -118,7 +122,25 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
       ? {}
       : { events: options.events }),
   })
-  return `<script type="application/json" ${RESUME_ATTRIBUTE}>${body}</script>`
+
+/**
+ * The rendered application with the envelope on its stamped root, beside
+ * Foldkit's own app and build stamps. `injectIntoTemplate` accepts the
+ * envelope there, as part of the root, and refuses it beside the root, so a
+ * page the host injects carries the handover without the entry owning the
+ * template. Hydration adopts the server's nodes around it and drops the
+ * attribute on its first patch, so the browser reads the envelope before it
+ * boots.
+ */
+const withEnvelopeAttribute = (html: string, json: string): string => {
+  const found = /<[^>]*?\bdata-foldkit-app="[^"]*"/.exec(html)
+  if (found === null) {
+    throw new Error(
+      'foldkit-ssr: the rendered application has no stamped root to carry the resume envelope',
+    )
+  }
+  const at = found.index + found[0].length
+  return `${html.slice(0, at)}${attributeOf(json)}${html.slice(at)}`
 }
 
 /**
@@ -406,7 +428,13 @@ const eagerEntries = <Model, Fields extends Schema.Struct.Fields>(
 
 /** A page the server rendered against a plan, with its envelope. */
 export interface RenderedPage {
+  /**
+   * The rendered application with the envelope on its stamped root, so
+   * Foldkit's `injectIntoTemplate` places the page whole: the host owns the
+   * template, and the entry never splices markup into it.
+   */
   readonly rendered: RenderedApplication
+  /** The envelope, as carried on the root, for tests and custom hosts. */
   readonly envelope: string
   /** The head markup of the plan's `meta`, empty without one. */
   readonly meta: string
@@ -568,39 +596,26 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         message: `the view differs in its ${differing.join(', ')} when rendered from the Model the browser will start from: it reads a field the plan leaves out`,
       })
     }
+    const envelope = envelopeOf(plan, payload, {
+      ...(options.url === undefined
+        ? {}
+        : { route: match === 'path' ? pathKey(routeOf(options.url)) : routeOf(options.url) }),
+      match,
+      bindings: encoded.success,
+      events: [
+        ...new Set([
+          ...servedBindings.map(binding => binding.event),
+          ...unnamed.map(handler => handler.event),
+        ]),
+      ].sort(),
+    })
     return {
-      rendered,
+      rendered: { ...rendered, html: withEnvelopeAttribute(rendered.html, envelope) },
       meta,
-      envelope: envelopeOf(plan, payload, {
-        ...(options.url === undefined
-          ? {}
-          : { route: match === 'path' ? pathKey(routeOf(options.url)) : routeOf(options.url) }),
-        match,
-        bindings: encoded.success,
-        events: [
-          ...new Set([
-            ...servedBindings.map(binding => binding.event),
-            ...unnamed.map(handler => handler.event),
-          ]),
-        ].sort(),
-      }),
+      envelope,
       unnamed,
     }
   })
-
-/**
- * The template with the envelope before its last `</body>`, in any case. A
- * slice, not `String.replace`, which would read `$&` or `$$` in the Model's
- * data as a replacement pattern. A template with no `</body>` is refused: the
- * page would be served without its envelope and refused in every browser.
- */
-const withEnvelope = (template: string, envelope: string): string => {
-  const at = template.search(/<\/body>(?![\s\S]*<\/body>)/i)
-  if (at === -1) {
-    throw new Error('foldkit-ssr: the template has no </body> to put the resume envelope before')
-  }
-  return `${template.slice(0, at)}${envelope}${template.slice(at)}`
-}
 
 /**
  * What a page adds to its head, given what it rendered: such as a stylesheet
@@ -658,20 +673,17 @@ const headOf = (
 
 /**
  * The page to serve: the rendered application in the template, with the
- * envelope before `</body>`, and the plan's `meta` and `head`'s markup, if
- * any, before `</head>`. Not in the rendered HTML, which `injectIntoTemplate`
- * requires to hold only the root and Foldkit's payload.
+ * plan's `meta` and `head`'s markup, if any, before `</head>`. The envelope
+ * is already in the rendered root, so this is Foldkit's `injectIntoTemplate`
+ * with a head, and nothing else.
  */
 const page = (
   template: string,
-  result: { readonly rendered: RenderedApplication; readonly envelope: string; readonly meta: string },
+  result: { readonly rendered: RenderedApplication; readonly meta: string },
   options: { readonly head?: Head | undefined } = {},
 ): string =>
   injectIntoTemplate(
-    withHead(
-      withEnvelope(withFilledTags(template, result.rendered), result.envelope),
-      headOf(result, options.head),
-    ),
+    withHead(withFilledTags(template, result.rendered), headOf(result, options.head)),
     result.rendered,
   )
 
@@ -854,9 +866,10 @@ const generate = <
   })
 
 /**
- * The server entry for Foldkit's fetch handler: the `renderPage` that
- * `handleRequest` calls, and that the `fetch.js` a Foldkit build emits
- * exports, so a resumed page is served by Node and Workers alike.
+ * The server entry for Foldkit's pipeline: the `renderPage` a dev server,
+ * a fetch handler, or `handleRequest` calls, and that the `fetch.js` a Foldkit
+ * build emits imports from the server entry module, so a resumed page is
+ * served by Node and Workers alike.
  *
  * `GET` and `HEAD` render the page against the plan, with the request's URL
  * and, when the application has Flags, `flags(request)`. `POST` goes to
@@ -865,41 +878,63 @@ const generate = <
  * `405`, each with the methods the entry answers in `allow` (`handleRequest`
  * passes every method through). A render that fails, or a plan the render
  * refuses, is answered `500` with the reason logged, never with a page the
- * browser cannot resume. `headers(request)` is set over the entry's own on
- * every response it answers: a cache policy, or a CORS answer to a preflight.
+ * browser cannot resume. `headers(request)` rides on the `Rendered` result, so
+ * Foldkit's `toResponse` sets it over its own on the page: a cache policy, or
+ * a CORS answer to a preflight.
  *
- * The page is answered whole, as `Responded`: a `Rendered` result is placed in
- * `handleRequest`'s one template, which has no place for a per-request
- * envelope. Foldkit's own `toResponse` still builds the response, from a
- * template that already holds the envelope, so the headers and the
- * injection are Foldkit's. `handleRequest` still classifies static misses and
- * answers `HEAD` without a body.
+ * The page is answered as `Rendered`: the rendered application carries the
+ * envelope in its root, so the host injects it into its own template with
+ * Foldkit's `injectIntoTemplate`, and a build can generate it with Foldkit's
+ * `prerender`. The template, and the container it fills, are the host's:
+ * `handleRequest` still classifies static misses and answers `HEAD` without
+ * a body.
+ *
+ * What the page says of itself (`meta`) and per-page `head` markup are
+ * written into a template's head, which the host owns here: a plan with
+ * `meta` is refused when the entry is made, and served with `SSR.generate`.
  */
 const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
   options: {
     readonly buildId: string
-    readonly template: string
-    readonly containerId?: string | undefined
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
-    readonly head?: Head | undefined
     readonly headers?: ((request: Request) => HeadersInit) | undefined
   },
 ): EntryModule => {
-  // Checked once, when the entry is made, rather than failing every request.
-  withEnvelope(options.template, '')
-  if (options.head !== undefined || plan.meta !== undefined) {
-    withHead(options.template, '<!-- head -->')
+  if (plan.meta !== undefined) {
+    throw new Error(
+      `foldkit-ssr: plan "${plan.id}" says what the page says of itself (meta), which is written into the template's head, and the template is the host's: serve it with SSR.generate, not SSR.entry`,
+    )
   }
-  const headOf = options.head
   const allow = plan.fallback === 'server' ? 'GET, HEAD, POST, OPTIONS' : 'GET, HEAD, OPTIONS'
-  const answer = async (request: Request): Promise<Response> => {
+  // Deleted and appended rather than set, which would keep one `set-cookie` of several.
+  const merge = (response: Response, extra: Headers): Response => {
+    for (const name of new Set(extra.keys())) response.headers.delete(name)
+    extra.forEach((value, name) => response.headers.append(name, value))
+    return response
+  }
+  const answer = async (request: Request): Promise<EntryResult> => {
     const method = request.method.toUpperCase()
     const posting = method === 'POST' && plan.fallback === 'server'
-    if (method === 'OPTIONS') return new Response(null, { status: 204, headers: { allow } })
+    const headersOf = options.headers
+    let extra: Headers | undefined
+    if (headersOf !== undefined) {
+      try {
+        extra = new Headers(headersOf(request))
+      } catch (error) {
+        console.error(
+          `[foldkit-ssr] ${request.url} was not answered: headers threw ${String(error)}`,
+        )
+        return Responded(plainText(500, 'The page could not be rendered.'))
+      }
+    }
+    const responded = (response: Response): EntryResult =>
+      Responded(extra === undefined ? response : merge(response, extra))
+    if (method === 'OPTIONS')
+      return responded(new Response(null, { status: 204, headers: { allow } }))
     if (method !== 'GET' && method !== 'HEAD' && !posting) {
-      return new Response(null, { status: 405, headers: { allow } })
+      return responded(new Response(null, { status: 405, headers: { allow } }))
     }
     const flagsOf = options.flags
     // `Effect.result` would miss a defect, such as a view that throws, and a
@@ -910,18 +945,14 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         const flags =
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
         const flagged = flagsOf === undefined ? {} : { flags }
-        const result = posting
-          ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
-          : yield* render(config, plan, {
-              buildId: options.buildId,
-              url: request.url,
-              ...flagged,
-            })
-        // In the Effect, so a `head` that throws is a defect, answered as a failed render is.
-        const head = [result.meta, headOf === undefined ? '' : headOf(result.rendered)]
-          .filter(markup => markup !== '')
-          .join('\n')
-        return { ...result, head }
+        if (posting) {
+          return yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
+        }
+        return yield* render(config, plan, {
+          buildId: options.buildId,
+          url: request.url,
+          ...flagged,
+        })
       }),
     )
     if (Exit.isFailure(exit)) {
@@ -929,42 +960,19 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         Option.filter(error => error instanceof FallbackRefused),
       )
       if (Option.isSome(refused)) {
-        return plainText(400, `The form could not be handled: ${refused.value.message}`)
+        return responded(plainText(400, `The form could not be handled: ${refused.value.message}`))
       }
       console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
-      return plainText(500, 'The page could not be rendered.')
+      return responded(plainText(500, 'The page could not be rendered.'))
     }
     warnUnnamed(config, plan, exit.value.unnamed)
-    const template = withHead(
-      withEnvelope(withFilledTags(options.template, exit.value.rendered), exit.value.envelope),
-      exit.value.head,
-    )
-    return toResponse(
-      template,
-      Rendered(exit.value.rendered),
-      options.containerId === undefined ? undefined : { containerId: options.containerId },
-    )
+    // No `headers` key without custom headers: a `Rendered` that carries none
+    // stays generatable as a static file.
+    return extra === undefined
+      ? Rendered(exit.value.rendered)
+      : Rendered(exit.value.rendered, { headers: extra })
   }
-  const headersOf = options.headers
-  return {
-    renderPage: async request => {
-      if (headersOf === undefined) return Responded(await answer(request))
-      let extra: Headers
-      try {
-        extra = new Headers(headersOf(request))
-      } catch (error) {
-        console.error(
-          `[foldkit-ssr] ${request.url} was not answered: headers threw ${String(error)}`,
-        )
-        return Responded(plainText(500, 'The page could not be rendered.'))
-      }
-      const response = await answer(request)
-      // Deleted and appended rather than set, which would keep one `set-cookie` of several.
-      for (const name of new Set(extra.keys())) response.headers.delete(name)
-      extra.forEach((value, name) => response.headers.append(name, value))
-      return Responded(response)
-    },
-  }
+  return { renderPage: answer }
 }
 
 const plainText = (status: number, body: string): Response =>

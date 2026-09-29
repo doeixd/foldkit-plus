@@ -58,7 +58,7 @@ describe('handlers the page cannot name', () => {
 
   it('are warned about once per process by the entry, however many requests it serves', async () => {
     const warned = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const entry = SSR.entry(config, deferred('entry-warn'), { buildId: 'b', template })
+    const entry = SSR.entry(config, deferred('entry-warn'), { buildId: 'b' })
     await entry.renderPage(get())
     await entry.renderPage(get())
     const lines = warned.mock.calls.map(([line]) => String(line))
@@ -82,7 +82,7 @@ describe('handlers the page cannot name', () => {
 
   it('are not warned about for a page that boots at once', async () => {
     const warned = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await SSR.entry(config, plan, { buildId: 'b', template }).renderPage(get())
+    await SSR.entry(config, plan, { buildId: 'b' }).renderPage(get())
     expect(warned).not.toHaveBeenCalled()
   })
 })

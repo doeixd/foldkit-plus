@@ -13,7 +13,13 @@
 import { Effect, Result } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
-import { SSR, type ResumableConfig, type ResumePlan } from 'foldkit-ssr'
+import {
+  FOLDKIT_APP_ATTRIBUTE,
+  RESUME_ATTRIBUTE,
+  SSR,
+  type ResumableConfig,
+  type ResumePlan,
+} from 'foldkit-ssr'
 
 export type Action =
   | { readonly kind: 'click'; readonly id: string }
@@ -199,7 +205,11 @@ export const posted = async (
     body: new URLSearchParams(fields),
   })
   const { envelope } = await Effect.runPromise(SSR.handle(request, config, plan, { buildId: 'b' }))
-  const page = new DOMParser().parseFromString(`<body>${envelope}</body>`, 'text/html')
+  const page = new DOMParser().parseFromString('<body></body>', 'text/html')
+  const root = page.createElement('div')
+  root.setAttribute(FOLDKIT_APP_ATTRIBUTE, 'app')
+  root.setAttribute(RESUME_ATTRIBUTE, envelope)
+  page.body.append(root)
   const model = SSR.resume(plan, page)
   if (Result.isFailure(model)) throw new Error(`posted: ${model.failure.message}`)
   return model.success

@@ -202,13 +202,13 @@ describe('Resume.bindings refuses a page that does not add up', () => {
   const refusal = (
     edit: (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) => unknown,
   ) => {
-    const script = document.querySelector('script[data-foldkit-plus-resume]')
-    if (script === null) throw new Error('no envelope')
-    const body = JSON.parse(script.textContent ?? '')
-    body.bindings = edit(body.bindings)
-    script.textContent = JSON.stringify(body)
     const root = document.querySelector(`[${FOLDKIT_APP_ATTRIBUTE}]`)
     if (root === null) throw new Error('no root')
+    const carried = root.getAttribute('data-foldkit-plus-resume')
+    if (carried === null) throw new Error('no envelope')
+    const body = JSON.parse(carried)
+    body.bindings = edit(body.bindings)
+    root.setAttribute('data-foldkit-plus-resume', JSON.stringify(body))
     const model = Result.getOrThrow(SSR.resume(plan, document))
     const refused = Resume.bindings(plan, document, root, model)
     if (!Result.isFailure(refused)) throw new Error('the page was not refused')
