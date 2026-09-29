@@ -72,14 +72,14 @@ const placements = Page.assemble(
 
 declare const view: (model: Model, h: HtmlBuilder<Message>) => Html
 
-// `complete` returns the config unchanged; it exists to report wiring mistakes.
-export const config = placements.complete({
-  init: () => placements.initial({ helpOpen: false }),
-  update: placements.update((model, message) =>
+// `config` derives init, update, subscriptions, and managedResources from the
+// assembly; the rest (Model, view, ...) passes through.
+export const config = placements.config({
+  Model,
+  initial: { helpOpen: false },
+  update: (model, message) =>
     message._tag === 'ClickedHelp' ? { model: { ...model, helpOpen: true } } : { model },
-  ),
   view,
-  subscriptions: placements.subscriptions(),
 })
 ```
 

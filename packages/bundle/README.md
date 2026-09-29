@@ -227,20 +227,25 @@ const placements = Page.assemble(
 )
 ```
 
-**Wire it once.** The assembly builds the parent's initial Model and update.
-`ownUpdate` is the parent's own update for `ClickedHelp`, and `view` its view:
+**Wire it once.** The assembly builds the parent's runtime config from the
+parent's own pieces. `initial` gives exactly the fields no placement owns,
+`update` is the parent's own update for `ClickedHelp`, and everything else
+(`Model`, `view`, ...) passes through:
 
 ```ts
-const config = placements.complete({
-  init: () => placements.initial({ helpOpen: false }),
-  update: placements.update(ownUpdate),
+const config = placements.config({
+  Model,
+  initial: { helpOpen: false },
+  update: ownUpdate,
   view,
-  subscriptions: placements.subscriptions(),
 })
 ```
 
 Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement` with the
-rest of your options.
+rest of your options. The parent's own Subscriptions go in `subscriptions` and
+its own Managed Resources in `managedResources`; the assembly merges them with
+the items'. For a custom `init` or a URL-mirror assembly, use the lower-level
+derivations with `placements.complete` instead (below).
 
 ### What each call does
 
@@ -268,6 +273,11 @@ rest of your options.
   `Option` (below), to start the child as `None`. The check reads each
   placement's field from its Link; one whose path the types cannot read, a
   `Link.make` given a `string[]`, relaxes `rest` to `Partial<Model>`.
+- **`placements.config(input)`** is the assembled runtime config for
+  `Runtime.makeApplication` or `makeElement`: `initial` rest becomes `init`,
+  the own `update`, `subscriptions`, and `managedResources` merge with the
+  items', and everything else passes through. Calling it on an assembly that
+  reads the URL is a type error; that stays on the derivations with `complete`.
 - **`placements.update(own)`** is the parent's update: a placement's or
   wiring's Message goes to its item and every other Message to `own`, whose
   Message is typed without the placements' wrappers (see

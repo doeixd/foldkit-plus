@@ -484,7 +484,7 @@ export type { Declared, DeclaredEach, WrapperTag } from './declare.js'
 export { parent } from './parent.js'
 export type { Parent } from './parent.js'
 export type { BundleParts } from './declare.js'
-export type { InitialRest, OwnMessage } from './assembly.js'
+export type { InitialRest, OwnMessage, ConfigInput, ConfigResult } from './assembly.js'
 export {
   mapInit,
   mapUpdate,

@@ -49,6 +49,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-bundle`, `assembly.config(input)`:** the assembled runtime
+  config from one call (`initial` rest becomes `init`, the own `update`,
+  `subscriptions`, and `managedResources` merge with the items', everything
+  else passes through to `Runtime.makeApplication`/`makeElement`). The result
+  carries the `complete` brands, so `complete` accepts it unchanged; custom
+  inits and URL-mirror assemblies stay on the lower-level derivations.
+
 - **CMS example, one studio application:** posts and pages share a document,
   a runtime and an address (`examples/cms/src/apps/studioApp.ts`); moving
   between them swaps no application. Each section keeps its Model, update,
