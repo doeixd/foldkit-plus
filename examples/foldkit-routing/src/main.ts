@@ -5,7 +5,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
-import { Link } from 'foldkit-bundle'
+import { Bundle, Link } from 'foldkit-bundle'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
 import { type File, type FileTreeEntry, fileTree, findEntry, formatFileSize } from './fileTree.js'
@@ -18,6 +18,7 @@ import {
   nestedRouter,
   peopleRouter,
   urlToAppRoute,
+  type PeopleRoute,
 } from './route.js'
 import { RoutingPage } from './style.js'
 
@@ -48,21 +49,26 @@ export const Message = defineMessageUnion({
 
 export type Message = typeof Message.Type
 
+// PLACEMENT
+
+/**
+ * The People page, placed once. Its search text is derived from the starting
+ * route: every factory sees the seed `initial` was given, so `/people?searchText=ali`
+ * starts with `ali` searched, with no second fetch and no post-init Message.
+ */
+const peopleLink = Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage))
+const peoplePlaced = People.PeopleBundle.at(peopleLink, {
+  args: parent => ({
+    searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
+  }),
+})
+
+const assembly = Bundle.assemble<Model, Message>()([peoplePlaced])
+
 // INIT
 
-export const init: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) => {
-  const route = urlToAppRoute(url)
-
-  const initialPeopleRoute = Match.value(route).pipe(
-    Match.tag('People', peopleRoute => peopleRoute),
-    Match.orElse(() => AppRoute.People({ searchText: Option.none() })),
-  )
-
-  return Update.foldChildInit(People.init(initialPeopleRoute), {
-    toParentModel: peoplePage => ({ route, peoplePage }),
-    toParentMessage: message => Message.GotPeopleMessage({ message }),
-  })
-}
+export const init: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) =>
+  assembly.initial({ route: urlToAppRoute(url) })
 
 // COMMAND
 
@@ -89,23 +95,26 @@ const navigationUrlByShortcut: Readonly<Record<NavigationShortcut, () => string>
   GN: nestedRouter,
 }
 
-/** Keeps the Model when the People page is unchanged, so a no-op draws nothing. */
-const peoplePage = Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage))
-
-const foldPeopleEntry = <Input>(
-  update: (peoplePage: People.Model, input: Input) => People.UpdateReturn,
-): Update.Fold<Model, Message, Input> => Update.foldChild({ ...peoplePage, update })
-
-const foldPeople = foldPeopleEntry(People.update)
-
-const foldPeopleRouteChanged = foldPeopleEntry(People.informRouteChanged)
+/** Tells the People page the route changed, through its placement wrapper. */
+const informPeopleRouteChanged =
+  (route: PeopleRoute): Update.Step<Model, Message> =>
+  model =>
+    Option.getOrElse(
+      peoplePlaced.update(
+        model,
+        Message.GotPeopleMessage({ message: People.Message.ChangedRoute({ route }) }),
+      ),
+      () => ({ model }),
+    )
 
 const setRoute =
   (nextRoute: AppRoute): Update.Step<Model, Message> =>
   model => ({ model: modifyFields(model, { route: () => nextRoute }) })
 
-export const update = (model: Model, message: Message) =>
-  Message.match<UpdateReturn>(message, {
+type OwnMessage = Bundle.OwnMessage<Message, typeof assembly.placements>
+
+const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
+  Match.valueTags(message, {
     CompletedNavigateInternal: () => ({ model }),
     CompletedLoadExternal: () => ({ model }),
 
@@ -126,7 +135,7 @@ export const update = (model: Model, message: Message) =>
 
       const routeSteps = Match.value(nextRoute).pipe(
         Match.withReturnType<ReadonlyArray<Update.Step<Model, Message>>>(),
-        Match.tag('People', peopleRoute => [foldPeopleRouteChanged(peopleRoute)]),
+        Match.tag('People', peopleRoute => [informPeopleRouteChanged(peopleRoute)]),
         Match.orElse(() => []),
       )
 
@@ -138,13 +147,13 @@ export const update = (model: Model, message: Message) =>
 
       return { model, commands: [NavigateInternal({ url })] }
     },
-
-    GotPeopleMessage: ({ message }) => foldPeople(model, message),
   })
+
+export const update = assembly.update(updateOwn)
 
 // SUBSCRIPTION
 
-export const subscriptions = Subscription.make<Model, Message>()(() => ({
+const ownSubscriptions = Subscription.make<Model, Message>()(() => ({
   keyBindings: Subscription.persistent(
     Subscription.keyBindings<Message>({
       bindings: [
@@ -168,6 +177,8 @@ export const subscriptions = Subscription.make<Model, Message>()(() => ({
     }),
   ),
 }))
+
+export const subscriptions = assembly.subscriptions(ownSubscriptions)
 
 // VIEW
 
@@ -375,13 +386,7 @@ export const Page = SlotView.forMessages<Message>()
         AppRoute.match(model.route, {
           Home: () => homeView(slots, h),
           Nested: () => nestedView(slots, h),
-          People: () =>
-            h.submodel({
-              slotId: 'people',
-              model: model.peoplePage,
-              view: People.view,
-              toParentMessage: message => Message.GotPeopleMessage({ message }),
-            }),
+          People: () => peoplePlaced.viewIn('people')(model, h),
           Person: ({ personId }) => personView(personId, slots, h),
           FilesIndex: () => filesIndexView(slots, h),
           Files: ({ path }) => filesView(path, slots, h),

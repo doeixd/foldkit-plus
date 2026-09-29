@@ -7,6 +7,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { pushUrl } from 'foldkit/navigation'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button, Input } from 'foldkit-mixins-ui'
 
@@ -99,15 +100,20 @@ export type Message = typeof Message.Type
 
 type InitReturn = Update.Return<Model, Message>
 
-export const init = (route: PeopleRoute): InitReturn => {
-  const searchText = routeSearchText(route)
+/**
+ * Starts a search from its text. The route carries it as an `Option`, and the
+ * Bundle below receives it as `args`, so this core serves both the Bundle's
+ * `init` and the `ChangedRoute` arm that searches again on route changes.
+ */
+export const init = (searchText: Option.Option<string>): InitReturn => {
+  const text = Option.getOrElse(searchText, () => '')
   return {
     model: {
-      searchInput: searchText,
-      searchHistory: addSearchToHistory([], searchText),
+      searchInput: text,
+      searchHistory: addSearchToHistory([], text),
       results: SearchResults.Loading(),
     },
-    commands: [FetchPeople({ searchText })],
+    commands: [FetchPeople({ searchText: text })],
   }
 }
 
@@ -173,14 +179,6 @@ export const update = (model: Model, message: Message) =>
 
     CompletedPushSearchUrl: () => ({ model }),
   })
-
-/** Tells the People page that the route changed. People does not own the
- *  route; it derives its own state (the search input and history) from the new
- *  route and returns the refetch Command. The parent calls this from its
- *  `ChangedUrl` handler. Contrast a `reflect*` setter, which writes a field the
- *  Submodel owns from an external value, with no derivation and no Command. */
-export const informRouteChanged = (model: Model, route: PeopleRoute) =>
-  update(model, Message.ChangedRoute({ route }))
 
 // VIEW
 
@@ -279,3 +277,13 @@ export const PeoplePage = SlotView.forMessages<Message>()
   .pipe(Style.attach(PeoplePart.style))
 
 export const view = Submodel.defineView<Model, Message>(PeoplePage)
+
+/** The page as a Bundle, placed once with its search text derived from the route. */
+export const PeopleBundle = Bundle.make('People', {
+  Model,
+  Message,
+  args: Schema.Struct({ searchText: Schema.Option(Schema.String) }),
+  init: ({ searchText }) => init(searchText),
+  update,
+  view,
+})

@@ -11,11 +11,13 @@ to Foldkit Plus.
 ## Who owns what
 
 The URL owns where the reader is; the Model holds the parsed route and the
-People page's own state. Routing is Foldkit's, and stays Foldkit's:
+People page's own state. Routing is Foldkit's, and stays Foldkit's; the People
+page is a Bundle placed once, with its starting search derived from the route:
 
 ```text
+start -> init(url) -> assembly.initial({ route }) -> People Bundle, args from the route
 link / back / G P -> URL -> ChangedUrl -> urlToAppRoute (parser combinators) -> Model.route -> view
-                                      \-> People.informRouteChanged -> FetchPeople -> People Submodel
+                                      \-> GotPeopleMessage(ChangedRoute) -> FetchPeople -> People Bundle
 ```
 
 Every `ChangedUrl` to a People route searches again, as upstream's does, even
@@ -32,7 +34,7 @@ pnpm --filter foldkit-example-foldkit-routing dev
 | --- | --- | --- |
 | Parsing and printing URLs, the route union, the 404 fallback | plain Foldkit (`foldkit/route`) | `src/route.ts` |
 | Links, back and forward, the key bindings | plain Foldkit (`routing`, `Subscription.keyBindings`) | `src/main.ts`, `src/entry.ts` |
-| The People page: search input, history, results | a hand-wired Foldkit Submodel, folded through a `foldkit-bundle` `Link.field` | `src/page/people.ts`, `src/main.ts` |
+| The People page: search input, history, results | a `foldkit-bundle` Bundle placed once, with `args` derived from the starting route | `src/page/people.ts`, `src/main.ts` |
 | The file tree | a constant | `src/fileTree.ts` |
 | The page title per route | the view's `Document.title` | `src/main.ts`, `routeTitle` |
 | The search input and button | `@foldkit/ui`, styled through `foldkit-mixins-ui` (`Input.toView`, `Button.toView`) | `src/page/people.ts` |
@@ -44,14 +46,14 @@ pnpm --filter foldkit-example-foldkit-routing dev
   Remote, Agent, Sync or Mirror consumes a projection here, and a Surface with
   no consumer is ceremony. `Surface.when` would record which route activates
   which page, but only Remote and SSR read that.
-- **`foldkit-bundle` for the People page.** The page is placed once, and its
-  `init` depends on the starting URL (`/people?searchText=ali` starts with
-  `ali` searched). A Bundle's `init` takes fixed `args` given at placement, so
-  the route would have to arrive after `init`, with a second fetch. The Bundle
-  README itself says a one-off child is fine hand-wired; Foldkit's
-  `Update.foldChild` and `h.submodel` are used as upstream uses them, with
-  the fold's read, write and wrapping given by the Bundle package's
-  `Link.field`, which keeps the Model when the page is unchanged.
+- **`foldkit-bundle` for anything but the People page.** The page is placed
+  once, with `args` derived from the starting route (`/people?searchText=ali`
+  starts with `ali` searched): the placement's factory reads the seed
+  `assembly.initial({ route })` was given, so there is no second fetch and no
+  post-init Message. Route changes after startup still arrive as Messages:
+  the parent's `ChangedUrl` arm folds `GotPeopleMessage(ChangedRoute)` through
+  the same placement. The view renders the placement in its long-standing
+  `people` slot.
 - **`foldkit-metadata`.** It is for package authors attaching facts to
   another package's declarations. A page title is the view's `title`.
 - **`foldkit-mirror`.** The search text is in the URL because it is part of

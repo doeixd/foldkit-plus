@@ -16,7 +16,14 @@ version changed; `pnpm` skips versions already in the registry.
   factory's parameter omits the placement's own field, and every factory sees
   the same base seed, so placement order never matters. The result is checked
   against the bundle's args Schema and retained for `update`, helpers,
-  Subscriptions, and resources, never re-run against live state.
+  Subscriptions, and resources, never re-run against live state. On a Model
+  no initialization produced, `update` derives per use without retaining.
+
+- **Routing example, derived placement args:** the People page is a Bundle
+  placed once with its search text derived from the starting route, so
+  `init(url)` is `assembly.initial({ route })` with no second fetch and no
+  post-init Message. Route changes after startup still arrive as Messages,
+  folded through the same placement, and the view keeps its `people` slot.
 
 ### Fixed
 
