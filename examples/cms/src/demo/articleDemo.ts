@@ -12,20 +12,14 @@
  */
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { eq } from 'drizzle-orm'
-import { Effect, Layer, Match, Option, Schema, Stream } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import { published } from 'foldkit-cms-drizzle'
 import { Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import {
-  Mutation,
-  REMOTE_PROTOCOL_VERSION,
-  Remote,
-  RemoteClient,
-  RemotePolicy,
-} from 'foldkit-remote'
+import { Mutation, Remote, RemoteClient, RemotePolicy } from 'foldkit-remote'
 import { bind, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import * as RichText from 'foldkit-richtext'
@@ -34,8 +28,8 @@ import { richTextInput } from 'foldkit-richtext-dom/input'
 import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
-import { isAuthor, openServer, write, type Principal } from '../server/server.js'
-import { memorySqlite } from '../server/sqlite-node.js'
+import { isAuthor, write, type Principal } from '../server/server.js'
+import { chairHarness, openBackend, visitBySlug } from './harness.js'
 
 const ArticleId = Schema.String.pipe(Schema.brand('ArticleId'))
 type ArticleId = typeof ArticleId.Type
@@ -161,9 +155,8 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []
   const say = (line: string) => lines.push(line)
 
-  let now = new Date('2026-03-01T09:00:00.000Z')
   let madeArticles = 0
-  const backend = openServer(() => now, memorySqlite(), {
+  const { backend, setNow } = openBackend({
     schema: `create table articles (
       id text primary key, title text not null, slug text not null unique,
       body text not null, published_at text
@@ -202,56 +195,28 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
 
   /** One chair: a principal, a Remote client that asks as them, and a Model of their own. */
   const chair = (principal: Principal) => {
-    const handlers = RemoteServer.handlers(backend.server, principal)
-    const served = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
-      effect.pipe(Effect.provide(backend.database))
-    const sent: string[] = []
-    const service: (typeof RemoteClient)['Service'] = {
-      read: batch => served(handlers.FoldkitRemoteRead(batch)),
-      query: request => served(handlers.FoldkitRemoteQuery(request)),
-      mutate: request => {
-        sent.push(request.mutation.replace('Cms', ''))
-        return served(handlers.FoldkitRemoteMutate(request))
-      },
-      live: () => Stream.empty,
-    }
-    const client = Layer.succeed(RemoteClient, service)
-    let model: Model = initial
-
-    const send = async (message: Message): Promise<void> => {
-      const next = update(model, message)
-      model = next.model
-      for (const command of next.commands ?? []) {
-        // The editor's patch Command draws into a host element this story has none of.
-        if (command.name === 'RichText.patch') continue
-        await send(
-          await Effect.runPromise(
-            (command.effect as Effect.Effect<Message, never, RemoteClient>).pipe(
-              Effect.provide(client),
-            ),
-          ),
-        )
-      }
-    }
-    const look = async (): Promise<void> => {
-      for (let round = 0; round < 2; round++) {
-        for (const active of Object.values(actives)) {
-          const projection = active.projectionOf(model)
-          if (Option.isNone(projection)) continue
-          model = await Effect.runPromise(
-            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
-              Effect.provide(client),
-            ),
-          )
-        }
-        await send(Message.Ticked())
-      }
-    }
+    const harness = chairHarness({
+      backend,
+      principal,
+      initial,
+      update,
+      ticked: Message.Ticked(),
+      actives,
+      prefetch: (model, projection) =>
+        Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }),
+      // The editor's patch Command draws into a host element this story has none of.
+      skipCommand: name => name === 'RichText.patch',
+      runCommand: (effect, client) =>
+        Effect.runPromise(
+          (effect as Effect.Effect<Message, never, RemoteClient>).pipe(Effect.provide(client)),
+        ),
+    })
+    const { send, look, sent } = harness
     const editor = (message: typeof ArticleForm.Message.Type | typeof Editor.Message.Type) =>
       send(Message.GotEditorMessage({ message }))
     const body = ArticleForm.control('body')
     /** What the body's editor holds: the key's draft, which is the editor's own Model. */
-    const draft = () => body.field(model.editor.form).value
+    const draft = () => body.field(harness.model().editor.form).value
 
     return {
       send,
@@ -272,51 +237,39 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
           ? `${selection.anchor.offset} in ${selection.anchor.node}`
           : 'none'
       },
-      sent: () => sent.splice(0).join(', ') || 'nothing',
-      status: () => ArticleEditor.status(model),
+      sent,
+      status: () => ArticleEditor.status(harness.model()),
       state: () =>
-        Option.match(ArticleEditor.state(model), {
+        Option.match(ArticleEditor.state(harness.model()), {
           onNone: () => '?',
           onSome: state => Display.show(Cms.Display.State.of({}), state),
         }),
-      resumed: () => Option.getOrElse(ArticleEditor.resumed(model), () => 'not opened'),
+      resumed: () => Option.getOrElse(ArticleEditor.resumed(harness.model()), () => 'not opened'),
       /** The article as this chair's own preview reads it. */
       preview: async (): Promise<string> => {
-        const id = ArticleEditor.pageId(model)
+        const id = ArticleEditor.pageId(harness.model())
         if (Option.isNone(id)) return 'no page'
         const projection = Data.get(ArticleView, ArticleId.make(id.value))
-        model = await Effect.runPromise(
-          Data.prefetch(model, projection).pipe(Effect.provide(client)),
+        harness.setModel(
+          await Effect.runPromise(
+            Data.prefetch(harness.model(), projection).pipe(Effect.provide(harness.client)),
+          ),
         )
-        const read = projection.read(model)
+        const read = projection.read(harness.model())
         return read._tag === 'Ready' || read._tag === 'Refreshing'
           ? html(read.value.body)
           : read._tag
       },
       /** The site's page for an address, as a visitor's browser gets it. */
-      visit: async (slug: string): Promise<string> => {
-        const found = await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteQuery({
-              query: Cms.bySlug(Articles).name,
-              input: { slug },
-              window: { first: 1 },
-            }),
-          ) as Effect.Effect<{ readonly edges: ReadonlyArray<{ readonly id: string }> }, unknown>,
-        )
-        const id = found.edges[0]?.id
-        if (id === undefined) return '404'
-        const read = (await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteRead({
-              version: REMOTE_PROTOCOL_VERSION,
-              requests: [{ entity: 'Article', id, fields: ['body'] }],
-            } as never),
-          ),
-        )) as { readonly entities: ReadonlyArray<{ readonly values: Record<string, unknown> }> }
-        const values = read.entities[0]?.values
-        return values === undefined ? '404' : html(values['body'])
-      },
+      visit: (slug: string) =>
+        visitBySlug({
+          chair: harness,
+          query: Cms.bySlug(Articles),
+          entity: 'Article',
+          fields: ['body'],
+          render: values => html(values['body']),
+          slug,
+        }),
     }
   }
 
@@ -383,10 +336,11 @@ export const runArticleDemo = async (): Promise<ReadonlyArray<string>> => {
   say('— promised for the morning —')
   await edda.editor(Editor.Message.ScheduleAsked({ at: '2026-03-02T08:00:00.000Z' }))
   say(`editor: ${edda.status()}; state ${edda.state()}`)
-  now = new Date('2026-03-02T08:00:30.000Z')
+  const morning = new Date('2026-03-02T08:00:30.000Z')
+  setNow(morning)
   const due = await Effect.runPromise(
     backend.cms
-      .due(now, { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
+      .due(morning, { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
       .pipe(Effect.provide(backend.database)),
   )
   say(`the host asks what is due: ${JSON.stringify(due)}`)

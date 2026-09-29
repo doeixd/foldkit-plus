@@ -4,12 +4,10 @@
  * who is nobody. One server, in process; each chair has its own Model. The clock
  * is the script's, so the schedule comes due when the story says.
  */
-import { Effect, Layer, Option, Stream } from 'effect'
+import { Effect, Option } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
-import { REMOTE_PROTOCOL_VERSION, Remote, RemotePolicy } from 'foldkit-remote'
-import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemotePolicy } from 'foldkit-remote'
 import {
   Data,
   Editor,
@@ -20,57 +18,31 @@ import {
   initial,
   postPage,
   update,
-  type Model,
 } from '../apps/app.js'
 import { PostForm, Posts } from '../content/domain.js'
-import { openServer, type Principal } from '../server/server.js'
-import { memorySqlite } from '../server/sqlite-node.js'
+import type { Principal } from '../server/server.js'
+import { chairHarness, openBackend, visitBySlug } from './harness.js'
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []
   const say = (line: string) => lines.push(line)
 
-  let now = new Date('2026-03-01T09:00:00.000Z')
-  const backend = openServer(() => now, memorySqlite())
+  const { backend, setNow } = openBackend()
 
   /** One chair: a principal, a Remote client that asks as them, and a Model of their own. */
   const chair = (principal: Principal) => {
-    const handlers = RemoteServer.handlers(backend.server, principal)
-    const sent: string[] = []
-    // The server in process, as the client's transport, noting each mutation it is sent.
-    const client = Remote.clientLayer({
-      ...handlers,
-      FoldkitRemoteMutate: request => {
-        sent.push(request.mutation.replace('Cms', ''))
-        return handlers.FoldkitRemoteMutate(request)
-      },
-    }).pipe(Layer.provide(backend.database))
-    let model: Model = initial
-
-    /** What the runtime does: update, run the Commands, feed their Messages back. */
-    const send = async (message: Message): Promise<void> => {
-      const next = update(model, message)
-      model = next.model
-      for (const command of next.commands ?? []) {
-        const settled = await Effect.runPromise(command.effect.pipe(Effect.provide(client)))
-        await send(settled)
-      }
-    }
-    /** What Remote's read Subscriptions do for what is on screen. */
-    const look = async (): Promise<void> => {
-      for (let round = 0; round < 2; round++) {
-        for (const active of Object.values(actives)) {
-          const projection = active.projectionOf(model)
-          if (Option.isNone(projection)) continue
-          model = await Effect.runPromise(
-            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
-              Effect.provide(client),
-            ),
-          )
-        }
-        await send(Message.Ticked())
-      }
-    }
+    const harness = chairHarness({
+      backend,
+      principal,
+      initial,
+      update,
+      ticked: Message.Ticked(),
+      actives,
+      prefetch: (model, projection) =>
+        Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }),
+      runCommand: (effect, client) => Effect.runPromise(effect.pipe(Effect.provide(client))),
+    })
+    const { send, look, sent } = harness
     const editor = (message: typeof PostForm.Message.Type | typeof Editor.Message.Type) =>
       send(Message.GotEditorMessage({ message }))
 
@@ -81,23 +53,24 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       type: (key: 'title' | 'slug' | 'body', value: string) =>
         editor(PostForm.Message.Changed({ key, value })),
       /** What was sent since this was last asked. */
-      sent: () => sent.splice(0).join(', ') || 'nothing',
-      status: () => PostEditor.status(model),
+      sent,
+      status: () => PostEditor.status(harness.model()),
       state: () => {
-        return Option.match(PostEditor.state(model), {
+        return Option.match(PostEditor.state(harness.model()), {
           onNone: () => '?',
           onSome: state => Display.show(Cms.Display.State.of({}), state),
         })
       },
       why: () =>
-        Option.match(PostEditor.error(model), {
+        Option.match(PostEditor.error(harness.model()), {
           onNone: () => 'no error',
           onSome: ({ message }) => message.replace(/^.*?: /, ''),
         }),
-      field: (key: 'title' | 'slug' | 'body') => PostForm.field(model.editor.form, key).value,
-      resumed: () => Option.getOrElse(PostEditor.resumed(model), () => 'not opened'),
+      field: (key: 'title' | 'slug' | 'body') =>
+        PostForm.field(harness.model().editor.form, key).value,
+      resumed: () => Option.getOrElse(PostEditor.resumed(harness.model()), () => 'not opened'),
       worklist: () => {
-        const page = Worklist.page(model)
+        const page = Worklist.page(harness.model())
         return page._tag === 'Ready' || page._tag === 'Refreshing'
           ? page.value.items
               .map(row => `${row.label} (${Display.show(Cms.Display.State.of({}), row.state)})`)
@@ -107,38 +80,28 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       /** A post as this chair's own pages read it. */
       page: async (id: string): Promise<string> => {
         const projection = postPage(id)
-        const held = projection.read(model)
+        const held = projection.read(harness.model())
         if (held._tag !== 'Ready' && held._tag !== 'Refreshing')
-          model = await Effect.runPromise(
-            Data.prefetch(model, projection).pipe(Effect.provide(client)),
+          harness.setModel(
+            await Effect.runPromise(
+              Data.prefetch(harness.model(), projection).pipe(Effect.provide(harness.client)),
+            ),
           )
-        const read = projection.read(model)
+        const read = projection.read(harness.model())
         return read._tag === 'Ready' || read._tag === 'Refreshing'
           ? `"${read.value.title}" at /blog/${read.value.slug}: ${read.value.body}`
           : read._tag
       },
       /** The site's page for an address: what `bySlug` finds, read as a page. */
-      visit: async (slug: string): Promise<string> => {
-        const asked = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
-          Effect.runPromise(effect.pipe(Effect.provide(backend.database)))
-        const found = await asked(
-          handlers.FoldkitRemoteQuery({
-            query: Cms.bySlug(Posts).name,
-            input: { slug },
-            window: { first: 1 },
-          }),
-        )
-        const id = found.edges[0]?.id
-        if (id === undefined) return '404'
-        const read = await asked(
-          handlers.FoldkitRemoteRead({
-            version: REMOTE_PROTOCOL_VERSION,
-            requests: [{ entity: 'Post', id, fields: ['title', 'body'] }],
-          }),
-        )
-        const values = read.entities[0]?.values
-        return values === undefined ? '404' : `"${values['title']}": ${values['body']}`
-      },
+      visit: (slug: string) =>
+        visitBySlug({
+          chair: harness,
+          query: Cms.bySlug(Posts),
+          entity: 'Post',
+          fields: ['title', 'body'],
+          render: values => `"${values['title']}": ${values['body']}`,
+          slug,
+        }),
     }
   }
 
@@ -191,8 +154,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(
     `the host asks what is due that evening: ${JSON.stringify(await due('2026-03-01T20:00:00.000Z'))}`,
   )
-  now = new Date('2026-03-02T08:00:30.000Z')
-  say(`and the next morning: ${JSON.stringify(await due(now.toISOString()))}`)
+  const morning = new Date('2026-03-02T08:00:30.000Z')
+  setNow(morning)
+  say(`and the next morning: ${JSON.stringify(await due(morning.toISOString()))}`)
   say(`a visitor reads: ${await visitor.visit('hello-world')}`)
 
   say('— two people on one entry —')

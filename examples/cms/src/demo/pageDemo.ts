@@ -6,7 +6,7 @@
  * entry. The Builder adds no CMS state: every save, revision and publish is the
  * CMS's, with the page as one form key's value.
  */
-import { Clock, Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Clock, Effect, Option, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage, type Model as BuilderModel } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
@@ -14,9 +14,7 @@ import { Composition, type Document } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Display } from 'foldkit-crud'
 import { SlotView } from 'foldkit-mixins'
-import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemotePolicy } from 'foldkit-remote'
-import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemotePolicy } from 'foldkit-remote'
 import { inertHtml, type Html } from 'foldkit/html'
 import { fromString } from 'foldkit/url'
 import {
@@ -31,12 +29,11 @@ import {
   selectedOf,
   builderInputs,
   update,
-  type Model,
 } from '../apps/pageApp.js'
 import { PageAgent } from '../content/pageAgent.js'
 import { PageForm, Pages } from '../content/pageDomain.js'
-import { openServer, type Principal } from '../server/server.js'
-import { memorySqlite } from '../server/sqlite-node.js'
+import type { Principal } from '../server/server.js'
+import { chairHarness, openBackend, visitBySlug } from './harness.js'
 import { PageBuilder, PageEditing, Site, SiteRenderer } from '../content/site.js'
 
 /**
@@ -78,75 +75,48 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []
   const say = (line: string) => lines.push(line)
 
-  let now = new Date('2026-03-01T09:00:00.000Z')
-  const backend = openServer(() => now, memorySqlite())
+  const { backend, setNow } = openBackend()
 
   const chair = (principal: Principal) => {
-    const handlers = RemoteServer.handlers(backend.server, principal)
-    const served = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
-      effect.pipe(Effect.provide(backend.database))
-    const sent: string[] = []
-    const service: (typeof RemoteClient)['Service'] = {
-      read: batch => served(handlers.FoldkitRemoteRead(batch)),
-      query: request => served(handlers.FoldkitRemoteQuery(request)),
-      mutate: request => {
-        sent.push(request.mutation.replace('Cms', ''))
-        return served(handlers.FoldkitRemoteMutate(request))
-      },
-      live: () => Stream.empty,
-    }
-    const client = Layer.succeed(RemoteClient, service)
-    let model: Model = initial
-
-    /** A Command as the runtime runs it: with a Remote client that asks as this chair. */
-    // A clock whose sleeps end at once: the editor's rest before a save is a pause in
-    // someone's typing, and this story has no one typing to wait for.
-    const run = (effect: Effect.Effect<Message, never, RemoteClient>): Promise<Message> =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const clock = yield* Clock.Clock
-          return yield* effect.pipe(
-            Effect.provide(client),
-            // Its other methods are on its prototype, which a spread would drop.
-            Effect.provideService(
-              Clock.Clock,
-              Object.assign(Object.create(clock) as Clock.Clock, { sleep: () => Effect.void }),
-            ),
-          )
-        }),
-      )
-    const send = async (message: Message): Promise<void> => {
-      const next = update(model, message)
-      model = next.model
-      for (const command of next.commands ?? []) {
-        // The live region's timers read and clear what the Builder announces.
-        // A runtime runs them beside everything else; this story follows each
-        // Command in turn and has no clock to wait on, so it leaves them out.
-        if (command.name.startsWith('LiveAnnounce.')) continue
-        await send(await run(command.effect))
-      }
-    }
-    const look = async (): Promise<void> => {
-      for (let round = 0; round < 2; round++) {
-        for (const active of Object.values(actives)) {
-          const projection = active.projectionOf(model)
-          if (Option.isNone(projection)) continue
-          model = await Effect.runPromise(
-            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
+    const harness = chairHarness({
+      backend,
+      principal,
+      initial,
+      update,
+      ticked: Message.Ticked(),
+      actives,
+      prefetch: (model, projection) =>
+        Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }),
+      // The live region's timers read and clear what the Builder announces.
+      // A runtime runs them beside everything else; this story follows each
+      // Command in turn and has no clock to wait on, so it leaves them out.
+      skipCommand: name => name.startsWith('LiveAnnounce.'),
+      /** A Command as the runtime runs it: with a Remote client that asks as this chair. */
+      // A clock whose sleeps end at once: the editor's rest before a save is a pause in
+      // someone's typing, and this story has no one typing to wait for.
+      runCommand: (effect, client) =>
+        Effect.runPromise(
+          Effect.gen(function* () {
+            const clock = yield* Clock.Clock
+            return yield* effect.pipe(
               Effect.provide(client),
-            ),
-          )
-        }
-        await send(Message.Ticked())
-      }
-    }
+              // Its other methods are on its prototype, which a spread would drop.
+              Effect.provideService(
+                Clock.Clock,
+                Object.assign(Object.create(clock) as Clock.Clock, { sleep: () => Effect.void }),
+              ),
+            )
+          }),
+        ),
+    })
+    const { send, look, sent } = harness
     // An agent working beside this chair: it sees this chair's Model, and what it
     // dispatches goes through this chair's update like anything else.
     const pending: Message[] = []
     const agent = Agent.bind({
       definition: PageAgent,
       host: {
-        model: () => model,
+        model: () => harness.model(),
         dispatch: (message: Message) => {
           pending.push(message)
         },
@@ -157,7 +127,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       send(Message.GotEditorMessage({ message }))
     const document = PageForm.control('document')
     /** The Builder's Model, as the page form holds it. */
-    const builder = (): BuilderModel => document.field(model.editor.form).value
+    const builder = (): BuilderModel => document.field(harness.model().editor.form).value
     /** One of the Builder's own Messages, carried by the form and the editor. */
     const build = (message: BuilderMessage) => editor(document.send(message))
     /** Sets a prop of the selected Block, as typing in the inspector does. */
@@ -177,7 +147,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       })
       const drawn = elements(
         PageEditing(
-          { ...builder(), ...builderInputs(model) },
+          { ...builder(), ...builderInputs(harness.model()) },
           SlotView.inertBuilder<BuilderMessage>(),
         ),
       )
@@ -233,12 +203,12 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       /** The Block a link named that has not been selected yet. */
       waiting: () =>
         Option.getOrElse(
-          Option.flatMap(model.linked, ({ block }) => block),
+          Option.flatMap(harness.model().linked, ({ block }) => block),
           () => 'nothing waits',
         ),
       /** The Block the Builder has selected, by its kind. */
       selected: () =>
-        Option.match(selectedOf(model), {
+        Option.match(selectedOf(harness.model()), {
           onNone: () => 'nothing',
           onSome: id => builder().page.present.nodes[id]?.block ?? id,
         }),
@@ -261,58 +231,49 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       idOf: (block: string) =>
         Object.entries(builder().page.present.nodes).find(([, node]) => node.block === block)?.[0],
       /** The page being edited, drawn with what its Query Blocks have read so far. */
-      drawn: () => read(editing(model), actives.blocks.data(model)),
+      drawn: () => read(editing(harness.model()), actives.blocks.data(harness.model())),
       outline: () => outline(builder().page.present),
-      sent: () => sent.splice(0).join(', ') || 'nothing',
-      status: () => PageEditor.status(model),
+      sent,
+      status: () => PageEditor.status(harness.model()),
       state: () => {
-        return Option.match(PageEditor.state(model), {
+        return Option.match(PageEditor.state(harness.model()), {
           onNone: () => '?',
           onSome: state => Display.show(Cms.Display.State.of({}), state),
         })
       },
-      resumed: () => Option.getOrElse(PageEditor.resumed(model), () => 'not opened'),
+      resumed: () => Option.getOrElse(PageEditor.resumed(harness.model()), () => 'not opened'),
       /** The page as this chair's own site reads it: what a preview is drawn through. */
       page: async (): Promise<string> => {
-        const id = PageEditor.pageId(model)
+        const id = PageEditor.pageId(harness.model())
         if (Option.isNone(id)) return 'no page'
         const projection = pageView(id.value)
-        const held = projection.read(model)
+        const held = projection.read(harness.model())
         if (held._tag !== 'Ready' && held._tag !== 'Refreshing')
-          model = await Effect.runPromise(
-            Data.prefetch(model, projection).pipe(Effect.provide(client)),
+          harness.setModel(
+            await Effect.runPromise(
+              Data.prefetch(harness.model(), projection).pipe(Effect.provide(harness.client)),
+            ),
           )
-        const found = projection.read(model)
+        const found = projection.read(harness.model())
         return found._tag === 'Ready' || found._tag === 'Refreshing'
           ? read(found.value.document)
           : found._tag
       },
       /** The public site at an address: what a visitor is sent, drawn. */
-      visit: async (slug: string): Promise<string> => {
-        const found = await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteQuery({
-              query: Cms.bySlug(Pages).name,
-              input: { slug },
-              window: { first: 1 },
-            }),
-          ),
-        )
-        const id = found.edges[0]?.id
-        if (id === undefined) return '404'
-        const answer = await Effect.runPromise(
-          served(
-            handlers.FoldkitRemoteRead({
-              version: REMOTE_PROTOCOL_VERSION,
-              requests: [{ entity: 'Page', id, fields: ['document'] }],
-            }),
-          ),
-        )
-        const stored = answer.entities[0]?.values['document']
-        return stored === undefined
-          ? '404'
-          : read(Schema.decodeUnknownSync(Composition.Document)(stored))
-      },
+      visit: (slug: string) =>
+        visitBySlug({
+          chair: harness,
+          query: Cms.bySlug(Pages),
+          entity: 'Page',
+          fields: ['document'],
+          render: values => {
+            const stored = values['document']
+            return stored === undefined
+              ? '404'
+              : read(Schema.decodeUnknownSync(Composition.Document)(stored))
+          },
+          slug,
+        }),
     }
   }
 
@@ -379,10 +340,11 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   await edda.editor(Editor.Message.ScheduleAsked({ at: '2026-03-02T08:00:00.000Z' }))
   say(`editor: ${edda.status()}; state ${edda.state()}`)
   say(`tonight a visitor reads: ${await visitor.visit('home')}`)
-  now = new Date('2026-03-02T08:00:30.000Z')
+  const morning = new Date('2026-03-02T08:00:30.000Z')
+  setNow(morning)
   const due = await Effect.runPromise(
     backend.cms
-      .due(now, { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
+      .due(morning, { as: name => (name === 'edda' ? { name, role: 'editor' } : null) })
       .pipe(Effect.provide(backend.database)),
   )
   say(`the host asks what is due: ${JSON.stringify(due)}`)
