@@ -251,6 +251,20 @@ EntryTable({ page, renderers: Cms.displayRenderers() }, h)
 and its times are `Moment`s, so a `Crud.list` over `Cms.Entries` needs only the
 renderers.
 
+Entry-level views live beside the kinds: `Cms.stateBadge` for the state,
+`Cms.revisionsOf` for the open entry's published revisions, `Cms.historyCard`
+for the timeline, `Cms.moreCard` for the rest of what can happen to it. They
+draw on your own slot builders, so you keep your slots and styles; who
+published and the archive button's icon are yours to name:
+
+```ts
+Cms.historyCard(slots, h, Cms.revisionsOf(model, history), {
+  state,
+  restore: revision => Message.RestoreAsked({ revision }),
+  authorName: name => directoryName(name),
+})
+```
+
 ## Entities and operations
 
 `Cms.Entities` is `Entry`, `Draft` and `Revision`, related: an entry has one

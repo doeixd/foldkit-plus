@@ -2,7 +2,9 @@
  * The kinds a CMS adds: two controls and two displays, made with `Input.kind`
  * and `Display.kind` exactly as an application makes its own, and a renderer for
  * each to spread beside `foldkit-mixins-form`'s and `foldkit-mixins-crud`'s.
- * There is no CMS view package: a kind and its renderer are all a view needs.
+ * Entry-level views (its state badge, published history, remaining
+ * transitions) live in `./views.js`: they draw on the application's own slot
+ * builders, so the application keeps its slots and styles.
  */
 import { Display, type DisplayWords } from 'foldkit-crud'
 import { Input, fillWords, type Control, type ControlChange, type Draft } from 'foldkit-form'

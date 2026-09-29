@@ -124,6 +124,10 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
 - Draw them: `FormView.define(form, { renderers: Cms.controlRenderers() })`,
   `ListView(...)({ page, renderers: Cms.displayRenderers() }, h)`. The state badge
   carries `data-cms-state` and `data-cms-schedule`.
+- Entry views draw on your own slot builders: `Cms.stateBadge(badge, h, state)`,
+  `Cms.revisionsOf(model, history)`, `Cms.historyCard(slots, h, rows, { state,
+  restore, authorName })`, `Cms.moreCard(slots, h, { state, may, asks,
+  archiveIcon })`. Who published and the archive icon are yours to name.
 - Narrow with `Cms.Input.Slug.is(control)`, as with `Input.Text.is`.
 
 ## The server

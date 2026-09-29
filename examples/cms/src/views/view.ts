@@ -33,10 +33,8 @@ import {
   chair,
   editorBar,
   failed,
-  historyCard,
   intro,
-  moreCard,
-  revisionsOf,
+  publisherOf,
   shell,
   stateIs,
   statusLine,
@@ -319,11 +317,12 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ? [action('unschedule', 'Cancel the schedule', ask(Editor.Message.UnscheduleAsked()))]
             : []),
         ]),
-        historyCard(slots, h, revisionsOf(model, history), {
+        Cms.historyCard(slots, h, Cms.revisionsOf(model, history), {
           state,
           restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
+          authorName: publisherOf,
         }),
-        ...moreCard(slots, h, {
+        ...Cms.moreCard(slots, h, {
           state,
           may,
           asks: {
@@ -332,6 +331,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             archive: ask(Editor.Message.ArchiveAsked()),
             unarchive: ask(Editor.Message.UnarchiveAsked()),
           },
+          archiveIcon: icon(h, 'archive', 14),
         }),
       ]),
     ]),

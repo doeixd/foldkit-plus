@@ -6,7 +6,7 @@
  * row holds what is published; publishing is the application's own mutation,
  * run with the draft's value. This package is the declarations and the pure
  * rules. It reads no database and owns no state; `foldkit-cms-drizzle` is the
- * server, and the screens are `foldkit-crud`'s.
+ * server, and lists and forms draw through `foldkit-crud`'s views.
  */
 import { Schema } from 'effect'
 import {
@@ -24,6 +24,7 @@ import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
 import { Transitions, offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { editorView, makeEditor } from './editor.js'
+import { historyCard, moreCard, revisionsOf, stateBadge } from './views.js'
 import { addressFree, slugTaken } from './slug.js'
 import { Display } from 'foldkit-crud'
 import { Kinds } from './kinds.js'
@@ -415,6 +416,17 @@ export const Cms = {
   /** A form's Submodel view as its editor's, for `Bundle.withView`. */
   editorView,
 
+  /**
+   * The entry-level views every studio draws, on its own slot builders: its
+   * state badge, its published revisions, what was published, and the rest of
+   * what can happen to it. Words for states come from `Cms.Display`, so a
+   * studio and its lists say them one way.
+   */
+  stateBadge,
+  revisionsOf,
+  historyCard,
+  moreCard,
+
   /** The state of an entry, from what is known of it and a clock. */
   state: (facts: Facts, now: Date): State => state(facts, now),
   /** Every transition an author may ask, in order: what `allow` is asked about. */
@@ -439,3 +451,4 @@ export type {
   Resumed,
 } from './editor.js'
 export type { ControlContext, DisplayContext, StateWords } from './kinds.js'
+export type { HistoryCardSlots, MoreCardSlots, RevisionRow } from './views.js'

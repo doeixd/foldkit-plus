@@ -3,13 +3,12 @@
  * which offer Restore, and who is named as having published each.
  */
 import { Option, Schema } from 'effect'
-import type { State } from 'foldkit-cms'
+import { Cms, type RevisionRow, type State } from 'foldkit-cms'
 import { SlotView } from 'foldkit-mixins'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it } from 'vitest'
-import { historyCard, type RevisionRow } from '../src/views/shell.js'
 import { AdminSlots } from '../src/styles/adminStyle.js'
 
 const Message = defineMessageUnion({ RestoreAsked: { revision: Schema.Number } })
@@ -24,9 +23,10 @@ const revisions: ReadonlyArray<RevisionRow> = [
 ]
 
 const History = SlotView.define(AdminSlots, (state: State, slots, h: HtmlBuilder<Message>) =>
-  historyCard(slots, h, revisions, {
+  Cms.historyCard(slots, h, revisions, {
     state: Option.some(state),
     restore: revision => Message.RestoreAsked({ revision }),
+    authorName: name => (name === 'edda' ? 'Edda' : name),
   }),
 )
 

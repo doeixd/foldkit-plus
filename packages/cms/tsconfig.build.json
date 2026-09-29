@@ -22,6 +22,9 @@
       "path": "../metadata/tsconfig.build.json"
     },
     {
+      "path": "../mixins/tsconfig.build.json"
+    },
+    {
       "path": "../remote/tsconfig.build.json"
     },
     {

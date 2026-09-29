@@ -25,6 +25,13 @@ version changed; `pnpm` skips versions already in the registry.
   these for their own states; the CMS demo adopts them for its lists, site
   reads, and editor branches.
 
+- **`foldkit-cms`, entry views:** the studio cards every CMS draws, on its
+  own slot builders — `Cms.stateBadge`, `Cms.revisionsOf`, `Cms.historyCard`,
+  `Cms.moreCard`, with `HistoryCardSlots`/`MoreCardSlots`/`RevisionRow`
+  types. Who published and the archive icon stay the application's; words
+  for states come from `Cms.Display`. The CMS demo adopts them and keeps
+  only its slots, styles, and chair names.
+
 - **`foldkit-bundle`, derived args:** a placement's `args` is a static value
   or a factory from the parent seed, `args: parent => ({ searchText:
   searchFromRoute(parent.route) })`. The seed is what

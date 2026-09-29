@@ -8,6 +8,7 @@
  */
 import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
+import { Cms } from 'foldkit-cms'
 import { SlotView, Style } from 'foldkit-mixins'
 import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import {
@@ -21,18 +22,7 @@ import {
   type Model,
 } from '../apps/pageApp.js'
 import { icon } from './icons.js'
-import {
-  badge,
-  chair,
-  editorBar,
-  failed,
-  historyCard,
-  moreCard,
-  revisionsOf,
-  shell,
-  stateIs,
-  statusLine,
-} from './shell.js'
+import { chair, editorBar, failed, publisherOf, shell, stateIs, statusLine } from './shell.js'
 import { pageHref } from '../content/site.js'
 import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
 
@@ -78,7 +68,7 @@ const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => 
                   [
                     icon(h, 'pages'),
                     h.span([], [page.label === '' ? 'Untitled page' : page.label]),
-                    badge(slots, h, Option.some(page.state)),
+                    Cms.stateBadge(slots.badge, h, Option.some(page.state)),
                   ],
                 ),
               ],
@@ -146,11 +136,12 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
               h.span(slots.manageHint.attrs(), ['Revisions, unpublish and archive']),
             ]),
             h.div(slots.manageCards.attrs(), [
-              historyCard(slots, h, revisionsOf(model, revisions), {
+              Cms.historyCard(slots, h, Cms.revisionsOf(model, revisions), {
                 state,
                 restore: revision => ask(Editor.Message.RestoreAsked({ revision })),
+                authorName: publisherOf,
               }),
-              ...moreCard(slots, h, {
+              ...Cms.moreCard(slots, h, {
                 state,
                 may: transition => PageEditor.may(model, transition),
                 asks: {
@@ -159,6 +150,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                   archive: ask(Editor.Message.ArchiveAsked()),
                   unarchive: ask(Editor.Message.UnarchiveAsked()),
                 },
+                archiveIcon: icon(h, 'archive', 14),
               }),
             ]),
           ]),

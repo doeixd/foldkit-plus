@@ -3,10 +3,13 @@ import { Schema, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { Mutation, Remote, type RemoteClient } from 'foldkit-remote'
+import { Mutation, Remote, type RemoteClient, type RemoteData } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Capability, Slot, Slots, type SlotView } from 'foldkit-mixins'
 import { expectTypeOf } from 'vitest'
-import { Cms, type EditorStatus, type State } from '../src/index.js'
+import { Cms, type EditorStatus, type RevisionRow, type State } from '../src/index.js'
 
 const PostId = Schema.String.pipe(Schema.brand('PostId'))
 const Blog = {
@@ -128,3 +131,64 @@ export const ScheduledForm = Form.make(
     },
   },
 )
+
+// ---- Entry views ----
+
+const EntryMessage = defineMessageUnion({
+  RestoreAsked: { revision: Schema.Number },
+  DiscardAsked: {},
+  UnpublishAsked: {},
+  ArchiveAsked: {},
+  UnarchiveAsked: {},
+})
+type EntryMessage = typeof EntryMessage.Type
+type EntryModel = typeof Model.Type
+
+const EntrySlots = Slots.define({
+  card: Slot.make({ capability: Capability.Container }),
+  cardTitle: Slot.make({ capability: Capability.Container }),
+  badge: Slot.make({ capability: Capability.Container }),
+  muted: Slot.make({ capability: Capability.Container }),
+  timeline: Slot.make({ capability: Capability.Container }),
+  revision: Slot.make({ capability: Capability.Container }),
+  revisionMark: Slot.make({ capability: Capability.Container }),
+  revisionBody: Slot.make({ capability: Capability.Container }),
+  revisionTitle: Slot.make({ capability: Capability.Container }),
+  revisionLive: Slot.make({ capability: Capability.Container }),
+  revisionMeta: Slot.make({ capability: Capability.Container }),
+  revisionRestore: Slot.make({ capability: Capability.Interactive }),
+  toolbar: Slot.make({ capability: Capability.Container }),
+  button: Slot.make({ capability: Capability.Interactive }),
+  danger: Slot.make({ capability: Capability.Interactive }),
+})
+declare const entrySlots: SlotView.SlotBuilders<typeof EntrySlots, EntryMessage>
+declare const entryH: HtmlBuilder<EntryMessage>
+declare const entryState: Option.Option<State>
+declare const entryHistory: (model: EntryModel) => Option.Option<{
+  readonly read: (
+    model: EntryModel,
+  ) => RemoteData<{ readonly revisions: ReadonlyArray<RevisionRow> }>
+}>
+
+export const badgeHtml: Html = Cms.stateBadge(entrySlots.badge, entryH, entryState)
+export const historyHtml: Html = Cms.historyCard(
+  entrySlots,
+  entryH,
+  Cms.revisionsOf(model, entryHistory),
+  {
+    state: entryState,
+    restore: revision => EntryMessage.RestoreAsked({ revision }),
+    authorName: name => name,
+  },
+)
+export const moreHtml: ReadonlyArray<Html> = Cms.moreCard(entrySlots, entryH, {
+  state: entryState,
+  may: () => true,
+  asks: {
+    discard: EntryMessage.DiscardAsked({}),
+    unpublish: EntryMessage.UnpublishAsked({}),
+    archive: EntryMessage.ArchiveAsked({}),
+    unarchive: EntryMessage.UnarchiveAsked({}),
+  },
+  archiveIcon: entryH.span([], ['*']),
+})
