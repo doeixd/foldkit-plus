@@ -197,6 +197,7 @@ export const ListStyle = Style.forSlots(ListSlots)(
       padding: '0.95rem 0.5rem',
       verticalAlign: 'middle',
     }),
+    // Bespoke: unboxed text with a stretched overlay, so the whole row opens the entry.
     open: Style.compose(
       Style.self({
         background: 'none',

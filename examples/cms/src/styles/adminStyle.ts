@@ -10,20 +10,45 @@ import { Layout } from 'foldkit-mixins/layout'
 import {
   app,
   button,
-  chevron,
-  chevronOpen,
   control,
   field,
+  hiddenDeclarations,
   L,
   navLink,
   part,
   phone,
-  readOnly,
   stateBadge,
   t,
 } from './style.js'
 
 // --- the authoring shell --------------------------------------------------------
+
+/**
+ * A disclosure's summary: a drawn chevron in place of the browser's marker,
+ * pointing along the line while closed and turned down while open (the turn
+ * is `chevronOpen`, on the `details`).
+ *
+ * Not the Disclosure contract: that is a JS-driven button[aria-expanded] plus
+ * panel, while this is the browser's own details/summary with CSS keyed on
+ * details[open]. Adopting it would replace the element model, not restyle it.
+ */
+const chevron = Style.compose(
+  Style.nest('&::-webkit-details-marker', { display: 'none' }),
+  Style.nest('&::before', {
+    borderBlockEnd: '2px solid currentColor',
+    borderInlineEnd: '2px solid currentColor',
+    boxSizing: 'border-box',
+    content: '""',
+    flexShrink: '0',
+    height: '0.5em',
+    marginInline: '0.1em 0.2em',
+    transform: 'rotate(-45deg)',
+    transition: 'transform 150ms ease',
+    width: '0.5em',
+  }),
+  Style.self({ alignItems: 'center', cursor: 'pointer', display: 'flex', listStyle: 'none' }),
+)
+const chevronOpen = Style.nest('&[open] > summary::before', { transform: 'rotate(45deg)' })
 
 export const AdminSlots = Slots.define({
   root: part,
@@ -220,7 +245,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.media(phone, { justifyContent: 'center', padding: '0.3rem' }),
     ),
     // Read on a phone, not shown: the avatar stands for the chair.
-    whoName: Style.media(phone, readOnly),
+    whoName: Style.media(phone, hiddenDeclarations),
     whoRole: Style.compose(
       Style.self({
         color: t.text.muted,
@@ -229,7 +254,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         fontWeight: t.weight.normal,
         marginInlineStart: 'auto',
       }),
-      Style.media(phone, readOnly),
+      Style.media(phone, hiddenDeclarations),
     ),
     avatar: Style.compose(
       Style.self({
@@ -474,6 +499,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       textTransform: 'uppercase',
     }),
     ghost: Style.compose(
+      // Color and padding are the ghost/sm recipe's own; only the pressed state below is bespoke.
       button({ variant: 'ghost', size: 'sm' }),
       // A pressed toggle reads selected, as the tabs do.
       Style.nest('&[aria-pressed="true"]', { background: t.surface.muted, color: t.text.overt }),
@@ -538,6 +564,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       fontSize: t.size.xs,
       margin: '0',
     }),
+    // Bespoke: quieter than the recipe's outline — a timeline affordance, not a form action.
     revisionRestore: Style.compose(
       Style.self({
         background: 'transparent',
@@ -591,6 +618,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.nest('> li + li', { borderBlockStart: `1px solid ${t.outline.subtle}` }),
     ),
+    // Bespoke: the recipe centers inline actions, while this fills its list row start-aligned.
     listButton: Style.compose(
       Style.self({
         alignItems: 'center',

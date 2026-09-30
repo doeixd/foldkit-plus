@@ -229,7 +229,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         display: 'inline-flex',
         textDecoration: 'none',
       }),
-      Style.at('@media (pointer: coarse)', Style.nest('a', { minHeight: '2.75rem' })),
+      Touch.targets,
       Style.nest('a:hover', { color: t.text.overt }),
     ),
     status: Style.compose(

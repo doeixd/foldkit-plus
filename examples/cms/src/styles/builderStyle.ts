@@ -407,6 +407,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       }),
       Style.container('builder (max-width: 40rem)', { flexBasis: '100%', order: '1' }),
     ),
+    // Bespoke: a breadcrumb segment with "/" separators, not a standalone action.
     crumb: Style.compose(
       Style.self({
         background: 'transparent',
@@ -422,6 +423,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         whiteSpace: 'nowrap',
       }),
       // A finger is wider than a pointer: a target it can hit.
+      // Not Touch.target: that also sets a min-width, which would stretch short crumbs.
       Style.media('(pointer: coarse)', { minHeight: '2.75rem' }),
       Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
       Style.nest('& + &::before', {

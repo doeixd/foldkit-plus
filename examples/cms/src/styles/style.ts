@@ -10,6 +10,7 @@
  */
 import { Capability, Layers, Slot, Style } from 'foldkit-mixins'
 import { Recipes, Touch } from 'foldkit-mixins-ui'
+import type { StateTag } from 'foldkit-cms'
 import { Theme } from 'foldkit-mixins/theme'
 
 export const theme = Theme.compose(
@@ -34,43 +35,6 @@ export const control = Slot.make({ capability: Capability.Interactive })
 
 /** Where the studio lays itself out for a phone rather than beside a sidebar. */
 export const phone = '(max-width: 52rem)'
-
-/**
- * A disclosure's summary: a drawn chevron in place of the browser's marker,
- * pointing along the line while closed and turned down while open (the turn
- * is `chevronOpen`, on the `details`).
- *
- * Not the Disclosure contract: that is a JS-driven button[aria-expanded] plus
- * panel, while this is the browser's own details/summary with CSS keyed on
- * details[open]. Adopting it would replace the element model, not restyle it.
- */
-export const chevron = Style.compose(
-  Style.nest('&::-webkit-details-marker', { display: 'none' }),
-  Style.nest('&::before', {
-    borderBlockEnd: '2px solid currentColor',
-    borderInlineEnd: '2px solid currentColor',
-    boxSizing: 'border-box',
-    content: '""',
-    flexShrink: '0',
-    height: '0.5em',
-    marginInline: '0.1em 0.2em',
-    transform: 'rotate(-45deg)',
-    transition: 'transform 150ms ease',
-    width: '0.5em',
-  }),
-  Style.self({ alignItems: 'center', cursor: 'pointer', display: 'flex', listStyle: 'none' }),
-)
-export const chevronOpen = Style.nest('&[open] > summary::before', { transform: 'rotate(45deg)' })
-
-/** Read by assistive technology, not shown. */
-export const readOnly = {
-  clipPath: 'inset(50%)',
-  height: '1px',
-  overflow: 'hidden',
-  position: 'absolute',
-  whiteSpace: 'nowrap',
-  width: '1px',
-} as const
 
 /** A button as the mixins-ui recipe draws it, for a slot of our own. */
 export const button = (selection: Parameters<typeof Recipes.Button>[0]) =>
@@ -103,15 +67,22 @@ export const field = Style.compose(
   Style.nest('&[aria-invalid="true"]', { borderColor: t.error.default }),
 )
 
-/** Out of sight and still read: a label a field's placeholder stands in for. */
-export const visuallyHidden = Style.self({
+/**
+ * Out of sight and still read, as plain declarations: `Style.media` takes
+ * declarations, not a `Style`, so the media positions read this while the
+ * compose positions read `visuallyHidden` below. One value, two forms.
+ */
+export const hiddenDeclarations = {
   clipPath: 'inset(50%)',
   height: '1px',
   overflow: 'hidden',
   position: 'absolute',
   whiteSpace: 'nowrap',
   width: '1px',
-})
+} as const
+
+/** Out of sight and still read: a label a field's placeholder stands in for. */
+export const visuallyHidden = Style.self(hiddenDeclarations)
 
 export const navLink = Style.compose(
   Style.self({
@@ -137,7 +108,7 @@ export const navLink = Style.compose(
 )
 
 /** An entry's state as a pill, colored by its tag: which tone each state takes. */
-export const stateTones: Record<string, Recipes.BadgeTone> = {
+export const stateTones: Record<StateTag, Recipes.BadgeTone> = {
   Published: 'success',
   Changed: 'warning',
   New: 'info',

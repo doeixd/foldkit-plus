@@ -220,6 +220,7 @@ const textOverride =
         field: input.field,
         changed: value => changed(input.changed(value)),
         type: input.attrs.type ?? 'text',
+        placeholder: input.attrs.placeholder,
         style: InputStyle,
         draw: (parts, h) =>
           fieldLayout(

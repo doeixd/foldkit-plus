@@ -574,7 +574,12 @@ export interface FieldsOptions<Key extends string, Changed> {
   readonly overrides?: { readonly [K in Key]?: FieldOverride<Key, Changed, Changed> } | undefined
   /** A style around a key's base field view, kept for keys with no override. */
   readonly styles?: { readonly [K in Key]?: NamedStyle<typeof FieldSlots> } | undefined
-  /** What one key's element takes beyond the base field view. */
+  /**
+   * What one key's element takes beyond the base field view. Only the
+   * text, multiline, and number renderers read attrs; bundle-backed kinds
+   * (drawn by `bundleRenderer`) and per-key overrides ignore them. Passing
+   * `field` draws through it directly, skipping both `renderers` and `attrs`.
+   */
   readonly attrs?: { readonly [K in Key]?: FieldAttrs } | undefined
 }
 

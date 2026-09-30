@@ -48,7 +48,9 @@ const nothing = (
         ' ',
         h.a([h.Href(siteLink(model.reader, '/site'))], ['Go to the home page']),
       ])
-    : pending(slots, h, tag)
+    : tag === 'NotFound'
+      ? Empty.view(slots.status, h, missing)
+      : pending(slots, h, tag)
 
 /** What a read says before it has an answer: failed, or busy while it waits. */
 const pending = (slots: Slots, h: HtmlBuilder<Message>, tag: string): Html =>

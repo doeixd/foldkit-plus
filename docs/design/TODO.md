@@ -253,7 +253,8 @@ and server/SSR sequences.
   Touch/Icons, Button variants, Segmented — each adopted in the demo in
   the same change).
 - [x] **4. Form view:** `Button.view`, `Input.field`, `FormView.fields`
-  with per-field overrides (keeping exhaustive-over-`FieldKey`), explicit
+  with per-field overrides (unknown keys are compile errors; new keys of
+  known kinds need nothing new), explicit
   submit-gating predicate. Built 2026-09-29: `Button.view`,
   `FormView.fields` with per-field overrides, per-key element attrs,
   explicit submit gating, and `Input.field`/`Textarea.field` (a field's

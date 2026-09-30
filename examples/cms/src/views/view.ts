@@ -55,8 +55,8 @@ const WorklistTable = ListView.forMessages<Message>()
 // --- the list ---------------------------------------------------------------------
 
 const list = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  // Not Recipes.Tabs: these are role="group" toggle buttons using aria-pressed,
-  // while Tabs is a tablist/tab/tabpanel with aria-selected owned by @foldkit/ui.
+  // Not Recipes.Tabs (a tablist/tab/tabpanel with aria-selected): these are a
+  // segmented control (role="group" toggles with aria-pressed) styled via Recipes.Segmented.
   const tab = (label: string, archive: boolean): Html =>
     h.button(
       slots.tab.attrs([

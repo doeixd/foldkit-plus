@@ -42,7 +42,8 @@ export type SseMessage = typeof SseMessage.Type
 /**
  * What the reader sees: the stream's state, or its error. A page derives
  * this instead of keeping its own connection state machine. `lastError`
- * already words the failure for the reader, never the source's own text.
+ * carries the stored failure text: the runtime error sentence (`event stream
+ * error for …`) or the acquire error's own message.
  */
 export const SseView = defineTaggedUnion({
   Disconnected: {},

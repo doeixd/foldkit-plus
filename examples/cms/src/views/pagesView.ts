@@ -56,7 +56,9 @@ const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => 
         ? Empty.view(slots.muted, h, 'Nothing yet.')
         : read._tag === 'Failed'
           ? Failure.view(slots.muted, h, 'The pages could not be read.')
-          : Loading.view(slots.muted, h, 'Loading…')
+          : read._tag === 'NotFound'
+            ? Empty.view(slots.muted, h, 'Nothing yet.')
+            : Loading.view(slots.muted, h, 'Loading…')
       : h.ul(
           slots.list.attrs(),
           pages.map(page =>

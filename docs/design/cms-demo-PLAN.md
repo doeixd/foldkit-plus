@@ -226,9 +226,9 @@ mechanical. Three wrappers, each with an escape hatch, in this order:
    `field`/`renderers`, so both examples hand-roll an exhaustive
    `fieldDrawers` map that duplicates `inputs:{messageText:
    FormInput.multiline()}`. Per-field style/attrs/drawer overrides remove
-   the synchronization point; keep custom drawers for kinds with no
-   shipped renderer. The exhaustive-over-`FieldKey` property must survive
-   (adding a key forces a render decision).
+  the synchronization point; keep custom drawers for kinds with no
+  shipped renderer. Unknown keys must stay compile errors; new keys of known
+  kinds need nothing new (they render via the base field view).
 4. **Submit gating made explicit.** `canSubmit` (submit waits, button
    enabled) vs `engine.value`/`isValid` (button disabled while Validating;
    the waitlist's deliberate choice with comment at

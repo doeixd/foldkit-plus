@@ -3,7 +3,8 @@
  * Each demo's `chair()` was the same ~80 lines (handlers, served, a
  * sent-recording client, send/look); only the update, the actives, and which
  * Commands the story skips differ. Per-demo beats stay inline: they are the
- * spec the transcript tests pin.
+ * spec the transcript tests pin. Demos prefetch networkOnly and never
+ * subscribe live, so the harness's `live: () => Stream.empty` is unobservable.
  */
 import { Effect, Layer, Option, Stream } from 'effect'
 import { REMOTE_PROTOCOL_VERSION, RemoteClient, type RemoteRpcClient } from 'foldkit-remote'

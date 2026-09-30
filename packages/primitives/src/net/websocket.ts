@@ -30,7 +30,7 @@ export const WebSocketModel = Schema.Struct({
   url: Schema.String,
   status: Schema.Literals(['closed', 'connecting', 'open']),
   lastError: Schema.NullOr(Schema.String),
-  /** Whether the socket opened since connecting began: what an error, and a close, mean. */
+  /** Whether this connection attempt ever reached open; reset on Connecting. */
   opened: Schema.Boolean,
 })
 export type WebSocketModel = typeof WebSocketModel.Type
