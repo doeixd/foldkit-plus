@@ -2,19 +2,45 @@
  * The window's scroll across same-document navigations, in a real browser: a
  * pushed entry starts at the top, and Back returns where the entry was, even
  * when the screen it returns to is short for a moment before its content.
+ * The stream is held as a runtime would hold its persistent entry: forked
+ * once, interrupted when the page goes.
  */
-import { beforeAll, expect, it } from 'vitest'
-import { keepScroll } from '../src/routing/scroll.js'
+import { Effect, Fiber, Stream } from 'effect'
+import { afterAll, beforeAll, expect, it } from 'vitest'
+import { keepScroll } from '../src/dom/scroll.js'
 
 const page = document.createElement('div')
 const tall = (height: number) => {
   page.style.height = `${height}px`
 }
 
-beforeAll(() => {
+let held: Fiber.Fiber<void> | null = null
+
+beforeAll(async () => {
   document.body.appendChild(page)
   tall(4000)
-  keepScroll()
+  held = Effect.runFork(Stream.runDrain(keepScroll()))
+  // The fork attaches a moment later; attaching sets manual restoration, so
+  // that is the live signal. A throwaway navigation then proves events flow.
+  const deadline = Date.now() + 5000
+  while (window.history.scrollRestoration !== 'manual' && Date.now() < deadline)
+    await new Promise(resolve => setTimeout(resolve, 25))
+  if (window.history.scrollRestoration !== 'manual')
+    throw new Error(
+      `scroll keeping did not attach (restoration is ${window.history.scrollRestoration})`,
+    )
+  window.scrollTo({ top: 111, behavior: 'instant' })
+  document.body.click()
+  window.history.pushState({}, '', '?probe')
+  const settled = Date.now() + 5000
+  while (window.scrollY !== 0 && Date.now() < settled)
+    await new Promise(resolve => setTimeout(resolve, 25))
+  if (window.scrollY !== 0) throw new Error('scroll keeping ignores navigations')
+})
+
+afterAll(async () => {
+  if (held !== null) await Effect.runPromise(Fiber.interrupt(held))
+  document.body.innerHTML = ''
 })
 
 const traversed = () =>

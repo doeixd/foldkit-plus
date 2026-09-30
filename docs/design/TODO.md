@@ -168,10 +168,14 @@ not later polish.
   it (`linked`, `previewAsked`). §33.3
 - [ ] **One declaration of history intent** for routed params, as a mirror has
   per key: a step when the node or entry changes, a replace otherwise. §33.4
-- [ ] **Scroll keeping as a primitive,** from `examples/cms/src/routing/scroll.ts`: the
+- [x] **Scroll keeping as a primitive,** from `examples/cms/src/routing/scroll.ts`: the
   offset taken when the reader acts, a restore that holds while the screen
   settles, entries keyed by the Navigation API. `foldkit-primitives`, or
-  upstream in Foldkit's navigation. §33.5
+  upstream in Foldkit's navigation. §33.5 Built 2026-09-29 as
+  `keepScroll(options)` in `foldkit-primitives/dom` — a stream lifted with
+  `Subscription.persistent`, sending no Messages — adopted by the studio's
+  and the site's subscriptions, with the three browser tests moved beside
+  it, each killing its rule.
 - [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
   only once a wait is noticeable, their space held. And a review of every
   package view for facts drawn before they are read (`Initial` is unknown,

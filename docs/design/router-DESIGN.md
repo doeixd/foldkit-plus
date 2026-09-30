@@ -6841,11 +6841,16 @@ the slow way:
    `currentEntry.key` survives a reload and a full navigation. Offsets are
    kept in `sessionStorage`, so Back into another document restores too.
 
-`examples/cms/src/routing/scroll.ts` does this in about 130 lines, with a browser test
+`examples/cms/src/routing/scroll.ts` did this in about 130 lines, with a browser test
 that a mutation of each rule fails. It belongs in `foldkit-primitives` as a
 Subscription or Mount, or upstream in Foldkit's navigation. `Site.transition`
 can add what only topology knows: which container scrolls, such as a nested
 layout's panel rather than the window.
+
+> Built 2026-09-29 as `keepScroll(options)` in `foldkit-primitives/dom`: a
+> stream lifted with `Subscription.persistent`, window only, with the three
+> browser tests moved beside it (each kills its rule). The CMS example
+> adopts it in its studio and site subscriptions.
 
 ## 33.6 Needs: pending UI that does not flash, and never guesses
 

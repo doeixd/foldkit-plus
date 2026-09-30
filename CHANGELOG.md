@@ -101,6 +101,15 @@ version changed; `pnpm` skips versions already in the registry.
   post-init Message. Route changes after startup still arrive as Messages,
   folded through the same placement, and the view keeps its `people` slot.
 
+- **`foldkit-primitives`, scroll keeping:** `keepScroll(options)` in
+  `foldkit-primitives/dom` — the window's scroll across an application's own
+  navigations (the offset taken when the reader acts, a restore that holds
+  while the screen settles, entries keyed by the Navigation API with offsets
+  in `sessionStorage`). A stream sending no Messages, lifted with
+  `Subscription.persistent`; the default storage key is `foldkit:scroll`.
+  The CMS example adopts it in its studio and site subscriptions and deletes
+  its hand-rolled `scroll.ts`.
+
 - **`foldkit-cms-drizzle`, `ImportItem<P>`:** the input of `cms.import`,
   named and exported — what a seed or a migration passes per entry (`type`,
   `values`, `as`, `at?`, `entry?`). The package's own tests and the CMS

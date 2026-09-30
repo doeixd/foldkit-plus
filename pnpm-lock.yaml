@@ -135,6 +135,9 @@ importers:
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
       foldkit-remote:
         specifier: workspace:*
         version: link:../../packages/remote
@@ -1546,6 +1549,9 @@ importers:
       foldkit-metadata:
         specifier: workspace:*
         version: link:../metadata
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../mixins
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote
@@ -1562,9 +1568,6 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-mixins:
-        specifier: workspace:*
-        version: link:../mixins
       foldkit-mixins-crud:
         specifier: workspace:*
         version: link:../mixins-crud

@@ -24,6 +24,7 @@ import * as Subscription from 'foldkit/subscription'
 import { Update } from 'foldkit'
 import * as Submodel from 'foldkit/submodel'
 import { Url, toString as urlToString } from 'foldkit/url'
+import { keepScroll } from 'foldkit-primitives/dom'
 import * as Posts from './app.js'
 import * as Pages from './pageApp.js'
 import { chairOf } from '../server/transport.js'
@@ -222,6 +223,10 @@ const pagesEditor = Subscription.lift(Pages.EditorSlot.subscriptions)({
 })
 
 export const subscriptions = {
+  // The window's scroll across the studio's navigations, kept while it runs.
+  ...Subscription.make<Model, Message>()(() => ({
+    scroll: Subscription.persistent(keepScroll()),
+  })),
   ...prefixed(postsAddress, 'posts'),
   ...prefixed(postsRemote, 'posts.remote'),
   ...prefixed(postsEditor, 'posts.editor'),

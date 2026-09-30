@@ -12,7 +12,6 @@ import * as Site from './apps/siteApp.js'
 import * as Studio from './apps/studioApp.js'
 import { APP_ROOT, siteConfig, takesOver } from './content/siteConfig.js'
 import { edited } from './server/sandboxKey.js'
-import { keepScroll } from './routing/scroll.js'
 import { chairOf, httpSend, remoteClient, type Send } from './server/transport.js'
 
 /**
@@ -30,7 +29,6 @@ const startsAfresh = (): boolean => {
 
 // The foundations' stylesheet is in the HTML (see `vite.config.ts`); a view's own
 // Styles arrive as it draws.
-keepScroll()
 
 /**
  * Where the application is drawn: `#app` in `index.html`, and in a page the

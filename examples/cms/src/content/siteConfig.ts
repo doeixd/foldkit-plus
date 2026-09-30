@@ -3,6 +3,8 @@
  * each page with (`prerender.ts`), so the two cannot draw different pages.
  */
 import type { Layer } from 'effect'
+import * as Subscription from 'foldkit/subscription'
+import { keepScroll } from 'foldkit-primitives/dom'
 import type { RemoteClient } from 'foldkit-remote'
 import type { UrlRequest } from 'foldkit/navigation'
 import type { Url } from 'foldkit/url'
@@ -26,6 +28,10 @@ export const siteConfig = <Container extends HTMLElement | null>(options: {
       onUrlChange: (url: Url) => Site.Message.UrlChanged({ url }),
       onUrlRequest: (request: UrlRequest) => Site.Message.UrlRequested({ request }),
     },
+    subscriptions: Subscription.make<Site.Model, Site.Message>()(() => ({
+      // The window's scroll across the site's navigations, kept while it runs.
+      scroll: Subscription.persistent(keepScroll()),
+    })),
     resources: options.resources,
   })
 

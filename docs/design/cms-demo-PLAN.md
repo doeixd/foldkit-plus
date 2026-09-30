@@ -81,7 +81,10 @@ first `foldkit-site` cut (TODO.md routing section), not later polish.
   runs; loading states clamp restores). Belongs in `foldkit-primitives` as
   a Subscription/Mount, or upstream in Foldkit navigation; `Site.transition`
   adds only what topology knows (which container scrolls). Every multi-route
-  app needs it; none should hand-roll it.
+  app needs it; none should hand-roll it. Built 2026-09-29 as
+  `keepScroll(options)` in `foldkit-primitives/dom` (a stream lifted with
+  `Subscription.persistent`, window only), adopted by the studio's and the
+  site's subscriptions with the browser tests moved beside it.
 
 ## 1b. The studio should be one application, not two (the site stays separate)
 
