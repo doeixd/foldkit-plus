@@ -15,6 +15,7 @@
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-ssr": ["./src/index.ts"],
       "foldkit-ssr/client": ["./src/client.ts"],
+      "foldkit-ssr/vite": ["./src/vite.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },

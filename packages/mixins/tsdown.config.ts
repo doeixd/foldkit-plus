@@ -11,10 +11,11 @@ export default defineConfig({
     'src/app.ts',
     'src/utilities.ts',
     'src/testing.ts',
+    'src/foundations.ts',
   ],
   format: ['esm'],
   dts: true,
   clean: true,
   target: 'es2022',
-  deps: { neverBundle: ['effect', 'foldkit'] },
+  deps: { neverBundle: ['effect', 'foldkit', 'vite'] },
 })

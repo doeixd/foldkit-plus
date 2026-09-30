@@ -10,6 +10,7 @@
       "foldkit-mixins": ["./src/index.ts"],
       "foldkit-mixins/app": ["./src/app.ts"],
       "foldkit-mixins/defaults": ["./src/defaults.ts"],
+      "foldkit-mixins/foundations": ["./src/foundations.ts"],
       "foldkit-mixins/layers": ["./src/layers.ts"],
       "foldkit-mixins/layout": ["./src/layout.ts"],
       "foldkit-mixins/prose": ["./src/prose.ts"],

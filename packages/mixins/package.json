@@ -72,6 +72,11 @@
       "types": "./dist/testing.d.mts",
       "import": "./dist/testing.mjs"
     },
+    "./foundations": {
+      "foldkit-plus:source": "./src/foundations.ts",
+      "types": "./dist/foundations.d.mts",
+      "import": "./dist/foundations.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -92,7 +97,8 @@
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",
     "tsdown": "^0.23.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
   },
   "dependencies": {
     "csstype": "^3.2.3"
