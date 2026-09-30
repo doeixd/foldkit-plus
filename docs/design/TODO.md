@@ -58,9 +58,16 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   afresh where the served page is; anything else contains it), and `fresh`
   over the plan's new `version`, each asked once. The CMS example collapses
   its takeover branch into one call.
-- [ ] **S6. A determinism check:** render each page under two time zones and
+- [x] **S6. A determinism check:** render each page under two time zones and
   locales, and fail when the HTML differs. The example met both a build-time
-  clock and a runtime time zone in its dates.
+  clock and a runtime time zone in its dates. Built 2026-09-30 as an example
+  check (`determinism.test.ts`): every page twice under one zone (catches
+  the build clock and anything random), once under zones at both extremes
+  of the date line (catches an ambient zone), and every page under two
+  default locales in child processes (catches an ambient locale; skips
+  loudly where the platform holds one locale). Building it fixed two live
+  leaks: `generateSite` takes the build clock (server writes and, via
+  `Data.satisfy`'s `now`, read stamps rode the envelope with it).
 - [ ] **S7. `foldkit-ssr/vite`,** the example's `generate.ts` as a build step:
   the template, the build id from the entry script, the file layout per host,
   and each page's styles in its first paint.

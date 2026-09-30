@@ -123,6 +123,13 @@ version changed; `pnpm` skips versions already in the registry.
   from the client side, with no server renderer). A static import walk from
   the entry fails on reaching `foldkit/experimental/server`.
 
+- **SSR S6, build determinism:** the CMS example renders every page twice
+  under one time zone, once under zones at both extremes of the date line,
+  and under two default locales in child processes — any difference fails
+  the build. Building the check fixed two live leaks: `generateSite` takes
+  the build's clock, threading it into the server and, via
+  `Data.satisfy`'s `now`, into the read stamps the envelope carries.
+
 - **SSR S5, deciding whether to take a page over:** `SSR.hydrate` takes
   `when` (asked before anything is adopted), `otherwise: 'render'` (a
   declined page draws afresh where the served page is, replacing its markup

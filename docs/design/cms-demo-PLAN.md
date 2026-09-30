@@ -156,7 +156,11 @@ prototype of the Site graph — route-driven section activation inside one
   root mark from `foldkit-ssr/client`, the takeover plan rides the bundle,
   and an import walk fails on the server renderer. S5 landed 2026-09-30:
   `SSR.hydrate` takes `when`/`otherwise`/`fresh` over the plan's `version`,
-  and the example's takeover branch is one call.
+  and the example's takeover branch is one call. S6 landed 2026-09-30 as an
+  example determinism check (two zones at both date-line extremes in
+  process, two default locales in child processes, same-zone repeat for
+  clock/random); it found the build clock leaking through read stamps,
+  fixed by threading `now` through `generateSite` into `Data.satisfy`.
 
 ## 3. `mixins-ui` gaps the demo proves (Badge, Loading, buttons, icons)
 

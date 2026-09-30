@@ -76,8 +76,13 @@ const urlAt = (path: string): Url => ({
 })
 
 /** Every published page and post of the seed, rendered into `template`. */
-export const generateSite = async (template: string): Promise<ReadonlyArray<Generated>> => {
-  const backend = openServer(() => new Date(), memorySqlite())
+export const generateSite = async (
+  template: string,
+  now: Date = new Date(),
+): Promise<ReadonlyArray<Generated>> => {
+  // The build's clock, fixed for the render: Remote's reads stamp when they
+  // happened, so a live clock here makes two builds of the same seed differ.
+  const backend = openServer(() => now, memorySqlite())
   await backend.seed()
   const send: Send = (chair, body) => answer(backend, chair, JSON.parse(body))
   const remote = Remote.clientLayer(remoteClient(send, 'visitor'))
@@ -107,8 +112,13 @@ export const generateSite = async (template: string): Promise<ReadonlyArray<Gene
 
   const generated: Array<Generated> = []
   for (const { path, modified } of paths) {
+    // The reads stamped with the build's clock, as the server's writes are:
+    // read stamps ride the envelope, so a live clock here makes two builds
+    // of the same seed differ.
     const prepared = await Effect.runPromise(
-      Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives).pipe(Effect.provide(remote)),
+      Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives, {
+        now: () => now.getTime(),
+      }).pipe(Effect.provide(remote)),
     )
     const config = siteConfig({
       // The prepared Model through the assembly's own `initial`, as `initial` must return it.
