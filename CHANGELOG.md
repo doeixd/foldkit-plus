@@ -117,6 +117,14 @@ version changed; `pnpm` skips versions already in the registry.
   from the client side, with no server renderer). A static import walk from
   the entry fails on reaching `foldkit/experimental/server`.
 
+- **SSR S5, deciding whether to take a page over:** `SSR.hydrate` takes
+  `when` (asked before anything is adopted), `otherwise: 'render'` (a
+  declined page draws afresh where the served page is, replacing its markup
+  in place; anything else contains it as a resume failure does), and `fresh`
+  over the plan's new `version` (asked once). The CMS example collapses its
+  takeover branch into one call: a page for another reader draws afresh
+  instead of taking stale facts over as live ones.
+
 - **`foldkit-cms-drizzle`, `ImportItem<P>`:** the input of `cms.import`,
   named and exported — what a seed or a migration passes per entry (`type`,
   `values`, `as`, `at?`, `entry?`). The package's own tests and the CMS

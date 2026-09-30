@@ -60,7 +60,27 @@ const BUILD_ATTRIBUTE = 'data-foldkit-build'
 const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
-  options: { readonly buildId: string },
+  options: {
+    readonly buildId: string
+    /**
+     * Whether this page is taken over: asked before anything is adopted, so
+     * a page showing another reader's data never becomes live facts. Omitted
+     * adopts as before.
+     */
+    readonly when?: ((page: Document) => boolean) | undefined
+    /**
+     * What a declined or stale page does: `render` runs the application
+     * afresh where the rendered page is, replacing its markup in place (the
+     * config's container with no served page). Omitted contains the page the
+     * way a resume failure does.
+     */
+    readonly otherwise?: 'render' | undefined
+    /**
+     * Whether the plan's data version is still current: asked once, with
+     * `plan.version`, before anything is adopted. Omitted never asks.
+     */
+    readonly fresh?: ((version: unknown) => boolean) | undefined
+  },
 ): void => {
   const planMeta = plan.meta
   if (planMeta !== undefined) {
@@ -70,12 +90,23 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
   }
   const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
+  // A page that is declined or stale never adopts. `render` draws afresh on
+  // the root it keeps on screen; anything else contains the served page.
+  // With no served page the application renders afresh regardless.
+  const declined = options.when !== undefined && !options.when(document)
+  const stale = options.fresh !== undefined && !options.fresh(plan.version)
   if (root === null) {
     run(makeApplication(config as never))
     return
   }
   const program = (start: { readonly model: Model; readonly commands?: ReadonlyArray<unknown> }) =>
     makeApplication({ ...startingFrom(config, start), container: root } as never)
+  if (declined || stale) {
+    if (options.otherwise === 'render')
+      run(makeApplication({ ...config, container: root } as never))
+    else adopt(program({ model: plan.baseline }), { buildId: '' })
+    return
+  }
   if (root.getAttribute(BUILD_ATTRIBUTE) !== options.buildId) {
     adopt(program({ model: plan.baseline }), { buildId: options.buildId })
     return

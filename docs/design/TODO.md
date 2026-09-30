@@ -51,9 +51,13 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   applied on client navigation too. A template missing the tags Foldkit fills
   (canonical, `og:url`) is refused.
 - [x] **S4. `SSR.sitemap` and a `robots` helper** from the generated pages.
-- [ ] **S5. Deciding whether to take a page over** (`when`, and
+- [x] **S5. Deciding whether to take a page over** (`when`, and
   `otherwise: 'render'` drawing afresh in place), and a freshness check for a
-  page older than the data.
+  page older than the data. Built 2026-09-30: `SSR.hydrate` takes `when`
+  (asked before anything is adopted), `otherwise: 'render'` (declined draws
+  afresh where the served page is; anything else contains it), and `fresh`
+  over the plan's new `version`, each asked once. The CMS example collapses
+  its takeover branch into one call.
 - [ ] **S6. A determinism check:** render each page under two time zones and
   locales, and fail when the HTML differs. The example met both a build-time
   clock and a runtime time zone in its dates.

@@ -36,5 +36,12 @@ export const plan = SSR.plan(
 )
 
 /** Takes the page over from what it carries, asking the server for none of it again. */
-export const takeOver = (config: ReturnType<typeof siteConfig<HTMLElement>>, buildId: string) =>
-  SSR.hydrate(config, plan, { buildId })
+export const takeOver = (
+  config: ReturnType<typeof siteConfig<HTMLElement>>,
+  buildId: string,
+  when: (page: Document) => boolean,
+) =>
+  // A page for another reader draws afresh in its place instead of taking
+  // stale facts over as live ones; the served markup stays until the fresh
+  // draw replaces it.
+  SSR.hydrate(config, plan, { buildId, when, otherwise: 'render' })

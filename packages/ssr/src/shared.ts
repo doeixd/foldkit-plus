@@ -193,6 +193,12 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
    * the server, checked like the view, and kept in step in the browser.
    */
   readonly meta?: ((model: Model) => Meta) | undefined
+  /**
+   * The data the page was built from, for the browser's freshness check: a
+   * Remote cursor, a revision number, anything the check compares. Unset
+   * when the page has no age.
+   */
+  readonly version?: unknown | undefined
 }
 
 export type Start = 'now' | 'idle' | 'on-interaction'
@@ -275,6 +281,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     readonly deferrable?: ReadonlyArray<string> | undefined
     readonly fallback?: 'server' | undefined
     readonly meta?: ((model: Model) => Meta) | undefined
+    readonly version?: unknown | undefined
   },
 ): ResumePlan<Model, Fields, Commands> => {
   const surfaces = config.surfaces ?? []
@@ -306,6 +313,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     deferrable: config.deferrable ?? [],
     ...(config.fallback === undefined ? {} : { fallback: config.fallback }),
     ...(config.meta === undefined ? {} : { meta: config.meta }),
+    ...(config.version === undefined ? {} : { version: config.version }),
   }
 }
 

@@ -153,7 +153,9 @@ prototype of the Site graph — route-driven section activation inside one
   the `Site.meta`-as-function-of-Model policy (§23/§33.9). S1 landed
   2026-09-29 on the client boundary: the browser entry takes `SSR` and the
   root mark from `foldkit-ssr/client`, the takeover plan rides the bundle,
-  and an import walk fails on the server renderer.
+  and an import walk fails on the server renderer. S5 landed 2026-09-30:
+  `SSR.hydrate` takes `when`/`otherwise`/`fresh` over the plan's `version`,
+  and the example's takeover branch is one call.
 
 ## 3. `mixins-ui` gaps the demo proves (Badge, Loading, buttons, icons)
 

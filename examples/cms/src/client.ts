@@ -65,13 +65,10 @@ if (path.startsWith('/site')) {
     resources: remote,
     container,
   })
-  if (takesOver(document, chair, edited()))
-    // The deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and
-    // into the pages. The plan rides this bundle (it draws from
-    // `foldkit-ssr/client`, no server renderer), so taking over cannot fail
-    // to load: anything else draws afresh in the page's place.
-    takeOver(config, import.meta.env.FOLDKIT_BUILD_ID)
-  else Runtime.run(Runtime.makeApplication(config))
+  // The deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and
+  // into the pages. A page for another reader draws afresh in its place
+  // instead of taking stale facts over as live ones.
+  takeOver(config, import.meta.env.FOLDKIT_BUILD_ID, page => takesOver(page, chair, edited()))
 } else {
   // The studio's two sections share one document and one runtime: moving
   // between them swaps no application, so nothing reloads and nothing refetches.
