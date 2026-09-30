@@ -58,8 +58,12 @@ Do these before anything else; they delete lines without changing APIs.
 
 ## 1. Routing: `address.ts`, `siteApp.ts`, `pageApp.ts:follow`, `scroll.ts`
 
-All four are [router-DESIGN.md](./router-DESIGN.md) §34 material and join the
-first `foldkit-site` cut (TODO.md routing section), not later polish.
+All four are [router-DESIGN.md](./router-DESIGN.md) §34/§33 material and
+arrive as slices before the Site graph, not one first cut (TODO.md routing
+section): the placement (§34.3) first at Bundle level, then history intent
+(§33.4, Mirror-shaped), then intents (§33.3) — with `scroll.ts` already
+built as `keepScroll` (see above). A slice that hides the URL lifecycle has
+to own it, or the explicit code stays clearer.
 
 - **`address.ts` (entry codec + push/replace policy + reload-safe
   `openNamed`/`beginMissing`).** Instantiated twice (`post` vs `page` keys)

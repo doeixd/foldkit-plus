@@ -183,15 +183,24 @@ Each item says how it would attach; none is started.
 What building the CMS example's addresses, scroll and loading states showed is
 missing. [router-DESIGN.md](./router-DESIGN.md) §33 has the reasoning; §31 is
 the larger plan it amends. What the `foldkit-routing` port pair showed still
-stays app-owned is in §34; those items join the first `foldkit-site` cut,
-not later polish.
+stays app-owned is in §34; those items arrive as small slices before the Site
+graph, each in its owning package — so `foldkit-site` emerges thin, owning
+only what is left, rather than arriving as one first cut that becomes a
+second framework. A slice that hides the URL lifecycle has to own it, or the
+explicit code it replaces stays clearer; elimination (§34.5) is the test.
 
+- [ ] **One placement driving update and view for a routed child page:** the
+  `Link`/placement that knows the child field and message wrapper yields both
+  the fold and the submodel view, instead of a separate `foldChild` plus
+  `h.submodel` per page. §34.3. First: Bundle-level, no Site graph needed.
+- [ ] **One declaration of history intent** for routed params, as a mirror has
+  per key: a step when the node or entry changes, a replace otherwise. §33.4.
+  Second: Mirror-shaped, beside the address policy it replaces.
 - [ ] **Targets with intents.** An address that asks something of an owner with
   no Model yet (a Builder before its page loads) is held until the owner is
   ready, then applied through its Messages. Both CMS applications hand-wrote
-  it (`linked`, `previewAsked`). §33.3
-- [ ] **One declaration of history intent** for routed params, as a mirror has
-  per key: a step when the node or entry changes, a replace otherwise. §33.4
+  it (`linked`, `previewAsked`). §33.3. Third: the held-ask pattern, wherever
+  it lands.
 - [x] **Scroll keeping as a primitive,** from `examples/cms/src/routing/scroll.ts`: the
   offset taken when the reader acts, a restore that holds while the screen
   settles, entries keyed by the Navigation API. `foldkit-primitives`, or
@@ -204,8 +213,11 @@ not later polish.
   only once a wait is noticeable, their space held. And a review of every
   package view for facts drawn before they are read (`Initial` is unknown,
   not empty). §33.6
-- [ ] **Foundations in the HTML as a `foldkit-mixins` Vite plugin,** from
-  `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7, SSR S7
+- [x] **Foundations in the HTML as a `foldkit-mixins` Vite plugin,** from
+  `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7, SSR S7.
+  Built 2026-09-30 as `foundations` in `foldkit-mixins/foundations` (the
+  sheet module compiled through a server into the head), adopted by the CMS
+  example's config with its local plugin deleted.
 - [ ] **Targets that know their document,** so a link to another application
   is a full load and one within it is a Navigate Command. §33.7
 - [ ] **Prefetch a target's data before navigating,** which removes the waits
@@ -225,18 +237,20 @@ not later polish.
 - [ ] **Route lifecycle as a reusable wiring,** not app-owned update branches:
   `ClickedLink`/`ChangedUrl` handling, internal-vs-external dispatch
   (`pushUrl` vs `load`, Navigate vs load Commands), and shortcut mapping, as a
-  semantic bundle/wiring. §34.1
-- [ ] **One placement driving update and view for a routed child page:** the
-  `Link`/placement that knows the child field and message wrapper yields both
-  the fold and the submodel view, instead of a separate `foldChild` plus
-  `h.submodel` per page. §34.3
+  semantic bundle/wiring. §34.1. After the placement slice: the wiring should
+  compose placements, not replace them.
 - [ ] **Annotatable routes:** title, nav section, shortcut (and href source)
   declared once per route, with navigation rendering, active-section
-  derivation, shortcut handling, href generation and titles derived. §34.4
+  derivation, shortcut handling, href generation and titles derived. §34.4.
+  With the graph, not before it: annotations need nodes to hang on.
 - [ ] **Genuine nested route nodes:** layout, child routes, child models and
   route-local subscriptions/effects per node, not a flat match arm over a
-  nested URL. §34.2
-- [ ] `foldkit-site` itself, and the rest of §31's sequence.
+  nested URL. §34.2. Last: flat routes plus section tags scale further than
+  assumed (the merged studio proves it); build the tree for a real nested
+  layout, not before one.
+- [ ] **`foldkit-site` itself, thin:** stable nodes, hierarchy, targets and
+  hrefs — whatever the slices above leave unowned — and the rest of §31's
+  sequence.
 
 ## CMS demo hardening
 
@@ -252,13 +266,18 @@ and server/SSR sequences.
   Built 2026-09-29 (harness extraction, exhaustive matches, shell
   unification, style split, recipe gaps recorded where the fork is a
   semantic mismatch, not a restyle).
-- [ ] **1. Routing items** (already tracked above via §34/§33.3/§33.4 plus
-  `scroll.ts` → primitives/upstream in the §33.5 item).
+- [ ] **1. Routing items:** §33.5 scroll keeping is built (see above); the
+  rest feed the routing sequence as slices, not one cut — §34.3 placement,
+  §33.4 history intent, §33.3 intents first (§34.1 wiring after the
+  placement), then a thin `foldkit-site`.
 - [ ] **2. Server/transport/SSG:** `http.ts` → `Server.mount` + scheduler;
   envelope/principal into remote/remote-server contract; `browser.ts` mount
-  shape into server/local-execution designs; prerender/generate/sitePlan
-  into SSR Phase S (S2 `Data.satisfy`, S3 head-from-Model, S4 sitemap,
-  S7 build step).
+  shape into server/local-execution designs. The SSG half is built: S1
+  browser entry (client boundary + import walk), S5 takeover decision
+  (`when`/`otherwise`/`fresh`), S6 determinism check, S7 build step
+  (`staticSite` plugin + `foundations`, example script deleted). S8/S9 wait
+  for a theme choice and a second language; §19.5–19.8 wait for a real
+  deployment (see Server).
 - [x] **3. `mixins-ui` gaps:** `Badge`, `Loading`/`Empty`/`Failure`,
   Button variants, icon machinery, touch targets; `historyCard`/`moreCard`
   as a CMS view companion; adopt each in the demo in the same change.
@@ -304,13 +323,19 @@ asked of a server graph. [server-DESIGN.md](./server-DESIGN.md) §19
 - [ ] **Static emission from the graph:** a document node's paths from a query,
   the host's file layout, cache headers, redirects (from slug history) and a
   real 404 for generated prefixes. The published demo serves a 200 with the
-  studio's shell for an unknown `/site/` address. §19.3, §19.4
+  studio's shell for an unknown `/site/` address. §19.3, §19.4. Absorb SSR
+  S7's `staticSite` plugin (paths, per-host layout, sitemap, robots) rather
+  than reinventing static emission beside it.
 - [ ] **Principal and CSRF middleware** per host, for cookie-authenticated
   mutations and SSR fallback posts. §19.5
 - [ ] **A content security policy** the document node emits: hashes for the
   inline envelope, JSON-LD and styles of a generated page, a nonce per request.
   §19.7
 - [ ] **Caching by whether a page depends on the principal.** §19.8
+
+The three items above wait for a real deployment: the static demo serves no
+cookie-authenticated mutations, no per-request pages, and no principal-aware
+cache keys. Build them against the first host that does, not speculatively.
 
 ## Internationalization
 
