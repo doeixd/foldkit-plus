@@ -903,6 +903,11 @@ of its own named a form field "fits the Catalog". Read words with
 - **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
   git commit` committed a file prettier had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
+- **A prepend that matches only the anchor line deletes it.** Matching the first
+  line of a block (a changelog entry, a doc section) and replacing it with new
+  text drops that line; the file stays valid and every check stays green, so
+  only re-reading the region catches it. End `oldString` on a line the new
+  text keeps, and re-read the region after editing.
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
