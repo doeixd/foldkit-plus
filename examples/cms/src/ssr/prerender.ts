@@ -11,7 +11,7 @@
 import { Effect, Option } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { Remote } from 'foldkit-remote'
-import { SSR } from 'foldkit-ssr'
+import { generateStaticSite } from 'foldkit-ssr/vite'
 import type { Url } from 'foldkit/url'
 import { ORIGIN } from '../content/domain.js'
 import { answer } from '../server/endpoint.js'
@@ -52,21 +52,10 @@ export const siteTemplate = (built: string): string => {
     )
 }
 
-/** The build the pages belong to: the `FOLDKIT_BUILD_ID` deployment `vite build` saw. */
-const deploymentId = (): string => {
-  const buildId = process.env.FOLDKIT_BUILD_ID
-  if (buildId === undefined || buildId === '') {
-    throw new Error(
-      'set FOLDKIT_BUILD_ID to the deployment this build belongs to, the same value `vite build` saw',
-    )
-  }
-  return buildId
-}
-
 /** The page's own styles, so its first paint is styled before any script runs. */
-const stylesOf = (html: string): string => `<style>${Style.usedIn(html)}</style>`
+export const stylesOf = (html: string): string => `<style>${Style.usedIn(html)}</style>`
 
-const urlAt = (path: string): Url => ({
+export const urlAt = (path: string): Url => ({
   protocol: 'https:',
   host: new URL(ORIGIN).host,
   port: Option.none(),
@@ -86,8 +75,47 @@ export const generateSite = async (
   await backend.seed()
   const send: Send = (chair, body) => answer(backend, chair, JSON.parse(body))
   const remote = Remote.clientLayer(remoteClient(send, 'visitor'))
-  const buildId = deploymentId()
 
+  const { pages } = await Effect.runPromise(
+    generateStaticSite({
+      config: async path => {
+        const prepared = await Effect.runPromise(
+          Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives, {
+            now: () => now.getTime(),
+          }).pipe(Effect.provide(remote)),
+        )
+        return siteConfig({
+          // The prepared Model through the assembly's own `initial`, as `initial` must return it.
+          initial: () =>
+            Site.placements.initial({
+              remote: prepared.remote,
+              route: prepared.route,
+              reader: prepared.reader,
+            }),
+          resources: remote,
+          container: null,
+        })
+      },
+      plan,
+      origin: ORIGIN,
+      paths: listSitePaths(backend),
+      template,
+      head: rendered => stylesOf(rendered.html),
+      files: 'flat',
+    }),
+  )
+  return pages.map(({ path, file, html, modified }) => ({
+    path,
+    file,
+    html,
+    modified: modified ?? '',
+  }))
+}
+
+/** Every published page and post of the seed: its path and its sitemap date. */
+export const listSitePaths = (backend: {
+  readonly rows: (query: string) => ReadonlyArray<Record<string, unknown>>
+}): ReadonlyArray<{ readonly path: string; readonly modified: string }> => {
   const posts = backend.rows(
     'select slug, published_at from posts where published_at is not null order by published_at',
   )
@@ -98,7 +126,7 @@ export const generateSite = async (
       .map(row => text(row, 'published_at'))
       .sort()
       .at(-1) ?? ''
-  const paths = [
+  return [
     ...pages.map(row => ({
       path: text(row, 'slug') === 'home' ? '/site' : `/site/${text(row, 'slug')}`,
       modified: newest,
@@ -109,39 +137,4 @@ export const generateSite = async (
       modified: text(row, 'published_at'),
     })),
   ]
-
-  const generated: Array<Generated> = []
-  for (const { path, modified } of paths) {
-    // The reads stamped with the build's clock, as the server's writes are:
-    // read stamps ride the envelope, so a live clock here makes two builds
-    // of the same seed differ.
-    const prepared = await Effect.runPromise(
-      Site.Data.satisfy(Site.initial(urlAt(path)).model, Site.actives, {
-        now: () => now.getTime(),
-      }).pipe(Effect.provide(remote)),
-    )
-    const config = siteConfig({
-      // The prepared Model through the assembly's own `initial`, as `initial` must return it.
-      initial: () =>
-        Site.placements.initial({
-          remote: prepared.remote,
-          route: prepared.route,
-          reader: prepared.reader,
-        }),
-      resources: remote,
-      container: null,
-    })
-    const [page] = await Effect.runPromise(
-      SSR.generate(config, plan, {
-        buildId,
-        template,
-        origin: ORIGIN,
-        paths: [path],
-        head: rendered => stylesOf(rendered.html),
-      }),
-    )
-    // `/site/blog` as `site/blog.html`: a static host serves it at the address without a slash.
-    generated.push({ path, file: `${path.slice(1)}.html`, html: page.html, modified })
-  }
-  return generated
 }

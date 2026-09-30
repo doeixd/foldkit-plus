@@ -130,6 +130,15 @@ version changed; `pnpm` skips versions already in the registry.
   the build's clock, threading it into the server and, via
   `Data.satisfy`'s `now`, into the read stamps the envelope carries.
 
+- **SSR S7, static site as a build step:** `foldkit-ssr/vite` renders every
+  path after the client bundle is written — `generateStaticSite` (paths or
+  a function of the prepared data, per-path configs, template, head,
+  `flat`/`directory` file layout, sitemap, robots) behind the `staticSite`
+  plugin, which evaluates the site module through a server so the config
+  names a file, never application code. `foldkit-mixins/foundations` writes
+  the sheet module's stylesheet into the head the same way. The CMS example
+  builds through both and deletes its hand-rolled script and plugin.
+
 - **SSR S5, deciding whether to take a page over:** `SSR.hydrate` takes
   `when` (asked before anything is adopted), `otherwise: 'render'` (a
   declined page draws afresh where the served page is, replacing its markup

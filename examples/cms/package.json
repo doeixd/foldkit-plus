@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx src/dev.ts",
     "demo": "tsx src/demo/main.ts",
-    "build:sandbox": "vite build --mode sandbox && tsx src/ssr/generate.ts dist",
+    "build:sandbox": "pnpm --filter foldkit-ssr... --filter foldkit-mixins... build && vite build --mode sandbox",
     "typecheck": "tsc -b"
   },
   "dependencies": {

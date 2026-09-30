@@ -32,6 +32,7 @@
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
+      "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
       "foldkit-mixins/layers": ["../../packages/mixins/src/layers.ts"],
       "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
       "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
@@ -65,6 +66,7 @@
       "foldkit-richtext-markdown": ["../../packages/richtext-markdown/src/index.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
+      "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     },
     "lib": ["ES2022", "DOM"]

@@ -68,9 +68,15 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   loudly where the platform holds one locale). Building it fixed two live
   leaks: `generateSite` takes the build clock (server writes and, via
   `Data.satisfy`'s `now`, read stamps rode the envelope with it).
-- [ ] **S7. `foldkit-ssr/vite`,** the example's `generate.ts` as a build step:
+- [x] **S7. `foldkit-ssr/vite`,** the example's `generate.ts` as a build step:
   the template, the build id from the entry script, the file layout per host,
-  and each page's styles in its first paint.
+  and each page's styles in its first paint. Built 2026-09-30:
+  `generateStaticSite` (paths or a function of the prepared data, per-path
+  configs, template, head, `flat`/`directory` layout, sitemap, robots)
+  behind the `staticSite` closeBundle plugin, which evaluates the site
+  module through a server so the config names a file; `foundations` in
+  `foldkit-mixins` compiles the sheet module into the head. The CMS example
+  builds through both and deletes its script and local plugin.
 - [ ] **S8. A chosen theme before the first paint:** `local` in the plan, and a
   head script from `foldkit-mixins`' `Theme` that sets it from storage.
 - [ ] **S9. Localized pages:** the locale in the route, `lang` from the Model,

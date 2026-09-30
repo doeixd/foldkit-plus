@@ -161,6 +161,11 @@ prototype of the Site graph — route-driven section activation inside one
   process, two default locales in child processes, same-zone repeat for
   clock/random); it found the build clock leaking through read stamps,
   fixed by threading `now` through `generateSite` into `Data.satisfy`.
+  S7 landed 2026-09-30: `generateStaticSite` behind the `staticSite`
+  closeBundle plugin (site module evaluated through a server; per-host
+  file layout; sitemap and robots beside the pages) plus `foundations` in
+  `foldkit-mixins` for the sheet stylesheet; the example's `generate.ts`
+  and local plugin are deleted.
 
 ## 3. `mixins-ui` gaps the demo proves (Badge, Loading, buttons, icons)
 
