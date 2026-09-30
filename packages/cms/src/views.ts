@@ -14,7 +14,7 @@ import { Kinds } from './kinds.js'
 import type { State, Transition } from './lifecycle.js'
 
 /** Whether the entry's state is one of `tags`; an entry with no state yet is none of them. */
-const stateIs = (state: Option.Option<State>, ...tags: ReadonlyArray<State['_tag']>) =>
+export const stateIs = (state: Option.Option<State>, ...tags: ReadonlyArray<State['_tag']>) =>
   Option.exists(state, known => tags.includes(known._tag))
 
 /** An entry's state as a badge: its tag is its color, its words the CMS's. */
@@ -28,7 +28,7 @@ export const stateBadge = <M>(
     // Something new has no entry yet, so no state: it is new all the same.
     // `attribute` is the raw name: the view writes `data-<attribute>`, which
     // the badge's tone selectors hook.
-    onNone: () => h.span(badge.attrs([h.DataAttribute('state', 'New')]), ['New']),
+    onNone: () => h.span(badge.attrs([h.DataAttribute(attribute, 'New')]), ['New']),
     onSome: known =>
       h.span(badge.attrs([h.DataAttribute(attribute, known._tag)]), [
         Display.show(Kinds.Display.State.of({}), known),
@@ -45,17 +45,36 @@ export interface RevisionRow {
 /**
  * The open entry's published revisions, as they have been read. A posts'
  * history and a pages' revisions read through the same shape, so one helper
- * serves both: which read is the section's to name.
+ * serves both: which read is the section's to name. A read that failed, or
+ * that has no answer yet, is its own state rather than an empty list, so the
+ * card cannot mistake either for nothing published.
  */
+export type RevisionHistory =
+  | { readonly _tag: 'Ready'; readonly revisions: ReadonlyArray<RevisionRow> }
+  | { readonly _tag: 'Loading' }
+  | { readonly _tag: 'Failed' }
+
 export const revisionsOf = <M, Value extends { readonly revisions: ReadonlyArray<RevisionRow> }>(
   model: M,
   history: (model: M) => Option.Option<{ readonly read: (model: M) => RemoteData<Value> }>,
-): ReadonlyArray<RevisionRow> =>
+): RevisionHistory =>
   Option.match(history(model), {
-    onNone: () => [],
+    // No history to read: there is nothing to wait for and nothing to fail.
+    onNone: () => ({ _tag: 'Ready', revisions: [] }),
     onSome: projection => {
       const read = projection.read(model)
-      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
+      switch (read._tag) {
+        case 'Ready':
+        case 'Refreshing':
+          return { _tag: 'Ready', revisions: read.value.revisions } as const
+        case 'Failed':
+          return { _tag: 'Failed' } as const
+        case 'NotFound':
+          return { _tag: 'Ready', revisions: [] } as const
+        case 'Initial':
+        case 'Loading':
+          return { _tag: 'Loading' } as const
+      }
     },
   })
 
@@ -87,13 +106,15 @@ export interface HistoryCardSlots<M> {
  * What was published, newest first, as a timeline: each revision on a line
  * down to the first, with when and by whom. The newest is marked Live while
  * the entry is on the site; restoring it is offered only while a draft sits
- * over it, since otherwise it changes nothing. Who published is the
- * application's to name (`authorName`), as only it knows its chairs.
+ * over it, since otherwise it changes nothing. A history still being read
+ * says it is loading, and one that failed says so: neither is mistaken for
+ * nothing published. Who published is the application's to name
+ * (`authorName`), as only it knows its chairs.
  */
 export const historyCard = <M>(
   slots: HistoryCardSlots<M>,
   h: HtmlBuilder<M>,
-  revisions: ReadonlyArray<RevisionRow>,
+  history: RevisionHistory,
   entry: {
     readonly state: Option.Option<State>
     readonly restore: (revision: number) => M
@@ -102,44 +123,50 @@ export const historyCard = <M>(
 ): Html => {
   const live = stateIs(entry.state, 'Published', 'Changed')
   const drafted = stateIs(entry.state, 'Changed')
+  const body =
+    history._tag === 'Failed'
+      ? h.p(slots.muted.attrs(), ['The history could not be read.'])
+      : history._tag === 'Loading'
+        ? h.p(slots.muted.attrs(), ['Loading…'])
+        : history.revisions.length === 0
+          ? h.p(slots.muted.attrs(), ['Nothing has been published yet.'])
+          : h.ol(
+              slots.timeline.attrs([h.AriaLabel('Published revisions, newest first')]),
+              history.revisions.map((revision, index) => {
+                const newest = index === 0
+                const { day, time } = momentOf(revision.publishedAt)
+                const isLive = newest && live
+                return h.li(slots.revision.attrs(isLive ? [h.DataAttribute('live', '')] : []), [
+                  h.span(slots.revisionMark.attrs([h.AriaHidden(true)]), []),
+                  h.div(slots.revisionBody.attrs(), [
+                    h.p(slots.revisionTitle.attrs(), [
+                      `Revision ${revision.n}`,
+                      ...(isLive ? [h.span(slots.revisionLive.attrs(), ['Live'])] : []),
+                    ]),
+                    h.p(slots.revisionMeta.attrs(), [
+                      h.time([h.Attribute('datetime', revision.publishedAt)], [`${day} · ${time}`]),
+                      ...(revision.publishedBy === null
+                        ? []
+                        : [` · ${entry.authorName(revision.publishedBy)}`]),
+                    ]),
+                  ]),
+                  ...(isLive && !drafted
+                    ? []
+                    : [
+                        h.button(
+                          slots.revisionRestore.attrs([
+                            h.OnClick(entry.restore(revision.n)),
+                            h.AriaLabel(`Restore revision ${revision.n}`),
+                          ]),
+                          ['Restore'],
+                        ),
+                      ]),
+                ])
+              }),
+            )
   return h.section(slots.card.attrs([h.Id('history')]), [
     h.h2(slots.cardTitle.attrs(), ['History']),
-    revisions.length === 0
-      ? h.p(slots.muted.attrs(), ['Nothing has been published yet.'])
-      : h.ol(
-          slots.timeline.attrs([h.AriaLabel('Published revisions, newest first')]),
-          revisions.map((revision, index) => {
-            const newest = index === 0
-            const { day, time } = momentOf(revision.publishedAt)
-            const isLive = newest && live
-            return h.li(slots.revision.attrs(isLive ? [h.DataAttribute('live', '')] : []), [
-              h.span(slots.revisionMark.attrs([h.AriaHidden(true)]), []),
-              h.div(slots.revisionBody.attrs(), [
-                h.p(slots.revisionTitle.attrs(), [
-                  `Revision ${revision.n}`,
-                  ...(isLive ? [h.span(slots.revisionLive.attrs(), ['Live'])] : []),
-                ]),
-                h.p(slots.revisionMeta.attrs(), [
-                  h.time([h.Attribute('datetime', revision.publishedAt)], [`${day} · ${time}`]),
-                  ...(revision.publishedBy === null
-                    ? []
-                    : [` · ${entry.authorName(revision.publishedBy)}`]),
-                ]),
-              ]),
-              ...(isLive && !drafted
-                ? []
-                : [
-                    h.button(
-                      slots.revisionRestore.attrs([
-                        h.OnClick(entry.restore(revision.n)),
-                        h.AriaLabel(`Restore revision ${revision.n}`),
-                      ]),
-                      ['Restore'],
-                    ),
-                  ]),
-            ])
-          }),
-        ),
+    body,
   ])
 }
 
@@ -154,9 +181,11 @@ export interface MoreCardSlots<M> {
 
 /**
  * The rest of what can happen to an entry: its draft discarded, taken off the
- * site, put away or brought back, each where the server would allow it. None
- * for something never saved, which has nothing to discard or put away. The
- * archive button's icon is the application's, drawn its way.
+ * site, put away or brought back. Discard and unpublish are each offered only
+ * where the server would allow them; archive is always offered, with unarchive
+ * taking its place once put away. None for something never saved, which has
+ * nothing to discard or put away. The archive button's icon is the
+ * application's, drawn its way.
  */
 export const moreCard = <M>(
   slots: MoreCardSlots<M>,

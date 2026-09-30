@@ -32,6 +32,12 @@ version changed; `pnpm` skips versions already in the registry.
   for states come from `Cms.Display`. The CMS demo adopts them and keeps
   only its slots, styles, and chair names.
 
+- **`foldkit-cms`, entry views fixes:** `Cms.stateBadge` writes a custom
+  attribute for a new entry too, and `Cms.revisionsOf`/`Cms.historyCard`
+  read a `RevisionHistory` so a failed or still-loading history no longer
+  draws as nothing published. The CMS demo's `stateIs` copy is deleted in
+  favor of `Cms.stateIs`.
+
 - **`foldkit-mixins-ui`, Touch/Icons mechanisms:** no slots, no views —
   `Touch.target`/`Touch.targets` floor controls at 44px where the pointer is
   coarse, `Icons.glyph(size)` draws the icon in `--icon`, and

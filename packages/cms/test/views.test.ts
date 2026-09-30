@@ -10,7 +10,13 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type { RemoteData } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
-import { Cms, type RevisionRow, type State, type Transition } from '../src/index.js'
+import {
+  Cms,
+  type RevisionHistory,
+  type RevisionRow,
+  type State,
+  type Transition,
+} from '../src/index.js'
 
 const Message = defineMessageUnion({
   RestoreAsked: { revision: Schema.Number },
@@ -75,31 +81,61 @@ describe('stateBadge', () => {
     )
     expect(attrsOf(badge)).toEqual({ 'data-x': 'Changed' })
   })
+
+  it('writes the given attribute for no state too', () => {
+    const badge = draw((slots, h) => Cms.stateBadge(slots.badge, h, Option.none(), 'x'))
+    expect(attrsOf(badge)).toEqual({ 'data-x': 'New' })
+  })
 })
 
 describe('revisionsOf', () => {
   const history =
     (
-      tag: 'Ready' | 'Loading',
+      read: RemoteData<{ readonly revisions: ReadonlyArray<RevisionRow> }>,
     ): (() => Option.Option<{
       readonly read: () => RemoteData<{ readonly revisions: ReadonlyArray<RevisionRow> }>
     }>) =>
     () =>
-      Option.some({
-        read: () => (tag === 'Ready' ? { _tag: 'Ready', value: { revisions } } : { _tag: tag }),
-      })
+      Option.some({ read: () => read })
 
-  it('reads rows once read, and none before or without', () => {
-    expect(Cms.revisionsOf({}, history('Ready'))).toEqual(revisions)
-    expect(Cms.revisionsOf({}, history('Loading'))).toEqual([])
-    expect(Cms.revisionsOf({}, () => Option.none())).toEqual([])
+  it('reads rows once read, stale rows while refetching', () => {
+    expect(Cms.revisionsOf({}, history({ _tag: 'Ready', value: { revisions } }))).toEqual({
+      _tag: 'Ready',
+      revisions,
+    })
+    expect(Cms.revisionsOf({}, history({ _tag: 'Refreshing', value: { revisions } }))).toEqual({
+      _tag: 'Ready',
+      revisions,
+    })
+  })
+
+  it('says loading while the read has no answer yet', () => {
+    expect(Cms.revisionsOf({}, history({ _tag: 'Loading' }))).toEqual({ _tag: 'Loading' })
+    expect(Cms.revisionsOf({}, history({ _tag: 'Initial' }))).toEqual({ _tag: 'Loading' })
+  })
+
+  it('says failed when the read fails, not empty', () => {
+    expect(
+      Cms.revisionsOf(
+        {},
+        history({ _tag: 'Failed', error: { _tag: 'ReadFailed', message: 'no' } }),
+      ),
+    ).toEqual({ _tag: 'Failed' })
+  })
+
+  it('reads empty without a history, or with none published', () => {
+    expect(Cms.revisionsOf({}, () => Option.none())).toEqual({ _tag: 'Ready', revisions: [] })
+    expect(Cms.revisionsOf({}, history({ _tag: 'Ready', value: { revisions: [] } }))).toEqual({
+      _tag: 'Ready',
+      revisions: [],
+    })
   })
 })
 
 describe('historyCard', () => {
-  const card = (state: State) =>
+  const card = (state: State, history: RevisionHistory = { _tag: 'Ready', revisions }) =>
     draw((slots, h) =>
-      Cms.historyCard(slots, h, revisions, {
+      Cms.historyCard(slots, h, history, {
         state: Option.some(state),
         restore: revision => Message.RestoreAsked({ revision }),
         authorName: name => (name === 'edda' ? 'Edda' : name),
@@ -136,14 +172,20 @@ describe('historyCard', () => {
   })
 
   it('says when nothing was published yet', () => {
-    const tree = draw((slots, h) =>
-      Cms.historyCard(slots, h, [], {
-        state: Option.some({ _tag: 'New', schedule: null }),
-        restore: revision => Message.RestoreAsked({ revision }),
-        authorName: name => name,
-      }),
-    )
+    const tree = card({ _tag: 'New', schedule: null }, { _tag: 'Ready', revisions: [] })
     expect(Inert.text(tree)).toContain('Nothing has been published yet.')
+  })
+
+  it('says when the history failed instead of claiming nothing was published', () => {
+    const tree = card({ _tag: 'Published', schedule: null }, { _tag: 'Failed' })
+    expect(Inert.text(tree)).toContain('The history could not be read.')
+    expect(Inert.text(tree)).not.toContain('Nothing has been published yet.')
+  })
+
+  it('says loading while the history has no answer yet', () => {
+    const tree = card({ _tag: 'Published', schedule: null }, { _tag: 'Loading' })
+    expect(Inert.text(tree)).toContain('Loading')
+    expect(Inert.text(tree)).not.toContain('Nothing has been published yet.')
   })
 })
 

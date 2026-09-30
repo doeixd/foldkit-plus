@@ -108,9 +108,8 @@ export const failed = (status: EditorStatus): boolean =>
     'Incomplete',
   ].includes(status)
 
-/** Whether the entry's state is one of `tags`; an entry with no state yet is none of them. */
-export const stateIs = (state: Option.Option<State>, ...tags: ReadonlyArray<State['_tag']>) =>
-  Option.exists(state, known => tags.includes(known._tag))
+/** Whether the entry's state is one of `tags`; the companion's, shared with the cards it draws. */
+export const stateIs = Cms.stateIs
 
 /**
  * What an entry is closed from, and what it says: the bar above an open

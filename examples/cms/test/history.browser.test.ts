@@ -23,11 +23,16 @@ const revisions: ReadonlyArray<RevisionRow> = [
 ]
 
 const History = SlotView.define(AdminSlots, (state: State, slots, h: HtmlBuilder<Message>) =>
-  Cms.historyCard(slots, h, revisions, {
-    state: Option.some(state),
-    restore: revision => Message.RestoreAsked({ revision }),
-    authorName: name => (name === 'edda' ? 'Edda' : name),
-  }),
+  Cms.historyCard(
+    slots,
+    h,
+    { _tag: 'Ready', revisions },
+    {
+      state: Option.some(state),
+      restore: revision => Message.RestoreAsked({ revision }),
+      authorName: name => (name === 'edda' ? 'Edda' : name),
+    },
+  ),
 )
 
 let dispose = () => {}

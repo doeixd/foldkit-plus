@@ -24,7 +24,7 @@ import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
 import { Transitions, offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { editorView, makeEditor } from './editor.js'
-import { historyCard, moreCard, revisionsOf, stateBadge } from './views.js'
+import { historyCard, moreCard, revisionsOf, stateBadge, stateIs } from './views.js'
 import { addressFree, slugTaken } from './slug.js'
 import { Display } from 'foldkit-crud'
 import { Kinds } from './kinds.js'
@@ -423,6 +423,8 @@ export const Cms = {
    * studio and its lists say them one way.
    */
   stateBadge,
+  /** Whether the entry's state is one of the given tags; no state yet is none of them. */
+  stateIs,
   revisionsOf,
   historyCard,
   moreCard,
@@ -451,4 +453,4 @@ export type {
   Resumed,
 } from './editor.js'
 export type { ControlContext, DisplayContext, StateWords } from './kinds.js'
-export type { HistoryCardSlots, MoreCardSlots, RevisionRow } from './views.js'
+export type { HistoryCardSlots, MoreCardSlots, RevisionHistory, RevisionRow } from './views.js'
