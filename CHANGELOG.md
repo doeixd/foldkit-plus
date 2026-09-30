@@ -137,7 +137,8 @@ version changed; `pnpm` skips versions already in the registry.
   plugin, which evaluates the site module through a server so the config
   names a file, never application code. `foldkit-mixins/foundations` writes
   the sheet module's stylesheet into the head the same way. The CMS example
-  builds through both and deletes its hand-rolled script and plugin.
+  builds through both and deletes its hand-rolled script and plugin. Empty
+  paths and two paths naming one file are refused before rendering.
 
 - **SSR S5, deciding whether to take a page over:** `SSR.hydrate` takes
   `when` (asked before anything is adopted), `otherwise: 'render'` (a
