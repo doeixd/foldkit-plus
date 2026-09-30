@@ -150,7 +150,10 @@ prototype of the Site graph — route-driven section activation inside one
   with the SSR import isolated from the studio bundle. All Phase S of
   [ssr-PLAN.md](./ssr-PLAN.md): `Data.satisfy`, head-from-Model,
   `SSR.sitemap`, build helper, `foldkit-ssr/client` boundary. `headFor` is
-  the `Site.meta`-as-function-of-Model policy (§23/§33.9).
+  the `Site.meta`-as-function-of-Model policy (§23/§33.9). S1 landed
+  2026-09-29 on the client boundary: the browser entry takes `SSR` and the
+  root mark from `foldkit-ssr/client`, the takeover plan rides the bundle,
+  and an import walk fails on the server renderer.
 
 ## 3. `mixins-ui` gaps the demo proves (Badge, Loading, buttons, icons)
 

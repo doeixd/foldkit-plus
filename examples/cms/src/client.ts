@@ -8,11 +8,13 @@ import type { UrlRequest } from 'foldkit/navigation'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { Remote, type RemoteClient } from 'foldkit-remote'
+import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit-ssr/client'
 import * as Site from './apps/siteApp.js'
 import * as Studio from './apps/studioApp.js'
-import { APP_ROOT, siteConfig, takesOver } from './content/siteConfig.js'
+import { siteConfig, takesOver } from './content/siteConfig.js'
 import { edited } from './server/sandboxKey.js'
 import { chairOf, httpSend, remoteClient, type Send } from './server/transport.js'
+import { takeOver } from './ssr/sitePlan.js'
 
 /**
  * Whether the address asks for a fresh sandbox (`?reset`): read, and taken out of
@@ -35,7 +37,8 @@ const startsAfresh = (): boolean => {
  * build rendered (`prerender.ts`), its application's root, given that id.
  */
 const container =
-  document.getElementById('app') ?? document.querySelector<HTMLElement>(`[${APP_ROOT}]`)
+  document.getElementById('app') ??
+  document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 if (container === null) throw new Error('the page has no #app and no rendered application')
 container.id = 'app'
 // Vite proxies `/remote` to the server, so the browser talks to one origin; the
@@ -64,11 +67,10 @@ if (path.startsWith('/site')) {
   })
   if (takesOver(document, chair, edited()))
     // The deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and
-    // into the pages. Should the takeover's code not load, the page is drawn afresh.
-    void import('./ssr/sitePlan.js').then(
-      ({ takeOver }) => takeOver(config, import.meta.env.FOLDKIT_BUILD_ID),
-      () => Runtime.run(Runtime.makeApplication(config)),
-    )
+    // into the pages. The plan rides this bundle (it draws from
+    // `foldkit-ssr/client`, no server renderer), so taking over cannot fail
+    // to load: anything else draws afresh in the page's place.
+    takeOver(config, import.meta.env.FOLDKIT_BUILD_ID)
   else Runtime.run(Runtime.makeApplication(config))
 } else {
   // The studio's two sections share one document and one runtime: moving

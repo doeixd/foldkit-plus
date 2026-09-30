@@ -110,6 +110,13 @@ version changed; `pnpm` skips versions already in the registry.
   The CMS example adopts it in its studio and site subscriptions and deletes
   its hand-rolled `scroll.ts`.
 
+- **SSR S1, browser entry without the server renderer:** the CMS example's
+  browser entry takes `SSR` and `FOLDKIT_APP_ATTRIBUTE` from
+  `foldkit-ssr/client` — its hand-written root mark is gone, and the takeover
+  plan rides the bundle instead of a lazy chunk (cheap now that it draws
+  from the client side, with no server renderer). A static import walk from
+  the entry fails on reaching `foldkit/experimental/server`.
+
 - **`foldkit-cms-drizzle`, `ImportItem<P>`:** the input of `cms.import`,
   named and exported — what a seed or a migration passes per entry (`type`,
   `values`, `as`, `at?`, `entry?`). The package's own tests and the CMS

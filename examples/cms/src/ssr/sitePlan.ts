@@ -1,11 +1,9 @@
 /**
- * How the browser takes over a site page the build rendered (`foldkit-ssr`).
- * A module of its own, loaded only for a page it takes over: `foldkit-ssr`
- * carries Foldkit's server renderer too, which neither the studio nor a page
- * drawn afresh should load.
+ * How the browser takes over a site page the build rendered
+ * (`foldkit-ssr/client`, which carries no server renderer).
  */
 import { Remote } from 'foldkit-remote'
-import { SSR } from 'foldkit-ssr'
+import { SSR } from 'foldkit-ssr/client'
 import { Projection } from 'foldkit-surface'
 import type { siteConfig } from '../content/siteConfig.js'
 import * as Site from '../apps/siteApp.js'

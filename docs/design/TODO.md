@@ -32,10 +32,17 @@ These wait on upstream Foldkit or Effect, not on work here.
 Phase S is what the CMS example's generated site had to write by hand; each
 item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
 
-- [ ] **S1. A browser entry.** `foldkit-ssr`'s one module imports Foldkit's
+- [x] **S1. A browser entry.** `foldkit-ssr`'s one module imports Foldkit's
   server renderer, 210 KB (63 KB gzipped) that a page taking a render over
   does not need; the example loads it lazily (`sitePlan.ts`). Split off
   `foldkit-ssr/server`, and export the root attribute from the browser side.
+  Built 2026-09-29 on the existing `foldkit-ssr/client` split: the CMS
+  example's browser entry takes `SSR` and `FOLDKIT_APP_ATTRIBUTE` from the
+  client side — its hand-written root mark is gone and the takeover plan
+  rides the bundle — with a static import walk from the entry failing on
+  `foldkit/experimental/server`. The `foldkit-ssr/server` reorganization is
+  skipped: `foldkit-ssr/client` already covers the browser side, and the
+  root stays the server side.
 - [x] **S2. `Data.satisfy`,** preparing a Model for a render: each active
   Surface's reads, again until none is missing. The example's `prerender.ts`
   loop is its first caller. [router-DESIGN.md](./router-DESIGN.md) §20

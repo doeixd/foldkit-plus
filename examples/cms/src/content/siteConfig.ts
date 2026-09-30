@@ -6,6 +6,7 @@ import type { Layer } from 'effect'
 import * as Subscription from 'foldkit/subscription'
 import { keepScroll } from 'foldkit-primitives/dom'
 import type { RemoteClient } from 'foldkit-remote'
+import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit-ssr/client'
 import type { UrlRequest } from 'foldkit/navigation'
 import type { Url } from 'foldkit/url'
 import * as Site from '../apps/siteApp.js'
@@ -42,13 +43,6 @@ export const siteConfig = <Container extends HTMLElement | null>(options: {
  * place, from the visitor's own sandbox and with their chair's links.
  */
 export const takesOver = (page: ParentNode, reader: Chair, edited: boolean): boolean =>
-  page.querySelector(`[${APP_ROOT}][data-foldkit-plus-resume]`) !== null &&
+  page.querySelector(`[${FOLDKIT_APP_ATTRIBUTE}][data-foldkit-plus-resume]`) !== null &&
   reader === 'visitor' &&
   !edited
-
-/**
- * Foldkit's mark on a rendered application's root (`FOLDKIT_APP_ATTRIBUTE`).
- * Written out: Foldkit exports it only from `foldkit/experimental/server`,
- * whose import put the server's renderer in every page's bundle.
- */
-export const APP_ROOT = 'data-foldkit-app'
