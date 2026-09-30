@@ -3,14 +3,14 @@
  * config and plan, two pages, the built shell untouched, and per-page
  * styles for the first paint.
  */
-import { config, plan } from './app.js'
+import { buildId, config, plan } from './app.js'
 
 export const site = {
   config,
   plan,
-  buildId: 'fixture-build',
+  buildId,
   origin: 'https://fixture.test',
-  paths: ['/', '/about'],
+  paths: ['/', { path: '/about', modified: '2026-09-27' }],
   head: () => '<style>.fixture-first-paint{color:#123456}</style>',
   sitemap: true,
   robots: true,

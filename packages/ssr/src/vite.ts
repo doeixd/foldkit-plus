@@ -31,28 +31,34 @@ const modifiedOf = (spec: SitePath): string | undefined =>
 /**
  * The file a static host serves for a path. `directory` is the package's
  * own layout (`/about` as `about/index.html`); `flat` writes `about.html`,
- * for hosts with clean addresses and no directory indexes.
+ * for hosts with clean addresses and no directory indexes. `generate`
+ * refuses what is not servable (a query, a fragment, an unresolvable
+ * address) before this maps it, so this maps and never validates.
  */
 export const fileFor = (path: string, layout: 'directory' | 'flat'): string => {
   const trimmed = path.replace(/^\/+/, '').replace(/\/+$/, '')
   if (trimmed === '') return 'index.html'
-  if (layout === 'flat') return `${trimmed}.html`
+  if (layout === 'flat') return trimmed.endsWith('.html') ? trimmed : `${trimmed}.html`
   return trimmed.endsWith('.html') ? trimmed : `${trimmed}/index.html`
 }
 
 /**
  * What a static site is: everything `SSR.generate` takes, plus where its
  * pages land. `config` may read the path (a site whose Model is prepared
- * per page satisfies and returns its own config for it); `paths` may be a
- * function of the prepared data (a site that lists its pages from what it
- * serves). `template` is the built shell the pages are rendered into;
- * `files` is the host's layout; `sitemap` and `robots` write their files
- * from the generated pages.
+ * per page satisfies and returns its own config for it); `paths` may close
+ * over what the site serves (a thunk that seeds and lists, evaluated when
+ * the build runs). `template` is the built shell the pages are rendered
+ * into; `files` is the host's layout; `sitemap` and `robots` write their
+ * files from the generated pages.
  */
 export interface StaticSite<
   Model,
   Fields extends Schema.Struct.Fields,
   Message,
+  // Unconstrained on purpose: a site's config carries its own services (a
+  // Remote layer, flags), which no bound here could name without threading
+  // the whole service graph through. The narrowed call still checks: a
+  // config that is not a config or a function of a path fails where used.
   Resolved = ResumableConfig<Model, Message>,
 > {
   readonly config: Resolved | ((path: string) => Resolved | Promise<Resolved>)
@@ -109,6 +115,25 @@ export const generateStaticSite = <Model, Fields extends Schema.Struct.Fields, M
         : pathsInput
     const files = site.files ?? 'directory'
     const configInput = site.config
+    if (specs.length === 0) {
+      throw new Error(
+        'foldkit-ssr: the site lists no paths: a site of nothing is a misconfigured paths',
+      )
+    }
+    // Two specs may name one file (`/about` and `/about/`, or a `.html`
+    // path beside its directory twin): `generate` sees one path at a time
+    // and cannot catch it, so the collision is refused before rendering.
+    const claimed = new Map<string, string>()
+    for (const spec of specs) {
+      const file = fileFor(pathOf(spec), files)
+      const other = claimed.get(file)
+      if (other !== undefined) {
+        throw new Error(
+          `foldkit-ssr: "${pathOf(spec)}" and "${other}" would both be written to ${file}`,
+        )
+      }
+      claimed.set(file, pathOf(spec))
+    }
     const pages: Array<BuiltPage> = []
     for (const spec of specs) {
       const path = pathOf(spec)
@@ -182,10 +207,15 @@ export const staticSite = (options: {
       // The site module resolves against the application, not this process:
       // the test runs from the workspace root while the site lives elsewhere.
       root = config.root
-      if (options.outDir === undefined)
-        outDir = isAbsolute(config.build.outDir)
-          ? config.build.outDir
-          : resolve(config.root, config.build.outDir)
+      // An explicit outDir reads as Vite reads it: against the root.
+      outDir =
+        options.outDir === undefined
+          ? isAbsolute(config.build.outDir)
+            ? config.build.outDir
+            : resolve(config.root, config.build.outDir)
+          : isAbsolute(options.outDir)
+            ? options.outDir
+            : resolve(config.root, options.outDir)
     },
     async closeBundle() {
       // No dev server runs during a build: one of its own, closed after.

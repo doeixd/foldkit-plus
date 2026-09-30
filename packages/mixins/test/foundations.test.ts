@@ -49,3 +49,32 @@ it('refuses a module without the export, naming it', async () => {
     tagsFor(foundations({ module: '/fixture-sheet.ts', export: 'missing', root: dir }), ''),
   ).rejects.toThrow('missing')
 }, 120_000)
+
+it('compiles through a running server where one is given', async () => {
+  const { createServer } = await import('vite')
+  const server = await createServer({
+    configFile: false,
+    root: dir,
+    logLevel: 'error',
+    appType: 'custom',
+    server: { middlewareMode: true, hmr: false },
+    resolve: { conditions: ['foldkit-plus:source'] },
+    ssr: { resolve: { conditions: ['foldkit-plus:source'] } },
+    optimizeDeps: { noDiscovery: true, include: [] },
+  })
+  try {
+    const plugin = foundations({ module: '/fixture-sheet.ts' })
+    const transform = plugin.transformIndexHtml
+    if (typeof transform !== 'object' || transform === null || !('handler' in transform))
+      throw new Error('the foundations plugin answers transformIndexHtml with a handler')
+    const handler = transform.handler as unknown as (
+      html: string,
+      context: { readonly server: typeof server },
+    ) => Promise<ReadonlyArray<{ readonly tag: string; readonly children?: unknown }>>
+    const [tag] = await handler('<html><head></head></html>', { server })
+    expect(tag?.tag).toBe('style')
+    expect(tag?.children).toContain('.fixture-foundations')
+  } finally {
+    await server.close()
+  }
+}, 120_000)

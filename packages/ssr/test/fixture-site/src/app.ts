@@ -57,6 +57,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
 
 export const plan = SSR.plan(App, { id: 'fixture', state: Projection.pick(App.model.route) })
 
+/** The deployment the fixture builds as, named in one place: the site, the
+ * build define, and the hydrate call must agree, or pages are refused. */
+export const buildId = 'fixture-build'
+
 export const config = {
   Model,
   init,

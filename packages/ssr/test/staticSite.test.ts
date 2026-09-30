@@ -7,7 +7,8 @@
  */
 import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterAll, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
+import { fileFor } from 'foldkit-ssr/vite'
 import { buildFixtureSite } from './staticSiteFixture.js'
 import { dir } from './fixtureDir.js'
 
@@ -30,12 +31,33 @@ it('builds the fixture site through the plugin', async () => {
   expect(home).toContain('The home page')
   // ...its styles for the first paint...
   expect(about).toContain('.fixture-first-paint')
-  // ...and its envelope, on the root the browser adopts.
+  // ...and its envelope, on the root the browser adopts (both pages: the
+  // envelope is per page, not per site).
   expect(about).toContain('data-foldkit-app')
   expect(about).toContain('data-foldkit-plus-resume')
+  expect(home).toContain('data-foldkit-app')
+  expect(home).toContain('data-foldkit-plus-resume')
   // Beside the pages: the sitemap naming them, and robots naming it.
   const sitemap = read(out, 'sitemap.xml')
   expect(sitemap).toContain('<loc>https://fixture.test/about</loc>')
   expect(sitemap).toContain('<loc>https://fixture.test/</loc>')
+  expect(sitemap).toContain('<lastmod>2026-09-27</lastmod>')
   expect(read(out, 'robots.txt')).toContain('Sitemap: https://fixture.test/sitemap.xml')
 }, 240_000)
+
+describe('fileFor', () => {
+  it.each([
+    ['/', 'directory', 'index.html'],
+    ['/', 'flat', 'index.html'],
+    ['/about', 'directory', 'about/index.html'],
+    ['/about', 'flat', 'about.html'],
+    ['/about/', 'directory', 'about/index.html'],
+    ['/about/', 'flat', 'about.html'],
+    ['/x.html', 'directory', 'x.html'],
+    ['/x.html', 'flat', 'x.html'],
+    ['/site/blog/x', 'directory', 'site/blog/x/index.html'],
+    ['/site/blog/x', 'flat', 'site/blog/x.html'],
+  ] as const)('maps %s in %s layout to %s', (path, layout, file) => {
+    expect(fileFor(path, layout)).toBe(file)
+  })
+})

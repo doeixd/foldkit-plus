@@ -132,8 +132,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **SSR S7, static site as a build step:** `foldkit-ssr/vite` renders every
   path after the client bundle is written — `generateStaticSite` (paths or
-  a function of the prepared data, per-path configs, template, head,
-  `flat`/`directory` file layout, sitemap, robots) behind the `staticSite`
+  a thunk closing over what the site serves, per-path configs, template,
+  head, `flat`/`directory` file layout, sitemap, robots) behind the `staticSite`
   plugin, which evaluates the site module through a server so the config
   names a file, never application code. `foldkit-mixins/foundations` writes
   the sheet module's stylesheet into the head the same way. The CMS example

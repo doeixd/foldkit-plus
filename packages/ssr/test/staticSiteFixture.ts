@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { build } from 'vite'
 import { staticSite } from 'foldkit-ssr/vite'
 import { dir } from './fixtureDir.js'
+import { buildId } from './fixture-site/src/app.js'
 
 export const buildFixtureSite = async (outDir: string): Promise<string> => {
   await build({
@@ -14,7 +15,7 @@ export const buildFixtureSite = async (outDir: string): Promise<string> => {
     root: dir,
     logLevel: 'silent',
     // The build id the pages carry, as the deployment names it.
-    define: { 'import.meta.env.FOLDKIT_BUILD_ID': JSON.stringify('fixture-build') },
+    define: { 'import.meta.env.FOLDKIT_BUILD_ID': JSON.stringify(buildId) },
     resolve: { conditions: ['foldkit-plus:source'] },
     build: { outDir, emptyOutDir: true },
     plugins: [staticSite({ site: { module: '/src/site.ts' } })],

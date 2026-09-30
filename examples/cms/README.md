@@ -86,7 +86,8 @@ the sandbox's code and its wasm are fetched with the page, and
 `/assets` for a year, since its names change with its content.
 
 The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/ssr/prerender.ts),
-run by [generate.ts](src/ssr/generate.ts)). It runs the same server in Node over the
+described for the build in [siteBuild.ts](src/ssr/siteBuild.ts) and rendered by
+the `staticSite` plugin after `vite build`). It runs the same server in Node over the
 seed, reads everything each page shows through Remote, and writes every
 published page and post as HTML at its address (`site/blog/a-page-is-data.html`),
 along with `sitemap.xml` and `robots.txt`. Each page carries its text, its

@@ -10,7 +10,7 @@ import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, expect, it, vi } from 'vitest'
 import { SSR } from 'foldkit-ssr'
-import { config, plan } from './fixture-site/src/app.js'
+import { buildId, config, plan } from './fixture-site/src/app.js'
 import { dir } from './fixtureDir.js'
 
 const outDir = join(dir, 'dist-fixture-resume')
@@ -50,7 +50,7 @@ it('resumes a page the plugin built', async () => {
   window.history.replaceState({}, '', '/about')
 
   const button = document.querySelector('button')
-  SSR.hydrate(config, plan, { buildId: 'fixture-build' })
+  SSR.hydrate(config, plan, { buildId })
   await vi.waitFor(() => expect(button?.textContent).toBe('Count: 0'))
   button?.click()
   await vi.waitFor(() => expect(button?.textContent).toBe('Count: 1'))
