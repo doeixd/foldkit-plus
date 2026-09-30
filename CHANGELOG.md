@@ -5,7 +5,112 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.12.0
+
+`foldkit-agent` 0.5.0; `foldkit-bundle` 0.4.0; `foldkit-cms` 0.3.0;
+`foldkit-cms-drizzle` 0.3.0; `foldkit-durable` 0.5.0; `foldkit-entity` 0.5.0;
+`foldkit-form` 0.3.0; `foldkit-mirror` 0.4.0; `foldkit-mixins` 0.5.0;
+`foldkit-mixins-crud` 0.5.0; `foldkit-mixins-form` 0.3.0;
+`foldkit-mixins-ui` 0.5.0; `foldkit-primitives` 0.4.0; `foldkit-remote`
+0.9.0; `foldkit-remote-server` 0.9.0; `foldkit-richtext` 0.2.0;
+`foldkit-richtext-dom` 0.2.0; `foldkit-ssr` 0.2.0; `foldkit-surface` 0.5.1;
+`foldkit-sync` 0.7.0; `foldkit-remote-drizzle` 0.8.1. Republished to re-pin:
+`foldkit-bundle-surface` 0.2.1, `foldkit-crud` 0.4.1,
+`foldkit-mixins-richtext` 0.1.1, `foldkit-mixins-surface` 0.4.1 and the four
+agent adapters 0.4.1. Three packages are published for the first time at
+0.1.0: `foldkit-richtext-code`, `foldkit-richtext-code-shiki` and
+`foldkit-richtext-markdown`. `foldkit-metadata`, `foldkit-react` and
+`foldkit-react-codegen` are unchanged.
+
+**A page is assembled, not spread.** `assembly.runtime` builds the runtime
+config in one call from an update that already routes every placement, and
+derived args come from the parent seed — so a routed page takes its search
+text without a second fetch, and `assembly.config` is gone.
+
+**Remote asks once and says when.** A query carries its selection and comes
+back with the fields (`Data.meta` says when it arrived and whether it is
+stale), and `Data.satisfy` prepares a Model for a render, which is what the
+static build runs per page.
+
+**Static sites end to end.** The browser entry loads no server renderer, a
+takeover is an explicit decision (`when`/`otherwise`/`fresh`), a
+determinism check renders every page across zones and locales, and the
+`staticSite` plugin turns `vite build` into the whole static build.
+
+**An editor that replicates.** `Replicated` folds character-identified ops
+in any order to the same state, `patchTo` redraws a remote keystroke without
+remounting, and task lists, overlays and decorations round out the canvas.
+
+**Views with less machinery.** `Input.field` draws a validated field in one
+call, `FormView.fields` draws per key with overrides, `Button.view` is one
+call, and every adapter has `toView`; forms validate all without
+submitting, and a submit waits or disables explicitly.
+
+**Styling without stylesheets.** Slots declared by their style, cascade
+layers as a value, a theme from a few knobs, `Style.install`,
+`Style.usedIn` for the first paint, and a `foundations` plugin that writes
+the sheet into the head.
+
+**State that survives.** The journal pages history, vacuums itself, and
+binds replicas to actors across schema 6; Sync exchanges over a socket that
+reconnects, persists its outbox in IndexedDB v2, and takes server resets.
+
+### New packages
+
+- **`foldkit-richtext-code` 0.1.0.** Total grammars as tokenizers over the
+  shared `syntax-*` kinds: a JSON lexer that never throws, for
+  `codeDecorations`.
+- **`foldkit-richtext-code-shiki` 0.1.0.** Shiki grammars as tokenizers over
+  the same kinds (colours discarded, scopes mapped, one stylesheet); the
+  application owns the highlighter.
+- **`foldkit-richtext-markdown` 0.1.0.** Markdown round-trips for the editor
+  document: task items, tight lists, and the words around them.
+
+### Upgrading from 0.11
+
+- Replace `assembly.config` with `assembly.runtime` (compose a narrow
+  `assembly.update(own)` first where the parent adds Messages); placement
+  factories now take the seed without the placement's own field.
+- Handle `Loading` and `Failed` from `Cms.revisionsOf` instead of an empty
+  list; pass the `RevisionHistory`, not rows.
+- Send mutations with `now`, read answers as `MutationAnswer`, and read
+  `Data.more` as an `Option` (`Data.next`/`previous`/`fetch` are gone);
+  entry dependencies are typed, and an overlaid-missing field reads
+  `Failed`, not `Initial`.
+- Expect Timer/Interval's first tick one interval after `Started`; match the
+  new `TimedOut`/`GoTo` variants and the History `group` field.
+- Serve the envelope on the stamped root (not a pre-`</body>` script);
+  `SSR.entry` takes no `template`/`containerId`/`head` and refuses `meta`
+  plans at construction; the `foldkit-ssr/replay` entry is gone.
+- Open IndexedDB v2 fresh (old code cannot open it) and migrate durable to
+  schema 6 (`legacyReplicaId` recovers actor-less replicas); the socket
+  reconnects for as long as its layer lives.
+- Rebuild hand-built `StyleValue`s through the brand; move the family
+  `text` token to `on-fill`/`ink` (`text['on-accent']` is gone).
+- Upgrade `foldkit-mixins-surface` with `foldkit-mixins` (its peer moved to
+  `^0.5.0`), and the agent adapters with `foldkit-agent` (`^0.5.0`).
+- A hand-written form control now satisfies `Record<FormTag, …>`; unknown
+  `FormView.fields` keys are compile errors.
+
+### Breaking
+
+- `foldkit-bundle`: `assembly.config` is removed; shared tags reach every
+  claimant and the parent (first-claimant-wins is gone).
+- `foldkit-cms`: `revisionsOf` returns `RevisionHistory`; `historyCard`
+  takes it, not rows.
+- `foldkit-remote`, `foldkit-remote-server`: `MutationSucceeded` carries
+  `now`; `settleSuccess`/`reconcileMutation` take `MutationAnswer`; query
+  windowing is `Data.more: Option` with `WindowGrown` (`next`/`previous`/
+  `fetch` removed); entry dependencies are typed; overlay-missing reads
+  `Failed`.
+- `foldkit-primitives`: Timer/Interval tick late; `TimedOut`/`GoTo` break
+  exhaustive matches; `HistoryModel` gains `group`.
+- `foldkit-ssr`: the envelope rides the stamped root; `SSR.entry` answers
+  `Rendered` with a new contract; the `replay` entry is gone.
+- `foldkit-sync`, `foldkit-durable`: IndexedDB v2 and durable schema 6 do
+  not open older stores; the socket reconnects while its layer lives.
+- `foldkit-mixins`: `StyleValue` is branded; the family `text` token is
+  `on-fill`/`ink`.
 
 ### Added
 
@@ -163,8 +268,10 @@ version changed; `pnpm` skips versions already in the registry.
   one with `assembly.update(own)` first, or omit it when the parent adds no
   Messages); the own `subscriptions` and `managedResources` merge with the
   items', defaulting to the items', so an application that adds none passes
-  neither. `assembly.config` is removed in its favour; the CMS
-  `siteConfig` and the entity client use it.
+   neither. `assembly.config` is removed in its favour; the CMS
+   `siteConfig` and the entity client use it. Passing an already-wired
+   record (`assembly.subscriptions()`) back as own is a type error instead
+   of a later duplicate-key failure.
 
 ### Fixed
 
@@ -206,14 +313,14 @@ version changed; `pnpm` skips versions already in the registry.
   as a compiled rule's read already was; a token set inline still counts as
   defined.
 
-### Added
-
 - **`foldkit-remote`, query payloads in one response:** `Data.query(Query,
   input, { select })` sends the selection with the query, and the server
   returns the selected fields of the page's items with the edges. One
   `ConnectionMerged` merges the page and writes the fields, so a fresh list
   lands `Ready` without a second read. Edges-only servers still work: no
-  selection sent means edges only, and absent entities read as empty.
+  selection sent means edges only, and absent entities read as empty. The
+  shared requirement reader is exported as `RemoteServer.readHelper`, so a
+  custom handler answers the same settled-fields payload.
 
 - **`foldkit-remote`, `Data.meta(model, projection)`:** when what is shown
   was last received (`updatedAt`, newest server write among it, `undefined`
@@ -359,7 +466,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Message.ValidatedAll()` validates every key and row as a submit would and
   submits nothing; `form.isValid(model)` says whether a submit now would hand
   over the value at once (unlike `canSubmit`, a running or unrun check is not
-  valid).
+  valid). A nested row's Message that changes nothing keeps the parent Model
+  by identity instead of rebuilding its rows, so a no-op in a row renders
+  nothing.
 
 - **`foldkit-mixins-form`, a check running and a submit in flight:** a key
   whose check runs shows a `Checking…` line in the new `checking` Slot
@@ -835,9 +944,24 @@ version changed; `pnpm` skips versions already in the registry.
   that undo an edit and nothing else. `translate`'s `continues` option and
   `coalesce` make a burst of typing one op, and a `Collect` op removes deleted
   text, in two phases, through the log. `examples/pages` wires it to Sync and
-  Durable.
+  Durable. Since: `RetypeContainer` retypes the caret's block in place,
+  `unionChangeSet` unions held IME patches, `SetProps` is refused only when
+  it would make valid props invalid, transactions carry their normalized
+  `transactions`, and a cached `nodeIndex` answers block lookups.
 - **`foldkit-richtext-dom`: `patchTo`, and an `overlay` Command** for
   decorations from application state, such as other people's carets.
+  `patchTo` patches an externally replaced document without remounting (a
+  remote keystroke keeps the caret), judging moved runs by both blocks;
+  empty runs draw addressable spans, string data draws as
+  `data-decoration-*`, input rules match on surrounding node kinds, and a
+  non-moving transition keeps the Model by identity instead of clearing it.
+- **`foldkit-richtext-markdown`, task items and tight lists:** `- [ ] ` at a
+  list item's start makes it a task in place, and the printer records
+  CommonMark spread, so tight items keep nested lists under their text.
+- **`foldkit-richtext-code` and `foldkit-richtext-code-shiki`, first
+  releases:** total JSON and Shiki grammars as tokenizers over the shared
+  `syntax-*` kinds, for `codeDecorations` (the application owns the
+  highlighter).
 - **`foldkit-sync`:**
   - `Sync.fact`, which applies a durable fact in the intent's own transition.
   - `onReinstall` on `Sync.mount`.
