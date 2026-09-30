@@ -65,7 +65,8 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     /**
      * Whether this page is taken over: asked before anything is adopted, so
      * a page showing another reader's data never becomes live facts. Omitted
-     * adopts as before.
+     * adopts as before. Must not throw: a throwing predicate propagates out
+     * of `hydrate` with no runtime booted and nothing contained.
      */
     readonly when?: ((page: Document) => boolean) | undefined
     /**
@@ -77,7 +78,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly otherwise?: 'render' | undefined
     /**
      * Whether the plan's data version is still current: asked once, with
-     * `plan.version`, before anything is adopted. Omitted never asks.
+     * `plan.version`, before anything is adopted. Omitted never asks. A plan
+     * with no version still asks, with `undefined` (a check shaped like
+     * `version === expected` then marks every such page stale). Must not
+     * throw, as `when`.
      */
     readonly fresh?: ((version: unknown) => boolean) | undefined
   },
@@ -90,8 +94,8 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
   }
   const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
-  // A page that is declined or stale never adopts. `render` draws afresh on
-  // the root it keeps on screen; anything else contains the served page.
+  // A page that is declined or stale never adopts. `render` draws afresh at
+  // the root's place, replacing it; anything else contains the served page.
   // With no served page the application renders afresh regardless.
   const declined = options.when !== undefined && !options.when(document)
   const stale = options.fresh !== undefined && !options.fresh(plan.version)
@@ -101,10 +105,13 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   }
   const program = (start: { readonly model: Model; readonly commands?: ReadonlyArray<unknown> }) =>
     makeApplication({ ...startingFrom(config, start), container: root } as never)
+  // Contain the served page the way Foldkit refuses one: adopt the baseline
+  // with an empty build id, with nothing copied here.
+  const contain = () => adopt(program({ model: plan.baseline }), { buildId: '' })
   if (declined || stale) {
     if (options.otherwise === 'render')
       run(makeApplication({ ...config, container: root } as never))
-    else adopt(program({ model: plan.baseline }), { buildId: '' })
+    else contain()
     return
   }
   if (root.getAttribute(BUILD_ATTRIBUTE) !== options.buildId) {
@@ -114,9 +121,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   const resumed = resume(plan, document, { route: routeOf(window.location.href) })
   if (Result.isFailure(resumed)) {
     console.error(`[foldkit-ssr] the page cannot resume: ${resumed.failure.message}`)
-    // Foldkit refuses an empty build id and contains the page, so the page is
-    // refused the way Foldkit refuses one, with nothing copied here.
-    adopt(program({ model: plan.baseline }), { buildId: '' })
+    contain()
     return
   }
   const model = resumed.success
@@ -166,7 +171,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   const decoded = bindingsAndEvents(plan, document, root, model)
   if (Result.isFailure(decoded)) {
     console.error(`[foldkit-ssr] the page cannot resume: ${decoded.failure.message}`)
-    adopt(program({ model: plan.baseline }), { buildId: '' })
+    contain()
     return
   }
   deferBoot(root, decoded.success, plan.start, { boot, answered }, pending)

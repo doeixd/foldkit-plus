@@ -7,7 +7,8 @@
  * and upstream `foldkit/*` through the installed files — and reaching the
  * server renderer fails. Bare third-party imports (`effect`, `drizzle-orm`,
  * `@foldkit/ui`, `node:*`) are trusted: the renderer lives in Foldkit's own
- * tree, which is walked fully.
+ * tree, which is walked fully. Not covered: `require()` calls and
+ * non-literal dynamic imports, which this codebase does not use for modules.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
@@ -19,6 +20,8 @@ const posix = (path: string) => path.split(sep).join('/')
 
 /** Every workspace package's specifiers to their source files. */
 const sources = new Map<string, string>()
+// The same mapping as scripts/workspace-paths.mjs builds; kept separate
+// because the script rewrites tsconfigs and exits instead of resolving.
 for (const entry of readdirSync(join(root, 'packages'))) {
   const manifest = join(root, 'packages', entry, 'package.json')
   if (!statSync(join(root, 'packages', entry)).isDirectory() || !existsSync(manifest)) continue
@@ -124,6 +127,8 @@ describe('the browser entry', () => {
       true,
     )
     expect([...visited].some(file => file.endsWith(join('ssr', 'src', 'shared.ts')))).toBe(true)
+    // The foldkit leg ran: dropping it would silently unwalk the dist tree.
+    expect([...visited].some(file => posix(file).includes('node_modules/foldkit/dist/'))).toBe(true)
     expect([...visited].some(file => posix(file).includes('foldkit/experimental/server'))).toBe(
       false,
     )

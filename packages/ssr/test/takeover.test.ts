@@ -83,7 +83,10 @@ it('redraws a page older than the data', async () => {
   })
   await vi.waitFor(() => expect(calls.init).toBe(2))
   expect(seen).toEqual(['v1'])
-  expect(document.getElementById('count')?.textContent).toBe('41')
+  const count = document.getElementById('count')
+  expect(count?.textContent).toBe('41')
+  count?.click()
+  await vi.waitFor(() => expect(document.getElementById('count')?.textContent).toBe('42'))
 })
 
 it('adopts a page the checks pass', async () => {

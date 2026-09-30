@@ -110,7 +110,6 @@ const attach = (storageKey: string, kept: number, patience: number): (() => void
   const settle = (top: number) => {
     settling.abort()
     settling = new AbortController()
-    settling = new AbortController()
     const { signal } = settling
     for (const input of ['wheel', 'touchstart', 'keydown', 'pointerdown'])
       window.addEventListener(input, () => settling.abort(), { passive: true, signal })

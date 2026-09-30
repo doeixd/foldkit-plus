@@ -1,9 +1,10 @@
 # What the CMS demo's rough edges ask of the packages
 
-> **Status:** partially built (2026-09-29). Areas 0, 1b, 3, 4, 5, 6 are
-> built; areas 1, 2 are not started. Each area names the example files that hand-roll it and the
-> package/design that should own it. Work the areas in order; the example is
-> the acceptance test (area 0's rule).
+> **Status:** partially built (2026-09-30). Areas 0, 1b, 3, 4, 5, 6 are
+> built; areas 1 and 2 are partial (scroll keeping and SSR S1/S5 built, the
+> routing core and server/SSG remainder open). Each area names the example
+> files that hand-roll it and the package/design that should own it. Work
+> the areas in order; the example is the acceptance test (area 0's rule).
 
 Running `examples/cms` end to end (studio, site, prerender, demos) surfaced
 rough edges that group into six kinds. None is a CMS bug; every one is a seam

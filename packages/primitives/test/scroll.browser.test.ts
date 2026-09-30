@@ -90,3 +90,18 @@ it('lets the reader scroll away while it would hold the place', async () => {
   await new Promise(resolve => setTimeout(resolve, 200))
   expect(window.scrollY).toBe(100)
 })
+
+it('gives the window back when the holding fiber ends', async () => {
+  const fiber = held
+  if (fiber === null) throw new Error('scroll keeping never attached')
+  await Effect.runPromise(Fiber.interrupt(fiber))
+  // The afterAll interrupts the same fiber: it must not run twice.
+  held = null
+  expect(window.history.scrollRestoration).toBe('auto')
+  window.scrollTo({ top: 400, behavior: 'instant' })
+  document.body.click()
+  window.history.pushState({}, '', '?released=1')
+  window.history.pushState({}, '', '?released=2')
+  await new Promise(resolve => setTimeout(resolve, 300))
+  expect(window.scrollY).toBe(400)
+})
