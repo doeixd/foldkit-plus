@@ -7,14 +7,15 @@
  * its target (dropping the `new` the other section named on a switch), and
  * a link the chair cannot follow is a full load.
  *
- * Two Remote domains share no tags to tell their Messages apart, so each
- * section folds its own (its placements route them inside its update, as
- * before); the subscriptions are lifted here with a section gate, so only
+ * The two sections' Messages stay apart because each arrives wrapped:
+ * GotPostsMessage folds only into the posts Model through the posts update,
+ * and GotPagesMessage only into the pages Model through the pages update.
+ * The subscriptions are lifted here with a section gate, so only
  * the shown section fetches. A closed gate tears its entries down, as a
  * remount did. An in-flight Command that lands after a switch still folds
- * into the section that started it: request ids carry their domain's name.
+ * into the section that started it: its wrapper names that section.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Equal, Option, Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -59,7 +60,7 @@ export type Message = typeof Message.Type
 export const sectionOf = (pathname: string): Option.Option<Section> =>
   pathname === '/'
     ? Option.some('posts')
-    : pathname.startsWith('/pages')
+    : pathname === '/pages' || pathname.startsWith('/pages/')
       ? Option.some('pages')
       : Option.none()
 
@@ -125,12 +126,30 @@ export const update = (model: Model, message: Message) =>
         'wren',
       )
       const query = Option.getOrElse(url.search, () => '')
-      const at = { ...model, section, chair, query }
-      // A section only ever sees its own address: what it has open stays open.
+      // The address is rewritten on every keystroke and echoed back: keep the
+      // fields (and the object) when the echo says nothing new, so the runtime
+      // can skip the render.
+      const at =
+        section === model.section && chair === model.chair && query === model.query
+          ? model
+          : { ...model, section, chair, query }
+      // A section only ever sees its own address, so a switch never closes
+      // what the hidden section has open: its entry and its draft stay intact.
       const clean = section === model.section ? url : withoutNew(url)
-      return section === 'pages'
-        ? foldPages(at, Pages.Message.UrlChanged({ url: clean }))
-        : foldPosts(at, Posts.Message.UrlChanged({ url: clean }))
+      const folded =
+        section === 'pages'
+          ? foldPages(at, Pages.Message.UrlChanged({ url: clean }))
+          : foldPosts(at, Posts.Message.UrlChanged({ url: clean }))
+      // The sections always rebuild on UrlChanged, so reference equality never
+      // reports an echo: compare by value, and hand back the Model itself when
+      // the echo changed nothing (commands would carry the change, so require
+      // none).
+      if (at === model && (folded.commands ?? []).length === 0) {
+        const child = section === 'pages' ? folded.model.pages : folded.model.posts
+        const prior = section === 'pages' ? model.pages : model.posts
+        if (Equal.equals(child, prior)) return { ...folded, model }
+      }
+      return folded
     },
     UrlRequested: ({ request }) => {
       if (request._tag === 'External') return { ...followLoad(request.href), model }
@@ -168,7 +187,11 @@ const remoteSubscriptions = <
   return wiring.subscriptions
 }
 
-/** What the studio writes into the address: each section's own writers, behind its section. */
+/**
+ * What the studio writes into the address: each section's own writers, behind
+ * its section. Without the gate a hidden section would keep writing the keys
+ * it shows (`new` among them) and fight the shown section over the address.
+ */
 const gate =
   (section: Section) =>
   (model: Model): boolean =>
@@ -264,8 +287,14 @@ export const init = (url: Url) => {
     'wren',
   )
   const query = Option.getOrElse(url.search, () => '')
-  const posts = Posts.init(url)
-  const pages = Pages.update(Pages.initial, Pages.Message.UrlChanged({ url }))
+  // Like update above: the shown section boots from the address, the hidden
+  // one from the address without `new`, so a reload never opens the other
+  // section's unsaved entry in the section nobody sees.
+  const posts = Posts.init(section === 'posts' ? url : withoutNew(url))
+  const pages = Pages.update(
+    Pages.initial,
+    Pages.Message.UrlChanged({ url: section === 'pages' ? url : withoutNew(url) }),
+  )
   return {
     model: { section, chair, query, posts: posts.model, pages: pages.model },
     commands: [

@@ -42,7 +42,7 @@ const commanded = (model: Model, message: Message): ReadonlyArray<string> =>
 
 describe('navigateSearch', () => {
   it('carries the current query into the target, which wins ties', () => {
-    const merged = navigateSearch('as=wren&q=milk', urlOf('/pages', 'as=wren'), true)
+    const merged = navigateSearch('as=edda&q=milk', urlOf('/pages', 'as=wren'), true)
     expect(merged.pathname).toBe('/pages')
     expect(merged.search).toEqual(Option.some('as=wren&q=milk'))
   })
@@ -50,6 +50,36 @@ describe('navigateSearch', () => {
   it('drops a `new` that names the section left behind', () => {
     const merged = navigateSearch('as=wren&new=e1', urlOf('/pages', 'as=wren'), true)
     expect(merged.search).toEqual(Option.some('as=wren'))
+  })
+
+  it('drops a carried `new` from the navigated address on a cross-section link', async () => {
+    const here = window.location.host
+    const target: Url = {
+      protocol: 'http:',
+      host: here,
+      port: Option.none(),
+      pathname: '/pages',
+      search: Option.some('as=wren'),
+      hash: Option.none(),
+    }
+    const model = changed(boot('/'), '/', 'as=wren&q=milk&new=e1')
+    expect(model.query).toContain('new=e1')
+    const result = update(
+      model,
+      Message.UrlRequested({ request: { _tag: 'Internal', url: target } }),
+    ) as {
+      readonly commands?: ReadonlyArray<{
+        readonly name: string
+        readonly effect: Effect.Effect<void>
+      }>
+    }
+    const [navigate] = result.commands ?? []
+    expect(navigate?.name).toBe('Navigate')
+    await Effect.runPromise(navigate!.effect)
+    expect(window.location.pathname).toBe('/pages')
+    expect(window.location.search).toContain('q=milk')
+    expect(window.location.search).not.toContain('new=')
+    window.history.replaceState(null, '', '/')
   })
 
   it('pushes the merged address on a same-document navigation', async () => {
@@ -87,6 +117,7 @@ describe('sectionOf', () => {
     expect(sectionOf('/pages')).toEqual(Option.some('pages'))
     expect(sectionOf('/pages/e1')).toEqual(Option.some('pages'))
     expect(sectionOf('/site')).toEqual(Option.none())
+    expect(sectionOf('/pagesfoo')).toEqual(Option.none())
   })
 })
 
@@ -96,6 +127,34 @@ describe('the studio application', () => {
     expect(boot('/pages').section).toBe('pages')
     expect(boot('/pages', 'as=edda').chair).toBe('edda')
     expect(boot('/unknown')).toMatchObject({ section: 'posts' })
+  })
+
+  it('boots a cross-section `new` address without opening it in the hidden section', () => {
+    const pages = boot('/pages', 'new=e9')
+    expect(pages.section).toBe('pages')
+    expect(Posts.PostEditor.entry(pages.posts)).toEqual(Option.none())
+    const posts = boot('/', 'new=e1')
+    expect(posts.section).toBe('posts')
+    expect(PageEditor.entry(posts.pages)).toEqual(Option.none())
+  })
+
+  it('keeps the Model identical on an address echo', () => {
+    const model = boot('/')
+    expect(update(model, Message.UrlChanged({ url: urlOf('/', '') })).model).toBe(model)
+  })
+
+  it('folds a hidden section’s message into that section only', () => {
+    const model = changed(boot('/'), '/pages')
+    expect(model.section).toBe('pages')
+    const next = update(
+      model,
+      Message.GotPostsMessage({
+        message: Posts.Message.TypedSchedule({ text: '2026-10-01T09:00' }),
+      }),
+    ).model
+    expect(next.posts.scheduleAt).toBe('2026-10-01T09:00')
+    expect(next.posts).not.toBe(model.posts)
+    expect(next.pages).toBe(model.pages)
   })
 
   it('moves between sections without losing either section’s Model', () => {
