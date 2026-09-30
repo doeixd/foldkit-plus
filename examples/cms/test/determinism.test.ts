@@ -146,5 +146,7 @@ it('renders every page identically under two default locales', context => {
   const left = renderUnder(english)
   const right = renderUnder(german)
   expect(left.locale).not.toBe(right.locale)
+  // Both children rendered the site, not an empty echo of the protocol.
+  expect(left.pages.length).toBeGreaterThan(5)
   expectSamePages(left.pages, right.pages, `${right.locale} against ${left.locale}`)
 }, 240_000)

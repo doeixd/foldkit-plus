@@ -9,8 +9,10 @@ import { generateSite, siteTemplate } from '../src/ssr/prerender.js'
 
 const template = siteTemplate(readFileSync(new URL('../index.html', import.meta.url), 'utf8'))
 // The parent fixes the build clock so only ambient reads can move the output.
-const now = new Date(process.env['DETERMINISM_NOW'] ?? Date.now())
-const pages = await generateSite(template, now)
+const at = process.env['DETERMINISM_NOW']
+if (at === undefined)
+  throw new Error('determinismChild runs under the determinism test (DETERMINISM_NOW)')
+const pages = await generateSite(template, new Date(at))
 process.stdout.write(
   JSON.stringify({
     locale: new Intl.DateTimeFormat().resolvedOptions().locale,
