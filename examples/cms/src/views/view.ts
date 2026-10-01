@@ -127,16 +127,22 @@ const Preview = SlotView.define(
 ).pipe(Style.attach(SiteStyle))
 
 const previewing = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  const post = Option.flatMap(PostEditor.pageId(model), id => {
-    const read = postPage(id).read(model)
-    return read._tag === 'Ready' || read._tag === 'Refreshing'
-      ? Option.some(read.value)
-      : Option.none()
-  })
-  return Option.match(post, {
-    onNone: () => h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.']),
-    onSome: post => h.div(slots.preview.attrs(), [Preview(post, h)]),
-  })
+  const read = Option.map(PostEditor.pageId(model), id => postPage(id).read(model))
+  if (Option.isNone(read))
+    return h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.'])
+  const data = read.value
+  // Still on its way reads as loading, not as an empty draft; useful data stays
+  // on screen, so a failed refresh keeps the last preview. `Overlaid` is no
+  // failure: an unsaved post's preview names fields the server has not seen,
+  // which reads as an empty draft until they are written.
+  if (data._tag === 'Ready' || data._tag === 'Refreshing')
+    return h.div(slots.preview.attrs(), [Preview(data.value, h)])
+  if (data._tag === 'Failed' && data.previous !== undefined)
+    return h.div(slots.preview.attrs(), [Preview(data.previous, h)])
+  if (data._tag === 'Failed' && data.error._tag !== 'Overlaid')
+    return Failure.view(slots.muted, h, 'The post could not be read.')
+  if (data._tag === 'Loading') return Loading.view(slots.muted, h, 'Loading…')
+  return h.p(slots.muted.attrs(), ['There is nothing to preview yet: write a title.'])
 }
 
 const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
@@ -147,6 +153,9 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const may = (transition: Parameters<typeof PostEditor.may>[1]) =>
     PostEditor.may(model, transition)
   const live = stateIs(state, 'Published')
+  // Publishing submits the form, so while its checks fail the bar's Publish is
+  // disabled rather than refusing after the click; the submit stays the enforcer.
+  const submittable = PostForm.canSubmit(model.editor.form)
   const at = new Date(model.scheduleAt)
   const action = (id: string, label: string, message: Message, enabled = true): Html =>
     h.button(slots.button.attrs([h.Id(id), h.OnClick(message), h.Disabled(!enabled)]), [label])
@@ -189,7 +198,12 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       ...(loaded && may('publish') && !live && !stateIs(state, 'Archived')
         ? [
             h.button(
-              slots.primary.attrs([h.Id('publish'), h.OnClick(ask(Editor.Message.PublishAsked()))]),
+              slots.primary.attrs([
+                h.Id('publish'),
+                h.OnClick(ask(Editor.Message.PublishAsked())),
+                h.Disabled(!submittable),
+                ...(submittable ? [] : [h.Title('Fill in what is marked before publishing')]),
+              ]),
               ['Publish'],
             ),
           ]
@@ -202,11 +216,27 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       bar,
       h.div(slots.canvas.attrs(), [
         // What the editor has not opened yet: loading, failed, or missing.
+        // A read that failed offers to ask again: `ReloadAsked` refreshes the
+        // entry, its draft and its row, which is what `LoadFailed` means.
         status === 'Loading'
           ? Loading.view(slots.muted, h, statusLine[status])
           : failed(status)
             ? Failure.view(slots.muted, h, statusLine[status])
             : Empty.view(slots.muted, h, statusLine[status]),
+        ...(status === 'LoadFailed'
+          ? [
+              h.div(slots.toolbar.attrs(), [
+                h.button(
+                  slots.button.attrs([
+                    h.Id('retry'),
+                    h.Type('button'),
+                    h.OnClick(ask(Editor.Message.ReloadAsked())),
+                  ]),
+                  ['Try again'],
+                ),
+              ]),
+            ]
+          : []),
       ]),
     ])
 
@@ -311,6 +341,11 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                     !Number.isNaN(at.getTime()),
                   ),
                 ]),
+                // An invalid date is said, not just a disabled button: the box
+                // holds text the schedule cannot use.
+                ...(model.scheduleAt !== '' && Number.isNaN(at.getTime())
+                  ? [h.p(slots.muted.attrs(), ['Enter a date and time to schedule it.'])]
+                  : []),
               ]
             : []),
           ...(scheduled && may('unschedule')

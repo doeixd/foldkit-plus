@@ -24,6 +24,7 @@ import {
 import { icon } from './icons.js'
 import { chair, editorBar, failed, publisherOf, shell, stateIs, statusLine } from './shell.js'
 import { pageHref } from '../content/site.js'
+import { PageForm } from '../content/pageDomain.js'
 import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
@@ -86,6 +87,9 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const state = PageEditor.state(model)
   const loaded = !['Loading', 'NotFound', 'LoadFailed'].includes(status)
   const published = stateIs(state, 'Published')
+  // Publishing submits the form, so while its checks fail the bar's Publish is
+  // disabled rather than refusing after the click; the submit stays the enforcer.
+  const submittable = PageForm.canSubmit(model.editor.form)
   // The page's address on the site, once it is shown there.
   const live = Option.flatMap(
     Option.filter(PageEditor.pageId(model), () => stateIs(state, 'Published', 'Changed')),
@@ -121,6 +125,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                 slots.primary.attrs([
                   h.Id('publish'),
                   h.OnClick(Message.GotEditorMessage({ message: Editor.Message.PublishAsked() })),
+                  h.Disabled(!submittable),
+                  ...(submittable ? [] : [h.Title('Fill in what is marked before publishing')]),
                 ]),
                 ['Publish'],
               ),
@@ -164,11 +170,27 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         ? [editorView(model, h)]
         : [
             // What the editor has not opened yet: loading, failed, or missing.
+            // A read that failed offers to ask again: `ReloadAsked` refreshes
+            // the entry, its draft and its row, which is what `LoadFailed` means.
             status === 'Loading'
               ? Loading.view(slots.muted, h, statusLine[status])
               : failed(status)
                 ? Failure.view(slots.muted, h, statusLine[status])
                 : Empty.view(slots.muted, h, statusLine[status]),
+            ...(status === 'LoadFailed'
+              ? [
+                  h.div(slots.toolbar.attrs(), [
+                    h.button(
+                      slots.button.attrs([
+                        h.Id('retry'),
+                        h.Type('button'),
+                        h.OnClick(ask(Editor.Message.ReloadAsked())),
+                      ]),
+                      ['Try again'],
+                    ),
+                  ]),
+                ]
+              : []),
           ],
     ),
   ])
@@ -188,6 +210,10 @@ export const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBui
             h.h1(slots.screenTitle.attrs(), ['Pages']),
             h.p(slots.muted.attrs(), [
               'A visitor reads the site. Choose a writer or an editor in the sidebar to build pages.',
+            ]),
+            h.a(slots.primary.attrs([h.Href('/site?as=visitor')]), [
+              icon(h, 'site'),
+              'Go to the site',
             ]),
           ]),
         ]

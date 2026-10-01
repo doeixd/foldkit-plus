@@ -41,16 +41,16 @@ const nothing = (
   h: HtmlBuilder<Message>,
   tag: string,
   missing: string,
+  /** Where back goes: a post is missed from the blog, a page from the home page. */
+  back: { readonly path: '/site' | '/site/blog'; readonly label: string },
 ): Html =>
-  tag === 'Ready'
+  tag === 'Ready' || tag === 'NotFound'
     ? h.p(slots.status.attrs(), [
         missing,
         ' ',
-        h.a([h.Href(siteLink(model.reader, '/site'))], ['Go to the home page']),
+        h.a([h.Href(siteLink(model.reader, back.path))], [back.label]),
       ])
-    : tag === 'NotFound'
-      ? Empty.view(slots.status, h, missing)
-      : pending(slots, h, tag)
+    : pending(slots, h, tag)
 
 /** What a read says before it has an answer: failed, or busy while it waits. */
 const pending = (slots: Slots, h: HtmlBuilder<Message>, tag: string): Html =>
@@ -68,7 +68,10 @@ const tagOf = <A extends { readonly _tag: string }>(
 const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   Option.match(pageDocument(model), {
     onNone: () => [
-      nothing(model, slots, h, tagOf(pageRead(model), model), 'There is no page at this address.'),
+      nothing(model, slots, h, tagOf(pageRead(model), model), 'There is no page at this address.', {
+        path: '/site',
+        label: 'Go to the home page',
+      }),
     ],
     // The site's Blocks send nothing; their links are followed by the application's routing.
     onSome: document =>
@@ -79,7 +82,10 @@ const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
   const first = Option.flatMap(postRead(model), read => firstOf(read.read(model)))
   if (Option.isNone(first))
     return [
-      nothing(model, slots, h, tagOf(postRead(model), model), 'There is no post at this address.'),
+      nothing(model, slots, h, tagOf(postRead(model), model), 'There is no post at this address.', {
+        path: '/site/blog',
+        label: 'Go to the blog',
+      }),
     ]
   const found = first.value
   return [
@@ -129,7 +135,8 @@ const titleOf = (model: Model): string => {
           Option.flatMap(postRead(model), read => firstOf(read.read(model))),
           found => found.title,
         ),
-        () => 'The blog',
+        // Not a post (yet): the miss, not the index it is missed from.
+        () => 'Not found',
       )
     case 'Page':
       return Option.getOrElse(

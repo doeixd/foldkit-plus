@@ -17,6 +17,7 @@ import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity, type Selected } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
 import { Capability, Layers, Slot, SlotView, Slots, Style } from 'foldkit-mixins'
+import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
@@ -598,6 +599,8 @@ type PostCard = Selected<typeof PostCard>
 const PostsSlots = Slots.define({
   root: part,
   heading: part,
+  /** What stands for the cards before they can be drawn: loading, empty, or failed. */
+  status: part,
   list: part,
   item: part,
   cover: part,
@@ -613,6 +616,8 @@ const PostsLook = Appearance.make(PostsSlots, {
     base: {
       root: Layout.stack({ gap: t.space.md }),
       heading: Style.self({ fontFamily: t.font.heading, fontSize: t.size.xl, margin: '0' }),
+      // Said as a status, never as busy-forever: a failed read is an alert.
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
       list: Style.self({
         display: 'grid',
         gap: t.space.lg,
@@ -743,6 +748,8 @@ const FeaturedSlots = Slots.define({
   title: part,
   excerpt: part,
   link: part,
+  /** What stands for the post before it can be drawn: loading, empty, or failed. */
+  status: part,
 })
 const FeaturedLook = Appearance.make(FeaturedSlots, {
   layer: components,
@@ -770,6 +777,8 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
       title: Style.self({ fontFamily: t.font.heading, fontSize: t.size['2xl'], margin: '0' }),
       excerpt: Style.self({ color: t.text.muted, margin: '0' }),
       link: Style.self({ color: t.accent.ink, fontWeight: t.weight.semibold }),
+      // Said as a status, never as busy-forever: a failed read is an alert.
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
     },
   }),
 })
@@ -797,6 +806,19 @@ export const FeaturedPost = QueryBlock.define('FeaturedPost', {
  * through Remote with the reader's authority, so it lists what that reader may
  * see of the worklist.
  */
+const LatestPagesSlots = Slots.define({
+  /** What stands for the list before it can be drawn: loading, empty, or failed. */
+  status: part,
+})
+const LatestPagesLook = Appearance.make(LatestPagesSlots, {
+  layer: components,
+  recipe: Style.recipeFor(LatestPagesSlots)({
+    base: {
+      // Said as a status, never as busy-forever: a failed read is an alert.
+      status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+    },
+  }),
+})
 export const LatestPages = QueryBlock.define('LatestPages', {
   Props: Schema.Struct({
     count: Schema.Literals([3, 5]),
@@ -814,6 +836,7 @@ export const LatestPages = QueryBlock.define('LatestPages', {
     label: 'Latest pages',
     description: 'The site’s newest pages',
   }),
+  Appearance.attach(LatestPagesLook),
   Block.annotate(Builder.controls({ except: Input.relationOne(Cms.Entities.Entry) })),
 )
 
@@ -857,12 +880,6 @@ export const Site = Catalog.make({
     },
   ],
 })
-
-const waiting = <M>(h: HtmlBuilder<M>, what: string, busy = false): Html =>
-  h.p(
-    [h.Role('status'), ...(busy ? [h.AriaBusy(true)] : []), h.Style({ color: t.text.muted })],
-    [what],
-  )
 
 /** The same views draw the public page, the preview, and the editor's canvas. */
 export const SiteRenderer = Renderer.make(Site, {
@@ -927,55 +944,59 @@ export const SiteRenderer = Renderer.make(Site, {
     const rows = PostList.rows(data)
     return h.section(drawn.root.attrs(), [
       ...(props.heading === '' ? [] : [h.h2(drawn.heading.attrs(), [props.heading])]),
-      rows._tag === 'Ready' || rows._tag === 'Refreshing'
+      ...(rows._tag === 'Ready' || rows._tag === 'Refreshing'
         ? rows.value.items.length === 0
-          ? waiting(h, 'Nothing is published yet.')
-          : postCards(h, drawn, rows.value.items)
-        : waiting(h, 'Loading posts…', true),
+          ? [Empty.view(drawn.status, h, 'Nothing is published yet.')]
+          : [postCards(h, drawn, rows.value.items)]
+        : rows._tag === 'Failed'
+          ? [Failure.view(drawn.status, h, 'The posts could not be read.')]
+          : [Loading.view(drawn.status, h, 'Loading posts…')]),
     ])
   },
   FeaturedPost: ({ props, data, appearance, h }) => {
     const drawn = FeaturedLook.draw({ appearance, h })
     const rows = FeaturedPost.rows(data)
-    const found =
-      rows._tag === 'Ready' || rows._tag === 'Refreshing'
-        ? Arr.head(rows.value.items)
-        : Option.none()
-    if (Option.isNone(found)) {
-      // The only busy case is a chosen post still on its way.
-      const loading = Option.isSome(props.post) && rows._tag !== 'Ready'
-      return waiting(
-        h,
-        Option.isNone(props.post)
-          ? 'Choose a post to feature.'
-          : rows._tag === 'Ready'
-            ? 'That post is not published.'
-            : 'Loading the post…',
-        loading,
-      )
+    // No post chosen is nothing to show, not something still arriving.
+    if (Option.isNone(props.post)) return Empty.view(drawn.status, h, 'Choose a post to feature.')
+    if (rows._tag === 'Ready' || rows._tag === 'Refreshing') {
+      const found = Arr.head(rows.value.items)
+      if (Option.isNone(found)) return Empty.view(drawn.status, h, 'That post is not published.')
+      const post = found.value
+      return h.article(drawn.root.attrs(), [
+        h.div(drawn.cover.attrs([h.Style({ background: coverOf(post) })]), []),
+        h.div(drawn.body.attrs(), [
+          h.p(drawn.eyebrow.attrs(), ['Featured']),
+          h.h2(drawn.title.attrs(), [post.title]),
+          h.p(drawn.excerpt.attrs(), [post.excerpt]),
+          h.a(drawn.link.attrs([h.Href(postHref(post.slug))]), ['Read the post →']),
+        ]),
+      ])
     }
-    const post = found.value
-    return h.article(drawn.root.attrs(), [
-      h.div(drawn.cover.attrs([h.Style({ background: coverOf(post) })]), []),
-      h.div(drawn.body.attrs(), [
-        h.p(drawn.eyebrow.attrs(), ['Featured']),
-        h.h2(drawn.title.attrs(), [post.title]),
-        h.p(drawn.excerpt.attrs(), [post.excerpt]),
-        h.a(drawn.link.attrs([h.Href(postHref(post.slug))]), ['Read the post →']),
-      ]),
-    ])
+    // A failed read is an alert, never busy-forever.
+    return rows._tag === 'Failed'
+      ? Failure.view(drawn.status, h, 'The featured post could not be read.')
+      : Loading.view(drawn.status, h, 'Loading the post…')
   },
-  LatestPages: ({ props, data, h }) => {
+  LatestPages: ({ props, data, appearance, h }) => {
+    const drawn = LatestPagesLook.draw({ appearance, h })
     const rows = LatestPages.rows(data)
-    return rows._tag === 'Ready' || rows._tag === 'Refreshing'
-      ? h.ul(
-          [],
-          rows.value.items
-            .filter(item => !Option.contains(props.except, item.id))
-            .slice(0, props.count)
-            .map(item => h.li([], [item.label])),
-        )
-      : h.p([], ['Loading pages'])
+    if (rows._tag !== 'Ready' && rows._tag !== 'Refreshing')
+      // A failed read is an alert, never busy-forever.
+      return rows._tag === 'Failed'
+        ? Failure.view(drawn.status, h, 'The pages could not be read.')
+        : Loading.view(drawn.status, h, 'Loading pages…')
+    const items = rows.value.items
+      .filter(item => !Option.contains(props.except, item.id))
+      .slice(0, props.count)
+    // Nothing to leave out of is empty; a list left with nothing by `except`
+    // draws nothing, as it did: every page that carries this list leaves out
+    // the page it is on.
+    if (items.length === 0 && rows.value.items.length === 0)
+      return Empty.view(drawn.status, h, 'Nothing yet.')
+    return h.ul(
+      [],
+      items.map(item => h.li([], [item.label])),
+    )
   },
 })
 
