@@ -9,6 +9,7 @@
  */
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { Cms } from 'foldkit-cms'
 import { RemotePolicy } from 'foldkit-remote'
 import { Inert } from 'foldkit-mixins/testing'
 import type { Html } from 'foldkit/html'
@@ -19,6 +20,7 @@ import {
   Message,
   PostEditor,
   actives,
+  history,
   initial,
   postPage,
   update,
@@ -119,6 +121,25 @@ describe('the posts’ editor', () => {
     model = step(model, editorOf(Editor.Message.ReloadAsked()))
     // `ReloadAsked` refreshes the entry, its draft and its row: new generation.
     expect(model.remote.refresh.generation).toBeGreaterThan(before)
+  })
+
+  it('draws a retry for a history that failed, without failing the entry', () => {
+    let model = step(initial, Message.StartedPost({ entry: 'entry-new' }))
+    // A new post is a loaded editor whose history has no answer yet.
+    expect(Cms.revisionsOf(model, history)._tag).toBe('Loading')
+    model = step(
+      model,
+      Message.ReadFailed({
+        requests: [{ entity: 'CmsEntry', id: 'entry-new', fields: ['revisions'] }],
+        error: { _tag: 'ReadFailed', message: 'unreachable' },
+      }),
+    )
+    expect(Cms.revisionsOf(model, history)._tag).toBe('Failed')
+    const tree = Inert.draw(Studio, model)
+    expect(Inert.text(tree)).toContain('The history could not be read.')
+    expect(Inert.text(tree)).not.toContain('Nothing has been published yet.')
+    const retries = Inert.byTag(tree, 'button').filter(node => Inert.text(node) === 'Try again')
+    expect(retries).toHaveLength(1)
   })
 
   it('disables Publish while the form cannot be submitted', async () => {
