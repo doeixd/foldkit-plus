@@ -130,10 +130,12 @@ Only after wave 0; polish on top of a lie is paint.
   story; the header/footer clusters are unproven at 320px (screenshot,
   don't guess).
 - **Studio smalls.** Pages visitor screen missing the `Go to the site`
-  link posts has (`pagesView.ts:185-194` vs `view.ts:354-357`); the
-  schedule input needs its own slot plus an invalid-date hint plus
-  clear-on-scheduled (`view.ts:292-312`); `aria-busy` on the refreshing
-  pages list; touch-target width for tabs and toolbar buttons.
+  link posts has (`pagesView.ts:185-194` vs `view.ts:354-357`) — **built**
+  (wave 0); the schedule input needs its own slot plus an invalid-date hint
+  plus clear-on-scheduled (`view.ts:292-312`) — **partly built** (own slot,
+  hint); `aria-busy` on the refreshing pages list — **built** (the pages
+  list adopts `RowListView`); touch-target width for tabs and toolbar
+  buttons.
 - **Waitlist duplication.** `textOverride`/`textareaOverride`
   (`examples/foldkit-form/src/main.ts:213-265`) repeat one `draw` —
   parameterize by kind. Settle `isFormValid` vs `isValid` to one spelling
@@ -147,13 +149,18 @@ Batch these; none changes behavior.
   `examples/foldkit-form` (comment-only mention), the `clock`/`history`/
   `check` icons (`examples/cms/src/views/icons.ts:35,37,39`), two unused
   `control` imports (`formStyles.ts:9`, `builderStyle.ts:10`), the
-  schedule label on a container slot (`view.ts:292`).
+  schedule label on a container slot (`view.ts:292`). **Built** (the label
+  now has its own `fieldLabel` slot, so it no longer carries `muted`'s
+  loading style).
 - Six stale READMEs: `packages/bundle` (`Link.child`,
   `assembly.runtime`), `packages/ssr` (the whole static half:
   `staticSite`, `generateStaticSite`, `fileFor`),
   `packages/mixins` (`foundations`), `packages/mixins-ui`
   (`Input.field`/`Textarea.field`), `examples/bundle`, `examples/todo-app`
-  (the `correlate`/`requestId` pattern).
+  (the `correlate`/`requestId` pattern). **Four built** (bundle, ssr,
+  mixins, mixins-ui); the two example READMEs were checked and already
+  cover it (`todo-app` states the intent→fact/completion pattern;
+  `examples/bundle` still matches its `placements.runtime` app).
 - One-line doc fix, verified against source: `FieldsOptions.attrs`
   claims per-key overrides ignore attrs
   (`packages/mixins-form/src/index.ts:577-583`), but the code hands them

@@ -361,8 +361,9 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
       and what each owns) and **`FormView.submodel(…, { canSubmit })`** (which
       form has a constant-valid submit).
 - [ ] **2. Polish, hygiene, docs:** form focus story, linked
-  `blockedNotice`, site chrome, studio smalls, waitlist dedup; dead code;
-  six stale READMEs; the `attrs` doc fix; teaching comments.
+  `blockedNotice`, site chrome, studio smalls, waitlist dedup; dead code
+  (built); stale READMEs (the four package ones built; the two example ones
+  were already current); the `attrs` doc fix (built); teaching comments.
 
 ## Server
 
