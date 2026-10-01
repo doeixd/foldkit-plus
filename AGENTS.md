@@ -704,8 +704,10 @@ of its own named a form field "fits the Catalog". Read words with
   widen to `string` through inference — and an empty `{}`/`[]` in `init`
   widens the whole inferred Model (Virtual's `heights` became `{}`), so
   prefer explicit `make` generics whenever `init` holds an empty container;
-  and `Message.match` unifies diverse arm shapes to the first arm (pin its
-  output at the call).
+  and `Message.match` unifies diverse arm shapes to the first arm: pin each
+  arm's output, since pinning the whole call does not reach the match's own
+  inference (two `Link.child` folds each speak their own wrapper commands, so
+  each arm is annotated `Update.Return<Model, Message, unknown>`).
 
 **Async**
 
