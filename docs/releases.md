@@ -33,7 +33,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-bundle`](../packages/bundle) | 0.4.0 | Published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
 | [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.2.1 | Published | Placements as Module contracts that own their Model path. |
 | [`foldkit-primitives`](../packages/primitives) | 0.4.0 | Published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom, interaction) under tree-shakeable subpaths. |
-| [`foldkit-react`](../packages/react) | 0.2.0 | Published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
+| [`foldkit-react`](../packages/react) | 0.2.1 | Published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
 | [`foldkit-react-codegen`](../packages/react-codegen) | 0.2.0 | Published | Compiles Foldkit view functions to React TSX, refusing with a located diagnostic what it cannot translate faithfully. |
 | [`foldkit-mixins`](../packages/mixins) | 0.5.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
 | [`foldkit-mixins-surface`](../packages/mixins-surface) | 0.4.1 | Published | Bridges a Surface projection and Message subset to a `SlotView`. |

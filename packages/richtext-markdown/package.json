@@ -50,7 +50,7 @@
     "micromark-util-decode-string": "^2.0.1"
   },
   "peerDependencies": {
-    "effect": "^4.0.0-rc.116"
+    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",

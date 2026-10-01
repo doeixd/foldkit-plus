@@ -144,6 +144,16 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   error. [entity-DX-PLAN.md](./entity-DX-PLAN.md)
 - [ ] **Entity §54:** Remote integration beyond its first slice
   (`Entity.from`/`Selection.from`). [entity-DESIGN.md](./entity-DESIGN.md) §54
+- [ ] **Query native findings** ([query-native-FINDINGS.md](./query-native-FINDINGS.md),
+  from the reffect integration; application-code-only surface today, none of
+  them blocks a release): decide the Unicode/NUL containment contract shared
+  by evaluate and SQLite (or refuse outside a portable profile) with shared
+  conformance cases; memoize visited expression identities in
+  `fieldsIn`/`checkOwnership`/dependency walk (shared DAGs expand
+  exponentially); freeze or snapshot expression graphs including scalars;
+  carry owner tokens in semantic dependencies instead of name/key strings.
+  Migrate the `effect/unstable/rpc` import to `effect/rpc` with the workspace
+  Effect upgrade past rc.116, then widen the peer range again.
 
 ## CMS
 

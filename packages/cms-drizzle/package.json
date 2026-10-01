@@ -51,7 +51,7 @@
     "foldkit-remote-server": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "^4.0.0-rc.116"
+    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-rc.116",

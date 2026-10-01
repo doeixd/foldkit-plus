@@ -16,11 +16,11 @@ version changed; `pnpm` skips versions already in the registry.
 `foldkit-richtext-dom` 0.2.0; `foldkit-ssr` 0.2.0; `foldkit-surface` 0.5.1;
 `foldkit-sync` 0.7.0; `foldkit-remote-drizzle` 0.8.1. Republished to re-pin:
 `foldkit-bundle-surface` 0.2.1, `foldkit-crud` 0.4.1,
-`foldkit-mixins-richtext` 0.1.1, `foldkit-mixins-surface` 0.4.1 and the four
-agent adapters 0.4.1. Three packages are published for the first time at
+`foldkit-mixins-richtext` 0.1.1, `foldkit-mixins-surface` 0.4.1, `foldkit-react`
+0.2.1 and the four agent adapters 0.4.1. Three packages are published for the first time at
 0.1.0: `foldkit-richtext-code`, `foldkit-richtext-code-shiki` and
-`foldkit-richtext-markdown`. `foldkit-metadata`, `foldkit-react` and
-`foldkit-react-codegen` are unchanged.
+`foldkit-richtext-markdown`. `foldkit-metadata` and `foldkit-react-codegen`
+are unchanged.
 
 **A page is assembled, not spread.** `assembly.runtime` builds the runtime
 config in one call from an update that already routes every placement, and
@@ -91,6 +91,10 @@ reconnects, persists its outbox in IndexedDB v2, and takes server resets.
   `^0.5.0`), and the agent adapters with `foldkit-agent` (`^0.5.0`).
 - A hand-written form control now satisfies `Record<FormTag, …>`; unknown
   `FormView.fields` keys are compile errors.
+- Stay on Effect `4.0.0-rc.116` (rc.117 is admitted untested); the peer range
+  stops below rc.118, whose `effect/rpc` move breaks our
+  `effect/unstable/rpc` import. The import moves with the workspace Effect
+  upgrade, which widens the range again.
 
 ### Breaking
 
