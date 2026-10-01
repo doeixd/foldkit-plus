@@ -321,7 +321,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           ),
           ...(may('schedule') && !stateIs(state, 'Archived')
             ? [
-                h.label(slots.muted.attrs([h.For('at')]), ['Publish later']),
+                h.label(slots.fieldLabel.attrs([h.For('at')]), ['Publish later']),
                 h.div(slots.toolbar.attrs(), [
                   h.input(
                     slots.search.attrs([

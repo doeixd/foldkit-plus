@@ -85,6 +85,8 @@ export const AdminSlots = Slots.define({
   tabs: part,
   tab: control,
   searchBox: part,
+  /** The label over a control the application owns, such as the schedule input. */
+  fieldLabel: part,
   /** The editor's screen: a bar across the top, then the page and its settings. */
   editorScreen: part,
   editorBar: part,
@@ -606,6 +608,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
     badge: stateBadge('data-state'),
     search: Style.compose(field, Style.self({ paddingInlineStart: '2.1rem' })),
+    // A label over a control this package did not draw: no `Loading.shown` here.
+    fieldLabel: Style.self({ color: t.text.muted, margin: '0' }),
   },
   { name: 'AdminStyle', layer: app },
 )
