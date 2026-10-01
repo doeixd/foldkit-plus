@@ -173,6 +173,7 @@ export const shell = <M>(
       label,
     ])
   return h.div(slots.root.attrs(), [
+    h.a(slots.skipLink.attrs([h.Href('#studio-main')]), ['Skip to content']),
     h.aside(slots.sidebar.attrs([h.AriaLabel('Studio')]), [
       h.a(slots.brand.attrs([h.Href(`/?as=${chair}`)]), [
         h.span(slots.brandMark.attrs(), ['J']),
@@ -203,6 +204,6 @@ export const shell = <M>(
         ),
       ]),
     ]),
-    h.main(slots.main.attrs(), [...body]),
+    h.main(slots.main.attrs([h.Id('studio-main'), h.Tabindex(-1)]), [...body]),
   ])
 }

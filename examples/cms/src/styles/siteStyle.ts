@@ -7,12 +7,14 @@ import { Loading } from 'foldkit-mixins-crud'
 import { Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
-import { app, button, control, L, navLink, part, phone, serif, t } from './style.js'
+import { app, button, control, L, navLink, part, phone, serif, skipLink, t } from './style.js'
 
 // --- the public site --------------------------------------------------------------
 
 export const SiteSlots = Slots.define({
   root: part,
+  /** The way past the bar for a keyboard: first in the page, shown when it takes focus. */
+  skipLink: control,
   /** The bar across the top: the brand, the site's sections, and the way to the studio. */
   header: part,
   brand: part,
@@ -56,6 +58,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
       gridTemplateRows: 'auto 1fr auto',
       minHeight: '100vh',
     }),
+    skipLink,
     header: Style.compose(
       L.in(
         'layouts',

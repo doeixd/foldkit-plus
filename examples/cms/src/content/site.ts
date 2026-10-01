@@ -628,8 +628,15 @@ const PostsLook = Appearance.make(PostsSlots, {
       item: Style.compose(
         Style.self({ display: 'grid', gap: t.space.sm, position: 'relative' }),
         Style.nest('a', { color: 'inherit', textDecoration: 'none' }),
-        // The title's link covers the card, so the whole card opens the post.
+        // The title's link covers the card, so the whole card opens the post;
+        // and the whole card shows where the keyboard is, since the link's own
+        // box is only its words.
         Style.nest('a::after', { content: '""', inset: '0', position: 'absolute' }),
+        Style.nest('&:has(a:focus-visible)', {
+          borderRadius: t.radius.lg,
+          outline: `2px solid ${t.accent.default}`,
+          outlineOffset: '2px',
+        }),
         Style.nest('&:hover a', { color: t.accent.ink }),
         Style.nest('&:hover > :first-child', { opacity: '0.88' }),
       ),

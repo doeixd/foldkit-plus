@@ -17,6 +17,7 @@ import {
   navLink,
   part,
   phone,
+  skipLink,
   stateBadge,
   t,
 } from './style.js'
@@ -52,6 +53,7 @@ const chevronOpen = Style.nest('&[open] > summary::before', { transform: 'rotate
 
 export const AdminSlots = Slots.define({
   root: part,
+  skipLink: control,
   /** The studio's sidebar: the brand, the sections, and who is signed in. */
   sidebar: part,
   brand: part,
@@ -142,6 +144,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         gridTemplateRows: 'auto minmax(0, 1fr)',
       }),
     ),
+    skipLink,
     sidebar: Style.compose(
       Style.self({
         background: t.surface.subtle,

@@ -163,6 +163,7 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
     { label: 'About', path: '/site/about', current: here('Page', 'about') },
   ]
   return h.div(slots.root.attrs(), [
+    h.a(slots.skipLink.attrs([h.Href('#site-main')]), ['Skip to content']),
     h.header(slots.header.attrs(), [
       h.a(slots.brand.attrs([h.Href(siteLink(model.reader, '/site'))]), [
         h.span(slots.brandMark.attrs([h.AriaHidden(true)]), ['J']),
@@ -181,7 +182,9 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
       ]),
     ]),
     h.main(
-      slots.main.attrs(),
+      // Focusable by the skip link alone: a keyboard arrives here, not back at
+      // the bar.
+      slots.main.attrs([h.Id('site-main'), h.Tabindex(-1)]),
       model.route._tag === 'Page'
         ? page(model, slots, h)
         : model.route._tag === 'Post'

@@ -84,6 +84,29 @@ export const hiddenDeclarations = {
 /** Out of sight and still read: a label a field's placeholder stands in for. */
 export const visuallyHidden = Style.self(hiddenDeclarations)
 
+/**
+ * The way past a page's chrome, for a keyboard: first in the page and out of
+ * the flow, so it is the first thing reached; it comes down over what it skips
+ * once it has focus.
+ */
+export const skipLink = Style.compose(
+  Touch.target,
+  Style.self({
+    background: t.surface.base,
+    border: `${t.border.thin} solid ${t.outline.default}`,
+    borderRadius: t.radius.md,
+    color: t.text.overt,
+    fontWeight: t.weight.semibold,
+    insetBlockStart: t.space.sm,
+    insetInlineStart: t.space.sm,
+    padding: `${t.space.xs} ${t.space.sm}`,
+    position: 'absolute',
+    transform: 'translateY(-200%)',
+    zIndex: '20',
+  }),
+  Style.pseudo(':focus-visible', { transform: 'translateY(0)' }),
+)
+
 export const navLink = Style.compose(
   Style.self({
     alignItems: 'center',
