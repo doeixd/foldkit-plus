@@ -480,7 +480,12 @@ describe('socket subscriptions', () => {
     ['WebSocket', Socket.subscriptions!(url).incoming!],
     ['SSE', Events.subscriptions!(url).incoming!],
   ])('%s keeps its stream from connecting to open', (_, entry) => {
-    const connecting = { url: 'ws://x', status: 'connecting' as const, lastError: null, opened: false }
+    const connecting = {
+      url: 'ws://x',
+      status: 'connecting' as const,
+      lastError: null,
+      opened: false,
+    }
     expect(entry.modelToDependencies(open)).toEqual(entry.modelToDependencies(connecting))
     expect(entry.modelToDependencies(closed)).not.toEqual(entry.modelToDependencies(connecting))
   })

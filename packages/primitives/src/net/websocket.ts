@@ -175,7 +175,12 @@ export const websocket = <const Name extends string>(config: {
     ): Update.ReturnWithOutMessage<WebSocketModel, WebSocketMessage, never, SocketService> =>
       WebSocketMessage.match(message, {
         Connecting: () => ({
-          model: unlessSame(model, { ...model, status: 'connecting', lastError: null, opened: false }),
+          model: unlessSame(model, {
+            ...model,
+            status: 'connecting',
+            lastError: null,
+            opened: false,
+          }),
         }),
         Opened: () => ({
           model: unlessSame(model, { ...model, status: 'open', lastError: null, opened: true }),
@@ -189,7 +194,8 @@ export const websocket = <const Name extends string>(config: {
           model: unlessSame(model, {
             ...model,
             status: 'closed',
-            lastError: model.status === 'open' ? 'Connection error' : 'Failed to connect to WebSocket',
+            lastError:
+              model.status === 'open' ? 'Connection error' : 'Failed to connect to WebSocket',
           }),
         }),
         SendFailed: () => ({

@@ -35,7 +35,9 @@ const placed = Page.at(Doc, { args: { url: 'ws://localhost/chat' } })
 
 const fold = (model: Model, message: Parameters<typeof Doc.wrapper.make>[0]) =>
   Option.getOrThrow(placed.update(model, Doc.wrapper.make(message))).model.chat
-const fresh: Model = { chat: { url: 'ws://localhost/chat', status: 'closed', lastError: null, opened: false } }
+const fresh: Model = {
+  chat: { url: 'ws://localhost/chat', status: 'closed', lastError: null, opened: false },
+}
 
 describe('WebSocket transitions', () => {
   it('connects, opens, receives without storing, and closes', () => {
@@ -287,7 +289,12 @@ describe('WebSocket on a stand-in socket: connect timeout and send', () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const entry = Chat.subscriptions!(args).connectTimeout!
-        const dependencies = entry.modelToDependencies({ url, status, lastError: null, opened: false })
+        const dependencies = entry.modelToDependencies({
+          url,
+          status,
+          lastError: null,
+          opened: false,
+        })
         const events = yield* Queue.unbounded<WebSocketMessage>()
         const emitted: Array<WebSocketMessage> = []
         const fiber = yield* Effect.forkChild(
@@ -366,7 +373,9 @@ describe('WebSocket on a stand-in socket: connect timeout and send', () => {
   })
 
   it('records the timeout as a close with its reason', () => {
-    const connecting: Model = { chat: { url, status: 'connecting', lastError: null, opened: false } }
+    const connecting: Model = {
+      chat: { url, status: 'connecting', lastError: null, opened: false },
+    }
     const timedOut = fold(connecting, WebSocketMessage.TimedOut())
     expect(timedOut).toEqual({
       url,

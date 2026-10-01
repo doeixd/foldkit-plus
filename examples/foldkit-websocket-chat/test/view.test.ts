@@ -34,10 +34,7 @@ const models: ReadonlyArray<readonly [string, Model]> = [
       ],
     }),
   ],
-  [
-    'failed',
-    modifyFields(idleModel, socket('closed', 'Connection error', true, false)),
-  ],
+  ['failed', modifyFields(idleModel, socket('closed', 'Connection error', true, false))],
 ]
 
 describe('the chat view', () => {

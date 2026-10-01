@@ -63,7 +63,10 @@ describe('the connection timeout', () => {
   test.each([
     ['disconnected', at(false, { url: 'x', status: 'closed', lastError: null, opened: false })],
     ['connected', at(true, { url: 'x', status: 'open', lastError: null, opened: true })],
-    ['failed', at(false, { url: 'x', status: 'closed', lastError: 'Connection error', opened: false })],
+    [
+      'failed',
+      at(false, { url: 'x', status: 'closed', lastError: 'Connection error', opened: false }),
+    ],
   ])('never fires while %s', async (_, model) => {
     expect(await emittedWithin(model, 60_000)).toEqual([])
   })

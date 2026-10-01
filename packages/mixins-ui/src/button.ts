@@ -59,20 +59,14 @@ export interface ButtonView<Message> {
   readonly onClick?: Message | undefined
 }
 
-export const view = <Message>(
-  options: ButtonView<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
+export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Message>): Html =>
   buttonView(
     {
       ...(options.type === undefined ? {} : { type: options.type }),
       ...(options.disabled === undefined ? {} : { isDisabled: options.disabled }),
       ...(options.onClick === undefined ? {} : { onClick: options.onClick }),
       toView: toView(
-        [
-          ...(options.style === undefined ? [] : [options.style.mixin]),
-          ...(options.mixins ?? []),
-        ],
+        [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
         { input: options.input, h },
         ({ button }) => h.button(button, [options.label]),
       ),
