@@ -67,13 +67,16 @@ the row ListView variant under package prerequisites.
 Each lands with its test in the same change, as the 0.12 slices did.
 
 - **SSG adopts `staticSite`.**
-  `examples/foldkit-ssg/src/prerender.ts:41-54` re-implements the core loop
-  (guard, layout, writes) and ships neither sitemap nor robots — and it is
+  `examples/foldkit-ssg/src/prerender.ts:41-54` re-implemented the core loop
+  (guard, layout, writes) and shipped neither sitemap nor robots — and it is
   the only `directory`-layout user, which is tests-only everywhere else.
-  Adopt the plugin, then enrich the toy: one data dependency (so
-  preparation shows), `metaOf` + canonical, sitemap/robots. One of the two
-  SSG paths (this, or the CMS's) should be the blessed minimal example;
-  say which in both READMEs.
+  **Built:** the example now describes its site in `src/site.ts` and lets
+  `staticSite` render it from the client build's `closeBundle`; the hand-roll
+  and its `tsx` step are gone, `vite build` alone writes the pages, and the
+  sitemap and `robots.txt` land beside them (build-verified). **Remaining:**
+  enrich the toy — one data dependency (so preparation shows) and `metaOf` +
+  canonical in the template — then say which SSG path (this, or the CMS's) is
+  the blessed minimal example in both READMEs.
 - **`assembly.runtime` in one real assembly.** Zero app adopters; the
   contract is proven only by its own tests.
   `examples/foldkit-websocket-chat` already has `onMessage` + wiring, so

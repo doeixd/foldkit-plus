@@ -337,11 +337,13 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   loading, missing-post inconsistency, retry everywhere, chat offline
   sends, publish versus the form. Built with tests; the pages list's retry
   still waits on the row ListView variant (package prerequisites).
-- [ ] **1. Adoptions:** SSG adopts `staticSite`; `assembly.runtime` in one
-  real assembly; todo agent learns completion; `Input.view`/`Textarea.view`
-  get app callers; the small-gaps batch (scroll options, `stateBadge`
-  None, `Data.meta` stale/loading, bootstrap meets routing, kitchen-sink
-  `correlate`, explicit submit gate); staleness stays designed, not built.
+- [ ] **1. Adoptions:** SSG adopts `staticSite` (plugin + sitemap/robots
+  built; toy enrichment, canonical and the blessed-example note remain);
+  `assembly.runtime` in one real assembly; todo agent learns completion;
+  `Input.view`/`Textarea.view` get app callers; the small-gaps batch (scroll
+  options, `stateBadge` None, `Data.meta` stale/loading, bootstrap meets
+  routing, kitchen-sink `correlate`, explicit submit gate); staleness stays
+  designed, not built.
 - [ ] **2. Polish, hygiene, docs:** form focus story, linked
   `blockedNotice`, site chrome, studio smalls, waitlist dedup; dead code;
   six stale READMEs; the `attrs` doc fix; teaching comments.
