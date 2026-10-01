@@ -102,7 +102,8 @@ Each lands with its test in the same change, as the 0.12 slices did.
   the badge while an entry is being read ("an entry still being read is not
   New"), and the rows pass `Option.some`, so nothing renders `None` here;
   `Data.meta(...).stale/.loading` read, not just
-  `.updatedAt` (`examples/foldkit-api-cache/src/main.ts:207`);
+  `.updatedAt` (`examples/foldkit-api-cache/src/main.ts:207`) — **built**
+  (the detail footnote says "Refreshing…"/"May be out of date") ;
   `Mirror.bootstrap` meeting `Mirror.routing` in one app
   (`examples/foldkit-query-sync`); `correlate` in kitchen-sink's agent;
   a `FormView.submodel(…, { canSubmit: () => true })` adopter.
