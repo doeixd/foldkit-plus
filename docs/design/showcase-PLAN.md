@@ -129,7 +129,9 @@ Only after wave 0; polish on top of a lie is paint.
   `examples/foldkit-job-application/src/view/review.ts:179-184` names
   steps as text with no jump-to-step. Confirm first that unguarded `Next`
   (`src/update.ts:162-164`) is deliberate validate-at-submit, not an
-  oversight; then link, don't gate.
+  oversight; then link, don't gate. **Built**: `Next` is deliberate (recorded
+  at the arm and in the README), and each step the notice names selects that
+  step's tab, so the jump is the navigation the page already has.
 - **Site chrome.** No skip link anywhere in scope; no focus management on
   route change; the stretched-card link (`site.ts:623-630`) has no focus
   story; the header/footer clusters are unproven at 320px (screenshot,

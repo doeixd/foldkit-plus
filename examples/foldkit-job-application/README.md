@@ -99,6 +99,10 @@ npx vitest run examples/foldkit-job-application   # from the repository root
   while the request runs change the Model and not what was sent. A second
   submit while one is in flight changes nothing. Files go as their metadata;
   the browser's `File` stays at the boundary that uploads it.
+- **A blocked submit names the steps to review, and takes you there.** Each
+  name in the notice selects that step's tab, so the jump is the navigation
+  the page already has. `Next` still browses freely: the application is
+  validated once, at submit.
 - **Each step's `revealErrors` returns Commands** (an `Update.Step`), folded
   like the step's Messages, since revealing may start the email check.
 - **A proficiency pill is named by its level.** Upstream spreads the option's
@@ -121,8 +125,9 @@ From the repository root: `npx vitest run examples/foldkit-job-application`.
   stories and scenes, driven through the forms' Messages
   (`test/fixtures.ts`), plus: every required and pattern message, optional
   keys emptied, the check's answers, a chosen pronoun, the custom pronoun
-  field, a submit that asks about an unchecked email, a stale answer and a
-  submit leaving the Model or each valid step as it was.
+  field, a submit that asks about an unchecked email, a stale answer, a
+  blocked notice that takes you to each step it names, and a submit leaving
+  the Model or each valid step as it was.
 - `test/application.test.ts`: the payload each submit sends — the forms'
   decoded values beside the pickers and file metadata, nothing while a key is
   missing, a check runs or an entry list is empty, a payload captured at submit

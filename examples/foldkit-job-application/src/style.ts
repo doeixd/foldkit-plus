@@ -7,7 +7,7 @@
  * standard order, so it overrides the shipped recipes and the `Layout`
  * pieces by layer order rather than by specificity.
  */
-import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
+import { Capability, Event, Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
@@ -775,6 +775,16 @@ export const ReviewPart = slots(
       { paddingBlockStart: t.space.md },
     ],
     blockedNotice: text(t.size.sm, t.error.ink, { textAlign: 'center' }),
+    // A step named in the notice, which takes the reader there.
+    blockedNoticeStep: Style.slot({ capability: Capability.Interactive, events: [Event.Click] }, [
+      text(t.size.sm, t.error.ink, {
+        padding: '0',
+        border: '0',
+        background: 'transparent',
+        textDecoration: 'underline',
+        cursor: 'pointer',
+      }),
+    ]),
     success: card({
       marginBlockStart: t.space.md,
       padding: t.space.md,

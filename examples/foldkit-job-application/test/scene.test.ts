@@ -63,6 +63,21 @@ describe('view', () => {
     )
   })
 
+  test('the blocked notice names the steps to review, and each takes you there', () => {
+    scene(
+      { update, view },
+      given(
+        modifyFields(initialModel, {
+          currentStep: () => 'Review',
+          isSubmitAttempted: () => true,
+        }),
+      ),
+      click(role('button', { name: 'Personal Info' })),
+      resolveFocusTab,
+      expect(role('heading', { name: 'Personal Info' })).toExist(),
+    )
+  })
+
   test('clicking Next advances to the Work History step', () => {
     scene(
       { update, view },

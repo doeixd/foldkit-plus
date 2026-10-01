@@ -172,6 +172,8 @@ export const update = (model: Model, message: Message) =>
 
     GotStepTabsMessage: ({ message }) => foldStepTabs(model, message),
 
+    // Next browses; a step need not be complete to move on from it. The
+    // application is validated once, at submit.
     ClickedNext: () => ({
       model: modifyFields(model, { currentStep: toNextStep }),
     }),

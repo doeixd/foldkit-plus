@@ -1,3 +1,4 @@
+import { Tabs } from '@foldkit/ui'
 import { Array, Option, pipe } from 'effect'
 import { File } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -176,18 +177,38 @@ const attachmentsSection = (
     h,
   )
 
-const blockedNoticeText = (attentionSteps: ReadonlyArray<Step.Step>): string =>
-  Array.match(attentionSteps, {
-    onEmpty: () => 'Review the required fields before submitting.',
-    onNonEmpty: steps =>
-      `Review ${pipe(steps, Array.map(Step.show), Array.join(', '))} before submitting.`,
-  })
-
+/**
+ * What to review before the application can go out, with each step named as
+ * the thing that takes the reader there. The names select the step's tab, so
+ * the jump is the navigation the page already has.
+ */
 const blockedNotice = (
   attentionSteps: ReadonlyArray<Step.Step>,
   slots: Slots,
   h: HtmlBuilder<Message>,
-): Html => h.p(slots.blockedNotice.attrs(), [blockedNoticeText(attentionSteps)])
+): Html =>
+  Array.match(attentionSteps, {
+    onEmpty: () =>
+      h.p(slots.blockedNotice.attrs(), ['Review the required fields before submitting.']),
+    onNonEmpty: steps =>
+      h.p(slots.blockedNotice.attrs(), [
+        'Review ',
+        ...Array.flatMap(steps, (step, index) => [
+          ...(index === 0 ? [] : [', ']),
+          h.button(
+            slots.blockedNoticeStep.attrs([
+              h.OnClick(
+                Message.GotStepTabsMessage({
+                  message: Tabs.Message.SelectedTab({ index: Step.indexOf(step), value: step }),
+                }),
+              ),
+            ]),
+            [Step.show(step)],
+          ),
+        ]),
+        ' before submitting.',
+      ]),
+  })
 
 const submissionSection = (
   submission: Model['submission'],
