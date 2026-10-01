@@ -339,7 +339,8 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   included (it adopts `RowListView`).
 - [ ] **1. Adoptions:** SSG adopts `staticSite` (plugin + sitemap/robots
   built; toy enrichment, canonical and the blessed-example note remain);
-  `assembly.runtime` in one real assembly; todo agent learns completion;
+  `assembly.runtime` in one real assembly (built); todo agent learns
+  completion;
   `Input.view`/`Textarea.view` callers (built); the small-gaps batch (scroll
   options, `stateBadge` None, `Data.meta` stale/loading, bootstrap meets
   routing, kitchen-sink `correlate`, explicit submit gate); staleness stays

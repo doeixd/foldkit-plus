@@ -78,8 +78,10 @@ Each lands with its test in the same change, as the 0.12 slices did.
   the blessed minimal example in both READMEs.
 - **`assembly.runtime` in one real assembly.** Zero app adopters; the
   contract is proven only by its own tests.
-  `examples/foldkit-websocket-chat` already has `onMessage` + wiring, so
-  converting it from `placements.complete` is the smallest faithful move.
+  `examples/foldkit-websocket-chat` already has `onMessage` + wiring.
+  **Built:** the example boots through `assembly.runtime` (`runtimeConfig`),
+  so `init`/Subscriptions/Managed Resources come from the assembly and are
+  checked; `entry.ts` and the runtime test share it.
 - **Todo agent learns completion.** `examples/todo/src/agent.ts:30-60`,
   the onboarding path, teaches fire-and-forget; `todo-app` next door
   models intent→fact with `correlate` and `requestId`. Port the pattern
