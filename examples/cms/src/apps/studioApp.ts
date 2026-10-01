@@ -71,12 +71,7 @@ const postsLink = Link.field<Model>()('posts', Link.wrapper(Message.GotPostsMess
 const pagesLink = Link.field<Model>()('pages', Link.wrapper(Message.GotPagesMessage))
 
 const posts = Link.child(postsLink, Posts.update, (page, draw) => PostsShell(page, draw), 'posts')
-const pages = Link.child(
-  pagesLink,
-  Pages.update,
-  (page, draw) => PagesShell(page, draw),
-  'pages',
-)
+const pages = Link.child(pagesLink, Pages.update, (page, draw) => PagesShell(page, draw), 'pages')
 
 /**
  * The target of a same-document navigation with the current address's query
