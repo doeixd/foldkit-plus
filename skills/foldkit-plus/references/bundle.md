@@ -174,8 +174,12 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement's wrapper: type it `Bundle.OwnMessage<Message, typeof
   placements.placements>` and match it with Effect `Match.valueTags` (a union's
   own `match` still demands every variant).
-- **A Link without a Bundle:** a Link's `read`, `write` and `toParentMessage`
-  are what `Update.foldChild` takes, so a `@foldkit/ui` component folds through
+- **A Link without a Bundle:** `Link.child(link, update, view, slotId)` states
+  a plain child once and yields its fold and its drawing, so the two never
+  restate the field, the wrapper, or the slot (an absent child draws
+  nothing; the builder's Message must include the wrapper variant). Below
+  it, a Link's `read`, `write` and `toParentMessage` are what
+  `Update.foldChild` takes, so a `@foldkit/ui` component folds through
   one: `Update.foldChild({ ...link, update })`. Its init folds through
   `Link.foldInit` instead, since init has no parent yet to read:
   `Update.foldChildInit(boot, Link.foldInit(link, rest))`. `Link.wrapper(Message.GotXMessage)`

@@ -199,10 +199,15 @@ only what is left, rather than arriving as one first cut that becomes a
 second framework. A slice that hides the URL lifecycle has to own it, or the
 explicit code it replaces stays clearer; elimination (§34.5) is the test.
 
-- [ ] **One placement driving update and view for a routed child page:** the
+- [x] **One placement driving update and view for a routed child page:** the
   `Link`/placement that knows the child field and message wrapper yields both
   the fold and the submodel view, instead of a separate `foldChild` plus
-  `h.submodel` per page. §34.3. First: Bundle-level, no Site graph needed.
+  `h.submodel` per page. §34.3. Built as `Link.child(link, update, view,
+  slotId)` in `foldkit-bundle`: the fold for `update`, the drawing for
+  `view` (branded once, generic over the parent builder with a wrapper-
+  inclusion check, absent draws nothing). Adopted by the studio's two
+  sections, deleting a fold and a submodel apiece. Children with view
+  inputs or OutMessages of their own stay hand-rolled.
 - [ ] **One declaration of history intent** for routed params, as a mirror has
   per key: a step when the node or entry changes, a replace otherwise. §33.4.
   Second: Mirror-shaped, beside the address policy it replaces.

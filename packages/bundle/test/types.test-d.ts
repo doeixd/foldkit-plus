@@ -301,3 +301,44 @@ declare const clockStep: Update.Step<
 const Clocked = Unconfigured.pipe(Bundle.configure('toggle', { onMessage: () => clockStep }))
 type StepRequirements<S> = S extends Update.Step<any, any, infer R> ? R : never
 expectTypeOf<StepRequirements<typeof Clocked.children.toggle.init>>().toEqualTypeOf<Clock>()
+
+// --- Link.child ---
+
+const PageModel = Schema.Struct({ count: Schema.Number })
+type PageModel = typeof PageModel.Type
+const PageMessage = defineMessageUnion({ Incremented: {} })
+type PageMessage = typeof PageMessage.Type
+const GotPage = Link.wrapper('GotPageMessage', PageMessage)
+const Paged = Schema.Struct({ page: PageModel })
+type Paged = typeof Paged.Type
+const PagedMessage = defineMessageUnion({ ...GotPage.cases })
+type PagedMessage = typeof PagedMessage.Type
+
+const pageUpdate = (
+  model: PageModel,
+  message: PageMessage,
+): Update.Return<PageModel, PageMessage> =>
+  message._tag === 'Incremented' ? { model: { ...model, count: model.count + 1 } } : { model }
+
+const page = Link.child(
+  Link.field<Paged>()('page', GotPage),
+  pageUpdate,
+  (model, h) => h.button([h.OnClick(PageMessage.Incremented())], [String(model.count)]),
+  'page',
+)
+
+// The fold takes the child's Message and returns the parent's update shape.
+expectTypeOf(page.update).parameter(1).toEqualTypeOf<PageMessage>()
+expectTypeOf(page.update).returns.toEqualTypeOf<
+  Update.Return<Paged, Wrapped<'GotPageMessage', PageMessage>, never>
+>()
+
+// A view in a parent whose Message union includes the wrapper variant is fine.
+declare const pagedH: HtmlBuilder<PagedMessage>
+page.view({ page: { count: 0 } }, pagedH)
+
+// A parent Message union missing the variant is reported at the view call.
+const PageLess = defineMessageUnion({ Renamed: { title: Schema.String } })
+declare const pagelessH: HtmlBuilder<typeof PageLess.Type>
+// @ts-expect-error: the parent Message does not include GotPageMessage
+page.view({ page: { count: 0 } }, pagelessH)

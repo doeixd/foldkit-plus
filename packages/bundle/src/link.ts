@@ -4,7 +4,10 @@
  */
 import { Array, Function, Option, Pipeable, Record, Schema } from 'effect'
 import { taggedStruct, type CallableTaggedStruct } from 'foldkit/schema'
-import type { Invalid } from './placed.js'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineView } from 'foldkit/submodel'
+import * as Update from 'foldkit/update'
+import type { Invalid, PlacedView } from './placed.js'
 
 const LinkTypeId: unique symbol = Symbol.for('foldkit-bundle/Link')
 
@@ -540,6 +543,51 @@ const collectionById =
     }
   }
 
+/**
+ * A child that is not a Bundle, stated once. The Link names where its Model
+ * lives and how its Messages wrap; `update` is the child's own; `view` is
+ * drawn through the child's boundary under `slotId`, branded once here so a
+ * new closure is not built on every render. An absent child draws nothing.
+ *
+ * Yields the fold for `update` and the drawing for `view`, so the two never
+ * restate the field, the wrapper, or the slot: one placement drives both.
+ * The drawing is generic over the parent's builder, like a placement's: the
+ * builder's Message must include the Link's wrapper variant. A child with
+ * view inputs, or with OutMessages of its own, stays hand-rolled.
+ */
+const child = <Parent, ParentMessage, Child, ChildMessage, Services>(
+  link: Link<Parent, ParentMessage, Child, ChildMessage, string>,
+  update: (model: Child, message: ChildMessage) => Update.Return<Child, ChildMessage, Services>,
+  view: (model: Child, h: HtmlBuilder<ChildMessage>) => Html,
+  slotId: string,
+): {
+  readonly update: (
+    parent: Parent,
+    message: ChildMessage,
+  ) => Update.Return<Parent, ParentMessage, Services>
+  readonly view: PlacedView<Parent, ParentMessage, void>
+} => {
+  const fold = Update.foldChild({ ...link, update })
+  const drawn = defineView<Child, ChildMessage>((model, h) => view(model, h))
+  // Erased like a placement's view, through unknown as placements do: the
+  // public type checks the builder.
+  const draw = (parent: unknown, h: HtmlBuilder<any>): Html =>
+    Option.match(link.read(parent as Parent), {
+      onNone: () => null,
+      onSome: model =>
+        h.submodel({
+          slotId,
+          model,
+          view: drawn,
+          toParentMessage: link.toParentMessage,
+        }),
+    })
+  return {
+    update: (parent, message) => fold(parent, message),
+    view: draw as unknown as PlacedView<Parent, ParentMessage, void>,
+  }
+}
+
 export const Link = {
   wrapper,
   make,
@@ -552,4 +600,5 @@ export const Link = {
   keyedWrapper,
   collection,
   collectionById,
+  child,
 } as const

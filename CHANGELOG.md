@@ -5,6 +5,17 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- **`foldkit-bundle`, `Link.child(link, update, view, slotId)`:** a child
+  that is not a Bundle, stated once: the Link names where its Model lives
+  and how its Messages wrap, and the pair yields the fold for `update` and
+  the drawing for `view` (branded once, absent draws nothing). The studio's
+  two sections adopt it, deleting a fold and a submodel apiece. Children
+  with view inputs or OutMessages of their own stay hand-rolled.
+
 ## 0.12.0
 
 `foldkit-agent` 0.5.0; `foldkit-bundle` 0.4.0; `foldkit-cms` 0.3.0;

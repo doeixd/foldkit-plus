@@ -16,14 +16,12 @@
  * into the section that started it: its wrapper names that section.
  */
 import { Effect, Equal, Option, Schema } from 'effect'
+import { Link } from 'foldkit-bundle'
 import { mapMessages } from 'foldkit/command'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
-import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
-import { Update } from 'foldkit'
-import * as Submodel from 'foldkit/submodel'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { keepScroll } from 'foldkit-primitives/dom'
 import * as Posts from './app.js'
@@ -64,21 +62,21 @@ export const sectionOf = (pathname: string): Option.Option<Section> =>
       ? Option.some('pages')
       : Option.none()
 
-const foldPosts = Update.foldChild({
-  update: Posts.update,
-  read: (model: Model) => Option.some(model.posts),
-  write: (model, posts) =>
-    posts === model.posts ? model : modifyFields(model, { posts: () => posts }),
-  toParentMessage: message => Message.GotPostsMessage({ message }),
-})
+/**
+ * Each section stated once: the Link names its field and wrapper, the
+ * section's update folds through it, and its shell draws through the same
+ * slot. The fold and the drawing cannot disagree on either.
+ */
+const postsLink = Link.field<Model>()('posts', Link.wrapper(Message.GotPostsMessage))
+const pagesLink = Link.field<Model>()('pages', Link.wrapper(Message.GotPagesMessage))
 
-const foldPages = Update.foldChild({
-  update: Pages.update,
-  read: (model: Model) => Option.some(model.pages),
-  write: (model, pages) =>
-    pages === model.pages ? model : modifyFields(model, { pages: () => pages }),
-  toParentMessage: message => Message.GotPagesMessage({ message }),
-})
+const posts = Link.child(postsLink, Posts.update, (page, draw) => PostsShell(page, draw), 'posts')
+const pages = Link.child(
+  pagesLink,
+  Pages.update,
+  (page, draw) => PagesShell(page, draw),
+  'pages',
+)
 
 /**
  * The target of a same-document navigation with the current address's query
@@ -116,8 +114,8 @@ const followLoad = (href: string) => ({
 
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
-    GotPostsMessage: ({ message }) => foldPosts(model, message),
-    GotPagesMessage: ({ message }) => foldPages(model, message),
+    GotPostsMessage: ({ message }) => posts.update(model, message),
+    GotPagesMessage: ({ message }) => pages.update(model, message),
     Ticked: () => ({ model }),
     UrlChanged: ({ url }) => {
       const section = Option.getOrElse(sectionOf(url.pathname), () => model.section)
@@ -138,8 +136,8 @@ export const update = (model: Model, message: Message) =>
       const clean = section === model.section ? url : withoutNew(url)
       const folded =
         section === 'pages'
-          ? foldPages(at, Pages.Message.UrlChanged({ url: clean }))
-          : foldPosts(at, Posts.Message.UrlChanged({ url: clean }))
+          ? pages.update(at, Pages.Message.UrlChanged({ url: clean }))
+          : posts.update(at, Posts.Message.UrlChanged({ url: clean }))
       // The sections always rebuild on UrlChanged, so reference equality never
       // reports an echo: compare by value, and hand back the Model itself when
       // the echo changed nothing (commands would carry the change, so require
@@ -260,24 +258,7 @@ export const subscriptions = {
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: model.section === 'pages' ? pagesTitle(model.pages) : postsTitle(model.posts),
-  body:
-    model.section === 'pages'
-      ? h.submodel({
-          slotId: 'pages',
-          model: model.pages,
-          view: Submodel.defineView<Pages.Model, Pages.Message>((page, draw) =>
-            PagesShell(page, draw),
-          ),
-          toParentMessage: message => Message.GotPagesMessage({ message }),
-        })
-      : h.submodel({
-          slotId: 'posts',
-          model: model.posts,
-          view: Submodel.defineView<Posts.Model, Posts.Message>((post, draw) =>
-            PostsShell(post, draw),
-          ),
-          toParentMessage: message => Message.GotPostsMessage({ message }),
-        }),
+  body: model.section === 'pages' ? pages.view(model, h) : posts.view(model, h),
 })
 
 export const init = (url: Url) => {
@@ -290,16 +271,16 @@ export const init = (url: Url) => {
   // Like update above: the shown section boots from the address, the hidden
   // one from the address without `new`, so a reload never opens the other
   // section's unsaved entry in the section nobody sees.
-  const posts = Posts.init(section === 'posts' ? url : withoutNew(url))
-  const pages = Pages.update(
+  const bootedPosts = Posts.init(section === 'posts' ? url : withoutNew(url))
+  const bootedPages = Pages.update(
     Pages.initial,
     Pages.Message.UrlChanged({ url: section === 'pages' ? url : withoutNew(url) }),
   )
   return {
-    model: { section, chair, query, posts: posts.model, pages: pages.model },
+    model: { section, chair, query, posts: bootedPosts.model, pages: bootedPages.model },
     commands: [
-      ...mapMessages(posts.commands, message => Message.GotPostsMessage({ message })),
-      ...mapMessages(pages.commands, message => Message.GotPagesMessage({ message })),
+      ...mapMessages(bootedPosts.commands, message => Message.GotPostsMessage({ message })),
+      ...mapMessages(bootedPages.commands, message => Message.GotPagesMessage({ message })),
     ],
   }
 }
