@@ -409,7 +409,13 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
     ),
     tabs: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
-    tab: Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+    // A tab and a toolbar button are whole controls a finger aims at, so they
+    // take the floor both ways round; `Touch.targets` gives the controls in a
+    // region height only, which leaves a short one as narrow as its words.
+    tab: Style.compose(
+      Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+      Touch.target,
+    ),
     searchBox: Style.compose(
       Style.self({
         alignItems: 'center',
@@ -593,9 +599,12 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     ),
     preview: Style.self({ paddingBlockEnd: t.space['2xl'] }),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.xs, align: 'center' })),
-    button: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
+    button: Style.compose(
+      button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
+      Touch.target,
+    ),
     primary: Style.compose(button({ variant: 'primary', size: 'sm' }), Touch.target),
-    danger: button({ tone: 'danger', variant: 'outline', size: 'sm' }),
+    danger: Style.compose(button({ tone: 'danger', variant: 'outline', size: 'sm' }), Touch.target),
     status: Style.compose(
       Style.self({
         color: t.text.muted,

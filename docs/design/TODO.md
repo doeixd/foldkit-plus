@@ -366,6 +366,13 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
     - **`Mirror.bootstrap` meeting `Mirror.routing`** in one app (which example,
       and what each owns) and **`FormView.submodel(…, { canSubmit })`** (which
       form has a constant-valid submit).
+    - **Studio's `clear-on-scheduled`.** The schedule box holds the text of a
+      `datetime-local` input; what "clear on scheduled" means has a surprise
+      either way. Clear when the entry is scheduled, and a new time typed
+      before an unrelated read goes away; clear only when the box's exact text
+      is the schedule taken, and retyping that time empties the box on the next
+      message; clear on the Schedule press, and a failed schedule loses the
+      text. Pick the rule and its failure story before coding.
 - [ ] **2. Polish, hygiene, docs:** form focus story **built** (a refused
   submit focuses the first missing key, `test/focus.browser.test.ts`);
   waitlist dedup **built** (the shared `foldkit-mixins-form/ui` override, and
@@ -641,11 +648,12 @@ then the lifecycle and host-integration design work.
   Evaluate a distinct delegated pointer-stroke Mount for Pixel Art's painting,
   including touch/pen position hit-testing, cancellation and skipped cells.
   Keep the low-level drag primitive small and preserve the accessibility owner.
-- [ ] **Low: document persistence migration policy for ports.** Mirror rejects
-  upstream saved formats. A production adoption needs an explicit importer or
-  new storage key; document this separately from disposable last-write-wins
-  storage. Pixel Art's per-cell writes select `throttle: 0`; pacing already
-  exists, so change that example policy only with a stated persistence goal.
+- [x] **Low: document persistence migration policy for ports.** Built: the
+  Mirror README states it once — discarding an unreadable document is not
+  migrating it, and a port that wants another application's saved state writes
+  an importer for that shape or stores under a new key and version. Pixel
+  Art's per-cell writes select `throttle: 0`; pacing already exists, so change
+  that example policy only with a stated persistence goal.
 
 ## Stale passages inside the design documents
 

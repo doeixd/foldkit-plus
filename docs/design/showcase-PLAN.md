@@ -140,9 +140,11 @@ Only after wave 0; polish on top of a lie is paint.
   link posts has (`pagesView.ts:185-194` vs `view.ts:354-357`) — **built**
   (wave 0); the schedule input needs its own slot plus an invalid-date hint
   plus clear-on-scheduled (`view.ts:292-312`) — **partly built** (own slot,
-  hint); `aria-busy` on the refreshing pages list — **built** (the pages
+  hint; `clear-on-scheduled` needs the rule chosen first, see the TODO: every
+  way of deciding when to clear surprises someone); `aria-busy` on the refreshing pages list — **built** (the pages
   list adopts `RowListView`); touch-target width for tabs and toolbar
-  buttons.
+  buttons — **built** (`Touch.target` on `tab`, `button` and `danger`, with
+  `test/touch.test.ts` covering the 44px floor both ways round).
 - **Waitlist duplication.** `textOverride`/`textareaOverride`
   (`examples/foldkit-form/src/main.ts:213-265`) repeat one `draw` —
   parameterize by kind. Settle `isFormValid` vs `isValid` to one spelling

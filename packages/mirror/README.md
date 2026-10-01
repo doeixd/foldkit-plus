@@ -687,7 +687,10 @@ Mirror.kv(App, {
 
 A document with another version/scope, or a malformed document, is discarded and
 removed. This is safe because Mirror represents **disposable state**, not unsent
-user operations.
+user operations. Discarding is not migrating: a port that wants another
+application's saved state writes an importer for that shape, or stores under a
+new key and version, rather than letting the old document fail to decode and
+calling the clean start a migration.
 
 Store failures are absorbed and logged rather than failing the application. A
 slice back at all defaults removes the stored document.
