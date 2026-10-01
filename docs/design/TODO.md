@@ -346,10 +346,19 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   routing, kitchen-sink `correlate`, explicit submit gate); staleness stays
   designed, not built.
   - **Needs a decision first** (do not code blind):
-    - **Todo agent completion** (`examples/todo`) — the example deliberately has
-      no Commands and mints ids synchronously in `update`, so intent and fact
-      collapse; porting `correlate`/`requestId` means giving it a Command and a
-      fact Message (an onboarding-path change).
+    - **Todo agent completion** (`examples/todo`) — blocked, then designed.
+      The example deliberately has no Commands and mints ids synchronously in
+      `update`, so intent and fact collapse; the port is a `CreateTodo` Command
+      and a `SubmittedTodo` fact carrying `requestId`, mirroring `todo-app`.
+      It hits `TS2742`: the completion's `success: Message.SubmittedTodo`
+      makes `AppAgent`'s inferred type reference `foldkit/dist/schema/index.js`,
+      which the example's declaration emit cannot name (`todo-app` does not hit
+      it, for a structural reason not yet found). Annotating with
+      `Agent.Definition`/`ReturnType<typeof make>` silences it but widens the
+      Message universe, breaking the host's `dispatch` typing — i.e. it trades
+      away the capability typing the example exists to teach. Needs a proper
+      fix (name the definition type, or find why `todo-app` is exempt) rather
+      than a cast.
     - **Kitchen-sink `correlate`** — `RequestedCreateNote` already carries a
       caller-supplied id and adds the note synchronously, so there is no fact to
       correlate against; completion is either state-based (`Agent.when` on the

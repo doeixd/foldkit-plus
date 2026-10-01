@@ -53,10 +53,14 @@ Follow one immediate capability from [agent.ts](src/agent.ts) into
 existing Message reaches `update`. Read the projected context again to observe
 the change. Declaring the capability alone executes none of these steps.
 
-Then compare the asynchronous add capability. Dispatch is only the start: its
-completion waits for the correlated application result. This is why a host
-must report Messages as well as expose the current Model. The WebMCP adapter
-uses this same bound runtime rather than implementing a second todo service.
+Then compare the add capability. Here it is immediate — declared as a
+description, with `update` minting the id in one step — so a call resolves when
+its Message is applied. A completion contract, where the call waits for a
+correlated application result, needs an intent→fact Command; see
+[todo-app](../todo-app/src/agent.ts), where `add_todo` does exactly that. That
+is also why a host must report Messages as well as expose the current Model, and
+the WebMCP adapter uses this same bound runtime rather than implementing a second
+todo service.
 
 ## Run it
 
