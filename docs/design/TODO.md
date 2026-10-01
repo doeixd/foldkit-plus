@@ -345,6 +345,21 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   options, `stateBadge` None, `Data.meta` stale/loading, bootstrap meets
   routing, kitchen-sink `correlate`, explicit submit gate); staleness stays
   designed, not built.
+  - **Needs a decision first** (do not code blind):
+    - **SSG toy enrichment** — how a build-time data dependency crosses to the
+      browser, since `SSR.render` refuses a page whose Model the browser cannot
+      reproduce from the plan (flags in `init` alone would be refused).
+    - **Todo agent completion** (`examples/todo`) — the example deliberately has
+      no Commands and mints ids synchronously in `update`, so intent and fact
+      collapse; porting `correlate`/`requestId` means giving it a Command and a
+      fact Message (an onboarding-path change).
+    - **Kitchen-sink `correlate`** — `RequestedCreateNote` already carries a
+      caller-supplied id and adds the note synchronously, so there is no fact to
+      correlate against; completion is either state-based (`Agent.when` on the
+      note, needing `subscribe` on the host) or needs a new fact.
+    - **`Mirror.bootstrap` meeting `Mirror.routing`** in one app (which example,
+      and what each owns) and **`FormView.submodel(…, { canSubmit })`** (which
+      form has a constant-valid submit).
 - [ ] **2. Polish, hygiene, docs:** form focus story, linked
   `blockedNotice`, site chrome, studio smalls, waitlist dedup; dead code;
   six stale READMEs; the `attrs` doc fix; teaching comments.
