@@ -8,6 +8,7 @@ import { Option, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
+import * as Update from 'foldkit/update'
 import { describe, expect, it } from 'vitest'
 import { Link } from '../src/index.js'
 
@@ -36,17 +37,16 @@ const Message = defineMessageUnion({ ...GotPage.cases, ...GotMaybe.cases })
 type Message = typeof Message.Type
 
 const page = Link.child(Link.field<Model>()('page', GotPage), childUpdate, childView, 'page')
-const maybe = Link.child(
-  Link.optional<Model>()('maybe', GotMaybe),
-  childUpdate,
-  childView,
-  'maybe',
-)
+const maybe = Link.child(Link.optional<Model>()('maybe', GotMaybe), childUpdate, childView, 'maybe')
 
-const update = (model: Model, message: Message) =>
+// Pinned per arm: each fold speaks its own wrapper, and the match demands one
+// output. The commands stay the child's own, widened to the parent's Message.
+const update = (model: Model, message: Message): Update.Return<Model, Message, unknown> =>
   Message.match(message, {
-    GotPageMessage: ({ message }) => page.update(model, message),
-    GotMaybeMessage: ({ message }) => maybe.update(model, message),
+    GotPageMessage: ({ message }): Update.Return<Model, Message, unknown> =>
+      page.update(model, message),
+    GotMaybeMessage: ({ message }): Update.Return<Model, Message, unknown> =>
+      maybe.update(model, message),
   })
 
 const view = (model: Model, h: HtmlBuilder<Message>): Html =>
