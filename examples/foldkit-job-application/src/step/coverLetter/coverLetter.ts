@@ -1,4 +1,3 @@
-import * as UiTextarea from '@foldkit/ui/textarea'
 import { Match, Schema } from 'effect'
 import { Submodel, type Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
@@ -62,7 +61,7 @@ export const CoverLetterView = SlotView.forMessages<Message>()
     const remaining = MAX_COVER_LETTER_LENGTH - model.content.length
     const length = letterLength(remaining)
 
-    return UiTextarea.view(
+    return Textarea.view(
       {
         id: 'cover-letter',
         value: model.content,
@@ -70,8 +69,9 @@ export const CoverLetterView = SlotView.forMessages<Message>()
         rows: 12,
         placeholder:
           'Tell us why you want to work on Foldkit and what excites you about the Elm Architecture...',
-        isInvalid: length === 'Over',
-        toView: Textarea.toView([TextareaStyle.mixin], { h }, ({ label, textarea }) =>
+        invalid: length === 'Over',
+        style: TextareaStyle,
+        draw: ({ label, textarea }, h) =>
           h.div(slots.letter.attrs(), [
             h.label(label, ['Cover Letter']),
             h.textarea(textarea),
@@ -82,7 +82,6 @@ export const CoverLetterView = SlotView.forMessages<Message>()
               ]),
             ]),
           ]),
-        ),
       },
       h,
     )

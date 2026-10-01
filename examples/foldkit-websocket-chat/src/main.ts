@@ -1,4 +1,3 @@
-import * as UiInput from '@foldkit/ui/input'
 import { Array, DateTime, Effect, Match, Schema, String } from 'effect'
 import { Command, type Runtime, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
@@ -373,13 +372,14 @@ const connectingView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
 const messageInputView = (messageInput: string, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.form(slots.composer.attrs([h.OnSubmit(Message.SubmittedMessage())]), [
     h.div(slots.composerRow.attrs(), [
-      UiInput.view(
+      Input.view(
         {
           id: 'message',
           value: messageInput,
           placeholder: 'Type a message...',
           onInput: value => Message.UpdatedMessageInput({ value }),
-          toView: Input.toView([MessageInputStyle.mixin], { h }, ({ input }) => h.input(input)),
+          style: MessageInputStyle,
+          draw: ({ input }, h) => h.input(input),
         },
         h,
       ),
