@@ -621,6 +621,29 @@ Nothing here is placed: there is no `placements.update` routing, and the
 component's Subscriptions are lifted by hand. When a component is placed in
 several parents, or its Subscriptions are the part that gets forgotten, make it
 a Bundle with `Bundle.fromParts` above.
+
+### The two halves at once: `Link.child`
+
+Hand-rolling `foldChild` plus an `h.submodel` restates the field, the wrapper,
+and the slot. `Link.child(link, update, view, slotId)` states them once and
+yields the fold for `update` and the drawing for `view`, so one placement drives
+both; an absent child (`Link.optional`) draws nothing.
+
+```ts
+const posts = Link.child(postsLink, Posts.update, (page, draw) => PostsShell(page, draw), 'posts')
+
+const update = (model: Model, message: Message) =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    GotPostsMessage: ({ message }) => posts.update(model, message),
+    Saved: () => ({ model }),
+  })
+
+const view = (model: Model, h: HtmlBuilder<Message>) => h.main([], [posts.view(model, h)])
+```
+
+A child with view inputs, or with OutMessages of its own, stays hand-rolled:
+`Link.child` takes a plain `update` and `view` and lifts neither.
+
 [`test/foldChild.test.ts`](test/foldChild.test.ts) runs this example, and
 [`examples/foldkit-ui-showcase`](../../examples/foldkit-ui-showcase) folds its
 thirty-eight components this way.

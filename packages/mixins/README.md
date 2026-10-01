@@ -802,6 +802,30 @@ expect(Inert.missingTokens(tree, stylesheet)).toEqual([])
 A tree whose Styles read no token passes the second vacuously; assert that
 `Inert.css(Inert.all(tree))` contains `var(--fk-` where that would be a mistake.
 
+## Foundations in the first paint
+
+A view's Styles arrive as it draws, so a page that has not run its script yet is
+unstyled. `foldkit-mixins/foundations` writes the one stylesheet that belongs to
+no view — the reset, the palette, the type — into the document's head, in
+development through the running server and in a build through one of its own. It
+compiles a module the application owns, through a server, as the page would
+compile it, so the build's foundations are the application's rather than a copy.
+
+```ts
+// vite.config.ts
+import { foundations } from 'foldkit-mixins/foundations'
+
+export default defineConfig({
+  plugins: [foundations({ module: '/src/styles/sheet.ts' })],
+})
+```
+
+The module must be pure (it builds a string) and export the stylesheet text;
+`export` names that export (default `stylesheet`), and `root` what `vite build`
+runs from. `loadFoundations(options)` is the same compile without the plugin,
+returning the text for a caller that writes it itself. The subpath is node-only:
+a page that imports it fails fast naming `vite`.
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer

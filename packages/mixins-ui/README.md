@@ -236,6 +236,23 @@ const emailField = (value: string, h: HtmlBuilder<Message>) =>
   )
 ```
 
+`Input.field` and `Textarea.field` draw a whole field from a
+`FieldValidation.Field`: the value, its first error or checking mark as the
+description, and `aria-invalid` where the field is invalid. `changed` maps the
+typed value to a Message; `label` is the text over the control; and `draw`
+places the resolved `label`, `control`, and `description` bundles (the default
+stacks them):
+
+```ts
+import { Input } from 'foldkit-mixins-ui'
+
+const titleField = (field: FieldValidation.Field<string>, h: HtmlBuilder<Message>) =>
+  Input.field(
+    { id: 'title', label: 'Title', field, changed: value => Message.TypedTitle({ value }) },
+    h,
+  )
+```
+
 `resolve` is the seam underneath, for bundles already in hand: a view that
 receives a Tabs `render` as its input, or a Calendar whose Mixins read the
 mode it is showing, which is only known once the attributes arrive:

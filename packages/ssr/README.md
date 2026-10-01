@@ -366,6 +366,50 @@ twice, one not starting with `/`, or a date `Date` cannot read is refused
 rather than written into a sitemap a search engine would reject. `robots`
 takes `disallow` paths and a `sitemap` path other than `/sitemap.xml`.
 
+### As a Vite plugin: `foldkit-ssr/vite`
+
+`foldkit-ssr/vite` runs the same static build as a `closeBundle` step on the
+application's own `vite build`, so a site is generated without a second script.
+The application describes its site in a module (`src/site.ts`) and the plugin
+evaluates it through a server, so `vite.config.ts` names a file, never
+application code:
+
+```ts
+// vite.config.ts
+import { staticSite } from 'foldkit-ssr/vite'
+export default defineConfig({
+  plugins: [foldkit(), staticSite({ site: { module: '/src/site.ts' } })],
+})
+```
+
+`src/site.ts` exports a `SiteModule`: what `SSR.generate` takes, plus where the
+pages land. `config` may be one config or a function of the path (a site whose
+Model is prepared per page returns its own); `paths` may be a thunk that seeds
+and lists; `head` is the same `head`; and `sitemap`/`robots` write their files
+from the generated pages. `files` is the host's layout — `'directory'`
+(`/about` as `about/index.html`, the default) or `'flat'` (`about.html`, for a
+host with clean addresses and no directory indexes):
+
+```ts
+// src/site.ts
+import type { SiteModule } from 'foldkit-ssr/vite'
+export const site = {
+  origin: 'https://example.com',
+  paths: ['/', '/about'],
+  config: { Model, init, update, view, container: null, routing },
+  plan,
+  head: rendered => `<style>${Style.usedIn(rendered.html)}</style>`,
+  files: 'directory',
+  sitemap: true,
+  robots: true,
+} satisfies SiteModule
+```
+
+`generateStaticSite(site)` is the same build without Vite: it renders every
+path and returns `{ pages, sitemap?, robots? }`. `fileFor(path, layout)` maps
+one path to the file a host serves it from, so a caller writes the files
+itself; `generateStaticSite` refuses two paths that would claim one file.
+
 ## Checking what the browser will read
 
 The view check sees what the first render shows. A Surface can read a field the
