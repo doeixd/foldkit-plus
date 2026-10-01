@@ -68,4 +68,22 @@ describe('the chat view', () => {
       '[data-state="sent"]{justify-content:flex-end}',
     )
   })
+
+  test('names a kept offline send in the footer, until the draft changes', () => {
+    const kept = modifyFields(idleModel, {
+      messageInput: () => 'Hello',
+      offlineSendKept: () => true,
+    })
+    const tree = Inert.draw(Chat, kept)
+    const [notice] = Inert.bySlot(tree, 'errorText')
+    expect(notice).toBeDefined()
+    expect(Inert.text(notice)).toContain('kept as a draft')
+    expect(Inert.value(notice, 'role')).toBe('status')
+  })
+
+  test('says nothing about the draft until a send is asked while shut', () => {
+    const typed = modifyFields(idleModel, { messageInput: () => 'Hello' })
+    expect(Inert.bySlot(Inert.draw(Chat, typed), 'errorText')).toHaveLength(0)
+    expect(Inert.bySlot(Inert.draw(Chat, idleModel), 'errorText')).toHaveLength(0)
+  })
 })

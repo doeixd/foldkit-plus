@@ -51,6 +51,12 @@ export const Model = Schema.Struct({
   wantConnection: Schema.Boolean,
   messages: Schema.Array(ChatMessage),
   messageInput: Schema.String,
+  /**
+   * Whether a send was asked while the socket was shut. The draft is kept and
+   * the footer says so; nothing is queued or sent on reconnect, so the author
+   * reviews the draft and sends it themselves.
+   */
+  offlineSendKept: Schema.Boolean,
 })
 
 export type Model = typeof Model.Type
@@ -142,6 +148,8 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     UpdatedMessageInput: ({ value }) => ({
       model: modifyFields(model, {
         messageInput: () => value,
+        // New text supersedes the kept send: the notice stands for the draft as sent.
+        offlineSendKept: () => false,
       }),
     }),
 
@@ -154,10 +162,20 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
 
       return isOpen(model.chatSocket)
         ? Update.combine(model, [
-            next => ({ model: modifyFields(next, { messageInput: () => '' }) }),
+            next => ({
+              model: modifyFields(next, {
+                messageInput: () => '',
+                offlineSendKept: () => false,
+              }),
+            }),
             chatSocket.helpers.send(trimmedMessage),
           ])
-        : { model }
+        : // Offline sends are kept, not queued: the draft stays, and the
+          // footer names what happened, until the author edits, connects, or
+          // sends. An auto-send on reconnect would speak for them.
+          {
+            model: modifyFields(model, { offlineSendKept: () => true }),
+          }
     },
 
     TimestampedMessage: ({ text, zoned, isSent }) => {
@@ -180,6 +198,7 @@ export const init: Runtime.ApplicationInit<Model, Message, void, never, SocketSe
     wantConnection: false,
     messages: [],
     messageInput: '',
+    offlineSendKept: false,
   })
 
 // COMMAND
@@ -229,7 +248,7 @@ export const Chat = SlotView.forMessages<Message>()
         messagesView(model.messages, slots, h),
 
         SocketView.match(viewOf(model.chatSocket, model.wantConnection), {
-          Disconnected: () => connectButtonView(slots, h),
+          Disconnected: () => connectButtonView(model, slots, h),
           Connecting: () => connectingView(slots, h),
           Connected: () => messageInputView(model.messageInput, slots, h),
           Error: ({ error }) => errorView(error, slots, h),
@@ -330,12 +349,22 @@ const button = (
     h,
   )
 
-const connectButtonView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
+const connectButtonView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.div(slots.footer.attrs(), [
     button(
       { label: 'Connect to Chat', style: ConnectButtonStyle, onClick: Message.ClickedConnect() },
       h,
     ),
+    // A send asked while shut: the draft is kept, and this says so, until the
+    // author edits, connects, or sends. Drawn on the footer's error text: it is
+    // a send that did not go, not connection state (the header says that).
+    ...(model.offlineSendKept && !String.isEmpty(model.messageInput.trim())
+      ? [
+          h.p(slots.errorText.attrs([h.Role('status')]), [
+            'Not connected — your message is kept as a draft. Connect to send it.',
+          ]),
+        ]
+      : []),
   ])
 
 const connectingView = (slots: Slots, h: HtmlBuilder<Message>): Html =>

@@ -183,6 +183,70 @@ describe('update', () => {
         }),
       )
     })
+
+    test('an offline send keeps the draft and marks it kept, nothing queued', () => {
+      story(
+        update,
+        given(modifyFields(idleModel, { messageInput: () => 'Hello' })),
+        message(Message.SubmittedMessage()),
+        Command.expectNone(),
+        model(model => {
+          expect(model.messageInput).toBe('Hello')
+          expect(model.offlineSendKept).toBe(true)
+        }),
+      )
+    })
+
+    test('editing after an offline send clears the kept mark', () => {
+      story(
+        update,
+        given(
+          modifyFields(idleModel, {
+            messageInput: () => 'Hello',
+            offlineSendKept: () => true,
+          }),
+        ),
+        message(Message.UpdatedMessageInput({ value: 'Hello!' })),
+        model(model => {
+          expect(model.messageInput).toBe('Hello!')
+          expect(model.offlineSendKept).toBe(false)
+        }),
+      )
+    })
+
+    test('a connected send clears the kept mark with the draft', () => {
+      story(
+        update,
+        given(
+          modifyFields(connectedModel, {
+            messageInput: () => 'Hello there',
+            offlineSendKept: () => true,
+          }),
+        ),
+        message(Message.SubmittedMessage()),
+        model(model => {
+          expect(model.messageInput).toBe('')
+          expect(model.offlineSendKept).toBe(false)
+        }),
+        Command.expectExact(sendOnSocket('Hello there')),
+        Command.resolve(
+          sendOnSocket('Hello there'),
+          WebSocketMessage.Sent({ data: 'Hello there' }),
+        ),
+        Command.expectExact(TimestampSentMessage({ text: 'Hello there' })),
+        Command.resolve(
+          TimestampSentMessage,
+          Message.TimestampedMessage({
+            text: 'Hello there',
+            zoned: zonedNow,
+            isSent: true,
+          }),
+        ),
+        model(model => {
+          expect(model.messages).toHaveLength(1)
+        }),
+      )
+    })
   })
 
   describe('inbound messages', () => {
