@@ -29,9 +29,8 @@ Work these before anything else; each is a place the demo misinforms.
 missing-post treatment with the right back-link and `Not found` title;
 the `historyCard` `onRetry` (package) wired in both editors; the worklist
 retry (`RetriedList`); chat offline sends kept as a draft with a footer
-notice; Publish gated on `canSubmit`. **Remaining:** the pages list still
-dead-ends on a failed read — it hand-rolls `ul`/`li`, so its retry waits on
-the row ListView variant under package prerequisites.
+notice; Publish gated on `canSubmit`; the pages list's retry, through
+`RowListView`. Wave 0 is complete.
 
 - **Site failure drawn as loading.** `examples/cms/src/content/site.ts`
   `PostList` (`:925-935`) and `FeaturedPost` (`:937-956`) map every
@@ -169,11 +168,9 @@ Each is its own slice, before the wave-1 item that needs it.
 - **A list-row ListView variant** (`packages/mixins-crud`): the `status`/
   `retry`/`words`/`aria-busy` contract over `ul`/`li`, so the pages list
   can adopt it without changing its markup contract. **Built** as
-  `RowListView` (shared state contract with `ListView`). The pages-list
-  adoption remains: its styles are keyed to `AdminSlots`, and a nested
-  SlotView brings its own slots, so adopting means restyling `RowListSlots`
-  (and moving the old `list`/`listButton` styles to it) plus a
-  `RetriedList` Message in `pageApp`.
+  `RowListView` (shared state contract with `ListView`), and the pages
+  list adopts it — retry included, its `list`/`listButton` recipes moved to
+  `PagesListStyle` over `RowListSlots`.
 - **Field views over `InputSlots`** (`packages/mixins-ui`): label,
   description and `aria-invalid` through the slots, so the studio's search
   and schedule inputs can rewire off raw `h.input`.
