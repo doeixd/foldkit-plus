@@ -24,6 +24,7 @@ const Message = defineMessageUnion({
   UnpublishAsked: {},
   ArchiveAsked: {},
   UnarchiveAsked: {},
+  RetryAsked: {},
 })
 type Message = typeof Message.Type
 
@@ -133,14 +134,58 @@ describe('revisionsOf', () => {
 })
 
 describe('historyCard', () => {
-  const card = (state: State, history: RevisionHistory = { _tag: 'Ready', revisions }) =>
+  const card = (
+    state: State,
+    history: RevisionHistory = { _tag: 'Ready', revisions },
+    extra: {
+      readonly onRetry?: Message
+      readonly words?: { readonly retry?: string }
+    } = {},
+  ) =>
     draw((slots, h) =>
       Cms.historyCard(slots, h, history, {
         state: Option.some(state),
         restore: revision => Message.RestoreAsked({ revision }),
         authorName: name => (name === 'edda' ? 'Edda' : name),
+        ...extra,
       }),
     )
+
+  // What `OnClick` was given while drawing, so a test reads the dispatched
+  // message itself: an inert click handler only throws without a runtime.
+  const cardCapturing = (
+    history: RevisionHistory,
+    extra: {
+      readonly onRetry?: Message
+      readonly words?: { readonly retry?: string }
+    } = {},
+  ): { readonly tree: Html; readonly clicked: ReadonlyArray<Message> } => {
+    const clicked: Array<Message> = []
+    const View = SlotView.define(TestSlots, (_model: {}, slots, h: HtmlBuilder<Message>) => {
+      const recording = new Proxy(h, {
+        get(target, property) {
+          const found = Reflect.get(target, property)
+          if (property === 'OnClick' && typeof found === 'function') {
+            return (message: Message, options?: unknown) => {
+              clicked.push(message)
+              return Reflect.apply(found as (...args: ReadonlyArray<unknown>) => unknown, target, [
+                message,
+                options,
+              ])
+            }
+          }
+          return found
+        },
+      }) as HtmlBuilder<Message>
+      return Cms.historyCard(slots, recording, history, {
+        state: Option.some({ _tag: 'Published', schedule: null }),
+        restore: revision => Message.RestoreAsked({ revision }),
+        authorName: name => name,
+        ...extra,
+      })
+    })
+    return { tree: View({}, SlotView.inertBuilder<Message>()), clicked }
+  }
 
   it('marks the newest Live while on the site, restoring only the older', () => {
     const tree = card({ _tag: 'Published', schedule: null })
@@ -182,10 +227,40 @@ describe('historyCard', () => {
     expect(Inert.text(tree)).not.toContain('Nothing has been published yet.')
   })
 
+  it('announces a failed history as an alert, with no retry unless one was given', () => {
+    const tree = card({ _tag: 'Published', schedule: null }, { _tag: 'Failed' })
+    const [paragraph] = Inert.byTag(tree, 'p')
+    expect(Inert.value(paragraph, 'role')).toBe('alert')
+    expect(Inert.value(paragraph, 'aria-busy')).toBeUndefined()
+    expect(Inert.byTag(tree, 'button')).toEqual([])
+  })
+
+  it('asks again through onRetry, saying Try again unless told otherwise', () => {
+    const retry = Message.RetryAsked({})
+    const { tree, clicked } = cardCapturing({ _tag: 'Failed' }, { onRetry: retry })
+    const [button] = Inert.byTag(tree, 'button')
+    expect(button).toBeDefined()
+    expect(Inert.text(button)).toBe('Try again')
+    expect(clicked).toEqual([retry])
+    const renamed = cardCapturing(
+      { _tag: 'Failed' },
+      { onRetry: Message.RetryAsked({}), words: { retry: 'Reload history' } },
+    )
+    expect(Inert.text(Inert.byTag(renamed.tree, 'button')[0])).toBe('Reload history')
+  })
+
   it('says loading while the history has no answer yet', () => {
     const tree = card({ _tag: 'Published', schedule: null }, { _tag: 'Loading' })
     expect(Inert.text(tree)).toContain('Loading')
     expect(Inert.text(tree)).not.toContain('Nothing has been published yet.')
+  })
+
+  it('says a loading history as a busy status, told from empty', () => {
+    const tree = card({ _tag: 'Published', schedule: null }, { _tag: 'Loading' })
+    const [paragraph] = Inert.byTag(tree, 'p')
+    expect(Inert.value(paragraph, 'role')).toBe('status')
+    expect(Inert.value(paragraph, 'aria-busy')).toBe('true')
+    expect(Inert.byTag(tree, 'button')).toEqual([])
   })
 })
 

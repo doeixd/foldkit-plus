@@ -5,7 +5,7 @@
  * are the builders each view reads. Words for states come from
  * `Cms.Display`, so a studio and its lists say them one way.
  */
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
 import { Display } from 'foldkit-crud'
 import type { SlotView } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -107,9 +107,11 @@ export interface HistoryCardSlots<M> {
  * down to the first, with when and by whom. The newest is marked Live while
  * the entry is on the site; restoring it is offered only while a draft sits
  * over it, since otherwise it changes nothing. A history still being read
- * says it is loading, and one that failed says so: neither is mistaken for
- * nothing published. Who published is the application's to name
- * (`authorName`), as only it knows its chairs.
+ * says so as a busy status, and one that failed as an alert, so neither is
+ * mistaken for nothing published nor read as plain text. A failed read is not
+ * retried on its own: given `onRetry`, a button sends it, drawn on the
+ * restore slot so no new builder is required of every studio. Who published
+ * is the application's to name (`authorName`), as only it knows its chairs.
  */
 export const historyCard = <M>(
   slots: HistoryCardSlots<M>,
@@ -119,20 +121,36 @@ export const historyCard = <M>(
     readonly state: Option.Option<State>
     readonly restore: (revision: number) => M
     readonly authorName: (name: string) => string
+    /**
+     * Asks again after a failed read. Given, a failed history shows a button
+     * that sends it; a failed read is not retried on its own.
+     */
+    readonly onRetry?: M | undefined
+    /** What the retry button says. Default `Try again`. */
+    readonly words?: { readonly retry?: string | undefined } | undefined
   },
 ): Html => {
   const live = stateIs(entry.state, 'Published', 'Changed')
   const drafted = stateIs(entry.state, 'Changed')
-  const body =
-    history._tag === 'Failed'
-      ? h.p(slots.muted.attrs(), ['The history could not be read.'])
-      : history._tag === 'Loading'
-        ? h.p(slots.muted.attrs(), ['Loading…'])
-        : history.revisions.length === 0
+  const body: ReadonlyArray<Html> = Match.value(history).pipe(
+    Match.tagsExhaustive({
+      Failed: () => [
+        h.p(slots.muted.attrs([h.Role('alert')]), ['The history could not be read.']),
+        ...(entry.onRetry === undefined
+          ? []
+          : [
+              h.button(slots.revisionRestore.attrs([h.Type('button'), h.OnClick(entry.onRetry)]), [
+                entry.words?.retry ?? 'Try again',
+              ]),
+            ]),
+      ],
+      Loading: () => [h.p(slots.muted.attrs([h.Role('status'), h.AriaBusy(true)]), ['Loading…'])],
+      Ready: ({ revisions }) => [
+        revisions.length === 0
           ? h.p(slots.muted.attrs(), ['Nothing has been published yet.'])
           : h.ol(
               slots.timeline.attrs([h.AriaLabel('Published revisions, newest first')]),
-              history.revisions.map((revision, index) => {
+              revisions.map((revision, index) => {
                 const newest = index === 0
                 const { day, time } = momentOf(revision.publishedAt)
                 const isLive = newest && live
@@ -163,10 +181,13 @@ export const historyCard = <M>(
                       ]),
                 ])
               }),
-            )
+            ),
+      ],
+    }),
+  )
   return h.section(slots.card.attrs([h.Id('history')]), [
     h.h2(slots.cardTitle.attrs(), ['History']),
-    body,
+    ...body,
   ])
 }
 

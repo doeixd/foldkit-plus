@@ -15,6 +15,11 @@ version changed; `pnpm` skips versions already in the registry.
   the drawing for `view` (branded once, absent draws nothing). The studio's
   two sections adopt it, deleting a fold and a submodel apiece. Children
   with view inputs or OutMessages of their own stay hand-rolled.
+- **`foldkit-cms`, `historyCard` retry and announced states:** an optional
+  `onRetry` with `retry` words draws a retry button on a failed history
+  read, on the restore slot so no new builder is required; the Failed and
+  Loading states draw as an alert and a busy status instead of plain text.
+  The body now branches through `Match.tagsExhaustive`.
 
 ## 0.12.0
 
