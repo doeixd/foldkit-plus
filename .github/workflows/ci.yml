@@ -90,7 +90,11 @@ jobs:
 
       # Also proves the example runs against the packages' published entry
       # points, which is how it imports them. Plain `tsx` traces: no browser.
+      # The build id names no deployment; the SSG example's build refuses an
+      # empty one, so CI names its own.
       - run: pnpm demo
+        env:
+          FOLDKIT_BUILD_ID: ci
 
   pack:
     runs-on: ubuntu-latest
@@ -107,5 +111,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # And that every package still packs with those entry points, which is
-      # what a release actually publishes.
+      # what a release actually publishes. The build id names no deployment;
+      # see above.
       - run: pnpm pack:check
+        env:
+          FOLDKIT_BUILD_ID: ci

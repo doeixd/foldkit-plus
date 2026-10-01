@@ -56,6 +56,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
+          # `pnpm release` builds first, and the SSG example's build refuses
+          # an empty id. The id names no deployment; the built pages are
+          # checked, not served.
+          FOLDKIT_BUILD_ID: ci
 
       # A tag is what marks a release, so the notes come from the changelog
       # section that matches it: `v0.8.0` takes `## 0.8.0`. This runs whether or
