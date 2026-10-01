@@ -24,6 +24,14 @@ third: the showcase reading of the 0.12 tree.
 ## 0. Correctness first: the demo must not lie
 
 Work these before anything else; each is a place the demo misinforms.
+**Built** (with tests): site failure/loading/empty via `Loading`/`Empty`/
+`Failure` in the three renderer blocks; preview-while-loading; the unified
+missing-post treatment with the right back-link and `Not found` title;
+the `historyCard` `onRetry` (package) wired in both editors; the worklist
+retry (`RetriedList`); chat offline sends kept as a draft with a footer
+notice; Publish gated on `canSubmit`. **Remaining:** the pages list still
+dead-ends on a failed read — it hand-rolls `ul`/`li`, so its retry waits on
+the row ListView variant under package prerequisites.
 
 - **Site failure drawn as loading.** `examples/cms/src/content/site.ts`
   `PostList` (`:925-935`) and `FeaturedPost` (`:937-956`) map every
@@ -154,6 +162,7 @@ Each is its own slice, before the wave-1 item that needs it.
 - **`historyCard` retry + announced states** (`packages/cms/src/views`):
   an optional `onRetry` with `retry` words, and the Failed/Loading states
   drawn through `role=status`/`alert` views instead of a plain `<p>`.
+  **Built**, and wired in both editors to `ReloadAsked`.
 - **A list-row ListView variant** (`packages/mixins-crud`): the `status`/
   `retry`/`words`/`aria-busy` contract over `ul`/`li`, so the pages list
   can adopt it without changing its markup contract.

@@ -333,9 +333,10 @@ misinforms, unadopted 0.12 contracts, UX polish, hygiene and docs.
 work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
 (polish), with package prerequisites as their own slices.
 
-- [ ] **0. Correctness:** site failure drawn as loading, preview while
+- [x] **0. Correctness:** site failure drawn as loading, preview while
   loading, missing-post inconsistency, retry everywhere, chat offline
-  sends, publish versus the form.
+  sends, publish versus the form. Built with tests; the pages list's retry
+  still waits on the row ListView variant (package prerequisites).
 - [ ] **1. Adoptions:** SSG adopts `staticSite`; `assembly.runtime` in one
   real assembly; todo agent learns completion; `Input.view`/`Textarea.view`
   get app callers; the small-gaps batch (scroll options, `stateBadge`
