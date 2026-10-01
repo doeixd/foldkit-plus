@@ -10,7 +10,7 @@ import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Cms } from 'foldkit-cms'
 import { SlotView, Style } from 'foldkit-mixins'
-import { Empty, Failure, Loading } from 'foldkit-mixins-crud'
+import { Empty, Failure, Loading, RowListView } from 'foldkit-mixins-crud'
 import {
   Editor,
   Message,
@@ -20,23 +20,23 @@ import {
   sitePages,
   view as editorView,
   type Model,
+  type SitePageRow,
 } from '../apps/pageApp.js'
 import { icon } from './icons.js'
 import { chair, editorBar, failed, publisherOf, shell, stateIs, statusLine } from './shell.js'
 import { pageHref } from '../content/site.js'
 import { PageForm } from '../content/pageDomain.js'
-import { AdminSlots, AdminStyle } from '../styles/adminStyle.js'
+import { AdminSlots, AdminStyle, PagesListStyle } from '../styles/adminStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
 
-/**
- * The pages as a list of rows, not a table: ListView draws table/thead/tbody
- * only, so adopting it would change the markup contract, not just the style.
- */
-const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  const read = sitePages.read(model)
-  const pages = read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.items : []
-  return h.div(slots.screen.attrs([h.Id('pages')]), [
+/** The pages as rows, not a table: the package's `ul`/`li` list over `RowListSlots`. */
+const PagesRows = RowListView.forMessages<Message>()
+  .define<SitePageRow>({ name: 'sitePages' })
+  .pipe(Style.attach(PagesListStyle))
+
+const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
+  h.div(slots.screen.attrs([h.Id('pages')]), [
     h.header(slots.screenHead.attrs(), [
       h.div(
         [],
@@ -52,34 +52,22 @@ const pageList = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => 
         'New page',
       ]),
     ]),
-    pages.length === 0
-      ? read._tag === 'Ready' || read._tag === 'Refreshing'
-        ? Empty.view(slots.muted, h, 'Nothing yet.')
-        : read._tag === 'Failed'
-          ? Failure.view(slots.muted, h, 'The pages could not be read.')
-          : read._tag === 'NotFound'
-            ? Empty.view(slots.muted, h, 'Nothing yet.')
-            : Loading.view(slots.muted, h, 'Loading…')
-      : h.ul(
-          slots.list.attrs(),
-          pages.map(page =>
-            h.li(
-              [],
-              [
-                h.button(
-                  slots.listButton.attrs([h.OnClick(Message.OpenedEntry({ entry: page.id }))]),
-                  [
-                    icon(h, 'pages'),
-                    h.span([], [page.label === '' ? 'Untitled page' : page.label]),
-                    Cms.stateBadge(slots.badge, h, Option.some(page.state)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+    PagesRows(
+      {
+        page: sitePages.read(model),
+        row: (page, h) => [
+          icon(h, 'pages'),
+          h.span([], [page.label === '' ? 'Untitled page' : page.label]),
+          Cms.stateBadge(slots.badge, h, Option.some(page.state)),
+        ],
+        onOpen: page => Message.OpenedEntry({ entry: page.id }),
+        // A list that failed to read is asked for again, rather than dead-ending.
+        onRetry: Message.RetriedList(),
+        words: { empty: 'Nothing yet.', failed: 'The pages could not be read.' },
+      },
+      h,
+    ),
   ])
-}
 
 const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PageEditor.status(model)

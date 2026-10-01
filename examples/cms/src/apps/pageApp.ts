@@ -82,6 +82,8 @@ export const Message = defineMessageUnion({
   AskedForPage: {},
   StartedPage: { entry: Schema.String },
   ClosedEditor: {},
+  /** Asks the pages list again after its read failed, so a failed list is not a dead end. */
+  RetriedList: {},
   /** The address changed: a link, back or forward, or the page's own write. */
   UrlChanged: { url: Url },
   /** A link was followed. */
@@ -128,6 +130,12 @@ export const sitePages = Data.query(
   { type: 'pages', search: '', archived: false },
   { select: Entity.select(Cms.Entities.Entry, { id: true, label: true, state: true }), first: 50 },
 )
+
+/** One page in the site's list, as `sitePages` selects it. */
+export type SitePageRow = Extract<
+  ReturnType<typeof sitePages.read>,
+  { readonly _tag: 'Ready' }
+>['value']['items'][number]
 
 /** The blog's published posts: the choices of a Block prop that features one. */
 export const sitePosts = Data.query(
@@ -184,6 +192,7 @@ const placed = placements.update((model, message) => {
     AskedForPage: () => ({ model, commands: [newPage] }),
     StartedPage: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
     ClosedEditor: () => leaving(EditorSlot.helpers.close()),
+    RetriedList: () => ({ model: Data.refresh(model, sitePages) }),
     UrlChanged: ({ url }) => {
       const { stored, fresh, ...asked } = linkIn(url)
       const opened = openNamed(routed, model, { stored, fresh }, model.fresh)

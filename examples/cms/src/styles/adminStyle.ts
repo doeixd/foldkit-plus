@@ -4,7 +4,7 @@
  * links, buttons, badges, disclosures) lives in `style.ts`.
  */
 import { Slots, Style } from 'foldkit-mixins'
-import { Loading } from 'foldkit-mixins-crud'
+import { Loading, RowListSlots } from 'foldkit-mixins-crud'
 import { Recipes, Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import {
@@ -118,9 +118,6 @@ export const AdminSlots = Slots.define({
   danger: control,
   status: part,
   muted: part,
-  /** A list of things to open, and each one's button. */
-  list: part,
-  listButton: control,
   /** An entry's state, such as Published. */
   badge: part,
   search: control,
@@ -607,6 +604,19 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Loading.shown,
     ),
     muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+    badge: stateBadge('data-state'),
+    search: Style.compose(field, Style.self({ paddingInlineStart: '2.1rem' })),
+  },
+  { name: 'AdminStyle', layer: app },
+)
+
+/**
+ * The pages list, drawn as `RowListView` rows. Its Slots are the package's
+ * `RowListSlots`, so the look lives here beside the tokens rather than on
+ * `AdminSlots`: a nested SlotView carries its own slots.
+ */
+export const PagesListStyle = Style.forSlots(RowListSlots)(
+  {
     list: Style.compose(
       Style.self({
         border: `1px solid ${t.outline.subtle}`,
@@ -619,7 +629,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.nest('> li + li', { borderBlockStart: `1px solid ${t.outline.subtle}` }),
     ),
     // Bespoke: the recipe centers inline actions, while this fills its list row start-aligned.
-    listButton: Style.compose(
+    open: Style.compose(
       Style.self({
         alignItems: 'center',
         background: t.surface.base,
@@ -640,8 +650,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.nest('> :last-child', { marginInlineStart: 'auto' }),
       Style.pseudo(':hover', { background: t.surface.subtle }),
     ),
-    badge: stateBadge('data-state'),
-    search: Style.compose(field, Style.self({ paddingInlineStart: '2.1rem' })),
+    status: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
+    retry: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
   },
-  { name: 'AdminStyle', layer: app },
+  { name: 'PagesListStyle', layer: app },
 )
