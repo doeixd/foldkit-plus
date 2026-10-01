@@ -85,10 +85,11 @@ Each lands with its test in the same change, as the 0.12 slices did.
   models intent→fact with `correlate` and `requestId`. Port the pattern
   over.
 - **`Input.view` / `Textarea.view` get their first app callers.**
-  `examples/foldkit-websocket-chat/src/main.ts:347` (`UiInput.view`
+  `examples/foldkit-websocket-chat/src/main.ts` (`Input.view`
   composer) and
-  `examples/foldkit-job-application/src/step/coverLetter/coverLetter.ts:65`
-  (`UiTextarea.view`). `Input.field` correctly stays out (no
+  `examples/foldkit-job-application/src/step/coverLetter/coverLetter.ts`
+  (`Textarea.view`). **Built** — both drop the upstream `@foldkit/ui` view
+  and the `toView` wrapper. `Input.field` correctly stays out (no
   `FieldValidation.Field` in either place).
 - **Small gaps, one batch:** `keepScroll` options in prod
   (`examples/cms/src/apps/studioApp.ts:249`, e.g. a per-app key);
