@@ -17,7 +17,10 @@ const ChildMessage = defineMessageUnion({ Incremented: {}, Ignored: {} })
 type ChildMessage = typeof ChildMessage.Type
 
 const childUpdate = (model: ChildModel, message: ChildMessage) =>
-  message._tag === 'Incremented' ? { model: { ...model, count: model.count + 1 } } : { model }
+  ChildMessage.match(message, {
+    Incremented: () => ({ model: { ...model, count: model.count + 1 } }),
+    Ignored: () => ({ model }),
+  })
 
 const childView = (model: ChildModel, h: HtmlBuilder<ChildMessage>): Html =>
   h.button([h.Class('counter'), h.OnClick(ChildMessage.Incremented())], [String(model.count)])
@@ -41,9 +44,10 @@ const maybe = Link.child(
 )
 
 const update = (model: Model, message: Message) =>
-  message._tag === 'GotPageMessage'
-    ? page.update(model, message.message)
-    : maybe.update(model, message.message)
+  Message.match(message, {
+    GotPageMessage: ({ message }) => page.update(model, message),
+    GotMaybeMessage: ({ message }) => maybe.update(model, message),
+  })
 
 const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   h.main(

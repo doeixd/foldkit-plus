@@ -170,12 +170,27 @@ Slop is also code that looks finished and is wrong. Look for these too:
     (`defineMessageUnion`, `defineTaggedUnion` from `foldkit/schema`, the
     `RemoteData` helpers) or Effect `Match.valueTags` / `Match.tagsExhaustive`;
     on a few with `matchOrElse` or `Match.tags`; narrow one with a single
-    `===` on a typed union. Type a Schema AST as `SchemaAST.AST` and test it
-    with its guards (`SchemaAST.isUnion`, `isNull`, `isLiteral`), never a
-    hand-written `{ _tag: string }`. Where the tag is open by design (another
-    application's Message at a boundary), compare against a typed set, and mark
-    the line above with `// tag-check: open` and why. `pnpm tags:check` finds
-    the rest.
+    `===` on a typed union. A ternary over a tagged union (`x._tag === 'A' ?
+    … : …`) is a two-arm match the checker cannot see: use the union's match
+    even for two variants. Construct through the union's constructors and
+    factories (`Message.Variant(...)`, `Schema.TaggedStruct`), never an
+    object literal with `_tag` outside a test fixture. Type a Schema AST as
+    `SchemaAST.AST` and test it with its guards (`SchemaAST.isUnion`,
+    `isNull`, `isLiteral`), never a hand-written `{ _tag: string }`. Where
+    the tag is open by design (another application's Message at a boundary),
+    compare against a typed set, and mark the line above with
+    `// tag-check: open` and why. `pnpm tags:check` finds the rest — in
+    `packages/*/src` only; examples and tests need review eyes for the same
+    shapes.
+  - Ternaries that select values are fine; ternaries that branch are match.
+    `cond ? a : b` over plain values stays. A ternary (or `if`/`else`) whose
+    condition reads a tag, or a nested ternary, becomes the union's `match`
+    or a restructured branch. Do not reach for Effect `Match` on booleans:
+    it trades one line for five with no check gained.
+  - Spreading builds; it does not write. `{ ...model, field }` and
+    `{ ...link, update }` are ordinary immutable construction. Model writes
+    go through `modifyFields` in `update`, a no-op returns the Model it was
+    given, and no spread may smuggle a transition past either rule.
   - `null` or `undefined` standing for "nothing here". A value that may be
     absent is an Effect `Option`: `Option.none()`, `Option.some(x)`,
     `Option.match`, and `Schema.Option` in a Model that is never stored.
