@@ -617,10 +617,11 @@ then the lifecycle and host-integration design work.
   preserve a URL/filter mismatch. Built: route-seeded init, child `ChangedRoute`
   delivery and no-op URL echoes. Regression tests cover copied URLs, navigation,
   back/forward and no duplicate writes; removing startup/delivery breaks them.
-- [ ] **Medium: PointerDrag release-time hit-testing (§11).** Recompute the
-  final target/zone on release rather than dropping the last move's cached
-  place; the receiving reducer resolves placement against current domain
-  state. Test target movement/removal and scrolling between move and release.
+- [x] **Medium: PointerDrag release-time hit-testing (§11).** Built: the
+  release is hit-tested again when it carries a position, so the drop names
+  where the pointer was let go rather than where the last move saw it; a
+  release with no position keeps the last move's answer. A moved target between
+  move and release is covered; removing the recompute fails it.
 - [ ] **Medium, adopter-led: higher-level interaction integration (§11).**
   Prefer a Slot adapter around upstream DragAndDrop for sortable collections.
   Evaluate a distinct delegated pointer-stroke Mount for Pixel Art's painting,

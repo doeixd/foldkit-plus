@@ -132,6 +132,22 @@ describe('PointerDrag', () => {
       expect(fire(c, 'click').defaultPrevented).toBe(false)
     }))
 
+  it('drops what is under the release, not what the last move saw', () =>
+    withList(async ({ list, a, b, c }) => {
+      const facts = await run(list, 3, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(c, 'pointermove', { clientX: 10, clientY: 75 })
+        // The layout moved under the pointer between the last move and the
+        // release: the drop names where it was let go.
+        fire(b, 'pointerup', { clientX: 10, clientY: 45 })
+      })
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'a' }),
+        DraggedOver.make({ over: { id: 'c', zone: 'inside' } }),
+        DragDropped.make({ id: 'a', over: { id: 'b', zone: 'inside' } }),
+      ])
+    }))
+
   it('leaves a press that does not move a click, and a release outside does not eat one later', () =>
     withList(async ({ list, a, b, outside }) => {
       let later: Event | undefined

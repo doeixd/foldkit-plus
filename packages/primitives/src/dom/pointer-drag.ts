@@ -164,8 +164,17 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             pressed !== null &&
             (pressed.pointer === undefined || event.pointerId === pressed.pointer)
           // `inside`: the release was on the container, so its click will reach it.
-          const end = (dropped: boolean, inside = false) => {
+          // The release is hit-tested again: the layout may have moved since
+          // the last move (a scroll, a row that shifted), and the drop says
+          // where the pointer was let go, not where it was last seen. A
+          // release with no position of its own keeps the last move's answer.
+          const end = (dropped: boolean, at?: Positioned, inside = false) => {
             const id = dragging
+            if (id !== null && at?.clientX !== undefined && at.clientY !== undefined) {
+              const { place, region } = placeAt(at)
+              over = place
+              inRegion = region
+            }
             pressed = null
             dragging = null
             const last = over
@@ -215,7 +224,12 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
               event => {
                 if (!ours(event as Positioned)) return
                 if (dragging === null) end(false)
-                else end(true, event.target instanceof Node && element.contains(event.target))
+                else
+                  end(
+                    true,
+                    event as Positioned,
+                    event.target instanceof Node && element.contains(event.target),
+                  )
               },
             ],
             [
