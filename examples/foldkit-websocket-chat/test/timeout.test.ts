@@ -10,10 +10,10 @@ import { modifyFields } from 'foldkit/struct'
 import { Socket, WebSocketMessage, type WebSocketModel } from 'foldkit-primitives/net'
 import { describe, expect, test } from 'vitest'
 
-import { type Message, type Model, init, subscriptions } from '../src/main.js'
+import { type Message, type Model, assembly, init } from '../src/main.js'
 import { FakeSocket, fromSocket } from './fixtures.js'
 
-const connectTimeout = subscriptions['ChatSocket@chatSocket/connectTimeout']!
+const connectTimeout = assembly.subscriptions()['ChatSocket@chatSocket/connectTimeout']!
 
 const idleModel: Model = init().model
 

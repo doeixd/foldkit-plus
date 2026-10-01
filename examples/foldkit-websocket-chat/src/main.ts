@@ -131,7 +131,7 @@ const chatSocket = Page.at(ChatSocket, {
   onMessage: reactToSocket,
 })
 
-const assembly = Page.assemble(chatSocket)
+export const assembly = Page.assemble(chatSocket)
 
 /** The page's own Messages: `GotChatSocketMessage` goes to the socket, then to `reactToSocket`. */
 type OwnMessage = Bundle.OwnMessage<Message, typeof assembly.placements>
@@ -219,14 +219,6 @@ export const TimestampReceivedMessage = Command.define('TimestampReceivedMessage
       Effect.map(zoned => Message.TimestampedMessage({ text, zoned, isSent: false })),
     ),
 })
-
-// MANAGED RESOURCE
-
-export const managedResources = assembly.resources()
-
-// SUBSCRIPTION
-
-export const subscriptions = assembly.subscriptions()
 
 // VIEW
 
@@ -403,3 +395,21 @@ const errorView = (error: string, slots: Slots, h: HtmlBuilder<Message>): Html =
     ]),
     button({ label: 'Try Again', style: RetryButtonStyle, onClick: Message.ClickedConnect() }, h),
   ])
+
+// RUNTIME
+
+/**
+ * The runtime the page boots on, assembled once: `assembly.runtime` compiles
+ * `initial` to `init` and merges the socket's Subscriptions and Managed
+ * Resources with the page's own (none), checking that each came from the
+ * assembly. `entry.ts` and the runtime test both boot from this.
+ */
+export const runtimeConfig = (container: HTMLElement | null) =>
+  assembly.runtime({
+    initial: init,
+    update,
+    Model,
+    view,
+    container,
+    devTools: { Message },
+  })

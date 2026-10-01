@@ -21,8 +21,8 @@ import {
   type Model,
   TimestampReceivedMessage,
   TimestampSentMessage,
+  assembly,
   init,
-  managedResources,
   update,
   view,
 } from '../src/main.js'
@@ -41,7 +41,7 @@ const socket = (
   chatSocket: (chat: Model['chatSocket']) => ({ ...chat, status, lastError, opened }),
 })
 
-const chatSocket = managedResources['ChatSocket@chatSocket/socket']!
+const chatSocket = assembly.resources()['ChatSocket@chatSocket/socket']!
 
 const zonedAt = (timestamp: number) => DateTime.makeZonedUnsafe(timestamp, { timeZone: 'UTC' })
 

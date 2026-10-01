@@ -8,7 +8,7 @@ import { Runtime } from 'foldkit'
 import { Style } from 'foldkit-mixins'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { Model, init, managedResources, subscriptions, update, view } from '../src/main.js'
+import { runtimeConfig } from '../src/main.js'
 import { stylesheet } from '../src/style.js'
 import { FakeSocket } from './fixtures.js'
 
@@ -29,17 +29,7 @@ const run = () => {
   const container = document.createElement('div')
   container.id = 'root'
   document.body.append(container)
-  Runtime.run(
-    Runtime.makeApplication({
-      Model,
-      init,
-      update,
-      view,
-      subscriptions,
-      managedResources,
-      container,
-    }),
-  )
+  Runtime.run(Runtime.makeApplication(runtimeConfig(container)))
 }
 
 const buttonNamed = (name: string): HTMLButtonElement => {
