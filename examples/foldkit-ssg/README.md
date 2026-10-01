@@ -29,8 +29,8 @@ fails the build instead of the page.
 
 `FOLDKIT_BUILD_ID` names the deployment being built: a commit or release tag,
 public and unique per deployment. The `foldkit` Vite plugin compiles it into
-both bundles, and `prerender.ts` writes it into the pages, so the browser
-adopts them instead of refusing them.
+both bundles, and `staticSite` writes it into the pages, so the browser adopts
+them instead of refusing them.
 
 ```bash
 FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-foldkit-ssg build
@@ -38,24 +38,28 @@ pnpm --filter foldkit-example-foldkit-ssg dev      # renders each request, like 
 pnpm --filter foldkit-example-foldkit-ssg preview  # serves dist/ as a static host
 ```
 
+`vite build` alone writes the site: after the client bundle, `staticSite`
+evaluates `src/site.ts`, renders every path into the built shell, and writes
+the pages, a sitemap and `robots.txt` into `dist/`.
+
 | Concern | Owner | Where |
 | --- | --- | --- |
 | The route union, parsing, the Not found fallback | plain Foldkit (`foldkit/route`) | `src/route.ts` |
 | The count, links, `update` | plain Foldkit | `src/main.ts` |
 | What crosses to the browser (the route) | `foldkit-ssr` (`SSR.plan`, over a `foldkit-surface` Projection) | `src/main.ts`, `// SSR` |
-| Rendering each path to a file in the built `index.html` | `foldkit-ssr` (`SSR.generate`) | `src/prerender.ts`, over the paths `src/main.ts` names |
+| Rendering each path to a file in the built `index.html`, with the sitemap and `robots.txt` | `foldkit-ssr/vite` (`staticSite` over `generateStaticSite`) | `src/site.ts` |
 | Serving each request in development | Foldkit's pipeline (`foldkit({ ssr })`) | `src/entry.server.ts`, `vite.config.ts` |
 | Taking the page over, and drawing afresh where nothing was rendered | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
 | The build id both sides compare | the deployment, compiled into both bundles | `FOLDKIT_BUILD_ID`, read as `import.meta.env.FOLDKIT_BUILD_ID` in `src/entry.server.ts` and `src/entry.ts` |
-| Appearance, and the CSS in each page's head | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a generated page carries) | `src/style.ts`, `head` in `src/prerender.ts`, `src/entry.ts` |
+| Appearance, and the CSS in each page's head | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a generated page carries) | `src/style.ts`, `head` in `src/site.ts`, `src/entry.ts` |
 
 `foldkit-surface` appears only to name the route field for the plan
 (`Surface.application(...).model.route`); no Surface is declared.
 
 ### What is not used, and why
 
-- **Foldkit's built-in prerender.** `SSR.generate` renders the same paths from
-  a script run after `vite build`. The built-in prerender records the full
+- **Foldkit's built-in prerender.** `staticSite` renders the same paths from
+  the client build's `closeBundle`. The built-in prerender records the full
   route, while a generated file serves every query; the envelope records the
   path alone so `/about?ref=mail` resumes the page generated for `/about` (see
   the `foldkit-ssr` README, "At build time"). Each path is also named by
@@ -97,8 +101,9 @@ pnpm --filter foldkit-example-foldkit-ssg preview  # serves dist/ as a static ho
 From the repository root: `npx vitest run examples/foldkit-ssg`. Upstream has
 no tests.
 
-- `test/prerender.test.ts`: the generated pages parsed back with `DOMParser`:
-  one file per path, the title, heading and route each carries, the root's
+- `test/prerender.test.ts`: the generated site through `generateStaticSite`,
+  the same path the build runs: one file per path, the sitemap and
+  `robots.txt`, the title, heading and route each page carries, the root's
   markup unchanged by the parser, the build id both sides were compiled as,
   and every class and token the page draws styled from its own head.
 - `test/runtime.test.ts`: the real `entry.ts` in jsdom, over a generated page

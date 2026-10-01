@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import { foldkit } from '@foldkit/vite-plugin'
+import { staticSite } from 'foldkit-ssr/vite'
 
 /**
  * `vite preview` as a static host serves the build: `/about` is the page
@@ -26,7 +27,14 @@ export default defineConfig(({ isPreview }) => ({
   server: { host: '127.0.0.1' },
   // The dev server renders each page through `src/entry.server.ts`, so
   // development serves the same pages the build generates; `FOLDKIT_BUILD_ID`
-  // in the environment names the build, as it does for `vite build`.
-  plugins: [foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } }), staticHost()],
+  // in the environment names the build, as it does for `vite build`. After
+  // the client bundle is written, `staticSite` renders every path in
+  // `src/site.ts` into the built shell, writing the pages, the sitemap and
+  // `robots.txt` beside them.
+  plugins: [
+    foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } }),
+    staticSite({ site: { module: '/src/site.ts' } }),
+    staticHost(),
+  ],
   appType: isPreview === true ? 'mpa' : 'spa',
 }))

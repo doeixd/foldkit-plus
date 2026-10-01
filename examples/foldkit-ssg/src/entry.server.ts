@@ -1,7 +1,7 @@
 /**
  * The build's server entry for Foldkit's pipeline: `renderPage` serves every
  * page in development through the `foldkit` Vite plugin, and `prerenderPaths`
- * names the static routes `prerender.ts` generates with `SSR.generate`.
+ * names the static routes `src/site.ts` generates with `staticSite`.
  * `entry.ts` takes each page over in the browser.
  */
 import { SSR } from 'foldkit-ssr'

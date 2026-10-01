@@ -25,11 +25,18 @@ const envelopeOf = (page: Document): unknown =>
 
 describe('the generated pages', () => {
   test('are one per prerendered path, written where a static host serves it', async () => {
-    const pages = await generate(template, BUILD_ID)
+    const { pages } = await generate(template, BUILD_ID)
     expect(pages.map(page => [page.path, page.file])).toEqual([
       ['/', 'index.html'],
       ['/about', 'about/index.html'],
     ])
+  })
+
+  test('come with a sitemap and robots.txt naming the origin', async () => {
+    const { sitemap, robots } = await generate(template, BUILD_ID)
+    expect(sitemap).toContain('<loc>https://example.com/</loc>')
+    expect(sitemap).toContain('<loc>https://example.com/about</loc>')
+    expect(robots).toContain('Sitemap: https://example.com/sitemap.xml')
   })
 
   test.each([
@@ -41,7 +48,7 @@ describe('the generated pages', () => {
       { _tag: 'About' },
     ],
   ])('%s carries its title, its content and its route', async (path, title, heading, route) => {
-    const pages = await generate(template, BUILD_ID)
+    const { pages } = await generate(template, BUILD_ID)
     const page = parse(pages.find(each => each.path === path)?.html ?? '')
     expect(page.title).toBe(title)
     expect(page.getElementById('page-title')?.textContent).toBe(heading)
@@ -49,18 +56,21 @@ describe('the generated pages', () => {
   })
 
   test('is the markup a parser builds from it', async () => {
-    for (const { html } of await generate(template, BUILD_ID)) {
+    const { pages } = await generate(template, BUILD_ID)
+    for (const { html } of pages) {
       expect(html).toContain(rootOf(parse(html)).outerHTML)
     }
   })
 
   test('is stamped with the build both sides were compiled as', async () => {
-    const [home] = await generate(template, BUILD_ID)
+    const { pages } = await generate(template, BUILD_ID)
+    const home = pages[0]!
     expect(rootOf(parse(home.html)).getAttribute('data-foldkit-build')).toBe(BUILD_ID)
   })
 
   test('styles its first paint: the stylesheet and every class it draws, with every token they read', async () => {
-    for (const { html } of await generate(template, BUILD_ID)) {
+    const { pages } = await generate(template, BUILD_ID)
+    for (const { html } of pages) {
       const page = parse(html)
       const css = Array.from(page.head.querySelectorAll('style'), style => style.textContent).join(
         '',

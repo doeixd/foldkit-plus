@@ -102,8 +102,8 @@ export const routing: Runtime.RoutingConfig<Message> = {
 const App = Surface.application({ Model, Message })
 
 /**
- * The static routes the build generates: `prerender.ts` renders each with
- * `SSR.generate`, and the server entry names them for Foldkit's own pipeline.
+ * The static routes the build generates: `src/site.ts` lists them for
+ * `staticSite`, and the server entry names them for Foldkit's own pipeline.
  */
 export const prerenderPaths = ['/', '/about'] as const
 
