@@ -41,6 +41,8 @@ export const PageStyle = slots(
     section: L.in('layouts', Layout.stack({ gap: t.space.md })),
     heading: [U.m('0'), U.text('4xl'), U.font('bold'), U.color('text.overt')],
     text: U.m('0'),
+    posts: L.in('layouts', Layout.stack({ gap: t.space.xs })),
+    post: U.m('0'),
     button: Style.slot({ capability: Capability.Focusable }, [
       U.bg('accent.default'),
       U.color('accent.on-fill'),

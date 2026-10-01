@@ -16,9 +16,14 @@ export { AppRoute } from './route.js'
 
 // MODEL
 
+/** A post the site lists: the build reads them, the plan carries them across. */
+export const Post = Schema.Struct({ slug: Schema.String, title: Schema.String })
+export type Post = typeof Post.Type
+
 export const Model = Schema.Struct({
   route: AppRoute,
   count: Schema.Number,
+  posts: Schema.Array(Post),
 })
 export type Model = typeof Model.Type
 
@@ -37,7 +42,7 @@ export type Message = typeof Message.Type
 // INIT
 
 export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
-  model: { route: urlToAppRoute(url), count: 0 },
+  model: { route: urlToAppRoute(url), count: 0, posts: [] },
 })
 
 // COMMAND
@@ -108,13 +113,14 @@ const App = Surface.application({ Model, Message })
 export const prerenderPaths = ['/', '/about'] as const
 
 /**
- * What crosses from the build to the browser: the route. The browser sets it
- * onto `initial` and never runs `init`; the count starts at 0 there, as `init`
- * starts it, and `SSR.render` refuses the page should the two ever disagree.
+ * What crosses from the build to the browser: the route and the posts. The
+ * browser sets them onto `initial` and never runs `init`; the count starts at 0
+ * there, as `init` starts it, and `SSR.render` refuses the page should the two
+ * ever disagree.
  */
 export const plan = SSR.plan(
-  { initial: { route: AppRoute.Home(), count: 0 } },
-  { id: 'ssg', state: Projection.pick(App.model.route) },
+  { initial: { route: AppRoute.Home(), count: 0, posts: [] } },
+  { id: 'ssg', state: Projection.pick(App.model.route, App.model.posts) },
 )
 
 // VIEW
@@ -126,6 +132,16 @@ const routeTitle = (route: AppRoute): string =>
     Home: () => 'Home | Static Generation | Foldkit',
     About: () => 'About | Static Generation | Foldkit',
     NotFound: () => 'Not Found | Static Generation | Foldkit',
+  })
+
+/** Where the deployment is served: a canonical address starts here. */
+export const ORIGIN = 'https://example.com'
+
+const routePath = (route: AppRoute): string =>
+  AppRoute.match(route, {
+    Home: () => '/',
+    About: () => '/about',
+    NotFound: ({ path }) => path,
   })
 
 const navigationView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
@@ -142,6 +158,12 @@ const pageView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
         h.p(slots.text.attrs(), [
           'This route was rendered during the build and hydrated in place.',
         ]),
+        // The build prepared these from the site's posts; the plan carried them
+        // to the browser, so the page draws the same list without refetching.
+        h.ul(
+          slots.posts.attrs(),
+          model.posts.map(post => h.li(slots.post.attrs(), [post.title])),
+        ),
         h.button(slots.button.attrs([h.OnClick(Message.ClickedIncrement())]), [
           `Count: ${model.count}`,
         ]),
@@ -166,5 +188,9 @@ export const Page = SlotView.forMessages<Message>()
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: routeTitle(model.route),
+  // A view supplies the canonical; Foldkit fills the served `<link>` with it,
+  // or keeps the document without one. `og:url` falls back to it.
+  canonical: `${ORIGIN}${routePath(model.route)}`,
   body: Page(model, h),
 })
+

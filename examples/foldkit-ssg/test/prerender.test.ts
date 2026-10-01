@@ -39,6 +39,36 @@ describe('the generated pages', () => {
     expect(robots).toContain('Sitemap: https://example.com/sitemap.xml')
   })
 
+  test('carry the build-prepared posts into the page and the plan', async () => {
+    const { pages } = await generate(template, BUILD_ID)
+    const home = parse(pages.find(each => each.path === '/')?.html ?? '')
+    expect(Array.from(home.querySelectorAll('li'), li => li.textContent)).toEqual([
+      'The Model Is the Cache',
+      'Stale While Revalidate',
+      'Static Generation',
+    ])
+    // The browser draws the same list from the plan, without fetching.
+    expect(envelopeOf(home)).toMatchObject({
+      state: {
+        posts: [
+          { slug: 'model-is-the-cache', title: 'The Model Is the Cache' },
+          { slug: 'stale-while-revalidate', title: 'Stale While Revalidate' },
+          { slug: 'static-generation', title: 'Static Generation' },
+        ],
+      },
+    })
+  })
+
+  test('fill each page’s canonical from the view into the served link', async () => {
+    const { pages } = await generate(template, BUILD_ID)
+    const canonical = (path: string) =>
+      parse(pages.find(each => each.path === path)?.html ?? '')
+        .querySelector('link[rel="canonical"]')
+        ?.getAttribute('href')
+    expect(canonical('/')).toBe('https://example.com/')
+    expect(canonical('/about')).toBe('https://example.com/about')
+  })
+
   test.each([
     ['/', 'Home | Static Generation | Foldkit', 'Statically generated home', { _tag: 'Home' }],
     [

@@ -14,7 +14,7 @@ const urlAt = (pathname: string): Url => ({
   hash: Option.none(),
 })
 
-const on = (route: AppRoute): Model => ({ route, count: 0 })
+const on = (route: AppRoute): Model => ({ route, count: 0, posts: [] })
 
 describe('routes', () => {
   test.each([
@@ -22,7 +22,7 @@ describe('routes', () => {
     ['/about', AppRoute.About()],
     ['/missing', AppRoute.NotFound({ path: '/missing' })],
   ])('%s starts on %o with no count', (pathname, route) => {
-    expect(init(urlAt(pathname)).model).toEqual({ route, count: 0 })
+    expect(init(urlAt(pathname)).model).toEqual({ route, count: 0, posts: [] })
   })
 
   test('each router prints the address it parses', () => {
@@ -36,17 +36,18 @@ describe('update', () => {
   })
 
   test('ChangedUrl for the route the Model shows returns the same Model', () => {
-    const model = { route: AppRoute.About(), count: 2 }
+    const model = { route: AppRoute.About(), count: 2, posts: [] }
     const next = update(model, Message.ChangedUrl({ url: urlAt('/about') }))
     expect(next.model).toBe(model)
     expect(next.commands ?? []).toEqual([])
   })
 
   test('ChangedUrl for another route moves there and keeps the count', () => {
-    const model = { route: AppRoute.About(), count: 2 }
+    const model = { route: AppRoute.About(), count: 2, posts: [] }
     expect(update(model, Message.ChangedUrl({ url: urlAt('/') })).model).toEqual({
       route: AppRoute.Home(),
       count: 2,
+      posts: [],
     })
   })
 

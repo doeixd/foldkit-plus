@@ -2,10 +2,14 @@
 
 Two pages, Home and About, rendered to HTML at build time and taken over in
 the browser without being drawn again. Home has a counter to prove the page is
-live once it has been taken over; any other address is a Not found page. It
-ports Foldkit's
+live once it has been taken over, and a list of posts the build prepared; any
+other address is a Not found page. It ports Foldkit's
 [ssg example](https://github.com/foldkit/foldkit/tree/main/examples/ssg) to
 Foldkit Plus.
+
+**This is the minimal static-generation example.** The CMS example is the
+production one — a seeded site, prepared per path, built from a server graph.
+Start here; go there for the full shape.
 
 ## Who owns what
 
@@ -14,16 +18,18 @@ is the handover: which slice of the Model the build writes into each page, and
 the check that the browser can start from it.
 
 ```text
-build    prerenderPaths ─▶ init(url) ─▶ Model ─┬─ view ─▶ HTML + the CSS it uses   (index.html, about/index.html)
-                                               └─ plan.state (the route) ─▶ envelope
-browser  envelope ─▶ { ...initial, route } ─▶ SSR.hydrate adopts the HTML ─▶ update, as usual
+build    prerenderPaths + loadPosts() ─▶ init(url) ─▶ Model ─┬─ view ─▶ HTML + the CSS it uses   (index.html, about/index.html)
+                                                             └─ plan.state (the route and the posts) ─▶ envelope
+browser  envelope ─▶ { ...initial, route, posts } ─▶ SSR.hydrate adopts the HTML ─▶ update, as usual
 ```
 
 The browser never runs `init`. It starts from the plan's `initial` with the
-route the page carries, so the count starts at 0, as `init` starts it. The
-build renders each page from both Models and refuses one where they draw
-differently, so a later `init` that sets something the browser cannot know
-fails the build instead of the page.
+route and the posts the page carries, so the count starts at 0, as `init`
+starts it. The build renders each page from both Models and refuses one where
+they draw differently, so a later `init` that sets something the browser cannot
+know fails the build instead of the page. The posts are that dependency: the
+build awaits `loadPosts()`, and the plan carries what it returns so the browser
+draws the same list without fetching.
 
 ## Run it
 
@@ -46,7 +52,9 @@ the pages, a sitemap and `robots.txt` into `dist/`.
 | --- | --- | --- |
 | The route union, parsing, the Not found fallback | plain Foldkit (`foldkit/route`) | `src/route.ts` |
 | The count, links, `update` | plain Foldkit | `src/main.ts` |
-| What crosses to the browser (the route) | `foldkit-ssr` (`SSR.plan`, over a `foldkit-surface` Projection) | `src/main.ts`, `// SSR` |
+| What crosses to the browser (the route and the posts) | `foldkit-ssr` (`SSR.plan`, over a `foldkit-surface` Projection) | `src/main.ts`, `// SSR` |
+| The build's one dependency, awaited before rendering | the example (`loadPosts`) | `src/posts.ts`, `config` in `src/site.ts` |
+| The canonical each page fills into its served `<link>` | plain Foldkit (`Document.canonical`) + the template's empty `<link rel="canonical">` | `view` in `src/main.ts`, `index.html` |
 | Rendering each path to a file in the built `index.html`, with the sitemap and `robots.txt` | `foldkit-ssr/vite` (`staticSite` over `generateStaticSite`) | `src/site.ts` |
 | Serving each request in development | Foldkit's pipeline (`foldkit({ ssr })`) | `src/entry.server.ts`, `vite.config.ts` |
 | Taking the page over, and drawing afresh where nothing was rendered | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
@@ -70,8 +78,10 @@ the pages, a sitemap and `robots.txt` into `dist/`.
   page boots on load, as upstream's does.
 - **`SSR.static`.** The page text is short and the whole view is the browser's
   anyway; a static region would save nothing here.
-- **Remote, Sync, Mirror, Agent, Bundle, `@foldkit/ui`.** Nothing is fetched,
-  stored, replicated or exposed, and upstream's button is a plain `<button>`.
+- **Remote, Sync, Mirror, Agent, Bundle, `@foldkit/ui`.** The one dependency is
+  `src/posts.ts`, a stand-in for a data source the build awaits; nothing is
+  fetched at runtime, stored, replicated or exposed, and upstream's button is a
+  plain `<button>`.
 
 ## Differences from upstream
 
@@ -103,7 +113,8 @@ no tests.
 
 - `test/prerender.test.ts`: the generated site through `generateStaticSite`,
   the same path the build runs: one file per path, the sitemap and
-  `robots.txt`, the title, heading and route each page carries, the root's
+  `robots.txt`, the prepared posts in both the page and the plan, each page's
+  canonical, the title, heading and route each page carries, the root's
   markup unchanged by the parser, the build id both sides were compiled as,
   and every class and token the page draws styled from its own head.
 - `test/runtime.test.ts`: the real `entry.ts` in jsdom, over a generated page

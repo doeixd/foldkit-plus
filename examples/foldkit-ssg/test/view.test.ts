@@ -5,7 +5,7 @@ import { AppRoute, Page } from '../src/main.js'
 import { stylesheet } from '../src/style.js'
 
 const trees = [AppRoute.Home(), AppRoute.About(), AppRoute.NotFound({ path: '/missing' })].map(
-  route => [route._tag, Inert.draw(Page, { route, count: 3 })] as const,
+  route => [route._tag, Inert.draw(Page, { route, count: 3, posts: [] })] as const,
 )
 
 describe('the pages', () => {

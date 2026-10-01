@@ -87,7 +87,10 @@ the sandbox's code and its wasm are fetched with the page, and
 
 The build then renders the public site with `foldkit-ssr` ([prerender.ts](src/ssr/prerender.ts),
 described for the build in [siteBuild.ts](src/ssr/siteBuild.ts) and rendered by
-the `staticSite` plugin after `vite build`). It runs the same server in Node over the
+the `staticSite` plugin after `vite build`). This is the production static
+build; [examples/foldkit-ssg](../foldkit-ssg/README.md) is the minimal one, two
+pages and one prepared dependency, and the place to start. It runs the same
+server in Node over the
 seed, reads everything each page shows through Remote, and writes every
 published page and post as HTML at its address (`site/blog/a-page-is-data.html`),
 along with `sitemap.xml` and `robots.txt`. Each page carries its text, its
