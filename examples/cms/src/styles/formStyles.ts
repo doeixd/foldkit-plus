@@ -6,7 +6,7 @@ import { Style, type StyleValue } from 'foldkit-mixins'
 import { ListSlots, Loading } from 'foldkit-mixins-crud'
 import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
 import { Layout } from 'foldkit-mixins/layout'
-import { app, button, control, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
+import { app, button, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
 
 // --- the form, the worklist, and the Builder --------------------------------------
 

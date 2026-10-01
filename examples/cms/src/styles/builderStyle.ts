@@ -7,7 +7,7 @@ import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 import { Icons, Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { iconUrl, type IconName } from '../views/icons.js'
-import { app, button, control, field, L, t, visuallyHidden } from './style.js'
+import { app, button, field, L, t, visuallyHidden } from './style.js'
 
 /** A panel of the Builder's: a white card on the editor's grey, scrolling on its own. */
 const builderPanel = Style.self({
