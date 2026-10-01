@@ -193,4 +193,3 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   canonical: `${ORIGIN}${routePath(model.route)}`,
   body: Page(model, h),
 })
-
