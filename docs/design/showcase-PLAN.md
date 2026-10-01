@@ -94,10 +94,14 @@ Each lands with its test in the same change, as the 0.12 slices did.
   and the `toView` wrapper. `Input.field` correctly stays out (no
   `FieldValidation.Field` in either place).
 - **Small gaps, one batch:** `keepScroll` options in prod
-  (`examples/cms/src/apps/studioApp.ts:249`, e.g. a per-app key);
+  (`examples/cms/src/apps/studioApp.ts:249`, e.g. a per-app key) — **built**
+  (a per-app key, `studioApp.ts` and `siteConfig.ts`);
   `stateBadge(None)` rendered instead of guarded away
   (`examples/cms/src/views/pagesView.ts:73`,
-  `shell.ts:141`); `Data.meta(...).stale/.loading` read, not just
+  `shell.ts:141`) — **resolved the other way**: `shell.ts` deliberately omits
+  the badge while an entry is being read ("an entry still being read is not
+  New"), and the rows pass `Option.some`, so nothing renders `None` here;
+  `Data.meta(...).stale/.loading` read, not just
   `.updatedAt` (`examples/foldkit-api-cache/src/main.ts:207`);
   `Mirror.bootstrap` meeting `Mirror.routing` in one app
   (`examples/foldkit-query-sync`); `correlate` in kitchen-sink's agent;
