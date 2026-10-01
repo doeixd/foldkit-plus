@@ -2,6 +2,7 @@ export {
   Model,
   Message,
   OutMessage,
+  Degree,
   DegreeForm,
   GraduationYearListbox,
   init,

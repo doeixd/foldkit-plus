@@ -6,6 +6,7 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
+    { "path": "../mixins-ui/tsconfig.build.json" },
     { "path": "../bundle/tsconfig.build.json" },
     { "path": "../entity/tsconfig.build.json" },
     { "path": "../form/tsconfig.build.json" },

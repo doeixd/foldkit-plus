@@ -24,7 +24,9 @@ Form.make ──► a form Model in the step or entry, key by key
       |         isValid ──► isComplete             Invalid anywhere ──► hasErrors
       v
 ClickedSubmit ──► each step's revealErrors (the form's ValidatedAll)
-      |           ──► every step complete? ──► Submitting ──► SubmitApplication (1.5s)
+      |           ──► applicationPayload: every step's value beside its choices?
+      |                yes ──► Submitting + SubmitApplication(payload, 1.5s) (one at a time)
+      |                no  ──► the notice names what is missing
       v
 view: tabs and menu marked by hasErrors / isComplete, the review, the preview
 ```
@@ -41,6 +43,7 @@ npx vitest run examples/foldkit-job-application   # from the repository root
 | Concern | Owner | Where |
 | --- | --- | --- |
 | Which step is shown, Next and Previous, the submission and its state | the application, as upstream | `src/model.ts`, `src/update.ts` |
+| What one submission sends: each form's decoded value beside its choices and file metadata, captured when Submit is accepted | the application (`applicationPayload`, over each form's `value`) | `src/application.ts`, `src/command.ts` |
 | Each step's and each entry's state, their Messages, adding and removing entries | the step Submodels, placed with `Update.foldChild`, as upstream | `src/step/*` |
 | What a validated field accepts, its label and words | the record's schema, read through `Entity.input` (`foldkit-entity`) | each step's `// FORM` |
 | Each draft and its state (`NotValidated`, `Validating`, `Valid`, `Invalid`) | `foldkit-form`, as Foldkit's own `fieldValidation` Fields | `model.form` of the step or entry |
@@ -59,10 +62,10 @@ npx vitest run examples/foldkit-job-application   # from the repository root
   at once. The views draw each field with `Field.input` over the form's field
   and label.
 - **The forms' own submit.** A form's `Submitted` hands over one record's
-  decoded value; the application needs every step complete at one moment,
-  as upstream's `isApplicationComplete` asks. So a submit reveals each form's
-  errors with its `ValidatedAll` and reads `isValid`, and the forms' out
-  Message is never sent.
+  decoded value; the application needs every step complete at one moment.
+  So a submit reveals each form's errors with its `ValidatedAll` and reads each
+  `form.value` into one `ApplicationPayload` (`src/application.ts`), and the
+  forms' out Message is never sent.
 - **Nested forms** (`Relation.nested`) for the entries. A row of a nested form
   holds only the form's keys, and an entry also holds date pickers, a
   listbox or a radio group with state of their own; those stay in the entry,
@@ -88,7 +91,14 @@ npx vitest run examples/foldkit-job-application   # from the repository root
   Command `PersonalInfo.check`, not `ValidateEmailAsync`.
 - **A submit asks about a well-formed email not checked yet** rather than
   taking it as valid, and the notice names Personal Info until the answer
-  comes. Upstream's `revealFieldErrors` marks it valid without asking.
+  comes. Upstream's `revealFieldErrors` marks it valid without asking. The
+  policy is "validate, then press Submit again": the reveal sends nothing, and
+  no submit waits for a check.
+- **A submit captures the application once.** `SubmitApplication` takes the
+  payload `src/application.ts` reads when Submit is accepted, so edits made
+  while the request runs change the Model and not what was sent. A second
+  submit while one is in flight changes nothing. Files go as their metadata;
+  the browser's `File` stays at the boundary that uploads it.
 - **Each step's `revealErrors` returns Commands** (an `Update.Step`), folded
   like the step's Messages, since revealing may start the email check.
 - **A proficiency pill is named by its level.** Upstream spreads the option's
@@ -113,6 +123,10 @@ From the repository root: `npx vitest run examples/foldkit-job-application`.
   keys emptied, the check's answers, a chosen pronoun, the custom pronoun
   field, a submit that asks about an unchecked email, a stale answer and a
   submit leaving the Model or each valid step as it was.
+- `test/application.test.ts`: the payload each submit sends — the forms'
+  decoded values beside the pickers and file metadata, nothing while a key is
+  missing, a check runs or an entry list is empty, a payload captured at submit
+  time, and a second submit while one runs changing nothing.
 - `test/check.test.ts` runs the real email check and submit Commands on the
   TestClock: 600ms and 1.5s, and not a millisecond before.
 - `test/view.test.ts` draws inert what no `h.submodel` holds: the step layout

@@ -8,13 +8,12 @@ import {
   Textarea as UiTextarea,
 } from '@foldkit/ui'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { Checkbox, Fieldset, Input } from 'foldkit-mixins-ui'
+import { Checkbox, Fieldset, Input, Textarea } from 'foldkit-mixins-ui'
 
 import { Message as UiMessage } from '../message.js'
 import type { UiModel } from '../model.js'
-import { FieldCheckboxStyle, FieldInputStyle } from '../style/field.js'
+import { FieldCheckboxStyle, FieldInputStyle, FieldTextareaStyle } from '../style/field.js'
 import { DemoFieldsetStyle, FieldsetPageSlots, FieldsetPageStyle } from '../style/fieldset.js'
-import { resolveTextarea } from '../textareaField.js'
 
 const FIELDSET_CHECKBOX_DEMO_ID = 'fieldset-checkbox-demo'
 const FIELDSET_DISABLED_CHECKBOX_ID = 'fieldset-disabled-checkbox'
@@ -62,7 +61,7 @@ const bioTextarea = (value: string, slots: Slots, h: HtmlBuilder<UiMessage>): Ht
       placeholder: 'Tell us about yourself...',
       rows: 3,
       toView: attributes => {
-        const field = resolveTextarea(attributes, h)
+        const field = Textarea.resolve(attributes, [FieldTextareaStyle.mixin], { h })
 
         return h.div(slots.field.attrs(), [
           h.label(field.label, ['Bio']),
@@ -123,7 +122,7 @@ const disabledBioTextarea = (slots: Slots, h: HtmlBuilder<UiMessage>): Html =>
       value: "Mathematician and writer, known for work on Charles Babbage's Analytical Engine.",
       rows: 3,
       toView: attributes => {
-        const field = resolveTextarea(attributes, h)
+        const field = Textarea.resolve(attributes, [FieldTextareaStyle.mixin], { h })
 
         return h.div(slots.field.attrs(), [
           h.label(field.label, ['Bio']),

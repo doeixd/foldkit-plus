@@ -15,6 +15,10 @@ what else it does.
 | Classes, inline style, extra attributes and events | your `Style` / `Behavior` attachments |
 | The options of a relation picker, the submit button's words | the application, as view inputs |
 
+The optional `foldkit-mixins-form/ui` entry draws Text and Multiline fields
+through `foldkit-mixins-ui`'s Input and Textarea adapters. The main entry keeps
+the plain-HTML path and does not import that integration.
+
 It holds no state and adds no Messages. Every event it installs dispatches one
 of the form's own Messages (`Changed`, `Blurred`, `Submitted`).
 
@@ -64,6 +68,35 @@ Messages to its reducer; submitting a valid form sends its decoded value to
 `onOut`. No request is made unless that handler returns one.
 
 The next example replaces this unstyled `Drawn` with field and form styles.
+
+## UI-backed fields with a custom layout
+
+Install `foldkit-mixins-ui` and its `@foldkit/ui` peer to use the optional
+`foldkit-mixins-form/ui` entry. Import it as `UiForm`.
+
+`UiForm.field({ toMessage, inputStyle, textareaStyle?, draw? })` returns a
+`FormView.fields` override for Text and Multiline keys. `toMessage` wraps the
+form's Changed/Blurred Messages in the caller's Message universe (use an
+identity function for a whole-form view). Styles target `InputSlots` and
+`TextareaSlots`; their input is the field's validation state.
+
+The override preserves field names, labels, required state, descriptions,
+checking status and errors. `draw` receives `label`, `control`, `description`
+and `field` plus the caller's HTML builder, so layout and validation marks can
+remain application-owned. Without `draw`, it stacks the parts in a FieldSlots
+root. Unsupported control kinds throw; keep them on the default renderer or
+provide another override.
+
+Use the override with `Fields.field` for a custom layout or the per-key
+`overrides` table for `Fields.view`. Submit buttons in a custom layout use
+`Button.view` from `foldkit-mixins-ui`; the form still owns submission and the
+parent owns any request. The generated view retains its native submit button.
+
+The [waitlist](../../examples/foldkit-form/src/main.ts) and
+[login](../../examples/foldkit-auth/src/page/loggedOut/page/login.ts) are real
+custom-layout adopters. The [UI integration tests](test/ui.test.ts) demonstrate
+the generated view with UI field overrides through a Submodel and a strict
+`FormView.submodel(..., { canSubmit: form.isValid })` gate.
 
 ## Example
 

@@ -323,9 +323,10 @@ Two questions a view asks before a submit:
 | --- | --- |
 | `form.isValid(model)` | a submit now would hand over the value at once: every key and row valid, no check running or still to run |
 | `form.canSubmit(model)` | nothing is invalid; a check still running does not stop it, since the submit waits for the answer |
+| `form.value(model)` | the decoded input as `Some` when every key and row is valid as it stands, `None` otherwise: all or nothing, unlike `partial` |
 
-A page that submits its forms itself reads `isValid`; a Save button reads
-`canSubmit`.
+A page that submits its forms itself reads `isValid` and sends `form.value`;
+a Save button reads `canSubmit`.
 
 Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Validating`
 (a check is running), `Valid`, `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,

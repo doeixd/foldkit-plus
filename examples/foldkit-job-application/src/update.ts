@@ -3,6 +3,7 @@ import { Array, Option, pipe } from 'effect'
 import { Update } from 'foldkit'
 import { modifyFields } from 'foldkit/struct'
 
+import { applicationPayload } from './application.js'
 import { SubmitApplication } from './command.js'
 import { Step } from './domain/index.js'
 import { Message } from './message.js'
@@ -18,12 +19,6 @@ import {
 
 const StepMenu = Menu.create<Step.Step>()
 const StepTabs = Tabs.create<Step.Step>()
-
-const isApplicationComplete = (model: Model): boolean =>
-  PersonalInfo.isComplete(model.personalInfo) &&
-  WorkHistory.isComplete(model.workHistory) &&
-  Education.isComplete(model.education) &&
-  Skills.isComplete(model.skills)
 
 const toNextStep = (current: Step.Step): Step.Step =>
   pipe(
@@ -107,6 +102,24 @@ const markSubmitAttempted: Update.Step<Model, Message> = model => ({
   model: modifyFields(model, { isSubmitAttempted: () => true }),
 })
 
+/**
+ * Reveal what was never validated, then send the application as the Model
+ * stands. The payload is read once, here, so edits made while the request runs
+ * change the Model and not what was sent. A reveal that started a check sends
+ * nothing: the policy is "validate, then press Submit again", never a submit
+ * that waits for an answer.
+ */
+const submitApplication = (model: Model): Update.Return<Model, Message> => {
+  const revealed = Update.combine(model, [...revealErrors, markSubmitAttempted])
+  return Option.match(applicationPayload(revealed.model), {
+    onNone: () => revealed,
+    onSome: application => ({
+      model: modifyFields(revealed.model, { submission: () => Submission.Submitting() }),
+      commands: [...(revealed.commands ?? []), SubmitApplication({ application })],
+    }),
+  })
+}
+
 const foldStepMenuOutMessage = Menu.OutMessage.match<
   Update.Step<Model, Message>,
   Menu.OutMessage<Step.Step>
@@ -171,18 +184,14 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { isPreviewVisible: isVisible => !isVisible }),
     }),
 
-    ClickedSubmit: () => {
-      const revealed = Update.combine(model, [...revealErrors, markSubmitAttempted])
-      if (isApplicationComplete(revealed.model)) {
-        return {
-          model: modifyFields(revealed.model, {
-            submission: () => Submission.Submitting(),
-          }),
-          commands: [...(revealed.commands ?? []), SubmitApplication()],
-        }
-      }
-      return revealed
-    },
+    ClickedSubmit: () =>
+      Submission.match<Update.Return<Model, Message>>(model.submission, {
+        NotSubmitted: () => submitApplication(model),
+        SubmitSuccess: () => submitApplication(model),
+        SubmitError: () => submitApplication(model),
+        // A request in flight owns the submit: a second click changes nothing.
+        Submitting: () => ({ model }),
+      }),
 
     SucceededSubmitApplication: () => ({
       model: modifyFields(model, {

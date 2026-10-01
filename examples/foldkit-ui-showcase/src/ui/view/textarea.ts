@@ -3,11 +3,12 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { Textarea as UiTextarea } from '@foldkit/ui'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { Textarea } from 'foldkit-mixins-ui'
 
 import { Message as UiMessage } from '../message.js'
 import type { UiModel } from '../model.js'
+import { FieldTextareaStyle } from '../style/field.js'
 import { TextareaPageSlots, TextareaPageStyle } from '../style/textarea.js'
-import { resolveTextarea } from '../textareaField.js'
 
 type Slots = SlotBuilders<typeof TextareaPageSlots, UiMessage>
 
@@ -17,7 +18,7 @@ const bioField = (
   slots: Slots,
   h: HtmlBuilder<UiMessage>,
 ): Html => {
-  const field = resolveTextarea(attributes, h)
+  const field = Textarea.resolve(attributes, [FieldTextareaStyle.mixin], { h })
 
   return h.div(slots.field.attrs(), [
     h.label(field.label, ['Bio']),

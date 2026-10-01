@@ -20,6 +20,7 @@ click on Products -> Products.Message -> Products.update -> OutMessage (AddedToC
                                                           \-> foldProductsOutMessage -> Cart.addItem -> Model.cart
 click on Cart     -> Message (ClickedRemoveCartItem, …) -> update -> Cart.removeItem -> Model.cart
 typing a search   -> Products.searchText, and ReplaceSearchUrl -> URL -> ChangedUrl -> Model.route
+load / back / forward -> parsed Products route -> child search text (no URL write)
 ```
 
 ## Run it
@@ -62,13 +63,16 @@ pnpm --filter foldkit-example-foldkit-shopping-cart dev
 - **A `ChangedUrl` for the route already shown returns the same Model**
   (clicking the nav link of the current page, for one). Upstream wrote an
   equal route; nothing visible differs.
+- **The Products search follows the URL at startup and on navigation.** A copied
+  filtered URL opens with the same field and results, and back/forward restores
+  them. Route delivery changes the child without writing the URL again;
+  upstream does not read the starting query into the field.
 - **The current section's nav link carries `aria-current="page"`**, which is
   what styles it, in place of upstream's conditional class.
 - The page views are SlotViews, and Checkout takes its three values as one
   input instead of three positional arguments. Prices and totals share
   `page/price.ts` instead of repeating the sum and format in each page.
-- Kept as upstream: a search in the starting URL is not read back into the
-  field, and once an order is placed Checkout shows the receipt for good.
+- Kept as upstream: once an order is placed Checkout shows the receipt for good.
 - The look is approximated with a `Theme.oklch` blue palette and the shipped
   recipes, not Tailwind.
 
@@ -79,11 +83,12 @@ From the repository root: `npx vitest run examples/foldkit-shopping-cart`, and
 
 - `test/story.test.ts`, `test/scene.test.ts` and `test/page/*` are upstream's
   tests, unchanged but for the import paths.
-- `test/route.test.ts`: a `ChangedUrl` for the shown route returns the same
-  Model, another search text moves the route, and each router's URL.
+- `test/route.test.ts`: initial and navigated search text, a `ChangedUrl` for
+  the shown route returning the same Model, URL echoes with no second write,
+  and each router's URL.
 - `test/view.test.ts`: every page drawn inert, each element through a Slot,
   every token the drawn styles read in the stylesheet, the current nav link,
   titles, prices, the search filter, and the Products page's controls.
 - `test/runtime.test.ts`: the real runtime in jsdom: the Products page's
-  OutMessages reaching the cart, the search replacing the URL, and an order
-  from the first click to the receipt.
+  OutMessages reaching the cart, the search replacing the URL, copied search
+  URLs and back/forward, and an order from the first click to the receipt.

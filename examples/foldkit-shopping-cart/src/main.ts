@@ -44,15 +44,24 @@ export type Message = typeof Message.Type
 
 // INIT
 
-export const init: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) => ({
-  model: {
-    route: urlToAppRoute(url),
-    cart: [],
-    deliveryInstructions: '',
-    orderPlaced: false,
-    productsPage: Products.init(products),
-  },
-})
+export const init: Runtime.RoutingApplicationInit<Model, Message> = (url: Url) => {
+  const route = urlToAppRoute(url)
+  const searchText = AppRoute.match(route, {
+    Products: ({ searchText }) => Option.getOrElse(searchText, () => ''),
+    Cart: () => '',
+    Checkout: () => '',
+    NotFound: () => '',
+  })
+  return {
+    model: {
+      route,
+      cart: [],
+      deliveryInstructions: '',
+      orderPlaced: false,
+      productsPage: Products.init(products, searchText),
+    },
+  }
+}
 
 // COMMAND
 
@@ -91,7 +100,10 @@ const foldProductsOutMessage = Products.OutMessage.match<Update.Step<Model, Mess
 const foldProducts = Update.foldChild({
   update: Products.update,
   read: (model: Model) => Option.some(model.productsPage),
-  write: (model, nextProductsPage) => modifyFields(model, { productsPage: () => nextProductsPage }),
+  write: (model, nextProductsPage) =>
+    nextProductsPage === model.productsPage
+      ? model
+      : modifyFields(model, { productsPage: () => nextProductsPage }),
   toParentMessage: message => Message.GotProductsMessage({ message }),
   foldOutMessage: foldProductsOutMessage,
 })
@@ -119,9 +131,20 @@ export const update = (model: Model, message: Message) =>
 
       // A URL a Command wrote (a nav link to the page already shown) comes back
       // here; the route the Model already shows is not a change.
-      return Equal.equals(nextRoute, model.route)
-        ? { model }
-        : { model: modifyFields(model, { route: () => nextRoute }) }
+      if (Equal.equals(nextRoute, model.route)) return { model }
+      const routed = modifyFields(model, { route: () => nextRoute })
+      return AppRoute.match<UpdateReturn>(nextRoute, {
+        Products: ({ searchText }) =>
+          foldProducts(
+            routed,
+            Products.Message.ChangedRoute({
+              searchText: Option.getOrElse(searchText, () => ''),
+            }),
+          ),
+        Cart: () => ({ model: routed }),
+        Checkout: () => ({ model: routed }),
+        NotFound: () => ({ model: routed }),
+      })
     },
 
     GotProductsMessage: ({ message }) => foldProducts(model, message),

@@ -10,6 +10,8 @@
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
@@ -24,6 +26,9 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/mixins-form/tsconfig.build.json"
+    },
     {
       "path": "../../packages/entity/tsconfig.build.json"
     },

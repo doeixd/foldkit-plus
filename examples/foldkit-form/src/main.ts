@@ -5,16 +5,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import { Entity } from 'foldkit-entity'
-import {
-  Form,
-  Input as FormInput,
-  type Draft,
-  type FormControl,
-  type Submitted,
-} from 'foldkit-form'
+import { Form, Input as FormInput, type Draft, type Submitted } from 'foldkit-form'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { FormView, type FieldOverrideInput } from 'foldkit-mixins-form'
-import { Button, Input, Textarea } from 'foldkit-mixins-ui'
+import { FormView } from 'foldkit-mixins-form'
+import * as UiForm from 'foldkit-mixins-form/ui'
+import { Button } from 'foldkit-mixins-ui'
 
 import { InputStyle, FormPage, SubmitButtonStyle, TextareaStyle } from './style.js'
 
@@ -71,8 +66,6 @@ export const WaitlistForm = Form.make('Waitlist', Entity.input(Signup, JoinWaitl
   // Upstream asks at once; its only wait is the fake API's.
   debounce: 0,
 })
-
-type FieldKey = keyof JoinWaitlist
 
 // MODEL
 
@@ -203,73 +196,15 @@ const Fields = FormView.fields(WaitlistForm, {
   attrs: { email: { type: 'email' } },
 })
 
-type FieldOverride = (
-  input: FieldOverrideInput<FieldKey, FormMessage>,
-  h: HtmlBuilder<Message>,
-) => Html
-
 const changed = (message: FormMessage): Message => Message.GotFormMessage({ message })
 
-const textOverride =
-  (slots: Slots): FieldOverride =>
-  (input, h) =>
-    Input.field(
-      {
-        id: input.id,
-        label: input.control.label,
-        field: input.field,
-        changed: value => changed(input.changed(value)),
-        type: input.attrs.type ?? 'text',
-        placeholder: input.attrs.placeholder,
-        style: InputStyle,
-        draw: (parts, h) =>
-          fieldLayout(
-            {
-              field: input.field,
-              label: parts.label,
-              control: parts.control,
-              description: parts.description,
-            },
-            slots,
-            h,
-          ),
-      },
-      h,
-    )
-
-const textareaOverride =
-  (slots: Slots): FieldOverride =>
-  (input, h) =>
-    Textarea.field(
-      {
-        id: input.id,
-        label: input.control.label,
-        field: input.field,
-        changed: value => changed(input.changed(value)),
-        rows: input.attrs.rows,
-        placeholder: input.attrs.placeholder,
-        style: TextareaStyle,
-        draw: (parts, h) =>
-          fieldLayout(
-            {
-              field: input.field,
-              label: parts.label,
-              control: parts.control,
-              description: parts.description,
-            },
-            slots,
-            h,
-          ),
-      },
-      h,
-    )
-
-/** How each key is drawn: the control's kind decides. */
-const overrideOf = (control: FormControl<FieldKey>, slots: Slots): FieldOverride => {
-  if (control.control.kind === FormInput.Multiline.kind) return textareaOverride(slots)
-  if (control.control.kind === FormInput.Text.kind) return textOverride(slots)
-  throw new Error(`no override for a "${control.control.kind}" control ("${control.key}")`)
-}
+const fieldOverride = (slots: Slots) =>
+  UiForm.field({
+    toMessage: changed,
+    inputStyle: InputStyle,
+    textareaStyle: TextareaStyle,
+    draw: (parts, h) => fieldLayout(parts, slots, h),
+  })
 
 const statusMark = (field: Field, slots: Slots, h: HtmlBuilder<Message>): Html =>
   FieldValidation.match(field, {
@@ -316,7 +251,7 @@ export const Page = SlotView.forMessages<Message>()
           ]),
           [
             ...WaitlistForm.controls.map(control =>
-              Fields.field(control, model.form, control.key, h, overrideOf(control, slots)),
+              Fields.field(control, model.form, control.key, h, fieldOverride(slots)),
             ),
             submitButton(model, h),
           ],

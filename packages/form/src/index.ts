@@ -249,6 +249,12 @@ export interface FormFor<
     readonly authoredChanged: (before: any, after: any) => boolean
   }
   readonly settled: (model: any) => any
+  /**
+   * The decoded input as `Some` only when every key and row is valid as the
+   * form stands; `None` otherwise. All or nothing, unlike `partial`, so a
+   * parent submitting several forms reads one complete value per form.
+   */
+  readonly value: (model: any) => Option.Option<Schema.Struct.Type<Fields>>
   /** Whether a completed transition changed authored content. */
   readonly authoredChanged: (before: any, after: any) => boolean
 }
@@ -1597,6 +1603,14 @@ const Core = {
        * had yet, is not valid until it answers.
        */
       isValid: (model: Model): boolean => submit(model).value !== undefined,
+      /**
+       * The decoded input as `Some` only when every key and row is valid as the
+       * form stands; `None` otherwise. Unlike `partial`, it is all or nothing,
+       * so a parent that submits several forms can read one complete value per
+       * form. It validates nothing: reveal drafts first (a submit, or
+       * `Message.ValidatedAll()`), or read after one did.
+       */
+      value: (model: Model): Option.Option<Value> => Option.fromUndefinedOr(finish(model).value),
       /**
        * The Model with nothing in flight, for one that was stored and is shown
        * again: a check that was running when it was stored will never answer, so

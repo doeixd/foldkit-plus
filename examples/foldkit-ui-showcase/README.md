@@ -85,14 +85,9 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
   and Virtual List, which do hand out attribute bundles.
 - No recipe for Select, Fieldset, Disclosure, Popover, Tooltip, Hover Intent,
   Slider, Radio Group or Calendar.
-- `Textarea.resolve` returns a bundle `h.textarea` does not take, so
-  `src/ui/textareaField.ts` casts it.
-- `Inert.draw` cannot draw a view holding `h.submodel`; the view test draws the
-  app through Scene inside `Inert.draw` (`test/helpers.ts`).
 - A recipe's pieces are optional per slot, so reusing `Recipes.Button`'s look
   on a plain `h.button` needs `?? Style.empty`; and `extend` cannot drop a
   slot's piece, so the Dialog recipe's corner close button is destructured out.
-- The RadioGroup and Dialog adapters export no type for what `resolve` returns.
 
 ## Tests
 
@@ -105,7 +100,8 @@ From the repository root: `npx vitest run examples/foldkit-ui-showcase`.
 - `test/view.test.ts`: every route, and the menu, listbox, popover, calendar,
   dialogs, toasts and mobile menu open, drawn inert: every element is in a
   Slot but what `@foldkit/ui` draws itself, and every token the drawn Styles
-  read is in the stylesheet.
+  read is in the stylesheet. `Inert.draw` supplies the Submodel render frame;
+  interaction cases also use Scene to drive clicks and resolve Commands/Mounts.
 - `test/gauge.test.ts`: the Meter and Progress ports' ARIA, clamping and state.
 - `test/runtime.test.ts`: the real runtime in jsdom: a nav link opens its page
   and marks itself current, the Button counts clicks, and the Styles of the

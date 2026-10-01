@@ -21,6 +21,7 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
       "foldkit-mixins/app": ["../mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../mixins/src/foundations.ts"],

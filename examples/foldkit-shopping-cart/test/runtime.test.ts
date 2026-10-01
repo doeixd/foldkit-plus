@@ -121,8 +121,26 @@ test('the search filters the products and replaces the URL, not adding to histor
   expect(productNames()).toHaveLength(6)
 })
 
-test('a search in the starting URL is not read back into the field, as upstream', async () => {
+test('a copied search URL filters the first page and follows back/forward navigation', async () => {
   start('/?searchText=app')
+  await waitFor(() => expect(productNames()).toEqual(['Apple']))
+  expect(document.querySelector<HTMLInputElement>('#product-search')?.value).toBe('app')
+
+  link('Cart').click()
+  await waitFor(() => expect(document.title).toBe('Cart | Shopping Cart'))
+  link('Products').click()
+  await waitFor(() => expect(productNames()).toHaveLength(6))
+  expect(document.querySelector<HTMLInputElement>('#product-search')?.value).toBe('')
+
+  window.history.back()
+  await waitFor(() => expect(document.title).toBe('Cart | Shopping Cart'))
+  window.history.back()
+  await waitFor(() => expect(productNames()).toEqual(['Apple']))
+  expect(document.querySelector<HTMLInputElement>('#product-search')?.value).toBe('app')
+
+  window.history.forward()
+  await waitFor(() => expect(document.title).toBe('Cart | Shopping Cart'))
+  window.history.forward()
   await waitFor(() => expect(productNames()).toHaveLength(6))
   expect(document.querySelector<HTMLInputElement>('#product-search')?.value).toBe('')
 })

@@ -27,6 +27,11 @@
   },
   "sideEffects": false,
   "exports": {
+    "./ui": {
+      "foldkit-plus:source": "./src/ui.ts",
+      "types": "./dist/ui.d.mts",
+      "import": "./dist/ui.mjs"
+    },
     ".": {
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
@@ -49,13 +54,20 @@
   },
   "peerDependencies": {
     "effect": ">=4.0.0-rc.116 <4.0.0-rc.118",
-    "foldkit": "^0.163.0"
+    "foldkit": "^0.163.0",
+    "foldkit-mixins-ui": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "foldkit-mixins-ui": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-rc.116",
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",
     "foldkit-entity": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

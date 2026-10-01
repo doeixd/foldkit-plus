@@ -2,6 +2,7 @@ export {
   Model,
   Message,
   OutMessage,
+  Skill,
   SkillForm,
   ProficiencyRadioGroup,
   init,

@@ -62,13 +62,13 @@ Any email with the password `password` signs in.
   route guard, and must do so before the first frame, which is what upstream's
   Flags do. Saving and clearing are two explicit transitions, login and
   logout, so they stay Commands.
-- **`foldkit-mixins-form`.** It would take the page's `isSubmitting` as its
+- **The generated form view from `foldkit-mixins-form`.** It would take the page's `isSubmitting` as its
   `submitting` input ("Signing in..." as `words.submitting`), and a
-  stylesheet could draw the `✓` from the field's `data-validation`. What
-  keeps it out is the controls: it draws plain inputs through its own Slots,
-  and this port draws `@foldkit/ui`'s Input and Button styled by
-  `foldkit-mixins-ui`'s recipes. The page draws the form from
-  `LoginForm.controls` itself.
+  stylesheet could draw the `✓` from the field's `data-validation`. This
+  page keeps its label/mark layout and styled submit button. It uses
+  `FormView.fields` with the shared `foldkit-mixins-form/ui` field override,
+  so control rendering, blur dispatch and accessibility metadata are not
+  reimplemented by the page.
 - **`foldkit-surface`, `-remote`, `-sync`, `-agent`, `-crud`, `-ssr`.**
   Nothing reads a projection, caches server data, replicates edits, or is
   exposed to an agent; the auth request is a fake Command, as upstream's is.

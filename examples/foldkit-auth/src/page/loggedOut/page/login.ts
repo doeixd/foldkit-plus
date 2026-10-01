@@ -1,14 +1,14 @@
-import * as UiButton from '@foldkit/ui/button'
-import * as UiInput from '@foldkit/ui/input'
 import { Array, Duration, Effect, Option, Schema, String, pipe } from 'effect'
 import { Command, FieldValidation, Submodel, Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Entity } from 'foldkit-entity'
-import { Form, type FormControl, type Submitted } from 'foldkit-form'
+import { Form, type Submitted } from 'foldkit-form'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { Button, Input } from 'foldkit-mixins-ui'
+import { FormView } from 'foldkit-mixins-form'
+import * as UiForm from 'foldkit-mixins-form/ui'
+import { Button } from 'foldkit-mixins-ui'
 
 import { Session } from '../../../domain/session.js'
 import { homeRouter } from '../../../route.js'
@@ -140,7 +140,6 @@ export const update = (model: Model, message: Message) =>
 // VIEW
 
 type Slots = SlotBuilders<typeof LoginPart.slots, Message>
-type Field = FieldValidation.Field<string>
 type FieldKey = keyof Credentials
 
 const canSubmit = (model: Model): boolean => LoginForm.canSubmit(model.form) && !model.isSubmitting
@@ -153,63 +152,35 @@ const inputByKey: {
   password: { type: 'password', placeholder: 'Enter your password' },
 }
 
-const fieldView = (
-  control: FormControl<FieldKey>,
-  field: Field,
-  slots: Slots,
-  h: HtmlBuilder<Message>,
-): Html =>
-  UiInput.view(
-    {
-      id: control.key,
-      type: inputByKey[control.key].type,
-      value: field.value,
-      placeholder: inputByKey[control.key].placeholder,
-      onInput: value =>
-        Message.GotFormMessage({ message: LoginForm.Message.Changed({ key: control.key, value }) }),
-      isInvalid: FieldValidation.isInvalid(field),
-      hasDescription: FieldValidation.isInvalid(field),
-      toView: attributes => {
-        const resolved = Input.resolve<Field, Message>(attributes, [LoginInputStyle.mixin], {
-          input: field,
-          h,
-        })
-        return h.div(slots.field.attrs(), [
-          h.div(slots.fieldHeader.attrs(), [
-            h.label(resolved.label, [control.label]),
-            FieldValidation.match(field, {
-              onNotValidated: () => h.empty,
-              onValidating: () => h.empty,
-              onValid: () => h.span(slots.validMark.attrs(), ['✓']),
-              onInvalid: () => h.empty,
-            }),
-          ]),
-          h.input(resolved.input),
+const Fields = FormView.fields(LoginForm, { attrs: inputByKey })
+const fieldOverride = (slots: Slots) =>
+  UiForm.field({
+    toMessage: (message: typeof LoginForm.Message.Type): Message =>
+      Message.GotFormMessage({ message }),
+    inputStyle: LoginInputStyle,
+    draw: ({ field, label, control, description }, h) =>
+      h.div(slots.field.attrs(), [
+        h.div(slots.fieldHeader.attrs(), [
+          label,
           FieldValidation.match(field, {
             onNotValidated: () => h.empty,
             onValidating: () => h.empty,
-            onValid: () => h.empty,
-            onInvalid: ({ errors }) => h.div(resolved.description, [Array.headNonEmpty(errors)]),
+            onValid: () => h.span(slots.validMark.attrs(), ['✓']),
+            onInvalid: () => h.empty,
           }),
-        ])
-      },
-    },
-    h,
-  )
+        ]),
+        control,
+        description,
+      ]),
+  })
 
 const submitButton = (model: Model, h: HtmlBuilder<Message>): Html =>
-  UiButton.view(
+  Button.view(
     {
       type: 'submit',
-      isDisabled: !canSubmit(model),
-      toView: attributes =>
-        h.button(
-          Button.resolve<undefined, Message>(attributes, [SubmitButtonStyle.mixin], {
-            input: undefined,
-            h,
-          }).button,
-          [model.isSubmitting ? 'Signing in...' : 'Sign In'],
-        ),
+      disabled: !canSubmit(model),
+      style: SubmitButtonStyle,
+      label: model.isSubmitting ? 'Signing in...' : 'Sign In',
     },
     h,
   )
@@ -229,7 +200,7 @@ export const LoginPage = SlotView.forMessages<Message>()
           ]),
           [
             ...Array.map(LoginForm.controls, control =>
-              fieldView(control, model.form.fields[control.key], slots, h),
+              Fields.field(control, model.form, control.key, h, fieldOverride(slots)),
             ),
             submitButton(model, h),
           ],

@@ -2,6 +2,7 @@ export {
   Model,
   Message,
   OutMessage,
+  Position,
   PositionForm,
   init,
   update,

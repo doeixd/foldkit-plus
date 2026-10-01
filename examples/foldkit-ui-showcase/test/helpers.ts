@@ -13,12 +13,6 @@ export const uiModel = uiInit(today).model
 
 export const modelForRoute = (route: AppRoute): Model => ({ route, uiModel })
 
-/**
- * The whole page, drawn by Scene inside `Inert.draw`. `Inert.draw` alone
- * cannot draw `h.submodel`, which needs a runtime frame, and every component
- * page is one; Scene supplies the frame, and drawing it inside `Inert.draw`
- * keeps the Slot marks `Inert.unslotted` reads.
- */
 type Drawing = Readonly<{
   model: Model
   steps: ReadonlyArray<SceneStep<Model, Message, undefined>>
@@ -26,7 +20,9 @@ type Drawing = Readonly<{
 
 const ThroughScene = SlotView.forMessages<Message>().define(
   Slots.define({}),
-  ({ model, steps }: Drawing) => {
+  ({ model, steps }: Drawing, _slots, h) => {
+    if (steps.length === 0) return view(model, h).body
+    // Only interaction steps need a second Scene; Inert.draw supplies the render frame.
     let html: Html = null
     scene(
       { update, view },

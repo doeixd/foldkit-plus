@@ -142,6 +142,9 @@ const RenameForm = Page.at(Slot, {
   `fill(Entity.valuesFor(Rename.input, loaded))`.
 - **Enable the button:** `Rename.canSubmit(model.rename)` (true while a check
   runs; the submit waits). **Valid right now:** `Rename.isValid(model.rename)`.
+  **Read what a submit would send:** `Rename.value(model.rename)` is the decoded
+  input as `Some` when every key and row is valid as it stands, `None` otherwise
+  — what a parent that submits several forms reads per form.
   **Show every error without submitting** (a page that submits several forms
   itself): `Message.ValidatedAll()`.
 - **Optional keys:** `Schema.optionalKey` / `Schema.optional` left empty are
@@ -201,6 +204,18 @@ field's state. Pass `submitting: <your in-flight flag>` in the view inputs; the
 form also counts a submit waiting on a check. While submitting, the `form` is
 `aria-busy` with `data-submitting`, and the button is disabled and reads
 `words.submitting`.
+
+For UI-backed Text/Multiline fields, the optional `foldkit-mixins-form/ui`
+entry exports `field({ toMessage, inputStyle, textareaStyle?, draw? })`, a
+`FormView.fields` override. Install `foldkit-mixins-ui` and `@foldkit/ui`;
+styles target their Input/Textarea Slots and read the field's state. It preserves
+Changed/Blurred dispatch, name, required state, hints, checking and errors.
+`draw` receives label/control/description nodes and `field` for a custom layout;
+other control kinds need the default renderer or a separate override. Custom
+submit buttons use `Button.view`; this integration does not replace the generated
+view's native button. Real adopters:
+https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit-form/src/main.ts
+and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit-auth/src/page/loggedOut/page/login.ts.
 
 ## Nested input
 

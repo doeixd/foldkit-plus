@@ -478,13 +478,14 @@ its README the details.
   explicitly stops TypeScript inferring the rest; a source that ignores the
   principal can now omit the generics. Proposal: curried
   `RemoteServer.for<P>().query(Q, run)`.
-- [ ] **Bundle: a child whose first state comes from the URL.** A Bundle's
-  `init` takes fixed args where it is placed, so a routed page cannot be one
-  without a second fetch, and a Model that is a union cannot hold placements.
-  `foldkit-routing`, `foldkit-auth`. Proposal: a start input beside args
-  (`init(args, input)`, a placement's `input: parent => Input` evaluated by
-  `initial`), `placed.enter(input)` / `placed.leave` for navigation, and
-  `Link.variant(Variant)` for a union Model.
+- [x] **Bundle: a child whose first state comes from the URL.** Derived
+  placement args read the parent seed at `assembly.initial`; `foldkit-routing`
+  adopts this for People. Later route changes arrive as Messages.
+- [ ] **Bundle: union-branch linkage and transition-time initialization.**
+  Document a branch-aware custom `Link.make` for `foldkit-auth`, including
+  initialization on login/logout and inactive-branch lifecycle gates. Standard
+  struct-field conveniences are narrower than Links themselves. Add a branch
+  helper only if a real adopter justifies it. Design review §12.
 - [x] **Bundle: a parent cannot react to a placement's Messages.** Done:
   `onMessage`, and `own` typed `Bundle.OwnMessage` without the wrappers.
 - [x] **Bundle: `PlacedResources` typing, and a custom `Link` loosening
@@ -521,25 +522,115 @@ its README the details.
 - [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
   so under a blue accent they read blue. `foldkit-job-application`
 - [ ] **Mixins: `Recipes.Dialog` does not undo `Defaults.reset`'s `margin: 0`,**
-  so a modal opens against the top of the window; recipe pieces are typed
-  optional per slot; `.extend` cannot remove a piece; and a class `@foldkit/ui`
+  so a modal opens against the top of the window; and a class `@foldkit/ui`
   sets inside a ChildAttribute cannot be styled. `foldkit-pixel-art`,
   `foldkit-ui-showcase`, `foldkit-job-application`
+- [ ] **Mixins: recipe omission and result-key typing.** Evaluate a typed
+  omission of selected recipe pieces or an optional-piece variant for the
+  showcase Dialog; keep `.extend` additive. Preserve known output keys where
+  useful to avoid `?? Style.empty`, without requiring every Slot in partial
+  styles. Removing a style does not remove markup. Design review §8.
 - [ ] **Mixins-UI: missing adapters and recipes.** No adapter for FileDrop,
-  Nav, DragAndDrop, Animation or VirtualList (each hands out attributes); no
-  recipe for Select, Fieldset, Disclosure, Popover, Tooltip, HoverIntent,
-  Slider, RadioGroup or Calendar; `SlotBuilder.attrs()` returns attributes
-  `h.textarea` rejects (`Textarea.resolve` and the result types are fixed).
-  `foldkit-ui-showcase`
+  Nav, DragAndDrop, Animation or VirtualList (each hands out attributes), nor
+  Menu, Listbox, Combobox, DatePicker or Toast. Audit upstream seams first;
+  prioritize Listbox/Combobox/DatePicker across Query Sync and Job Application.
+  Internal items with class-only hooks need upstream render/attribute hooks,
+  not a second accessibility/state owner. Add recipes for Select, Fieldset,
+  Disclosure, Popover, Tooltip, HoverIntent, Slider, RadioGroup and Calendar
+  after their contracts are stable; verify focus, disabled, invalid, selected
+  and high-contrast states. `Textarea.resolve` and its result types are fixed;
+  review any remaining direct `SlotBuilder.attrs()` textarea issue separately.
+  `foldkit-ui-showcase`. Design review §6.
 - [x] **Mixins-form: its fixed layout cannot show a check in progress or a
   page-level submitting state.** Done: the `checking` Slot, `data-validation`,
   and the `submitting` view input.
-- [ ] **Mixins-form cannot draw its controls with `@foldkit/ui` and the
-  mixins-ui recipes,** and has no option to disable submit while a check runs,
-  so `foldkit-form` and `foldkit-auth` still draw their own form.
+- [x] **Mixins-form: a reusable bridge to `@foldkit/ui` and mixins-ui recipes.**
+  Renderer/per-key overrides and `FormView.fields` already exist; extract the
+  waitlist's typed integration and adopt it in Form and Auth. Keep Form
+  headless and the plain-HTML renderer independent. Preserve blur, validation,
+  ids, labels, required state and descriptions; retain field-level custom
+  layouts for Job Application. Built: optional `foldkit-mixins-form/ui`'s
+  `field` override, adopted by Form and Auth; the generated view can also use
+  it through per-key overrides. Custom submit buttons use `Button.view`;
+  the generated native button remains. Real Submodel tests cover metadata,
+  blur, edits, checking/rejection and strict gating. Design review §1.
+- [x] **Mixins-form: strict submit gating during checks.**
+  `FormView.submodel(form, view, { canSubmit })` supports a strict predicate;
+  `form.isValid` differs from the default, lenient `form.canSubmit`. The
+  example/docs adoption remains below. Design review §2.
 - [x] **Testing: `Inert.draw` cannot draw a view containing `h.submodel`.**
-  Done: it draws under a Scene frame. `foldkit-ui-showcase`'s `ThroughScene`
-  helper can go.
+  Done: it draws under a Scene frame. Simplify draw-only showcase callers;
+  keep Scene for the helper's interaction steps. Design review §7.
+
+## Foldkit example design review follow-ups
+
+[foldkit-example-design-review.md](./foldkit-example-design-review.md) reviews
+all 18 ports against current source (2026-10-01). Related package work is
+merged into the items above; section numbers below refer to that report.
+Correct stale claims first, then form/UI integration and application semantics,
+then the lifecycle and host-integration design work.
+
+- [x] **High: correct stale rationale and remove obsolete workarounds (§1, §7).**
+  Form uses `FormView.fields`, so it bypasses the generated whole-form view,
+  not `foldkit-mixins-form` itself. UI Showcase's textarea result type,
+  Dialog/RadioGroup result exports and inert Submodel rendering are repaired.
+  Remove the obsolete textarea cast/wrapper where practical, update its
+  explanation, and simplify draw-only tests while preserving interaction
+  steps. Built: direct typed Textarea resolution, draw-only cases use Inert's
+  frame, interaction cases retain Scene; Form/Auth rationale corrected and
+  obsolete UI Showcase gap claims removed. Showcase typecheck and 74 tests pass.
+- [ ] **High: demonstrate strict FormView submit policy (§2).** Use the existing
+  predicate in a real adopter and correct the README limitation. Verify Enter
+  and click during checks and page-level submission; enforce operation guards
+  in the reducer independently of a button's `aria-disabled` presentation.
+  Coordinate with showcase wave 1's explicit-submit-gate adopter decision.
+- [x] **Medium: public complete-value accessor for aggregate forms (§3).**
+  Built: `form.value(model)` in `foldkit-form` returns the decoded input as
+  `Option` (all or nothing), documented beside `isValid`/`canSubmit`. Job
+  Application composes `applicationPayload` from it and passes that to its
+  Command. Tests cover transformed values, incomplete keys and empty entry
+  lists. Design review §3.
+- [x] **Medium: define Job Application's submission-session policy (§4).**
+  Built: the policy is "validate, then press Submit again" (a reveal that
+  starts the email check sends nothing), a second submit while one runs is a
+  no-op returning the same Model, and the payload is captured at submit time so
+  later edits do not reach the request. No request identity: the duplicate
+  guard makes concurrent attempts impossible. Tests in
+  `examples/foldkit-job-application/test/application.test.ts` fail if the
+  guard, the empty-entry refusal or the capture is removed. Design review §4.
+- [ ] **Medium: lifecycle-aware nested form controls (§5).** First demonstrate
+  a flat picker-backed `Input.bundle` key. Prototype nested row Subscriptions
+  with stable ids, cancellation on removal and late-result routing. Resolve
+  resource-tag ownership before lifting Resources; do not delete the current
+  refusal without a working lifecycle. Keep browser Files at the boundary and
+  define submitted upload metadata/handles as needed.
+- [ ] **High for production SSR: dynamic host-head integration (§9).**
+  `SSR.entry` currently rejects plan metadata. Design explicit template/host
+  cooperation or head contributions the host consumes; share metadata
+  generation with the static path. Verify request-specific metadata, first
+  response head styles, escaping/deduplication, hydration and no cross-request
+  leakage. Keep refusal until the host supports the contract.
+- [x] **Medium: Shopping Cart route-to-search delivery (§10).** Initialize
+  Products from the parsed search and deliver later route changes as Messages,
+  keeping one owner/writer per query parameter. Test copied URLs, back/forward,
+  page navigation and same-route echoes. Upstream parity is not a reason to
+  preserve a URL/filter mismatch. Built: route-seeded init, child `ChangedRoute`
+  delivery and no-op URL echoes. Regression tests cover copied URLs, navigation,
+  back/forward and no duplicate writes; removing startup/delivery breaks them.
+- [ ] **Medium: PointerDrag release-time hit-testing (§11).** Recompute the
+  final target/zone on release rather than dropping the last move's cached
+  place; the receiving reducer resolves placement against current domain
+  state. Test target movement/removal and scrolling between move and release.
+- [ ] **Medium, adopter-led: higher-level interaction integration (§11).**
+  Prefer a Slot adapter around upstream DragAndDrop for sortable collections.
+  Evaluate a distinct delegated pointer-stroke Mount for Pixel Art's painting,
+  including touch/pen position hit-testing, cancellation and skipped cells.
+  Keep the low-level drag primitive small and preserve the accessibility owner.
+- [ ] **Low: document persistence migration policy for ports.** Mirror rejects
+  upstream saved formats. A production adoption needs an explicit importer or
+  new storage key; document this separately from disposable last-write-wins
+  storage. Pixel Art's per-cell writes select `throttle: 0`; pacing already
+  exists, so change that example policy only with a stated persistence goal.
 
 ## Stale passages inside the design documents
 

@@ -17,6 +17,7 @@
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],

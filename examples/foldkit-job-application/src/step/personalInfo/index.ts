@@ -1,5 +1,5 @@
 export {
-  type Applicant,
+  Applicant,
   Model,
   Message,
   PersonalInfoForm,

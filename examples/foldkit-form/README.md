@@ -43,6 +43,7 @@ npx vitest run examples/foldkit-form   # from the repository root
 | Whether a submit is in flight, its success or failure | the page's `Submission` | `MODEL`, `UPDATE` |
 | Accessible inputs, textarea and button | `@foldkit/ui` | `VIEW` |
 | Their look: the shipped `Input`, `Textarea` and `Button` recipes | `foldkit-mixins-ui` | `src/style.ts` |
+| Field metadata and dispatch for the custom layout | `foldkit-mixins-form` (`FormView.fields` + `foldkit-mixins-form/ui`'s shared field override) | `src/main.ts`, `VIEW` |
 | Border and words following each field's state | `Style.whenInput` over the field (`foldkit-mixins`) | `src/style.ts` |
 | Page Slots, layout, theme tokens, layer order | `foldkit-mixins` | `src/style.ts` |
 
@@ -52,16 +53,13 @@ becomes `joinWaitlist`.
 
 ## What is not used, and why
 
-- **`foldkit-mixins-form`**, which draws a form. It shows a running check (a
-  "Checking…" line the control describes itself by, and `data-validation` on
-  the field, which a stylesheet can turn into the `◐` and `✓` marks) and takes
-  the page's `Submitting` as its `submitting` input. What keeps it out is the
-  controls: it draws plain inputs through its own Slots, and this port draws
-  `@foldkit/ui`'s Input and Textarea styled by `foldkit-mixins-ui`'s recipes.
-  Its submit button is also enabled while a check runs (a submit then waits);
-  upstream's is disabled. So the view draws the form from
-  `WaitlistForm.controls` itself, which that package's README names as the
-  other way.
+- **The generated whole-form layout from `foldkit-mixins-form`.** This port
+  keeps its label/mark layout and styled submit button. `FormView.fields`
+  supplies the field metadata and Messages; the optional
+  `foldkit-mixins-form/ui` override draws Input and Textarea with blur and
+  accessible checking/error descriptions. The generated view can use the same
+  overrides. Its default submit policy waits for running checks; a strict
+  `canSubmit` predicate on `FormView.submodel` can disable submit instead.
 - **`foldkit-bundle`.** The form is one child placed once; `Update.foldChild`
   is the lift upstream's examples use, and a Bundle placement would add a
   second way to wire it.

@@ -31,6 +31,7 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   CompletedReplaceSearchUrl: {},
+  ChangedRoute: { searchText: Schema.String },
   ChangedSearchInput: { value: Schema.String },
   ClickedAddToCart: { item: Item.Item },
   ClickedIncrementQuantity: { itemId: Schema.String },
@@ -55,9 +56,9 @@ export type DecrementedQuantity = typeof OutMessage.DecrementedQuantity.Type
 
 // INIT
 
-export const init = (products: ReadonlyArray<Item.Item>): Model => ({
+export const init = (products: ReadonlyArray<Item.Item>, searchText = ''): Model => ({
   products,
-  searchText: '',
+  searchText,
 })
 
 // COMMAND
@@ -73,6 +74,13 @@ export const ReplaceSearchUrl = Command.define('ReplaceSearchUrl', {
 export const update = (model: Model, message: Message) =>
   Message.match<Update.ReturnWithOutMessage<Model, Message, OutMessage>>(message, {
     CompletedReplaceSearchUrl: () => ({ model }),
+
+    ChangedRoute: ({ searchText }) => ({
+      model:
+        searchText === model.searchText
+          ? model
+          : modifyFields(model, { searchText: () => searchText }),
+    }),
 
     ChangedSearchInput: ({ value }) => ({
       model: modifyFields(model, { searchText: () => value }),

@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-form`, `form.value(model)`:** the decoded input as `Some` when
+  every key and row is valid as the form stands, `None` otherwise. All or
+  nothing (unlike `partial`), so a parent that submits several forms reads one
+  complete value per form without the nesting engine. Job Application composes
+  its `ApplicationPayload` from it.
+- **`foldkit-mixins-form/ui`, `field`:** an optional FormView override for
+  Text/Multiline fields drawn through the styled UI adapters, preserving
+  Changed/Blurred dispatch, names, required state, descriptions, checking and
+  errors. Form and Auth adopt it while keeping their application-owned layouts
+  and styled submit buttons. The main entry retains its plain-HTML renderer.
 - **`foldkit-bundle`, `Link.child(link, update, view, slotId)`:** a child
   that is not a Bundle, stated once: the Link names where its Model lives
   and how its Messages wrap, and the pair yields the fold for `update` and

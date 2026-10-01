@@ -8,11 +8,12 @@ import { TestClock } from 'effect/testing'
 import type { Command } from 'foldkit/command'
 import { describe, expect, test } from 'vitest'
 
+import { applicationPayload } from '../src/application.js'
 import { SubmitApplication } from '../src/command.js'
 import { Message } from '../src/message.js'
 import { PersonalInfo } from '../src/step/index.js'
 import { update } from '../src/update.js'
-import { checkedEmail, initialModel, typedPersonalInfo } from './fixtures.js'
+import { checkedEmail, completeModel, initialModel, typedPersonalInfo } from './fixtures.js'
 
 /** What `command` has answered once `millis` of virtual time have passed. */
 const answerWithin = (
@@ -57,9 +58,15 @@ describe('the email check', () => {
 })
 
 describe('submitting the application', () => {
+  const application = Option.getOrThrowWith(
+    applicationPayload(completeModel),
+    () => new Error('the complete fixture must produce a payload'),
+  )
+
   test('succeeds after 1.5s and not before', async () => {
-    expect(await answerWithin(SubmitApplication(), 1499)).toEqual(Option.none())
-    expect(await answerWithin(SubmitApplication(), 1500)).toEqual(
+    const command = SubmitApplication({ application })
+    expect(await answerWithin(command, 1499)).toEqual(Option.none())
+    expect(await answerWithin(command, 1500)).toEqual(
       Option.some(Message.SucceededSubmitApplication()),
     )
   })
