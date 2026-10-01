@@ -336,7 +336,8 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
 - [x] **0. Correctness:** site failure drawn as loading, preview while
   loading, missing-post inconsistency, retry everywhere, chat offline
   sends, publish versus the form. Built with tests; the pages list's retry
-  still waits on the row ListView variant (package prerequisites).
+  waits on adopting `RowListView` (built) into the styled pages list,
+  which needs `RowListSlots` restyling.
 - [ ] **1. Adoptions:** SSG adopts `staticSite` (plugin + sitemap/robots
   built; toy enrichment, canonical and the blessed-example note remain);
   `assembly.runtime` in one real assembly; todo agent learns completion;

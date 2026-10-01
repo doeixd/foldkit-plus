@@ -168,7 +168,12 @@ Each is its own slice, before the wave-1 item that needs it.
   **Built**, and wired in both editors to `ReloadAsked`.
 - **A list-row ListView variant** (`packages/mixins-crud`): the `status`/
   `retry`/`words`/`aria-busy` contract over `ul`/`li`, so the pages list
-  can adopt it without changing its markup contract.
+  can adopt it without changing its markup contract. **Built** as
+  `RowListView` (shared state contract with `ListView`). The pages-list
+  adoption remains: its styles are keyed to `AdminSlots`, and a nested
+  SlotView brings its own slots, so adopting means restyling `RowListSlots`
+  (and moving the old `list`/`listButton` styles to it) plus a
+  `RetriedList` Message in `pageApp`.
 - **Field views over `InputSlots`** (`packages/mixins-ui`): label,
   description and `aria-invalid` through the slots, so the studio's search
   and schedule inputs can rewire off raw `h.input`.
