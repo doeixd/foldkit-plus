@@ -135,9 +135,10 @@ Only after wave 0; polish on top of a lie is paint.
 - **Site chrome.** No skip link anywhere in scope; no focus management on
   route change; the stretched-card link (`site.ts:623-630`) has no focus
   story; the header/footer clusters are unproven at 320px (screenshot,
-  don't guess). **Partly built**: a skip link on the site and the studio, and
-  the card rings when the keyboard is on its link (`test/siteChrome.test.ts`;
-  the browser's own tab order and the 320px clusters are the open proof).
+  don't guess). **Partly built**: a skip link on the site and the studio, the
+  card rings when the keyboard is on its link, and a route change moves focus
+  to what it drew (`test/siteChrome.test.ts`, `test/siteFocus.test.ts`); the
+  browser's own tab order and the 320px clusters are the open proof.
 - **Studio smalls.** Pages visitor screen missing the `Go to the site`
   link posts has (`pagesView.ts:185-194` vs `view.ts:354-357`) — **built**
   (wave 0); the schedule input needs its own slot plus an invalid-date hint

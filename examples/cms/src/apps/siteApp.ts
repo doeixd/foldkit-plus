@@ -9,7 +9,7 @@
  *   /site/blog/<slug> a post
  *   /site/<slug>      any other page
  */
-import { Array as Arr, Effect, Match, Option, Schema } from 'effect'
+import { Array as Arr, Effect, Equal, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import type { Document } from 'foldkit-composition'
@@ -69,6 +69,8 @@ export const Message = defineMessageUnion({
   UrlRequested: { request: Navigation.UrlRequest },
   /** Nothing happened. */
   Ticked: {},
+  /** The reader was moved to what a route change drew. */
+  FocusedMain: {},
 })
 export type Message = typeof Message.Type
 
@@ -126,12 +128,36 @@ export const actives = {
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 export const placements = Parent.assemble(Data.wiring(actives))
 
+/**
+ * Moves the reader to what a route change drew: the bar is the same, the page
+ * is not. The site is rendered on the server too, where a route change is not
+ * a keyboard's to answer.
+ */
+export const focusMain = (): void => {
+  if (typeof document === 'undefined') return
+  document.getElementById('site-main')?.focus()
+}
+
 export const update = placements.update((model, message) => {
   // Remote's Messages go to its wiring, so they never reach here; the guard
   // narrows to the application's own tags, which the match below covers all of.
   if (Remote.reduces(message)) return { model }
   return Match.valueTags(message, {
-    UrlChanged: ({ url }) => ({ model: { ...model, route: routeOf(url) } }),
+    UrlChanged: ({ url }) => {
+      const route = routeOf(url)
+      // A URL the site wrote comes back as the route it already shows: nothing
+      // changes, and nothing is worth moving focus for.
+      if (Equal.equals(route, model.route)) return { model }
+      return {
+        model: { ...model, route },
+        commands: [
+          {
+            name: 'FocusMain',
+            effect: Effect.sync(focusMain).pipe(Effect.as(Message.FocusedMain())),
+          },
+        ],
+      }
+    },
     UrlRequested: ({ request }) => {
       // A link within the site is a route change; anything else is another application.
       const effect =
@@ -144,6 +170,7 @@ export const update = placements.update((model, message) => {
       }
     },
     Ticked: () => ({ model }),
+    FocusedMain: () => ({ model }),
   })
 })
 
