@@ -325,6 +325,26 @@ and server/SSR sequences.
   instead of re-declared, with the seeding shape (fixed clock, named
   entries dependencies-first, `as` fixed once) in the cms-drizzle README.
 
+## Example showcase hardening
+
+What the examples must show after 0.12: correctness gaps where the demo
+misinforms, unadopted 0.12 contracts, UX polish, hygiene and docs.
+[showcase-PLAN.md](./showcase-PLAN.md) has the findings and the sequence;
+work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
+(polish), with package prerequisites as their own slices.
+
+- [ ] **0. Correctness:** site failure drawn as loading, preview while
+  loading, missing-post inconsistency, retry everywhere, chat offline
+  sends, publish versus the form.
+- [ ] **1. Adoptions:** SSG adopts `staticSite`; `assembly.runtime` in one
+  real assembly; todo agent learns completion; `Input.view`/`Textarea.view`
+  get app callers; the small-gaps batch (scroll options, `stateBadge`
+  None, `Data.meta` stale/loading, bootstrap meets routing, kitchen-sink
+  `correlate`, explicit submit gate); staleness stays designed, not built.
+- [ ] **2. Polish, hygiene, docs:** form focus story, linked
+  `blockedNotice`, site chrome, studio smalls, waitlist dedup; dead code;
+  six stale READMEs; the `attrs` doc fix; teaching comments.
+
 ## Server
 
 What the CMS example's server, run over HTTP, in the page and at build time,
