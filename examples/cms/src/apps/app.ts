@@ -116,6 +116,8 @@ export const Message = defineMessageUnion({
   TypedSchedule: { text: Schema.String },
   Searched: { text: Schema.String },
   ToggledArchive: {},
+  /** Asks the worklist again after its read failed, so a failed list is not a dead end. */
+  RetriedList: {},
   /** The address changed: a link, back or forward, or the studio's own write. */
   UrlChanged: { url: Url },
   /** A link was followed. */
@@ -222,6 +224,7 @@ const placed = placements.update((model, message) => {
     TypedSchedule: ({ text }) => ({ model: modifyFields(model, { scheduleAt: () => text }) }),
     Searched: ({ text }) => ({ model: modifyFields(model, { search: () => text }) }),
     ToggledArchive: () => ({ model: modifyFields(model, { archived: archived => !archived }) }),
+    RetriedList: () => ({ model: Worklist.refresh(model) }),
     UrlChanged: ({ url }) => {
       const { preview, ...named } = linkIn(url)
       // The worklist's narrowing is the mirror's to read; which post is open is routing.

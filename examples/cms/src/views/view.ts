@@ -102,6 +102,8 @@ const list = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       {
         page: Worklist.page(model),
         onOpen: row => Message.OpenedEntry({ entry: row.id }),
+        // A list that failed to read is asked for again, rather than dead-ending.
+        onRetry: Message.RetriedList(),
         renderers: Cms.displayRenderers(),
         words: {
           empty:
