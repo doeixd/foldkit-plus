@@ -337,8 +337,8 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   loading, missing-post inconsistency, retry everywhere, chat offline
   sends, publish versus the form. Built with tests, the pages list
   included (it adopts `RowListView`).
-- [ ] **1. Adoptions:** SSG adopts `staticSite` (plugin + sitemap/robots
-  built; toy enrichment, canonical and the blessed-example note remain);
+- [ ] **1. Adoptions:** SSG adopts `staticSite` (built: plugin, sitemap/
+  robots, the prepared-posts dependency, canonical, blessed-example note);
   `assembly.runtime` in one real assembly (built); todo agent learns
   completion;
   `Input.view`/`Textarea.view` callers (built); the small-gaps batch (scroll
@@ -346,9 +346,6 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   routing, kitchen-sink `correlate`, explicit submit gate); staleness stays
   designed, not built.
   - **Needs a decision first** (do not code blind):
-    - **SSG toy enrichment** — how a build-time data dependency crosses to the
-      browser, since `SSR.render` refuses a page whose Model the browser cannot
-      reproduce from the plan (flags in `init` alone would be refused).
     - **Todo agent completion** (`examples/todo`) — the example deliberately has
       no Commands and mints ids synchronously in `update`, so intent and fact
       collapse; porting `correlate`/`requestId` means giving it a Command and a
