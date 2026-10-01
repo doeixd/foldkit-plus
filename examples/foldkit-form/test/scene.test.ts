@@ -18,7 +18,7 @@ import {
 } from 'foldkit/scene'
 import { describe, test } from 'vitest'
 
-import { Message, SubmitForm, initialModel, update, view } from '../src/main.js'
+import { FocusField, Message, SubmitForm, initialModel, update, view } from '../src/main.js'
 import { CheckEmail, checked, validModel, withFields } from './fixtures.js'
 
 describe('view', () => {
@@ -123,13 +123,14 @@ describe('view', () => {
     )
   })
 
-  test('submitting an invalid form (e.g. via Enter key) sends nothing and says what is missing', () => {
+  test('submitting an invalid form (e.g. via Enter key) sends nothing to the server and focuses what is missing', () => {
     scene(
       { update, view },
       given(initialModel),
       expect(role('button', { name: 'Join Waitlist' })).toBeDisabled(),
       submit(role('form')),
-      Command.expectNone(),
+      Command.expectExact(FocusField({ id: 'email' })),
+      Command.resolve(FocusField, Message.CompletedFocusField()),
       expect(label('Email')).toHaveAccessibleDescription('Email is required'),
       expect(role('button', { name: 'Join Waitlist' })).toBeDisabled(),
     )

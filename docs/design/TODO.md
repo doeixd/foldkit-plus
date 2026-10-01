@@ -366,10 +366,14 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
     - **`Mirror.bootstrap` meeting `Mirror.routing`** in one app (which example,
       and what each owns) and **`FormView.submodel(…, { canSubmit })`** (which
       form has a constant-valid submit).
-- [ ] **2. Polish, hygiene, docs:** form focus story, linked
-  `blockedNotice`, site chrome, studio smalls, waitlist dedup; dead code
+- [ ] **2. Polish, hygiene, docs:** form focus story **built** (a refused
+  submit focuses the first missing key, `test/focus.browser.test.ts`);
+  waitlist dedup **built** (the shared `foldkit-mixins-form/ui` override, and
+  the gate spelled `everyKeyIsValid` over `form.value` with its reason);
+  linked `blockedNotice`, site chrome (skip link, route-change focus,
+  320px), studio touch targets, teaching comments still open; dead code
   (built); stale READMEs (the four package ones built; the two example ones
-  were already current); the `attrs` doc fix (built); teaching comments.
+  were already current); the `attrs` doc fix (built).
 
 ## Server
 

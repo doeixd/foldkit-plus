@@ -8,7 +8,7 @@ import { FieldValidation } from 'foldkit'
 import { Command, given, message, model, story } from 'foldkit/story'
 import { describe, expect, test } from 'vitest'
 
-import { Message, SubmitForm, initialModel, update } from '../src/main.js'
+import { FocusField, Message, SubmitForm, initialModel, update } from '../src/main.js'
 import { CheckEmail, checked, submitted, typed, validModel, withFields } from './fixtures.js'
 
 describe('update', () => {
@@ -143,12 +143,13 @@ describe('update', () => {
   )
 
   describe('submission', () => {
-    test('submitting an invalid form sends nothing, and says what is missing', () => {
+    test('submitting an invalid form sends nothing to the server and moves focus to what is missing', () => {
       story(
         update,
         given(initialModel),
         message(submitted),
-        Command.expectNone(),
+        Command.expectExact(FocusField({ id: 'email' })),
+        Command.resolve(FocusField, Message.CompletedFocusField()),
         model(model => {
           expect(model.submission._tag).toBe('NotSubmitted')
           expect(model.form.fields.email).toEqual(

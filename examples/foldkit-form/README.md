@@ -70,10 +70,11 @@ becomes `joinWaitlist`.
 
 ## Differences from upstream
 
-- **Submitting an invalid form says what is missing.** Enter, or a click on the
-  greyed button (`@foldkit/ui` marks it `aria-disabled`, so it still submits),
-  validates every key: an untouched email reads "Email is required". Upstream
-  sends nothing and shows nothing.
+- **Submitting an invalid form says what is missing, and takes the reader
+  there.** Enter, or a click on the greyed button (`@foldkit/ui` marks it
+  `aria-disabled`, so it still submits), validates every key: an untouched
+  email reads "Email is required", and focus moves to the first key the form
+  says is missing. Upstream sends nothing and shows nothing.
 - **A submit made while the email is being checked is kept**, and goes out once
   the check passes. Upstream drops it.
 - **An emptied message box shows no `✓`.** To the form an empty draft is
@@ -101,3 +102,6 @@ becomes `joinWaitlist`.
 - `test/runtime.test.ts` runs the real runtime in jsdom: the real check and its
   delay, the button's gate, and the CSS of every class and the spinner's
   keyframes injected.
+- `test/focus.browser.test.ts` runs the real runtime in a browser and presses
+  Enter as a reader would: a refused submit puts focus on the first key it
+  says is missing. A browser, because a synthetic event moves no focus.

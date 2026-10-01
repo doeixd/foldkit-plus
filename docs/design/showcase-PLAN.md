@@ -122,7 +122,9 @@ Only after wave 0; polish on top of a lie is paint.
 - **Form errors need a focus story.**
   `examples/foldkit-form` reveals errors with no focus move and no summary.
   A browser-tested focus move (`userEvent`, not jsdom dispatch — synthetic
-  events move no focus, per the repo's own traps).
+  events move no focus, per the repo's own traps). **Built**: a refused submit
+  focuses the first key the form says is missing (`FocusField`, a Command like
+  `@foldkit/ui`'s own), covered in `test/focus.browser.test.ts`.
 - **Job-app `blockedNotice` should link.**
   `examples/foldkit-job-application/src/view/review.ts:179-184` names
   steps as text with no jump-to-step. Confirm first that unguarded `Next`
@@ -142,7 +144,10 @@ Only after wave 0; polish on top of a lie is paint.
 - **Waitlist duplication.** `textOverride`/`textareaOverride`
   (`examples/foldkit-form/src/main.ts:213-265`) repeat one `draw` —
   parameterize by kind. Settle `isFormValid` vs `isValid` to one spelling
-  with the reason recorded.
+  with the reason recorded. **Built**: the shared `foldkit-mixins-form/ui`
+  field override draws both kinds from one place, and the gate is
+  `form.value` spelled `everyKeyIsValid`, with why it is neither `isValid`
+  nor `canSubmit` recorded beside it.
 
 ## 3. Hygiene and docs
 

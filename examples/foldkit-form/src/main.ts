@@ -90,6 +90,7 @@ export const Message = defineMessageUnion({
   GotFormMessage: { message: WaitlistForm.Message },
   SucceededSubmitForm: { name: Schema.String },
   FailedSubmitForm: {},
+  CompletedFocusField: {},
 })
 
 export type Message = typeof Message.Type
@@ -137,9 +138,25 @@ const foldForm = Update.foldChild({
   foldOutMessage: joinWaitlist,
 })
 
+/** The first key the form says is missing, for the focus a refused submit moves. */
+const firstInvalid = (model: Model): Option.Option<string> =>
+  Option.fromUndefinedOr(
+    WaitlistForm.controls.find(control => FieldValidation.isInvalid(model.form.fields[control.key]))
+      ?.key,
+  )
+
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
-    GotFormMessage: ({ message }) => foldForm(model, message),
+    GotFormMessage: ({ message }) => {
+      const next = foldForm(model, message)
+      // A submit the form refused moves focus to the first thing missing, so
+      // the reader is told where to go rather than left to search the card.
+      if (message._tag !== 'Submitted') return next
+      return Option.match(firstInvalid(next.model), {
+        onNone: () => next,
+        onSome: id => ({ ...next, commands: [...(next.commands ?? []), FocusField({ id })] }),
+      })
+    },
 
     SucceededSubmitForm: ({ name }) => ({
       model: modifyFields(model, {
@@ -158,9 +175,21 @@ export const update = (model: Model, message: Message) =>
           }),
       }),
     }),
+
+    CompletedFocusField: () => ({ model }),
   })
 
 // COMMAND
+
+/** Moves the reader to what the form says is missing, after a submit it refused. */
+export const FocusField = Command.define('FocusField', {
+  args: { id: Schema.String },
+  messages: [Message.CompletedFocusField],
+  execute: ({ id }) =>
+    Effect.sync(() => {
+      document.getElementById(id)?.focus()
+    }).pipe(Effect.as(Message.CompletedFocusField())),
+})
 
 export const SubmitForm = Command.define('SubmitForm', {
   args: JoinWaitlist.fields,
@@ -184,11 +213,14 @@ type Slots = SlotBuilders<typeof FormPage.slots, Message>
 type Field = FieldValidation.Field<Draft>
 
 /**
- * Whether every key is valid as it stands. `engine.value` decodes only then, so
- * a running check keeps the button disabled, as upstream's does; the form's own
- * `canSubmit` would enable it, since a submit made then waits for the check.
+ * Whether the form decodes as it stands: every required key validated and
+ * valid, so a draft the reader has not left yet counts as missing, as
+ * upstream's button does, and every optional key parseable. `form.value` reads
+ * nothing new. `form.isValid` would validate such a draft and enable the button
+ * earlier; `form.canSubmit` enables it while the email is still being checked,
+ * since a submit made then waits.
  */
-const isFormValid = (model: Model): boolean => WaitlistForm.engine.value(model.form) !== undefined
+const everyKeyIsValid = (model: Model): boolean => Option.isSome(WaitlistForm.value(model.form))
 
 type FormMessage = typeof WaitlistForm.Message.Type
 
@@ -234,7 +266,7 @@ const submitButton = (model: Model, h: HtmlBuilder<Message>): Html =>
       label: isSubmitting(model.submission) ? 'Joining...' : 'Join Waitlist',
       style: SubmitButtonStyle,
       type: 'submit',
-      disabled: !isFormValid(model) || isSubmitting(model.submission),
+      disabled: !everyKeyIsValid(model) || isSubmitting(model.submission),
     },
     h,
   )
