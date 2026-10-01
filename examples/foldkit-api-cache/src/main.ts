@@ -202,10 +202,16 @@ type Slots = SlotBuilders<typeof CachePage.slots, Message>
 
 const formatTime = (millis: number): string => new Date(millis).toLocaleTimeString()
 
-/** When the shown post was last received, as footnote text; nothing when it never was. */
+/**
+ * When the shown post was last received, and whether the Model is refreshing it
+ * or holding a stale value: the whole of `Data.meta`, not only `updatedAt`.
+ * Nothing when it was never received.
+ */
 const footnoteReceivedAt = (model: Model, postId: string): string => {
-  const received = Data.meta(model, postDetail(postId)).updatedAt
-  return received === undefined ? '' : ` Fetched at ${formatTime(received)}.`
+  const meta = Data.meta(model, postDetail(postId))
+  if (meta.updatedAt === undefined) return ''
+  const state = meta.loading ? ' Refreshing…' : meta.stale ? ' May be out of date.' : ''
+  return ` Fetched at ${formatTime(meta.updatedAt)}.${state}`
 }
 
 const isPending = <A>(data: RemoteData<A>): boolean =>
