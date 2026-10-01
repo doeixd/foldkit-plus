@@ -450,6 +450,10 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       gap: t.space.xs,
       marginInlineStart: 'auto',
     }),
+    // The workbench beside a 20rem sidebar, stacking below 64rem of window.
+    // The Builder's `narrowWidth` is the same number of its own column, which
+    // the sidebar makes narrower than the window: the Builder shows its tabs
+    // before the sidebar has to go, so neither leaves a panel squeezed.
     editorBody: Style.compose(
       Style.self({
         alignItems: 'start',

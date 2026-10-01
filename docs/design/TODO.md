@@ -372,8 +372,11 @@ work wave 0 (correctness) first, then wave 1 (adoptions), then wave 2
   the gate spelled `everyKeyIsValid` over `form.value` with its reason);
   linked `blockedNotice` **built** (each named step jumps to its tab, and
   unguarded `Next` is recorded as deliberate validate-at-submit); site chrome
-  (skip link, route-change focus, 320px), studio touch targets, teaching
-  comments still open; dead code (built); stale READMEs (the four package
+  (skip link, route-change focus, 320px), studio touch targets still open;
+  teaching comments **built** — six of the seven named were already in place
+  (`statusText`, `listing`, `follow`/`begun`, `Narrowing`, `scheduleAt`, the
+  CMS `hydrate` refusal); added the seventh, on the editor body's width beside
+  the Builder's. Dead code (built); stale READMEs (the four package
   ones built; the two example ones were already current); the `attrs` doc fix
   (built).
 

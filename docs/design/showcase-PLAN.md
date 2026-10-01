@@ -180,7 +180,10 @@ Batch these; none changes behavior.
   `listing` re-ask rationale, `follow`/`begun` deferral, `Narrowing`
   ownership, `scheduleAt` raw-text discipline, editor-body vs sidebar
   widths, the CMS `hydrate` refusal invariant (the SSG's
-  `main.ts:110-114` states it best — copy that sentence).
+  `main.ts:110-114` states it best — copy that sentence). **Built**: all but
+  the editor-body comment were already in place when checked against source
+  (the `hydrate` refusal carries its own sentence at `sitePlan.ts`); added
+  that one, on the editor body's width beside the Builder's `narrowWidth`.
 
 ## Package prerequisites
 
