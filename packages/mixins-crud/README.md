@@ -73,6 +73,35 @@ rows, and the first cell of each row a button that sends `OpenedPost`.
   `Entity.annotateMembers({ id: Display.of(Display.hidden()) })` and `row.id` is
   still there for `onOpen`.
 
+## Rows instead of a table
+
+When a list is a navigation or a picker of whole rows, a table is the wrong
+markup. `RowListView` carries the same state contract over `ul`/`li`: you draw
+each row's content, and `onOpen` makes the whole row a button.
+
+```ts
+import { RowListView } from 'foldkit-mixins-crud'
+
+const PageList = RowListView.forMessages<Message>().define<PageRow>({ name: 'Pages' })
+
+const pages = (model: Model, h: HtmlBuilder<Message>): Html =>
+  PageList(
+    {
+      page: SitePages.read(model),
+      row: (page, h) => [h.span([], [page.label])],
+      onOpen: page => Message.OpenedPage({ id: page.id }),
+      onRetry: Message.RetriedPages(),
+    },
+    h,
+  )
+```
+
+`define<Row>({ name })` names the view and the row type. Its Slots are
+`RowListSlots`: `root`, `status`, `list` (the `ul`), `row` (an `li`), `open`,
+`more`, `retry`. Loading, empty, a failed read with its retry, and a failed
+refresh kept above its rows are handled exactly as for `ListView` — one
+implementation, so the two cannot drift.
+
 ## Follow a row click
 
 The table reads the `page` value you pass it. `onOpen` constructs `OpenedPost`;

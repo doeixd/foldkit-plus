@@ -75,6 +75,42 @@ export interface ListInput<Row, Message, Key extends string = string> {
   readonly words?: ViewWords | undefined
 }
 
+/** A list drawn as `ul`/`li` rows: the same states as a `ListView`, other markup. */
+export const RowListSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  /** Loading, failed, or empty: what is said in place of rows. */
+  status: Slot.make({ capability: Capability.Base }),
+  /** The `ul` holding the rows, `aria-busy` while refreshing. */
+  list: Slot.make({ capability: Capability.Container }),
+  /** One `li`, holding a row's drawing. */
+  row: Slot.make({ capability: Capability.Container }),
+  /** The button around a row's drawing, when the application gave `onOpen`. */
+  open: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  more: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Disabled],
+  }),
+  /** The button that asks again after a failed read. */
+  retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+})
+
+/** What a `RowListView`'s drawings may read, and what the application gives it. */
+export interface RowListInput<Row, Message> {
+  readonly page: RemoteData<Page<Row>>
+  /** Draws one row's content. The whole row is a button when `onOpen` is given. */
+  readonly row: (row: Row, h: HtmlBuilder<Message>) => ReadonlyArray<Html>
+  /** Opens a row. Given, the row's drawing becomes a button that sends it. */
+  readonly onOpen?: ((row: Row) => Message) | undefined
+  /** Loads the next page. Shown while the page has one. */
+  readonly onMore?: Message | undefined
+  /** Asks again after a failed read. Given, a failed list shows a button that sends it. */
+  readonly onRetry?: Message | undefined
+  /** What identifies a row across renders. Default its `id`, else its position. */
+  readonly rowKey?: ((row: Row) => string) | undefined
+  readonly words?: ViewWords | undefined
+}
+
 /** What a detail's attachments may read, and what the application gives it. */
 export interface DetailInput<Value, Message, Key extends string = string> {
   readonly value: RemoteData<Value>
@@ -188,6 +224,71 @@ export const Failure = {
 const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descending' | 'none' =>
   direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'
 
+/**
+ * The state contract every list view carries, whatever markup draws its rows:
+ * busy while the first answer is awaited, empty told from it, a failure as an
+ * alert with the caller's retry, and a failed refresh kept above the rows it
+ * had. `rows` draws one non-empty page into the root; an empty page is said
+ * here, so both lists say it the same way.
+ */
+const listState = <Row, Message>(
+  input: {
+    readonly name: string
+    readonly page: RemoteData<Page<Row>>
+    readonly onRetry?: Message | undefined
+    readonly words?: ViewWords | undefined
+  },
+  slots: {
+    readonly root: SlotView.SlotBuilder<Message>
+    readonly status: SlotView.SlotBuilder<Message>
+    readonly retry: SlotView.SlotBuilder<Message>
+  },
+  h: HtmlBuilder<Message>,
+  rows: (page: Page<Row>, refreshing: boolean, notice: ReadonlyArray<Html>) => Html,
+): Html => {
+  const { words } = input
+  const failure = (error: RemoteError): ReadonlyArray<Html> => [
+    Failure.view(slots.status, h, failedWords(words, error)),
+    ...(input.onRetry === undefined
+      ? []
+      : [
+          h.button(slots.retry.attrs([h.Type('button'), h.OnClick(input.onRetry)]), [
+            words?.retry ?? 'Try again',
+          ]),
+        ]),
+  ]
+  const status = (text: string, busy = false): Html =>
+    h.div(slots.root.attrs([h.Id(input.name)]), [
+      busy ? Loading.view(slots.status, h, text) : Empty.view(slots.status, h, text),
+    ])
+  const empty = (notice: ReadonlyArray<Html>): Html =>
+    notice.length === 0
+      ? status(words?.empty ?? 'Nothing here.')
+      : h.div(slots.root.attrs([h.Id(input.name)]), [
+          ...notice,
+          h.p(slots.status.attrs([h.Role('status')]), [words?.empty ?? 'Nothing here.']),
+        ])
+  const body = (page: Page<Row>, refreshing: boolean, notice: ReadonlyArray<Html> = []): Html =>
+    page.items.length === 0 ? empty(notice) : rows(page, refreshing, notice)
+  switch (input.page._tag) {
+    case 'Initial':
+    case 'Loading':
+      return status(words?.loading ?? 'Loading…', true)
+    case 'Failed':
+      // A failed refresh keeps the rows it had: they are still the best answer
+      // there is, and the failure is said above them.
+      return input.page.previous === undefined
+        ? h.div(slots.root.attrs([h.Id(input.name)]), [...failure(input.page.error)])
+        : body(input.page.previous, false, failure(input.page.error))
+    case 'NotFound':
+      return status(words?.empty ?? 'Nothing here.')
+    case 'Refreshing':
+      return body(input.page.value, true)
+    case 'Ready':
+      return body(input.page.value, false)
+  }
+}
+
 const list = <Message>() => ({
   /**
    * The view of a `Crud.list`: a table of its shown columns, in the Selection's
@@ -203,23 +304,6 @@ const list = <Message>() => ({
       ListSlots,
       (input: ListInput<Row, Message, Key>, slots, h) => {
         const { words } = input
-        // What a failed read says, and the way to ask again when one was given.
-        const failure = (error: RemoteError): ReadonlyArray<Html> => [
-          Failure.view(slots.status, h, failedWords(words, error)),
-          ...(input.onRetry === undefined
-            ? []
-            : [
-                h.button(slots.retry.attrs([h.Type('button'), h.OnClick(input.onRetry)]), [
-                  words?.retry ?? 'Try again',
-                ]),
-              ]),
-        ]
-        // Busy while the first answer is awaited, so loading is told from empty.
-        const status = (text: string, busy = false): Html =>
-          h.div(slots.root.attrs([h.Id(listed.name)]), [
-            busy ? Loading.view(slots.status, h, text) : Empty.view(slots.status, h, text),
-          ])
-
         const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
           input.renderers?.[column.display.kind]?.({
             display: column.display,
@@ -235,18 +319,8 @@ const list = <Message>() => ({
           page: Page<Row>,
           refreshing: boolean,
           notice: ReadonlyArray<Html> = [],
-        ): Html => {
-          if (page.items.length === 0) {
-            // An empty list that failed to refresh was still empty, and says so
-            // under the failure.
-            return notice.length === 0
-              ? status(words?.empty ?? 'Nothing here.')
-              : h.div(slots.root.attrs([h.Id(listed.name)]), [
-                  ...notice,
-                  h.p(slots.status.attrs([h.Role('status')]), [words?.empty ?? 'Nothing here.']),
-                ])
-          }
-          return h.div(slots.root.attrs([h.Id(listed.name)]), [
+        ): Html =>
+          h.div(slots.root.attrs([h.Id(listed.name)]), [
             ...notice,
             h.table(slots.table.attrs(refreshing ? [h.AriaBusy(true)] : []), [
               h.thead(slots.head.attrs(), [
@@ -311,30 +385,83 @@ const list = <Message>() => ({
                 ]
               : []),
           ])
-        }
 
-        const { page } = input
-        switch (page._tag) {
-          case 'Initial':
-          case 'Loading':
-            return status(words?.loading ?? 'Loading…', true)
-          case 'Failed':
-            // A failed refresh keeps the rows it had: they are still the best
-            // answer there is, and the failure is said above them.
-            return page.previous === undefined
-              ? h.div(slots.root.attrs([h.Id(listed.name)]), [...failure(page.error)])
-              : table(page.previous, false, failure(page.error))
-          case 'NotFound':
-            return status(words?.empty ?? 'Nothing here.')
-          case 'Refreshing':
-            return table(page.value, true)
-          case 'Ready':
-            return table(page.value, false)
-        }
+        return listState(
+          { name: listed.name, page: input.page, onRetry: input.onRetry, words },
+          slots,
+          h,
+          table,
+        )
       },
       { name: listed.name },
     )
   },
+})
+
+const rowList = <Message>() => ({
+  /**
+   * The view of a list drawn as `ul`/`li` rows: the same state contract as
+   * `ListView`, over the row markup a navigation or a picker needs, where a
+   * table's columns would be wrong. The application draws each row's content;
+   * the whole row is a button when `onOpen` is given.
+   */
+  define: <Row>(listed: {
+    readonly name: string
+  }): SlotView.SlotView<typeof RowListSlots, RowListInput<Row, Message>, Message> =>
+    SlotView.forMessages<Message>().define(
+      RowListSlots,
+      (input: RowListInput<Row, Message>, slots, h) => {
+        const { words } = input
+        const rows = (
+          page: Page<Row>,
+          refreshing: boolean,
+          notice: ReadonlyArray<Html> = [],
+        ): Html =>
+          h.div(slots.root.attrs([h.Id(listed.name)]), [
+            ...notice,
+            h.ul(
+              slots.list.attrs(refreshing ? [h.AriaBusy(true)] : []),
+              page.items.map((row, position) => {
+                const values = row as Readonly<Record<string, unknown>>
+                const key =
+                  input.rowKey?.(row) ??
+                  (typeof values.id === 'string' ? values.id : String(position))
+                const content = input.row(row, h)
+                return h.li(
+                  slots.row.attrs([h.Key(key)]),
+                  input.onOpen === undefined
+                    ? content
+                    : [
+                        h.button(
+                          slots.open.attrs([h.Type('button'), h.OnClick(input.onOpen(row))]),
+                          content,
+                        ),
+                      ],
+                )
+              }),
+            ),
+            ...(page.hasNext && input.onMore !== undefined
+              ? [
+                  h.button(
+                    slots.more.attrs([
+                      h.Type('button'),
+                      h.Disabled(refreshing),
+                      h.OnClick(input.onMore),
+                    ]),
+                    [words?.more ?? 'More'],
+                  ),
+                ]
+              : []),
+          ])
+        return listState(
+          { name: listed.name, page: input.page, onRetry: input.onRetry, words },
+          slots,
+          h,
+          rows,
+        )
+      },
+      { name: listed.name },
+    ),
 })
 
 const detail = <Message>() => ({
@@ -431,4 +558,12 @@ export const ListView = {
 export const DetailView = {
   /** Names the Messages a special cell may send: `DetailView.forMessages<Message>().define(PostDetail)`. */
   forMessages: detail,
+}
+
+export const RowListView = {
+  /**
+   * A list drawn as `ul`/`li` rows: `RowListView.forMessages<Message>().define(Pages)`.
+   * The row drawing comes from the input; this carries the list's state contract.
+   */
+  forMessages: rowList,
 }

@@ -20,6 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
   read, on the restore slot so no new builder is required; the Failed and
   Loading states draw as an alert and a busy status instead of plain text.
   The body now branches through `Match.tagsExhaustive`.
+- **`foldkit-mixins-crud`, `RowListView`:** a list drawn as `ul`/`li` rows
+  over the same state contract `ListView` carries (busy, empty, failed with
+  the caller's retry, a failed refresh kept above its rows). The application
+  draws each row's content through `RowListInput.row`; `onOpen` makes the
+  whole row a button. Both lists share one implementation, so their states
+  cannot drift.
 
 ## 0.12.0
 

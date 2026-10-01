@@ -174,9 +174,31 @@ PostTable(
 DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model) }, h)
 ```
 
+A list whose markup is rows rather than a table (a navigation, a picker of
+whole rows) uses `RowListView`, which carries the same state contract over
+`ul`/`li`; you draw each row, and `onOpen` makes the whole row a button:
+
+```ts
+import { RowListView } from 'foldkit-mixins-crud'
+
+const PageList = RowListView.forMessages<Message>().define<PageRow>({ name: 'Pages' })
+PageList(
+  {
+    page: SitePages.read(model),
+    row: (page, h) => [h.span([], [page.label])],
+    onOpen: page => Message.OpenedPage({ id: page.id }),
+    onRetry: Message.RetriedPages(),
+    words: { empty: 'No pages yet.' },
+  },
+  h,
+)
+```
+
 Slots: `ListSlots` (`root`, `status`, `table`, `head`, `headRow`, `body`, `headCell`, `sort`, `row`, `cell`,
 `open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
-`list`, the `dl`; `status`, `term`, `value`, `retry`). The `status` line is
+`list`, the `dl`; `status`, `term`, `value`, `retry`); `RowListSlots` is
+`root`, `status`, `list` (the `ul`), `row` (an `li`), `open`, `more`, `retry`.
+The `status` line is
 `aria-busy` while the first answer is awaited, so a style tells loading from
 empty (`[aria-busy]`). A failed read shows a `role="alert"` line; a failed refresh keeps the
 rows (or the detail's value) below it, and `onRetry` adds a button. The button
