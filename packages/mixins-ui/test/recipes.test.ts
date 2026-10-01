@@ -241,6 +241,24 @@ describe('Recipes', () => {
     })
   })
 
+  describe('Dialog', () => {
+    const dialogCss = (selection: Parameters<typeof Recipes.Dialog>[0]): string => {
+      const piece = Recipes.Dialog(selection).dialog
+      return piece === undefined ? '' : Style.forSlots(DialogSlots)({ dialog: piece }).css
+    }
+
+    it('puts the modal back in the middle, where the reset left it in the corner', () => {
+      expect(dialogCss({})).toContain('margin:auto')
+    })
+
+    it('sizes the panel to the selected width', () => {
+      const panel = Recipes.Dialog({ size: 'sm' }).panel
+      expect(panel === undefined ? '' : Style.forSlots(DialogSlots)({ panel }).css).toContain(
+        'max-inline-size:min(24rem, 100% - 2rem)',
+      )
+    })
+  })
+
   describe('Badge', () => {
     const BadgeSlots = Slots.define({
       badge: Slot.make({ capability: Capability.Container }),

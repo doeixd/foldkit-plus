@@ -12,6 +12,9 @@ export const Dialog = Style.recipeFor(DialogSlots)({
   base: {
     dialog: component(
       Style.self({
+        // `Defaults.reset` zeroes every margin, which takes away the user
+        // agent's `margin: auto` and drops the modal in the top corner.
+        margin: 'auto',
         padding: '0',
         border: '0',
         background: 'transparent',

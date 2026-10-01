@@ -37,6 +37,12 @@ version changed; `pnpm` skips versions already in the registry.
   whole row a button. Both lists share one implementation, so their states
   cannot drift.
 
+### Fixed
+
+- **`foldkit-mixins-ui`, `Recipes.Dialog`:** restores the modal's
+  `margin: auto`, which `Defaults.reset` zeroes, so a dialog opens centered
+  rather than in the top corner.
+
 ## 0.12.0
 
 `foldkit-agent` 0.5.0; `foldkit-bundle` 0.4.0; `foldkit-cms` 0.3.0;

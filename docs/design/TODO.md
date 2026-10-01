@@ -521,10 +521,15 @@ its README the details.
   `Style.install`, with `AppStyle.make` for the page sheet.
 - [ ] **Mixins: `Theme.oklch` tints success and error with the accent's hue,**
   so under a blue accent they read blue. `foldkit-job-application`
-- [ ] **Mixins: `Recipes.Dialog` does not undo `Defaults.reset`'s `margin: 0`,**
-  so a modal opens against the top of the window; and a class `@foldkit/ui`
-  sets inside a ChildAttribute cannot be styled. `foldkit-pixel-art`,
-  `foldkit-ui-showcase`, `foldkit-job-application`
+- [x] **Mixins: `Recipes.Dialog` did not undo `Defaults.reset`'s `margin: 0`.**
+  Built: the recipe restores `margin: auto`, so a modal opens centered rather
+  than in the top corner; removing it fails the recipe test.
+- [ ] **Mixins: a class `@foldkit/ui` sets inside a ChildAttribute can be
+  styled only by a descendant rule,** not by a Mixin on that element. The
+  resolver preserves ChildAttributes by identity on purpose (they are the
+  component's own), so the extension point is `Style.nest`/`pseudo` under the
+  slot. Decide whether that is enough before changing ownership.
+  `foldkit-pixel-art`, `foldkit-ui-showcase`, `foldkit-job-application`
 - [ ] **Mixins: recipe omission and result-key typing.** Evaluate a typed
   omission of selected recipe pieces or an optional-piece variant for the
   showcase Dialog; keep `.extend` additive. Preserve known output keys where
