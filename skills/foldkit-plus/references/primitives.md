@@ -188,5 +188,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 ## See also
 
 - Primitives package: https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives
+- One reference per subpath, each with every Model, Message, arg, and failure rule:
+  https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives/media/README.md,
+  and likewise `net`, `time`, `state`, `motion`, `interaction`, `device`, `events`,
+  `observers`, `dom`
 - Bundle mechanism: https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle
 - Joining integrations: https://github.com/doeixd/foldkit-plus/blob/main/docs/wiring.md

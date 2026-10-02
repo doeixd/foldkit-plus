@@ -1,68 +1,85 @@
 # `foldkit-primitives/motion`
 
-Animation state: values moving over time, in the Model. See the [package
-README](../README.md) for the full guide; this page walks through one placement before
-the API reference.
+Where an animation is, as a number in the Model: a tween over a fixed time, a
+spring that settles, a mount transition that lets content leave before it is
+removed. The view decides what the number does to CSS; easing curves stay the
+application's job.
 ([source](https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives/src/motion))
 
-## Owns
+| Name | Form | Model | Messages | Args |
+| --- | --- | --- | --- | --- |
+| `Tween` | bundle | `{ value, running }` | `Started`, `Stopped`, `Ticked`, `Finished` | `{ from, to, ms }` |
+| `Spring` | bundle | `{ value, velocity, running }` | `Started`, `Stopped`, `Ticked`, `Finished` | `{ from, to, stiffness, damping }` |
+| `Presence` | bundle | `{ phase, generation }` | `Show`, `Hide`, `Hidden` | `{ durationMs }` |
+| `Motion` | service | | | `Motion.live`, `.reduced`, `.full` |
 
-Where an animation is, as parent-Model facts. Easing curves stay the application's job;
-these bundles move numbers.
-
-```text
-browser / clock → subscription → Message → update → parent Model
-```
-
-## Start with one slice
+## Start with one: a tween
 
 ```ts
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Tween } from 'foldkit-primitives/motion'
+import { Tween, TweenMessage } from 'foldkit-primitives/motion'
 
-const Slide = Bundle.declare(Tween, 'slide')
-const Model = Schema.Struct({ ...Slide.fields })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Slide.cases })
-type Message = typeof Message.Type
-const Page = Bundle.parent({ Model, Message })
-const placements = Page.assemble(Page.at(Slide, { args: { from: 0, to: 1, ms: 200 } }))
+const Page = Bundle.compose({}).pipe(
+  Bundle.withChild('slide', Tween, { args: { from: 0, to: 1, ms: 200 } }),
+)
+type Model = typeof Page.Model.Type
+type Message = typeof Page.Message.Type
+const { placements } = Page
 
 const config = placements.complete({
   init: () => placements.initial({}),
   update: placements.update(model => ({ model })),
-  view: (model: Model, h: HtmlBuilder<Message>) => h.div([], [String(model.slide.value)]),
+  view: (model: Model, h: HtmlBuilder<Message>) =>
+    h.div(
+      [
+        h.Style({ opacity: String(model.slide.value) }),
+        h.OnClick(Page.Message.GotSlideMessage({ message: TweenMessage.Started() })),
+      ],
+      ['Fade in'],
+    ),
   subscriptions: placements.subscriptions(),
 })
 ```
 
-The tween starts at `0`, stopped. Dispatch `Message.GotSlideMessage({ message:
-TweenMessage.Started() })` to animate (import `TweenMessage` from this subpath).
-`Stopped()` holds the current value; a new start runs the configured `from` → `to`
-trajectory again. The view decides how the number affects CSS.
+The tween starts at `from`, stopped. `Started` runs it; progress comes from
+Effect's clock, so a test advances it with `TestClock`. The stream ends with
+`Finished` carrying the exact end value, and the value rests at `to` either
+way. `Stopped` holds the current value; a new `Started` runs `from` to `to`
+again. Linear interpolation only. A duration that is not positive and finite is
+rejected at placement.
 
-`config` is a Foldkit application configuration. Creating it does not start the
-subscription; pass it to your Foldkit runtime. The parent Model owns the slice, and
-`placements.update` routes its wrapper Messages. See the [Bundle
-guide](../../bundle/README.md) for mounting and composing placements.
+## `Spring`
 
-## Exports
+Pulls one number toward `to` with `{ stiffness, damping }` physics (positive
+and finite). A fixed 16 ms semi-implicit Euler step makes the trajectory
+identical on the live clock and `TestClock`; the stream ends with `Finished`
+carrying the exact end value even when an underdamped spring overshoots on the
+way. `Tween` is a fixed duration; `Spring` settles. Pick the motion, not both.
 
-| Name | Form | Needs |
-| --- | --- | --- |
-| `Tween` | bundle `{ value, running }`, linear over `ms` | `{ from, to, ms }` |
-| `Spring` | bundle `{ value, velocity, running }`, physics | `{ from, to, stiffness, damping }` |
-| `Presence` | bundle `{ phase, generation }` for exit animations | `{ durationMs }` |
+## `Presence`: let content leave
 
-`Tween` (fixed duration) versus `Spring` (settles): pick the motion, not both. Both end
-with `Finished` carrying the exact end value. `Presence` times its exit with a Command;
-a late `Hidden` loses to an intervening `Show` by generation. `isVisible` reads whether
-content renders.
+Holds mount-transition state for an exit animation. `phase` moves
+`shown → hiding → hidden`: `Hide` starts the timed `hiding` phase, and the
+`Hidden` fact it schedules carries its generation, so a `Show` in between wins
+and the late fact is ignored. `isVisible(model)` reads whether content renders
+(shown or mid-exit); the view keeps drawing while it does, with a class for
+the exit. The timeout Command is the owner; a `transitionend` Mount is a future
+opt-in, not a second timer.
+
+## Reduced motion is a service
+
+Whether motion should be reduced is read when a transition starts, not sniffed
+once. Provide `Motion.live` (the user's `prefers-reduced-motion`) through the
+assembly's resources, or `Motion.reduced` and `Motion.full` in a test or for a
+setting the application owns. Under reduced motion `Presence` exits at once
+and `Tween` and `Spring` jump to `to`, through the same Messages, so the Model
+sees the same transitions. With no service provided, motion is full.
+`Motion.reducedMotion` is the Effect the bundles read, for a transition of your
+own.
 
 ## Failure
 
-Non-positive or non-finite durations are rejected at placement. Stopped streams are
-empty; `Finished` still rests the value exactly.
+A non-positive or non-finite duration, stiffness, or damping is rejected at
+placement. A stopped stream is empty; `Finished` still rests the value exactly.

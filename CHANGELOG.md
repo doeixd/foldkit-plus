@@ -42,8 +42,28 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-ui`, `Recipes.Dialog`:** restores the modal's
   `margin: auto`, which `Defaults.reset` zeroes, so a dialog opens centered
   rather than in the top corner.
+- **`foldkit-bundle`, `Bundle.withServices` in a `compose` pipe:** it refused
+  a composition whose placements were already readable (every child
+  configured, or none), because its parameter typed the incoming services as
+  `any` and `Composition` is invariant there. It is generic now, so
+  `Bundle.compose(fields).pipe(Bundle.withServices<S>(), Bundle.withChild(…))`
+  type-checks as the README says.
 
 ### Changed
+
+- **`foldkit-primitives`, broken out into one reference per subpath.** The
+  package README is onboarding and a map: which of the five forms a primitive
+  takes (bundle, bundle plus Behavior, entry, Mount, Command, or function),
+  one placement walked through, the three other ways in, the rules every
+  primitive keeps, and a table pointing at ten subpath pages. Each subpath
+  README (`media`, `net`, `time`, `state`, `motion`, `device`, `events`,
+  `observers`, `dom`, and a new `interaction`) now holds its primitives'
+  Model shapes, Messages, args, a placement in `Bundle.compose` form, and the
+  detail that used to sit in one 1000-line page. Every snippet is type-checked
+  in `test/readme.test-d.ts` and `test/readme/<subpath>.test-d.ts`, which
+  caught two snippets the old page could not keep: a `SlotView.define` whose
+  input was unannotated, and a `withChild` config whose `onOut` returns
+  Commands (written against `Base.Model` and given through `configure`).
 
 - **`foldkit-sync`, `foldkit-durable`, and the replicated-state guide,
   rewritten for the reader who has an application and wants it to work

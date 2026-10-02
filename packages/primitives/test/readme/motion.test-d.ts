@@ -1,22 +1,25 @@
-import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Tween } from '../../src/motion/index.js'
+import { Tween, TweenMessage } from '../../src/motion/index.js'
 
-const Slide = Bundle.declare(Tween, 'slide')
-const Model = Schema.Struct({ ...Slide.fields })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Slide.cases })
-type Message = typeof Message.Type
-const Page = Bundle.parent({ Model, Message })
-const placements = Page.assemble(Page.at(Slide, { args: { from: 0, to: 1, ms: 200 } }))
+const Page = Bundle.compose({}).pipe(
+  Bundle.withChild('slide', Tween, { args: { from: 0, to: 1, ms: 200 } }),
+)
+type Model = typeof Page.Model.Type
+type Message = typeof Page.Message.Type
+const { placements } = Page
 
 const config = placements.complete({
   init: () => placements.initial({}),
   update: placements.update(model => ({ model })),
-  view: (model: Model, h: HtmlBuilder<Message>) => h.div([], [String(model.slide.value)]),
+  view: (model: Model, h: HtmlBuilder<Message>) =>
+    h.div(
+      [
+        h.Style({ opacity: String(model.slide.value) }),
+        h.OnClick(Page.Message.GotSlideMessage({ message: TweenMessage.Started() })),
+      ],
+      ['Fade in'],
+    ),
   subscriptions: placements.subscriptions(),
 })
-
 void config

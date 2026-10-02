@@ -1,80 +1,40 @@
 # `foldkit-primitives`
 
-Ready-made [`foldkit-bundle`](../bundle) primitives: media queries, breakpoints,
-presence, timers, intervals, debounce, tweens, springs, pagination, history,
-locales, selections, ranges, geolocation, cameras, permissions, sockets,
-broadcasts, observers, and clipboard. Most are ordinary bundles — Model,
-Message, init, update, and Subscriptions collected in one value — published
-under a tree-shakeable subpath, so an application pays only for the primitives
-it places. The exceptions keep their own form: entries are Subscription
-streams mapped to the parent's Message (keyboard, pointer, scroll); Mounts
-are element-scoped observation attached with `h.OnMount` (`Resize`,
-`Autofocus`); Commands are one-shot (`copyText`, `share`); pure helpers are
-functions (`range`, `formatRelativeTime`).
+Ready-made pieces of browser, clock, device, and interaction state for a
+Foldkit application: a media query, a timer, a socket, an undo stack, a roving
+tab stop, a resize observer, a clipboard write. Each comes in the shape Foldkit
+already has, so adding one adds no store, no hook, and no second reducer. The
+fact lives in your Model, arrives as a Message, and replays like everything
+else.
 
 ```ts
 import { MediaQuery } from 'foldkit-primitives/media'
 ```
 
-## Which state belongs here?
+> **The browser reports; the Model owns.** A primitive observes something and
+> hands your `update` a Message. What your application keeps, and what it does
+> about it, stays yours.
 
-A primitive belongs here when it is **reused across applications** and
-**stateful**: something observes it, something reacts to it, and replay sees
-the same transitions. That is exactly the bundle shape, which is why this
-package depends on `foldkit-bundle` and nothing else (besides peers). The one
-exception is `interaction`, whose Bundles ship with a `foldkit-mixins` Behavior
-that wires them to a view's slots; `foldkit-mixins` is an optional peer that
-only that subpath needs.
+## Which form a primitive takes
 
-| Kind | Form | Example |
-| --- | --- | --- |
-| Stateful + effectful | bundle | MediaQuery, Timer, WebSocket, Pagination |
-| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex, Typeahead, ListNavigation, GridNavigation, Press |
-| Keyed collections of stateful items | bundle per key | uploads, sockets, timers (later) |
-| Stream source with a stored fact | bundle with one boolean/scalar slice | Online, Visibility, WindowSize |
-| Stream source only | Subscription entry, not a bundle | keyboard, pointer, scroll, broadcast |
-| Element-scoped observation | Mount, not a bundle | Resize, Intersection, Mutation, Autofocus |
-| One-shot actions | Command, not a bundle | clipboard copy, share, script load |
-| Derived data | pure function, not a bundle | range, relative time, platform |
+Every primitive is one of five things, chosen by what it has to own:
 
-Choose by what you need to own. State that outlives the moment — a match,
-a count, a page, a position — wants a bundle: the Model keeps it, replay
-sees it. A stream you only react to wants an entry: map it into the
-parent's Message and keep nothing. Work bound to one element wants a
-Mount. Work that runs once and reports back wants a Command. A value
-computed from data you already have wants a pure function. When in doubt,
-start with the lighter form; promote to a bundle the day the state needs
-a name in the Model.
+| It needs to own | Form | Joins the application by | Examples |
+| --- | --- | --- | --- |
+| A fact that outlives the moment: a match, a count, a page, a position | **bundle** | placing it in the parent, as a field and a wrapper Message | `MediaQuery`, `Timer`, `Pagination`, `websocket` |
+| Interaction state a view's slots must reflect | **bundle + Behavior** | placing it, then attaching its Behavior to the view's slots | `RovingTabindex`, `Press`, `DismissLayer` |
+| Nothing: a stream you react to | **entry** | lifting it into your Subscriptions, mapped to your Message | `keyboardEvents`, `ticks`, `broadcastMessages` |
+| Nothing: observation bound to one element | **Mount** | attaching it in the view with `h.OnMount` | `Resize`, `Autofocus`, `KeepInView` |
+| Nothing: work done once that reports back | **Command** | returning it from `update` | `copyText`, `share`, `enterFullscreen` |
+| Nothing: a value computed from what you have | **function** | calling it | `range`, `matchHotkey`, `formatRelativeTime` |
 
-A bundle holds no state and performs no I/O by itself. The parent Model owns
-the placed slice; the browser (or server, or clock) only reports facts as
-Messages. The same rule as everywhere else: observation is not ownership.
+The lighter form wins when in doubt. Promote to a bundle the day the state
+needs a name in the Model.
 
-A Message that changes nothing (a repeated resize, `Started` while running,
-a total that is already held) returns the Model it was given, and a
-placement then returns the parent unchanged. Foldkit renders only when the
-root Model changes identity, so such a Message renders nothing, and a
-`createLazy` view over a placed slice is skipped while the slice is the same.
-
-Solid developers will notice missing plumbing: there is no event bus
-because Messages are the bus, no memo because derivations are pure reads
-over the Model, and no reactive map or store because the Model holds plain
-data (Effect collections where mutation matters). None of it is missing by
-accident — one state machine leaves nowhere for a second one to live.
-
-## The mental model
-
-```text
-browser / clock / server ──facts as Messages──▶ update ──▶ Model slice
-                                                    ▲
-The parent Model owns the recorded fact; subscriptions report environment changes.
-```
-
-Initialization creates the Model slice; subscriptions observe ongoing facts and
-report Messages; `update` stores them. Defaults differ by primitive:
-MediaQuery starts at `false`, while Online, Visibility, and Locale read an
-available platform value during initialization. Missing browser APIs have
-primitive-specific fallbacks; do not infer readiness from an SSR default.
+The one dependency is [`foldkit-bundle`](../bundle), whose placement
+mechanism every bundle here uses. `interaction` additionally needs
+[`foldkit-mixins`](../mixins), an optional peer, because its Behaviors write to
+a view's slots.
 
 ## Install
 
@@ -82,32 +42,14 @@ primitive-specific fallbacks; do not infer readiness from an SSR default.
 pnpm add foldkit-primitives foldkit-bundle effect foldkit
 ```
 
-`effect` and `foldkit` are peer dependencies. Import per subpath —
-`foldkit-primitives/media`, `foldkit-primitives/net`, `foldkit-primitives/time`,
-`foldkit-primitives/state`, `foldkit-primitives/motion`, `foldkit-primitives/device`,
-`foldkit-primitives/events`, `foldkit-primitives/observers`, `foldkit-primitives/dom` —
-so bundlers drop the primitives you never import.
-
-## Map of the package
-
-Each subpath is one concern, one import:
-
-- `media` — environment facts: MediaQuery (+presets), Breakpoints, platform
-- `net` — remote facts: Online, WebSocket, SSE, BroadcastChannel
-- `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
-- `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
-- `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, PointerDrag, EditableText, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
-- `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
-- `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
-- `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Measure, Move, Targets, PointerDrag, EditableText, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+`effect` and `foldkit` are peer dependencies. Import by subpath (`/media`,
+`/net`, `/time`, `/state`, `/motion`, `/interaction`, `/device`, `/events`,
+`/observers`, `/dom`) so a bundler drops what you never import.
 
 ## Sixty seconds: follow the color scheme
 
-**Place it in a parent.** `Bundle.compose` states the parent's own field and
-Message, and places the primitive under `dark`, with the wrapper Message
-`GotDarkMessage` by Foldkit's `Got<Field>Message` convention:
+A bundle is placed in a parent, which gains a field for its state and a
+wrapper Message for its transitions:
 
 ```ts
 import { Schema } from 'effect'
@@ -121,11 +63,7 @@ const Page = Bundle.compose({ theme: Schema.String }).pipe(
 )
 type Model = typeof Page.Model.Type
 type Message = typeof Page.Message.Type
-```
 
-**Run it.** The parent's assembly derives the update and the Subscriptions:
-
-```ts
 const { placements } = Page
 
 const config = placements.complete({
@@ -137,848 +75,142 @@ const config = placements.complete({
 })
 ```
 
-`update` routes `GotDarkMessage` to the bundle; `subscriptions` runs the
-`matchMedia` stream; `initial` starts `matches` at `false` and the stream
-corrects it on subscribe. None of these calls perform I/O: `compose` states
-the parent, `withChild` places the primitive with its config, and the
-assembly derives the folding and the streams. The browser is touched only
-when the runtime subscribes. The Solid equivalent this replaces:
+What each line does, and does not do:
+
+- **`Bundle.compose(...).pipe(withChild('dark', MediaQuery, …))`** states the
+  parent: its own field `theme`, its own Message `ThemeSet`, and `MediaQuery`
+  under `dark`. The Model is `{ theme, dark: { matches } }`; the Message union
+  gains `GotDarkMessage`. Nothing runs.
+- **`placements.initial({ theme: 'light' })`** gives the fields no placement
+  owns; `dark` starts at `{ matches: false }`.
+- **`placements.update(own)`** routes `GotDarkMessage` to the bundle and
+  everything else to your own update.
+- **`placements.subscriptions()`** is the `matchMedia` stream, lifted. The
+  browser is touched only when the runtime subscribes, which then corrects
+  `matches` at once.
+- **`config`** is an ordinary Foldkit application config. Hand it to the
+  runtime.
+
+The Solid line this replaces is `createMediaQuery('(prefers-color-scheme: dark)')`.
+The difference is where the answer lives: in the Model, where replay,
+DevTools, an agent, and a server render all see it.
+
+## The other three ways in
+
+**An entry**, lifted into your Subscriptions and mapped to your Message. The
+parent keeps whatever it wants of the stream:
 
 ```ts
-// solid-primitives: const dark = createMediaQuery('(prefers-color-scheme: dark)')
-// Here the fact lives in the Model: replay, DevTools, and time travel see it.
-```
-
-## Composing placements
-
-One assembly holds every placement: spread its update, init,
-subscriptions, and resources once per application, as above. Two
-placements of one bundle observe twice — share the field instead, so one
-stream feeds every reader. One assembly holds one socket, stream, or
-watch: resource tags are per module, and `assemble` refuses the second.
-Bundles whose settled value is the whole point (`Debounce`, `Throttle`)
-surface it as an OutMessage the placement handles with `onOut`, so the
-signal can never be dropped by omission. Entries lift with
-`Subscription.persistent`, mapping into the parent's Message; Mounts
-attach in views with `h.OnMount`.
-
-## Media: `foldkit-primitives/media`
-
-> Reference: [`./media/README.md`](./media/README.md)
-
-`MediaQuery` follows one CSS media query. Model `{ matches: boolean }`,
-one Message `Changed { matches }`, args `{ query: string }`. The stream emits
-the current value on subscribe, then every change; without `matchMedia` it is
-empty and the slice keeps its initial `false`.
-
-Bound presets place with no args:
-
-```ts
-import { PrefersDark, PrefersReducedMotion } from 'foldkit-primitives/media'
-
-const Page = Bundle.compose({ theme: Schema.String }).pipe(Bundle.withChild('dark', PrefersDark))
-```
-
-`Breakpoints` derives names from one `resize` listener: args
-`{ breakpoints }` map names to mobile-first min-widths (finite — anything
-else is rejected at placement), Model
-`{ width, breakpoint }`, one Message `Changed { width }`. The breakpoint is
-the largest name at or below the width (ties break alphabetically); SSR
-starts at width 0 with `null`. Placing both `Breakpoints` and `WindowSize`
-doubles resize listeners — pick the one the view reads.
-
-`platformFromUA(ua, hints?)` reads `mac | windows | linux | android | ios | unknown`
-from a passed user-agent string (mobile checks first: Android contains
-"Linux", iPhones mention "Mac"); Client Hints `platform` wins when
-recognized, and a multi-touch Mac UA reads as iOS. `isBrowser()`/`isServer()` split SSR from
-client for init defaults.
-
-## Net: `foldkit-primitives/net`
-
-> Reference: [`./net/README.md`](./net/README.md)
-
-`Online` keeps `online: boolean` in the Model, read from `navigator.onLine`
-at startup and kept current by the window's `online`/`offline` events. One
-Message `Changed { online }`, no args, no OutMessage. Without a window the
-stream is empty and the slice stays at its default, so SSR renders online.
-
-`sse({ name, createSource? })` is the one-directional sibling: the Model
-holds `{ url, status, lastError }`, the resource owns the EventSource, and a
-subscription streams its messages. No `send` — the server speaks, the Model
-listens. A `Failed` records the error but stays `connecting`: the browser
-reconnects dropped streams itself. Event payloads are always text per the
-SSE spec.
-
-`websocket({ name, createSocket? })` makes a duplex socket bundle: the Model
-holds `{ url, status, lastError }` with `status` moving
-closed → connecting → open. The resource owns the socket (one assembly holds
-one); `send` is a placed helper whose command writes through the resource tag
-and yields `Sent { data }` on dispatch, carrying what was sent, and
-`SendFailed` when no connection is open — a closed socket's `send` is a
-silent no-op per spec, so the bundle checks first. Args `{ url,
-connectTimeoutMs? }`: with a timeout, a socket still connecting when it runs
-out is closed and reported as `TimedOut` (status closed, `lastError` set);
-without one, an attempt waits as long as the browser does.
-Incoming `Received` notifies without storing: project the payload into your
-own field to keep it. `createSocket` defaults to the platform WebSocket, read
-lazily so tests substitute a double; the socket service rides the assembly
-into the application's resources, as `RemoteClient` does for Remote.
-
-`broadcastMessages(name)` is the entry form for cross-tab traffic: posts from
-other instances arrive as `Received { data }` (notify without storing, like
-SSE). No bundle — the channel owns no state, so the parent maps `Received`
-into its own Message and keeps what it stores. `postBroadcast(name, data)` is
-the one-shot Command, yielding `Posted` or `BroadcastFailed`. A post never
-echoes to its own channel, per spec; without the API the entry is empty and
-the Command fails, instead of throwing.
-
-## Time: `foldkit-primitives/time`
-
-> Reference: [`./time/README.md`](./time/README.md)
-
-`Timer` counts ticks while running. Model `{ count, running }`, Messages
-`Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive and finite —
-anything else is rejected at placement). The tick stream runs on
-Effect's clock, so tests advance it with TestClock instead of waiting; while
-stopped the stream is empty. The first tick comes one interval after
-`Started`. Restarting keeps the count; only `Ticked` advances it.
-
-`Interval` is the wall-clock sibling: Model `{ running, lastAt }`,
-`Ticked { at }` stamped from Effect's clock. `Timer` counts ticks,
-`Interval` records when — views render clocks and elapsed times from
-`lastAt`. Same args, same TestClock story, same silence while stopped.
-
-Both own their `running` flag, at an interval fixed where they are placed.
-When the parent's Model already decides whether the clock runs and how fast
-(a game's phase and its score), a second flag would be a second owner of that
-fact. `ticks` is the entry for that case: `intervalMs` reads the interval from
-the Model, `None` while stopped, and `onTick` makes the parent's Message with
-the tick's time:
-
-```ts
-import { Option } from 'effect'
+import { Stream } from 'effect'
 import * as Subscription from 'foldkit/subscription'
-import { ticks } from 'foldkit-primitives/time'
+import { keyboardEvents } from 'foldkit-primitives/events'
 
-const subscriptions = Subscription.make<Game, GameMessage>()(() => ({
-  clock: ticks({
-    intervalMs: (game: Game) =>
-      game.playing ? Option.some(Math.max(80, 150 - game.points)) : Option.none(),
-    onTick: () => GameMessage.TickedClock(),
-  }),
+const subscriptions = Subscription.make<GameModel, GameMessage>()(() => ({
+  keys: Subscription.persistent(
+    keyboardEvents({ preventDefault: press => press.key.startsWith('Arrow') }).pipe(
+      Stream.filter(event => event._tag === 'Pressed'),
+      Stream.map(({ key }) => GameMessage.PressedKey({ key })),
+    ),
+  ),
 }))
 ```
 
-A Model change that leaves the interval alone does nothing. A new interval
-applies from the next tick, without restarting the clock, so a game that
-speeds up keeps its rhythm instead of ticking at once; `None` stops it, and
-`Some` again starts afresh, one interval before the first tick. `Timer` and
-`Interval` are built on it.
-
-`debounce({ name, value })` is a factory over any value Schema (like
-`history`): `Changed` restarts a `{ delayMs }` timer, and only the latest
-value settles — as an OutMessage the placement must handle with `onOut`, so
-a settled query can never be dropped by omission. Each `Changed` bumps a
-generation the scheduled `Settled` carries; a superseded timer emits nothing.
-
-`Throttle` is the leading edge to Debounce's trailing one: the first
-`Attempted` in an `{ intervalMs }` window surfaces a `Throttled` OutMessage
-(`onOut`, likewise required), the rest are dropped. `Attempted` reads the
-clock through a Command, so the check runs on Effect time and tests drive
-it; the boundary counts as past (`>=`). Pair the two rather than adding a
-second timer.
-
-`formatRelativeTime(from, to, locale?)` picks the unit (seconds through
-years) and lets `Intl.RelativeTimeFormat` word it — locales come from the
-platform, not a phrase table. There is deliberately no `now` helper:
-`Clock.currentTimeMillis` already is it.
-
-## Events: `foldkit-primitives/events`
-
-> Reference: [`./events/README.md`](./events/README.md)
-
-`Visibility` keeps `visible: boolean` in the Model, read from the document
-at startup (SSR assumes visible) and kept current by `visibilitychange`:
-one Message `Changed { visible }`, no args. A hidden page is the
-application's cue to pause polling and streams; the decision stays in
-application `update`, not here.
-
-`WindowSize` keeps raw `{ width, height }` in the Model, read from the
-window on subscribe and kept current by one `resize` listener. SSR starts
-at zero; teardown removes the listener.
-
-`Idle` keeps `idle: boolean` in the Model, args `{ timeoutMs }` (positive
-and finite). While active, activity (mouse, keys, pointer, scroll) debounced past the
-timeout settles to `BecameIdle`; while idle, the first activity wakes to
-`BecameActive` and the dependency flip restarts the watch. Starts active —
-a lurker idles when the silence elapses, because subscribe time seeds the
-debounce as last-known-alive.
-
-`keyboardEvents()`, `pointerEvents()`, `scrollEvents()`, and
-`activeElementEvents()` are entries, not bundles: the parent owns whatever
-key, cursor, scroll, or focus state it keeps. They report presses (with
-repeat and modifiers) and releases, moves `{ x, y }`, scroll positions, and
-focus `{ tag, id }` — elements cross as tag and id, never as live nodes.
-`matchHotkey("ctrl+shift+k", press)` answers whether a press is a shortcut,
-so `update` stays a table of chords; matching is exact and auto-repeat never
-matches. When the observed target itself depends on state, scope the entry
-through subscription dependencies and it restreams on change.
-`keyboardEvents({ preventDefault: press => ... })` cancels the default of the
-presses the predicate picks (the arrows scrolling a game's page,
-`matchHotkey('ctrl+s', press)`), decided in the listener, because a default
-can only be cancelled while the event is dispatching. Lift
-with `Subscription.persistent`, mapping into the parent's Message; without
-a window each stream is empty instead of throwing.
-
-## Observers: `foldkit-primitives/observers`
-
-> Reference: [`./observers/README.md`](./observers/README.md)
-
-`Resize` and `Intersection` are Mounts, not bundles: element-scoped
-observation attaches in views, not Model slots. Attach `Resize()` (or
-`Intersection()`) with `h.OnMount` on the element. There are no ref objects
-to thread: a Mount receives its element directly, and views take the rest
-as plain arguments.
-
-`Resize()` reports `Resized { width, height }` from the element's content
-box; `Intersection()` reports `IntersectionChanged { isIntersecting, ratio }`
-on viewport crossings; `Mutation()` reports `Mutated { type, added, removed,
-attribute }` for child, attribute, and text changes across the whole subtree
-— nodes cross as names, never as live objects, and unknown record types are
-skipped. `Bounds()` re-measures `Measured { x, y, width, height }` on
-observer, scroll, and resize, starting with the current rect; without a
-ResizeObserver the window events still measure. Without the observer API
-(SSR, old browser) they emit nothing instead of throwing; teardown
-disconnects. Treat repeated measurements as observations, not proof that a user action occurred.
-
-## Device: `foldkit-primitives/device`
-
-> Reference: [`./device/README.md`](./device/README.md)
-
-`Geolocation` watches the device position while placed. Model `{ status,
-coords, lastError }` with `status` unknown → ready; denial is its own status
-(actionable UI), transient failures keep the last fix and note the error.
-Permission code 1 maps to `Denied`, anything else to `Failed`. Without a
-geolocation API the stream is empty instead of throwing.
-
-`mediaDevices({ name, create? })` scans the device list on placement and
-re-scans on `Scan`, `DevicesChanged` (wired to `devicechange`), and every
-placement: `Refreshed { devices }` with `{ deviceId, groupId, kind, label }`.
-Denial lands as `denied` while keeping the last list; other failures keep the last list and
-note the error; an unknown `kind` fails the scan at the boundary instead of
-entering the Model.
-
-`mediaStream({ name, request? })` holds one live camera/mic stream in a
-Managed Resource while the Model asks for it (`requesting` or `live`).
-`Started` requests with the placed `{ audio, video }` constraints, `Stopped`
-and `Ended` release; denial parks at `denied`, any other failure parks at
-`idle` with the error — both clear requirements, so a failing device never
-spins an acquire loop. Release stops every track. The `LiveStream` tag and
-service are exported for commands that attach the stream to an element; one
-assembly holds one stream.
-
-`permissions({ name, create? })` queries `{ names }` on acquire and watches
-each status object's `onchange` through an ordered queue into a persistent
-subscription. `Snapshot` replaces the states map, `Changed` merges one,
-`Cleared` empties on release (which also detaches every handler). Unknown
-names and unknown state strings fail the acquire — never Model facts.
-
-`enterFullscreen(element)` / `exitFullscreen()` are Commands yielding
-`Entered`/`Exited` or `Failed` (rejected request, missing capability, with a
-legacy `webkit` fallback); `fullscreenChanges()` starts with the current
-answer then follows flips as `Changed { active }`. No Model: the document
-owns fullscreen state.
-
-## DOM: `foldkit-primitives/dom`
-
-> Reference: [`./dom/README.md`](./dom/README.md)
-
-`copyText` copies text as a Command: use it in `update` beside any bundle.
-It yields `Copied` on success and `CopyFailed` otherwise — denial, insecure
-context, or no clipboard API (SSR) all become the failure Message instead of
-throwing. `readText()` reads it the same way, yielding a
-`ClipboardReadMessage`: `Read { text }`, or `ReadFailed` when the browser
-refuses. No Model involved: the clipboard is not
-application state.
-
-`share(data)` posts `{ title?, text?, url? }` to the platform sheet: `Shared`
-on success, `Dismissed` on sheet cancel (its own outcome, not a failure),
-`ShareFailed` otherwise. `loadScript(src)` appends a head script unless one
-carries the URL already — idempotent by URL, so concurrent placements
-collapse onto the first tag and share its fate — yielding `Loaded` or
-`LoadFailed`. A dead tag is removed, so a retry fetches afresh.
-
-`Autofocus()` focuses the element on insert, then emits `Focused` (requested,
-not landed: a non-focusable element may decline). `InputMask({ pattern })`
-masks a field against `#`/`A`/`*` placeholders with literal separators,
-rewrites the field with approximate caret restore, and emits
-`Input { value, raw }` with masked and unmasked text. The parent owns the
-state, like any controlled input.
-
-`KeepInView({ selector })` keeps what is marked in view: whenever an element in
-its subtree newly matches `selector` (the row just selected, the node just
-inserted), it is scrolled into view the least amount that shows it. It sends no
-Message and redraws nothing, so a focused row stays focused. Where there is no
-layout (jsdom), it scrolls nothing.
-
-`Measure({ targets: { selected: '[aria-selected="true"]' } })` measures, for
-each named target, the first element in its subtree that matches, relative to
-its scroll box, and writes `--fk-selected-x`, `-y`, `-w`, `-h` (pixels) and
-`--fk-selected-display` (`block`, or `none` while nothing matches) on the
-element (`measured('selected')` names them). A child placed absolutely from
-them, such as an editor's selection outline, sits over the target and scrolls
-with it. Where an element is, is presentation: it sends no Message and keeps
-nothing in the Model. It measures again when the subtree changes, as the
-records arrive, so the box moves in the frame the change is drawn in; and, at
-most once a frame, when the element scrolls, when it or a target changes size,
-when the window resizes, when an image or a font inside loads, and on each
-frame of a transition or an animation inside. Anything else that moves a
-target without resizing it (a stylesheet added) is seen at the next of these.
-
-## State: `foldkit-primitives/state`
-
-> Reference: [`./state/README.md`](./state/README.md)
-
-`Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`
-while unknown. Every transition clamps into range: past the last page lands on
-it, below one lands on one, and a smaller total pulls the page back. New sizes
-and totals arrive as Messages (`SetPerPage` ignores a non-positive size, and
-`SetTotal` ignores a negative total).
-`pageCount` returns null while the total is unknown; `offset` gives the first
-item's index for a slice or a query. Loading data stays the application's job:
-this bundle owns the page, not the items.
-
-`history({ name, value, capacity })` makes an undo/redo bundle over any value
-Schema. The Model holds `{ past, present, future, group }`; `Push` records and
-drops the redo future (an empty future is kept as it was, so a view reading it
-is not drawn again per push), `Undo`/`Redo` move one step, `GoTo { step }`
-jumps to any kept value, counted from the oldest (0) so the present is at
-`past.length`, and `Clear` empties both sides while keeping the present. A `Push` may name a `group`: consecutive pushes of
-the same group are one step, so typing a word undoes as a whole, with no clock.
-The steps are also pure functions, `History.start`, `push`, `undo`, `redo`,
-`goTo` and `clear`, for a parent that records an edit in the same transition that makes it
-(the page Builder keeps its page this way). Two more are only functions:
-`History.close(model)` ends the group, so the same group pushed again is a step
-of its own, and `History.revert(model, group)` takes back the step `group` is
-making with nothing left to redo, which is what a cancelled edit leaves. The past holds at most `capacity` entries (default 100);
-a negative or fractional capacity throws at the factory, naming it. The
-factory attaches the Message union, so placements dispatch
-`EditHistory.Message.Push(...)`. `canUndo`/`canRedo` read the edges:
+**A Mount**, attached to the element it observes. No ref to thread: the Mount
+receives its element.
 
 ```ts
-import { history } from 'foldkit-primitives/state'
+import { Resize } from 'foldkit-primitives/observers'
 
-const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })
-const Doc = Bundle.declare(EditHistory, 'doc')
+const panel = (model: PanelModel, h: HtmlBuilder<PanelMessage>) =>
+  h.div([h.OnMount(Resize())], [`${model.width} × ${model.height}`])
 ```
 
-`Locale` keeps one string in the Model, read from `navigator.language` at
-startup with the configured `default` as fallback; `SetLocale` switches it.
-`SelectionSet` keeps string ids in first-selection order: `Select` (keeps
-position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
-`Clear`. `isSelected` reads membership. Neither subscribes to changes; Locale reads the initial browser language when available.
-Keyed children — lists with stable identity — place through the bundle
-mechanism's `each`.
-`range(start, end, step?)` counts half-open numbers — the pagination page
-list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
-throws, naming it.
-
-`Virtual` owns a virtualized list's scroll position, measured heights, and
-layout: Model `{ scrollTop, heights, scrolling, generation, estimatedHeight,
-overscan, gap, paddingStart, paddingEnd }`, Messages
-`Scrolled`/`Measured`/`Prune`/`Settled`, args for the layout plus optional
-`initialScrollTop`/`initialHeights` restores (measurements sanitized like
-live ones) and a `settleMs` silence (default 150). Every scroll marks
-`scrolling` until the silence settles — suspend loaders and parallax on it.
-`Viewport` reports the container's own scrolls and `MeasureRow({ key })` reports row heights, both as Mounts;
-`windowFor(model, keys, viewportHeight)` answers which rows to render plus
-the spacer height, `isAtEnd(model, keys, viewportHeight, threshold)` is the
-infinite-scroll check (an empty list counts as ended), `distanceToEnd`
-answers the pixels remaining for prefetch thresholds, and `offsetFor`
-computes programmatic scroll targets the application actuates itself.
-These share one table of row offsets, built once per `keys` array and
-`heights` record and then searched, so keep the keys array between renders
-(derive it where the list changes, not in the view) and a scroll costs
-O(log n) instead of a pass over every row. Both are compared by identity:
-never change a keys array in place.
-`Prune` drops heights for departed keys — the bundle never sees key order.
-Poisoned positions and heights are ignored, never stored. For window-
-scrolled lists, map the scroll entry into `Scrolled`; for follow-bottom,
-hold the end while `isAtEnd` and scroll on extend; to anchor a prepend,
-re-`Scrolled` by the totals' delta. Render each row keyed (with
-`aria-rowcount`/`posinset` from the window) so per-row placements keep
-identity. `stickyHeader(sections, start)` answers which section header
-sticks — CSS `position: sticky` does the sticking. `masonry(keys, heights,
-options)` packs fixed-width columns shortest-first into `{ placements,
-totalHeight }`: layout only, every placed item renders, so it fits hundreds
-of images rather than hundred-thousands. The sums never name an
-axis: pass column widths as heights and a horizontal offset as scroll
-position to window a carousel the same way — no parallel horizontal
-bundle. Windowed grids and per-index estimates stay out by design.
-
-Persisted state lives one package over: `Mirror.kv(App, { key, fields })`
-keeps a Model slice in Effect's `KeyValueStore` (localStorage in the
-browser), restored through a `MirrorRestored` Message the application
-reduces. Nothing here duplicates it — reach for the mirror when a slice
-should survive reload, and keep this package's bundles for live facts.
-
-## Motion: `foldkit-primitives/motion`
-
-> Reference: [`./motion/README.md`](./motion/README.md)
-
-Whether motion should be reduced is a service, `Motion`, read when a
-transition starts rather than sniffed once. `Presence` then exits at once,
-and `Tween` and `Spring` jump to `to`, in the same Messages, so the Model sees
-the same transitions. Provide `Motion.live` (the user's
-`prefers-reduced-motion`) through the assembly's resources, or `Motion.reduced`
-and `Motion.full` in a test or for a setting the application owns. With no
-service provided, motion is full, so a placement that provides nothing behaves
-as before. `Motion.reducedMotion` is the Effect the bundles read, for a
-transition of your own.
-
-`Tween` animates one number from `from` to `to` over `ms` milliseconds.
-Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args
-`{ from, to, ms }` (a non-positive or non-finite duration is rejected at
-placement). Progress comes from Effect's clock, so tests advance it with TestClock; the
-stream ends with `Finished` carrying the exact end value, and the value rests
-at `to` either way. Linear interpolation only: easing curves stay the
-application's job.
-
-`Presence` holds mount-transition state for exit animations. Model
-`{ phase, generation }` with `phase` moving shown → hiding → hidden:
-`Hide` starts the timed `hiding` phase, and the `Hidden` fact it yields
-carries its generation, so a `Show` in between wins and the late fact is
-ignored. Args `{ durationMs }` (positive and finite). `isVisible` reads
-whether content renders (shown or mid-exit). The timeout Command is the default owner; a
-`transitionend` Mount stays a future opt-in, not a second timer.
-
-`Spring` pulls one number toward `to` with `{ stiffness, damping }` physics
-(positive and finite): Model `{ value, velocity, running }`, Messages
-`Started`/`Stopped`/`Ticked`/`Finished`, args `{ from, to, stiffness,
-damping }`. Fixed 16ms semi-implicit Euler makes the trajectory identical on
-the live clock and TestClock; the stream ends with `Finished` carrying the
-exact end value even when an underdamped spring overshoots on the way.
-`Tween` (fixed duration, linear) versus `Spring` (physics, settles) — pick
-the motion, not both.
-
-## Interaction: `foldkit-primitives/interaction`
-
-Interaction state that a view's slots must reflect: the Bundle holds it in the
-Model, and a matching [`foldkit-mixins`](../mixins) Behavior writes the
-attributes and handlers on the slots. Importing this subpath needs
-`foldkit-mixins`; the other subpaths do not.
-
-`RovingTabindex` is one tab stop for a set of items: arrows move focus between
-them, the rest stay out of the tab order. The Model slice is `{ current }`, the
-current item's **id**, so a reorder keeps the same item current and a resumed
-page knows where focus was. Args: `orientation` (`'vertical' | 'horizontal' |
-'both'`), `loop`, and `virtual` (focus stays on the container and
-`aria-activedescendant` points at the current item).
+**A Command**, returned from `update`, whose result comes back as a Message
+your union wraps:
 
 ```ts
-import { Bundle } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { mapMessage } from 'foldkit/command'
+import { copyText } from 'foldkit-primitives/dom'
 
-const Roving = Bundle.declare(RovingTabindex.bundle, 'toolbarFocus')
-const Model = Schema.Struct({ ...Roving.fields, tools: Schema.Array(Tool) })
-const Message = defineMessageUnion({ ...Roving.cases })
-const Page = Bundle.parent({ Model, Message })
-const args = { orientation: 'horizontal', loop: true, virtual: false } as const
-const placements = Page.assemble(Page.at(Roving, { args }))
-
-const ToolbarSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  tool: Slot.make({ capability: Capability.Focusable }),
-})
-const describeTools = (tools: ReadonlyArray<Tool>) =>
-  Behaviors.Collection.of(tools, { id: tool => tool.id, disabled: tool => tool.disabled })
-
-// Ids on each item come from Collection; RovingTabindex reads them.
-const Ids = Behaviors.Collection.behavior(ToolbarSlots)<Model, Message>({
-  item: 'tool',
-  items: model => describeTools(model.tools),
-})
-const Focus = RovingTabindex.behavior(Roving, args)(ToolbarSlots)<Model, Message>({
-  container: 'root',
-  item: 'tool',
-  items: model => describeTools(model.tools),
-})
-
-const Toolbar = SlotView.forMessages<Message>()
-  .define(ToolbarSlots, (model, slots, h) => {
-    const items = describeTools(model.tools)
-    return h.div(
-      slots.root.attrs([h.Role('toolbar')]),
-      model.tools.map((tool, index) =>
-        h.button(slots.tool.attrs([h.Key(tool.id)], items.slotItem(index)), [tool.label]),
-      ),
-    )
-  })
-  .pipe(Behavior.attach(Ids), Behavior.attach(Focus))
-```
-
-What each half does: the container gets `OnKeyDownFocus`, which on an arrow,
-Home or End focuses the next **enabled** item synchronously by its id, prevents
-the default, and dispatches `Focused { id }`. Each item gets `tabindex` `0` when
-it is the tab stop and `-1` otherwise, and `OnFocus` reporting `Focused`, so a
-click makes an item current too. Before anything is current, or when the
-current item is gone or disabled, the first enabled item is the tab stop. Keys
-with ctrl, alt or meta held are left alone; `direction: model => 'rtl'` swaps
-left and right. The pure `move(enabled, current, key, modifiers, options)` and
-`tabStop(items, current)` are exported for a view that wires its own.
-
-Under `virtual` the items get no `tabindex`, the container gets
-`aria-activedescendant`, and a key keeps DOM focus where it is and only moves
-the pointer. Nothing is written on dispose: the attributes are data, so a view
-that no longer attaches the Behavior leaves no `tabindex` behind. PageUp and
-PageDown are handled when `move` is given a `page`; `ListNavigation` below
-does that.
-
-`Typeahead` is type-to-find for a host that has no roving tab stop, or whose
-focus is managed elsewhere. The Model slice is `{ query, generation }`:
-printable keys extend the query, a timer of `timeoutMs` on Effect's clock
-clears it (`generation` lets a superseded timer change nothing), and `Cleared`
-drops it on purpose. Which item a query picks is the pure
-`Typeahead.match(texts, enabled, query, current)`: one character, or one
-character repeated, starts *after* the current item so repeated presses cycle;
-a longer query starts *at* it, since the user is refining. Case and leading
-whitespace are ignored and disabled items are skipped. The Behavior
-(`Typeahead.behavior(Declared)(Slots)<Model, Message>({ host, items, text,
-current })`) gives the host `OnKeyDownFocus`: a printable key with no ctrl, alt
-or meta extends the query, focuses the match by id, and dispatches `Typed`;
-with no match the key is still recorded and focus stays put; a space with an
-empty query is left to the host.
-
-`ListNavigation` is what a list host takes when it wants both: arrows, Home,
-End, PageUp and PageDown by `page`, and typeahead, in **one placement**. It
-exists for two reasons. The resolver allows one owner per event on a slot, so
-`RovingTabindex` and `Typeahead` cannot both own the host's `OnKeyDownFocus`;
-and under `virtual` a typed key must move the pointer and extend the query in
-one transition, which two placements cannot do. Its Model slice is `{ current,
-query, generation }`, its args are `RovingTabindex`'s plus `timeoutMs` and
-`page`, and its Behavior takes `{ container, item, items, text, direction? }`.
-`Typed { char, match }` carries the item the query now picks, so `update` sets
-`current` and `query` together.
-
-```ts
-const Nav = Bundle.declare(ListNavigation.bundle, 'nav')
-// place with { args: { orientation: 'vertical', loop: false, virtual: false, timeoutMs: 500, page: 10 } }
-const Keys = ListNavigation.behavior(Nav, args)(ListSlots)<Model, Message>({
-  container: 'list',
-  item: 'option',
-  items: model => describeFruits(model.fruits),
-  text: (model, index) => model.fruits[index]?.label ?? '',
+const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
+  model,
+  commands: [mapMessage(copyText(model.text), message => NoteMessage.Clipboard({ message }))],
 })
 ```
 
-`GridNavigation` is the two-dimensional counterpart for cells laid out in rows
-of `columns` (a calendar grid, a swatch picker, an emoji palette). Its Model
-slice and item attributes are `RovingTabindex`'s, so the two are
-interchangeable on a view; only the pure `move` differs. Left and right step
-within the row and up and down within the column, skipping disabled cells;
-under `wrap` a horizontal key continues into the next row and a vertical key
-into the next column, otherwise the key is consumed at the edge. Home and End
-are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
-RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
+## The map
 
-```ts
-const Cells = Bundle.declare(GridNavigation.bundle, 'cells')
-// place with { args: { columns: 7, wrap: false, virtual: false } }
-const Keys = GridNavigation.behavior(Cells, args)(CalendarSlots)<Model, Message>({
-  container: 'grid',
-  item: 'day',
-  items: model => describeDays(model.days),
-})
-```
+Each subpath is one concern and one import. Its README has the full
+reference: every Model shape, Message, argument, and failure rule.
 
-`TreeNavigation` is the tree counterpart, after the WAI-ARIA tree pattern,
-for a file explorer, a page's layers, or a nested menu: Up and Down through
-the rows that are showing, Right opens a row or steps into it, Left closes it or
-steps out to its parent, Home and End go to the first and last row. The view
-gives every row, open or not, in tree order, each with its `parent` and whether
-it is a `branch`; `TreeNavigation.shown(rows, model, args)` is the rows that are
-showing, with their level and place among their siblings. The Model slice is
-`{ current, toggled }`: openness is stored as the rows toggled away from
-`openByDefault`, so a layers panel that starts open and a file tree that starts
-closed are one bundle with a different arg. The Behavior writes each showing
-row's `id` (through `domId`, by default the row's own), `role="treeitem"`,
-`aria-level`, `aria-posinset`, `aria-setsize`, `aria-expanded` on a branch,
-`aria-disabled`, a roving `tabindex` and `OnFocus`; the container's keys move
-focus by id, or open and close the current row in place. Focus in the tree
-follows its stop when a transition it did not see moves it or removes the
-focused row (the `FollowTabStop` Mount, in `foldkit-primitives/dom`, which
-never takes focus from outside the container). The level is also the
-custom property `--fk-tree-level`, 1 at the top, so one rule indents any depth:
-`padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
+| Subpath | What it covers | Primitives |
+| --- | --- | --- |
+| [`media`](./media/README.md) | the environment | `MediaQuery` (+ `PrefersDark`, `PrefersReducedMotion`), `Breakpoints`, `platformFromUA`, `isBrowser` |
+| [`net`](./net/README.md) | the network | `Online`, `websocket`, `sse`, `broadcastMessages`, `postBroadcast` |
+| [`time`](./time/README.md) | the clock | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
+| [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
+| [`motion`](./motion/README.md) | animation | `Tween`, `Spring`, `Presence`, the `Motion` service |
+| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `FocusScope`, `Press`, `LongPress`, `Move`, `Targets`, `PointerDrag`, `EditableText`, `FocusVisible`, `DismissLayer`, `Layers`, `Selection`, `LiveAnnounce` |
+| [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
+| [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey` |
+| [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |
+| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FocusScope`, `FollowTabStop`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `keepScroll` |
 
-```ts
-const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')
-// place with { args: { openByDefault: true } }
-const Keys = TreeNavigation.behavior(Layers, { openByDefault: true })(TreeSlots)<Model, Message>({
-  container: 'tree',
-  item: 'row',
-  rows: model => model.folders.map(folder => ({ id: folder.id, parent: folder.parent, branch: folder.hasChildren })),
-})
-```
+## Rules every primitive keeps
 
-The pure `move(shown, current, key, modifiers, model, args, direction?)` answers
-with `Focus`, `Open` or `Close`, for a view that wires its own.
+These hold across the package, so the subpath pages do not repeat them.
 
-`FocusScope` is the one entry here that is a Mount, not a Bundle: which
-element has focus is a DOM fact, so nothing crosses to the Model. The Mount
-lives in `foldkit-primitives/dom`; `FocusScope.behavior(Slots)<Input,
-Message>({ container, contain?, restore?, initialFocus? })` attaches it to a
-container slot. On insert the container focuses `initialFocus`, else its first
-tabbable descendant, else itself. With `contain` (default), Tab from the last
-tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
-focus that lands outside comes straight back; Tab in the middle is the
-browser's. On unmount, with `restore` (default), focus returns to the element
-that had it, if it is still in the document. A native `<dialog>` does all of
-this itself; this is for a custom overlay, a menu, or a command palette.
-`tabbableWithin(element)` is exported: focusable, visible descendants with a
-non-negative `tabindex`, in order.
+- **A fact that changed nothing returns the Model it was given.** A repeated
+  resize, `Started` while running, a total already held: the placement then
+  returns the parent unchanged, Foldkit renders nothing, and a `createLazy` view
+  over the slice is skipped.
+- **Init is a safe default, not a read.** `matches: false`, `online: true`, a
+  count of zero. A server render shows these; the subscription corrects them on
+  the client. Do not infer readiness from the default.
+- **Without the platform API, nothing throws.** A stream is empty and the
+  slice keeps its default; a Command yields its failure Message (`CopyFailed`,
+  `ShareFailed`); a Mount emits nothing.
+- **One placement observes once.** Two placements of one query open two
+  listeners; share the field. One assembly holds one socket, stream, camera,
+  or permission watch: their resource tags are per module, and `assemble`
+  refuses the second.
+- **An OutMessage cannot be dropped by omission.** `debounce`, `Throttle`,
+  `Press`, `DismissLayer`, and the rest that surface a settled value require
+  `onOut` at placement. `Bundle.ignore` drops one on purpose.
+- **Everything timed runs on Effect's clock.** Timers, tweens, debounces,
+  presence, idle, typeahead. Tests advance them with `TestClock.adjust`
+  instead of waiting.
+- **Reduced motion is a service.** Provide `Motion.live` through the
+  assembly's resources, or `Motion.reduced` and `Motion.full` in a test;
+  absent, motion is full.
+- **Elements never cross into the Model.** A focus report is `{ tag, id }`, a
+  mutation names nodes, a target is its marked id.
 
-`Press` turns pointer and keyboard activation of one element into one fact.
-Foldkit's declarative pointer attributes carry no button, pointer id, or click
-detail, so `Press.events` is a Mount that reports what the element saw
-(`PointerDown`, `PointerUp`, `PointerCancelled`, `KeyDown`, `KeyUp`,
-`Clicked`), and the Bundle's `update` decides: primary button only, one
-pointer at a time, `pointerleave` and `pointercancel` cancel, Enter and Space
-with a repeat ignored, a click with `detail` 0 (keyboard on a native control,
-or assistive technology) counts, and the ghost click that follows a touch is
-ignored inside a window of `clickSuppressionMs` that a Command on Effect's
-clock closes. Enter and Space are default-prevented on the element, so a
-native control does not also click and Space does not scroll. Activation is
-the OutMessage `Pressed { pointerType, shiftKey }`, and the placement must handle it:
+## Testing a placement
 
-```ts
-const Button = Bundle.declare(Press.bundle, 'saveButton')
-const placements = Page.assemble(
-  Page.at(Button, {
-    args: { clickSuppressionMs: 50 },
-    onOut: () => model => ({ model, commands: [save(model)] }),
-  }),
-)
-const Activate = Press.behavior(Button)(CardSlots)<Model, Message>({
-  target: 'save',
-  disabled: model => model.saving,
-})
-```
+Three ingredients, each shown in this package's `test/` directory under the
+primitive's name:
 
-The Behavior attaches the Mount to the target slot, writes `data-pressed`
-while the element is down for styling, and marks a disabled target
-`aria-disabled`, which the Mount reads at event time so nothing is reported
-and no remount is needed. The Model slice is `{ pressed, pointerId, key,
-suppressing, generation }`; only `pressed` is meant for a view.
-
-`LongPress` is holding for `thresholdMs`. It reads the same facts
-`Press.events` reports, so it needs no Mount of its own; the threshold is a
-Command on Effect's clock carrying a generation, and a release before it fires
-makes its `Elapsed` a no-op. `LongPressed { pointerType }` is the OutMessage,
-required at placement. The Behavior writes `data-holding` while down. `Press`
-and `LongPress` on one slot are refused by the resolver, since both would mount
-`PressEvents`; a slot takes one of them.
-
-`Move` is pointer movement as facts, a Mount in `foldkit-primitives/dom`: a
-primary-button pointer down captures the pointer and reports `MoveStarted`,
-each move reports `Moved { deltaX, deltaY }` from where it went down, and up,
-cancel, or lost capture reports `MoveEnded { completed }`. A second pointer
-and a secondary button are ignored; capture is released with the Mount.
-`Move.behavior(Slots)<Input, Message>({ handle, toMessage })` attaches it to a
-`Draggable` slot and maps each fact into the view's Messages; a drag's meaning
-(a threshold, a snap, a reorder) is the parent's `update`.
-
-`Targets` is which marked descendant of a container the pointer is over, and
-which one was pressed, as one Mount on the container rather than one per item.
-A descendant is marked by an attribute holding its id (a canvas's
-`data-composition-node`, a table's `data-row`), and the nearest marked ancestor
-of the event's target, inside the container, is the one reported:
-`TargetHovered { id }` once per change, `null` when there is none or the
-pointer leaves, and `TargetPressed { id, shiftKey, altKey, ctrlKey, metaKey }`
-on a click. `preventDefault: true` stops a press's default, such as a link
-navigating inside an editor's canvas. The Mount is `Targets({ attribute,
-preventDefault })` in `foldkit-primitives/dom`; `Targets.behavior(Slots)<Input,
-Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
-`targetOf(container, from, attribute)` is the pure lookup.
-
-`EditableText` is text typed into a marked descendant of a container while it
-is `contenteditable`, as one Mount on the container. The view decides which
-field is editable; the Mount focuses it as it becomes so (made editable, or
-drawn editable), with the caret at its end, and at no other time: a field
-editable all along, or another going away, moves no focus. It reads what is
-typed:
-
-- **Text, never markup.** It reads `innerText`. A field is one line unless it
-  carries `aria-multiline="true"`, and in one line a line break becomes a
-  space. Where the browser lacks `contenteditable="plaintext-only"`, a paste is
-  inserted as its text.
-- **`TextEdited { field, text }`** on each change, `field` being the marking
-  attribute's value. Nothing is reported while an input method composes; the
-  composed text arrives once.
-- **`TextCommitted { field, text }`** on Enter (Shift+Enter breaks a line in a
-  multiline field) or on leaving the field; **`TextCancelled { field, initial }`**
-  on Escape, which also puts the text the field had when the edit began (on
-  focus, or on the first keystroke after an edit ended) back in the DOM, the
-  caret at its end. A view that stopped redrawing the field while it was edited
-  would not. An edit ends once: the blur after Enter commits nothing more.
-- **Focus comes back to the container** when Enter or Escape ended an edit and
-  the view then removes the field or makes it no longer editable, which leaves
-  focus on nothing; give the container a `tabindex`, and the next key (an
-  undo) reaches it. A field left by the author keeps no such claim.
-- **`EditAsked { field }`** on a double-click over a marked field that is not
-  editable yet: the view's cue to make it so.
-
-The Mount is `EditableText({ attribute })` in `foldkit-primitives/dom`;
-`EditableText.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
-attaches it. What a change means (a prop set, an undo group) is the parent's
-`update`.
-
-`PointerDrag` is dragging one marked descendant onto another, marked the way
-`Targets` marks them. A primary press on one that moves more than
-`DRAG_THRESHOLD` (4px) starts a drag (`DragStarted { id }`); then, once per
-change, `DraggedOver { over }` says which other marked descendant the pointer
-is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
-'after' }`, or `null`. Releasing is `DragDropped { id, over }`, and Escape, a
-cancelled pointer, or a button found released mid-drag is `DragCancelled { id }`.
-An Escape that cancels is heard on the way down and goes no further, so the
-focused element's own Escape (a canvas's deselect) does not also run.
-It follows the pointer that pressed and ignores a second one; the element under
-it is found by position, so a touch or a pen, which the browser captures to
-where it went down, drags too, once the marked elements have `touch-action:
-none` so a finger drags rather than scrolls. The click a drop ends with is
-swallowed, so a `Targets` on the same container does not also press. A press
-in `contenteditable` text selects text and starts no drag. It writes
-no roles, `tabindex` or keys, so it sits beside a tree's or a listbox's own;
-the keyboard's way to do what a drag does is yours to give. Boxes are measured
-as the pointer moves and never kept; an element drawn as `display: contents`
-is measured by its first child (`boxOf`). The Mount is
-`PointerDrag({ attribute })` in `foldkit-primitives/dom`;
-`PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
-attaches it, and `zoneOf(box, y)` is the pure split.
-
-A drag may also land somewhere other than among its own: with
-`targets: { attribute: 'data-composition-node', within: '#page' }`, what is
-dragged is still one of the container's marked descendants (a palette's
-tiles), and `over` is an element marked by that attribute inside the one
-`within` selects (the page's nodes). Its own tiles, and a matching element
-outside that one, are then over nothing. `within` is looked for nearest
-first, under the container's closest ancestor that holds a match, so two
-editors on one page each drop onto their own page. Such a drag's
-`DraggedOver` and `DragDropped` also carry `region`: whether the pointer is
-inside that element, so `over: null` with `region: true` is its empty space
-(an empty page, the space below its last node), and with `false`, elsewhere.
-
-`FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
-in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,
-or `'unknown'` before any input), fed by the window's `keydown` (a modifier
-alone says nothing) and `pointerdown`. `FocusVisible.behavior(Declared)(Slots)
-<Model, Message>({ target })` writes `data-focus-visible` on the target while
-the page is driven by keyboard, so a stylesheet shows a ring with
-`[data-focus-visible]:focus`. CSS `:focus-visible` does this with no Model at
-all; this is for a design system that must decide in the Model, or show the
-same answer somewhere other than the focused element.
-
-`DismissLayer` closes overlays that are not native `<dialog>` or `popover`
-elements: Escape closes the topmost open layer, and a pointer press closes
-the layers it is outside of. One Bundle, **placed once**, owns the document
-listeners; each layer's Behavior marks its container with
-`data-foldkit-plus-layer="<id>"` and its trigger with the matching trigger
-attribute. The stack is the DOM order of the marked elements at the moment of
-the event, so a layer takes part exactly while it is rendered and an `open`
-flag in the parent Model is its whole lifecycle; nothing registers. The rules,
-each a test: a press inside a parent layer is outside its children, so the
-parent stays and the children go; a press on a layer's trigger counts as
-inside it, so a click on the trigger never dismisses and reopens; a layer
-placed with `outsidePress: false` or `escape: false` opts out of that path.
-`Dismiss { ids }` is the OutMessage, and the placement's `onOut` closes them:
-
-```ts
-const Layers = Bundle.declare(DismissLayer.bundle, 'layers')
-const placements = Page.assemble(
-  Page.at(Layers, {
-    onOut: ({ ids }) => model => ({ model: { ...model, menuOpen: ids.includes('menu') ? false : model.menuOpen } }),
-  }),
-)
-const Dismissable = DismissLayer.behavior(Layers)(MenuSlots)<Model, Message>({
-  layer: 'panel',
-  trigger: 'button',
-  id: () => 'menu',
-})
-```
-
-The Model slice is `{ layers }`, the open layers as the last event saw them,
-for DevTools and agents. `toDismiss(layers, inside)` is the pure rule.
-
-`Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({
-container })` are Mounts over Foldkit's own `Dom.lockScroll` and
-`Dom.inertOthers`: the first locks the document's scroll while the container is
-mounted, refcounted so nested overlays release together, with Foldkit's iOS
-handling; the second marks everything outside the container inert while it is
-mounted, keyed by an id the Mount mints so two overlays restore independently.
-Both live in `foldkit-primitives/dom` as `ScrollLock` and `HideOutside`. A
-native `<dialog>` shown modally needs neither.
-
-`Selection` is which items are selected, with `mode` `'single'` (a click
-replaces; `allowEmpty` says whether clicking the selected item deselects it),
-`'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
-from. The Model slice is `{ selected, anchor }`. A range needs the items'
-order, which the view knows and the Bundle does not, so `Ranged { id, order }`
-carries it; `Selection.between(order, from, to)` is the pure span. The Behavior
-(`Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?,
-item, items, click? })`) writes `aria-selected` on each item and
-`aria-multiselectable` on the container, and wires a plain click on each
-enabled item to `Activated`; pass `click: false` when `Press` or the view owns
-the click. For a Shift range, `Press`'s `Pressed { pointerType, shiftKey }`
-says whether Shift was held, and the placement's `onOut` dispatches `Ranged`.
-
-`LiveAnnounce` speaks to assistive technology: one Bundle, placed once, holds
-the text of a polite and an assertive live region. `say(Declared)(text,
-politeness?)` builds the Message to return from `update` or an `onOut`; an
-announcement waits `debounceMs` so a burst reads once, then clears after
-`clearAfterMs`, both on Effect's clock with a generation so a superseded timer
-changes nothing; the same text twice gets a trailing no-break space toggled,
-which is what makes a screen reader read it again. `LiveAnnounce.view(slice,
-h)` renders the two regions: put it once in the page and hide them visually
-with a rule on `[data-foldkit-plus-live]`, never `display: none`.
-
-## Testing placements
-
-Every primitive is testable without the platform, following one pattern
-with three ingredients. First, substitute the environment: factories take
-`create` (streams, devices, permissions) or `request` (camera) doubles, so
-tests pass fakes instead of stubbing globals. Second, advance time instead
-of waiting it: anything on Effect's clock (debounce, throttle, presence,
-idle, timers, tweens) runs under `TestClock.adjust`. Third, never hang on a
-quiet stream: collect with a bounded `takeMessages`, which fails fast naming
-the stall. The settle-before-adjust rule applies throughout — yield after
-forking before the first `TestClock.adjust`, or dispatched events hit
-unregistered listeners. Each ingredient is demonstrated in this package's
-`test/` directory, named after its primitive.
+1. **Substitute the environment.** Factories take a `create` (streams,
+   devices, permissions, sockets) or `request` (camera) double, so a test
+   passes a fake instead of stubbing a global.
+2. **Advance time instead of waiting.** Anything on Effect's clock runs under
+   `TestClock.adjust`. Yield after forking before the first adjust, or
+   dispatched events reach listeners not yet registered.
+3. **Never hang on a quiet stream.** Collect with a bounded take that fails
+   fast naming the stall.
 
 ## With Surface and Mirror
 
-Placed state is ordinary Model, so the surrounding tools apply unchanged —
-no bundle-specific Surface or Mirror API exists, by design. Declare a Surface
-over the placed fields to render them or expose them to an agent; point
-`Mirror.url` at them to link them; spread the bundle's cases into the same
-unions. The field refs and wrapper Messages are the same ones the rest of the
-application uses.
-
-## Failure and recovery
-
-| Failure | Behaviour |
-| --- | --- |
-| No `window` (SSR) or no API (old browser, minimal DOM) | stream is empty; the slice keeps its default |
-| A Command without its platform API | failure Message (`CopyFailed`, `ShareFailed`, `BroadcastFailed`), never a throw |
-| Listener removed (unmount, gate closed) | finalizer disconnects; resubscribing re-reads the current value |
-| A Message for an unplaced child | never routes: wrappers only match placed variants |
-| MediaStream acquisition fails | parks at `denied`/`idle` with requirements cleared; `Started` retries |
+Placed state is ordinary Model, so nothing here has a Surface or Mirror API of
+its own. Declare a Surface over the placed fields to render them or expose them
+to an agent; point `Mirror.url` at them to link them; spread the bundle's cases
+into the same unions. A slice that must survive a reload persists through
+`Mirror.kv`; this package owns live facts only.
 
 ## Limits
 
-- One placement observes one query. Two placements of `MediaQuery` with the
-  same query open two listeners; share the field instead.
-- Presets cover the common queries. Anything else passes `args` explicitly.
-- `/plus` Surfaces and Mirrors per primitive are future work; declare them in
-  the application for now.
+- Presets cover the common media queries; anything else passes `args`.
+- `Virtual` windows one axis of a list; windowed grids stay out by design.
+- `Sync.lww`-style merging, collaborative text, and other replicated state are
+  [`foldkit-sync`](../sync)'s, not a primitive.

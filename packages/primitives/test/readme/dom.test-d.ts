@@ -8,19 +8,21 @@ const Message = defineMessageUnion({
 })
 type Model = { readonly text: string; readonly status: string }
 
-const update = (model: Model, message: typeof Message.Type) => {
-  if (message._tag === 'CopyClicked') {
-    return {
+const update = (model: Model, message: typeof Message.Type) =>
+  Message.match(message, {
+    CopyClicked: () => ({
       model,
       commands: [mapMessage(copyText(model.text), message => Message.Clipboard({ message }))],
-    }
-  }
-  return {
-    model: {
-      ...model,
-      status: message.message._tag === 'Copied' ? 'Copied' : message.message.message,
-    },
-  }
-}
+    }),
+    Clipboard: ({ message }) => ({
+      model: {
+        ...model,
+        status: ClipboardMessage.match(message, {
+          Copied: () => 'Copied',
+          CopyFailed: ({ message }) => message,
+        }),
+      },
+    }),
+  })
 
 void update
