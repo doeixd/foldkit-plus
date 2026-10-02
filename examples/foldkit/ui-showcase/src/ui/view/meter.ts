@@ -1,10 +1,9 @@
-import { Option } from 'effect'
 import { Submodel } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { Meter } from '@foldkit/ui'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
-import * as Meter from '../meter.js'
 import type { Message as UiMessage } from '../message.js'
 import type { UiModel } from '../model.js'
 import { MeterPageSlots, MeterPageStyle } from '../style/meter.js'
@@ -12,10 +11,7 @@ import { MeterPageSlots, MeterPageStyle } from '../style/meter.js'
 type Slots = SlotBuilders<typeof MeterPageSlots, UiMessage>
 
 type MeterDemo = Readonly<{
-  id: string
-  value: number
-  thresholds: Option.Option<Meter.Thresholds>
-  valueText: string
+  config: Omit<Meter.ViewConfig<UiMessage>, 'toView'>
   label: string
   shownValue: string
   tone: 'success' | 'warning'
@@ -25,10 +21,7 @@ type MeterDemo = Readonly<{
 const meterDemo = (demo: MeterDemo, slots: Slots, h: HtmlBuilder<UiMessage>): Html =>
   Meter.view(
     {
-      id: demo.id,
-      value: demo.value,
-      thresholds: demo.thresholds,
-      valueText: demo.valueText,
+      ...demo.config,
       toView: ({ meter, label, fill }) =>
         h.div(slots.row.attrs(), [
           h.div(slots.header.attrs(), [
@@ -50,10 +43,7 @@ const MeterPage = SlotView.forMessages<UiMessage>()
       h.h3(slots.section.attrs(), ['Scalar value']),
       meterDemo(
         {
-          id: 'health-meter',
-          value: 75,
-          thresholds: Option.none(),
-          valueText: '75 of 100 health',
+          config: { id: 'health-meter', value: 75, valueText: '75 of 100 health' },
           label: 'Health',
           shownValue: '75 / 100',
           tone: 'success',
@@ -64,10 +54,14 @@ const MeterPage = SlotView.forMessages<UiMessage>()
       h.h3(slots.section.attrs(), ['Thresholds']),
       meterDemo(
         {
-          id: 'storage-meter',
-          value: 82,
-          thresholds: Option.some({ low: 30, high: 80, optimum: 20 }),
-          valueText: '82 percent used',
+          config: {
+            id: 'storage-meter',
+            value: 82,
+            low: 30,
+            high: 80,
+            optimum: 20,
+            valueText: '82 percent used',
+          },
           label: 'Storage',
           shownValue: '82%',
           tone: 'warning',

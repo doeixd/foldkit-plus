@@ -36,25 +36,37 @@ export const SliderPageStyle = forSlots(SliderPageSlots)(
 /**
  * `foldkit-mixins-ui` ships no Slider recipe; this is upstream's accent track
  * and round thumb. `@foldkit/ui` places the filled track and the thumb with
- * inline style, and marks the thumb `data-dragging` while it is held.
+ * inline style, marks the thumb `data-dragging` while it is held, and marks
+ * the root and the track `data-vertical` when the slider stands upright.
  */
 export const DemoSliderStyle = forSlots(SliderSlots)(
   {
-    root: Style.self({
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'center',
-      width: '100%',
-      height: '1.5rem',
-      userSelect: 'none',
-      touchAction: 'none',
-    }),
-    track: Style.self({
-      width: '100%',
-      height: '0.375rem',
-      borderRadius: t.radius.full,
-      background: t.surface.default,
-    }),
+    root: Style.compose(
+      Style.self({
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        height: '1.5rem',
+        userSelect: 'none',
+        touchAction: 'none',
+      }),
+      Style.pseudo('[data-vertical]', {
+        flexDirection: 'column',
+        justifyContent: 'center',
+        width: '1.5rem',
+        height: '10rem',
+      }),
+    ),
+    track: Style.compose(
+      Style.self({
+        width: '100%',
+        height: '0.375rem',
+        borderRadius: t.radius.full,
+        background: t.surface.default,
+      }),
+      Style.pseudo('[data-vertical]', { width: '0.375rem', height: '100%' }),
+    ),
     filledTrack: Style.self({ borderRadius: t.radius.full, background: t.accent.default }),
     thumb: Style.compose(
       Style.self({

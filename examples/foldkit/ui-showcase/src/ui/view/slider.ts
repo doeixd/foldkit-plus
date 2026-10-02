@@ -20,6 +20,7 @@ type SliderDemo = Readonly<{
   label: string
   shownValue: string
   formatValue: (value: number) => string
+  orientation: UiSlider.Orientation
   toParentMessage: (message: UiSlider.Message) => UiMessage
 }>
 
@@ -31,6 +32,7 @@ const sliderDemo = (demo: SliderDemo, slots: Slots, h: HtmlBuilder<UiMessage>): 
     viewInputs: {
       value: demo.value,
       formatValue: demo.formatValue,
+      orientation: demo.orientation,
       toView: render => {
         const slider = Slider.resolve(render, [DemoSliderStyle.mixin], { input: undefined, h })
 
@@ -62,16 +64,14 @@ const SliderPage = SlotView.forMessages<UiMessage>()
           label: 'Rating',
           shownValue: ratingFormatted(model.sliderRatingValue),
           formatValue: value => `${value} of 10`,
+          orientation: 'Horizontal',
           toParentMessage: message => UiMessage.GotSliderRatingDemoMessage({ message }),
         },
         slots,
         h,
       ),
 
-      // Upstream draws this one vertically; the Slider was horizontal only when
-      // this page was written (orientation arrived in 0.164.0), so it shows the
-      // fractional steps instead.
-      h.h3(slots.section.attrs(), ['Fractional steps']),
+      h.h3(slots.section.attrs(), ['Vertical']),
       sliderDemo(
         {
           slider: model.sliderVolumeDemo,
@@ -79,6 +79,7 @@ const SliderPage = SlotView.forMessages<UiMessage>()
           label: 'Volume',
           shownValue: volumeFormatted(model.sliderVolumeValue),
           formatValue: value => `${Math.round(value * 100)} percent`,
+          orientation: 'Vertical',
           toParentMessage: message => UiMessage.GotSliderVolumeDemoMessage({ message }),
         },
         slots,

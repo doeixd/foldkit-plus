@@ -1,124 +1,61 @@
 /**
- * The Meter and Progress this showcase ports from upstream `@foldkit/ui`,
- * ported before it shipped them in 0.164.0: their ARIA and data attributes, and the
- * width of the bar, from upstream's own scene tests.
+ * The Meter, Progress and Slider pages as the showcase configures them: each
+ * demo's value, label and thresholds reach the component `@foldkit/ui` draws,
+ * and the volume slider stands upright. How the components draw a value is
+ * upstream's, tested there.
  */
-import { Option } from 'effect'
-import type { Update } from 'foldkit'
-import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
-import { expect, given, role, scene, selector } from 'foldkit/scene'
+import { expect, given, role, scene } from 'foldkit/scene'
 import { describe, test } from 'vitest'
 
-import * as Meter from '../src/ui/meter.js'
-import * as Progress from '../src/ui/progress.js'
+import { AppRoute, update, view } from '../src/main.js'
+import { modelForRoute } from './helpers.js'
 
-const Message = defineMessageUnion({ Ignored: {} })
-type Message = typeof Message.Type
+const page = (route: AppRoute) => given(modelForRoute(route))
 
-type Model = Readonly<Record<string, never>>
-
-const update = (model: Model): Update.Return<Model, Message> => ({ model })
-
-const meterView =
-  (value: number, thresholds: Option.Option<Meter.Thresholds> = Option.none()) =>
-  (_model: Model, h: HtmlBuilder<Message>) =>
-    Meter.view(
-      {
-        id: 'test',
-        value,
-        thresholds,
-        valueText: `${value} used`,
-        toView: ({ meter, label, fill }) =>
-          h.div(meter, [h.span(label, ['Storage']), h.div([...fill, h.Id('test-fill')])]),
-      },
-      h,
-    )
-
-const progressView =
-  (maybeValue: Option.Option<number>) => (_model: Model, h: HtmlBuilder<Message>) =>
-    Progress.view(
-      {
-        id: 'test',
-        maybeValue,
-        valueText: 'Uploading',
-        toView: ({ progress, label, track, indicator }) =>
-          h.div(progress, [
-            h.span(label, ['Upload']),
-            h.div([...track, h.Id('test-track')], [h.div([...indicator, h.Id('test-indicator')])]),
-          ]),
-      },
-      h,
-    )
-
-const meter = role('meter')
-const fill = selector('#test-fill')
-const progressbar = role('progressbar')
-const indicator = selector('#test-indicator')
-
-describe('Meter', () => {
-  test('renders the value against the range, named by its label', () => {
+describe('the Meter page', () => {
+  test('names each meter by its label and reports its value', () => {
     scene(
-      { update, view: meterView(25) },
-      given({}),
-      expect(meter).toHaveAttr('aria-valuemin', '0'),
-      expect(meter).toHaveAttr('aria-valuemax', '100'),
-      expect(meter).toHaveAttr('aria-valuenow', '25'),
-      expect(meter).toHaveAttr('aria-valuetext', '25 used'),
-      expect(meter).toHaveAttr('aria-labelledby', 'test-label'),
-      expect(selector('#test-label')).toHaveText('Storage'),
-      expect(fill).toHaveStyle('width', '25%'),
+      { update, view },
+      page(AppRoute.Meter()),
+      expect(role('meter', { name: 'Health' })).toHaveAttr('aria-valuenow', '75'),
+      expect(role('meter', { name: 'Health' })).toHaveAttr('aria-valuetext', '75 of 100 health'),
+      expect(role('meter', { name: 'Storage' })).toHaveAttr('aria-valuenow', '82'),
+      expect(role('meter', { name: 'Storage' })).toHaveAttr('aria-valuetext', '82 percent used'),
     )
   })
 
-  test.each([
-    { value: -5, expectedValue: '0', expectedWidth: '0%' },
-    { value: 125, expectedValue: '100', expectedWidth: '100%' },
-  ])('clamps $value before rendering', ({ value, expectedValue, expectedWidth }) => {
+  test('gives the storage meter its thresholds, and the health meter none', () => {
     scene(
-      { update, view: meterView(value) },
-      given({}),
-      expect(meter).toHaveAttr('aria-valuenow', expectedValue),
-      expect(fill).toHaveAttr('data-value', expectedValue),
-      expect(fill).toHaveStyle('width', expectedWidth),
+      { update, view },
+      page(AppRoute.Meter()),
+      expect(role('meter', { name: 'Storage' })).toHaveAttr('data-low', '30'),
+      expect(role('meter', { name: 'Storage' })).toHaveAttr('data-high', '80'),
+      expect(role('meter', { name: 'Storage' })).toHaveAttr('data-optimum', '20'),
+      expect(role('meter', { name: 'Health' })).not.toHaveAttr('data-high'),
     )
-  })
-
-  test('exposes its thresholds only when it has them', () => {
-    scene(
-      { update, view: meterView(82, Option.some({ low: 30, high: 80, optimum: 20 })) },
-      given({}),
-      expect(meter).toHaveAttr('data-low', '30'),
-      expect(meter).toHaveAttr('data-high', '80'),
-      expect(meter).toHaveAttr('data-optimum', '20'),
-    )
-    scene({ update, view: meterView(82) }, given({}), expect(meter).not.toHaveAttr('data-high'))
   })
 })
 
-describe('Progress', () => {
-  test.each([
-    { value: 42, state: 'loading', width: '42%' },
-    { value: 100, state: 'complete', width: '100%' },
-    { value: 140, state: 'complete', width: '100%' },
-  ])('at $value is $state', ({ value, state, width }) => {
+describe('the Progress page', () => {
+  test('shows the upload at its value and the sync as indeterminate', () => {
     scene(
-      { update, view: progressView(Option.some(value)) },
-      given({}),
-      expect(progressbar).toHaveAttr('aria-valuenow', String(Math.min(value, 100))),
-      expect(progressbar).toHaveAttr('data-state', state),
-      expect(indicator).toHaveStyle('width', width),
+      { update, view },
+      page(AppRoute.Progress()),
+      expect(role('progressbar', { name: 'Upload' })).toHaveAttr('aria-valuenow', '42'),
+      expect(role('progressbar', { name: 'Upload' })).toHaveAttr('data-state', 'loading'),
+      expect(role('progressbar', { name: 'Syncing' })).toHaveAttr('data-state', 'indeterminate'),
+      expect(role('progressbar', { name: 'Syncing' })).not.toHaveAttr('aria-valuenow'),
     )
   })
+})
 
-  test('without a value is indeterminate and claims no value', () => {
+describe('the Slider page', () => {
+  test('lays the rating out horizontally and stands the volume upright', () => {
     scene(
-      { update, view: progressView(Option.none()) },
-      given({}),
-      expect(progressbar).toHaveAttr('data-state', 'indeterminate'),
-      expect(progressbar).not.toHaveAttr('aria-valuenow'),
-      expect(progressbar).toHaveAttr('aria-valuetext', 'Uploading'),
-      expect(indicator).toHaveAttr('data-indeterminate', ''),
+      { update, view },
+      page(AppRoute.Slider()),
+      expect(role('slider', { name: 'Rating' })).toHaveAttr('aria-orientation', 'horizontal'),
+      expect(role('slider', { name: 'Volume' })).toHaveAttr('aria-orientation', 'vertical'),
     )
   })
 })

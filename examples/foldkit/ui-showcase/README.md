@@ -37,8 +37,7 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 | The values the demos edit | the Model | `src/ui/model.ts` |
 | Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog, Popover, Tooltip, Hover Intent, Slider, Tabs, Radio Group, Calendar (also inside Date Picker) | `foldkit-mixins-ui` adapters (`X.resolve`) | `src/ui/view/*.ts` |
 | Their looks | `Recipes.Button`, `Input`, `Textarea`, `Checkbox`, `Switch`, `Dialog`, `Tabs` (with `.extend`); page Styles for the rest | `src/ui/style/*.ts` |
-| Menu, Listbox, Combobox, Date Picker, Toast, File Drop, Drag and Drop, Animation, Virtual List, Nav | `@foldkit/ui`, drawn with the page's own Slots | `src/ui/view/*.ts` |
-| Meter and Progress | local ports of upstream's `@foldkit/ui` views | `src/ui/meter.ts`, `progress.ts`, `range.ts` |
+| Menu, Listbox, Combobox, Date Picker, Toast, File Drop, Drag and Drop, Animation, Virtual List, Nav, Meter, Progress | `@foldkit/ui`, drawn with the page's own Slots | `src/ui/view/*.ts` |
 | Theme, shell, every page's Slots | `foldkit-mixins` | `src/style.ts`, `src/ui/style/*.ts` |
 
 ### What is not used, and why
@@ -61,12 +60,6 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 
 ## Differences from upstream
 
-- **Meter and Progress** are ported in `src/ui`, cut to the inputs this page
-  passes. They were written when `@foldkit/ui` had neither; it has shipped both
-  since 0.164.0, so the port could now give way to upstream's.
-- **The volume slider is horizontal.** The Slider had no orientation when this
-  page was written, so its section is "Fractional steps" instead of
-  "Vertical". `@foldkit/ui` has had `orientation` since 0.164.0.
 - **Checkbox and Switch controls are empty.** The shipped recipes draw the
   check, the dash and the knob from `aria-checked`, in place of upstream's
   `✓`, `—` and knob elements.
@@ -83,8 +76,8 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 ## Foldkit Plus gaps met
 
 - No `foldkit-mixins-ui` adapter for Menu, Listbox, Combobox, Date Picker or
-  Toast (no `toView` seam), nor for File Drop, Nav, Drag and Drop, Animation
-  and Virtual List, which do hand out attribute bundles.
+  Toast (no `toView` seam), nor for File Drop, Nav, Drag and Drop, Animation,
+  Virtual List, Meter and Progress, which do hand out attribute bundles.
 - No recipe for Select, Fieldset, Disclosure, Popover, Tooltip, Hover Intent,
   Slider, Radio Group or Calendar.
 - A recipe's pieces are optional per slot, so reusing `Recipes.Button`'s look
@@ -104,7 +97,9 @@ From the repository root: `npx vitest run examples/foldkit/ui-showcase`.
   Slot but what `@foldkit/ui` draws itself, and every token the drawn Styles
   read is in the stylesheet. `Inert.draw` supplies the Submodel render frame;
   interaction cases also use Scene to drive clicks and resolve Commands/Mounts.
-- `test/gauge.test.ts`: the Meter and Progress ports' ARIA, clamping and state.
+- `test/gauge.test.ts`: what this page configures reaches the components: each
+  meter's value, label and thresholds, both progress states, and the volume
+  slider's vertical orientation.
 - `test/runtime.test.ts`: the real runtime in jsdom: a nav link opens its page
   and marks itself current, the Button counts clicks, and the Styles of the
   drawn Slots reach the document.

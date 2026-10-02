@@ -79,6 +79,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`examples/foldkit/ui-showcase`, on `@foldkit/ui`'s own Meter, Progress
+  and vertical Slider.** The showcase drew local ports of Meter and Progress
+  because `@foldkit/ui` had neither, and showed "Fractional steps" where
+  upstream shows a vertical Slider because the Slider had no orientation. Both
+  arrived in 0.164.0: the pages now draw upstream's components through the
+  page's Slots, the volume slider stands upright (`orientation: 'Vertical'`,
+  styled by the `data-vertical` the Slider writes), and the ports are deleted.
+  Their tests went with them; the new ones check what the page configures:
+  each meter's value, label and thresholds, both progress states, and the
+  slider's orientation.
 - **`foldkit-primitives`, broken out into one reference per subpath.** The
   package README is onboarding and a map: which of the five forms a primitive
   takes (bundle, bundle plus Behavior, entry, Mount, Command, or function),
