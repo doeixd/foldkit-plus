@@ -10,7 +10,7 @@
  * `foldkit-sync`. See `docs/design/MIRROR.md`.
  */
 import { Duration, Effect, Option, Result, Schema, Stream } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { mapMessage, type Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'

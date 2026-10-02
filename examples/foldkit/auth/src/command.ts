@@ -1,6 +1,6 @@
 import { BrowserKeyValueStore } from '@effect/platform-browser'
 import { Console, Effect, Schema } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { Command } from 'foldkit'
 
 import { SESSION_STORAGE_KEY } from './constant.js'

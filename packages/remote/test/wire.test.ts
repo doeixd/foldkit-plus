@@ -1,5 +1,5 @@
 import { Effect, Schema, Stream } from 'effect'
-import { RpcTest } from 'effect/unstable/rpc'
+import { RpcTest } from 'effect/rpc'
 import { describe, expect, it } from 'vitest'
 import {
   MAX_FIELDS_PER_REQUEST,

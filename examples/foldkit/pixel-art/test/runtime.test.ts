@@ -5,7 +5,7 @@
  * the same store. A lazy row memoizes only under a runtime frame, so this is
  * also where "a stroke redraws only the rows it paints" can be checked.
  */
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Mixin, SlotView } from 'foldkit-mixins'

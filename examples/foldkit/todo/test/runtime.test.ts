@@ -4,7 +4,7 @@
  * `entry.ts` keeps it in localStorage: a reload is a second runtime reading
  * the same store.
  */
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 

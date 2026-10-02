@@ -93,7 +93,7 @@ const unchanged: UpdateStep = model => ({ model })
  * what was said on a clean close, and the wanting itself.
  */
 const reactToSocket = (message: WebSocketMessage): UpdateStep =>
-  WebSocketMessage.match(message, {
+  WebSocketMessage.match<UpdateStep>(message, {
     Connecting: () => unchanged,
     Opened: () => unchanged,
     // Upstream listened only while connected; a frame queued behind a close is dropped.

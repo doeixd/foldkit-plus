@@ -1,5 +1,5 @@
 import { Effect, Stream } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { modifyFields } from 'foldkit/struct'
 import { History } from 'foldkit-primitives/state'
 import { describe, expect, test } from 'vitest'

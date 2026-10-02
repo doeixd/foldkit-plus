@@ -5,7 +5,7 @@
  */
 import { NodeRuntime } from '@effect/platform-node'
 import { Config, Effect, Layer, Option, String } from 'effect'
-import { HttpServer } from 'effect/unstable/http'
+import { HttpServer } from 'effect/http'
 import { join } from 'node:path'
 
 import { host, production } from './host.js'

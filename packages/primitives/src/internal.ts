@@ -30,7 +30,7 @@ export const clearQuery = <Model extends { readonly query: string }>(
  * values. Foldkit renders only when the root Model changes identity, so an
  * equal copy renders the whole page for nothing.
  */
-export const unlessSame = <Model extends object>(model: Model, next: Model): Model => {
+export const unlessSame = <Model extends object>(model: Model, next: NoInfer<Model>): Model => {
   const keys = Object.keys(next) as Array<keyof Model>
   if (keys.length !== Object.keys(model).length) return next
   for (const key of keys) {

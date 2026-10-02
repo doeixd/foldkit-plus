@@ -42,13 +42,13 @@
   },
   "peerDependencies": {
     "foldkit-agent": "workspace:^",
-    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118",
-    "foldkit": "^0.163.0"
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0-rc.116",
-    "effect": "4.0.0-rc.116",
-    "foldkit": "0.163.0",
+    "@effect/platform-browser": "4.0.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
     "foldkit-agent": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

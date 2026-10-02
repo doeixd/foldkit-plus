@@ -1,5 +1,5 @@
 import { Effect, Match, Option, Schema, Stream } from 'effect'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import { Subscription } from 'foldkit'
 
 import { Message } from './message.js'

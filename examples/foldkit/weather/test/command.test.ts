@@ -4,7 +4,7 @@
  * them, and every way the fetch can fail ends in one `FailedFetchWeather`.
  */
 import { Effect, Layer, Option } from 'effect'
-import { HttpClient, HttpClientResponse, UrlParams } from 'effect/unstable/http'
+import { HttpClient, HttpClientResponse, UrlParams } from 'effect/http'
 import { expect, test } from 'vitest'
 
 import { Message, fetchWeatherEffect } from '../src/main.js'

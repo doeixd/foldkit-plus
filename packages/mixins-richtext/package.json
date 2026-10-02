@@ -51,12 +51,12 @@
     "foldkit-richtext-markdown": "workspace:*"
   },
   "peerDependencies": {
-    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118",
-    "foldkit": "^0.163.0"
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.116",
-    "foldkit": "0.163.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

@@ -23,7 +23,7 @@
  * reverts it.
  */
 import type { Layer } from 'effect'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import type { Subscriptions } from 'foldkit/subscription'
 import { MessageSet, type Contract } from 'foldkit-surface'

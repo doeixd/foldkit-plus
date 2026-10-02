@@ -12,7 +12,7 @@
  * application's choice.
  */
 import { Effect } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { type Connection, type Edge } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './optimistic.js'
 import { stableStringify } from './query.js'

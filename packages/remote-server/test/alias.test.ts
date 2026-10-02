@@ -5,7 +5,7 @@
  * asked for.
  */
 import { Effect, Fiber, Schema, Stream } from 'effect'
-import { RpcTest } from 'effect/unstable/rpc'
+import { RpcTest } from 'effect/rpc'
 import {
   Entity,
   REMOTE_PROTOCOL_VERSION,

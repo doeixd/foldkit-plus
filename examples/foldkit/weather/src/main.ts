@@ -1,7 +1,7 @@
 import * as UiButton from '@foldkit/ui/button'
 import * as UiInput from '@foldkit/ui/input'
 import { Array, Effect, Match, Option, Schema, String } from 'effect'
-import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
+import { HttpClient, HttpClientRequest } from 'effect/http'
 import { AsyncData, Command, Http, type Runtime, type Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'

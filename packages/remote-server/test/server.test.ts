@@ -1,5 +1,5 @@
 import { Context, Effect, Schema, Stream } from 'effect'
-import { RpcTest } from 'effect/unstable/rpc'
+import { RpcTest } from 'effect/rpc'
 import {
   Entity,
   Mutation,

@@ -1,5 +1,5 @@
 import { Effect, Schema } from 'effect'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import type { Runtime } from 'foldkit'
 import { Mirror } from 'foldkit-mirror'
 

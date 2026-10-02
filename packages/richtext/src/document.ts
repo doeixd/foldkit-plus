@@ -627,8 +627,8 @@ const assertBlock = (block: unknown): void => {
   if (validBlocks.has(block as Block)) return
   const nested = Object.getOwnPropertyDescriptor(block, 'blocks')
   if ((block as { type?: unknown }).type === 'Node' && Array.isArray(nested?.value)) {
-    // Every other own key, enumerable or not, symbol or not, stays: the decoder refuses
-    // excess keys of each kind, and a spread would drop some of them.
+    // Every other own key, enumerable or not, symbol or not, stays, so the decoder sees
+    // what it would see in `block` itself; a spread would drop some of them.
     decodeBlock(
       Object.create(Object.getPrototypeOf(block), {
         ...Object.getOwnPropertyDescriptors(block),

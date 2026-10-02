@@ -3,7 +3,7 @@
  * hover shape, and error placement.
  */
 import { Schema } from 'effect'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'

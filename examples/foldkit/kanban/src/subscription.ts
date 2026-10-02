@@ -1,5 +1,5 @@
 import * as DragAndDrop from '@foldkit/ui/dragAndDrop'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import { Subscription } from 'foldkit'
 
 import { Message } from './message.js'

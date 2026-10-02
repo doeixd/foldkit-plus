@@ -12,8 +12,8 @@
     "foldkit-form": "workspace:*"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.116",
-    "foldkit": "0.163.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
     "typescript": "5.9.3"
   }
 }

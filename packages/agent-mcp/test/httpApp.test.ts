@@ -1,7 +1,7 @@
 import { Agent } from 'foldkit-agent'
 import { AgentMcp } from 'foldkit-agent-mcp'
 import { Option, Schema } from 'effect'
-import * as HttpEffect from 'effect/unstable/http/HttpEffect'
+import * as HttpEffect from 'effect/http/HttpEffect'
 import { defineMessageUnion } from 'foldkit/message'
 import { beforeEach, describe, expect, it } from 'vitest'
 

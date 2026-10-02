@@ -3,7 +3,7 @@
  * documentation cannot drift from the API.
  */
 import { Schema } from 'effect'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import { Bundle } from 'foldkit-bundle'
 import { Runtime } from 'foldkit'
 import type { HtmlBuilder } from 'foldkit/html'

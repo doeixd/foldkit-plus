@@ -15,7 +15,7 @@
  */
 import { Effect } from 'effect'
 import { modifyFields } from 'foldkit/struct'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import type { Mounted, Replica } from 'foldkit-sync'
 import { Message, initialModel, type Model, type Shared } from './app.js'
 import { wiring } from './surface.js'

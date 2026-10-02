@@ -50,10 +50,10 @@
     "drizzle-orm": "1.0.0-rc.4"
   },
   "peerDependencies": {
-    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118"
+    "effect": "^4.0.0"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.116",
+    "effect": "4.0.0",
     "foldkit-remote-server": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

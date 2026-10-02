@@ -1,5 +1,5 @@
 import { Effect, Stream } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { describe, expect, test } from 'vitest'
 
 import { type Model, TodosMirror, flags, init } from '../src/main.js'

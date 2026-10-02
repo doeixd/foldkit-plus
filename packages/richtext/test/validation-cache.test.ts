@@ -97,14 +97,6 @@ describe('validation cache', () => {
       'a new container with an excess key',
       items => state(withExtra(list('list', items), 'extra', true)),
     ],
-    [
-      'a new container with a hidden excess key',
-      items => state(withExtra(list('list', items), 'extra', false)),
-    ],
-    [
-      'a new container with a symbol key',
-      items => state(withExtra(list('list', items), Symbol('extra'), false)),
-    ],
     ['a new container with no kind', items => state({ ...list('list', items), kind: '' })],
   ])('rejects %s, as the schema does', (_, make) => {
     const input = make(cachedItems())
@@ -124,6 +116,16 @@ describe('validation cache', () => {
             enumerable: false,
           }),
         ),
+    ],
+    // Since Effect 4.0.0 a non-enumerable own key is not an excess property: JSON and a
+    // spread never carry one, so the decoder skips it, and `apply` must agree.
+    [
+      'a new container with a hidden excess key',
+      items => state(withExtra(list('list', items), 'extra', false)),
+    ],
+    [
+      'a new container with a hidden symbol key',
+      items => state(withExtra(list('list', items), Symbol('extra'), false)),
     ],
   ])('accepts %s, as the schema does', (_, make) => {
     const input = make(cachedItems())

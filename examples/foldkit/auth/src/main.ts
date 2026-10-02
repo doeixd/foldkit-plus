@@ -1,6 +1,6 @@
 import { BrowserKeyValueStore } from '@effect/platform-browser'
 import { Effect, Match, Option, Schema } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import type { Runtime, Update } from 'foldkit'
 import type { Url } from 'foldkit/url'
 

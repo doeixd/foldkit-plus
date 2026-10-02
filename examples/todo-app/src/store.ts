@@ -9,7 +9,7 @@
  * only once the fact has been applied.
  */
 import { Effect } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import type { Agent } from 'foldkit-agent'
 import { type Message, type Model, initialModel } from './app.js'
 import { update } from './surface.js'

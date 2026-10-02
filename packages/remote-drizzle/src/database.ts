@@ -7,7 +7,7 @@
  *
  * `drizzle-orm/effect-postgres` is deliberately not imported. Its driver pulls
  * in `cache/core/cache-effect.ts`, which calls `Schema.TaggedErrorClass`, a name
- * effect@4.0.0-rc.112 does not export, so the module throws on load. Requiring
+ * no Effect 4 release exports (4.0.0 included), so the module throws on load. Requiring
  * this tag lets an application provide a Drizzle database today and swap in the
  * Effect driver when the two versions agree.
  */

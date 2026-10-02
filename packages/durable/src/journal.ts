@@ -15,7 +15,7 @@ import {
   SynchronizedRef,
   type Scope,
 } from 'effect'
-import { SqlClient } from 'effect/unstable/sql'
+import { SqlClient } from 'effect/sql'
 import { resolveCodec, type Codec, type CodecInput } from './codec.js'
 import {
   actorId as toActorId,

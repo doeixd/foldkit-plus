@@ -12,11 +12,11 @@ importers:
         specifier: ^0.87.2
         version: 0.87.2
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@effect/sql-pg':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
@@ -25,13 +25,13 @@ importers:
         version: 5.0.1(playwright@1.63.0)(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))(vitest@5.0.1)
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       playwright:
         specifier: ^1.63.0
         version: 1.63.0
@@ -60,8 +60,8 @@ importers:
   examples/bundle:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -73,14 +73,14 @@ importers:
         version: link:../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -89,7 +89,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -167,17 +167,17 @@ importers:
         version: 1.13.0
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/sql.js':
         specifier: 1.4.11
         version: 1.4.11
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -189,7 +189,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -228,14 +228,14 @@ importers:
         version: link:../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -249,14 +249,14 @@ importers:
   examples/foldkit/api-cache:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -277,8 +277,8 @@ importers:
         version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -292,17 +292,17 @@ importers:
   examples/foldkit/auth:
     dependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -332,14 +332,14 @@ importers:
   examples/foldkit/counter:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -348,8 +348,8 @@ importers:
         version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -363,11 +363,11 @@ importers:
   examples/foldkit/form:
     dependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -385,8 +385,8 @@ importers:
         version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -400,17 +400,17 @@ importers:
   examples/foldkit/job-application:
     dependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../../packages/entity
@@ -437,17 +437,17 @@ importers:
   examples/foldkit/kanban:
     dependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -477,17 +477,17 @@ importers:
   examples/foldkit/pixel-art:
     dependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -517,14 +517,14 @@ importers:
   examples/foldkit/query-sync:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -539,8 +539,8 @@ importers:
         version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -554,21 +554,21 @@ importers:
   examples/foldkit/route-transitions:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -582,14 +582,14 @@ importers:
   examples/foldkit/routing:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../../packages/bundle
@@ -601,8 +601,8 @@ importers:
         version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -616,14 +616,14 @@ importers:
   examples/foldkit/shopping-cart:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -632,8 +632,8 @@ importers:
         version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -647,14 +647,14 @@ importers:
   examples/foldkit/snake:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -663,8 +663,8 @@ importers:
         version: link:../../../packages/primitives
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -678,14 +678,14 @@ importers:
   examples/foldkit/ssg:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -697,11 +697,11 @@ importers:
         version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/vite-plugin':
-        specifier: 0.24.0
-        version: 0.24.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+        specifier: 0.26.0
+        version: 0.26.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -715,17 +715,17 @@ importers:
   examples/foldkit/ssr:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)(redis@6.2.1(@opentelemetry/api@1.9.1))
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -740,11 +740,11 @@ importers:
         version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/vite-plugin':
-        specifier: 0.24.0
-        version: 0.24.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+        specifier: 0.26.0
+        version: 0.26.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -761,17 +761,17 @@ importers:
   examples/foldkit/todo:
     dependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../../packages/mirror
@@ -798,14 +798,14 @@ importers:
   examples/foldkit/ui-showcase:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../../packages/bundle
@@ -817,8 +817,8 @@ importers:
         version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -832,14 +832,14 @@ importers:
   examples/foldkit/weather:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../../packages/mixins
@@ -848,8 +848,8 @@ importers:
         version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -863,14 +863,14 @@ importers:
   examples/foldkit/websocket-chat:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../../packages/bundle
@@ -885,8 +885,8 @@ importers:
         version: link:../../../packages/primitives
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -910,11 +910,11 @@ importers:
         version: link:../../packages/form
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -923,7 +923,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -971,17 +971,17 @@ importers:
         version: link:../../packages/sync
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -990,7 +990,7 @@ importers:
     dependencies:
       '@livestore/livestore':
         specifier: 0.5.0-dev.0
-        version: 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
+        version: 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
@@ -1018,14 +1018,14 @@ importers:
         version: link:../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1033,11 +1033,11 @@ importers:
   examples/pages:
     dependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
@@ -1061,8 +1061,8 @@ importers:
         version: 8.21.3
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/ws':
         specifier: ^8.5.12
         version: 8.18.1
@@ -1086,8 +1086,8 @@ importers:
         version: link:../../packages/react-codegen
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/jsdom':
         specifier: 21.1.7
         version: 21.1.7
@@ -1101,11 +1101,11 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -1135,14 +1135,14 @@ importers:
         version: link:../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1150,11 +1150,11 @@ importers:
   examples/sync:
     dependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1172,8 +1172,8 @@ importers:
         version: 8.21.3
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/jsdom':
         specifier: 21.1.7
         version: 21.1.7
@@ -1215,14 +1215,14 @@ importers:
         version: link:../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1240,14 +1240,14 @@ importers:
         version: link:../../packages/surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1255,14 +1255,14 @@ importers:
   examples/todo-app:
     dependencies:
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1298,8 +1298,8 @@ importers:
         version: 8.21.3
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/jsdom':
         specifier: 21.1.7
         version: 21.1.7
@@ -1326,14 +1326,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -1344,14 +1344,14 @@ importers:
   packages/agent-a2a:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1365,14 +1365,14 @@ importers:
   packages/agent-mcp:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1390,16 +1390,16 @@ importers:
     devDependencies:
       '@agent-native/core':
         specifier: 0.177.1
-        version: 0.177.1(49785ab16baba6814d4e3314c10af031)
+        version: 0.177.1(70ab93bf0e3099b2d4c630e365e7c8d6)
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1413,14 +1413,14 @@ importers:
   packages/agent-webmcp:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -1453,11 +1453,11 @@ importers:
         version: link:../primitives
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -1477,17 +1477,17 @@ importers:
   packages/bundle:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -1508,14 +1508,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mirror:
         specifier: workspace:*
         version: link:../mirror
@@ -1557,14 +1557,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins-crud:
         specifier: workspace:*
         version: link:../mixins-crud
@@ -1582,7 +1582,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-cms:
         specifier: workspace:*
         version: link:../cms
@@ -1600,14 +1600,14 @@ importers:
         version: link:../remote-server
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -1634,11 +1634,11 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -1704,14 +1704,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -1722,12 +1722,12 @@ importers:
   packages/durable:
     dependencies:
       '@effect/sql-sqlite-node':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -1742,8 +1742,8 @@ importers:
         version: link:../metadata
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -1764,14 +1764,14 @@ importers:
         version: link:../metadata
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -1795,14 +1795,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -1823,14 +1823,14 @@ importers:
         version: 3.2.3
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -1866,11 +1866,11 @@ importers:
         version: link:../primitives
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -1900,14 +1900,14 @@ importers:
         version: link:../remote
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -1937,14 +1937,14 @@ importers:
         version: link:../mixins
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -1980,11 +1980,11 @@ importers:
         version: link:../richtext-markdown
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -1998,17 +1998,17 @@ importers:
   packages/mixins-surface:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -2028,17 +2028,17 @@ importers:
   packages/mixins-ui:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@foldkit/ui':
-        specifier: 0.163.0
-        version: 0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -2056,17 +2056,17 @@ importers:
         version: link:../bundle
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/ws':
         specifier: ^8.5.12
         version: 8.18.1
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
@@ -2086,8 +2086,8 @@ importers:
   packages/react:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -2095,11 +2095,11 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -2119,8 +2119,8 @@ importers:
   packages/react-codegen:
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/node':
         specifier: 22.10.2
         version: 22.10.2
@@ -2131,11 +2131,11 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -2162,14 +2162,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2184,7 +2184,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -2196,8 +2196,8 @@ importers:
         version: link:../remote-server
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -2215,14 +2215,14 @@ importers:
         version: link:../remote
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface
@@ -2236,8 +2236,8 @@ importers:
   packages/richtext:
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -2252,8 +2252,8 @@ importers:
         version: link:../richtext
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -2268,8 +2268,8 @@ importers:
         version: link:../richtext
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       shiki:
         specifier: 4.4.3
         version: 4.4.3
@@ -2287,11 +2287,11 @@ importers:
         version: link:../richtext
     devDependencies:
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2333,8 +2333,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -2349,20 +2349,20 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       '@types/jsdom':
         specifier: 21.1.7
         version: 21.1.7
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
@@ -2398,14 +2398,14 @@ importers:
         version: link:../metadata
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
@@ -2420,14 +2420,14 @@ importers:
         version: link:../surface
     devDependencies:
       '@effect/platform-browser':
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
       effect:
-        specifier: 4.0.0-rc.116
-        version: 4.0.0-rc.116
+        specifier: 4.0.0
+        version: 4.0.0
       foldkit:
-        specifier: 0.163.0
-        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
@@ -3000,45 +3000,38 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/platform-browser@4.0.0-rc.116':
-    resolution: {integrity: sha512-ak23bBZcaMiItFwjdWqbp9KVFMR7b5R/w4iT+Dj/xwd0AiHx0GAe7uRkQ6cdhkSdW9aBnuN9paZTglG2Y8cTOA==}
+  '@effect/platform-browser@4.0.0':
+    resolution: {integrity: sha512-OHo7EPpF3RVPiI+mjoU9yd05LdCdKPjzDXqs5wRgF9CsdVvwN76B0zgt54DxPUcvMYri1tVJOtLCVnK0tRkNQQ==}
     peerDependencies:
-      effect: ^4.0.0-rc.116
+      effect: ^4.0.0
 
   '@effect/platform-bun@4.0.0-rc.117':
     resolution: {integrity: sha512-jyvoxPjT9562z5Tc2gib9GB16jcgh43jhpsuNQxs9B8WJ7RB2doPBQdrYLSSWRodGPLJBKJGzToRRbJiaGblsw==}
     peerDependencies:
       effect: ^4.0.0-rc.117
 
-  '@effect/platform-node-shared@4.0.0-rc.117':
-    resolution: {integrity: sha512-GyRkEfLBG49MwJe+/XDPiXYcQ44RA9p2z0AurlsWhR1cd1PqOUMEZU1pORL+/R5hR8aH6ZuqoJYD8lAc6h+wlA==}
+  '@effect/platform-node-shared@4.0.0':
+    resolution: {integrity: sha512-VBXHJU9UXVZPdQGGDRjGXpo+TpOzRwZuMrdKAtIxi1qwcRftmacZ1zTgIrzBa0Z2RA2KVkoOecQUsTlt/nJZhw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-rc.117
+      effect: ^4.0.0
 
-  '@effect/platform-node@4.0.0-rc.116':
-    resolution: {integrity: sha512-uA66Nh998OcChBVX83tQDkBDvQQcVaMXodP9gNGWVeIwWWquy7bzIkAq/fMZGKs/BVFhFQ0XCp3VIqYjnXu5ng==}
+  '@effect/platform-node@4.0.0':
+    resolution: {integrity: sha512-/L+4MUbl8FejPKLHLROYSOebvHnfixkP8KiblSD/DE5uH5xENZBHaux4nH6XMnRP+lr8ajpEJFS8sUrmmxFJeQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-rc.116
+      effect: ^4.0.0
       redis: '>=5.0.0 <7.0.0'
 
-  '@effect/platform-node@4.0.0-rc.117':
-    resolution: {integrity: sha512-WbPcvQDkqXFnCeG6LohJ9eVNapCDhZbCpezhYKxm0IsZEk7swakRh7RkC1t2CXzd3hGmszTv2k9e/pXyZuL+wQ==}
-    engines: {node: '>=18.0.0'}
+  '@effect/sql-pg@4.0.0':
+    resolution: {integrity: sha512-w0sRMA08Tgz73aReYpFSxD+nz2LUKYhH/4zaRpo4G5b5YG+eqiAL7XYhqIjvGZ8MZacazbG71Jhprv6ccz9HDg==}
     peerDependencies:
-      effect: ^4.0.0-rc.117
-      redis: '>=5.0.0 <7.0.0'
+      effect: ^4.0.0
 
-  '@effect/sql-pg@4.0.0-rc.116':
-    resolution: {integrity: sha512-cnvH+XyNsCfd+m6buOzVpuYUyQYWC9pkkC6L6J+gQXrogcZ3O/WAxlcaxsEMC4Ru66vO0PZiWBUzhee5jh3KRQ==}
+  '@effect/sql-sqlite-node@4.0.0':
+    resolution: {integrity: sha512-xyUSLY7v55iMgGxrjFrTo5ngixgQ3jLmOQ+AX8CCazO/caxuMM0oq8zb974FAcvQHRrpMEWU7Vnoo+rxct7PAQ==}
     peerDependencies:
-      effect: ^4.0.0-rc.116
-
-  '@effect/sql-sqlite-node@4.0.0-rc.116':
-    resolution: {integrity: sha512-nh7k7lXUPtEXBJpS5RHP01l6rtBFHsZq8Q3l+eV+lhO5qbvApt8Xb+Jb9j8LmXT4CcEagKe2Ix/bbipWpRXXnA==}
-    peerDependencies:
-      effect: ^4.0.0-rc.116
+      effect: ^4.0.0
 
   '@effect/vitest@4.0.0-rc.117':
     resolution: {integrity: sha512-jJg9M7T3OhTcvoD9Zi28S5+0H+axlSHAYjXM8TYeLJy/FVlPe0B/Vc3ZfaqUF0rwkfQ6ziyCdjiBS46+182H1Q==}
@@ -3361,19 +3354,19 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@foldkit/ui@0.163.0':
-    resolution: {integrity: sha512-8UNyl88ovpJ2TC5biV+MA0vVcGZ0OgzlISx6qXKm1vqXGbanjsJPAezu22Iih+9hvh7upOKn8L05A2h8hz04Gg==}
+  '@foldkit/ui@0.165.0':
+    resolution: {integrity: sha512-EARUWr5qlDqnEprAZqQ5KsUoplcv8pWtELkHiUGa5cyxGqmWRiYiL8jOwghF+d1vzUS1xquV1s0oa7Cu2+4dzw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: 4.0.0-rc.116
-      foldkit: '>=0.163.0'
+      effect: 4.0.0
+      foldkit: '>=0.165.0'
 
-  '@foldkit/vite-plugin@0.24.0':
-    resolution: {integrity: sha512-xBo5pEGOAAYQDnmRThsJ8QAykJTPYqaL0uDfm1iD6Bs9W2DjRVvGTEcgggoEXJyE0AoVNu8RMv6Fw0hvqW8N5Q==}
+  '@foldkit/vite-plugin@0.26.0':
+    resolution: {integrity: sha512-/ponCe7EZUv78EepsbACtH+FhjBD+O2C0OkjgvwP4t3K3Mribxo39QEyqbc1aWkahvBmKTsRIg6L9FMN6Eoinw==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
-      effect: 4.0.0-rc.116
-      foldkit: '>=0.159.0'
+      effect: 4.0.0
+      foldkit: '>=0.165.0'
       vite: ^8.0.0
 
   '@hono/node-server@2.1.1':
@@ -6525,11 +6518,11 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
+  effect@4.0.0:
+    resolution: {integrity: sha512-ooc1TG5t+FfzgYnFz2ff6BBKyZ7EwBRVXC7c4RhQUAD6/TZ2gTXXMeb4WX7a19ozQo4J73/QW+S00YAIresoMQ==}
+
   effect@4.0.0-rc.112:
     resolution: {integrity: sha512-wXxwuh1Ywnv4cPRM3Wfa0vDwuOHnZ1TsTgHJkG9XgzND6inhBH9n1vBxhg3iIXOia/OrpmvVmd3lrD4vq6bF3A==}
-
-  effect@4.0.0-rc.116:
-    resolution: {integrity: sha512-nawqJHSjHV8XIBRZNZ+D7cLZpN3kkSjzy6aiT9ofKENsl7xAMFKEoDa0itN5JFl3GUQ1PIN1T1HNlva5+xyO/A==}
 
   electron-to-chromium@1.5.425:
     resolution: {integrity: sha512-QvPtl41EUOnuT1HBvMKgxXRIaHNcagBPs50u7VULzhZXaGfqTbZyE16LQsctZ/RQHlGu+FOWeDTR4mY6YbeF1g==}
@@ -6748,12 +6741,12 @@ packages:
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
 
-  foldkit@0.163.0:
-    resolution: {integrity: sha512-9IWvBd68MRpfgrMOVuwuasU81GWH4ccNaOkT7nJEzl+azhDOzHNysm7Z0RdtowBFlJX+6qJfSLDVzbiWOVd9Ww==}
+  foldkit@0.165.0:
+    resolution: {integrity: sha512-ue0DVJvRtb6PnF4SbW/qWJIEuseXxaPHEiQX1iiG1Nk2n5BUMD0KYjsm741HsboAJlJPojzSvyG9HXwzpVUQmw==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
-      '@effect/platform-browser': 4.0.0-rc.116
-      effect: 4.0.0-rc.116
+      '@effect/platform-browser': 4.0.0
+      effect: 4.0.0
 
   follow-redirects@1.16.0:
     resolution: {integrity: sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==}
@@ -8502,8 +8495,8 @@ packages:
     resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.10.2:
-    resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
+  undici@8.11.2:
+    resolution: {integrity: sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==}
     engines: {node: '>=22.19.0'}
 
   unenv@2.0.0-rc.24:
@@ -8940,6 +8933,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   wsl-utils@0.1.0:
     resolution: {integrity: sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==}
     engines: {node: '>=18'}
@@ -9034,7 +9039,7 @@ packages:
 
 snapshots:
 
-  '@agent-native/core@0.177.1(49785ab16baba6814d4e3314c10af031)':
+  '@agent-native/core@0.177.1(70ab93bf0e3099b2d4c630e365e7c8d6)':
     dependencies:
       '@agent-native/recap-cli': 0.5.27
       '@agent-native/toolkit': 0.19.6(@floating-ui/dom@1.8.0)(@tiptap/extension-code-block@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1))(@tiptap/extension-list@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1))(@tiptap/extensions@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(immer@11.1.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(react-dom@19.3.0(react@19.3.0))(react-is@19.3.0)(react@19.3.0)(redux@5.0.1)(use-sync-external-store@1.7.0(react@19.3.0))
@@ -9126,7 +9131,7 @@ snapshots:
       react-router: 8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       sharp: 0.35.4(@types/node@22.20.1)
       vite: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
-      ws: 8.21.3
+      ws: 8.22.0
       xlsx: 0.18.5
     transitivePeerDependencies:
       - '@aws-sdk/client-rds-data'
@@ -9880,67 +9885,67 @@ snapshots:
       '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.11.0(@opentelemetry/api@1.9.1)
 
-  '@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112)':
+  '@effect/platform-browser@4.0.0(effect@4.0.0)':
+    dependencies:
+      effect: 4.0.0
+
+  '@effect/platform-browser@4.0.0(effect@4.0.0-rc.112)':
     dependencies:
       effect: 4.0.0-rc.112
-
-  '@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116)':
-    dependencies:
-      effect: 4.0.0-rc.116
 
   '@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.112)
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0-rc.112)
       effect: 4.0.0-rc.112
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112)':
+  '@effect/platform-node-shared@4.0.0(effect@4.0.0)':
+    dependencies:
+      '@types/ws': 8.18.1
+      effect: 4.0.0
+      ws: 8.22.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112)':
     dependencies:
       '@types/ws': 8.18.1
       effect: 4.0.0-rc.112
-      ws: 8.21.3
+      ws: 8.22.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.116)':
+  '@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@types/ws': 8.18.1
-      effect: 4.0.0-rc.116
-      ws: 8.21.3
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  '@effect/platform-node@4.0.0-rc.116(effect@4.0.0-rc.116)(redis@6.2.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.116)
-      effect: 4.0.0-rc.116
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0)
+      effect: 4.0.0
       redis: 6.2.1(@opentelemetry/api@1.9.1)
-      undici: 8.10.2
+      undici: 8.11.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))':
+  '@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.112)
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0-rc.112)
       effect: 4.0.0-rc.112
       redis: 6.2.1(@opentelemetry/api@1.9.1)
-      undici: 8.10.2
+      undici: 8.11.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116)':
+  '@effect/sql-pg@4.0.0(effect@4.0.0)':
     dependencies:
-      effect: 4.0.0-rc.116
+      effect: 4.0.0
 
-  '@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116)':
+  '@effect/sql-sqlite-node@4.0.0(effect@4.0.0)':
     dependencies:
-      effect: 4.0.0-rc.116
+      effect: 4.0.0
 
   '@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1)':
     dependencies:
@@ -10118,21 +10123,24 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@foldkit/ui@0.163.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))':
+  '@foldkit/ui@0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))':
     dependencies:
       '@floating-ui/dom': 1.8.0
-      effect: 4.0.0-rc.116
-      foldkit: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      effect: 4.0.0
+      foldkit: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
 
-  '@foldkit/vite-plugin@0.24.0(effect@4.0.0-rc.116)(foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))':
+  '@foldkit/vite-plugin@0.26.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))':
     dependencies:
-      effect: 4.0.0-rc.116
-      foldkit: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0)
+      effect: 4.0.0
+      foldkit: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
       magic-string: 1.4.2
       vite: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
       ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
+      - redis
       - utf-8-validate
 
   '@hono/node-server@2.1.1(hono@4.13.7)':
@@ -10275,43 +10283,43 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.2
 
-  '@livestore/common@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
+  '@livestore/common@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
     dependencies:
       '@effect/opentelemetry': 4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112)
-      '@effect/platform-browser': 4.0.0-rc.116(effect@4.0.0-rc.112)
+      '@effect/platform-browser': 4.0.0(effect@4.0.0-rc.112)
       '@effect/platform-bun': 4.0.0-rc.117(effect@4.0.0-rc.112)
-      '@effect/platform-node': 4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.112)
+      '@effect/platform-node': 4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0-rc.112)
       '@effect/vitest': 4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1)
-      '@livestore/utils': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
-      '@livestore/webmesh': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
+      '@livestore/utils': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
+      '@livestore/webmesh': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@standard-schema/spec': 1.1.0
       effect: 4.0.0-rc.112
 
-  '@livestore/livestore@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
+  '@livestore/livestore@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
     dependencies:
       '@effect/opentelemetry': 4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112)
-      '@effect/platform-browser': 4.0.0-rc.116(effect@4.0.0-rc.112)
+      '@effect/platform-browser': 4.0.0(effect@4.0.0-rc.112)
       '@effect/platform-bun': 4.0.0-rc.117(effect@4.0.0-rc.112)
-      '@effect/platform-node': 4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.112)
+      '@effect/platform-node': 4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0-rc.112)
       '@effect/vitest': 4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1)
-      '@livestore/common': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
-      '@livestore/utils': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
+      '@livestore/common': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
+      '@livestore/utils': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@standard-schema/spec': 1.1.0
       effect: 4.0.0-rc.112
 
-  '@livestore/utils@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
+  '@livestore/utils@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
     dependencies:
       '@effect/opentelemetry': 4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112)
-      '@effect/platform-browser': 4.0.0-rc.116(effect@4.0.0-rc.112)
+      '@effect/platform-browser': 4.0.0(effect@4.0.0-rc.112)
       '@effect/platform-bun': 4.0.0-rc.117(effect@4.0.0-rc.112)
-      '@effect/platform-node': 4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.112)
+      '@effect/platform-node': 4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0-rc.112)
       '@effect/vitest': 4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
@@ -10321,15 +10329,15 @@ snapshots:
       pretty-bytes: 7.0.1
       qrcode-generator: 2.0.4
 
-  '@livestore/webmesh@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
+  '@livestore/webmesh@0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)':
     dependencies:
       '@effect/opentelemetry': 4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112)
-      '@effect/platform-browser': 4.0.0-rc.116(effect@4.0.0-rc.112)
+      '@effect/platform-browser': 4.0.0(effect@4.0.0-rc.112)
       '@effect/platform-bun': 4.0.0-rc.117(effect@4.0.0-rc.112)
-      '@effect/platform-node': 4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
-      '@effect/platform-node-shared': 4.0.0-rc.117(effect@4.0.0-rc.112)
+      '@effect/platform-node': 4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@effect/platform-node-shared': 4.0.0(effect@4.0.0-rc.112)
       '@effect/vitest': 4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1)
-      '@livestore/utils': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
+      '@livestore/utils': 0.5.0-dev.0(@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.214.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112))(@effect/platform-browser@4.0.0(effect@4.0.0-rc.112))(@effect/platform-bun@4.0.0-rc.117(effect@4.0.0-rc.112))(@effect/platform-node-shared@4.0.0(effect@4.0.0-rc.112))(@effect/platform-node@4.0.0(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@standard-schema/spec@1.1.0)(effect@4.0.0-rc.112)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@standard-schema/spec': 1.1.0
@@ -12813,15 +12821,15 @@ snapshots:
       postgres: 3.4.9
       sql.js: 1.13.0
 
-  drizzle-orm@1.0.0-rc.4(@effect/sql-pg@4.0.0-rc.116(effect@4.0.0-rc.116))(@effect/sql-sqlite-node@4.0.0-rc.116(effect@4.0.0-rc.116))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0-rc.116)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1):
+  drizzle-orm@1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1):
     optionalDependencies:
-      '@effect/sql-pg': 4.0.0-rc.116(effect@4.0.0-rc.116)
-      '@effect/sql-sqlite-node': 4.0.0-rc.116(effect@4.0.0-rc.116)
+      '@effect/sql-pg': 4.0.0(effect@4.0.0)
+      '@effect/sql-sqlite-node': 4.0.0(effect@4.0.0)
       '@electric-sql/pglite': 0.5.8
       '@neondatabase/serverless': 1.1.0
       '@opentelemetry/api': 1.9.1
       '@types/sql.js': 1.4.11
-      effect: 4.0.0-rc.116
+      effect: 4.0.0
       pg: 8.23.0
       postgres: 3.4.9
       sql.js: 1.13.0
@@ -12847,12 +12855,12 @@ snapshots:
 
   ee-first@1.1.1: {}
 
+  effect@4.0.0: {}
+
   effect@4.0.0-rc.112:
     dependencies:
       fast-check: 4.10.2
       msgpackr: 2.1.0
-
-  effect@4.0.0-rc.116: {}
 
   electron-to-chromium@1.5.425: {}
 
@@ -13110,10 +13118,10 @@ snapshots:
 
   flatted@3.4.4: {}
 
-  foldkit@0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116):
+  foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0):
     dependencies:
-      '@effect/platform-browser': 4.0.0-rc.116(effect@4.0.0-rc.116)
-      effect: 4.0.0-rc.116
+      '@effect/platform-browser': 4.0.0(effect@4.0.0)
+      effect: 4.0.0
       parse5: 8.0.1
 
   follow-redirects@1.16.0: {}
@@ -15225,7 +15233,7 @@ snapshots:
 
   undici@7.29.1: {}
 
-  undici@8.10.2: {}
+  undici@8.11.2: {}
 
   unenv@2.0.0-rc.24:
     dependencies:
@@ -15534,6 +15542,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.21.3: {}
+
+  ws@8.22.0: {}
 
   wsl-utils@0.1.0:
     dependencies:

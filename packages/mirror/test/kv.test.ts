@@ -1,6 +1,6 @@
 /** The key-value store: one scoped, versioned JSON document per mirror. */
 import { Effect, Schema, Stream } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'

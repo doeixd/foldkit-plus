@@ -5,7 +5,7 @@
  * the same store. A keyboard drag runs here because `@foldkit/ui`'s
  * DragAndDrop finds the next place by querying the drawn page.
  */
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 

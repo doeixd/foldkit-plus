@@ -1,5 +1,5 @@
 import { Effect, Schema } from 'effect'
-import { RpcTest } from 'effect/unstable/rpc'
+import { RpcTest } from 'effect/rpc'
 import { Entity, REMOTE_PROTOCOL_VERSION, RemoteRpc, type ReadRequest } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer, type HandlerOptions } from '../src/index.js'

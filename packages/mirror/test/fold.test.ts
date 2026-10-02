@@ -4,7 +4,7 @@
  * mirror's answer arrives wrapped, with the lift recorded for Story.
  */
 import { Effect, Schema } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { defineMessageUnion } from 'foldkit/message'
 import { Story } from 'foldkit/test'
 import type * as Update from 'foldkit/update'

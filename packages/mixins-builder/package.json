@@ -40,8 +40,8 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "effect": "^4.0.0-rc.116",
-    "foldkit": "^0.163.0"
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0"
   },
   "dependencies": {
     "foldkit-builder": "workspace:*",
@@ -53,8 +53,8 @@
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.116",
-    "foldkit": "0.163.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",

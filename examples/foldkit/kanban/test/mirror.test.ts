@@ -1,5 +1,5 @@
 import { Effect, Stream } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { describe, expect, test } from 'vitest'
 
 import { DEFAULT_COLUMNS } from '../src/constant.js'

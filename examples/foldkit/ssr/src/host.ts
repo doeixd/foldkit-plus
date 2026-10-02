@@ -15,7 +15,7 @@ import {
   HttpServerRequest,
   HttpServerResponse,
   HttpStaticServer,
-} from 'effect/unstable/http'
+} from 'effect/http'
 import {
   HOST_METHOD_ANSWERS,
   handleRequest,

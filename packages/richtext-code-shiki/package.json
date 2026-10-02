@@ -46,11 +46,11 @@
     "foldkit-richtext": "workspace:*"
   },
   "peerDependencies": {
-    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118",
+    "effect": "^4.0.0",
     "shiki": "^4.4.3"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.116",
+    "effect": "4.0.0",
     "shiki": "4.4.3",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

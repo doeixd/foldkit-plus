@@ -4,7 +4,7 @@
  */
 import { Agent } from 'foldkit-agent'
 import { Option, Schema } from 'effect'
-import * as HttpEffect from 'effect/unstable/http/HttpEffect'
+import * as HttpEffect from 'effect/http/HttpEffect'
 import { defineMessageUnion } from 'foldkit/message'
 import { AgentMcp } from '../src/index.js'
 import type { Notification } from '../src/index.js'

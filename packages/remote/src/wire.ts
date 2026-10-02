@@ -1,10 +1,10 @@
 /**
- * The Remote wire: Effect RPC semantics over `effect/unstable/rpc`. Remote owns
+ * The Remote wire: Effect RPC semantics over `effect/rpc`. Remote owns
  * the message shapes; Effect owns the transport. `Make`ing reads batch, mutations
  * preserve order, and live data is a stream.
  */
 import { Schema } from 'effect'
-import { Rpc, RpcGroup } from 'effect/unstable/rpc'
+import { Rpc, RpcGroup } from 'effect/rpc'
 import type { RelationRequirement, Requirement } from './requirement.js'
 
 /**

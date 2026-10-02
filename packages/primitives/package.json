@@ -96,15 +96,15 @@
     "foldkit-bundle": "workspace:*"
   },
   "peerDependencies": {
-    "effect": ">=4.0.0-rc.116 <4.0.0-rc.118",
-    "foldkit": "^0.163.0",
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0",
     "foldkit-mixins": "workspace:^"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0-rc.116",
+    "@effect/platform-browser": "4.0.0",
     "@types/ws": "^8.5.12",
-    "effect": "4.0.0-rc.116",
-    "foldkit": "0.163.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
     "foldkit-mixins": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",

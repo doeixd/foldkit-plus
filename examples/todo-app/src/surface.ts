@@ -10,7 +10,7 @@
  * `Board` cannot emit `RequestedTodo`; only `Composer` can. That is enforced by
  * the builder's type, not by convention.
  */
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surface'
