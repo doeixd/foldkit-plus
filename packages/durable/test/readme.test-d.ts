@@ -41,9 +41,9 @@ const program = Effect.gen(function* () {
 
   const todos = DocumentId.make('todos')
   yield* journal.append(todos, { opId: 'tab-1:1', title: 'Milk' }, { actorId: 'alice' })
-  const { snapshot } = yield* journal.load(todos)
+  const { snapshot, cursor } = yield* journal.load(todos)
   const since = yield* journal.read(todos, Cursor.make(0))
-  return { snapshot, since }
+  return { snapshot, cursor, since }
 }).pipe(Effect.scoped)
 
 await Effect.runPromise(program)

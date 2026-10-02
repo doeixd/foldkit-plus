@@ -2,87 +2,57 @@
 
 The authoritative server journal for local-first Foldkit state.
 
-Clients can edit optimistically and retry when the network is unreliable. The
-server still needs one place that says **which operations committed, in what
-order, and what state that order produces**. `foldkit-durable` is that place.
+Clients edit optimistically and retry when the network is unreliable. The server
+still needs one place that says **which operations committed, in what order,
+and what state that order produces**. A Journal is that place: for each document
+it keeps an ordered operation log, the current snapshot, and a cursor into the
+log, on SQLite.
 
-For each document it keeps:
+> **`append` is the commit boundary.** It decodes, validates, authorizes,
+> reduces, assigns the next sequence, and persists the operation with the new
+> snapshot in one transaction. Send the same operation twice and it is answered,
+> not applied again.
 
-```text
-ordered operation log
-        +
-current snapshot
-        +
-cursor into that log
-```
+It is the server half of [replicated Foldkit state](../../docs/replication.md).
+[`foldkit-sync`](../sync) is the client half, and hands the journal its codecs
+and reducer so the server never restates the application.
 
-Appending a new operation is atomic: the journal assigns its authoritative
-sequence, folds it into the snapshot with your reducer, advances the cursor, and
-remembers the operation identity. Sending the same `opId` again does not apply
-the operation twice.
+## Is this the right package?
 
-It also includes a durable effect ledger for server-side work such as charging a
-card or sending an email. That ledger can remember successful outcomes and drive
-recovery after a crash, but it **does not promise exactly-once execution at an
-external provider**.
+Use it when several clients or devices write one server-owned document and
+need an authoritative order, idempotent retries, a snapshot for newcomers, and
+compaction that cannot change what the history means.
 
-**Use it when** several clients or devices write the same server-owned document
-and need authoritative ordering, replay, idempotent retries, compaction, and
-recoverable external effects. **Do not use it for** peer-to-peer or multi-master
-ordering: one server journal decides the order. It is also not a job scheduler;
-recovery is a loop your application chooses when to run.
+Do not use it as a database for arbitrary queries (it is an operation journal),
+for multi-master ordering (one journal decides), or as a job scheduler (the
+recovery loop is one your application chooses when to run). It also does not
+promise exactly-once execution at an external provider; see
+[external effects](#external-effects-and-the-crash-gap).
 
-It is the **server half** of [replicated Foldkit state](../../docs/replication.md).
-[`foldkit-sync`](../sync) is the client half.
-
-## The mental model
-
-A Journal is intentionally smaller than your application:
-
-```text
-client operation
-      |
-      v
-+---------------------------+
-|          Journal          |
-|                           |
-| validate / authorize      |
-| assign server sequence    |
-| reduce current snapshot   |
-| remember opId             |
-+-------------+-------------+
-              |
-       +------+------+
-       |             |
-       v             v
- operation log    snapshot + cursor
-```
-
-The important names are:
-
-| Concept | Meaning |
-| --- | --- |
-| **Document** | One independently ordered stream of operations, identified by `DocumentId`. |
-| **Operation** | One durable change submitted by a client. The application defines its shape. |
-| **`opId`** | Stable identity of one operation. Retrying the same operation must reuse it. |
-| **Sequence** | The authoritative, gap-free server position assigned when an operation commits. |
-| **Cursor** | A position from which a client asks for later committed operations. |
-| **Snapshot** | The current reduced document state after the committed prefix represented by its cursor. |
-
-The log and snapshot solve different problems. The snapshot lets a new or
-far-behind replica start from current state without replaying history from zero.
-The log lets an up-to-date replica ask, “what happened after cursor N?”
+## The model
 
 ```text
 sequence:   1      2      3      4
-            |      |      |      |
 log:       op A   op B   op C   op D
-                              ^
-                              cursor 3
+                          ^
+                          cursor 3
 
-snapshot at cursor 3
-= reduce(reduce(reduce(empty, A), B), C)
+snapshot at cursor 3 = reduce(reduce(reduce(empty, A), B), C)
 ```
+
+| Name | Meaning |
+| --- | --- |
+| **Document** | One independently ordered stream of operations, a `DocumentId`. |
+| **Operation** | One durable change a client submitted. The application defines its shape. |
+| **`opId`** | The operation's stable identity. A retry reuses it. |
+| **Sequence** | The gap-free position the journal assigns when an operation commits. |
+| **Cursor** | A position a reader has reached; "what came after N?" |
+| **Snapshot** | The reduced state of the committed prefix its cursor names. |
+| **Epoch** | The identity of a document's history; new after a reset. |
+
+The log and the snapshot answer different questions. A far-behind or brand-new
+replica starts from the snapshot; an up-to-date one asks for the log after its
+cursor.
 
 ## Install
 
@@ -90,18 +60,14 @@ snapshot at cursor 3
 pnpm add foldkit-durable
 ```
 
-`effect` is a peer dependency, `@effect/sql-sqlite-node` comes with the package,
-and Node 22 is required for `node:sqlite`.
+`effect` is a peer dependency, `@effect/sql-sqlite-node` comes with the
+package, and Node 22 is required for `node:sqlite`.
 
-## With `foldkit-sync`: the normal Foldkit path
+## Sixty seconds, with `foldkit-sync`
 
-If the journal is backing a `foldkit-sync` contract, **do not rewrite the shared
-schema or reducer on the server**. Sync already knows which slice is replicated,
-which Messages are durable, what the initial shared value is, and how those
-Messages replay through the application's `update`.
-
-Given a Sync contract such as `TodoSync`, the server journal can reuse that
-information directly:
+If the journal backs a Sync contract, do not restate the shared schema or the
+reducer. The contract already knows the slice, the durable Messages, the
+initial value, and how they replay through `update`:
 
 ```ts
 import { Effect } from 'effect'
@@ -112,80 +78,46 @@ type Principal = { readonly actorId: string }
 
 const program = Effect.gen(function* () {
   const journal = yield* Journal.make({
-    // Supplied by Sync:
-    // - operation codec
-    // - snapshot codec
-    // - empty snapshot
-    // - replay reducer
-    // - the replica each operation came from, which binds a replica to its actor
-    // - authorization rules, when the Sync contract declares them
+    // From the Sync contract: operation and snapshot codecs, the empty
+    // snapshot, the reducer, each operation's replica, and any `authorize`.
     ...TodoSync.journalContract(),
 
     file: 'todos.sqlite',
 
-    // Durable and Sync intentionally brand their ids separately.
-    // Re-brand them at this boundary instead of sharing an untyped string.
+    // Sync and Durable brand their ids separately; re-brand at the boundary.
     opId: operation => OpId.make(operation.opId),
     actorId: (principal: Principal) => ActorId.make(principal.actorId),
   })
 
   return yield* journal.load(DocumentId.make('todos'))
 }).pipe(Effect.scoped)
-
-await Effect.runPromise(program)
 ```
 
-That relationship is the main architectural seam:
+`Journal.make` is scoped: the SQLite connection closes with the scope, so keep
+it open for the server's lifetime. `file` is a path, `:memory:` for tests, or a
+`Config<string>`.
+
+What the two packages each own:
 
 ```text
-Foldkit application
-  Model / Message / update
-          |
-          v
-     foldkit-sync
-  "what is durable?"
-          |
-          | journalContract()
-          v
-   foldkit-durable
-  "what committed, in
-   what order, and what
-   state does that imply?"
-          |
-          v
-        SQLite
+Foldkit application        Model · Message · update
+        |
+   foldkit-sync            what is shared, what is durable, how it replays
+        |  journalContract()
+   foldkit-durable         what committed, in what order, what state follows
+        |
+      SQLite
 ```
 
-`foldkit-sync` owns replication semantics. `foldkit-durable` owns authoritative
-storage, order, idempotency, compaction, and effect-recovery records. There is no
-second server reducer to keep aligned with the application.
-
-Durable does not speak Sync's exchange; the server's handler for
-`exchange(cursor, pending, epoch)` does, with these calls:
-
-- `epoch(key)` is returned with every answer. When the replica sent another, it
-  holds a cursor into history this journal lacks: answer from `0`, which the
-  cursor check below then passes.
-- `cursor(key)` refuses a cursor ahead of the journal before anything is
-  appended, so no commit loses its acknowledgement to a failed read.
-- `append` for each pending operation: acknowledge `Committed` and
-  `AlreadyCommitted`; reject an operation that does not decode,
-  `OperationRejectedError` (a refusal, or a replica another actor holds) and
-  `IdentityConflictError`, which fail the same way on every retry; fail the
-  exchange on a `JournalError`, so the replica keeps the edit and tries again.
-- `read(key, cursor, { limit })` for what is after the cursor, with `more: true`
-  when a whole page came back; a `CompactedCursorError` means sending a
-  checkpoint (`load`) instead.
-- `subscribe` tells connected replicas a commit happened (Sync's `notify`
-  frame), so a replica that only reads catches up.
-
-See [`examples/sync`](../../examples/sync) for the full path.
+The journal does not speak Sync's exchange. Your server's handler does, with
+`append` for each pending operation, `read` for what follows the cursor, and
+`load` for a checkpoint. [The guide](../../docs/replication.md#3-the-server-an-exchange-over-the-journal)
+shows that handler whole; the rest of this README explains each call.
 
 ## Using Durable directly
 
-`foldkit-durable` does not require Foldkit or Sync. At the lower level, a Journal
-only needs an operation codec, a snapshot codec, an empty snapshot, and a pure
-reducer:
+Without Sync, a Journal needs an operation codec, a snapshot codec, an empty
+snapshot, and a pure reducer:
 
 ```ts
 import { Effect, Schema } from 'effect'
@@ -193,9 +125,6 @@ import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
 
 const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
 const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
-
-type Operation = typeof Operation.Type
-type Snapshot = typeof Snapshot.Type
 type Principal = { readonly actorId: string }
 
 const program = Effect.gen(function* () {
@@ -204,174 +133,78 @@ const program = Effect.gen(function* () {
     operation: Operation,
     snapshot: Snapshot,
     empty: () => ({ todos: [] }),
-    reduce: (snapshot, operation) => ({
-      todos: [...snapshot.todos, operation.title],
-    }),
+    reduce: (snapshot, operation) => ({ todos: [...snapshot.todos, operation.title] }),
     opId: operation => OpId.make(operation.opId),
     actorId: (principal: Principal) => ActorId.make(principal.actorId),
   })
 
   const todos = DocumentId.make('todos')
-
-  yield* journal.append(
-    todos,
-    { opId: 'tab-1:1', title: 'Milk' },
-    { actorId: 'alice' },
-  )
-
+  yield* journal.append(todos, { opId: 'tab-1:1', title: 'Milk' }, { actorId: 'alice' })
   const { snapshot, cursor } = yield* journal.load(todos)
-  const afterZero = yield* journal.read(todos, Cursor.make(0))
-
-  return { snapshot, cursor, afterZero }
+  const since = yield* journal.read(todos, Cursor.make(0))
+  return { snapshot, cursor, since }
 }).pipe(Effect.scoped)
-
-await Effect.runPromise(program)
 ```
 
-`Journal.make` is scoped; the SQLite connection closes with the Effect scope.
-`file` may be a literal path or a `Config.Config<string>`.
+The operation schema decides what `append` accepts: its *encoded* side, so a
+transforming schema is checked at the call site rather than degrading the
+boundary to `unknown`. A payload that does not decode is an `InvalidOperationError`.
 
-## Read the result as three separate guarantees
+## What `append` guarantees
 
-| Observation | What it proves | What it does not prove |
+For a new operation, inside one SQLite transaction:
+
+```text
+decode → validate → authorize → reduce → assign sequence → persist op + snapshot + cursor → Committed
+```
+
+For a retransmission, the stable `opId` is what matters:
+
+```text
+same opId, same payload and actor        answered from history, never applied twice
+same opId, different payload or actor    IdentityConflictError
+```
+
+Payloads are canonicalized before hashing, so reordered JSON keys are the same
+operation. The guarantee lasts as long as the identity row does; see
+[retention](#retention).
+
+Read the results as three separate facts:
+
+| You observe | It proves | It does not prove |
 | --- | --- | --- |
-| `append` commits | This journal accepted the operation and advanced its state atomically. | Every client has seen it. |
-| `load` returns a snapshot and cursor | The snapshot represents that committed prefix. | Pending client edits are included. |
-| An external-effect result is recorded | The journal can reuse that recorded outcome. | The provider could not have acted before a crash left no record. |
+| `append` returned `Committed` | the journal accepted and persisted it | any client has seen it |
+| `load` returned a snapshot and cursor | the snapshot is that committed prefix | pending client edits are in it |
+| an effect result is recorded | the journal can reuse that outcome | the provider did not act before a crash |
 
-`Journal.make` returns an Effect that opens storage when run. Keep its scope
-alive for the server's lifetime; the quick-start program closes it when the
-scoped Effect finishes. Reuse the same operation id for a retry, and preserve
-identity retention for as long as old retries may arrive.
+`append` returns `AlreadyCommitted` instead of `Committed` when the operation
+was committed before and compaction has since removed its payload: the journal
+can prove the id committed without pretending to still have its content.
+`appendAll` commits several in order in one transaction.
 
-## What happens when an operation is appended
-
-Think of `append` as the authoritative commit boundary.
-
-For a **new** operation, the journal performs the application checks and state
-transition inside the SQLite append transaction, assigns the next sequence, and
-persists the committed operation together with the new snapshot/cursor.
-
-```text
-encoded operation
-      |
-      v
- decode
-      |
-      v
- validate + authorize
-      |
-      v
- reduce(snapshot, operation)
-      |
-      v
- assign sequence
-      |
-      v
- persist operation + snapshot + cursor
-      |
-      v
- Committed
-```
-
-The snapshot is the expensive part of an append when the document is large.
-The journal keeps each document's current state in memory, so an append decodes
-the stored snapshot only when the row's cursor shows that another connection
-committed since. `snapshotEvery: n` writes the snapshot once every `n` commits
-instead of after each. `load` then replays the few operations committed since
-the snapshot, and `compact` writes a lagging snapshot before it removes any
-payload that snapshot has not folded in. The default is 1. The remembered state
-is checked against the stored cursor and the operation committed there, so a
-commit or a reset through another connection is noticed; a journal remembers
-the most recent 256 documents. `load` hands out that remembered snapshot itself,
-so treat it as read-only, as `reduce` must.
-
-The exact authority remains application-defined:
-
-- `reduce` says what the operation means for document state;
-- `validate` rejects structurally invalid work against the authoritative
-  snapshot;
-- `authorize` decides whether the trusted principal may commit it.
-
-For a **retransmission**, the stable `opId` is the key property. The same
-operation is acknowledged rather than applied again. Reusing an `opId` with a
-different payload or actor fails with `IdentityConflictError`.
-
-Encoded payloads are canonicalized before hashing, so object-key order does not
-turn the same JSON data into a different operation.
-
-## Reading state and history
-
-The main read APIs answer two different questions:
-
-```ts
-const current = yield* journal.load(documentId)
-// current.snapshot -> current document state
-// current.cursor   -> committed position represented by that snapshot
-
-const later = yield* journal.read(documentId, cursor)
-// committed operations after that cursor
-```
-
-A typical replica uses a checkpoint/snapshot when it is far behind, then replays
-later operations in authoritative order. `read(key, cursor, { limit })` returns
-at most `limit` operations, so a server can answer a replica that is far behind
-in pages. Sync's exchange carries `more` for this.
-
-`Sequence` and `Cursor` are separate branded types on purpose. A committed
-operation's sequence is not accidentally accepted where a read cursor is
-expected.
-
-A cursor only means something within one history. `epoch(key)` names the
-document's: it stays the same while the operations are kept, and is new after
-`reset(key)` or in a new database file. A server hands it to its clients; a
-client that comes back with another epoch holds a cursor into history this
-journal does not have, and has to start again from `0`.
-
-## Idempotency and append results
-
-A successful first append returns `Committed`, including the operation, `opId`,
-server `sequence`, and `actorId`.
-
-Compaction may later delete the operation payload while retaining its identity.
-If that old operation is retransmitted, the journal returns
-`AlreadyCommitted`: it can prove the `opId` already committed without pretending
-it still has the original payload.
-
-`appendAll` performs an ordered batch in one transaction.
-
-The resulting guarantee is stronger than “duplicates are unlikely”:
-
-```text
-same opId + same payload/actor
-  -> never apply twice
-
-same opId + different payload/actor
-  -> IdentityConflictError
-```
-
-That guarantee lasts as long as the retained identity row does; database
-rotation is discussed under [Retention](#retention).
+Snapshot writes are the expensive part of an append on a large document.
+`snapshotEvery: n` writes one every `n` commits; `load` replays the few since.
+The journal keeps each document's current state in memory (the most recent
+256), checked against the stored cursor, so a commit or reset through another
+connection is noticed. `load` hands out that remembered value, so treat it as
+read-only, as `reduce` must.
 
 ## Validation and authorization
 
-`validate` is for structural/application checks against the current snapshot.
-`authorize` is for policy. Both execute inside the append transaction, so they
-must stay local and fast and cannot require Effect services.
+Both run inside the append transaction, while the write lock is held, so they
+stay local to the snapshot, cannot require services, and should be fast.
 
 ```ts
 import { Effect } from 'effect'
 import { InvalidOperationError, type JournalOptions } from 'foldkit-durable'
 
-const hooks: Pick<
-  JournalOptions<Operation, Snapshot, Principal>,
-  'validate' | 'authorize'
-> = {
+const hooks: Pick<JournalOptions<Operation, Snapshot, Principal>, 'validate' | 'authorize'> = {
+  // Structural checks: throw, or fail with InvalidOperationError.
   validate: ({ operation }) =>
     operation.title.length === 0
       ? Effect.fail(new InvalidOperationError({ message: 'title is empty' }))
       : Effect.void,
-
+  // Policy: true, false, a refusal with its reason, or an Effect of either.
   authorize: ({ principal, operation }) =>
     principal.actorId === operation.opId.split(':')[0] || {
       allowed: false,
@@ -380,198 +213,120 @@ const hooks: Pick<
 }
 ```
 
-When operations carry the replica that made them, `replicaId: operation =>
-operation.replicaId` binds each replica to the actor of its first commit, per
-document, and refuses any other actor's operation from it before `validate`
-runs, so the replica an operation names is one its actor holds. The first actor
-to commit from an unused replica id claims it, even across `reset`, so replica
-ids should be unguessable or assigned per actor. `foldkit-sync`'s
-`journalContract()` supplies it. On an existing journal, opening with `replicaId`
-recovers bindings from retained operations before accepting another commit. If
-older compacted operations have no payload, supply `legacyReplicaId` to recover
-their replica from their operation id; otherwise opening is refused.
-`journalContract()` supplies this callback for Sync's `replicaId:sequence` ids.
+A refusal is an `OperationRejectedError`; its `reason` is also repeated in
+`message`, so a server can tell the client why an optimistic edit was undone.
+With Sync, the rules declared per Message on the contract arrive here through
+`journalContract()`.
 
-Authorization may return `true` / `false`, a refusal carrying a reason, or an
-Effect producing either. A refusal becomes `OperationRejectedError`; a supplied
-reason is available on `.reason` and repeated in `.message` so a server can
-explain why an optimistic edit was rejected.
+The `principal` is whatever your transport established for the connection. It is
+never decoded from the operation, which is why a client cannot claim to be
+someone else.
 
-With `foldkit-sync`, per-Message authorization declared on the Sync contract is
-compiled into `journalContract()` and runs here against the authoritative
-snapshot.
+**Replica binding.** When operations carry the replica that made them
+(`replicaId: operation => …`, which `journalContract()` supplies), the first
+commit from a replica binds it to that actor for the document, and any other
+actor's operation from it is refused before `validate` runs. The first actor to
+use an id claims it, even across `reset`, so replica ids should be unguessable
+or assigned per actor. Opening an existing journal with `replicaId` recovers the
+bindings from retained operations; if some were compacted before schema 6,
+supply `legacyReplicaId` to read the replica from their ids, or opening is
+refused.
 
-## What Durable guarantees
+## Reading history
 
-For one journal database and its authoritative writer:
-
-- **Atomic append:** a new operation, its resulting state, and the new cursor
-  commit together. With `snapshotEvery` above 1, the state is the last stored
-  snapshot plus the operations since it.
-- **Stable, gap-free order:** every committed operation has one authoritative
-  sequence.
-- **Idempotent operation identity:** a retained `opId` cannot be applied twice;
-  conflicting reuse is rejected.
-- **Canonical payload comparison:** object key order does not create false
-  identity conflicts for retained canonical rows.
-- **Safe compaction:** dropping old operation payloads does not change the
-  document state produced by the compacted prefix, and operation identities are
-  retained.
-- **Non-blocking change notification:** subscriber failure or slowness does not
-  fail or delay a commit.
-- **Recorded effect reuse:** a successfully recorded effect result is reused
-  across restarts, and concurrent calls for one key coalesce within a single
-  Journal instance.
-
-The last guarantee is deliberately narrower than exactly-once execution at an
-external provider. See [Effect recovery](#effect-recovery).
-
-## Compaction and change notification
-
-A journal can retain the current state and operation identities without keeping
-every old operation payload forever.
-
-`compact` drops committed payloads through a floor; `floor` reports the highest
-sequence whose payload has been removed. Identity rows remain so an old retry
-can still be recognized.
-
-`journal.subscribe` is a `Stream.Stream<string>` of document keys whose commits
-changed. It is a wake-up signal, not a history transport: the channel slides,
-slow subscribers may drop old wake-ups, and a subscriber never slows or fails a
-commit. Recover missed history with `read`, not with the subscription itself.
-
-## Durable external effects
-
-Some committed operations imply server-side work outside SQLite:
-
-```text
-operation commits
-      |
-      v
-send email / charge card / call provider
+```ts
+const { snapshot, cursor } = yield* journal.load(key) // the state, and where it is
+const later = yield* journal.read(key, cursor, { limit: 500 }) // what came after
 ```
 
-The difficult case is a crash between the external provider succeeding and the
-journal recording that success:
+`read` returns at most `limit` operations, so a server answers a far-behind
+replica in pages; Sync's exchange carries `more` for this. `cursor(key)` reads
+the last sequence without decoding a snapshot, for checking a client's cursor
+before anything is appended.
+
+`Sequence` and `Cursor` are different brands on purpose: a committed
+operation's position cannot be passed where a read position is expected.
+
+**Compaction and checkpoints.** `compact(key, through)` drops committed
+payloads up to `through`; `floor(key)` is the highest dropped sequence. A `read`
+from below the floor fails with `CompactedCursorError`, which tells the server to
+send a checkpoint, `load`'s snapshot and cursor, instead of a misleading
+partial tail. Identity rows stay, so an old retry is still recognized.
+
+**Reset and epoch.** A cursor only means something within one history.
+`epoch(key)` names it: the same while the operations are kept, new after
+`reset(key)` or on a new database file. Hand it to clients with every answer; a
+client that comes back with another epoch holds a cursor into history this
+journal does not have, and has to be answered from `0`. `reset` drops a
+document's snapshot and operations but keeps replica bindings and effect
+records.
+
+**Change notification.** `journal.subscribe` is a `Stream` of document keys a
+commit changed. It is a wake-up, not a history transport: it slides, a slow
+subscriber may miss wake-ups, and a subscriber never slows or fails a commit.
+Catch up with `read`.
+
+## External effects and the crash gap
+
+A committed operation may imply work outside SQLite: send an email, charge a
+card. No local database can commit atomically with an external provider, and
+the dangerous window is:
 
 ```text
 provider succeeds
       |
-   CRASH HERE
+   CRASH
       |
-      v
-record success in SQLite
+record the success
 ```
 
-No local database can atomically commit with an arbitrary external provider.
-`foldkit-durable` therefore does **not** claim exactly-once external execution.
-Instead, its effect ledger records stable intent identities and outcomes so the
-application can distinguish known success from uncertain work and recover with
-an explicit policy.
+After a restart the application cannot know whether the provider acted. The
+journal does not claim exactly-once. Its **effect ledger** records a stable
+intent identity and its outcome, so recovery can tell known success from
+uncertain work and apply an explicit policy.
 
-`runEffect(key, run)`:
+`runEffect(key, run)` reuses a recorded success without calling `run` again,
+shares concurrent calls for one key within one Journal instance, and by default
+retries `pending` and `failed` records. Pass `{ retryFailed: false }` to fail a
+recorded failure with `EffectFailedError` instead, or a predicate over the
+record.
 
-- writes/uses the durable record for one stable effect key;
-- reuses a recorded success without invoking `run` again;
-- shares concurrent calls for the same key within one Journal instance;
-- may retry `pending` or `failed` records according to the supplied policy.
-
-`unfinished`, `effect`, `clearEffect`, and `recover` support inspection and
-recovery.
-
-### What the effect ledger can know
-
-| Durable record | What recovery can conclude | Application policy |
+| Record | Recovery can conclude | Policy |
 | --- | --- | --- |
-| None | No run was recorded for this key. A committed operation may still require work. | Discover the intent from retained application data, then start it. |
-| `pending` or `failed` | The external outcome may be unknown. | Retry only with provider idempotency or proof that repeating is safe; otherwise reconcile with the provider or require manual resolution. |
-| `succeeded` | The result was recorded. | Call `runEffect` to reuse it without contacting the provider. |
+| none | no run was recorded; a committed operation may still need work | derive the intent from the operation and start it |
+| `pending` or `failed` | the provider's outcome is unknown | retry only with provider idempotency or proof repeating is safe; else reconcile or resolve by hand |
+| `succeeded` | the result is known | `runEffect` reuses it without contacting the provider |
 
-Calling `runEffect` again retries both `pending` and `failed` records by default.
-Pass `{ retryFailed: false }` to fail with `EffectFailedError` instead of
-retrying a recorded failure, or provide a predicate
-`(record: EffectRecord) => boolean` to decide from the record itself.
-
-### Choose a stable semantic identity
-
-Choose the effect key **before** executing the action. Effect keys are global to
-the database, so include enough application identity to make collisions
-impossible: document, operation, semantic action, and any additional stable
-subject when needed.
+**Choose the key before acting**, from the document, the operation, and the
+semantic action, and hand the same key to the provider as its idempotency key:
 
 ```ts
-import { Effect } from 'effect'
-import type { Journal } from 'foldkit-durable'
-
-type Order = { readonly opId: string; readonly id: string }
-type OrderSnapshot = { readonly confirmed: ReadonlyArray<string> }
-type Orders = Journal<Order, OrderSnapshot, Principal>
-
-declare const provider: {
-  sendConfirmation: (input: {
-    orderId: string
-    idempotencyKey?: string
-  }) => Promise<void>
-}
-
 const confirmationKey = (order: Order) =>
   JSON.stringify(['orders', order.opId, 'send-confirmation:v1'])
 
 const sendConfirmation = (journal: Orders, order: Order) => {
   const key = confirmationKey(order)
-
   return journal.runEffect(
     key,
-    Effect.tryPromise(() =>
-      provider.sendConfirmation({
-        orderId: order.id,
-        idempotencyKey: key,
-      }),
-    ),
+    Effect.tryPromise(() => provider.sendConfirmation({ orderId: order.id, idempotencyKey: key })),
   )
 }
 ```
 
-The provider must durably associate that key with the action and result for
-provider-level idempotency to close the retry gap. Keep the key and request
-payload stable across retries, and account for the provider's retention window.
-An expired provider idempotency key is an uncertain outcome, not permission to
-repeat a non-idempotent action.
+Effect keys are global to the database. Never derive one from a Command's
+array position: reordering would hand an old result to a different action. A
+new semantic name denotes new work, not a retry. Without provider idempotency,
+an email sent just before a crash can be sent twice; the journal cannot prove
+otherwise.
 
-Without provider support or another way to query the outcome, an email sent just
-before a crash can be sent twice. The journal cannot prove otherwise.
-
-Do not derive effect identities from Command array positions. Reordering
-Commands could assign an old result to a different semantic action. Preserve
-existing semantic names across application upgrades; a new name denotes new
-work, not merely a retry of old work. Multiple effects of the same kind need an
-additional stable identity such as recipient id.
-
-### Discovering unfinished work
-
-`journal.effect(key)` is a lookup, not an intent queue. A `pending` record is
-created when `runEffect` starts, separately from the operation append. Recovery
-must therefore also find committed operations whose effect settlement never
-started.
-
-A robust recovery loop is:
-
-1. Read committed operations after an application-owned recovery cursor and
-   derive their stable effect intents.
-2. Inspect each intent record and apply the recovery policy. Advance the cursor
-   only after every intent for that operation is resolved.
-3. Keep unresolved operation payloads available by not compacting past the
-   recovery cursor, or retain equivalent intent identity in application snapshot
-   state.
-
-`journal.recover` implements that scan-and-settle loop. It stops before an
-operation whose intent failed or was skipped and returns the cursor through
-which all intents settled:
+**Recovery.** A `pending` record is created when `runEffect` starts, not when
+the operation commits, so recovery must also find committed operations whose
+effects never started. `journal.recover` walks a document's committed
+operations after an application-owned cursor, runs or reuses each intent, stops
+before the first one that failed or was skipped, and returns the cursor through
+which everything settled:
 
 ```ts
-import { Effect, Option } from 'effect'
-import { DocumentId, type Cursor } from 'foldkit-durable'
-
 const settle = (journal: Orders, from: Cursor) =>
   journal.recover({
     key: DocumentId.make('orders'),
@@ -580,205 +335,112 @@ const settle = (journal: Orders, from: Cursor) =>
       {
         key: confirmationKey(order),
         run: Effect.tryPromise(() =>
-          provider.sendConfirmation({
-            orderId: order.id,
-            idempotencyKey: confirmationKey(order),
-          }),
+          provider.sendConfirmation({ orderId: order.id, idempotencyKey: confirmationKey(order) }),
         ),
       },
     ],
-    // Default: retry. `skip` stops before this operation so it can be resolved
-    // manually without incorrectly advancing the recovery cursor.
+    // Default: retry. `skip` stops before this operation for manual resolution.
     onUnresolved: (_intent, record) =>
-      Option.isSome(record) && record.value.status === 'failed'
-        ? 'skip'
-        : 'retry',
+      Option.isSome(record) && record.value.status === 'failed' ? 'skip' : 'retry',
   })
 ```
 
-The application still owns scheduling, document enumeration, and persistence of
-the recovery cursor. `journal.unfinished()` lists every pending/failed effect
-record, `journal.keys()` enumerates documents, and `journal.clearEffect(key)`
-removes one effect record after application-specific resolution.
+The application owns when that runs, which documents it covers (`keys()`), and
+where the cursor is persisted. Do not compact past it, or keep the intent
+identity in the snapshot. `unfinished()` lists pending and failed records;
+`effect(key)` reads one; `clearEffect(key)` removes one after resolution.
 
-There is no atomic append-and-enqueue API today.
-
-### Execution ownership
-
-The in-flight registry exists only inside one `Journal.make` instance. Two
-journal handles or two processes can both execute the same effect key; a
-`pending` row is not an exclusive claim.
-
-Route effect execution to one owner for a database. Multi-owner execution needs
-a persistent claim/lease protocol with fencing and its own recovery policy,
-which this package does not supply. Even such a lease cannot eliminate the gap
-between an external provider succeeding and SQLite recording success.
-
-Process-crash tests in
-[`test/effectRecovery.test.ts`](./test/effectRecovery.test.ts) exercise exits
-after append, before provider work, after provider success, and after recording
-success but before acknowledgement. They demonstrate both provider-idempotent
-recovery and the duplicate that remains possible without it. They test process
-termination, not machine power loss.
+**One executor per database.** The in-flight registry lives in one `Journal.make`
+instance; a `pending` row is not a lease. Two handles or two processes can run
+the same key. Route execution to one owner. Process-crash tests in
+[`test/effectRecovery.test.ts`](./test/effectRecovery.test.ts) show both the
+idempotent recovery and the duplicate that remains possible without it.
 
 ## Retention
 
-Compaction removes operation payloads, not the identities needed to recognize
-old retries. Two classes of rows therefore grow with the lifetime of the
-database:
+Two kinds of row grow for the life of the database and are never collected:
+one identity row per distinct `opId`, kept after compaction so an old retry is
+recognized, and one record per effect key. Growth follows the number of distinct
+operations and effects, not only retained payload size.
 
-- **Operation identities:** one per distinct `opId`, retained after payload
-  compaction.
-- **Effect records:** one per durable effect key, retained so a replay can reuse
-  the recorded outcome.
+Compaction empties payloads but SQLite keeps their pages. `vacuum()` rebuilds
+the file and checkpoints its write-ahead log; it holds the database while it
+runs, so schedule it as maintenance. A reader on another connection can block
+the log truncation, in which case `vacuum` fails with `JournalError` and a later
+run finishes the job.
 
-Neither is garbage-collected automatically. Storage growth is therefore tied to
-the number of distinct operations/effects, not only to retained payload size.
+If you rotate or recreate the database, an operation whose identity row is gone
+is indistinguishable from new work. Reject work older than the retained window
+instead of applying it as new: keep a per-document watermark, or refuse an
+operation whose base cursor predates the floor.
 
-Compaction empties payloads, but SQLite keeps the pages they occupied, so the file
-does not shrink by itself. `journal.vacuum()` rebuilds the file and checkpoints
-its write-ahead log, which gives that space back. It holds the database while it
-runs, so it is maintenance to schedule, not a step of each compaction. A reader
-on another connection can keep the log from being truncated; `vacuum` then fails
-with a `JournalError`, and running it again later finishes the job.
+## Services, codecs, errors, metrics
 
-That retention is part of the retry guarantee. As long as an identity row
-exists, an old retransmission is recognized. If the application rotates or
-recreates the database, an operation whose identity disappeared is
-indistinguishable from new work.
-
-After rotation, the application must therefore reject work older than its
-retained trust window instead of silently applying it as new. For example, keep
-a per-document watermark or reject an operation whose base cursor predates the
-retained floor.
-
-## Services and Layers
-
-Use `Journal.make` directly when one scoped Journal is enough. Use
-`Journal.define` when the Journal should be a named Effect service whose key and
-type parameters are fixed once:
+**As a service.** `Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')`
+fixes the key and the type parameters together and returns `tag` and `layer`:
 
 ```ts
-import { Effect } from 'effect'
-import { DocumentId, Journal, type JournalOptions } from 'foldkit-durable'
+const TodoJournal = Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')
 
-const TodoJournal = Journal.define<Operation, Snapshot, Principal>(
-  'app/TodoJournal',
-)
-
-declare const options: JournalOptions<Operation, Snapshot, Principal>
-
-const program = Effect.gen(function* () {
+const served = Effect.gen(function* () {
   const journal = yield* TodoJournal.tag
   return yield* journal.load(DocumentId.make('todos'))
 }).pipe(Effect.provide(TodoJournal.layer(options)))
 ```
 
-Two `Journal.define` calls create two separately typed services. Each tag can
-only be satisfied by its corresponding layer. `Journal.layer(options)` remains
-the default-key form when the application does not need a named definition.
+Two definitions are two services; each tag is satisfied only by its own layer.
+`Journal.layer(options)` is the default-key form.
 
-## Codecs, branded identities, and errors
+**Codecs.** `operation` and `snapshot` take an Effect `Schema.Codec`, or a pair
+of throwing `encode`/`decode` functions; `Codec.fromSchema` spells out the
+conversion. Encoded operations must be JSON. A schema that needs services to
+decode is refused, because the codec runs inside the transaction.
 
-`operation` and `snapshot` accept an Effect `Schema.Codec`, or throwing
-`encode`/`decode` function pairs for applications that do not use Schema.
-`Codec.fromSchema(schema)` spells out the Schema conversion explicitly.
+**Ids** are branded Schema values: `DocumentId.make`, `OpId.make`,
+`ActorId.make`, `Sequence.make`, `Cursor.make`.
 
-The operation schema determines the encoded input accepted by `append`; a
-transforming Schema is therefore checked at the call site rather than degrading
-the boundary to `unknown`. Decode failures become `InvalidOperationError`.
+**Errors** are tagged, so `Effect.catchTag` narrows them: `JournalError` (storage),
+`UnsupportedJournalVersionError`, `InvalidOperationError`, `OperationRejectedError`,
+`IdentityConflictError`, `InvalidCursorError`, `CompactedCursorError`,
+`InvalidCompactionError`, `EffectFailedError`.
 
-Journal identities are branded Schema values:
+**Metrics.** `Journal.metrics` counts appends, compactions, owner effect runs,
+and coalesced effect runs.
 
-```ts
-DocumentId.make('todos')
-OpId.make('tab-1:1')
-ActorId.make('alice')
-Sequence.make(5)
-Cursor.make(5)
-```
+**Migrations.** Tables are created and upgraded with a transactional SQLite
+`user_version` migration; an interrupted one is retried safely. Your own
+operation, snapshot, and effect payloads are not migrated.
 
-The brands prevent one kind of identity/position from being passed where another
-is expected.
+## Limits
 
-Failures are Schema-backed tagged errors, so `Effect.catchTag` narrows them.
-Important tags include:
-
-```text
-JournalError
-UnsupportedJournalVersionError
-InvalidOperationError
-OperationRejectedError
-IdentityConflictError
-InvalidCursorError
-CompactedCursorError
-InvalidCompactionError
-EffectFailedError
-```
-
-## Maintenance, migrations, and metrics
-
-The Journal also exposes operational tooling:
-
-- `keys` enumerates documents;
-- `reset` removes one document's snapshot and operations, and its `epoch`, so
-  the next differs; replica bindings stay;
-- `epoch` names a document's history, for a server to hand to its clients;
-- `effect`, `unfinished`, and `clearEffect` inspect/manage effect records;
-- `compact` and `floor` manage retained operation payloads, and `vacuum` returns
-  the space compaction freed to the file system;
-- `cursor` reads a document's last sequence without decoding its snapshot;
-- `Journal.metrics` counts appends, compactions, owner effect runs, and coalesced
-  effect runs.
-
-Effect records are globally keyed, not owned by a document, so `reset` does not
-remove them.
-
-Database tables are created/upgraded with a transactional SQLite `user_version`
-migration. An interrupted migration can be retried safely.
-
-## Limits and production constraints
-
-- SQLite through `@effect/sql-sqlite-node` is the only adapter today, and Node 22
-  (`node:sqlite`) is required. The internal storage contract is `SqlClient`, so a
-  different SQL backend is an adapter concern rather than a Journal semantic.
-- The SQL module is under `unstable` in the pinned Effect release candidate.
-- `reduce` runs inside the append transaction while the SQLite write lock is
-  held. Keep it pure and fast.
-- `validate` and `authorize` run in that transaction as well. They may return an
-  Effect, but cannot require services and should remain local to the snapshot.
-- Encoded operations must be JSON-compatible.
-- Schema 3 recomputes retained operations' `payload_hash` from canonical JSON.
-  Payloads compacted before that migration cannot be re-hashed because their
-  content is gone, so only those legacy rows can reject a key-reordered retry.
-- `[key, op_id]` and `[key, sequence]` uniqueness is enforced by the database,
-  but the intended deployment is still one authoritative writer per SQLite file.
-  Use one Journal handle per file.
-- `recover` is application-driven; the package does not run a background worker.
-- The effect ledger records/reuses outcomes but cannot create an atomic
-  transaction with an external provider.
+- SQLite through `@effect/sql-sqlite-node` is the only adapter, and Node 22 is
+  required. The storage contract is `SqlClient`, so another SQL backend is an
+  adapter, not a change to journal semantics. The SQL module is `unstable` in
+  the pinned Effect release candidate.
+- `reduce`, `validate`, and `authorize` hold the write lock. Keep them pure,
+  fast, and service-free.
+- One Journal handle per file. Uniqueness of `[key, op_id]` and
+  `[key, sequence]` is enforced by the database, but the intended deployment is
+  one authoritative writer.
+- Payloads compacted before schema 3 have no canonical hash, so only those rows
+  cannot reject a key-reordered retry.
+- `recover` is application-driven; there is no background worker and no atomic
+  append-and-enqueue.
 
 ## Older spellings
 
-Existing names remain compatible. `Journal.make`, `Journal.layer`, and
-`Journal.metrics` correspond to `makeJournal`, `makeJournalLayer`, and
-`journalMetrics`; the branded `.make` constructors correspond to the older
-`documentId`, `opId`, `actorId`, `sequence`, and `cursor` functions.
-
-`JournalService<...>(key)` also remains available, but `Journal.define` is safer:
-with `JournalService`, generic arguments are supplied again at each use site and
-nothing ties them to the layer that satisfied the key. `Journal.define` fixes the
-key and Journal shape together.
-
-A codec supplied as throwing `encode` / `decode` functions remains accepted
-wherever a `Schema.Codec` is accepted.
+`makeJournal`, `makeJournalLayer`, and `journalMetrics` are `Journal.make`,
+`Journal.layer`, and `Journal.metrics`; `documentId`, `opId`, `actorId`,
+`sequence`, and `cursor` are the branded `.make` constructors. `JournalService(key)`
+still works, but its generic arguments are supplied again at each use site with
+nothing tying them to the layer; `Journal.define` fixes both together. A codec
+given as a function pair is accepted wherever a `Schema.Codec` is.
 
 ## See also
 
-- [Replicated state](../../docs/replication.md) — the mental model for Sync and
-  Durable together, and when not to use either.
-- [`foldkit-sync`](../sync) — the client half; `journalContract()` supplies the
-  journal's operation/snapshot codecs, reducer, initial state, and compiled
-  authorization rules.
-- [`examples/sync`](../../examples/sync) — a SQLite Journal, multiple replicas,
-  server policy, compaction, and the effect ledger working together.
+- [Replicated state](../../docs/replication.md): both halves end to end,
+  including the exchange handler over this journal.
+- [`foldkit-sync`](../sync): the client half; `journalContract()` supplies the
+  codecs, reducer, initial state, replica binding, and compiled authorization.
+- [`examples/sync`](../../examples/sync): a SQLite journal, several replicas,
+  server policy, compaction, and the effect ledger, with a test per failure.
