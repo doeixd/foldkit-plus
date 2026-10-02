@@ -65,22 +65,25 @@ You can understand the package with five terms:
 Style and Behavior compile to one internal `Mixin` representation. A resolver combines the
 contributions and enforces ownership rules before ordinary Foldkit attributes reach the renderer.
 
+
+
 ```mermaid
 flowchart TB
   component["component / SlotView"]
-  slots["Slots contract<br>where customization is allowed"]
-  style["Style<br>how it looks"]
-  behavior["Behavior<br>how the element reacts"]
-  resolver["Resolver<br>merge + ownership checks"]
+  slots["Slots contract<br/>where customization is allowed"]
+  styling["Style<br/>how it looks"]
+  behavior["Behavior<br/>how the element reacts"]
+  resolver["Resolver<br/>merge + ownership checks"]
   attrs["ordinary Foldkit attributes"]
 
   component --> slots
-  slots --> style
+  slots --> styling
   slots --> behavior
-  style --> resolver
+  styling --> resolver
   behavior --> resolver
   resolver --> attrs
 ```
+
 
 ## Why this is more than `className`
 
