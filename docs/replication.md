@@ -1,1112 +1,493 @@
 # Replicated state: `foldkit-sync` + `foldkit-durable`
 
-Some Foldkit state should keep working when the network disappears, survive a
-reload, and converge when several tabs, devices, or server-side actors edit the
-same document.
-
-Foldkit Plus solves that with two separate responsibilities:
-
-- [`foldkit-sync`](../packages/sync) is the **client-side replica**. It owns the
-  persisted outbox, optimistic shared state, reconciliation, transport, presence,
-  and browser runtime binding.
-- [`foldkit-durable`](../packages/durable) is the **authoritative server journal**.
-  It owns committed operation identity and order, snapshot/cursor storage,
-  idempotent append, compaction, authorization at commit, and durable external-
-  effect outcomes on SQLite.
-
-The important part is what neither package replaces: your application's existing
-**Model**, **Message** union, and **`update`** remain the state machine. A durable
-edit is an existing application Message wrapped in replication metadata, not a
-second action language and not a second reducer.
-
-> **The core model:** the server owns the committed order; each replica owns its
-> still-pending local operations; the UI sees those pending operations replayed
-> over the committed state.
-
-This guide is the conceptual map for both packages. The package READMEs are the
-API references once the model below is clear.
-
-## First choose the right owner
-
-Replication is not the answer for every value that crosses a process boundary.
-The ownership distinction matters more than the package names:
-
-| State or fact | Authority | Recovery mechanism | Package |
-| --- | --- | --- | --- |
-| Route, selected tab, transient error | local application Model | normal application logic | plain Foldkit |
-| Server-owned data the client may discard and refetch | server | refetch | `foldkit-remote` |
-| Client-authored edits that must survive offline/reload and later agree | durable operation history | replay + reconciliation | `foldkit-sync` |
-| Authoritative order, snapshot, cursor, idempotent commit | server journal | journal + checkpoint | `foldkit-durable` |
-| Linkable or remembered local state | application Model | restore representation | `foldkit-mirror` |
-
-The Remote/Sync distinction is the one most worth memorizing:
-
-```text
-Remote
-server owns the fact
-client cache is disposable
-refetch is recovery
-
-Sync
-client creates durable intent
-pending operations are not disposable
-replay + reconciliation is recovery
-```
-
-A Surface may observe local state, Remote state, and Sync-owned state at the same
-time. Observation does not change who owns each datum.
-
-This architecture is also deliberately **not peer-to-peer CRDT replication**.
-There is one authoritative server order for a document. If every peer must
-accept writes independently and merge without a server order, use a different
-replication model.
-
-## The replica mental model
-
-Everything else in Sync follows from one equation:
-
-```text
-authoritative committed snapshot
-              +
-pending local operations
-              =
-optimistic shared state the UI sees
-```
-
-Suppose the server has committed operations `A B C`, while this device has made
-local edits `D E` that have not committed yet:
-
-```text
-server order:   A  B  C
-local pending:           D  E
-
-visible state = replay(A, B, C, D, E)
-```
-
-The UI does not wait for the server. `D` and `E` are already visible because the
-replica replays them over its committed snapshot.
-
-Now another device gets `X` committed first:
-
-```text
-new server order: A  B  C  X
-local pending:                D  E
-
-new visible state = replay(A, B, C, X, D, E)
-```
-
-Nothing needs a bespoke merge callback for this case. Reconciliation changes the
-committed base underneath the local edits and replays whatever is still pending
-on top.
-
-That is what **rebase** means throughout these packages.
-
-Both halves of the equation stay readable. `Replica.shared` is the optimistic
-state; `Replica.committed` (also `ReplicaSnapshot.committed`, and
-`mounted.committed` on a mounted application) is the committed base alone, which
-a pending edit reaches only once the server commits it. An agent that must not
-report success before the server confirms waits on the committed base; see
-[runtime binding](./sync-runtime-binding.md).
-
-## One durable edit, end to end
-
-Before looking at either package API, follow one edit through the whole system:
-
-```text
-user dispatches a durable Message
-            |
-            v
-normal application update/replay runs immediately
-            |
-            v
-operation is persisted in the local outbox
-            |
-            v
-UI sees committed + pending now
-            |
-       network later
-            v
-replica exchanges cursor + pending operations
-            |
-            v
-server validates / authorizes / assigns authoritative order
-            |
-            v
-server returns commits + acknowledgements / rejections / checkpoint
-            |
-            v
-replica replaces or advances the committed base
-            |
-            v
-drop operations that are now committed, acknowledged, or rejected
-            |
-            v
-replay whatever is still pending on top
-```
-
-`foldkit-sync` owns the client half of that loop. `foldkit-durable` is one server
-implementation of the authoritative half.
-
-The transport is only the seam between them.
-
-## Message versus operation versus committed operation
-
-There are three layers that are easy to conflate.
-
-### Message: application meaning
-
-A Foldkit Message says what happened or what the application intends to do:
-
-```text
-CreatedTodo({ id, title })
-RenamedTodo({ id, title })
-DeletedTodo({ id })
-```
-
-Your existing `update` says what those Messages mean for the Model.
-
-### Operation: durable client envelope
-
-When a Message is selected as durable, Sync wraps its encoded form in protocol
-metadata. Conceptually, the current operation envelope contains:
-
-```ts
-{
-  documentId,
-  replicaId,
-  localSequence,
-  opId,
-  baseCursor,
-  message,
-}
-```
-
-It also carries protocol/schema versions on the wire and in persisted replica
-state.
-
-The stable operation id is derived from the replica and local sequence. Retrying
-the operation therefore reuses its identity instead of creating a second edit.
-`baseCursor` records the server position the replica knew when the operation was
-created; it does not turn the client into the authority on order.
-
-### Committed operation: server order
-
-Once the server accepts an operation it gains an authoritative
-`serverSequence` and trusted actor identity. That committed sequence is what all
-replicas eventually replay.
-
-```text
-application Message
-        |
-        v
-client Operation
-identity + local metadata
-        |
-        v
-server CommittedOperation
-authoritative sequence + actor
-```
-
-Sync adds those envelopes around an existing Message. It does not replace the
-Message as the application vocabulary.
-
-## What is shared, and what stays local
-
-Sync replicates a **writable Projection**, not the whole Model:
-
-```text
-Model
- ├── todos             -> shared / replicated
- ├── selectedTodoId    -> local only
- └── transientError    -> local only
-```
-
-A typical contract names both the state slice and the Messages allowed to change
-it:
-
-```ts
-const TodoSync = Sync.forApplication(App).make({
-  documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [
-    Message.CreatedTodo,
-    Message.RenamedTodo,
-  ]),
-})
-```
-
-Read that declaration as:
-
-```text
-Projection.pick(App.model.todos)
-    = what state is replicated
-
-MessageSet.make(...)
-    = which existing transitions may become durable operations
-```
-
-`Sync.forApplication(App)` derives the shared schema, initial shared value,
-replay function, operation codecs, and server journal contract from the same
-application declaration. There is no sync-specific copy of `update` to keep in
-agreement.
-
-## What makes a Message durable?
-
-A durable Message must be something another machine can replay later and obtain
-the same shared state.
-
-In practice, that means a deterministic, state-only transition of the declared
-shared Projection.
-
-Derived replay protects that boundary. It refuses a durable Message when the
-application's `update`:
-
-- returns a Command — a live external effect cannot be replayed later; or
-- changes a field outside the shared Projection — that change would disappear
-  when only the shared slice is installed and replayed.
-
-For example:
-
-```text
-RequestedChargeCard
-  -> runs a Command / talks to a provider
-  -> local intent, NOT durable
-
-CardCharged
-  -> pure fact about shared state
-  -> durable and replayable
-```
-
-The general pattern is:
-
-```text
-local intent Message
-      |
-      v
-Command / nondeterministic work
-      |
-      v
-durable fact Message
-```
-
-This distinction is why replication can keep using ordinary Foldkit semantics:
-all durable history is safe to replay through the same transition function.
-
-## Two replicas editing at once
-
-The rebase model becomes clearer with a concrete conflict in ordering.
-
-Replica 1 starts at cursor 3:
-
-```text
-committed: A B C
-pending:       D
-visible:   A B C D
-```
-
-Replica 2 also starts at cursor 3 and submits `X`. The server commits `X` first:
-
-```text
-server:
-sequence 1  2  3  4
-         A  B  C  X
-```
-
-When Replica 1 synchronizes, `D` does not disappear just because its original
-base was cursor 3. Replica 1 advances the committed state through `X`, keeps `D`
-pending, and derives:
-
-```text
-committed: A B C X
-pending:         D
-visible:   A B C X D
-```
-
-Later the server may accept `D` at sequence 5. Then Replica 1 can remove it from
-pending because it is now part of the committed history:
-
-```text
-committed: A B C X D
-pending:             
-visible:   A B C X D
-```
-
-The visible state may not change at all when the local operation commits. What
-changes is its **status and authority**: it moved from optimistic pending work to
-the authoritative prefix.
-
-## Rejection is also a rebase
-
-A rejection does not require an application-specific undo function.
-
-Suppose `D` is visible only because it is pending:
-
-```text
-committed: A B C
-pending:       D
-visible:   A B C D
-```
-
-The server rejects `D`. The replica removes it from pending and derives the
-visible state again:
-
-```text
-committed: A B C
-pending:        
-visible:   A B C
-```
-
-That is the rollback.
-
-This is an important consequence of deriving optimistic state rather than
-mutating a separate optimistic store: rollback means **change the authoritative
-base/pending set, then replay**.
-
-Authorization uses the same mechanism. A client can apply an operation
-optimistically, but the server journal remains the trust boundary. If the server
-refuses the operation, the next reconciliation removes it from pending and the
-UI returns to the state implied by committed history plus any other surviving
-local work.
-
-## Sync and Durable divide the work
-
-The two packages are designed to meet at one contract, but they own different
-things:
-
-| Concern | `foldkit-sync` | `foldkit-durable` |
-| --- | --- | --- |
-| Existing Foldkit Messages are the transition vocabulary | yes | consumes encoded operations derived from them |
-| Which Model slice is replicated | declares/derives | consumes snapshot codec/reducer contract |
-| Local optimistic state | **owns** | no |
-| Persistent client outbox | **owns** | no |
-| Client cursor | **owns** | answers reads/exchanges from it |
-| Network transport | client service / adapters | server integration chooses exposure |
-| Validate operation shape | yes | yes at authoritative boundary |
-| Authorize commit | declaration can compile here | **enforces** |
-| Assign authoritative order | no | **owns** |
-| Idempotent commit by operation id | relies on server | **owns** |
-| Snapshot + committed cursor | consumes/adopts | **owns** |
-| Compaction | reacts via checkpoint | **owns** |
-| External-effect outcome ledger | no | **owns** |
-| Presence | optional ephemeral subsystem | not part of journal |
-
-The contract handoff looks like this:
-
-```text
-Foldkit application
- Model / Message / update
-          |
-          v
-     foldkit-sync
-  shared Projection
-  durable MessageSet
-  replay + policy
-          |
-          | journalContract()
-          v
-   foldkit-durable
-  validate / authorize
-  order / persist / snapshot
-          |
-          v
-        SQLite
-```
-
-The server does not need another hand-written reducer for the shared document.
-`TodoSync.journalContract()` carries the codecs, initial snapshot, replay reducer,
-and compiled authorization rules to Durable.
-
-## Architecture and exchange
-
-With the concepts above in place, the package topology is straightforward:
-
-```mermaid
-flowchart LR
-  subgraph client["browser / device"]
-    app["Foldkit app<br/>Model · Message · update"]
-    replica["foldkit-sync Replica<br/>committed · pending · cursor"]
-    storage["IndexedDB<br/>CAS persisted replica state"]
-    app -- "durable Message" --> replica
-    replica <--> storage
-  end
-
-  transport["Transport.exchange(cursor, pending, epoch)"]
-
-  subgraph server["server / Node"]
-    durable["foldkit-durable Journal<br/>authorize · order · append"]
-    sqlite["SQLite<br/>log · snapshot · cursor · effects"]
-    durable <--> sqlite
-  end
-
-  replica <--> transport
-  transport <--> durable
-```
-
-A synchronization exchange starts with exactly the information the replica
-needs to reconcile:
-
-```text
-client -> server
-cursor
-pending operations
-the epoch the cursor points into, once the replica has heard one
-```
-
-The response can contain:
-
-```text
-server -> client
-committed operations after the cursor
-acknowledged operation ids
-rejected operation ids
-optional checkpoint
-the epoch of the server's history
-```
-
-The replica treats that response as untrusted input. It validates committed
-operation shape and document identity, checks authoritative sequence continuity,
-rejects acknowledgements/rejections for operations it did not send, and refuses
-a checkpoint that moves its cursor backwards.
-
-## Sequence and cursor
-
-These names are related but answer different questions.
-
-A **server sequence** belongs to a committed operation:
-
-```text
-sequence:   1      2      3      4
-            |      |      |      |
-log:       op A   op B   op C   op D
-```
-
-A **cursor** says how far a consumer has processed the authoritative sequence:
-
-```text
-sequence:   1      2      3      4
-            A      B      C      D
-                          ^
-                    cursor = 3
-```
-
-A replica at cursor 3 asks for committed work after 3. If it receives sequence
-4, it applies that operation to its committed snapshot and advances the cursor
-to 4.
-
-`foldkit-sync` uses the same ordered position concept in its replica protocol;
-`foldkit-durable` exposes branded `Sequence` and `Cursor` values at the journal
-API boundary so operation order and read positions cannot be casually mixed as
-untyped numbers.
-
-## Checkpoints and compaction
-
-An append-only log cannot grow forever. Durable can compact old operation
-payloads once their effect on state is represented by a snapshot.
-
-Before compaction, a far-behind replica might recover by replaying the tail:
-
-```text
-server history
-1  2  3  4  5  6  7  8
-A  B  C  D  E  F  G  H
-      ^
-client cursor = 3
-```
-
-After history through 6 is compacted, operations 4–6 may no longer be available
-to that replica. The server instead sends a checkpoint:
-
-```text
-checkpoint
-cursor = 6
-model  = replay(A..F)
-
-remaining log
-7  8
-G  H
-```
-
-The replica adopts the checkpoint as its new committed base, applies later
-commits, then replays its own still-pending local operations on top.
-
-```text
-checkpoint state at 6
-        +
-commits 7..N
-        +
-pending local operations
-        =
-new optimistic state
-```
-
-A checkpoint is therefore not an application schema migration and not a second
-source of truth. It is a compact representation of an authoritative committed
-prefix.
-
-A checkpoint behind the replica's current cursor is invalid and fails with
-`CheckpointRegressionError` rather than silently moving state backwards.
-
-## Sixty seconds: declare and run a replica
-
-Start with the application contract:
-
-```ts
-const App = Surface.application({ Model, Message, initial, update })
-
-const TodoSync = Sync.forApplication(App).make({
-  documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [
-    Message.CreatedTodo,
-    Message.RenamedTodo,
-  ]),
-})
-```
-
-Then open a persistent replica and submit an ordinary application Message:
-
-```ts
-const storage = yield* Sync.indexedDb('todos/tab-1')
-const replica = yield* TodoSync.openReplica(
-  ReplicaId.make('tab-1'),
-  storage,
-)
-
-yield* replica.submit(
-  Message.CreatedTodo({ id: 't1', title: 'Milk' }),
-)
-
-// Already includes the pending edit. No server round trip is required.
-const optimistic = yield* replica.shared
-```
-
-Synchronize by providing a `Transport`:
-
-```ts
-yield* Effect.provide(
-  replica.synchronize,
-  Sync.transport.socket({ url }),
-)
-```
-
-Read those calls carefully:
-
-- `openReplica` restores or initializes the committed snapshot, cursor, local
-  sequence, and pending outbox for one document/replica identity;
-- `submit` does **not** mean “send this now”; it validates/replays the Message,
-  persists a new operation locally, and wakes the exchange loop;
-- `replica.shared` is the optimistic projection: committed state with every
-  pending operation replayed in order;
-- `synchronize` performs one exchange and reconciliation against the provided
-  transport;
-- `start` is the longer-lived loop that exchanges once and wakes after submits.
-
-## What `submit` guarantees
-
-`submit(message)` performs the important local validation before the operation
-enters durable client history.
-
-The current flow is:
-
-```text
-Message
-  |
-  v
-encode + confirm it is a durable variant
-  |
-  v
-construct operation identity
-  |
-  v
-replay against current optimistic shared state
-  |
-  | replay fails -> ReplayError, write nothing
-  v
-persist operation in replica state with CAS
-  |
-  v
-publish new optimistic projection / wake sync loop
-```
-
-This ordering matters. A Message that replay refuses cannot end up stranded in
-the outbox waiting for another replica to fail on it later.
-
-The persisted operation also records the current cursor as `baseCursor`. Sync
-still permits later rebase when the authoritative order advances before that
-operation commits.
-
-## What `synchronize` guarantees
-
-A single synchronization takes a snapshot of the cursor and pending outbox,
-sends them through `Transport.exchange`, validates the response, then
-reconciles it with the **current** replica state.
-
-That last distinction matters because the user may submit more edits while the
-network request is in flight. Those newer edits were not part of the request and
-must survive the response.
-
-Conceptually:
-
-```text
-sent at start of exchange:
-committed C
-pending  D E
-
-user submits F while exchange is in flight
-current pending = D E F
-
-server response settles D/E and advances committed base
-
-reconciled pending keeps whatever is still unresolved,
-including F even though F was never in the request
-```
-
-This is why synchronization is a rebase, not “replace local state with server
-state.”
-
-The replica also exposes `status`, `statusChanges`, and `changes` so UI can
-observe pending count, cursor, last exchange failure, recent rejected ids, and
-the optimistic shared value without exposing the entire internal state machine.
-
-## Browser runtime binding with `Sync.mount`
-
-At the lower level, a `Replica` only knows the shared Projection. A real Foldkit
-application also has local-only Model fields, views, Commands, Subscriptions, URL
-routing, and often an Agent host.
-
-`Sync.mount` is the seam that runs the normal application over the replica while
-keeping one reducer:
-
-```text
-application dispatch
-      |
-      v
-normal update
-      |
-      +---- local-only Message ----------> local Model
-      |
-      +---- durable Message -------------> replica submit / persistence
-                                              |
-                                              v
-                                      reconciled shared slice
-                                              |
-                                              v
-                                      install back into Model
-```
-
-A durable Message is visible through the application's own `update` immediately;
-when synchronization or rejection changes the replica's shared state, the mount
-installs that reconciled Projection back into the Model. It does not maintain a
-second application reducer beside Foldkit.
-
-The mounted host also exposes `model`, `dispatch`, `subscribe`, and `observe`,
-which is the seam an Agent runtime can use. [Runtime binding](./sync-runtime-binding.md)
-documents those guarantees in detail.
-
-## Authorization: optimistic client, authoritative server
-
-A Sync contract can declare a boolean policy per durable Message variant. Those
-rules are compiled into the journal contract so the server can enforce the same
-policy at the authoritative append boundary.
-
-```text
-client
-submit -> optimistic replay -> visible immediately
-
-server
-append -> trusted principal -> authorize -> accept or reject
-
-client again
-exchange -> commit/ack or rejection -> rebase
-```
-
-Client-side availability or early policy checks can improve UX, but they are not
-the trust boundary. The journal is.
-
-A refused operation is returned to the replica as a rejected operation id. The
-replica removes it from pending during reconciliation, so authorization rollback
-is not special mutation logic: it is ordinary rebase over the authoritative
-committed state.
-
-## `foldkit-durable`: the authoritative server journal
-
-A Durable Journal answers three server-side questions for each document:
-
-```text
-what committed?
-in what order?
-what state does that committed prefix produce?
-```
-
-It stores:
-
-```text
-ordered operation log
-        +
-current snapshot
-        +
-cursor into that log
-```
-
-Appending a new operation is the authoritative commit boundary:
-
-```text
-encoded operation
-      |
-      v
-decode / validate identity
-      |
-      v
-application validate + authorize
-      |
-      v
-reduce current snapshot
-      |
-      v
-assign next server sequence
-      |
-      v
-persist operation + snapshot + cursor atomically
-      |
-      v
-Committed
-```
-
-With Sync, most of the application-specific pieces come directly from the Sync
-contract:
-
-```ts
-const journal = yield* Journal.make({
-  ...TodoSync.journalContract(),
-  file: 'todos.sqlite',
-  opId: operation => OpId.make(operation.opId),
-  actorId: principal => ActorId.make(principal.actorId),
-})
-```
-
-The journal contract supplies the operation codec, snapshot codec, empty shared
-state, replay reducer, and authorization declared by Sync. Durable then adds the
-trusted principal boundary, authoritative sequence, storage, and retry/recovery
-machinery.
-
-### Idempotent append
-
-A retry must not become a second logical edit.
-
-Durable remembers stable operation identity. Re-sending the same operation id
-with the same canonical operation/actor is answered from committed history
-instead of being reduced twice. Reusing an id for different data or a different
-actor fails with `IdentityConflictError`.
-
-That is why the client operation id is durable protocol identity rather than a
-request id generated afresh on every network attempt.
-
-### Snapshot + cursor
-
-The journal writes the resulting snapshot and committed cursor atomically with
-append. That makes the snapshot a materialized result of one exact committed
-prefix:
-
-```text
-snapshot at cursor N
-= replay(committed operations 1..N)
-```
-
-A new or far-behind client can start from that state rather than replaying the
-entire history from zero.
-
-### Reading history
-
-An up-to-date replica normally needs only the tail after its current position.
-`read(key, after)` returns later committed operations while the requested history
-still exists. If compaction has already removed the prefix the client needs,
-Durable fails with `CompactedCursorError` so the integration can return a
-checkpoint instead of a misleading partial tail.
-
-### Service form
-
-When the Journal should be an Effect service rather than a scoped local value,
-`Journal.define<Operation, Snapshot, Principal>('app/todos')` fixes those generic
-types once and returns the matching tag and Layer constructor. That prevents the
-same service key from being read later with unrelated type arguments.
-
-### Change stream and metrics
-
-`journal.subscribe` exposes committed changes as a stream, and `Journal.metrics`
-provides instrumentation for operational visibility. They observe journal
-behavior; they do not change the authoritative state model.
-
-## External effects and the crash gap
-
-A state transition can be made atomic inside SQLite. An external action such as
-charging a card, sending an email, or calling another service cannot generally
-participate in that same transaction.
-
-The dangerous gap is:
-
-```text
-record intent / decide to run effect
-            |
-            v
-call external provider
-            |
-            X process crashes here
-            |
-            v
-record successful outcome
-```
-
-After restart, the application may not know whether the provider action happened.
-That is why Durable includes an **effect ledger** in addition to the operation
-journal.
-
-`runEffect(key, run)` records successful outcomes and can reuse them on retry. It
-also coalesces concurrent calls within one journal instance. But it cannot turn
-an arbitrary external provider into an exactly-once transactional participant.
-If the process crashes after the provider succeeds but before Durable records the
-success, retry can still repeat the provider call.
-
-Use stable external idempotency keys whenever the provider supports them.
-
-`recover({ key, from, intents, onUnresolved })` is the recovery-worker primitive:
-it walks effect intents after a cursor, reuses already-recorded outcomes, stops at
-the first unresolved effect, and returns the cursor through which recovery is
-settled. The application still owns discovery and scheduling of that worker.
-
-This is intentionally separate from Sync's durable Message rule:
-
-```text
-client replay history
-must remain pure state transitions
-
-server effect ledger
-handles explicitly external work around that history
-```
-
-## Persistence and crash recovery
-
-Local-first behavior depends on the outbox being durable, not merely cached in
-memory.
-
-### Client persistence
-
-`Sync.indexedDb(...)` persists replica protocol/schema versions, document and
-replica identity, revision, next local sequence, cursor, the server's epoch,
-committed snapshot, committed-id window, and pending operations.
-
-The storage adapter uses compare-and-swap revisions. Two active writers must not
-silently race on the same replica storage identity. Give each tab/replica its own
-writer identity.
-
-If storage is missing, the replica can start from cursor 0 and catch up from the
-server. But **pending edits that existed only in an evicted/lost outbox are user
-data loss**, not cache eviction. They were client-authored operations that had
-not necessarily reached the server yet.
-
-### Server persistence
-
-Durable stores the authoritative journal in SQLite. Append commits operation
-identity/order together with the resulting snapshot/cursor. A process restart
-does not turn already-committed operations back into pending work.
-
-Compaction can remove old operation payloads while retaining the snapshot that
-represents their effect. Identity rows and recorded effect outcomes have their
-own retention implications; see [Durable retention](../packages/durable/README.md#retention)
-for the storage-policy details.
-
-## Failure model
-
-Neither package silently overwrites history it cannot understand. The main
-failure cases fit the same ownership model:
-
-| Failure | Consequence / recovery |
-| --- | --- |
-| Network disappears | pending operations stay in the local outbox; UI remains optimistic |
-| Same operation is retried | stable `opId` lets Durable answer idempotently |
-| Server rejects an operation | remove it from pending and rebase the rest |
-| Other clients commit first | advance committed base and replay local pending operations |
-| Server compacted needed history | adopt a checkpoint, then replay newer commits + local pending |
-| Server lost its history (reset, new database) | a new `epoch`: the server answers from 0, the replica rebuilds committed state from that and resends pending; everything the old server committed is lost on every replica, and only pending operations survive |
-| Another actor sends a replica's operations | Durable binds each replica to its first committing actor (`replicaId` in `journalContract`) and refuses the rest; the first actor to use an id claims it |
-| Local replica storage was evicted | start from server state; unsent local edits are unrecoverable |
-| Two writers use one replica storage | CAS fails rather than silently merging two local histories |
-| Replay refuses a Message | `ReplayError`; operation is not written to the outbox |
-| Persisted state is malformed | fail explicitly and leave bytes intact for deliberate recovery/reset |
-| Stored protocol/schema version is unsupported | fail with version error; do not reinterpret newer history as older state |
-| External provider succeeds before crash, result not recorded | provider call may repeat; use provider idempotency + effect ledger |
-
-At the wire boundary, Sync also rejects malformed exchanges, non-contiguous
-committed order, foreign acknowledgements/rejections, and checkpoints that move
-backwards. A faulty server response must not be able to make local pending work
-silently disappear. The one exception is deliberate: a response with a new epoch
-resets the cursor and drops committed state, because the replica trusts a server
-that names a new history to have answered from its start.
-
-## Presence is not replicated history
-
-Presence answers questions such as “who is currently viewing this document?” or
-“where is another collaborator's cursor?” Those facts should disappear when a
-peer goes stale.
-
-That is the opposite lifecycle of a durable edit:
-
-```text
-shared application fact that must replay later -> durable Message / Sync
-peer status that should expire                 -> Presence
-```
-
-`Sync.presence.make` creates a TTL'd peer registry and `Sync.presence.hub` the
-server fan-out; socket and loopback channel helpers live under the same
-namespace. Presence deliberately stays outside the durable operation log.
-
-## LWW is a field merge rule, not a CRDT mode
-
-Server arrival order is not always the semantic winner for one field. Sync
-provides `Sync.lww.register` plus a persisted `Sync.lww.openClock` for a
-logical-time last-writer-wins register.
-
-The helper compares the logical counter first and uses replica id as the tie
-breaker. The complete stamped register belongs in the shared snapshot so replay
-has the metadata required to choose the same winner later.
-
-This is deliberately narrow. It does not turn Sync into a general CRDT system
-for sets, counters, text, trees, or arbitrary concurrent data structures.
-
-## Fragments: one document, several feature declarations
-
-Large applications do not need one giant replication declaration. Feature-level
-fragments can declare their own shared Projection and durable Message subset,
-then compose into one document-level Sync contract.
-
-The architectural rule does not change:
-
-```text
-many feature declarations
-        |
-        v
-one replicated document contract
-        |
-        v
-one replica committed base + pending outbox
-        |
-        v
-one authoritative server order
-```
-
-Fragments organize the declaration; they do not create independently competing
-replicas for the same logical document.
-
-## Versions and application migrations
-
-Storage format and application data have separate owners.
-
-`foldkit-durable` tracks its own SQLite layout with `user_version` and upgrades
-that layout transactionally. It does **not** migrate your application Message,
-snapshot, or effect payloads.
-
-`foldkit-sync` stamps persisted replica and LWW-clock state with protocol/schema
-versions. Unsupported stored versions fail explicitly with errors such as
-`UnsupportedReplicaVersionError` or `UnsupportedClockVersionError` and are left
-untouched so reset/migration can be deliberate.
-
-Your application owns migration of its own historical Message/snapshot payloads.
-Library storage migration and application-domain migration are different jobs.
-
-A checkpoint after server compaction is also not an application migration. It is
-just a newer materialized committed prefix.
-
-## Using one package without the other
-
-The packages meet cleanly, but neither requires the other.
-
-### Sync without Durable
-
-Sync can use any server that implements the exchange semantics correctly:
-
-```text
-client sends cursor + pending operations
-server returns commits + acks/rejections + optional checkpoint
-```
-
-Sync still owns local persistence, optimistic replay, pending operations,
-reconciliation, status, and transport abstraction.
-
-### Durable without Sync
-
-Durable is a general ordered application journal. A non-Sync client can define
-its own operation/snapshot Schemas, empty snapshot, reducer, operation identity,
-validation, and authorization:
-
-```ts
-const journal = yield* Journal.make({
-  file: Config.succeed('journal.sqlite'),
-  operation: Codec.fromSchema(Operation),
-  snapshot: Codec.fromSchema(Shared),
-  empty: () => ({ todos: [] }),
-  reduce: (shared, operation) => replay(shared, operation),
-  opId: operation => OpId.make(operation.opId),
-  actorId: principal => ActorId.make(principal.actorId),
-  validate,
-  authorize,
-})
-```
-
-Durable still owns authoritative operation identity/order, atomic snapshot/cursor
-advancement, idempotency, compaction, change observation, and effect recovery.
-
-## When not to use replicated state
-
-Do not reach for Sync/Durable merely because data crosses the network.
-
-- **No offline persistence or multi-replica agreement is needed:** use the
-  ordinary Foldkit runtime.
-- **The server already owns a fact and the client can refetch it:** use
-  `foldkit-remote`.
-- **Every peer must independently accept writes and merge without one server
-  order:** use a peer-to-peer/CRDT architecture. `Sync.lww.register` is only a
-  field-level merge helper.
-- **You need a general-purpose database/ORM:** Durable is an operation journal,
-  not a database abstraction for arbitrary queries.
-- **You expect the library to migrate application-domain history automatically:**
-  Sync/Durable protect their own storage/protocol formats; your Message and
-  snapshot evolution remains application policy.
-
-## A compact way to remember the system
-
-If the details above blur together, return to these four statements:
+Some state has to keep working when the network is gone, survive a reload, and
+end up the same on every device and tab that edits it. This guide takes one
+such feature from its first edit to a running server, with both packages:
+
+- [`foldkit-sync`](../packages/sync) runs on the client. It keeps the edits a
+  user makes in a local outbox, shows them at once, and reconciles them with
+  the server's answer.
+- [`foldkit-durable`](../packages/durable) runs on the server. It decides the
+  one order every replica ends up in, keeps the snapshot and log on SQLite, and
+  answers a retried operation without applying it twice.
+
+Neither replaces your application. `Model`, `Message`, and `update` remain the
+state machine; a durable edit is one of your existing Messages, recorded. The
+packages are also separable: Sync works against any server that speaks its
+exchange, and Durable journals any operation stream.
+
+If you only want to know what the system is, four sentences cover it:
 
 ```text
 1. A durable operation is an existing Foldkit Message plus replication metadata.
-
-2. optimistic state = committed snapshot + pending local operations.
-
-3. Sync owns the replica; Durable owns the authoritative server order.
-
-4. Reconciliation replaces/advances the committed base, removes settled pending
-   operations, then replays whatever remains.
+2. What the user sees = committed snapshot + pending local edits, replayed.
+3. Sync owns the replica; Durable owns the authoritative order.
+4. Reconciliation moves the committed base, drops settled edits, replays the rest.
 ```
 
-Everything else—offline support, optimistic UI, rollback, concurrent edits,
-acknowledgement, rejection, checkpoints, compaction, persistence, and recovery—is
-machinery around those invariants.
+Everything below is those four sentences, built.
+
+## Choose the owner first
+
+Replication is not for every value that crosses the network. Ask who owns the
+fact and how it recovers:
+
+| State | Authority | Recovery | Use |
+| --- | --- | --- | --- |
+| A route, a selection, a transient error | the local Model | nothing to recover | plain Foldkit |
+| Data the server owns and the client may refetch | the server | refetch | [`foldkit-remote`](./remote.md) |
+| Edits the user authored that must survive offline and converge | the durable log | replay and reconciliation | `foldkit-sync` + `foldkit-durable` |
+| A filter in the URL, a draft on this device | the local Model | restore | [`foldkit-mirror`](./mirror.md) |
+
+The Remote and Sync line is the one to memorize: a Remote cache is disposable
+and refetch is recovery; a Sync outbox is user data and losing it loses edits.
+
+One server decides the order of a document. Peers that must each accept writes
+and merge without a server are a different design (a CRDT), and Sync is not
+one.
+
+## The model
+
+```text
+server:    A  B  C          committed, in the server's order
+pending:            D  E    this device's edits the server has not confirmed
+visible:   replay(A, B, C, D, E)
+```
+
+When the server commits something else first, the base moves and the pending
+edits are replayed on top; when it rejects `D`, `D` is dropped and `E` is
+replayed. Both are the same move, a **rebase**. There is no undo function and
+no separate optimistic store to patch.
+
+An edit passes three milestones. A UI that says "saved" means the second; one
+that says "shared" means the third.
+
+| Milestone | Where | Reader |
+| --- | --- | --- |
+| visible | the Model, at once | the view |
+| saved | the local outbox | `onPersistenceFailure` says when it is not |
+| committed | the server journal | `replica.status.pending`, `mounted.committed` |
+
+## 1. Declare what is shared
+
+Start from the application you have. This one keeps a todo list and a
+selection, and only the list is shared:
+
+```ts
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type * as Update from 'foldkit/update'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  selectedTodoId: Schema.Option(Schema.String),
+  lastError: Schema.Option(Schema.String),
+})
+type Model = typeof Model.Type
+
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  RenamedTodo: { id: Schema.String, title: Schema.String },
+  SelectedTodo: { id: Schema.String },
+})
+type Message = typeof Message.Type
+
+const initial: Model = { todos: [], selectedTodoId: Option.none(), lastError: Option.none() }
+
+type Return = Update.Return<Model, Message>
+
+const update = (model: Model, message: Message): Return =>
+  Message.match<Return>(message, {
+    CreatedTodo: ({ id, title }) => ({
+      model: modifyFields(model, { todos: () => [...model.todos, { id, title }] }),
+    }),
+    RenamedTodo: ({ id, title }) => ({
+      model: modifyFields(model, {
+        todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      }),
+    }),
+    SelectedTodo: ({ id }) => ({
+      model: modifyFields(model, { selectedTodoId: () => Option.some(id) }),
+    }),
+  })
+
+const App = Surface.application({ Model, Message, initial, update })
+
+type Principal = { readonly actorId: string; readonly canWrite: boolean }
+
+const TodoSync = Sync.forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    documentId: DocumentId.make('todos'),
+    shared: Projection.pick(App.model.todos),
+    durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+    authorize: {
+      RenamedTodo: ({ message, shared }) => shared.todos.some(todo => todo.id === message.id),
+    },
+  })
+```
+
+Three decisions are in that declaration, and they are the whole design:
+
+- **`shared`** is the slice replicas agree on. The rest of the Model is this
+  device's.
+- **`durable`** names the Messages that change the slice. Each becomes an
+  operation in the outbox and a row in the journal. `SelectedTodo` is not
+  listed, so it runs through `update` and goes nowhere.
+- **`authorize`** is policy, beside the Messages it governs. It runs on the
+  server only, inside the commit, against the authoritative snapshot and the
+  principal the server's transport established. `withPrincipal` fixes that
+  principal's type so a rule cannot read a field the transport does not set.
+
+A durable Message has one obligation: its `update` must be a deterministic,
+state-only transition of the slice, because every replica and the server
+replay it. `make` derives replay from `update` and refuses, at the first
+submit, a Message that returns a Command or writes a local field. So ids and
+timestamps are minted by a local *intent* Message's Command and carried
+*inside* the durable *fact*; the [Sync README](../packages/sync/README.md#what-makes-a-message-durable)
+shows the pattern.
+
+## 2. The client
+
+Open storage and a replica, mount the application over it, start the loop:
+
+```ts
+import { Effect, Scope } from 'effect'
+import { ReplicaId, Sync } from 'foldkit-sync'
+
+const container = document.getElementById('app')!
+const scope = Effect.runSync(Scope.make())
+const storage = Effect.runSync(
+  Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
+)
+const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
+
+const mounted = Sync.mount(App, TodoSync, {
+  replica,
+  container,
+  view: (model, h) => ({
+    title: 'Todos',
+    body: h.ul([], model.todos.map(todo => h.li([], [todo.title]))),
+  }),
+  onPersistenceFailure: (model, error) =>
+    modifyFields(model, { lastError: () => Option.some(error.message) }),
+})
+
+Effect.runFork(
+  Effect.provide(replica.start, Sync.transport.socket({ url: 'wss://example.com/sync' })),
+)
+```
+
+`mount` runs the ordinary Foldkit runtime. A durable Message applies through
+`update` at once and a Command then saves it to the outbox; a local Message is
+untouched. `replica.start` exchanges with the server now, after every edit, and
+whenever the server says something changed, retrying failures on a backoff.
+When an exchange moves the replica (a commit, a rejection, a checkpoint), the
+mount installs the reconciled slice back into the Model, outside `update`.
+
+The [Sync README](../packages/sync/README.md#run-it-in-the-browser) walks each
+call; [runtime binding](./sync-runtime-binding.md) explains the mount's
+internals.
+
+## 3. The server: an exchange over the journal
+
+The journal takes its codecs, empty snapshot, reducer, replica binding, and the
+`authorize` rules from the contract. What you write is the **exchange**: one
+request from a replica, one answer.
+
+```text
+request    cursor, pending operations, the epoch the replica last saw
+
+answer     operations     committed after the cursor, in order
+           acknowledged   ids accepted (also when their payload is not repeated)
+           rejected       ids refused
+           checkpoint?    { cursor, model } when the tail was compacted away
+           more?          another page follows
+           epoch          this server's history
+```
+
+```ts
+import { Effect, Fiber, Option, Stream } from 'effect'
+import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
+import { Sync, type Operation, type SocketLike } from 'foldkit-sync'
+
+const PAGE = 500
+
+const server = Effect.gen(function* () {
+  const contract = TodoSync.journalContract()
+  const journal = yield* Journal.make({
+    ...contract,
+    file: 'todos.sqlite',
+    opId: operation => OpId.make(operation.opId),
+    actorId: (principal: Principal) => ActorId.make(principal.actorId),
+    validate: ({ key, operation, cursor }) => {
+      if (String(operation.documentId) !== String(key)) throw new Error('Wrong document')
+      if (operation.baseCursor > cursor) throw new Error('Operation is ahead of the server')
+    },
+  })
+  const key = DocumentId.make('todos')
+
+  const exchange = (
+    principal: Principal,
+    cursor: number,
+    pending: ReadonlyArray<Operation>,
+    seen?: string,
+  ) =>
+    Effect.gen(function* () {
+      // A replica that last saw another history is answered from the start.
+      const epoch = yield* journal.epoch(key)
+      const from = seen !== undefined && seen !== epoch ? 0 : cursor
+      if (from > (yield* journal.cursor(key)))
+        return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server`))
+
+      const acknowledged: Array<string> = []
+      const rejected: Array<string> = []
+      for (const operation of pending) {
+        if (!principal.canWrite) {
+          rejected.push(operation.opId)
+          continue
+        }
+        // A refusal, a payload that cannot apply, and an id reused for other content
+        // fail the same way on every retry, so they are rejected rather than resent.
+        const result = yield* journal
+          .append(key, operation, principal)
+          .pipe(
+            Effect.catchTag(
+              ['OperationRejectedError', 'InvalidOperationError', 'IdentityConflictError'],
+              () => Effect.void,
+            ),
+          )
+        if (result === undefined) rejected.push(operation.opId)
+        else acknowledged.push(result._tag === 'Committed' ? result.committed.opId : result.opId)
+      }
+
+      // Below the compaction floor there is no tail to send: send a checkpoint.
+      const read = yield* journal.read(key, Cursor.make(from), { limit: PAGE }).pipe(
+        Effect.map(Option.some),
+        Effect.catchTag('CompactedCursorError', () => Effect.succeed(Option.none())),
+      )
+      if (Option.isNone(read)) {
+        const { snapshot, cursor: at } = yield* journal.load(key)
+        return {
+          operations: [],
+          acknowledged,
+          rejected,
+          checkpoint: { cursor: at, model: contract.snapshot.encode(snapshot) },
+          epoch,
+        }
+      }
+      return {
+        operations: read.value.map(committed => ({
+          ...committed.operation,
+          serverSequence: committed.sequence,
+          actorId: committed.actorId,
+        })),
+        acknowledged,
+        rejected,
+        more: read.value.length === PAGE,
+        epoch,
+      }
+    })
+
+  // One accepted socket; `principal` is what authenticating the connection established.
+  const serve = (socket: SocketLike, principal: Principal) =>
+    Sync.transport.serve(socket, {
+      exchange: (cursor, pending, epoch) =>
+        Effect.runPromise(exchange(principal, cursor, pending, epoch)),
+      // A commit to this document wakes every connected replica.
+      changes: listener => {
+        const fiber = Effect.runFork(
+          Stream.runForEach(journal.subscribe, changed =>
+            Effect.sync(() => {
+              if (changed === key) listener()
+            }),
+          ),
+        )
+        return () => Effect.runSync(Fiber.interrupt(fiber))
+      },
+    })
+
+  return serve
+}).pipe(Effect.scoped)
+```
+
+Read it as the rules a server has to keep:
+
+- **Check the cursor before appending anything.** If the replica's cursor is
+  ahead of the journal, the exchange must fail before any commit, or a commit's
+  acknowledgement would be lost with the failed read and the replica would
+  resend it.
+- **Reject what will fail again; fail what might not.** A policy refusal, a
+  payload that cannot decode, and an id reused with different content are
+  deterministic, so they are returned as `rejected` and the replica drops them.
+  A `JournalError` (storage) is left to fail the exchange, so the replica keeps
+  the edit and retries. A handler that throws on a bad payload would be retried
+  with the same outbox forever.
+- **Acknowledge a repeat.** `append` answers a retransmitted id from history
+  (`Committed`, or `AlreadyCommitted` once its payload was compacted) without
+  applying it twice. Both are acknowledged.
+- **Page, and checkpoint below the floor.** `read` with a `limit` and
+  `more: true` let a replica that was offline for weeks catch up in bounded
+  steps. A read below the compaction floor fails with `CompactedCursorError`;
+  the answer is then a checkpoint from `load`, which the replica adopts as its
+  base before replaying its own pending edits.
+- **Name the history.** The replica stores the `epoch` and sends it back; a
+  replica from another history is answered from `0`, and it rebuilds. This is
+  how a server reset is survived; see [when things go wrong](#when-things-go-wrong).
+- **The principal comes from the connection.** It is established when the
+  socket is authenticated and never read from an operation, so a client cannot
+  claim to be someone else. Durable also binds each replica id to the first
+  actor that commits from it, and refuses another's.
+
+[`examples/sync/src/journal.ts`](../examples/sync/src/journal.ts) is this
+handler with server-side effects settled before the acknowledgement, and
+[`server.ts`](../examples/sync/src/server.ts) beside it binds `serve` to a `ws`
+server with a per-connection token.
+
+## 4. What the user sees, and what waits for the server
+
+The Model shows a durable edit before the server has it. For most UI that is
+the point. Two things need more:
+
+- **A refused edit.** It comes back as a rejection on the next exchange, the
+  replica drops it, the mount re-installs the slice, and the field reverts.
+  `replica.status.rejected` names the operation so the UI can say why.
+  `onPersistenceFailure` does not run for this; the local save succeeded.
+- **Something that must not claim success early.** An agent tool, a "shared
+  with the team" confirmation. These wait on `mounted.committed`, the slice as
+  the server confirmed it, with no pending edit applied:
+
+```ts
+import { Agent } from 'foldkit-agent'
+
+const TodoAgent = Agent.forApplication(App)
+const agent = TodoAgent.make({
+  messages: TodoAgent.expose(Message, {
+    CreatedTodo: {
+      name: 'create_todo',
+      description: 'Create a shared todo',
+      completion: Agent.when({
+        source: mounted.committed,
+        predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+      }),
+    },
+  }),
+})
+```
+
+That completes after the exchange that commits the todo, and never for one the
+server rejects. The agent learns nothing about cursors or operations. Remote
+draws the same line over its own cache; see
+[what a reader sees while a change is in flight](./state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
+
+## One edit, end to end
+
+With all four pieces in place, this is the path a single `CreatedTodo` takes:
+
+```text
+view dispatches CreatedTodo
+        |
+        v
+update applies it; the Model shows it                       visible
+        |
+        v
+the mount's Command submits it: replayed, given an id,      saved
+saved to the outbox
+        |
+        v
+replica.start exchanges: cursor + pending → server
+        |
+        v
+server: validate, authorize, reduce, assign sequence,       committed
+persist; answer with the tail, acks, rejections
+        |
+        v
+replica: advance the base, drop settled edits,
+replay the rest; the mount re-installs the slice
+```
+
+Three layers carry the edit, and it helps to keep their names apart. The
+**Message** is the application's meaning, `CreatedTodo({ id, title })`. The
+**operation** is that Message encoded inside Sync's envelope (document, replica,
+local sequence, a stable `opId`, the cursor the replica knew), which is what
+the outbox holds and the wire carries. The **committed operation** is the same
+plus the server's sequence and the actor it trusts. Sync adds the envelopes;
+the Message stays the vocabulary.
+
+## When things go wrong
+
+Each of these is designed for. The ones that change how you build come first.
+
+| Failure | What happens |
+| --- | --- |
+| The network is gone | edits apply and save; `pending` grows; the loop retries |
+| The server rejects an edit | dropped from pending, the rest replayed, the Model re-installed |
+| The local save fails | the edit is reverted and `onPersistenceFailure` says so |
+| Another device commits first | the base advances; local edits replay on top |
+| An operation is retried | the stable `opId` is answered from history, never applied twice |
+| The replica is far behind | pages (`more`), or a checkpoint when the tail was compacted |
+| The server lost its history | a new `epoch`: the replica rebuilds from `0` and resends its outbox; what the old server committed is gone everywhere; a replica that never heard an epoch cannot tell and fails until its storage is cleared |
+| Another actor sends a replica's operations | Durable refuses them: a replica is bound to its first committing actor |
+| Local storage was evicted | the replica catches up from the server, but unsent edits are lost: the outbox is user data |
+| Two tabs share one storage name | compare-and-swap fails the stale writer rather than merging histories |
+| Stored state is from another version | opening fails naming both versions; the bytes are kept for a deliberate migration |
+| The server answers nonsense | a malformed answer, a gap in the order, an ack for an operation never sent, or a checkpoint behind the cursor fails the exchange; local work is untouched |
+| An external effect succeeded before a crash recorded it | the provider call may repeat; use provider idempotency with Durable's effect ledger |
+
+The last row is the one the libraries cannot close. A committed operation may
+imply work outside SQLite (an email, a charge), and no local database can
+commit atomically with a provider. Durable's `runEffect` and `recover` record
+intents and reuse known outcomes; they do not make the provider transactional.
+Read [external effects](../packages/durable/README.md#external-effects-and-the-crash-gap)
+before wiring one.
+
+## What you still own
+
+The packages leave deliberate gaps, each a deployment decision:
+
+- **Authentication.** Verifying tokens or sessions and deriving the principal
+  per connection, and closing a socket when a credential expires.
+- **Compaction and retention.** When to `compact`, when to `vacuum`, and how
+  long to keep the identity rows that make old retries recognizable. A rotated
+  database forgets them; reject work older than the retained window rather than
+  applying it as new.
+- **Effect identities.** A stable key per document, operation, and semantic
+  action, chosen before the action runs and handed to the provider.
+- **Migrations.** Sync and Durable version and refuse their own storage and
+  wire formats. Your Message and snapshot payloads are yours to evolve.
+- **Browser storage policy.** IndexedDB can be evicted; what to tell the user
+  and when to ask for persistent storage.
+
+## Using one without the other
+
+**Sync without Durable.** Any server that implements the exchange above, with
+the same validation, serves a replica: check the cursor, commit pending in
+order, answer the tail, acknowledge, reject, checkpoint, name its epoch.
+
+**Durable without Sync.** The journal takes your own operation and snapshot
+codecs, an empty snapshot, a reducer, and an operation identity; the
+[Durable README](../packages/durable/README.md#using-durable-directly) starts
+there.
+
+## When not to use replicated state
+
+- No offline editing and no multi-device agreement is needed: plain Foldkit.
+- The server owns the fact and the client can refetch it: `foldkit-remote`.
+- Every peer must accept writes and merge without a server order: a CRDT
+  design. `Sync.lww.register` changes the merge rule for one field only.
+- You want a database for arbitrary queries: Durable is an operation journal.
+- You expect application-domain history to be migrated for you.
 
 ## See it working
 
-[`examples/sync`](../examples/sync) is the focused protocol example: SQLite
-journal, replicas, WebSocket transport, recovery behavior, Presence/LWW
-primitives, and an agent over shared state.
+- [`examples/todo-app`](../examples/todo-app): a whole application over
+  `Sync.mount`, with fragments, authorization, mirrors, and a WebMCP agent.
+- [`examples/sync`](../examples/sync): the replica, the journal, the socket
+  server, presence and LWW, and a test for every row of the table above.
 
-[`examples/todo-app`](../examples/todo-app) shows the application-level path in a
-browser with `Sync.mount`, feature fragments, authorization rules, Mirror, and a
-WebMCP agent.
-
-The package READMEs are the next step once the model is clear:
-
-- [`foldkit-sync`](../packages/sync) — complete replica, persistence, transport,
-  mounting, fragments, Presence, LWW, and low-level protocol reference.
-- [`foldkit-durable`](../packages/durable) — complete Journal, append/read,
-  compaction, retention, effect ledger, recovery, metrics, and migration
-  reference.
-
-For server-owned disposable data rather than client-authored durable operations,
-read [Server-derived state](./remote.md).
+Then the package READMEs: [`foldkit-sync`](../packages/sync) for the replica,
+status, transports, presence, and LWW; [`foldkit-durable`](../packages/durable)
+for append, reads, compaction, retention, and the effect ledger.

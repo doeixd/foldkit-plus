@@ -2002,7 +2002,7 @@ effect identities, and a policy for how result Messages return to shared state.
 Rebase and historical replay must not rerun external effects. The durable ledger
 reuses recorded successes, but cannot atomically commit an external provider's
 action and its local result. Surface adds no exactly-once guarantee. Preserve
-the [durable recovery requirements](../../packages/durable/README.md#effect-recovery), and
+the [durable recovery requirements](../../packages/durable/README.md#external-effects-and-the-crash-gap), and
 keep recovery and effect ownership outside the initial surface contract.
 
 ## Type safety and composability

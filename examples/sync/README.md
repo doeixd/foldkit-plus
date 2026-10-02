@@ -303,7 +303,7 @@ This example deliberately leaves deployment policy outside the libraries:
 
 The example's server-authority effects are keyed by document, operation, and
 array position. Do not reorder that effect policy for operations already
-committed. Read the [Durable effect recovery section](../../packages/durable/README.md#effect-recovery)
+committed. Read the [Durable effect recovery section](../../packages/durable/README.md#external-effects-and-the-crash-gap)
 before connecting those effects to real external providers.
 
 LWW clocks use a separate IndexedDB database from the normal outbox. Keep that

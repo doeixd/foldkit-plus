@@ -43,6 +43,24 @@ version changed; `pnpm` skips versions already in the registry.
   `margin: auto`, which `Defaults.reset` zeroes, so a dialog opens centered
   rather than in the top corner.
 
+### Changed
+
+- **`foldkit-sync`, `foldkit-durable`, and the replicated-state guide,
+  rewritten for the reader who has an application and wants it to work
+  offline.** Both READMEs now lead with the normal path (declare, mount, run
+  the loop; spread the contract into the journal) and keep the replica API,
+  transports, presence, and LWW under an advanced section. The Sync README
+  adds the three milestones an edit passes (visible, saved, committed) and
+  which reader shows each, a section on testing with a memory `Storage` and
+  the loopback transport, and a failure list ordered by what changes the
+  design. The guide (`docs/replication.md`) is now one feature end to end
+  and carries the server's exchange handler in full, which neither README
+  could show: cursor check, append with deterministic rejections, paging,
+  checkpoint below the floor, epoch, and `Sync.transport.serve` with a
+  change notice. Every snippet is type-checked: the READMEs' in each
+  package's `test/readme.test-d.ts`, the guide's in
+  `examples/sync/test/guide.test-d.ts`.
+
 ## 0.12.0
 
 `foldkit-agent` 0.5.0; `foldkit-bundle` 0.4.0; `foldkit-cms` 0.3.0;

@@ -249,7 +249,8 @@ const server = Effect.gen(function* () {
   ops, collects `acknowledged`/`rejected`, reads after the cursor, and returns a
   checkpoint on `CompactedCursorError`, and `changes` to `journal.subscribe`
   for the document's key so readers hear of commits. Reject an op that does not decode rather
-  than throwing: a thrown exchange is retried with the same outbox, forever. See
+  than throwing: a thrown exchange is retried with the same outbox, forever. The
+  handler is shown whole in `docs/replication.md` (section 3) and run in
   `examples/sync/src/journal.ts`.
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every

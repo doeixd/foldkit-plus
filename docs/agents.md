@@ -634,7 +634,7 @@ transitions.
   that contains what the task requires.
 - **You need exactly-once external effects.** Completion observes application
   facts; it is not an idempotency or effect-recovery protocol. See
-  [Durable effect recovery](../packages/durable/README.md#effect-recovery).
+  [Durable effect recovery](../packages/durable/README.md#external-effects-and-the-crash-gap).
 - **You are only wrapping a stateless function.** If there is no meaningful
   application Model/Message boundary to preserve, a normal tool definition may
   be simpler.
