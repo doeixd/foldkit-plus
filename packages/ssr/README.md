@@ -287,6 +287,12 @@ release tag, public and unique per deployment. The plugin compiles it into
 both bundles; a script outside Vite, such as a prerender, reads
 `process.env.FOLDKIT_BUILD_ID`, the same value the build saw.
 
+Set it even though `@foldkit/vite-plugin` can now generate an id on its own.
+The generated one is compiled into Foldkit alone, where `foldkit-ssr` cannot
+read it, and the client must compare builds before it reads a page's payload,
+so a Model serialized by another deployment is never decoded. Asking Foldkit
+to expose that id is [proposal 4](../../docs/upstream-foldkit-ssr.md#proposal-4-expose-the-compiled-build-id).
+
 `GET` and `HEAD` render the page for the request's URL; an application with
 Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
 [server fallback](#forms-that-work-without-scripts). `OPTIONS` is answered

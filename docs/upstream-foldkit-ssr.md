@@ -12,7 +12,7 @@ per-request head channel instead of JSON payloads; the issue needs a comment
 to that effect. Checked against Foldkit `main` at `95fed7fdaf`
 (2026-09-23) and the published 0.163.0.
 
-`foldkit-ssr` works on Foldkit 0.163 with no upstream change: every phase of
+`foldkit-ssr` works on Foldkit 0.165 with no upstream change: every phase of
 [its plan](./design/ssr-PLAN.md) is built on public API plus behaviour Foldkit
 already tests. This document is the short list of changes that would remove a
 workaround or close an integration gap, ordered by how likely each is to be
@@ -199,6 +199,51 @@ shows the workaround, the three costs, and the existing preserved-Model path,
 and asks whether a design along those lines would be welcome. No pull request
 unless the answer is yes.
 
+## Proposal 4: expose the compiled build id
+
+**Ask.** Export the build id `@foldkit/vite-plugin` compiles into Foldkit, so
+code outside Foldkit can read the one value `renderToString` stamps and
+`Runtime.hydrate` compares. For example `buildId(): string | undefined` from
+`foldkit/runtime`, returning what `src/buildToken.ts` already holds as the
+internal `injectedBuildId`.
+
+**Why Foldkit would want it.** Since 0.164.0 a coordinated Vite build gets one
+identity without the application forwarding anything, which is the point of
+that release. Anything that also checks a page before handing it to Foldkit,
+or names the deployment in its own output (a cache key, a health endpoint, a
+log line), still needs the value, and today must set `FOLDKIT_BUILD_ID` by
+hand and pass it explicitly to get one it can see. The explicit path then
+overrides the compiled identity on both sides, so the 0.164.0 feature does
+nothing for it.
+
+**Why we need it.** `foldkit-ssr`'s client compares the served page's build
+with its own before it reads the page's payload, so a Model serialized by
+another deployment is never decoded (`packages/ssr/src/client.ts`). It cannot
+leave that comparison to `Runtime.hydrate`, which runs after the payload is
+read. So `SSR.render`, `SSR.hydrate`, and the static-site build require a
+`buildId`, and every application built on `foldkit-ssr` must set
+`FOLDKIT_BUILD_ID`, even though plugin 0.26.0 would otherwise generate one.
+Checked against Foldkit 0.165.0 and `@foldkit/vite-plugin` 0.26.0: the
+compiled id is `@internal`, and no public entry exports it.
+
+**The change.**
+
+- `src/buildToken.ts`: keep `injectedBuildId` internal; add a public reader
+  documented with what it returns in each case (the explicit id the plugin
+  was configured with, the generated one for a coordinated build,
+  `'development'` under the dev server, `undefined` outside the plugin).
+- Export it from `foldkit/runtime` and `foldkit/experimental/server`, so a
+  server and a client read it the same way.
+- A test that a build with no configured id compiles one value the reader
+  returns in both artifacts, and that `renderToString` stamps that value.
+
+**Route.** An issue first: the name and the module it lives in are Foldkit's
+call, and the issue can point at 0.164.0's changeset for the motivation.
+
+**Afterwards, here.** Make `buildId` optional in `SSR.render`,
+`SSR.hydrate`, `SSR.entry`, and `generateStaticSite`, defaulting to the
+compiled id, and drop `FOLDKIT_BUILD_ID` from the examples' setup.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
@@ -230,6 +275,7 @@ check:
 2. Proposal 1 as a pull request.
 3. Proposal 2 as an issue, then a pull request on the agreed shape.
 4. Proposal 3 as a question, after `foldkit-ssr` is published and in use.
+5. Proposal 4 as an issue, any time: it needs nothing from the others.
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.
