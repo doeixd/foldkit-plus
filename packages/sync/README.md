@@ -2,103 +2,74 @@
 
 Local-first replication for part of a Foldkit application.
 
-A durable edit applies locally immediately, is persisted to an outbox, and is
-sent when the network allows. The server decides the authoritative order. The
-replica then replays that committed order and rebases any still-pending local
-edits on top.
+You name a slice of the Model that several devices share, and the existing
+Messages that change it. From then on an edit applies at once, is saved in a
+local outbox, reaches the server when the network allows, and lands in the same
+order on every device. Nothing about the application changes shape: `Model`,
+`Message`, and `update` stay the one state machine. Sync wraps them; it never
+adds a second reducer.
 
-The important part is what **does not** change: your application's `Model`,
-`Message`, and `update` remain the state machine. Sync does not introduce a
-second reducer. You declare which Model slice is shared and which existing
-Messages are durable; Sync derives replay, persistence, protocol codecs, and the
-server journal contract from that declaration.
-
-> **Sync turns a subset of your existing Foldkit Messages into durable
-> operations. They still run through your normal `update`; Sync adds persistence,
-> optimistic replay, server ordering, and reconciliation around them.**
-
-**Use it when** a user should keep editing offline, the edit must survive a
-reload or network failure, and several replicas must eventually converge under
-one authoritative server order. **Do not use it for** server-owned disposable
-facts — use [`foldkit-remote`](../remote) for those — or for peer-to-peer / CRDT
-replication where every peer independently accepts writes.
+> **A durable Message is one of your existing Messages, recorded.** It still
+> runs through your `update`. Sync adds the outbox, the optimistic view, the
+> exchange with the server, and the rebase when the server's answer arrives.
 
 It is the client half of [replicated Foldkit state](../../docs/replication.md).
-[`foldkit-durable`](../durable) is an optional server-side ordered journal.
+[`foldkit-durable`](../durable) is the server half, an ordered journal on
+SQLite. Either works without the other.
 
-## Which state belongs in Sync?
+## Is this the right package?
 
-A useful ownership rule is:
+| The state | Owner | Use |
+| --- | --- | --- |
+| A route, a selection, a transient error | the local Model | plain Foldkit |
+| Facts the server owns and the client may refetch | the server | [`foldkit-remote`](../remote) |
+| Edits the user makes that must survive offline and converge | the durable log | **`foldkit-sync`** |
+| The authoritative order and snapshot on the server | the server journal | [`foldkit-durable`](../durable) |
 
-| State | Owner |
-| --- | --- |
-| Route, selected tab, transient errors | ordinary local `Model` / `update` |
-| Server-owned data the client may refetch | `foldkit-remote` |
-| Client-authored state that must survive offline and converge | `foldkit-sync` |
-| Authoritative server ordering, idempotent append, snapshots | `foldkit-durable` |
+The Remote and Sync line is the one worth memorizing. Remote caches a fact the
+server owns, so refetching is recovery. Sync records an edit the user authored,
+so the outbox is user data and replay is recovery.
 
-The difference between Remote and Sync is especially important:
+Sync assumes one server order per document. It is not peer-to-peer and not a
+CRDT; every peer accepting writes without a server is a different design.
 
-```text
-Remote
-server owns the fact
-client caches it
-refetch is recovery
-
-Sync
-client creates the durable operation
-operation must survive offline
-replay + reconciliation is recovery
-```
-
-A Surface may read local state, Remote state, and Sync-owned state at the same
-time. Those observation boundaries do not change who owns each datum.
-
-## The replica mental model
-
-A replica has two pieces of state:
+## The model in one equation
 
 ```text
-authoritative committed snapshot
-              +
-pending local operations
-              =
-optimistic shared state the UI sees
+what the user sees = committed snapshot + pending local edits, replayed
 ```
 
-If the server has committed `A B C` and this device has pending `D E`:
+The server has committed `A B C`; this device has typed `D E` since:
 
 ```text
-server order:   A  B  C
-local pending:           D  E
-
-visible state = replay(A, B, C, D, E)
+server:    A  B  C
+pending:            D  E
+visible:   replay(A, B, C, D, E)
 ```
 
-If another device gets operation `X` committed before this replica's pending
-work, the next exchange may produce:
+Another device gets `X` in before `D` reaches the server. After the next
+exchange:
 
 ```text
-new server order: A  B  C  X
-local pending:                D  E
-
-new visible state = replay(A, B, C, X, D, E)
+server:    A  B  C  X
+pending:               D  E
+visible:   replay(A, B, C, X, D, E)
 ```
 
-The local edit never needed to wait for that exchange to appear. Reconciliation
-changes the base underneath it and replays the still-pending operations on top.
+`D` and `E` never waited. The base moved underneath them and they were replayed
+on top. That one move, **rebase**, is also how a rejection rolls back: drop the
+rejected edit from `pending` and replay the rest.
 
-The lifecycle is:
+An edit passes three milestones, and each means something different:
 
-```text
-local durable Message → optimistic update + local persistence
-                     → exchange → authoritative commit or refusal
-                     → new base + replay of remaining pending operations
-```
+| Milestone | Where | What it proves |
+| --- | --- | --- |
+| **visible** | the Model, at once | nothing yet: the user saw it |
+| **saved** | the local outbox | a reload or a dropped connection cannot lose it |
+| **committed** | the server journal | every other device will see it in this order |
 
-These are separate milestones. Showing an optimistic value is not an
-acknowledgment from either local storage or the server. Watch persistence and
-replica status when deciding what the UI may call saved.
+A UI that says "saved" should read the second, and one that says "shared"
+the third. Both are observable; see [what to show the user](#what-to-show-the-user).
 
 ## Install
 
@@ -107,23 +78,25 @@ pnpm add foldkit-sync
 ```
 
 `foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the
-package.
+package. The browser storage is IndexedDB. The server needs
+[`foldkit-durable`](../durable) or your own implementation of
+[the exchange](#the-exchange).
 
-## Sixty seconds: choose what is shared and what is durable
+## Sixty seconds: say what is shared
 
-Start with an ordinary Foldkit application:
+Start from an ordinary application. The example keeps a todo list and a
+selection; only the list is shared.
 
 ```ts
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, Sync } from 'foldkit-sync'
 
 const Model = Schema.Struct({
-  todos: Schema.Array(
-    Schema.Struct({ id: Schema.String, title: Schema.String }),
-  ),
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
   selectedTodoId: Schema.Option(Schema.String),
   lastError: Schema.Option(Schema.String),
 })
@@ -136,30 +109,22 @@ const Message = defineMessageUnion({
 })
 type Message = typeof Message.Type
 
-const initial: Model = {
-  todos: [],
-  selectedTodoId: Option.none(),
-  lastError: Option.none(),
-}
+const initial: Model = { todos: [], selectedTodoId: Option.none(), lastError: Option.none() }
 
 type Return = Update.Return<Model, Message>
 
-// This is still the application's one transition function.
 const update = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
     CreatedTodo: ({ id, title }) => ({
-      model: { ...model, todos: [...model.todos, { id, title }] },
+      model: modifyFields(model, { todos: () => [...model.todos, { id, title }] }),
     }),
     RenamedTodo: ({ id, title }) => ({
-      model: {
-        ...model,
-        todos: model.todos.map(todo =>
-          todo.id === id ? { ...todo, title } : todo,
-        ),
-      },
+      model: modifyFields(model, {
+        todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      }),
     }),
     SelectedTodo: ({ id }) => ({
-      model: { ...model, selectedTodoId: Option.some(id) },
+      model: modifyFields(model, { selectedTodoId: () => Option.some(id) }),
     }),
   })
 
@@ -167,409 +132,34 @@ const App = Surface.application({ Model, Message, initial, update })
 
 const TodoSync = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
-
-  // This slice of Model is replicated.
-  // The writable Projection lets Sync install checkpoints/reconciled state back
-  // into the application Model without owning a second copy of the schema.
   shared: Projection.pick(App.model.todos),
-
-  // Only these existing Messages become durable operations.
-  durable: MessageSet.make(App, [
-    Message.CreatedTodo,
-    Message.RenamedTodo,
-  ]),
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 ```
 
-Read that declaration as:
+Read the declaration as a table:
 
 ```text
-Model
-  todos             -> shared / replicated
-  selectedTodoId    -> local only
-  lastError         -> local only
+todos            shared     replicated, persisted, journaled
+selectedTodoId   local      this device only
+lastError        local
 
-Messages
-  CreatedTodo       -> durable
-  RenamedTodo       -> durable
-  SelectedTodo      -> local only
+CreatedTodo      durable    recorded in the outbox, committed by the server
+RenamedTodo      durable
+SelectedTodo     local      runs through update and goes nowhere
 ```
 
-`Sync.forApplication(App)` derives the shared schema, initial shared snapshot,
-replay function, operation codecs, and server journal contract from the same
-application declaration. There is no parallel sync-specific version of
-`update` to keep aligned.
+From that, `make` derives the shared codec, the initial shared value, the
+operation envelope, replay (your `update` on the shared slice), and the
+server's [journal contract](#the-server). You write none of them.
 
-### Declaration is not a running replica
+`TodoSync` is a value. It has opened no storage, connected to nothing, and
+rendered nothing. The next section does that.
 
-The example above defines codecs and replay rules. It has not opened storage,
-created an outbox, connected to a server, or mounted a view. For the application
-path, continue with [mounting](#mounting-the-full-foldkit-application). Use
-[the replica API](#running-a-replica) when you need to control that lifecycle.
+## Run it in the browser
 
-`SelectedTodo` stays local because it is outside the durable MessageSet.
-Adding a Message to that set is a semantic decision: its update must be safe
-to replay and confined to the shared projection. An intent that starts a
-Command should instead produce a deterministic fact, as described next.
-
-## Wiring: the contract joins an assembly
-
-The contract joins a `foldkit-bundle` assembly contract-only, so the Module
-sees it:
-
-```ts
-const wiring = TodoSync.wiring()
-```
-
-It routes nothing, runs nothing, and subscribes to nothing — Sync owns the
-runtime through `mount` rather than joining it — and `wiring.contract` is the
-same contract above.
-
-## What makes a Message durable?
-
-A durable Message must be something another machine can replay later and obtain
-the same shared state.
-
-In practice that means it must be a deterministic, state-only transition of the
-shared projection.
-
-Derived replay protects that boundary. It refuses a durable Message when the
-application's `update`:
-
-- returns a Command — a live external effect cannot be replayed later; or
-- changes a field outside the shared projection — that change would disappear
-  when only the shared slice is persisted/replayed.
-
-For example:
-
-```text
-RequestedChargeCard
-  -> runs a Command / talks to a provider
-  -> local intent, NOT durable
-
-CardCharged
-  -> pure fact about state
-  -> durable and replayable
-```
-
-A common pattern is therefore:
-
-```text
-local intent Message
-      |
-      v
-Command / nondeterministic work
-      |
-      v
-durable fact Message
-```
-
-Replay runs the durable fact through the same application `update` on every
-replica. If an application genuinely needs different replay semantics, `make`
-accepts a custom `replay`, but that custom replay does not get the derived
-guardrails.
-
-When the work between intent and fact needs nothing but the Model — an id minted
-from a local counter, say — return the fact as `Sync.fact(message)` instead of an
-ordinary Command. `Sync.mount` applies it straight after the intent's `update`,
-in the same transition, and persists it if it is durable. An ordinary Command's
-Message arrives later, so a second intent dispatched in the meantime would read
-the Model from before the fact and could mint the same id. Outside `mount`, or
-once a parent has mapped it, `Sync.fact` is an ordinary Command that yields the
-Message.
-
-## Running a replica
-
-The low-level runtime is a `Replica`. It owns the local outbox, committed shared
-snapshot, cursor, optimistic projection, and synchronization state.
-
-```ts
-import { Effect } from 'effect'
-import { ReplicaId, Sync } from 'foldkit-sync'
-
-const program = Effect.gen(function* () {
-  // One durable storage identity per document + replica/writer.
-  const storage = yield* Sync.indexedDb('todos/tab-1')
-
-  const replica = yield* TodoSync.openReplica(
-    ReplicaId.make('tab-1'),
-    storage,
-  )
-
-  // submit validates/replays first, then persists the operation in the outbox.
-  yield* replica.submit(
-    Message.CreatedTodo({ id: 't1', title: 'Milk' }),
-  )
-
-  // This already includes the pending operation. No server round trip required.
-  const optimistic = yield* replica.shared
-
-  return optimistic
-}).pipe(Effect.scoped)
-```
-
-`replica.submit(message)` does not mean “send this now.” It means:
-
-1. verify the Message is valid and durable;
-2. replay it against the current optimistic shared state;
-3. assign a stable local operation identity;
-4. persist it to the local outbox;
-5. make the new optimistic projection observable; and
-6. wake the exchange loop if one is running.
-
-A Message replay rejects never enters the outbox.
-
-## Optimistic state and rebasing
-
-Internally the replica keeps:
-
-```text
-committed
-  the authoritative shared snapshot up to cursor N
-
-pending
-  locally-authored operations not yet resolved by the server
-```
-
-The value returned by `replica.shared` is:
-
-```text
-pending.reduce(replay, committed)
-```
-
-That simple rule gives optimistic UI and reconciliation the same semantics.
-There is no special “optimistic reducer.”
-
-When synchronization advances the committed base, Sync removes pending
-operations that became committed, were explicitly acknowledged, or were
-rejected, then the remaining outbox is replayed over the new committed state.
-
-This also explains why durable Messages have to be replay-safe: a pending
-operation may run many times as the authoritative base changes beneath it.
-
-## Synchronization
-
-A replica exchanges these with the server:
-
-```text
-request
-  current cursor
-  pending operations
-  the server's epoch, once the replica has heard one
-
-response
-  newly committed operations
-  acknowledgements
-  rejections
-  optional checkpoint
-  optional more (the replica asks again at once)
-  optional epoch
-```
-
-`replica.synchronize` performs one exchange through the `Transport` Effect
-service:
-
-```ts
-const once = replica.synchronize.pipe(
-  Effect.provide(Sync.transport.socket({ url: 'wss://example.com/sync' })),
-)
-```
-
-`replica.start` is the long-running convenience loop. It exchanges once, then
-wakes after every submit and every notice the transport hears from the server
-(`Transport.changes`). A failed exchange, whether the wire failed or the
-response was refused, is recorded in `status.lastError` and announced on
-`statusChanges`; the loop survives and retries on a backoff from 0.5 s up to
-30 s, or at once on the next submit, so an outbox is delivered even if nobody
-types again.
-
-```ts
-Effect.runFork(
-  Effect.provide(
-    replica.start,
-    Sync.transport.socket({ url: 'wss://example.com/sync' }),
-  ),
-)
-```
-
-The transport does not decide reconciliation. It only carries the exchange;
-the replica validates the response and applies the protocol rules.
-
-### Acknowledgements
-
-An acknowledgement says an operation the replica sent is durably accepted, so
-it may leave the outbox even if its committed payload is not repeated in this
-response. While a paged response says there is `more`, an acknowledged operation
-stays pending, because its committed copy may be on a later page; it leaves once
-that copy arrives or the last page has been read.
-
-### Rejections
-
-A rejection says the optimistic operation did not commit. Sync removes it from
-the pending set and recomputes the optimistic state from the authoritative base
-plus whatever pending operations remain.
-
-```text
-before response
-committed: A B C
-pending:             D E
-visible:   A B C D E
-
-server rejects D
-
-committed: A B C
-pending:               E
-visible:   A B C E
-```
-
-`replica.status.rejected` keeps recent rejected operation ids so the UI can
-explain that an optimistic edit was refused.
-
-### Checkpoints
-
-A server may compact old history. If the replica is too far behind to replay the
-missing prefix, the response can include a checkpoint:
-
-```text
-checkpoint = authoritative shared snapshot + cursor
-```
-
-The replica adopts the checkpoint as its committed base, then rebases its local
-pending operations on top. A checkpoint behind the replica's current cursor is
-rejected with `CheckpointRegressionError` rather than silently moving history
-backwards.
-
-### Paged answers
-
-A server may answer with only part of what follows the cursor and set `more:
-true`. `synchronize` then exchanges again at once, until an answer has no
-`more` or a round moves the cursor nowhere. A replica that was offline for a
-long time therefore catches up in bounded steps within one `synchronize`. The
-example servers page with Durable's `read(key, cursor, { limit })`.
-
-### Coalescing a burst
-
-Typing makes one durable Message per keystroke. A contract can merge them while
-the server has not seen them. `make({ ..., coalesce: (last, next) => merged })`
-is offered each submitted Message together with the last one in the outbox. If
-it returns a Message, that Message replaces the last operation under the last
-operation's id; if it returns `undefined`, the new Message gets an operation of
-its own. Replaying the merged Message must give the same result as replaying
-`last` then `next`.
-
-An operation is merged into only while no exchange has carried it. Once one has,
-even an exchange that failed, the server may already have committed it as it
-was. An operation loaded from storage is never merged into either. So there is
-no timer to tune: a burst typed while an exchange is out becomes one operation,
-and a single keystroke goes out as quickly as it did before. The local sequence
-still advances on every submit.
-
-## Replica status and UI state
-
-The public replica surface deliberately exposes enough state for UI and recovery
-without exposing the application Messages themselves:
-
-```ts
-const status = yield* replica.status
-// {
-//   pending: number,
-//   cursor: Sequence,
-//   lastError: string | undefined,
-//   rejected: ReadonlyArray<OpId>
-// }
-```
-
-`replica.statusChanges` emits that status initially and after every submit and
-exchange. `replica.changes` emits the status and optimistic `shared` value
-together from one replica snapshot, so a UI can subscribe once without racing
-two separate reads. `replica.snapshot` is the same read, once: the status,
-`shared`, `committed`, and `nextLocalSequence`, the local sequence the next
-submitted operation takes.
-
-## Sync + Durable
-
-Sync owns **client replication semantics**. Durable can own **server ordering and
-persistence**.
-
-```text
-client
------------------------------------------------
-Foldkit update
-      |
-      | durable Message
-      v
-foldkit-sync Replica
-  optimistic shared state
-  persistent outbox
-      |
-      | exchange
-      v
------------------------------------------------
-server
-foldkit-durable Journal
-  authoritative order
-  snapshot + cursor
-      |
-      v
-committed operations / checkpoint / rejection
-```
-
-The same Sync contract produces the server journal contract, so the two halves
-do not duplicate the Message codec, shared schema, initial snapshot, or replay
-reducer:
-
-```ts
-import { Effect } from 'effect'
-import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
-
-type Principal = { readonly actorId: string }
-
-const server = Effect.gen(function* () {
-  const journal = yield* Journal.make({
-    // Derived from the same Foldkit application + Sync declaration:
-    // operation codec, snapshot codec, empty shared value, replay, and
-    // compiled authorization rules when present.
-    ...TodoSync.journalContract(),
-
-    file: 'todos.sqlite',
-    opId: operation => OpId.make(operation.opId),
-    actorId: (principal: Principal) => ActorId.make(principal.actorId),
-  })
-
-  return yield* journal.load(DocumentId.make('todos'))
-}).pipe(Effect.scoped)
-```
-
-The packages are intentionally separable. A custom server may implement the
-exchange without Durable, and Durable can journal a protocol that did not come
-from Sync.
-
-## Mounting the full Foldkit application
-
-The raw Replica works with the **shared slice**. `Sync.mount` is the Foldkit
-runtime integration that connects that replica back to the whole application
-Model.
-
-A mounted durable Message:
-
-```text
-dispatch Message
-      |
-      v
-application update immediately
-      |
-      +--> local fields / render
-      |
-      v
-persist durable Message through replica
-      |
-exchange changes shared state later
-      v
-install reconciled shared slice back into Model
-```
-
-So the UI still runs one application reducer. Sync does not replace the runtime
-with a second state machine.
+Three steps: open storage and a replica, mount the application over it, start
+the exchange loop.
 
 ```ts
 import { Effect, Scope } from 'effect'
@@ -577,83 +167,155 @@ import { ReplicaId, Sync } from 'foldkit-sync'
 
 const container = document.getElementById('app')!
 
+// One IndexedDB database per document and tab; its connection lives for the page.
 const scope = Effect.runSync(Scope.make())
 const storage = Effect.runSync(
-  Effect.provideService(
-    Sync.indexedDb('todos/tab-1'),
-    Scope.Scope,
-    scope,
-  ),
+  Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
 )
-const replica = Effect.runSync(
-  TodoSync.openReplica(ReplicaId.make('tab-1'), storage),
-)
+const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
 
 const mounted = Sync.mount(App, TodoSync, {
   replica,
   container,
   view: (model, h) => ({
     title: 'Todos',
-    body: h.ul(
-      [],
-      model.todos.map(todo => h.li([], [todo.title])),
-    ),
+    body: h.ul([], model.todos.map(todo => h.li([], [todo.title]))),
   }),
-  onPersistenceFailure: (model, error) => ({
-    ...model,
-    lastError: Option.some(error.message),
-  }),
+  onPersistenceFailure: (model, error) =>
+    modifyFields(model, { lastError: () => Option.some(error.message) }),
 })
 
 Effect.runFork(
-  Effect.provide(
-    replica.start,
-    Sync.transport.socket({ url: 'wss://example.com/sync' }),
-  ),
+  Effect.provide(replica.start, Sync.transport.socket({ url: 'wss://example.com/sync' })),
 )
 
-mounted.dispatch(
-  Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' }),
-)
-
-mounted.model()
-await mounted.dispose()
+mounted.dispatch(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' }))
 ```
 
-`dispose()` waits for in-flight persists started by the mount; the Replica itself
-remains separately owned and must be closed with its scope/lifecycle.
+What each call does, and does not do:
 
-The mount replaces the shared slice outside `update` in two cases: when an
-exchange changes what the replica holds (it commits, acknowledges or rejects
-something), and when a failed persist reverts its edit. A replica status that
-changes nothing the Model shows, such as the one a mount starts with, replaces
-nothing. `onReinstall(next, previous)` sees both cases and returns the
-transition, so local state that points into the shared slice (a selection) can
-be carried across the change, and a Command can take it where it has to go (a
-DOM that is patched rather than re-rendered). Omitted, the Model is simply
-`next`. A durable `Sync.fact` it returns is a new edit, so return one only for
-what changed: returned every time, it adds an edit per exchange, and while
-storage keeps failing, one per failure.
+- **`Sync.indexedDb(name)`** opens one database. Name it by document and
+  writer: two tabs on one name race, and the loser fails its write rather than
+  merging two histories.
+- **`openReplica(id, storage)`** reads back the committed snapshot, cursor, and
+  outbox saved last time, or starts empty. It does no network I/O.
+- **`Sync.mount(App, TodoSync, …)`** runs the ordinary Foldkit runtime with
+  your `view` and `update`. A durable Message applies through `update` at once,
+  then a Command persists it; if the persist fails, the edit is reverted and
+  `onPersistenceFailure` says so in the Model. A local Message is untouched.
+- **`replica.start`** is the exchange loop: once now, then after every submit
+  and every notice from the server. A failed exchange is retried on a backoff
+  from 0.5 s to 30 s, or at once on the next edit. The loop never fails; it
+  reports through `status`.
+- **`mounted.dispatch`** sends a Message the way a view does. The container
+  must have an `id`, or `mount` throws.
 
-### URL, Mirror, and agents
+Reload the page: the todos come back from the outbox and the committed
+snapshot, the selection does not. That is the shared/local line, visible.
 
-The optional `url` option routes navigation through the application:
+`mounted` also exposes `model()`, `subscribe`, `observe`, `committed`, and
+`dispose()`, which waits for in-flight persists and leaves the replica open.
+Close the replica with its own scope.
 
-- `init(model, url)` reduces the initial URL before the first render;
-- `onUrlChange(url)` maps browser navigation back to a Message;
-- `onUrlRequest` optionally maps link requests to a Message.
+## The server
 
-A `foldkit-mirror` URL mirror plugs into that seam without becoming another
-state owner.
+The server answers the exchange: it takes a cursor and pending operations,
+commits what it accepts, and returns what the replica is missing. With
+`foldkit-durable`, the same contract supplies the journal's codecs, empty
+snapshot, reducer, and any [authorization](#authorize-on-the-server):
 
-The mounted host also exposes `model`, `dispatch`, `subscribe`, and `observe`.
-Agent runtimes bind to those same capabilities; `observe` reports application
-Messages the runtime applies, including the completion facts an agent capability
-may wait for. See [runtime binding](../../docs/sync-runtime-binding.md).
+```ts
+import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
 
-The Model shows a durable edit at once, before the server has it. An agent that
-must not report success until the server commits the edit waits on
-`mounted.committed` instead, the shared slice as confirmed:
+type Principal = { readonly actorId: string }
+
+const journal = yield* Journal.make({
+  ...TodoSync.journalContract(),
+  file: 'todos.sqlite',
+  opId: operation => OpId.make(operation.opId),
+  actorId: (principal: Principal) => ActorId.make(principal.actorId),
+})
+```
+
+The exchange handler itself is yours: it calls `journal.append` for each
+pending operation, `journal.read` for what follows the cursor, and serves the
+result on a socket with `Sync.transport.serve`. [The replicated state
+guide](../../docs/replication.md#3-the-server-an-exchange-over-the-journal) shows
+the whole handler in one page, and [`examples/sync`](../../examples/sync) runs
+it over `ws`.
+
+A server that is not Durable implements the same [exchange](#the-exchange).
+
+## What makes a Message durable
+
+Replay runs a durable Message through `update` on another machine, later,
+possibly many times as the base beneath it moves. So it has to be a
+deterministic, state-only transition of the shared slice. `make` derives replay
+from `update` and refuses a durable Message whose transition:
+
+- returns a Command, because an effect cannot be replayed; or
+- changes a field outside `shared`, because that change would be lost.
+
+A refused Message fails `submit` with `ReplayError` and writes nothing, so a
+mistake shows on the first edit instead of as diverging replicas later.
+
+The consequence is a pattern you will use everywhere: **an intent mints, a fact
+records**.
+
+```text
+RequestedTodo { title }          local: its update returns a Command
+      |                          that reads the clock and mints an id
+      v
+CreatedTodo { id, title, at }    durable: pure over the shared slice
+```
+
+Put every nondeterministic input (ids, timestamps, the result of a provider
+call) *inside* the fact. `update` for the fact only applies it.
+
+When the intent needs nothing outside the Model, say an id from a counter in
+the shared slice, return the fact as `Sync.fact(message)` instead of an
+ordinary Command. The mount applies it in the intent's own transition, before
+any later Message, so two intents dispatched together cannot read the same
+counter. Outside the mount it is an ordinary Command.
+
+A durable `update` should also be idempotent where a retry could deliver one
+operation twice, as in `CreatedTodo` ignoring an id it already holds.
+
+## What to show the user
+
+The three milestones each have a reader.
+
+**Visible** is the Model. Nothing to do.
+
+**Saved** is the persist. `onPersistenceFailure` runs when it fails, after the
+edit has been reverted; the Model it returns is what the user sees next. The
+error names why: `ReplayError` for a Message that cannot be durable,
+`StorageError` for IndexedDB.
+
+**Committed** is the replica's status:
+
+```ts
+const status = yield* replica.status
+// { pending: number, cursor: Sequence, lastError: string | undefined, rejected: ReadonlyArray<OpId> }
+```
+
+`pending` above zero means edits the server has not confirmed; `lastError` is
+the last failed exchange, cleared by the next success; `rejected` lists recent
+edits the server refused. `replica.statusChanges` is a Stream of the same,
+emitted after every submit and exchange; `replica.changes` pairs it with the
+optimistic `shared` value so one subscription sees both.
+
+**A refused edit** arrives as a rejection on the next exchange, not as an
+error. The replica drops it and replays the rest; the mount re-installs the
+shared slice, and the field the user edited reverts. `onPersistenceFailure`
+does not run for this, since the local save succeeded. Watch `rejected` to
+explain the revert.
+
+**Waiting for the server.** The Model shows an edit before the server has it.
+Something that must not report success until the edit is committed, an agent
+tool for instance, waits on `mounted.committed`: the shared slice as the server
+confirmed it, with no pending edit applied. It is a source, `{ get, subscribe }`,
+told after every exchange:
 
 ```ts
 completion: Agent.when({
@@ -662,29 +324,22 @@ completion: Agent.when({
 })
 ```
 
-It completes after the exchange that commits the edit, and never for one the
-server rejects. The agent learns nothing about cursors or operations.
-`mounted.committed` is a source (`{ get, subscribe }`), not a Projection: it reads
-the replica, not the Model, and tells subscribers after every exchange.
+That completes after the exchange that commits the todo and never for one the
+server rejects.
 
-Remote draws the same line over its own cache, with the same words and a
-different mechanism: see [what a reader sees while a change is in
-flight](../../docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
+## Growing the application
 
-## Fragments: compose one document from features
+### Compose a document from features
 
-Large applications do not need one giant Sync declaration. Declare feature
-fragments and compose them into one document:
+Each feature declares the fields it shares and the Messages that change them;
+`compose` merges them into one document:
 
 ```ts
 const AppSync = Sync.forApplication(App)
 
 const Todos = AppSync.fragment({
   shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [
-    Message.CreatedTodo,
-    Message.RenamedTodo,
-  ]),
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 
 const Members = AppSync.fragment({
@@ -698,424 +353,295 @@ const Board = AppSync.make({
 })
 ```
 
-`compose` merges the shared projections and durable Message subsets. It rejects
-incompatible duplicate field declarations, duplicate durable variants, and
-fragments from another application. `Module.validate` catches the separate
-architectural mistake of two contracts claiming the same field ownership.
+`compose` throws on a field declared twice with different codecs, a Message
+declared durable twice, or a fragment from another application. The result is
+still one document: one outbox, one cursor, one server order.
 
-## Authorization and optimistic rejection
+### Authorize on the server
 
-Authorization belongs on the Sync contract because it is policy over a durable
-Message against the authoritative shared snapshot. The rule compiles into
-`journalContract()` and is enforced by the server journal — not trusted to the
-client.
+Policy belongs on the contract, beside the Messages it governs, and runs on the
+server inside the journal's commit. The client never runs it.
 
 ```ts
-const Authorized = Sync.forApplication(App)
-  .withPrincipal<{ readonly role: 'admin' | 'guest' }>()
+const Authorized = Sync.forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
 
 const Board = Authorized.make({
   documentId: DocumentId.make('board'),
   ...Authorized.compose(Todos, Members),
   authorize: {
     RenamedTodo: ({ principal, message, shared }) =>
-      principal.role === 'admin' &&
-      shared.todos.some(todo => todo.id === message.id),
+      principal.role === 'admin' && shared.todos.some(todo => todo.id === message.id),
   },
 })
 ```
 
-A durable variant without a rule is allowed. A key that is not one of the
-contract's durable Message variants is a type error.
+`message` is exactly that variant, `shared` is the authoritative snapshot, and
+`principal` is whatever the server's transport established for the connection;
+it is never read from the operation. A variant without a rule is allowed. A key
+that is not a durable variant is a type error. The rules ride in
+`journalContract()`, so the server enforces them by spreading the contract.
 
-The client does not run authorization. It may optimistically show the edit;
-when the server refuses it, reconciliation drops that pending operation and
-rebases the remaining ones. This is why rejection is a normal exchange result,
-not a transport failure.
+An edit the policy refuses still shows at once on the client, then comes back
+as a rejection, as [above](#what-to-show-the-user).
 
-## Persistence and recovery
+### Coalesce a burst of typing
 
-The local outbox is part of the feature, not an incidental cache. Losing it can
-lose edits that never reached the server.
-
-The built-in browser storage adapter is IndexedDB:
-
-```ts
-const storage = yield* Sync.indexedDb('todos/tab-1')
-```
-
-Stored replica state includes protocol/schema versions, document/replica
-identity, cursor, the server's epoch, committed snapshot, local sequence, and
-pending operations.
-Persisted and remote operations are decoded strictly against the application
-Message Schema.
-
-A submit writes only its operation. A `Storage` may implement the optional
-`append(entry, expectedRevision)`, which records one operation with the
-replica's next revision and local sequence. `load` then returns the saved state
-with those operations added to its outbox. The IndexedDB adapter keeps them in an
-`outbox` store beside the state, so a keystroke costs the size of the operation,
-not of the document. An exchange changes the committed snapshot, so it still
-saves the whole state, which clears the appended rows. A storage without
-`append` saves the whole state on every submit, as before.
-
-Important recovery cases:
-
-- **Storage absent or evicted.** The replica starts at cursor 0 and can catch up
-  from the server, but edits that existed only in the lost outbox are gone.
-- **Two writers use one replica storage.** Compare-and-swap detects the stale
-  writer. Give each tab/writer its own replica/storage identity.
-- **Replay refuses a Message.** `submit` fails and writes nothing, so invalid
-  durable work never enters the outbox.
-- **Malformed stored data.** Opening fails rather than silently replacing bytes;
-  the application can offer an explicit reset/recovery path.
-- **Unsupported storage version.** `UnsupportedReplicaVersionError` names the
-  persisted and supported versions so migration/reset can be explicit.
-- **Rolling back past the outbox store.** The IndexedDB adapter upgrades its
-  database to version 2, adding the `outbox` store. A release from before that
-  opens it as version 1, which the browser refuses with a `VersionError`, so a
-  rollback that far needs a new database name or a reset.
-- **Another tab blocks the upgrade.** Opening fails with a `StorageError`
-  rather than waiting; a connection the upgrade opens later is closed.
-- **Server compaction.** A checkpoint replaces history the replica can no longer
-  replay and pending local work is rebased on it.
-- **Server reset.** A server that answers with an `epoch` (Durable's
-  `journal.epoch(key)`) names its history, and the replica stores it and sends
-  it back as `exchange`'s third argument. A server that finds another epoch
-  answers from sequence 0 of its own history, and should skip its
-  cursor-ahead check for that request. The replica then rebuilds its committed
-  state from that answer and keeps its outbox, which the same exchange delivers.
-  Everything the old server committed is gone, on every replica; only what was
-  still pending survives. The replica trusts a server that names a new epoch to
-  have answered from its start; it does not check. A replica that has never
-  heard an epoch takes the first one as its own, so a reset before that is not
-  recognized: such a replica fails every exchange (its cursor is ahead of the
-  server's) until its storage is cleared.
-
-Application Message/shared-state migrations remain application policy; Sync
-versioning protects its own persisted envelope.
-
-## Transport
-
-`Transport` is an Effect service for the one exchange operation. Sync ships
-helpers under `Sync.transport`:
-
-```text
-Sync.transport.socket(...)
-Sync.transport.loopback(...)
-Sync.transport.fromPromise(...)
-Sync.transport.toPromise(...)
-Sync.transport.serve(...)
-Sync.transport.nativeSocket(...)
-```
-
-The socket transport reconnects for as long as its layer lives, on an
-exponential, jittered backoff capped at `maxRetryDelay` (5 s by default), and
-keeps request identities stable when resending queued or in-flight exchanges.
-After `maxRetries` consecutive failed connections (5 by default) queued work
-fails and new exchanges fail fast while no socket is open. The count resets
-only when a connection proves healthy, by answering a frame or by staying open
-for `maxRetryDelay`, so a server that accepts each socket and drops it is backed
-off like one that refuses it. The queue is bounded by `maxQueue`. A server rejection is protocol data; only a wire failure is
-a `TransportError`.
-
-The server can also tell a client that something changed. Pass `serve` a
-`changes` subscription, a function that takes a listener and returns its
-unsubscribe, and it sends the socket a `{ notify: true }` frame after each
-commit. The client's socket transport exposes these notices, and every
-(re)connection, as the `Transport`'s optional `changes` stream, which
-`replica.start` wakes on as it does on a submit. A notice carries no data: the
-exchange that follows reads from the replica's own cursor, so a lost or repeated
-notice is harmless, and a replica that is only reading still sees others' edits
-without polling. With Durable, the subscription is `journal.subscribe` filtered
-to the document's key; `examples/sync/src/server.ts` wires it.
-
-Transport is deliberately below reconciliation. A custom transport can carry
-the same exchange without changing replica semantics.
-
-## Presence: ephemeral collaboration state
-
-Presence is intentionally **not** a durable Message log. “Alice is viewing this
-page” or a cursor position should expire when the peer disappears, not replay
-next week.
-
-`Sync.presence.make` creates a TTL'd peer registry. Values are decoded before
-they enter the registry; a peer that stops refreshing is removed. Changes are
-available both as a callback subscription and as a Stream. A caret sets a new
-value on nearly every keystroke; with `throttle: '50 millis'` a value set after
-a quiet interval is sent at once, and those set within the interval wait, only
-the latest of them sent when it ends. The peer's own entry changes at once. A departure (`leave`) is sent immediately
-and cancels a value still waiting.
-
-Presence can share the socket transport's connection. `transport.socket` is a
-stable handle to it: a send goes to the socket that is open now and is dropped
-while none is, and messages from every socket the transport opens arrive
-through it. So `Sync.presence.socketChannel(transport.socket)` survives
-reconnects without being bound again. After a reconnect the server has
-forgotten the peer's value, so announce it again within the time to live.
-
-Presence can travel through:
-
-```text
-Sync.presence.socketChannel(...)
-Sync.presence.loopbackChannel(...)
-```
-
-with server fan-out through:
-
-```text
-Sync.presence.hub(...)
-Sync.presence.serve(...)
-```
-
-The registry uses Effect's `Clock`, so `TestClock` can make TTL behavior
-deterministic in tests.
-
-The conceptual rule is simple:
-
-```text
-shared application fact that must replay later -> durable Message / Sync
-peer status that should disappear when stale   -> Presence
-```
-
-## Last-writer-wins fields (experimental)
-
-Server arrival order is the default conflict rule: whichever operation the
-server commits first is replayed first. Sometimes one field needs a different
-rule — for example, the newest logical title write should win even if an offline
-device reconnects later.
-
-`Sync.lww.register` supplies a schema and pure merge rule for that specialized
-case. It is a field-level helper, **not a general CRDT mode for arbitrary
-Messages**.
+Typing makes one durable Message per keystroke. `coalesce(last, next)` is
+offered each submit together with the last operation in the outbox; return a
+merged Message to replace it, or `undefined` to keep them apart:
 
 ```ts
-import { Schema } from 'effect'
-import { ReplicaId, Sync } from 'foldkit-sync'
-
-const Title = Sync.lww.register(Schema.String)
-const Shared = Schema.Struct({ title: Title.schema })
-const Renamed = Schema.Struct({
-  _tag: Schema.Literal('Renamed'),
-  title: Title.schema,
-})
-
-const update = (
-  model: typeof Shared.Type,
-  message: typeof Renamed.Type,
-) => ({
-  ...model,
-  title: Title.merge(model.title, message.title),
-})
-
-const message: typeof Renamed.Type = {
-  _tag: 'Renamed',
-  title: {
-    stamp: { counter: 1, replicaId: ReplicaId.make('tab-a') },
-    value: 'Milk',
-  },
-}
+coalesce: (last, next) =>
+  last._tag === 'RenamedTodo' && next._tag === 'RenamedTodo' && last.id === next.id
+    ? next
+    : undefined
 ```
 
-Higher `counter` wins; equal counters use lexicographic UTF-16 `replicaId`
-order, independent of locale. This is logical ordering, not wall-clock time.
-The rule follows the total-order register model described in
-[Replicated Data Types: Specification, Verification, Optimality](https://www.microsoft.com/en-us/research/publication/replicated-data-types-specification-verification-optimality/).
+Replaying the merged Message must equal replaying `last` then `next`. An
+operation is only merged into while no exchange has carried it, so there is no
+timer to tune: keystrokes typed while a request is out become one operation, and
+a lone keystroke goes out as fast as before.
 
-Allocate stamps **before dispatch**, never inside `update` or replay.
-`Sync.lww.openClock` persists the high-water mark independently of the outbox,
-so rejected or never-submitted writes cannot cause timestamp reuse after reload:
+### The URL, mirrors, and agents
+
+`mount` takes the application's own `subscriptions` and the `resources` Layer
+they need, and `url: { init, onUrlChange, onUrlRequest? }` to route navigation
+through `update`: `init(model, url)` reduces the first URL before the first
+render and `onUrlChange(url)` names the Message for every navigation. A
+[`foldkit-mirror`](../mirror) URL mirror plugs into exactly that seam.
+
+`Mounted` is also the host an agent binds to: `model`, `dispatch`, `subscribe`,
+and `observe`, which reports every application Message the runtime applies.
+See [`examples/todo-app`](../../examples/todo-app) for both.
+
+### Carry local state across a reinstall
+
+When an exchange or a failed persist replaces the shared slice outside
+`update`, `onReinstall(next, previous)` returns the transition instead. Use it
+to keep a selection that points into the slice, or to return a Command that
+patches a DOM the change has to reach. Omitted, the Model is simply `next`. It
+is not called for a status that changed nothing the Model shows.
+
+## Testing without a browser or a server
+
+A `Storage` needs three members, and the loopback transport takes a handler in
+place of a socket:
 
 ```ts
 import { Effect } from 'effect'
-import { DocumentId, ReplicaId, Sync, type Replica } from 'foldkit-sync'
+import type { Storage } from 'foldkit-sync'
 
-type Shared = typeof Shared.Type
-type Renamed = typeof Renamed.Type
-
-const rename = (replica: Replica<Renamed, Shared>, title: string) =>
-  Effect.gen(function* () {
-    const storage = yield* Sync.indexedDb('todos-tab-a-clock')
-    const clock = yield* Sync.lww.openClock({
-      documentId: DocumentId.make('todos'),
-      replicaId: ReplicaId.make('tab-a'),
-      storage,
-    })
-
-    const shared = yield* replica.shared
-    const stamp = yield* clock.next(shared.title.stamp.counter)
-
-    yield* replica.submit({
-      _tag: 'Renamed',
-      title: { stamp, value: title },
-    })
-
-    yield* clock.close
-  }).pipe(Effect.scoped)
-```
-
-`next(observedCounter)` persists a counter greater than both its previous saved
-value and the supplied observation before returning the stamp. Pass the latest
-observed counter for the field being edited; if causality spans several
-registers, pass their maximum. Calling `next()` without an observation advances
-only the saved local counter.
-
-Allocations on one handle are serialized. Separate handles use storage's
-compare-and-swap check; a stale handle fails and should be closed/reopened.
-Storage failures do not return a stamp. Counter gaps after a crash or rejected
-submission are harmless.
-
-Keep the clock storage across reloads and outbox resets. If it is lost, use a
-fresh `ReplicaId` rather than reusing the same writer identity from counter zero.
-
-A stamp identifies one immutable write within a register. Repeated delivery of
-the same value is harmless; a different value with the same stamp throws. Keep
-the **whole register, including its winning stamp**, in shared snapshots. For
-deletion, a nullable register can retain a stamped `null` tombstone so an old
-offline write cannot resurrect deleted state.
-
-The server still orders and authorizes every operation, including writes that
-lose the LWW merge. Replica ids and counters carried in Messages are
-client-authored data, not authenticated identity; enforce writer/clock policy at
-admission when needed.
-
-Specialized sets, counters, collaborative text, and arbitrary commutative
-Messages remain outside this helper.
-
-## Lower level: `Sync.define`
-
-`Sync.forApplication(App).make(...)` is the Foldkit-facing compiler. It builds
-on `Sync.define`, the lower-level protocol primitive.
-
-Use `Sync.define` directly when there is no Foldkit application to derive the
-contract from — for example, a non-Foldkit client or a hand-written shared
-projection:
-
-```ts
-import { Effect, Schema } from 'effect'
-import {
-  DocumentId,
-  ReplicaId,
-  Sync,
-  type TransportClient,
-} from 'foldkit-sync'
-
-const Shared = Schema.Struct({ todos: Schema.Array(Schema.String) })
-const Renamed = Schema.Struct({
-  _tag: Schema.Literal('Renamed'),
-  title: Schema.String,
-})
-
-declare const transport: TransportClient
-
-const Protocol = Sync.define({
-  documentId: DocumentId.make('todos'),
-  message: Renamed,
-  shared: Shared,
-  empty: { todos: [] },
-  durable: () => true,
-  replay: (shared, message) => ({
-    todos: [...shared.todos, message.title],
-  }),
-})
+const memoryStorage = (): Storage => {
+  let state: unknown
+  return {
+    load: () => Effect.sync(() => state),
+    save: next => Effect.sync(() => void (state = structuredClone(next))),
+    close: Effect.void,
+  }
+}
 
 const program = Effect.gen(function* () {
-  const storage = yield* Sync.indexedDb('todos-tab-1')
-  const replica = yield* Protocol.openReplica(
-    ReplicaId.make('tab-1'),
-    storage,
-  )
-
-  yield* replica.submit({ _tag: 'Renamed', title: 'Milk' })
-
-  yield* Effect.provide(
-    replica.synchronize,
-    Sync.transport.fromPromise(transport),
-  )
-
-  return yield* replica.shared
-}).pipe(Effect.scoped)
+  const replica = yield* TodoSync.openReplica(ReplicaId.make('test'), memoryStorage())
+  yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
+  yield* replica.synchronize
+  return yield* replica.status
+}).pipe(
+  Effect.provide(
+    Sync.transport.loopback((_cursor, pending) => ({
+      operations: [],
+      acknowledged: pending.map(operation => operation.opId),
+      rejected: [],
+    })),
+  ),
+)
 ```
 
-Most Foldkit applications should prefer `Sync.forApplication`: it keeps the
-shared schema and replay semantics derived from the application rather than
-re-declaring them.
+In Node, `Sync.indexedDb(name, new IDBFactory())` from `fake-indexeddb` tests
+the real storage adapter. [`examples/sync`](../../examples/sync) tests every
+recovery case below against a real journal.
 
-## What Sync owns
+## When things go wrong
 
-- **The replication contract.** Shared projection, durable Message subset,
-  initial shared value, replay, operation codecs, and `journalContract()`.
-- **The replica.** Persisted outbox, committed base, cursor, optimistic shared
-  projection, local operation sequence, synchronization, status, and recovery
-  validation.
-- **Reconciliation.** Adopt committed operations/checkpoints, drop
-  acknowledged/rejected pending operations, and replay what remains.
-- **The transport seam.** Effect `Transport` plus loopback/promise/WebSocket
-  adapters; transport carries exchanges but does not own conflict semantics.
-- **Optional collaboration primitives.** Ephemeral Presence and the specialized
-  LWW register/clock helpers.
+Each case is designed, not incidental. The ones that change how you build the
+application come first.
 
-Sync does **not** own:
+- **The network is gone.** Edits keep applying and keep being saved. `pending`
+  grows; the loop retries. Nothing to handle.
+- **The server rejects an edit.** Dropped from `pending`, the rest replayed,
+  the Model re-installed. Explain it from `status.rejected`.
+- **The persist fails.** The edit is reverted and `onPersistenceFailure` runs.
+  The user has to redo it.
+- **Local storage was evicted.** The replica starts at cursor 0 and catches up
+  from the server, but edits that lived only in the outbox are gone. The
+  outbox is user data, not a cache.
+- **Two tabs share one storage name.** Compare-and-swap fails the stale writer
+  with `StorageError`. Give each tab its own name and `ReplicaId`.
+- **The replica is far behind.** The server may answer in pages (`more`), and
+  `synchronize` asks again at once until caught up. If the server compacted
+  the history it needs, it sends a checkpoint instead: a snapshot and cursor
+  the replica adopts as its base before replaying its pending edits. A
+  checkpoint behind the replica's cursor is refused
+  (`CheckpointRegressionError`), never applied backwards.
+- **The server lost its history.** A server names its history with an `epoch`;
+  a replica that hears a new one rebuilds its committed state from that answer
+  and resends its outbox. Everything the old server committed is gone on every
+  replica. A replica that never heard an epoch cannot tell, and fails every
+  exchange until its storage is cleared.
+- **Stored state is from another version.** Opening fails with
+  `UnsupportedReplicaVersionError` naming both versions; the bytes are left for
+  a deliberate migration or reset. Sync versions its own envelope only; your
+  Message and snapshot migrations stay yours.
+- **The server answers nonsense.** Malformed exchanges, gaps in the committed
+  order, acknowledgements or rejections for operations the replica never sent:
+  each fails the exchange rather than touch local work.
 
-- unrelated local Model fields;
-- server-derived disposable caches (`foldkit-remote`);
-- authoritative server storage/order (`foldkit-durable` or your own server);
-- peer-to-peer CRDT convergence;
-- application Message/shared-state migrations.
+## Advanced: the replica
 
-## How state changes here
+`Sync.mount` is the normal path. Underneath, a `Replica` works on the shared
+slice alone, and an application that is not a Foldkit runtime (a worker, a
+server-side actor, a test) uses it directly.
 
-Durable Messages replay the normal application `update` — which is where
-`modifyFields` lives — so deterministic replay and optimistic application are the
-same code path, not two reducers. Checkpoints and adopted server state
-arrive the other way: structurally installed through the declared writable
-projection. Sync already verifies that durable Messages touch only the
-declared projection; treat any other write as a bug.
+```ts
+const program = Effect.gen(function* () {
+  const storage = yield* Sync.indexedDb('todos/tab-1')
+  const replica = yield* TodoSync.openReplica(ReplicaId.make('tab-1'), storage)
+
+  yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
+  const optimistic = yield* replica.shared // includes the pending edit
+
+  yield* replica.synchronize // one exchange
+  return optimistic
+}).pipe(Effect.scoped, Effect.provide(Sync.transport.socket({ url: 'wss://example.com/sync' })))
+```
+
+`submit(message)` checks that the Message is durable, replays it against the
+current optimistic state, gives it a stable operation id, saves it to the
+outbox, publishes the new optimistic value, and wakes the loop. It sends
+nothing. A Message replay refuses never enters the outbox.
+
+`synchronize` takes one snapshot of the cursor and outbox, performs one
+exchange, validates the answer, and reconciles it with the replica's *current*
+state, so an edit submitted while the request was in flight survives.
+
+The rest of the surface: `committed` (the base alone), `pending`, `cursor`,
+`status`, `statusChanges`, `changes` (status and `shared` from one snapshot),
+`snapshot` (the same plus `nextLocalSequence`), `start`, and `close`.
+
+### The exchange
+
+One request, one answer. A custom server implements this; a custom transport
+carries it.
+
+```text
+request    cursor
+           pending operations
+           epoch, once the replica has heard one
+
+answer     operations     committed after the cursor, contiguous
+           acknowledged   ids the server accepted without repeating them
+           rejected       ids the server refused
+           checkpoint?    { cursor, model } when the history is gone
+           more?          true when another page follows
+           epoch?         the server's history
+```
+
+An acknowledged operation leaves the outbox once its committed copy has
+arrived or the last page has been read. A rejected one leaves at once. The
+replica validates every field; see [when things go wrong](#when-things-go-wrong).
+
+### Transports
+
+`Transport` is an Effect service with one operation. Sync ships:
+
+- `Sync.transport.socket({ url, … })`: a reconnecting WebSocket client. It
+  queues exchanges while connecting, retries on a jittered backoff capped at
+  `maxRetryDelay` (5 s), keeps request ids stable across resends, and after
+  `maxRetries` (5) consecutive failed connections fails queued work and fails
+  new exchanges fast until a socket is healthy again. `maxQueue` (64) bounds
+  the queue.
+- `Sync.transport.serve(socket, { exchange, changes? })`: the server side of one
+  accepted socket. With `changes`, a subscription to the document's commits, it
+  sends a notice after each; the client's loop exchanges on every notice, so a
+  tab that is only reading still sees others' edits without polling.
+- `Sync.transport.loopback(handler)`, `fromPromise(client)`, `toPromise(shape)`,
+  and `nativeSocket` for the platform `WebSocket`.
+
+A refusal is data in the answer; only a wire failure is a `TransportError`.
+
+### Presence
+
+"Who is viewing this" and "where is their caret" should vanish when the peer
+does, not replay next week. `Sync.presence.make({ id, ttl, decodeValue, channel?,
+throttle? })` is a TTL'd peer registry outside the log: values are decoded before
+they enter it, a peer that stops refreshing is pruned, and `throttle` sends at
+most one value per interval, the latest. `Sync.presence.socketChannel(transport.socket)`
+shares the sync socket across reconnects; `Sync.presence.hub` and `.serve` are
+the server side. [`examples/pages`](../../examples/pages) shows remote carets.
+
+### Last-writer-wins fields (experimental)
+
+Server order decides concurrent edits. When one field should instead keep the
+newest logical write even from a device that reconnects late, `Sync.lww.register(schema)`
+gives it a stamped schema and a pure `merge`; `Sync.lww.openClock` allocates
+stamps from a persisted counter, before dispatch and never in `update`. It is a
+per-field rule, not a CRDT mode: sets, counters, and text stay outside.
+
+```ts
+const Title = Sync.lww.register(Schema.String)
+const Shared = Schema.Struct({ title: Title.schema })
+// in update: title: Title.merge(model.title, message.title)
+```
+
+### Without a Foldkit application
+
+`Sync.define({ documentId, message, shared, empty, durable, replay })` is the
+protocol primitive `forApplication` compiles to, for a client with no
+application to derive from. Its `replay` is unguarded; the author owns its
+agreement with whatever applies the Message elsewhere.
+
+### Joining an assembly
+
+`TodoSync.wiring()` adds the contract to a `foldkit-bundle` assembly so
+`Module.validate` can report two owners of one field. It routes nothing and
+runs nothing; Sync owns its runtime through `mount`.
+
+## What Sync owns, and does not
+
+Owns the replication contract (shared slice, durable set, replay, codecs,
+`journalContract`), the replica (outbox, base, cursor, optimistic view, status),
+reconciliation, the transport seam, and the optional presence and LWW helpers.
+
+Does not own the rest of the Model, server-derived caches (`foldkit-remote`),
+the authoritative order and storage (`foldkit-durable` or your server),
+peer-to-peer merging, or migration of your own Messages and snapshots.
 
 ## Limits
 
-- IndexedDB is the built-in storage adapter today.
-- Sync assumes an authoritative server order for each document; it is not a
-  peer-to-peer replication protocol.
-- Ordinary concurrent writes resolve by that server order. `Sync.lww.register`
-  changes the merge rule for individual fields only; it does not make arbitrary
-  Messages commutative.
-- There is no operational transform / collaborative text algorithm.
-- Binding the socket transport and presence server to a platform WebSocket
-  server remains application/platform glue. The sync example demonstrates a
-  `ws` transport binding. `examples/pages` serves presence over the same socket,
-  and shows remote carets.
-- Application schema migration remains application policy. Sync versions and
-  validates its own persisted/wire envelope.
+- IndexedDB is the only built-in storage; `Storage` is three members to
+  implement.
+- One server order per document; no CRDT and no collaborative text algorithm.
+- Binding the socket transport to a platform WebSocket server is glue the
+  examples show with `ws`.
 
 ## Older spellings
 
-`Sync` groups the package exports; it does not wrap them. Existing top-level
-spellings remain available with the same signatures:
-
-- `forApplication`, `mount`, `indexedDb` — same names on the namespace;
-- `defineSync` -> `Sync.define`; `syncMetrics` -> `Sync.metrics`;
-- `layerSocket`, `layerLoopback`, `layerFromPromise`, `toPromise`, `serveSocket`,
-  `nativeSocket` -> `Sync.transport.socket`, `.loopback`, `.fromPromise`,
-  `.toPromise`, `.serve`, `.nativeSocket`;
-- `createPresence`, `createPresenceHub`, `servePresence`,
-  `socketPresenceChannel`, `loopbackPresenceChannel` -> `Sync.presence.make`,
-  `.hub`, `.serve`, `.socketChannel`, `.loopbackChannel`;
-- `lwwRegister`, `openLwwClock` -> `Sync.lww.register`, `Sync.lww.openClock`;
-- `documentId('todos')` and `DocumentId.make('todos')` produce the same branded
-  value, and likewise for `replicaId`, `opId`, `sequence`, and
-  `localSequence`.
+`Sync` groups the exports and wraps nothing; every name is also exported on its
+own with the same signature: `defineSync` is `Sync.define`, `syncMetrics` is
+`Sync.metrics`, `layerSocket`/`layerLoopback`/`layerFromPromise`/`toPromise`/
+`serveSocket`/`nativeSocket` are `Sync.transport.*`, `createPresence`/
+`createPresenceHub`/`servePresence`/`socketPresenceChannel`/
+`loopbackPresenceChannel` are `Sync.presence.*`, and `lwwRegister`/`openLwwClock`
+are `Sync.lww.*`. `documentId('todos')` and `DocumentId.make('todos')` make the
+same branded value, as do the other id constructors.
 
 ## See also
 
-- [Replicated state](../../docs/replication.md) — Sync and Durable together,
-  including the server exchange and recovery model.
-- [Runtime binding](../../docs/sync-runtime-binding.md) — what `Sync.mount`
-  guarantees and why no Foldkit core change is required.
-- [`foldkit-durable`](../durable) — the authoritative server journal commonly
-  paired with Sync.
-- [`foldkit-remote`](../remote) — server-owned disposable state rather than
-  client-authored durable state.
-- [`examples/todo-app`](../../examples/todo-app) — browser mount, fragments,
-  authorization, Mirror, and agent integration.
-- [`examples/sync`](../../examples/sync) — focused replica/server/transport trace.
+- [Replicated state](../../docs/replication.md): both halves end to end, with
+  the server's exchange handler.
+- [`foldkit-durable`](../durable): the journal and what it guarantees.
+- [Runtime binding](../../docs/sync-runtime-binding.md): what `Sync.mount` does
+  inside the Foldkit runtime, for the curious.
+- [`examples/todo-app`](../../examples/todo-app): a whole application over
+  `Sync.mount`, with fragments, authorization, mirrors, and an agent.
+- [`examples/sync`](../../examples/sync): the replica, the journal, the socket,
+  and a test for every failure above.
