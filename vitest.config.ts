@@ -2,10 +2,15 @@ import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { inBrowser, shared } from './vitest.shared.js'
 
-const everywhere = ['packages/*/test/**/*.test.ts', 'examples/*/test/**/*.test.ts']
+const everywhere = [
+  'packages/*/test/**/*.test.ts',
+  'examples/*/test/**/*.test.ts',
+  'examples/foldkit/*/test/**/*.test.ts',
+]
 const browserTests = [
   'packages/*/test/**/*.browser.test.ts',
   'examples/*/test/**/*.browser.test.ts',
+  'examples/foldkit/*/test/**/*.browser.test.ts',
 ]
 
 export default defineConfig({

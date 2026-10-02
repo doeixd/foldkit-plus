@@ -246,7 +246,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-api-cache:
+  examples/foldkit/api-cache:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -259,22 +259,22 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-entity:
         specifier: workspace:*
-        version: link:../../packages/entity
+        version: link:../../../packages/entity
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-remote:
         specifier: workspace:*
-        version: link:../../packages/remote
+        version: link:../../../packages/remote
       foldkit-remote-server:
         specifier: workspace:*
-        version: link:../../packages/remote-server
+        version: link:../../../packages/remote-server
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -289,7 +289,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-auth:
+  examples/foldkit/auth:
     dependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -305,19 +305,19 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-entity:
         specifier: workspace:*
-        version: link:../../packages/entity
+        version: link:../../../packages/entity
       foldkit-form:
         specifier: workspace:*
-        version: link:../../packages/form
+        version: link:../../../packages/form
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-form:
         specifier: workspace:*
-        version: link:../../packages/mixins-form
+        version: link:../../../packages/mixins-form
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       jsdom:
         specifier: 26.1.0
@@ -329,7 +329,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-counter:
+  examples/foldkit/counter:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -342,10 +342,10 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -360,7 +360,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-form:
+  examples/foldkit/form:
     dependencies:
       effect:
         specifier: 4.0.0-rc.116
@@ -370,19 +370,19 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-entity:
         specifier: workspace:*
-        version: link:../../packages/entity
+        version: link:../../../packages/entity
       foldkit-form:
         specifier: workspace:*
-        version: link:../../packages/form
+        version: link:../../../packages/form
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-form:
         specifier: workspace:*
-        version: link:../../packages/mixins-form
+        version: link:../../../packages/mixins-form
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -397,7 +397,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-job-application:
+  examples/foldkit/job-application:
     dependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -413,16 +413,16 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-entity:
         specifier: workspace:*
-        version: link:../../packages/entity
+        version: link:../../../packages/entity
       foldkit-form:
         specifier: workspace:*
-        version: link:../../packages/form
+        version: link:../../../packages/form
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       jsdom:
         specifier: 26.1.0
@@ -434,7 +434,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-kanban:
+  examples/foldkit/kanban:
     dependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -450,16 +450,16 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mirror:
         specifier: workspace:*
-        version: link:../../packages/mirror
+        version: link:../../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
       fractional-indexing:
         specifier: ^4.0.0
         version: 4.0.0
@@ -474,7 +474,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-pixel-art:
+  examples/foldkit/pixel-art:
     dependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -490,19 +490,19 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mirror:
         specifier: workspace:*
-        version: link:../../packages/mirror
+        version: link:../../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
-        version: link:../../packages/primitives
+        version: link:../../../packages/primitives
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
     devDependencies:
       jsdom:
         specifier: 26.1.0
@@ -514,7 +514,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-query-sync:
+  examples/foldkit/query-sync:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -527,16 +527,16 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mirror:
         specifier: workspace:*
-        version: link:../../packages/mirror
+        version: link:../../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -551,7 +551,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-route-transitions:
+  examples/foldkit/route-transitions:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -564,7 +564,7 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -579,7 +579,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-routing:
+  examples/foldkit/routing:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -592,13 +592,13 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-bundle:
         specifier: workspace:*
-        version: link:../../packages/bundle
+        version: link:../../../packages/bundle
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -613,7 +613,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-shopping-cart:
+  examples/foldkit/shopping-cart:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -626,10 +626,10 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -644,7 +644,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-snake:
+  examples/foldkit/snake:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -657,10 +657,10 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-primitives:
         specifier: workspace:*
-        version: link:../../packages/primitives
+        version: link:../../../packages/primitives
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -675,7 +675,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-ssg:
+  examples/foldkit/ssg:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -688,13 +688,13 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-ssr:
         specifier: workspace:*
-        version: link:../../packages/ssr
+        version: link:../../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -712,7 +712,7 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
 
-  examples/foldkit-ssr:
+  examples/foldkit/ssr:
     dependencies:
       '@effect/platform-node':
         specifier: 4.0.0-rc.116
@@ -728,16 +728,16 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-ssr:
         specifier: workspace:*
-        version: link:../../packages/ssr
+        version: link:../../../packages/ssr
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -758,7 +758,7 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
 
-  examples/foldkit-todo:
+  examples/foldkit/todo:
     dependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -774,16 +774,16 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mirror:
         specifier: workspace:*
-        version: link:../../packages/mirror
+        version: link:../../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-surface:
         specifier: workspace:*
-        version: link:../../packages/surface
+        version: link:../../../packages/surface
     devDependencies:
       jsdom:
         specifier: 26.1.0
@@ -795,7 +795,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-ui-showcase:
+  examples/foldkit/ui-showcase:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -808,13 +808,13 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-bundle:
         specifier: workspace:*
-        version: link:../../packages/bundle
+        version: link:../../../packages/bundle
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -829,7 +829,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-weather:
+  examples/foldkit/weather:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -842,10 +842,10 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116
@@ -860,7 +860,7 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
-  examples/foldkit-websocket-chat:
+  examples/foldkit/websocket-chat:
     dependencies:
       '@foldkit/ui':
         specifier: 0.163.0
@@ -873,16 +873,16 @@ importers:
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-bundle:
         specifier: workspace:*
-        version: link:../../packages/bundle
+        version: link:../../../packages/bundle
       foldkit-mixins:
         specifier: workspace:*
-        version: link:../../packages/mixins
+        version: link:../../../packages/mixins
       foldkit-mixins-ui:
         specifier: workspace:*
-        version: link:../../packages/mixins-ui
+        version: link:../../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
-        version: link:../../packages/primitives
+        version: link:../../../packages/primitives
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0-rc.116

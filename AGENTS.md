@@ -990,7 +990,7 @@ of its own named a form field "fits the Catalog". Read words with
   `/C:/…` from `import.meta.url` — so a build id compared the two ways never
   matched on Windows and hydration refused every page, which passed on Linux
   for good. Normalize separators and read a drive path as a `file:` URL
-  before comparing (`examples/foldkit-ssg/src/entry.server.ts:buildIdOf`).
+  before comparing (`examples/foldkit/ssg/src/entry.server.ts:buildIdOf`).
 - **Workspace packages resolve to source; `paths` are generated.** Every
   export has a `foldkit-plus:source` condition, which Vite, Vitest and the
   examples resolve through, so nothing reads a stale `dist`. TypeScript keeps

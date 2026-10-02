@@ -68,7 +68,11 @@ const importPattern = /(?:from\s+|import\(\s*)['"]([^'"]+)['"]/g
 const problems = []
 const rewritten = []
 
-for (const dir of [...dirs('packages'), ...dirs('examples')]) {
+for (const dir of [
+  ...dirs('packages'),
+  ...dirs('examples'),
+  ...dirs('examples/foldkit'),
+]) {
   const tsconfigPath = join(dir, 'tsconfig.json')
   if (!existsSync(tsconfigPath)) continue
   const text = readFileSync(tsconfigPath, 'utf8')

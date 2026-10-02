@@ -214,8 +214,8 @@ Changed/Blurred dispatch, name, required state, hints, checking and errors.
 other control kinds need the default renderer or a separate override. Custom
 submit buttons use `Button.view`; this integration does not replace the generated
 view's native button. Real adopters:
-https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit-form/src/main.ts
-and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit-auth/src/page/loggedOut/page/login.ts.
+https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/form/src/main.ts
+and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/auth/src/page/loggedOut/page/login.ts.
 
 ## Nested input
 

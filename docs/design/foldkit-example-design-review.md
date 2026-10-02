@@ -14,7 +14,7 @@ The recommended order is:
 4. Provide dynamic SSR with an explicit host-head integration.
 5. Investigate richer nested-form lifecycles and interaction helpers only against concrete adopters.
 
-This is a source review of all 18 `examples/foldkit-*` READMEs, followed by targeted inspection of their examples, package implementations, and relevant installed `@foldkit/ui` types. It does not claim browser reproduction or a new test run. Proposed API shapes below are design directions, not existing callable APIs.
+This is a source review of all 18 `examples/foldkit/*` READMEs, followed by targeted inspection of their examples, package implementations, and relevant installed `@foldkit/ui` types. It does not claim browser reproduction or a new test run. Proposed API shapes below are design directions, not existing callable APIs.
 
 ## Findings
 
@@ -24,7 +24,7 @@ This is a source review of all 18 `examples/foldkit-*` READMEs, followed by targ
 
 The Form and Auth READMEs say they bypass `foldkit-mixins-form` because its default controls are plain HTML rather than `@foldkit/ui` controls styled through `foldkit-mixins-ui`. Job Application additionally needs mixed layouts, status marks beside labels, and fields interleaved with independently owned pickers.
 
-The gap is real, but it is **not the absence of customization**. [FormView](../../packages/mixins-form/src/index.ts) already has renderer overrides, a custom field view, per-key overrides, and `FormView.fields` for application-owned layouts. [The waitlist example](../../examples/foldkit-form/src/main.ts) imports that package and uses `FormView.fields`, then routes each control kind to `Input.field` or `Textarea.field` and repeats the surrounding layout. Its README's package-level “not used” claim is therefore inaccurate: the full generated view is bypassed, while the package is used.
+The gap is real, but it is **not the absence of customization**. [FormView](../../packages/mixins-form/src/index.ts) already has renderer overrides, a custom field view, per-key overrides, and `FormView.fields` for application-owned layouts. [The waitlist example](../../examples/foldkit/form/src/main.ts) imports that package and uses `FormView.fields`, then routes each control kind to `Input.field` or `Textarea.field` and repeats the surrounding layout. Its README's package-level “not used” claim is therefore inaccurate: the full generated view is bypassed, while the package is used.
 
 **Fix:** supply an optional bridge between FormView's renderer/field contracts and the shipped Input/Textarea/Button adapters. Keep `foldkit-form` headless and the default HTML renderer usable without `@foldkit/ui`. First extract the waitlist's existing integration into a reusable, typed recipe or renderer set; prove it by adopting it in Form and Auth before expanding it. Preserve blur, validation, ids, labels, required state, and descriptions when crossing the bridge. A control that looks right but loses these associations is not an improvement.
 
@@ -48,9 +48,9 @@ The examples also show an important distinction: a visually disabled `@foldkit/u
 
 **Priority: medium. Owner: form DX plus application policy.**
 
-[Job Application](../../examples/foldkit-job-application/README.md) does not use forms' `Submitted` OutMessages. Its parent reveals all errors, reads per-step completion, then starts the application request. Keeping that decision in the parent is correct: four independently valid records are not automatically one valid application.
+[Job Application](../../examples/foldkit/job-application/README.md) does not use forms' `Submitted` OutMessages. Its parent reveals all errors, reads per-step completion, then starts the application request. Keeping that decision in the parent is correct: four independently valid records are not automatically one valid application.
 
-The awkward part is the value-reading seam. Form exposes `isValid`, `partial`, and a full decoded value through `engine.value`; that last method is described as the nesting engine's API, while `partial` deliberately does not promise a complete input. [The current submit Command](../../examples/foldkit-job-application/src/command.ts) takes no application payload at all—it only sleeps and reports success. The example therefore demonstrates gating, not a real aggregate-data submission contract.
+The awkward part is the value-reading seam. Form exposes `isValid`, `partial`, and a full decoded value through `engine.value`; that last method is described as the nesting engine's API, while `partial` deliberately does not promise a complete input. [The current submit Command](../../examples/foldkit/job-application/src/command.ts) takes no application payload at all—it only sleeps and reports success. The example therefore demonstrates gating, not a real aggregate-data submission contract.
 
 **Fix:** expose a small public pure accessor returning the complete decoded value as an `Option`, if this workflow is to be supported as an application API. Let the parent compose those values with picker/file values into a defined application input, capture that input at submit time, and pass it to the Command. Do not use `partial` plus a cast to manufacture completeness. No new wizard state owner is necessary.
 
@@ -60,7 +60,7 @@ The awkward part is the value-reading seam. Form exposes `isValid`, `partial`, a
 
 **Priority: medium. Owner: example application.**
 
-[The root update](../../examples/foldkit-job-application/src/update.ts), lines 144–198, handles `ClickedSubmit` without checking whether `submission` is already `Submitting`. Each complete submit starts another Command. When revealing starts an async check, the root returns the revealed result; later child Messages are folded normally, without a root pending-submit continuation. The README accurately says the notice remains until the check answers, but it does not establish that the original submit resumes automatically.
+[The root update](../../examples/foldkit/job-application/src/update.ts), lines 144–198, handles `ClickedSubmit` without checking whether `submission` is already `Submitting`. Each complete submit starts another Command. When revealing starts an async check, the root returns the revealed result; later child Messages are folded normally, without a root pending-submit continuation. The README accurately says the notice remains until the check answers, but it does not establish that the original submit resumes automatically.
 
 These are control-flow observations, not a browser reproduction. They matter because individual Form submits do have a wait-and-resume policy, while this aggregate submit does not inherit it.
 
@@ -84,7 +84,7 @@ Keep `File` at a browser boundary; define upload metadata/handles for storage an
 
 **Priority: medium-high. Owner: Plus adapters and upstream `@foldkit/ui`.**
 
-[UI Showcase](../../examples/foldkit-ui-showcase/README.md) and Query Sync expose the missing adapter path for Menu, Listbox, Combobox, Date Picker, Toast, File Drop, Nav, DragAndDrop, Animation, and Virtual List. [The export barrel](../../packages/mixins-ui/src/index.ts) confirms those component adapters are absent. The example uses page Slots, `childAttributes`, and descendant role/data selectors instead.
+[UI Showcase](../../examples/foldkit/ui-showcase/README.md) and Query Sync expose the missing adapter path for Menu, Listbox, Combobox, Date Picker, Toast, File Drop, Nav, DragAndDrop, Animation, and Virtual List. [The export barrel](../../packages/mixins-ui/src/index.ts) confirms those component adapters are absent. The example uses page Slots, `childAttributes`, and descendant role/data selectors instead.
 
 These are two different problems. Components offering attribute bundles can receive a conventional adapter. Components drawing internal item markup through class-name configuration need a better customization seam upstream. For example, the installed Menu types expose container attribute hooks but item `className` configuration; DatePicker exposes trigger/panel hooks and a Calendar renderer. An outer adapter alone cannot turn all their internally drawn elements into individually typed Slots.
 
@@ -112,7 +112,7 @@ The showcase test helper still explains the old Inert limitation and wraps anoth
 
 **Priority: low-medium. Owner: Mixins API ergonomics.**
 
-[UI Showcase's Dialog style](../../examples/foldkit-ui-showcase/src/ui/style/dialog.ts), lines 63–84, removes `closeButton` from each selected recipe result. [Style.recipeFor](../../packages/mixins/src/style.ts), lines 466–585, defines `extend` as composition of base/variant pieces with appended compounds. It has no removal semantics. Recipe results also type slot pieces as optional, producing `?? Style.empty` when a shipped recipe is reused on a plain element.
+[UI Showcase's Dialog style](../../examples/foldkit/ui-showcase/src/ui/style/dialog.ts), lines 63–84, removes `closeButton` from each selected recipe result. [Style.recipeFor](../../packages/mixins/src/style.ts), lines 466–585, defines `extend` as composition of base/variant pieces with appended compounds. It has no removal semantics. Recipe results also type slot pieces as optional, producing `?? Style.empty` when a shipped recipe is reused on a plain element.
 
 **Fix:** decide whether this warrants an explicit typed omission operation over selected recipe pieces, or a design-system variant controlling an optional piece. Prefer that focused operation to changing additive `extend` into an ambiguous overwrite/delete mechanism. If callers need required recipe keys, preserve known output keys in recipe typing instead of making every Slot required—partial styles are intentionally valid.
 
@@ -122,7 +122,7 @@ Removing a style is not removing markup. An unwanted close control must be omitt
 
 **Priority: high for production SSR. Owner: SSR/host integration boundary.**
 
-[SSR's omission section](../../examples/foldkit-ssr/README.md) says dynamic serving has no per-page head markup because the host owns the template. [SSR.entry](../../packages/ssr/src/index.ts), lines 940–987, confirms this is enforced: plans with `meta` throw, and per-page styles ride in the root instead. `SSR.generate` can insert metadata/head markup into a template.
+[SSR's omission section](../../examples/foldkit/ssr/README.md) says dynamic serving has no per-page head markup because the host owns the template. [SSR.entry](../../packages/ssr/src/index.ts), lines 940–987, confirms this is enforced: plans with `meta` throw, and per-page styles ride in the root instead. `SSR.generate` can insert metadata/head markup into a template.
 
 Host ownership explains why the entry should not silently take over the template; it does **not** explain why dynamic serving must lack metadata. Production request-specific pages commonly need description, canonical, social metadata, and first-paint styles in the head. The cookie counter does not need them, so this limitation is easy to miss in the example.
 
@@ -134,7 +134,7 @@ Host ownership explains why the entry should not silently take over the template
 
 **Priority: medium. Owner: example application, not Mirror.**
 
-Shopping Cart explicitly preserves not reading a search from the starting URL. [Its init](../../examples/foldkit-shopping-cart/src/main.ts), lines 47–55, parses the route but initializes Products without that route's search. `ChangedUrl`, lines 117–125, updates only the route. The field/filter live in the Products child, so the address and actual filter can disagree on cold load and navigation.
+Shopping Cart explicitly preserves not reading a search from the starting URL. [Its init](../../examples/foldkit/shopping-cart/src/main.ts), lines 47–55, parses the route but initializes Products without that route's search. `ChangedUrl`, lines 117–125, updates only the route. The field/filter live in the Products child, so the address and actual filter can disagree on cold load and navigation.
 
 Rejecting Mirror as a second URL writer is sensible; retaining an inconsistent shareable URL is not. Routing's People example already shows the alternative: initialize child args from the parsed route and deliver route changes as Messages.
 
@@ -148,7 +148,7 @@ Rejecting Mirror as a second URL writer is sensible; retaining an inconsistent s
 
 Kanban rightly retains upstream DragAndDrop: `PointerDrag` supplies pointer target facts but no keyboard sorting, ghost, auto-scroll, cross-container ordering, or focus policy. Pixel Art needs press-and-sweep rather than drag-one-item semantics. Making either port adopt PointerDrag directly would move existing behavior back into application code.
 
-**Fix:** keep low-level pointer facts small. For sortable collections, prefer a Slot adapter around upstream DragAndDrop, or a higher-level integration with the same accessibility owner. For painting, consider a distinct delegated pointer-stroke Mount that reports visited cells and cancellation, using position hit-testing for touch/pen and interpolating skipped cells if required. [Pixel Art's canvas](../../examples/foldkit-pixel-art/src/view/canvas.ts) currently attaches mouse handlers per cell; [its subscription](../../examples/foldkit-pixel-art/src/subscription.ts) ends strokes on document `mouseup`. Touch/pen and keyboard painting are not demonstrated.
+**Fix:** keep low-level pointer facts small. For sortable collections, prefer a Slot adapter around upstream DragAndDrop, or a higher-level integration with the same accessibility owner. For painting, consider a distinct delegated pointer-stroke Mount that reports visited cells and cancellation, using position hit-testing for touch/pen and interpolating skipped cells if required. [Pixel Art's canvas](../../examples/foldkit/pixel-art/src/view/canvas.ts) currently attaches mouse handlers per cell; [its subscription](../../examples/foldkit/pixel-art/src/subscription.ts) ends strokes on document `mouseup`. Touch/pen and keyboard painting are not demonstrated.
 
 There is also a concrete release-time concern in the low-level primitive: [PointerDrag](../../packages/primitives/src/dom/pointer-drag.ts), lines 167–183 and 214–218, drops the cached `over` from the last move rather than hit-testing release. A layout change or scroll without another move can invalidate it.
 

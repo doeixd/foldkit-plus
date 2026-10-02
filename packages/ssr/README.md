@@ -129,7 +129,7 @@ SSR.hydrate(config, Post, { buildId })
 Foldkit's root stamp (`FOLDKIT_APP_ATTRIBUTE`) among them. It imports nothing
 of `foldkit/experimental/server`, whose renderer and HTML parser `foldkit-ssr`
 brings along: about 200 kB minified (60 kB gzipped) off a page's script in the
-[SSR example](../../examples/foldkit-ssr). `foldkit-ssr` has all of it and the
+[SSR example](../../examples/foldkit/ssr). `foldkit-ssr` has all of it and the
 server's calls, the same functions, so a plan made from either works with
 both. Import `foldkit-ssr/client` in every module the page loads, the plan and
 the view included, and `foldkit-ssr` only where the server alone runs.

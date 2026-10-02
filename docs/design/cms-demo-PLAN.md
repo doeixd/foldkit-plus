@@ -225,8 +225,8 @@ mechanical. Three wrappers, each with an escape hatch, in this order:
 
 1. **`Button.view({label, style, type?, disabled?, onClick?, input?}, h)`.**
    Hides `UiButton.view → Button.toView/resolve → h.button` (thinnest;
-   `examples/foldkit-form/src/main.ts:317-332`,
-   `foldkit-job-application/src/view/button.ts:11-28`). Home:
+   `examples/foldkit/form/src/main.ts:317-332`,
+   `examples/foldkit/job-application/src/view/button.ts:11-28`). Home:
    `foldkit-mixins-ui`.
 2. **`Input.field({form, key, id?, type?, placeholder?, style}, h)` (+
    Textarea).** Hides `UiInput.view + Input.resolve/toView +
@@ -245,7 +245,7 @@ mechanical. Three wrappers, each with an escape hatch, in this order:
 4. **Submit gating made explicit.** `canSubmit` (submit waits, button
    enabled) vs `engine.value`/`isValid` (button disabled while Validating;
    the waitlist's deliberate choice with comment at
-   `examples/foldkit-form/src/main.ts:189-194`) vs job-app's no-pre-disable
+   `examples/foldkit/form/src/main.ts:189-194`) vs job-app's no-pre-disable
    + `ValidatedAll` at submit. `FormView.submodel` bakes in lenient
    (`mixins-form/src/index.ts:779`). Helpers take the predicate explicitly
    instead of hiding the choice.
@@ -258,7 +258,7 @@ mechanical. Three wrappers, each with an escape hatch, in this order:
 > connection state machine; `reactToSocket` covers payload commands plus
 > the page's own wanting.
 
-`examples/foldkit-websocket-chat/src/main.ts` carries `connection:
+`examples/foldkit/websocket-chat/src/main.ts` carries `connection:
 ConnectionState` beside `...ChatSocket.fields` (`chatSocket.status/
 lastError`), translated by 55-line `reactToSocket` (`main.ts:92-146`) plus
 gate, send-gate, and view branches; tests enumerate the cross product.

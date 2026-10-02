@@ -1,0 +1,45 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "paths": {
+      "foldkit-entity": ["../../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../../packages/entity/src/conformance/index.ts"],
+      "foldkit-form": ["../../../packages/form/src/index.ts"],
+      "foldkit-mixins": ["../../../packages/mixins/src/index.ts"],
+      "foldkit-mixins-form": ["../../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/ui": ["../../../packages/mixins-form/src/ui.ts"],
+      "foldkit-mixins-ui": ["../../../packages/mixins-ui/src/index.ts"],
+      "foldkit-mixins/app": ["../../../packages/mixins/src/app.ts"],
+      "foldkit-mixins/defaults": ["../../../packages/mixins/src/defaults.ts"],
+      "foldkit-mixins/foundations": ["../../../packages/mixins/src/foundations.ts"],
+      "foldkit-mixins/layers": ["../../../packages/mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../../../packages/mixins/src/layout.ts"],
+      "foldkit-mixins/prose": ["../../../packages/mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../../../packages/mixins/src/testing.ts"],
+      "foldkit-mixins/theme": ["../../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    {
+      "path": "../../../packages/mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../../packages/form/tsconfig.build.json"
+    },
+    {
+      "path": "../../../packages/mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../../../packages/mixins-ui/tsconfig.build.json"
+    }
+  ]
+}

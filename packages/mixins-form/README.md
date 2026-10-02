@@ -92,8 +92,8 @@ Use the override with `Fields.field` for a custom layout or the per-key
 `Button.view` from `foldkit-mixins-ui`; the form still owns submission and the
 parent owns any request. The generated view retains its native submit button.
 
-The [waitlist](../../examples/foldkit-form/src/main.ts) and
-[login](../../examples/foldkit-auth/src/page/loggedOut/page/login.ts) are real
+The [waitlist](../../examples/foldkit/form/src/main.ts) and
+[login](../../examples/foldkit/auth/src/page/loggedOut/page/login.ts) are real
 custom-layout adopters. The [UI integration tests](test/ui.test.ts) demonstrate
 the generated view with UI field overrides through a Submodel and a strict
 `FormView.submodel(..., { canSubmit: form.isValid })` gate.

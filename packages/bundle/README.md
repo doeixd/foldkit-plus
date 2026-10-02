@@ -645,7 +645,7 @@ A child with view inputs, or with OutMessages of its own, stays hand-rolled:
 `Link.child` takes a plain `update` and `view` and lifts neither.
 
 [`test/foldChild.test.ts`](test/foldChild.test.ts) runs this example, and
-[`examples/foldkit-ui-showcase`](../../examples/foldkit-ui-showcase) folds its
+[`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its
 thirty-eight components this way.
 
 ## Bodies that load on demand: `Bundle.lazy`

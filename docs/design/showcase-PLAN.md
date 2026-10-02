@@ -51,7 +51,7 @@ notice; Publish gated on `canSubmit`; the pages list's retry, through
   `ListInput.onRetry` exists. Wire retry through the lists and the editor;
   history needs an `onRetry` affordance in the companion first (package
   prerequisite below).
-- **Chat offline sends.** `examples/foldkit-websocket-chat/src/main.ts:148-161`
+- **Chat offline sends.** `examples/foldkit/websocket-chat/src/main.ts:148-161`
   keeps the draft and tells nothing when the socket is shut. Queue or give
   feedback, and record the policy in a comment (a reader will copy it).
 - **Publish versus the form.** Both editor bars gate Publish on
@@ -66,7 +66,7 @@ notice; Publish gated on `canSubmit`; the pages list's retry, through
 Each lands with its test in the same change, as the 0.12 slices did.
 
 - **SSG adopts `staticSite`.**
-  `examples/foldkit-ssg/src/prerender.ts:41-54` re-implemented the core loop
+  `examples/foldkit/ssg/src/prerender.ts:41-54` re-implemented the core loop
   (guard, layout, writes) and shipped neither sitemap nor robots — and it is
   the only `directory`-layout user, which is tests-only everywhere else.
   **Built:** the example now describes its site in `src/site.ts` and lets
@@ -75,7 +75,7 @@ Each lands with its test in the same change, as the 0.12 slices did.
   sitemap and `robots.txt` land beside them (build-verified).
 - **`assembly.runtime` in one real assembly.** Zero app adopters; the
   contract is proven only by its own tests.
-  `examples/foldkit-websocket-chat` already has `onMessage` + wiring.
+  `examples/foldkit/websocket-chat` already has `onMessage` + wiring.
   **Built:** the example boots through `assembly.runtime` (`runtimeConfig`),
   so `init`/Subscriptions/Managed Resources come from the assembly and are
   checked; `entry.ts` and the runtime test share it.
@@ -90,9 +90,9 @@ Each lands with its test in the same change, as the 0.12 slices did.
   the Message universe and breaks host `dispatch` typing, so it is not a
   cast-away. The README's false completion claim was corrected meanwhile.
 - **`Input.view` / `Textarea.view` get their first app callers.**
-  `examples/foldkit-websocket-chat/src/main.ts` (`Input.view`
+  `examples/foldkit/websocket-chat/src/main.ts` (`Input.view`
   composer) and
-  `examples/foldkit-job-application/src/step/coverLetter/coverLetter.ts`
+  `examples/foldkit/job-application/src/step/coverLetter/coverLetter.ts`
   (`Textarea.view`). **Built** — both drop the upstream `@foldkit/ui` view
   and the `toView` wrapper. `Input.field` correctly stays out (no
   `FieldValidation.Field` in either place).
@@ -105,10 +105,10 @@ Each lands with its test in the same change, as the 0.12 slices did.
   the badge while an entry is being read ("an entry still being read is not
   New"), and the rows pass `Option.some`, so nothing renders `None` here;
   `Data.meta(...).stale/.loading` read, not just
-  `.updatedAt` (`examples/foldkit-api-cache/src/main.ts:207`) — **built**
+  `.updatedAt` (`examples/foldkit/api-cache/src/main.ts:207`) — **built**
   (the detail footnote says "Refreshing…"/"May be out of date") ;
   `Mirror.bootstrap` meeting `Mirror.routing` in one app
-  (`examples/foldkit-query-sync`); `correlate` in kitchen-sink's agent;
+  (`examples/foldkit/query-sync`); `correlate` in kitchen-sink's agent;
   a `FormView.submodel(…, { canSubmit: () => true })` adopter.
 - **Staleness gate stays designed, not bolted on.** No plan sets
   `version`, no hydrate passes `fresh` — because nobody has defined what
@@ -120,13 +120,13 @@ Each lands with its test in the same change, as the 0.12 slices did.
 Only after wave 0; polish on top of a lie is paint.
 
 - **Form errors need a focus story.**
-  `examples/foldkit-form` reveals errors with no focus move and no summary.
+  `examples/foldkit/form` reveals errors with no focus move and no summary.
   A browser-tested focus move (`userEvent`, not jsdom dispatch — synthetic
   events move no focus, per the repo's own traps). **Built**: a refused submit
   focuses the first key the form says is missing (`FocusField`, a Command like
   `@foldkit/ui`'s own), covered in `test/focus.browser.test.ts`.
 - **Job-app `blockedNotice` should link.**
-  `examples/foldkit-job-application/src/view/review.ts:179-184` names
+  `examples/foldkit/job-application/src/view/review.ts:179-184` names
   steps as text with no jump-to-step. Confirm first that unguarded `Next`
   (`src/update.ts:162-164`) is deliberate validate-at-submit, not an
   oversight; then link, don't gate. **Built**: `Next` is deliberate (recorded
@@ -149,7 +149,7 @@ Only after wave 0; polish on top of a lie is paint.
   buttons — **built** (`Touch.target` on `tab`, `button` and `danger`, with
   `test/touch.test.ts` covering the 44px floor both ways round).
 - **Waitlist duplication.** `textOverride`/`textareaOverride`
-  (`examples/foldkit-form/src/main.ts:213-265`) repeat one `draw` —
+  (`examples/foldkit/form/src/main.ts:213-265`) repeat one `draw` —
   parameterize by kind. Settle `isFormValid` vs `isValid` to one spelling
   with the reason recorded. **Built**: the shared `foldkit-mixins-form/ui`
   field override draws both kinds from one place, and the gate is
@@ -161,7 +161,7 @@ Only after wave 0; polish on top of a lie is paint.
 Batch these; none changes behavior.
 
 - Dead code, all verified by grep: the `@foldkit/ui` dep in
-  `examples/foldkit-form` (comment-only mention), the `clock`/`history`/
+  `examples/foldkit/form` (comment-only mention), the `clock`/`history`/
   `check` icons (`examples/cms/src/views/icons.ts:35,37,39`), two unused
   `control` imports (`formStyles.ts:9`, `builderStyle.ts:10`), the
   schedule label on a container slot (`view.ts:292`). **Built** (the label

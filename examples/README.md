@@ -36,34 +36,11 @@ plain data, so it never shares an Effect value with the rest of the workspace.
 
 ## Foldkit's own examples, on Foldkit Plus
 
-The `foldkit-*` directories port the example apps
-[Foldkit's README](https://github.com/foldkit/foldkit#examples) lists. Each
-keeps upstream's features, file split and tests, and uses a Foldkit Plus
-package only where it owns a concern; its README says which, which it
-deliberately does not use, and where behaviour differs. Every view draws
-through `foldkit-mixins` Slots instead of Tailwind classes. They are browser
-apps: `pnpm --filter foldkit-example-foldkit-<name> dev`.
-
-| Port | What Foldkit Plus owns there |
-| --- | --- |
-| [`foldkit-counter`](./foldkit-counter) | Styling only; a counter has nothing else for Plus to own |
-| [`foldkit-todo`](./foldkit-todo) | `foldkit-mirror` keeps the list in storage |
-| [`foldkit-form`](./foldkit-form) | `foldkit-form`: fields, rules, the debounced email check, submission |
-| [`foldkit-job-application`](./foldkit-job-application) | `foldkit-form` for every validated field across six steps |
-| [`foldkit-weather`](./foldkit-weather) | Styling only; a one-shot search is not Remote's cached server data |
-| [`foldkit-api-cache`](./foldkit-api-cache) | `foldkit-remote`: the cache, dedupe, stale-while-revalidate and refresh |
-| [`foldkit-routing`](./foldkit-routing) | Styling only; routing is Foldkit's |
-| [`foldkit-route-transitions`](./foldkit-route-transitions) | Styling only; the transition policies are Foldkit's route `Transition` |
-| [`foldkit-query-sync`](./foldkit-query-sync) | `foldkit-mirror` keeps the filters in the query string |
-| [`foldkit-snake`](./foldkit-snake) | Lazy rows, so a tick redraws one row of the board |
-| [`foldkit-auth`](./foldkit-auth) | `foldkit-form` for the login form |
-| [`foldkit-shopping-cart`](./foldkit-shopping-cart) | Styling only; the cart and its Submodel stay as upstream wires them |
-| [`foldkit-websocket-chat`](./foldkit-websocket-chat) | `foldkit-primitives`' websocket bundle owns the socket |
-| [`foldkit-kanban`](./foldkit-kanban) | `foldkit-mirror` keeps the board; dragging stays `@foldkit/ui`'s |
-| [`foldkit-pixel-art`](./foldkit-pixel-art) | `foldkit-primitives`' History for undo, `foldkit-mirror` for the canvas |
-| [`foldkit-ui-showcase`](./foldkit-ui-showcase) | `foldkit-mixins-ui`'s adapters and recipes for every component that has one |
-| [`foldkit-ssg`](./foldkit-ssg) | `foldkit-ssr` prerenders each page and adopts it in the browser |
-| [`foldkit-ssr`](./foldkit-ssr) | `foldkit-ssr` renders each request and adopts the page in the browser |
+[`foldkit/`](./foldkit/README.md) holds the example apps
+[Foldkit's README](https://github.com/foldkit/foldkit#examples) lists, ported
+to Foldkit Plus: one folder per upstream example, kept close to it, with a Plus
+package taking over only the concern it owns. Its README is the map of what
+each port owns.
 
 ## Recommended reading order
 

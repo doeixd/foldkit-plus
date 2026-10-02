@@ -6983,7 +6983,7 @@ the first localized content, not before.
 
 # 34. What the Foldkit routing-port pair taught (2026-09-28)
 
-`examples/foldkit-routing` now has the cleaner second cut: `Link.field` for the
+`examples/foldkit/routing` now has the cleaner second cut: `Link.field` for the
 `peoplePage` child, a `NavSection` union with `navSectionOf`, `aria-current`
 instead of conditional CSS strings, slot-driven styling, and exhaustive
 `routeTitle`. It is about a third shorter and clearly better. But compared with

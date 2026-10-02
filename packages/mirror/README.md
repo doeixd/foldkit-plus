@@ -292,7 +292,7 @@ What each piece does, and does not do:
 compile. A `UrlChanged` for the URL the Model already shows (the mirror's own
 write, answered by Foldkit) returns the Model it was given, provided the
 application's `update` also returns its Model for a route that did not change.
-`examples/foldkit-query-sync` is the full application.
+`examples/foldkit/query-sync` is the full application.
 
 ## Add remembered local state with `Mirror.kv`
 

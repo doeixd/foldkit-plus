@@ -1045,7 +1045,7 @@ reconnects, persists its outbox in IndexedDB v2, and takes server resets.
 - **`foldkit-ssr`, `SSR.entry` answers OPTIONS (breaking):** `204` with
   `allow: GET, HEAD[, POST], OPTIONS` instead of `405`, and a new
   `headers: request => HeadersInit` sets headers on every response it answers.
-- **`examples/foldkit-ssr` serves as upstream does:** Effect's HTTP server on
+- **`examples/foldkit/ssr` serves as upstream does:** Effect's HTTP server on
   `@effect/platform-node` instead of a hand-written `node:http` host.
 
 - **`foldkit-ssr`, the envelope rides the stamped root (breaking):**

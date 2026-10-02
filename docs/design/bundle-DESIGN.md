@@ -70,7 +70,7 @@ transition goes through the parent's `update`. A placement is therefore an
 - **Further shorthands.** `Bundle.declare` and `declareEach` derive the wrapper
   name, Model field, and Message cases from a field name. Deriving the whole
   parent Model and Message from an assembly waits for use in real applications.
-- **Routed pages as single placements.** `examples/foldkit-routing` still
+- **Routed pages as single placements.** `examples/foldkit/routing` still
   describes its `People` child twice: `Link.field` plus `Update.foldChild` for
   update, and a separate `h.submodel` for view
   ([router-DESIGN.md](./router-DESIGN.md) §34.3). A routed page placement

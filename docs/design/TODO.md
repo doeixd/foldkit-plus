@@ -476,7 +476,7 @@ the steps land in the packages that own them.
 
 ## Found by porting Foldkit's examples
 
-The [`examples/foldkit-*`](../../examples/README.md#foldkits-own-examples-on-foldkit-plus)
+The [`examples/foldkit/*`](../../examples/README.md#foldkits-own-examples-on-foldkit-plus)
 ports worked around each of these; the example named has the workaround and
 its README the details.
 
@@ -622,7 +622,7 @@ then the lifecycle and host-integration design work.
   no-op returning the same Model, and the payload is captured at submit time so
   later edits do not reach the request. No request identity: the duplicate
   guard makes concurrent attempts impossible. Tests in
-  `examples/foldkit-job-application/test/application.test.ts` fail if the
+  `examples/foldkit/job-application/test/application.test.ts` fail if the
   guard, the empty-entry refusal or the capture is removed. Design review §4.
 - [ ] **Medium: lifecycle-aware nested form controls (§5).** First demonstrate
   a flat picker-backed `Input.bundle` key. Prototype nested row Subscriptions
