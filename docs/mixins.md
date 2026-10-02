@@ -68,10 +68,10 @@ contributions and enforces ownership rules before ordinary Foldkit attributes re
 ```mermaid
 flowchart TB
   component["component / SlotView"]
-  slots["Slots contract<br/>where customization is allowed"]
-  style["Style<br/>how it looks"]
-  behavior["Behavior<br/>how the element reacts"]
-  resolver["Resolver<br/>merge + ownership checks"]
+  slots["Slots contract<br>where customization is allowed"]
+  style["Style<br>how it looks"]
+  behavior["Behavior<br>how the element reacts"]
+  resolver["Resolver<br>merge + ownership checks"]
   attrs["ordinary Foldkit attributes"]
 
   component --> slots
