@@ -161,4 +161,27 @@ describe('mistakes are reported at the step', () => {
       Bundle.withChild('clicks', Count, { args: { start: 0 } }),
     )
   })
+
+  it('states the services of a composition whose placements are readable', () => {
+    interface Clock {
+      readonly now: () => number
+    }
+    // Before any child, and after a configured one: both have readable
+    // placements, which an `any` for the incoming services refused.
+    const Timed = Bundle.compose({ greeting: Schema.String }).pipe(
+      Bundle.withServices<Clock>(),
+      Bundle.withChild('clicks', Count, { args: { start: 0 } }),
+    )
+    const Later = Bundle.compose({ greeting: Schema.String }).pipe(
+      Bundle.withChild('clicks', Count, { args: { start: 0 } }),
+      Bundle.withServices<Clock>(),
+    )
+    type Own = (
+      model: typeof Timed.Model.Type,
+      message: typeof Timed.Message.Type,
+    ) => Update.Return<typeof Timed.Model.Type, typeof Timed.Message.Type, Clock>
+    const own: Own = model => ({ model })
+    Timed.placements.update(own)
+    Later.placements.update(own)
+  })
 })

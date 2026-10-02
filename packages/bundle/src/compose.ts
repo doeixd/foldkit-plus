@@ -554,8 +554,11 @@ export const withServices =
     Fields extends Schema.Struct.Fields,
     C extends Cases,
     Children,
+    Services,
     Ws extends ReadonlyArray<AnyWiring>,
   >(
-    self: Composition<Fields, C, Children, any, Ws>,
+    // Generic, not `any`: `Composition` is invariant in its services, so `any`
+    // refused a composition whose `placements` were already readable.
+    self: Composition<Fields, C, Children, Services, Ws>,
   ): Composition<Fields, C, Children, S, Ws> =>
     self as unknown as Composition<Fields, C, Children, S, Ws>
