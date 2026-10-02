@@ -27,11 +27,12 @@ mechanisms compose. The kitchen sink is a later integration reference.
 
 The todo app covers URL/device mirrors. The Bundle example authors small
 bundles; the ready-made primitives have their own
-[subpath guides](../packages/primitives/README.md#map-of-the-package).
+[subpath guides](../packages/primitives/README.md#the-map).
 The `tanstack` and `livestore` directories contain query-interpreter conformance
 work rather than the application transcripts listed here. `livestore` pins
-`effect@4.0.0-rc.112` on its own: LiveStore's only Effect 4 build imports a
-testing module Effect removed after that release, and the example hands it
+`effect@4.0.0-rc.112` on its own while the workspace is on 4.0.0: LiveStore's
+only Effect 4 build imports a testing module Effect removed after that release
+and the `effect/unstable/*` paths 4.0.0 removed, and the example hands it
 plain data, so it never shares an Effect value with the rest of the workspace.
 
 ## Foldkit's own examples, on Foldkit Plus

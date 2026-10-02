@@ -7,6 +7,29 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Upgrading
+
+- **Effect 4.0.0 stable and Foldkit 0.165.0.** Every package now
+  peer-depends on `effect@^4.0.0` (from `>=4.0.0-rc.116 <4.0.0-rc.118`) and
+  `foldkit@^0.165.0` (from `^0.163.0`); `foldkit-mixins-ui` peers
+  `@foldkit/ui@^0.165.0`. Foldkit 0.165.0 is the first release on stable
+  Effect and pins it exactly, so an application moves `effect`,
+  `@effect/platform-browser`, any other `@effect/*` package, `foldkit`, and
+  `@foldkit/ui` together, and `@foldkit/vite-plugin` to 0.26.0.
+  `foldkit-durable`'s `@effect/sql-sqlite-node@4.0.0` needs Node 22.16 or newer.
+  - Effect 4.0.0 removed `effect/unstable/*`. Import `effect/http`,
+    `effect/persistence`, `effect/rpc`, and `effect/sql`; `effect/unstable/httpapi`
+    is now `effect/http-api`. Every import here has moved.
+  - Effect 4.0.0 reversed `partition` in `Array`, `Chunk`, `Effect`, and
+    `Record`, and `Option.partitionMap`: successes now come first. A call
+    site written for the rc still type-checks and swaps its results. Nothing
+    in this repository calls them; check your own.
+  - `@foldkit/ui` 0.164.0 added a `transitionGeneration` field to
+    `Animation.Model` and a `generation` to its Messages; a test fixture that
+    builds an Animation Model by hand needs it.
+  - `examples/livestore` keeps `effect@4.0.0-rc.112`: LiveStore's Effect 4
+    build still imports the removed `effect/unstable/*` paths.
+
 ### Added
 
 - **`foldkit-form`, `form.value(model)`:** the decoded input as `Some` when
@@ -39,6 +62,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-primitives`, the socket and SSE bundles under Foldkit 0.165:**
+  the private `unlessSame` helper inferred its type from both arguments, and
+  Foldkit 0.165's `match` no longer passes the declared return type into each
+  arm, so `{ ...model, status: 'connecting' }` widened `status` to `string`
+  and failed to type-check. It infers from the current Model alone now.
 - **`foldkit-mixins-ui`, `Recipes.Dialog`:** restores the modal's
   `margin: auto`, which `Defaults.reset` zeroes, so a dialog opens centered
   rather than in the top corner.

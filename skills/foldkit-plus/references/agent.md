@@ -199,7 +199,7 @@ WebMCP is experimental and no stable browser ships it, so always feature-detect 
 
 ```ts
 import { AgentMcp } from 'foldkit-agent-mcp'
-import * as HttpEffect from 'effect/unstable/http/HttpEffect'
+import * as HttpEffect from 'effect/http/HttpEffect'
 AgentMcp.stdio({ agent: agentRuntime }) // stdout carries the protocol, so log to stderr
 const handler = HttpEffect.toWebHandler(AgentMcp.httpApp({
   authenticate: request => verify(request.headers['authorization']), // the only source of principal

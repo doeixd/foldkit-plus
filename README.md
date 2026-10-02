@@ -473,9 +473,9 @@ Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and
 `foldkit-agent-native`; `foldkit-mixins-ui` adapts compatible `@foldkit/ui`
 components.
 
-`foldkit` and `effect` are peer dependencies. Foldkit `0.163.0` peer-depends on
-`effect@4.0.0-rc.116` and `@effect/platform-browser@4.0.0-rc.116`, so these
-packages target Effect 4. `foldkit-durable`
+`foldkit` and `effect` are peer dependencies. Foldkit `0.165.0` peer-depends on
+`effect@4.0.0` and `@effect/platform-browser@4.0.0`, the first stable release
+of Effect 4, so these packages target it. `foldkit-durable`
 requires Node 22 for `node:sqlite`. The [release matrix](./docs/releases.md)
 lists every package's current version.
 

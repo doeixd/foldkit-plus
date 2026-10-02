@@ -39,7 +39,7 @@ is pure: no Command, no Message. It is deliberately not part of `Wiring`, whose
 
 ```ts
 import { Schema } from 'effect'
-import type { KeyValueStore } from 'effect/unstable/persistence'
+import type { KeyValueStore } from 'effect/persistence'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -130,7 +130,7 @@ dispatch once mounted:
 
 ```ts
 import { Effect } from 'effect'
-import { KeyValueStore } from 'effect/unstable/persistence'
+import { KeyValueStore } from 'effect/persistence'
 import { Sync } from 'foldkit-sync'
 
 const store = KeyValueStore.layerStorage(() => window.localStorage)

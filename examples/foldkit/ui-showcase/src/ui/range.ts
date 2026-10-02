@@ -1,6 +1,6 @@
 /**
  * The value arithmetic and accessible name of upstream `@foldkit/ui`'s Meter
- * and Progress, which the pinned `@foldkit/ui` 0.163.0 does not ship yet.
+ * and Progress, ported before `@foldkit/ui` shipped them (it has since 0.164.0).
  * Both views here are ports of upstream's, cut to the inputs this showcase
  * passes: a value between 0 and 100, a fixed `aria-valuetext`, and the
  * visible label as the accessible name.

@@ -101,7 +101,7 @@ Note: v4 `Schema.toStandardSchemaV1` / v3 `Schema.toStandardSchemaV1` lets any S
 | effect-schema-compilers | https://github.com/jessekelly881/effect-schema-compilers | effect-schema-compilers 0.0.23 | 22 | 2024-10-14 | effect 2.4.7 (dead) | Faker, Semigroup and other compilers |
 | ts-to-effect-schema | https://github.com/daotl/ts-to-effect-schema | ts-to-effect-schema 0.0.13 | 7 | 2026-05-09 | effect 2.3.6 in npm | TS types to Schema codegen |
 | effect-types | https://github.com/jessekelly881/effect-types | - | 15 | 2024-01-15 | old @effect/schema | Extra schema types |
-| Built-in: `JSONSchema.make`, `effect/unstable/jsonschema` | core | effect | - | - | v3 + v4 | Official JSON Schema output |
+| Built-in: `Schema.toJsonSchemaDocument` and `SchemaRepresentation` (v4), `JSONSchema.make` (v3) | core | effect | - | - | v3 + v4 | Official JSON Schema output |
 | @hey-api/openapi-ts Effect plugin | https://github.com/hey-api/openapi-ts | @hey-api/openapi-ts 0.99.0 | - | - | UNVERIFIED | Unconfirmed whether an Effect plugin exists |
 | json-schema-to-effect, zod-to-effect, effect-schema-to-zod | - | not on npm (404) | - | - | UNVERIFIED | No package found under these names |
 
@@ -111,7 +111,7 @@ Note: v4 `Schema.toStandardSchemaV1` / v3 `Schema.toStandardSchemaV1` lets any S
 | drizzle-orm `./effect-schema` | https://github.com/drizzle-team/drizzle-orm | drizzle-orm@1.0.0-rc.4 | - | - | **v4** (>=4.0.0-beta.83) | Native table to Schema export plus effect-* drivers (stable 0.45.2 has none) |
 | drizzle-effect | https://github.com/Handfish/drizzle-effect | unpublished from npm 2025-04 | 17 | 2025-06-03 | v3 | Drizzle to Schema generator; superseded by native export |
 | effect-sql-model | https://github.com/emergente-labs/effect-sql-model | - | 19 | 2026-05-28 | UNVERIFIED | Schema/Model to Drizzle table compiler |
-| @effect/sql-drizzle, @effect/sql-kysely | Effect-TS/effect | 0.51.0 / 0.48.0 | - | - | v3 only | Official; v4 SQL lives in `effect/unstable/sql` |
+| @effect/sql-drizzle, @effect/sql-kysely | Effect-TS/effect | 0.51.0 / 0.48.0 | - | - | v3 only | Official; v4 SQL lives in `effect/sql` |
 | confect | https://github.com/rjdellecese/confect | @confect/core 9.4.3 | 362 | 2026-09-15 | v3 (^3.21.2) | Convex DB schemas and validators from Effect Schema |
 | Prisma generator | - | prisma-effect-generator 404 | - | - | UNVERIFIED | No maintained package found |
 
@@ -145,7 +145,7 @@ Note: v4 `Schema.toStandardSchemaV1` / v3 `Schema.toStandardSchemaV1` lets any S
 - Protobuf: nothing found (UNVERIFIED).
 
 ### AI structured output
-- Official: `@effect/ai` 0.37.0 (v3), `effect/unstable/ai` (v4). Both use Schema for tools and structured output.
+- Official: `@effect/ai` 0.37.0 (v3), `effect/ai` (v4). Both use Schema for tools and structured output.
 - Vercel AI SDK: accepts Standard Schema / JSON Schema. Effect Schema works through `standardSchemaV1` or `jsonSchema(JSONSchema.make(...))`. A native adapter is UNVERIFIED.
 
 ### Schema-driven libraries (from docs/effect-ecosystem.md and search)

@@ -68,8 +68,9 @@ const SliderPage = SlotView.forMessages<UiMessage>()
         h,
       ),
 
-      // Upstream draws this one vertically; the pinned `@foldkit/ui` 0.163.0
-      // Slider is horizontal only, so it shows the fractional steps instead.
+      // Upstream draws this one vertically; the Slider was horizontal only when
+      // this page was written (orientation arrived in 0.164.0), so it shows the
+      // fractional steps instead.
       h.h3(slots.section.attrs(), ['Fractional steps']),
       sliderDemo(
         {

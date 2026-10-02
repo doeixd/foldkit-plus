@@ -1,6 +1,6 @@
 /**
  * The Meter and Progress this showcase ports from upstream `@foldkit/ui`,
- * which the pinned 0.163.0 lacks: their ARIA and data attributes, and the
+ * ported before it shipped them in 0.164.0: their ARIA and data attributes, and the
  * width of the bar, from upstream's own scene tests.
  */
 import { Option } from 'effect'

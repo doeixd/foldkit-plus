@@ -133,7 +133,7 @@ Use `httpApp` when the MCP server should run behind an Effect HTTP server or be
 converted to a web-standard `Request -> Response` handler:
 
 ```ts
-import * as HttpEffect from 'effect/unstable/http/HttpEffect'
+import * as HttpEffect from 'effect/http/HttpEffect'
 import { AgentMcp } from 'foldkit-agent-mcp'
 
 const handler = HttpEffect.toWebHandler(

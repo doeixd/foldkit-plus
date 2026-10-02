@@ -26,19 +26,19 @@ Companion to [[effect-v4-api-scope]] (core module map). Built from: all This Wee
 ## Quick triage (what to reach for)
 | Need | First choice | Alternatives |
 |---|---|---|
-| Background jobs/queues | **effect-mq** (TeamWarp, v4) | `effect/unstable/persistence` PersistedQueue (official, lighter); effect-inngest, effect-hatchet |
-| Durable workflows | `effect/unstable/workflow` + `cluster` | **@springbird/effect-temporal** (run Effect workflows on Temporal); effect-golem (Golem Cloud); cevr/effect-encore (actors) |
+| Background jobs/queues | **effect-mq** (TeamWarp, v4) | `effect/persistence` PersistedQueue (official, lighter); effect-inngest, effect-hatchet |
+| Durable workflows | `effect/workflow` + `cluster` | **@springbird/effect-temporal** (run Effect workflows on Temporal); effect-golem (Golem Cloud); cevr/effect-encore (actors) |
 | Durable streams | **humanlayer/effect-durable-streams** (v4 server for the Durable Streams protocol) + effect-durable-streams-client | durable-streams/durable-streams (upstream, non-Effect) |
 | Cloudflare Workers | **effect-cf** (danieljvdm, v4, very active) | jbt95/effect-cf, backpine/effect-worker, aryasaatvik/effect-platform-cloudflare; official `@effect/sql-d1`, `@effect/sql-sqlite-do` |
 | IaC / cloud SDKs | **alchemy v2** ("Infrastructure as Effects", v4) + **distilled** (Effect-native CF/AWS SDKs) | floydspace/effect-aws |
-| AI / agents | official `effect/unstable/ai` + `@effect/ai-{openai,anthropic,openrouter,openai-compat}` | effect-agent (danieljvdm, early), humanlayer/fold (agent core+TUI), effect-uai (betalyra); MCP: `effect/unstable/ai` McpServer |
-| SQL | `effect/unstable/sql` + `@effect/sql-*` driver | **drizzle-orm@rc** `drizzle-orm/effect-postgres` etc. (native v4); effect-qb, effql, effect-prisma-generator |
+| AI / agents | official `effect/ai` + `@effect/ai-{openai,anthropic,openrouter,openai-compat}` | effect-agent (danieljvdm, early), humanlayer/fold (agent core+TUI), effect-uai (betalyra); MCP: `effect/ai` McpServer |
+| SQL | `effect/sql` + `@effect/sql-*` driver | **drizzle-orm@rc** `drizzle-orm/effect-postgres` etc. (native v4); effect-qb, effql, effect-prisma-generator |
 | Caching | core `Cache`, `ScopedCache`, `RcMap`; `unstable/persistence` PersistedCache, KeyValueStore(.layerSql), RateLimiter(.adaptive) | — |
-| Reactivity / client state | `effect/unstable/reactivity` (Atom, AsyncResult, AtomRpc, AtomHttpApi) + `@effect/atom-{react,solid,vue}` | effect-query (TanStack Query adapter, v4); effect-atom-svelte; doeixd/effect-atom-jsx; legacy tim-smart/effect-atom (v3) |
+| Reactivity / client state | `effect/reactivity` (Atom, AsyncResult, AtomRpc, AtomHttpApi) + `@effect/atom-{react,solid,vue}` | effect-query (TanStack Query adapter, v4); effect-atom-svelte; doeixd/effect-atom-jsx; legacy tim-smart/effect-atom (v3) |
 | Frontend framework | **Foldkit** (Elm architecture, v4) | TylorS/typed, effect-nextjs, effect-machine / effect-xstate (state machines) |
-| TUI / CLI | `effect/unstable/cli` | effect-boxes (v4 TUI layout), effect-cli-tui, effective-progress; **motel** (OTel TUI viewer). NOTE: "effect-tui by kitlangton" does NOT exist |
+| TUI / CLI | `effect/cli` | effect-boxes (v4 TUI layout), effect-cli-tui, effective-progress; **motel** (OTel TUI viewer). NOTE: "effect-tui by kitlangton" does NOT exist |
 | Testing | `@effect/vitest`, `HttpApiTest`, `RpcTest` | effect-bdd (Gherkin), anomalyco/effect-http-recorder (v4 cassettes), effect-playwright, effect-bun-test |
-| Observability | `effect/unstable/observability` Otlp | @effect/opentelemetry; motel (local); Effect DevTools (vscode-extension) |
+| Observability | `effect/observability` Otlp | @effect/opentelemetry; motel (local); Effect DevTools (vscode-extension) |
 | Agent DX | Effect-TS/skills (official, incl. v3→v4 migration), `@effect/tsgo` / language-service | effect-solutions CLI (kitlangton), EffectPatterns, tim-smart/effect-mcp (docs MCP), llms-effect, oxlint rule plugins (community only) |
 
 ## Corrections to the circulating X summary
@@ -71,7 +71,7 @@ API descriptions come from the npm/GitHub descriptions and the awesome-list summ
 
 ### Official @effect/* packages (npm)
 
-In v4, most of the old separate packages are part of `effect` itself under `effect/unstable/*`: ai, cli, cluster, devtools, eventlog, http, httpapi, jsonschema, observability, persistence, process, reactivity, rpc, schema, socket, sql, workflow, workers.
+In v4, most of the old separate packages are part of `effect` itself, each at `effect/<area>`: ai, cli, cluster, devtools, encoding, eventlog, http, http-api, net, observability, persistence, process, reactivity, rpc, schema, socket, sql, workflow, workers. Until 4.0.0 they lived under `effect/unstable/*`; the stable release dropped that segment, though the APIs stay tagged `@stability unstable`.
 
 **Have an `rc` tag (4.0.0-rc.115):**
 - Platforms: `@effect/platform-node`, `@effect/platform-node-shared`, `@effect/platform-bun`, `@effect/platform-browser`, `@effect/platform-deno`
@@ -98,7 +98,7 @@ Note: `npm search` returns at most 250 results, so this list may be missing obsc
 | effect-durable-streams-client | https://github.com/humanlayer/effect-durable-streams-client | not found on npm | 2 | 2026-09-15 | not checked |
 
 - **effect-mq**: background jobs for Effect. You define jobs schema-first, a storage-agnostic queue core feeds a worker runtime, and a Postgres store lives inside your Drizzle schema. The shape is job definitions (Schema payloads), then enqueue, then a worker Layer.
-- **effect-temporal**: runs `effect/unstable/workflow` programs (Workflow, Activity, DurableClock, DurableDeferred) on a Temporal engine. It also adds durable mailboxes, updates, queryable state, versioning, schedules and Nexus operations. You write standard Effect workflows and swap the engine Layer for Temporal.
+- **effect-temporal**: runs `effect/workflow` programs (Workflow, Activity, DurableClock, DurableDeferred) on a Temporal engine. It also adds durable mailboxes, updates, queryable state, versioning, schedules and Nexus operations. You write standard Effect workflows and swap the engine Layer for Temporal.
 - **effect-golem**: lets you write durable Golem agents with Effect. The org is golemcloud (Ziverge). The plain TS SDK `@golemcloud/golem-ts-sdk` 1.1.2 uses decorators (`BaseAgent`, `@agent`) and does not depend on Effect.
 - **Durable Streams**: the protocol itself is https://github.com/durable-streams/durable-streams (1694 stars, pushed 2026-09-10, "The data primitive for the agent loop", `@durable-streams/client` 0.2.7, no Effect dependency). The Effect version is humanlayer's: a Durable Streams protocol server written as a portable Effect v4 app with swappable platform Layers.
 - Other notable repos from awesome-effect (not individually verified): erikshestopal/effect-inngest, fdarian/effect-hatchet, tim-smart/effect-genserver, cevr/effect-encore (actors and workflows for cluster), `@rivetkit/effect`, CodeForBreakfast/eventsourcing, crosshatch/liminal (actors on Cloudflare).
@@ -125,7 +125,7 @@ Note: `npm search` returns at most 250 results, so this list may be missing obsc
 | Item | Repo | npm | Stars | Last push | v4? |
 |---|---|---|---|---|---|
 | Foldkit | https://github.com/foldkit/foldkit (foldkit.dev) | `foldkit` 0.160.0 | 851 | 2026-09-16 | Yes, peer `4.0.0-rc.115` (exact) |
-| effect-atom (v3) | https://github.com/tim-smart/effect-atom | `@effect-atom/atom(-react)` 0.7.0 | 792 | 2026-08-14 | No, peer `^3.22.1`. v4 successor is `effect/unstable/reactivity` + `@effect/atom-*` |
+| effect-atom (v3) | https://github.com/tim-smart/effect-atom | `@effect-atom/atom(-react)` 0.7.0 | 792 | 2026-08-14 | No, peer `^3.22.1`. v4 successor is `effect/reactivity` + `@effect/atom-*` |
 | @effect/atom-solid / -vue / -react | Effect-TS/effect monorepo | see Official | — | 2026-09-11 | Yes |
 | effect-query | https://github.com/voidhashcom/effect-query | `effect-query` 1.0.0 | 232 | 2026-09-02 | Yes, peer `^4.0.0-beta.23` |
 | effect-react-query | Effect-Community/react (stale 2023, 11 stars). See also tiesen243/effect-tanstack-query | — | — | — | UNVERIFIED as a distinct package |
@@ -342,7 +342,7 @@ Format: **Name** - description - link - author - (issue)
 - **Effect v4 Beta** - Rewritten runtime, ~70kB -> ~20kB minimal bundle, unified versioning, packages merged into core - https://effect.website/blog/releases/effect/40-beta/ - Effect team - (#106)
 - **v4: Tx modules / transaction model refactor; Schema Option helpers** - https://github.com/Effect-TS/effect-smol/pull/1515 - (#107)
 - **v4: static file server, expireCookie, HttpClient.withRateLimiter retry-after, Atom.swr, Command.withSharedFlags** - (#108)
-- **v4: effect/unstable/cli/Completions (shell autocompletion), toolkit unions, Layer.mock dual** - (#109)
+- **v4: effect/cli/Completions (shell autocompletion), toolkit unions, Layer.mock dual** - (#109)
 - **Effect 3.20 security update (GHSA-38f7-945m-qr2g) and Effect 3.21.0** - https://effect.website/blog/effect-3-20-security-update/ - (#110)
 - **v4: Embeddings module + ModelDimensions, Anthropic dynamic tools, Schema.ArrayEnsure, Url port, HttpApiMiddleware.layerSchemaErrorTransform** - (#110)
 - **v4: HttpApi codegen (HttpApi.gen), HttpApiClient rework, Stream.timeoutOrElse, dedicated PG LISTEN connection** - (#111)
@@ -571,7 +571,7 @@ Dates are the publish date from each page's `datetime` attribute.
 | Pull-based Socket API; unified WebSocket client across runtimes | - | - | 133 |
 | Schema.TaggedUnion partial matching; removed MessagePack & MIME dep from platform-node; CLI prompt themes | - | - | 133 |
 | Effect v4 RC: August 2026 Updates recap | Blog | https://www.effect.website/blog/effect-v4-rc-august-recap | 134 |
-| Perf pass (2x memory improvement core APIs), NodeSocket.makeTls, ByteSize branded bigint, PersistedQueue hardening | - | https://effect.website/docs/v4/api/effect/unstable/persistence/PersistedQueue | 134 |
+| Perf pass (2x memory improvement core APIs), NodeSocket.makeTls, ByteSize branded bigint, PersistedQueue hardening | - | https://effect.website/docs/v4/api/effect/persistence/PersistedQueue | 134 |
 | Schema.transformOrFail -> Schema.transformEffect (breaking) | - | - | 135 |
 | Reactivity/LanguageModel/EmbeddingModel/Chat as interface + Context.Service; CF cold-start reduction | - | - | 135 |
 | Module of the Week: PersistedQueue | Blog series | https://effect.website/blog/module-of-the-week/persisted-queue | 135 |

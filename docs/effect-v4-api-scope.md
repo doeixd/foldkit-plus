@@ -15,10 +15,10 @@ Reqs: TS ≥5.9 (TS7/tsgo recommended), `strict: true`, Node ≥18.
 **Best source of truth:** the npm package itself ships `AGENTS.md`, `CLAUDE.md`, and `ai-docs/src/**` (runnable examples by topic) plus full `src/`. `npm pack effect@rc` and read them. API docs: https://effect.website/docs/v4/api/effect
 
 ## Big structural change
-The ecosystem is consolidated into **one `effect` package**. Old `@effect/platform`, `@effect/rpc`, `@effect/cluster`, `@effect/sql`, `@effect/cli`, `@effect/ai`, `@effect/workflow`, `@effect/experimental`, `@effect-atom/atom` → now `effect/unstable/*`. "unstable" = may break in minors.
+The ecosystem is consolidated into **one `effect` package**. Old `@effect/platform`, `@effect/rpc`, `@effect/cluster`, `@effect/sql`, `@effect/cli`, `@effect/ai`, `@effect/workflow`, `@effect/experimental`, `@effect-atom/atom` → now `effect/<area>` (under `effect/unstable/*` until 4.0.0). APIs tagged `@stability unstable` may break in minors.
 Separate packages remain only for platform/driver/provider bindings, all versioned in lockstep (4.0.0-rc.115): `@effect/platform-node|bun|browser`, `@effect/vitest`, `@effect/sql-pg|sql-sqlite-node|…`, `@effect/ai-openai|ai-anthropic`, `@effect/atom-react`, `@effect/opentelemetry`.
 
-Package exports: `effect`, `effect/<Module>`, `effect/testing`, `effect/unstable/{ai,arbitrary,cli,cluster,devtools,encoding,eventlog,http,httpapi,net,observability,persistence,process,reactivity,rpc,schema,socket,sql,workflow,workers}`.
+Package exports (4.0.0): `effect`, `effect/<Module>`, `effect/testing`, and `effect/{ai,cli,cluster,devtools,encoding,eventlog,http,http-api,net,observability,persistence,process,reactivity,rpc,schema,socket,sql,workflow,workers}`. `Arbitrary` moved to the top level (`import { Arbitrary } from 'effect'`).
 
 ## Core (`import { X } from "effect"`)
 - **Core runtime:** Effect, Effectable, Exit, Cause, Fiber, FiberHandle/FiberMap/FiberSet, Runtime, ManagedRuntime, Scheduler, Scope, References, ErrorReporter, ExecutionPlan
@@ -36,7 +36,7 @@ Package exports: `effect`, `effect/<Module>`, `effect/testing`, `effect/unstable
 - **Type utils:** Function (pipe, flow, dual), Pipeable, Types, Unify, Utils, HKT
 - Removed vs v3 (noted): Either, STM/T*, Micro, List, SortedMap etc. — verify before assuming presence.
 
-## Unstable modules (`import { HttpClient } from "effect/unstable/http"`)
+## Unstable modules (`import { HttpClient } from "effect/http"`)
 - **http:** HttpClient, FetchHttpClient, HttpClientRequest/Response/Error, HttpServer, HttpRouter, HttpMiddleware, HttpServerRequest/Response, HttpStaticServer, Headers, Cookies, Multipart, Url, UrlParams, Etag, Mime, Template
 - **httpapi:** HttpApi, HttpApiGroup, HttpApiEndpoint, HttpApiBuilder, HttpApiClient, HttpApiMiddleware, HttpApiSecurity, HttpApiError, HttpApiSchema, OpenApi, HttpApiSwagger, HttpApiScalar, HttpApiTest (in-memory test client)
 - **rpc:** Rpc, RpcGroup, RpcServer, RpcClient, RpcMiddleware, RpcSerialization, RpcWorker, RpcTest

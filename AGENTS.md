@@ -583,7 +583,7 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **Drizzle's Effect driver does not load under the pinned Effect.**
   `drizzle-orm@1.0.0-rc.4`'s `effect-postgres` driver imports
   `cache/core/cache-effect.ts`, which calls `Schema.TaggedErrorClass` — a name
-  `effect@4.0.0-rc.112` does not export. A static import throws
+  no Effect 4 release exports (rc.112 did not, and 4.0.0 still does not). A static import throws
   `Schema$1.TaggedErrorClass is not a function` and fails every test file that
   reaches it, not just the query. Require a Context tag and let the application
   provide the database; do not import the driver in library code until the two
@@ -591,7 +591,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Effect 4, not 3**
 
-foldkit pins `effect@4.0.0-rc.116`. Names that moved, each found the slow way:
+foldkit pins `effect@4.0.0`, the first stable release. Since 4.0.0 there is no
+`effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
+`effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
+`Array`, `Chunk`, `Effect` and `Record` `partition` and `Option.partitionMap`
+return successes first, so a call site written for the rc type-checks and
+swaps its results. Names that moved, each found the slow way:
 `Effect.either` -> `Effect.result`, `Effect.async` -> `Effect.callback`,
 `Effect.timeoutFail` -> `Effect.timeoutOrElse`, `Duration.decodeUnknown` ->
 `Duration.fromInputUnsafe`, `Schema.OptionFromSelf` -> `Schema.Option`,

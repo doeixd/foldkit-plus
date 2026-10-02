@@ -61,10 +61,12 @@ pnpm --filter foldkit-example-foldkit-ui-showcase dev
 
 ## Differences from upstream
 
-- **Meter and Progress** are not in the pinned `@foldkit/ui` 0.163.0; `src/ui`
-  ports upstream's views, cut to the inputs this page passes.
-- **The volume slider is horizontal.** The pinned Slider has no orientation,
-  so its section is "Fractional steps" instead of "Vertical".
+- **Meter and Progress** are ported in `src/ui`, cut to the inputs this page
+  passes. They were written when `@foldkit/ui` had neither; it has shipped both
+  since 0.164.0, so the port could now give way to upstream's.
+- **The volume slider is horizontal.** The Slider had no orientation when this
+  page was written, so its section is "Fractional steps" instead of
+  "Vertical". `@foldkit/ui` has had `orientation` since 0.164.0.
 - **Checkbox and Switch controls are empty.** The shipped recipes draw the
   check, the dash and the knob from `aria-checked`, in place of upstream's
   `✓`, `—` and knob elements.

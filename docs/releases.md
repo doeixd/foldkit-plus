@@ -17,7 +17,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-agent-mcp`](../packages/agent-mcp) | 0.4.1 | Published | External MCP adapter: a transport-free handler plus stdio and Streamable HTTP. |
 | [`foldkit-agent-a2a`](../packages/agent-a2a) | 0.4.1 | Published | A2A adapter: an Agent Card and `message/send` as tasks. |
 | [`foldkit-agent-native`](../packages/agent-native) | 0.4.1 | Published | Agent Native adapter: compiles exposed capabilities into framework actions whose `run` only dispatches. |
-| [`foldkit-durable`](../packages/durable) | 0.5.0 | Published | Durable, ordered operation log on `effect/unstable/sql`, with snapshots, cursors, compaction, and an effect ledger. |
+| [`foldkit-durable`](../packages/durable) | 0.5.0 | Published | Durable, ordered operation log on `effect/sql`, with snapshots, cursors, compaction, and an effect ledger. |
 | [`foldkit-sync`](../packages/sync) | 0.7.0 | Published | Local-first replica: offline outbox, optimistic projection, reconciliation, presence, and a reconnecting WebSocket transport. |
 | [`foldkit-metadata`](../packages/metadata) | 0.1.0 | Published | Opaque typed metadata: an interpreter's key owns its entries, their merge, and their summary. |
 | [`foldkit-entity`](../packages/entity) | 0.5.0 | Published | Domain structure: an Entity's fields, relations, and derived members as typed values, and Selections of them with an assembled schema. |
@@ -79,11 +79,11 @@ in its manifest, and `pnpm publish` skips it.
 ## Dependency expectations
 
 Every package except `foldkit-react-codegen` and `foldkit-mixins-richtext`
-peer-depends on `effect@^4.0.0-rc.116`. Every package except `foldkit-richtext`,
+peer-depends on `effect@^4.0.0`. Every package except `foldkit-richtext`,
 the server and storage four —
 `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-durable`, and
 `foldkit-sync` — and `foldkit-react-codegen` also peer-depends on
-`foldkit@^0.163.0`. `foldkit-react` additionally peer-depends on
+`foldkit@^0.165.0`. `foldkit-react` additionally peer-depends on
 `react@^19.0.0` and `react-dom@^19.0.0`. `foldkit-react-codegen` is a build
 tool that reads source text: its only peer is `typescript@^5.7.2`, and it ships
 a `foldkit-react-codegen` bin.
@@ -96,7 +96,7 @@ publish:
 - `foldkit-mixins-surface` → `foldkit-mixins`, `foldkit-surface`;
 - `foldkit-mixins-ui` → `foldkit-mixins`;
 - `foldkit-agent-native` additionally → `@agent-native/core@0.177.1`;
-- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.163.0`;
+- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.165.0`;
 - `foldkit-richtext-dom` → `foldkit-bundle`.
 
 Regular `dependencies` between workspace packages, declared as `workspace:*`
@@ -110,5 +110,5 @@ and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-en
 `foldkit-builder` depends on `foldkit-bundle`, `foldkit-composition`, `foldkit-form` and `foldkit-primitives`; `foldkit-mixins-builder` depends on `foldkit-builder`, `foldkit-composition`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-mixins` and `foldkit-primitives`; `foldkit-composition` depends on `foldkit-metadata`, with `foldkit`, `foldkit-richtext`, `foldkit-mixins`, and `foldkit-remote` with `foldkit-surface`, as optional peers for its `/foldkit`, `/richtext`, `/appearance`, `/remote` and `/surface` subpaths; `foldkit-ssr` depends on `foldkit-surface`; `foldkit-richtext-dom` depends on
 `foldkit-richtext`; `foldkit-mixins-richtext` depends on `foldkit-mixins`,
 `foldkit-richtext` and `foldkit-richtext-dom`.
-`foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.116` and requires
-Node 22 (`engines.node`).
+`foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0` and requires
+Node 22.16 or newer, the floor that release sets (`engines.node`).

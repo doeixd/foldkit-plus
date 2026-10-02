@@ -561,7 +561,7 @@ cannot infer `Model` from an `available` callback alone, so `available: model =>
 it when there is no application. `Agent.make` is still there when the Model does
 not matter.
 
-**Effect 4, not 3.** Foldkit `0.158.2` peer-depends on `effect@4.0.0-rc.112`, so
+**Effect 4, not 3.** Foldkit `0.165.0` peer-depends on `effect@4.0.0`, so
 snippets written against Effect 3 need translating: `Schema.OptionFromSelf` is
 `Schema.Option` here.
 
