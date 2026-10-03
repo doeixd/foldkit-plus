@@ -7,9 +7,11 @@ import { Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import {
   type CellAddress,
+  type CellRange,
   Columns,
   DataGrid,
   GridFocus,
+  GridSelection,
   RowCount,
   RowModel,
   type Viewport,
@@ -53,9 +55,9 @@ const input = (
   current: Option.Option<CellAddress<Id>> = Option.none(),
 ): GridInput<Item, Id, GridMessage, GridMessage> => ({
   state: {
-    focus: { current },
+    ...Grid.bundle.init(undefined).model,
+    focus: { current: current },
     viewport: { top: 0, left: 0, width: 400, height: 120, ...viewport },
-    columns: Grid.columnState.initial(),
   },
   rows: allRows,
   wrap: message => message,
@@ -159,9 +161,9 @@ describe('DataGridView', () => {
     const EndView = DataGridView<typeof EndGrid.Message.Type>().define(EndGrid)
     const drawn = Inert.draw(EndView, {
       state: {
+        ...EndGrid.bundle.init(undefined).model,
         focus: { current: Option.none() },
         viewport: { top: 0, left: 0, width: 400, height: 60 },
-        columns: EndGrid.columnState.initial(),
       },
       rows: allRows,
       wrap: message => message,
@@ -192,9 +194,9 @@ describe('DataGridView', () => {
     const drawWith = (current: Option.Option<CellAddress<WideId>>) =>
       Inert.draw(WideView, {
         state: {
-          focus: { current },
+          ...WideGrid.bundle.init(undefined).model,
+          focus: { current: current },
           viewport: { top: 0, left: 250, width: 280, height: 60 },
-          columns: WideGrid.columnState.initial(),
         },
         rows: allRows,
         wrap: message => message,
@@ -261,9 +263,9 @@ describe('DataGridView', () => {
     const FixedView = DataGridView<typeof FixedGrid.Message.Type>().define(FixedGrid)
     const drawn = Inert.draw(FixedView, {
       state: {
+        ...FixedGrid.bundle.init(undefined).model,
         focus: { current: Option.none() },
         viewport: { top: 0, left: 0, width: 400, height: 60 },
-        columns: FixedGrid.columnState.initial(),
       },
       rows: allRows,
       wrap: message => message,
@@ -274,6 +276,69 @@ describe('DataGridView', () => {
     const handles = Inert.byRole(drawn, 'separator')
     expect(handles.map(handle => Inert.value(handle, 'aria-label'))).toEqual(['Resize Name'])
     expect(Inert.value(handles[0], 'aria-valuemax')).toBe('300')
+  })
+
+  test('a grid that does not select says no selected state', () => {
+    const drawn = draw(input())
+    expect(Inert.value(Inert.byRole(drawn, 'grid')[0], 'aria-multiselectable')).toBeUndefined()
+    expect(rowsOf(drawn).map(row => Inert.value(row, 'aria-selected'))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ])
+    expect(Inert.value(Inert.byRole(drawn, 'gridcell')[0], 'aria-selected')).toBeUndefined()
+  })
+
+  test('says which rows and cells are selected', () => {
+    const Picking = DataGrid.make({
+      id: 'picking',
+      columns,
+      rowSelection: 'multiple',
+      cellSelection: true,
+    })
+    const PickingView = DataGridView<typeof Picking.Message.Type>().define(Picking)
+    const start = Picking.bundle.init(undefined).model
+    const drawn = Inert.draw(PickingView, {
+      state: {
+        ...start,
+        viewport: { top: 0, left: 0, width: 400, height: 120 },
+        selection: {
+          ...start.selection,
+          rows: GridSelection.add(start.selection.rows, ['r1', 'r3']),
+          cells: Option.some<CellRange<Id>>({
+            anchor: { row: 'r0', column: 'name' },
+            focus: { row: 'r1', column: 'qty' },
+          }),
+        },
+      },
+      rows: allRows,
+      wrap: message => message,
+      label: 'Picking',
+      rowHeight: 20,
+      headerHeight: 20,
+    })
+    expect(Inert.value(Inert.byRole(drawn, 'grid')[0], 'aria-multiselectable')).toBe('true')
+    expect(rowsOf(drawn).map(row => Inert.value(row, 'aria-selected'))).toEqual([
+      'false',
+      'true',
+      'false',
+      'true',
+      'false',
+    ])
+    // The range spans rows r0 and r1, columns Name and Qty.
+    const selectedCells = Inert.byRole(drawn, 'gridcell').filter(
+      cell => Inert.value(cell, 'aria-selected') === 'true',
+    )
+    expect(selectedCells.map(cell => Inert.value(cell, 'id'))).toEqual([
+      GridFocus.cellId('picking', { row: 'r0', column: 'name' }),
+      GridFocus.cellId('picking', { row: 'r0', column: 'qty' }),
+      GridFocus.cellId('picking', { row: 'r1', column: 'name' }),
+      GridFocus.cellId('picking', { row: 'r1', column: 'qty' }),
+    ])
+    const [first] = Inert.byRole(drawn, 'gridcell')
+    expect(Inert.value(first, 'aria-selected')).toBe('false')
   })
 
   test('counts an open-ended result as unknown', () => {

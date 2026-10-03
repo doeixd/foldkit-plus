@@ -126,6 +126,15 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   arrow keys, its
   own keys only, so the grid's focus stays put. Handles are out of the tab
   order, so the grid stays one tab stop.
+- **Selection**, when the grid has it: rows say `aria-selected` with
+  `rowSelection`, cells in the range say it with `cellSelection`, and the
+  grid is `aria-multiselectable` for either kind of several. The pointer
+  goes through one listener on the body: a click focuses a cell, Shift with
+  a click spans a range from the focused cell, and Ctrl or Meta with a
+  click toggles the cell's row. On the keyboard, Shift with an arrow, a page,
+  Home or End moves a range's far corner (scrolling it into view), Space
+  selects the focused row and Shift+Space extends the rows to it, Ctrl or
+  Meta with A selects every row (or every cell), and Escape lets a range go.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.
@@ -141,6 +150,11 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
 ## Limits
 
 - Every row is one height.
+- A Shift click over rows does not extend a row range yet: the click's
+  Message carries the cell, not the rows between, and the grid's update
+  holds no row order. Shift+Space does it from the keyboard.
+- Keys read the state the last render drew, so two keys inside one frame
+  both start from the same cell, as `GridNavigation`'s do.
 - A keyboard user cannot reach a resize handle yet: it is out of the tab
   order, and the grid has no key that resizes or reorders the focused
   column. Reordering, hiding and pinning have no built-in control either;

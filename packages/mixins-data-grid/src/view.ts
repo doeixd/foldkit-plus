@@ -10,7 +10,9 @@ import {
   type DataGridOf,
   type Direction,
   GridFocus,
+  GridSelection,
   GridViewport,
+  type RowSelection,
   RowCount,
   type RowModel,
   type Viewport,
@@ -18,6 +20,7 @@ import {
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
+import { CellPress } from './press.js'
 import { GridSlots } from './slots.js'
 
 export interface GridWords {
@@ -32,6 +35,14 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
     readonly focus: { readonly current: Option.Option<CellAddress<Id>> }
     readonly viewport: Viewport
     readonly columns: ColumnState<Id>
+    readonly selection: {
+      readonly rows: RowSelection
+      readonly anchor: Option.Option<string>
+      readonly cells: Option.Option<{
+        readonly anchor: CellAddress<Id>
+        readonly focus: CellAddress<Id>
+      }>
+    }
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
   readonly rows: RowModel<Row>
@@ -147,7 +158,69 @@ const view = <Message>() => ({
           })
         const activeDescendant = Option.filter(stop, isDrawn)
 
-        const onKey = (key: string, modifiers: KeyboardModifiers) =>
+        const revealOf = (address: CellAddress<Id>) =>
+          Option.flatMap(projection.positionOf(address), position =>
+            VirtualGrid.reveal({ projection, rowHeight, width, headerHeight, viewport, position }),
+          )
+        const selection = state.selection
+        const isSelectedRow = GridSelection.isSelected(selection.rows)
+        const range = Option.flatMap(selection.cells, cells =>
+          GridSelection.boxOf(projection, cells),
+        )
+        const rangeColumns = Option.map(range, box => new Set<string>(box.columns))
+
+        // A selection key, when the grid selects: Shift with a move for a range,
+        // Space for the focused row, Ctrl or Meta with A for everything, Escape
+        // to let a range go. None leaves the key to focus.
+        const selectionKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> => {
+          const toggle = modifiers.ctrlKey || modifiers.metaKey
+          if (key === 'Escape' && Option.isSome(selection.cells)) {
+            return Option.some(grid.Message.CellsCleared())
+          }
+          if ((key === 'a' || key === 'A') && toggle && !modifiers.shiftKey && !modifiers.altKey) {
+            if (grid.rowSelection === 'multiple') return Option.some(grid.Message.AllRowsSelected())
+            if (grid.cellSelection) {
+              return Option.zipWith(projection.first(), projection.last(), (anchor, far) =>
+                grid.Message.CellsSelected({ anchor, focus: far, reveal: Option.none() }),
+              )
+            }
+            return Option.none()
+          }
+          if (key === ' ' && !toggle && !modifiers.altKey && grid.rowSelection !== undefined) {
+            return Option.map(stop, current => {
+              if (!modifiers.shiftKey || grid.rowSelection !== 'multiple') {
+                return grid.Message.RowSelected({ row: current.row })
+              }
+              const from = Option.getOrElse(selection.anchor, () => current.row)
+              return grid.Message.RowsExtended({
+                rows: GridSelection.rowsBetween(projection, from, current.row),
+                to: current.row,
+              })
+            })
+          }
+          if (!grid.cellSelection) return Option.none()
+          return Option.map(
+            GridSelection.extend(projection, {
+              range: selection.cells,
+              current: stop,
+              key,
+              modifiers,
+              pageRows,
+              ...(input.direction === undefined ? {} : { direction: input.direction }),
+            }),
+            extended =>
+              grid.Message.CellsSelected({
+                anchor: extended.anchor,
+                focus: extended.focus,
+                reveal: revealOf(extended.focus),
+              }),
+          )
+        }
+
+        const focusKey = (key: string, modifiers: KeyboardModifiers) =>
           Option.map(
             GridFocus.target(projection, {
               current: state.focus.current,
@@ -156,23 +229,24 @@ const view = <Message>() => ({
               pageRows,
               ...(input.direction === undefined ? {} : { direction: input.direction }),
             }),
-            address =>
-              input.wrap(
-                grid.Message.Moved({
-                  address,
-                  reveal: Option.flatMap(projection.positionOf(address), position =>
-                    VirtualGrid.reveal({
-                      projection,
-                      rowHeight,
-                      width,
-                      headerHeight,
-                      viewport,
-                      position,
-                    }),
-                  ),
-                }),
-              ),
+            address => grid.Message.Moved({ address, reveal: revealOf(address) }),
           )
+
+        const onKey = (key: string, modifiers: KeyboardModifiers) =>
+          Option.map(
+            Option.orElse(selectionKey(key, modifiers), () => focusKey(key, modifiers)),
+            input.wrap,
+          )
+
+        const pressed = Mount.mapMessage(CellPress(), click =>
+          input.wrap(
+            grid.Message.CellPressed({
+              cell: click.cell,
+              shiftKey: click.shiftKey,
+              toggleKey: click.toggleKey,
+            }),
+          ),
+        )
 
         const measured = Mount.mapMessage(GridViewport.Measure(), reading =>
           input.wrap(
@@ -291,6 +365,9 @@ const view = <Message>() => ({
                     h.Key(key),
                     h.Role('row'),
                     h.AriaRowindex(index + 2),
+                    ...(grid.rowSelection === undefined
+                      ? []
+                      : [h.AriaSelected(isSelectedRow(key))]),
                     h.Style({ display: 'flex', height: px(rowHeight), width: px(shown.width) }),
                   ]),
                   across(id => {
@@ -299,13 +376,18 @@ const view = <Message>() => ({
                       stop,
                       current => current.row === key && current.column === id,
                     )
+                    const inRange = Option.exists(
+                      Option.zipWith(range, rangeColumns, (box, ids) => ({ box, ids })),
+                      ({ box, ids }) =>
+                        index >= box.rows.start && index < box.rows.end && ids.has(id),
+                    )
                     return h.div(
                       slots.cell.attrs([
                         h.Role('gridcell'),
                         h.Id(GridFocus.cellId(grid.id, address)),
                         h.AriaColindex(indexOf.get(id)! + 1),
                         h.Style(cellStyle(id)),
-                        h.OnMouseDown(input.wrap(grid.Message.Focused({ address }))),
+                        ...(grid.cellSelection ? [h.AriaSelected(inRange)] : []),
                         ...(focused ? [h.DataAttribute('focused', 'true')] : []),
                         ...Option.match(pinned(id), {
                           onNone: () => [],
@@ -332,6 +414,9 @@ const view = <Message>() => ({
             h.Tabindex(0),
             h.AriaRowcount(rowCount),
             h.AriaColcount(projection.columns.length),
+            ...(grid.rowSelection === 'multiple' || grid.cellSelection
+              ? [h.AriaMultiSelectable(true)]
+              : []),
             ...Option.match(activeDescendant, {
               onNone: () => [],
               onSome: address => [h.AriaActiveDescendant(GridFocus.cellId(grid.id, address))],
@@ -358,6 +443,8 @@ const view = <Message>() => ({
             h.div(
               slots.body.attrs([
                 h.Role('rowgroup'),
+                // One listener for every cell's clicks, with their modifier keys.
+                h.OnMount(pressed),
                 h.Style({ height: px(shown.height - headerHeight), width: px(shown.width) }),
               ]),
               empty

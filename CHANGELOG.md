@@ -68,6 +68,16 @@ version changed; `pnpm` skips versions already in the registry.
   cells is held by its corners (`CellsSelected`, `CellsCleared`); a plain
   click or key lets it go. `GridSelection.extend` is the range a Shift key
   makes and `rowsBetween` a Shift range of rows.
+- **`foldkit-mixins-data-grid`, selection drawn and driven.** Rows say
+  `aria-selected` and cells in the range say it; the grid is
+  `aria-multiselectable`. One click listener on the body (`CellPressed`,
+  parsed and checked in the grid's update) focuses a cell, spans a range
+  with Shift and toggles a row with Ctrl or Meta. Shift with a move extends
+  a range and scrolls its far corner in, Space and Shift+Space select rows,
+  Ctrl or Meta with A selects all, and Escape lets a range go. The per-cell
+  `mousedown` handlers are gone.
+- **`foldkit-data-grid`, `GridFocus.cellOf`** reads a cell id back into an
+  address; an id from another grid, or with a malformed escape, is none.
 - **`foldkit-data-grid`, `Columns.define` written inline keeps its row type.**
   Inside `DataGrid.make({ columns: Columns.define<Row>()({...}) })` every
   `row` was `unknown`; the return type is `NoInfer` now.

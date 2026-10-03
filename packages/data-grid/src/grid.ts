@@ -85,8 +85,22 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     RowsExtended: { rows: Schema.Array(Schema.String), to: Schema.String },
     AllRowsSelected: {},
     RowsCleared: {},
-    /** A rectangle of cells, from Shift with a key or the pointer. */
-    CellsSelected: { anchor: focus.Address, focus: focus.Address },
+    /**
+     * A rectangle of cells, from Shift with a key. `reveal` scrolls its far
+     * corner into view, as `Moved`'s does for a focused cell.
+     */
+    CellsSelected: {
+      anchor: focus.Address,
+      focus: focus.Address,
+      reveal: Schema.OptionFromNullOr(Offsets),
+    },
+    /**
+     * The pointer pressed the cell whose DOM id is `cell` (`GridFocus.cellId`).
+     * With Shift it spans a range from the focused cell, with Ctrl or Meta it
+     * toggles the cell's row, and plainly it focuses the cell. The id comes
+     * from the page, so one that is not this grid's cell changes nothing.
+     */
+    CellPressed: { cell: Schema.String, shiftKey: Schema.Boolean, toggleKey: Schema.Boolean },
     CellsCleared: {},
   })
   type Message = typeof Message.Type
@@ -113,6 +127,43 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     Option.isNone(model.selection.cells)
       ? model
       : selectionBy(model, { ...model.selection, cells: Option.none() })
+  type Address = typeof focus.Address.Type
+  const isColumn = (column: string): column is keyof Specs & string =>
+    Object.hasOwn(options.columns.byId, column)
+  /** The address of one of this grid's cells, from its DOM id. */
+  const addressOf = (cell: string): Option.Option<Address> =>
+    Option.flatMap(GridFocus.cellOf(options.id, cell), ({ row, column }) =>
+      isColumn(column) ? Option.some({ row, column }) : Option.none(),
+    )
+  const pressed = (
+    model: Model,
+    address: Address,
+    shiftKey: boolean,
+    toggleKey: boolean,
+  ): Return => {
+    if (shiftKey && options.cellSelection === true) {
+      // The range runs from where it began, or from the focused cell, which stays focused.
+      const anchor = Option.getOrElse(
+        Option.orElse(
+          Option.map(model.selection.cells, cells => cells.anchor),
+          () => model.focus.current,
+        ),
+        () => address,
+      )
+      return {
+        model: selectionBy(model, {
+          ...model.selection,
+          cells: Option.some({ anchor, focus: address }),
+        }),
+      }
+    }
+    const focused = clearCells(focusTo(model, address))
+    if (toggleKey && options.rowSelection !== undefined) {
+      return { model: selectionBy(focused, choose(focused.selection, address.row)) }
+    }
+    return { model: focused }
+  }
+
   // Single mode replaces, as a radio group does; RowsCleared empties it.
   const choose = (selection: Selection, row: string): Selection => {
     if (options.rowSelection === 'single') {
@@ -226,15 +277,25 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
                   }),
           }
         },
-        CellsSelected: ({ anchor, focus: far }): Return => ({
-          model:
-            options.cellSelection === true
-              ? selectionBy(model, {
+        CellsSelected: ({ anchor, focus: far, reveal }): Return =>
+          options.cellSelection === true
+            ? {
+                model: selectionBy(model, {
                   ...model.selection,
                   cells: Option.some({ anchor, focus: far }),
-                })
-              : model,
-        }),
+                }),
+                commands: Option.match(reveal, {
+                  onNone: () => [],
+                  onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
+                }),
+              }
+            : { model },
+        CellPressed: ({ cell, shiftKey, toggleKey }): Return =>
+          Option.match(addressOf(cell), {
+            onNone: () => ({ model }),
+            onSome: address => pressed(model, address, shiftKey, toggleKey),
+          }),
+
         CellsCleared: (): Return => ({ model: clearCells(model) }),
         ResizeEnded: ({ completed }): Return => ({
           model: Option.match(model.resizing, {
@@ -274,6 +335,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   return {
     id: options.id,
     columns: options.columns,
+    rowSelection: options.rowSelection,
+    cellSelection: options.cellSelection === true,
     focus,
     columnState,
     project,

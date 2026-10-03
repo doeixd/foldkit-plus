@@ -97,6 +97,8 @@ the whole wiring, compiled.
 - Selection is opt-in: `DataGrid.make({ ..., rowSelection: 'multiple',
   cellSelection: true })`. Ask `GridSelection.isSelected(model.grid.selection.rows)`
   once per render; select-all is `AllExcept`, so it holds rows not loaded.
+  The view handles the clicks and keys (Shift ranges, Space, Ctrl+A, Escape);
+  a Shift click over rows does not extend a row range, Shift+Space does.
 - Resizable columns get a drag handle (`resizeHandle`, a `role="separator"`);
   it is out of the tab order, so keyboard resizing needs the application's
   own control sending `ColumnResized`.

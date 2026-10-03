@@ -147,7 +147,7 @@ test('the keyboard moves the active descendant and scrolls a move off screen int
 
     document
       .getElementById(cell('r4', 'id'))!
-      .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() =>
       expect(grid().getAttribute('aria-activedescendant')).toBe(cell('r4', 'id')),
     )

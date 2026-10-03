@@ -83,6 +83,24 @@ const target = <Row, Id extends string>(
 const cellId = <Id extends string>(grid: string, address: CellAddress<Id>): string =>
   [grid, address.row, address.column].map(encodeURIComponent).join(':')
 
+const decode = Option.liftThrowable(decodeURIComponent)
+
+/**
+ * The address a `cellId` names, if it is one of this grid's: its row key and
+ * its column id as written, for the grid's columns to check. An id from
+ * another grid, or with a malformed escape, is none.
+ */
+const cellOf = (
+  grid: string,
+  id: string,
+): Option.Option<{ readonly row: string; readonly column: string }> => {
+  const parts = id.split(':')
+  if (parts.length !== 3) return Option.none()
+  return Option.flatMap(Option.all(parts.map(part => decode(part))), ([owner, row, column]) =>
+    owner === grid ? Option.some({ row: row!, column: column! }) : Option.none(),
+  )
+}
+
 /**
  * Focus for one grid: which cell is current, by identity. Make it once per
  * grid from its columns, so a focus saved in the Model decodes only against
@@ -113,4 +131,4 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
   return { Address, Model, Message, bundle }
 }
 
-export const GridFocus = { make, target, tabStop, cellId }
+export const GridFocus = { make, target, tabStop, cellId, cellOf }

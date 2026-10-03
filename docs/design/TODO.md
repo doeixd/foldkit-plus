@@ -486,7 +486,10 @@ are built. Each phase lists its deliverables and acceptance there.
   keyboard route to resize, reorder, hide and pin needs a decision (the
   design's "Phase 4 as built so far").
 - [ ] **Phase 5, selection:** rows (adapt `Selection` or replace it; it holds
-  every id in an array) and a rectangular `CellSelection`.
+  every id in an array) and a rectangular `CellSelection`. Built 2026-10-03:
+  `RowSelection` (`Keys` or `AllExcept`), one cell range, the clicks and keys
+  that drive them and their ARIA. Open: a Shift click over rows as a range,
+  and multi-range; see the design's "Phase 5 as built so far".
 - [ ] **Phase 6, editing:** `Editing.bundle` and the `Editor` contract; a
   commit leaves the grid as the application's Message.
 - [ ] **Phase 7, CRUD and Remote:** columns from an Entity Selection, a

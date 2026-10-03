@@ -235,6 +235,23 @@ describe('GridFocus.tabStop', () => {
   })
 })
 
+describe('GridFocus.cellOf', () => {
+  test('reads back the address a cell id names', () => {
+    const address = { row: 'a:b c', column: 'price' }
+    expect(GridFocus.cellOf('grid', GridFocus.cellId('grid', address))).toEqual(
+      Option.some(address),
+    )
+  })
+
+  test.each([
+    ['another grid’s cell', GridFocus.cellId('other', { row: 'a', column: 'b' })],
+    ['an id that is not a cell’s', 'grid:a'],
+    ['a malformed escape', 'grid:%E0%A4%A:b'],
+  ])('is none for %s', (_, id) => {
+    expect(GridFocus.cellOf('grid', id)).toEqual(Option.none())
+  })
+})
+
 describe('GridFocus.cellId', () => {
   test('no two cells share an id, whatever their keys hold', () => {
     const ids = [

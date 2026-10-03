@@ -203,6 +203,18 @@ from §8:
 - **Single mode replaces,** as a radio group does; `RowsCleared` empties it.
 - **Opt-in by option,** not `.with({...})`: `rowSelection` and
   `cellSelection` on `DataGrid.make`; without them the Messages are no-ops.
+- **The pointer is one delegated listener** (`CellPress` on the body, per
+  §24), because Foldkit's mouse builders carry no modifier keys. It reports
+  the cell's DOM id and the update parses and checks it, so the mapping
+  holds no state: a Mount reads its args once, and a mapping that closed
+  over the projection would read the first render's rows forever.
+- **So a Shift click over rows is not a row range.** The rows between the
+  anchor and the click need the row order, which the update does not have;
+  Shift+Space, from the root's key handler (bound fresh each render), does
+  it. Carrying the order into the Model, or a range resolved at read time,
+  is the open choice.
+- **A key reads the last render's state,** as `GridNavigation`'s do: two keys
+  inside one frame start from the same cell.
 
 ## Phase 4 as built so far (2026-10-03)
 

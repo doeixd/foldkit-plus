@@ -1,9 +1,17 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Columns, DataGrid, GridSelection, RowModel, RowSelection } from 'foldkit-data-grid'
+import {
+  type CellAddress,
+  Columns,
+  DataGrid,
+  GridFocus,
+  GridSelection,
+  RowModel,
+  RowSelection,
+} from 'foldkit-data-grid'
 import { describe, expect, test } from 'vitest'
-import { at, columns, productKey, products } from './fixture.js'
+import { type Id, at, columns, productKey, products } from './fixture.js'
 
 const Grid = DataGrid.make({ id: 'products', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
@@ -195,6 +203,7 @@ describe('DataGrid', () => {
   })
 })
 
+const cellOf = (address: CellAddress<Id>) => GridFocus.cellId('selecting', address)
 const Selecting = DataGrid.make({
   id: 'selecting',
   columns,
@@ -287,7 +296,11 @@ describe('DataGrid selection', () => {
   test('a cell range holds its corners, and a plain click or key lets it go', () => {
     const range = send(
       fresh,
-      Selecting.Message.CellsSelected({ anchor: at('p:10', 'sku'), focus: at('p:1', 'price') }),
+      Selecting.Message.CellsSelected({
+        anchor: at('p:10', 'sku'),
+        focus: at('p:1', 'price'),
+        reveal: Option.none(),
+      }),
     )
     expect(range.selection.cells).toEqual(
       Option.some({ anchor: at('p:10', 'sku'), focus: at('p:1', 'price') }),
@@ -301,6 +314,91 @@ describe('DataGrid selection', () => {
     ).toEqual(Option.none())
   })
 
+  test('a Shift press spans a range from the focused cell, which stays focused', () => {
+    const focused = send(fresh, Selecting.Message.Focused({ address: at('p:10', 'sku') }))
+    const pressed = Selecting.Message.CellPressed({
+      cell: cellOf(at('p:1', 'price')),
+      shiftKey: true,
+      toggleKey: false,
+    })
+    const ranged = send(focused, pressed)
+    expect(ranged.selection.cells).toEqual(
+      Option.some({ anchor: at('p:10', 'sku'), focus: at('p:1', 'price') }),
+    )
+    expect(ranged.focus.current).toEqual(Option.some(at('p:10', 'sku')))
+    // A second Shift press moves the far corner and keeps the near one.
+    const again = send(
+      ranged,
+      Selecting.Message.CellPressed({
+        cell: cellOf(at('p:100', 'name')),
+        shiftKey: true,
+        toggleKey: false,
+      }),
+    )
+    expect(again.selection.cells).toEqual(
+      Option.some({ anchor: at('p:10', 'sku'), focus: at('p:100', 'name') }),
+    )
+  })
+
+  test('a Ctrl or Meta press toggles the row and focuses the cell', () => {
+    const toggle = (model: typeof fresh, row: string) =>
+      send(
+        model,
+        Selecting.Message.CellPressed({
+          cell: cellOf(at(row, 'sku')),
+          shiftKey: false,
+          toggleKey: true,
+        }),
+      )
+    const one = toggle(fresh, 'p:1')
+    expect(selected(one)).toEqual(['p:1'])
+    expect(one.focus.current).toEqual(Option.some(at('p:1', 'sku')))
+    expect(selected(toggle(toggle(one, 'p:100'), 'p:1'))).toEqual(['p:100'])
+  })
+
+  test('a plain press focuses the cell and lets a range go', () => {
+    const ranged = send(
+      fresh,
+      Selecting.Message.CellsSelected({
+        anchor: at('p:10', 'sku'),
+        focus: at('p:1', 'price'),
+        reveal: Option.none(),
+      }),
+    )
+    const pressed = send(
+      ranged,
+      Selecting.Message.CellPressed({
+        cell: cellOf(at('p:100', 'sku')),
+        shiftKey: false,
+        toggleKey: false,
+      }),
+    )
+    expect(pressed.focus.current).toEqual(Option.some(at('p:100', 'sku')))
+    expect(pressed.selection.cells).toEqual(Option.none())
+    expect(selected(pressed)).toEqual([])
+  })
+
+  test('a range whose far corner is off screen scrolls it in', () => {
+    const next = Selecting.bundle.update(
+      fresh,
+      Selecting.Message.CellsSelected({
+        anchor: at('p:10', 'sku'),
+        focus: at('p:100', 'sku'),
+        reveal: Option.some({ top: 80, left: 0 }),
+      }),
+      undefined,
+    )
+    expect(next.commands?.[0]?.args).toEqual({ viewportId: 'selecting', top: 80, left: 0 })
+  })
+
+  test('a press on an element that is not one of this grid’s cells changes nothing', () => {
+    const press = (cell: string) =>
+      send(fresh, Selecting.Message.CellPressed({ cell, shiftKey: false, toggleKey: false }))
+    expect(press(GridFocus.cellId('other', at('p:1', 'sku')))).toBe(fresh)
+    expect(press(GridFocus.cellId('selecting', { row: 'p:1', column: 'constructor' }))).toBe(fresh)
+    expect(press('selecting')).toBe(fresh)
+  })
+
   test('without the option, selection Messages change nothing', () => {
     const plain = Grid.bundle.init(undefined).model
     const update = (message: typeof Grid.Message.Type) =>
@@ -308,7 +406,13 @@ describe('DataGrid selection', () => {
     expect(update(Grid.Message.RowSelected({ row: 'p:1' }))).toBe(plain)
     expect(update(Grid.Message.AllRowsSelected())).toBe(plain)
     expect(
-      update(Grid.Message.CellsSelected({ anchor: at('p:1', 'sku'), focus: at('p:1', 'sku') })),
+      update(
+        Grid.Message.CellsSelected({
+          anchor: at('p:1', 'sku'),
+          focus: at('p:1', 'sku'),
+          reveal: Option.none(),
+        }),
+      ),
     ).toBe(plain)
   })
 })
