@@ -15,8 +15,14 @@ version changed; `pnpm` skips versions already in the registry.
   saveable `ColumnLayout` of start, center and end regions with hidden
   columns, and a `GridProjection` that answers moves, edges and rectangular
   ranges in display order, each as an `Option`. A cell is named by row key
-  and column id, so it survives a re-sort or a reorder. Nothing renders or
-  holds state yet.
+  and column id, so it survives a re-sort or a reorder.
+- **`foldkit-data-grid`, focus (Phase 1).** `GridFocus.make(columns)` is a
+  Bundle holding the focused cell as an `Option`, stored as `null`, and
+  decoded only against the grid's own column ids. `GridFocus.target` is the
+  cell a key moves to (arrows, Home and End, Ctrl for the corners, PageUp and
+  PageDown, RTL), `tabStop` the cell holding the one tab stop, and `cellId` a
+  DOM id for `aria-activedescendant` that no two cells share. Nothing renders
+  yet.
 
 ## 0.14.0
 

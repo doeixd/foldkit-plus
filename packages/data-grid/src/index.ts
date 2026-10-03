@@ -1,8 +1,9 @@
 export { Columns, type Column, type ColumnId, type ColumnSpec } from './columns.js'
+export { GridFocus, type Direction, type KeyOptions } from './focus.js'
 export { ColumnLayout } from './layout.js'
 export {
   GridProjection,
-  type CellAddress,
+  CellAddress,
   type CellBox,
   type CellOffset,
   type CellPosition,

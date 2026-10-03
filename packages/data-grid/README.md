@@ -5,10 +5,10 @@ where a move or a range lands. It is pure geometry over rows the application
 supplies, so focus, selection, virtualization and the clipboard all ask one
 value instead of reading positions from the DOM.
 
-> **Status:** private, `0.0.0`. This is Phase 0 of
-> [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the pure model.
-> Focus, selection, column state, editing, virtualization and the view come in
-> later phases. Nothing here renders or holds state yet.
+> **Status:** private, `0.0.0`. Phases 0 and 1 of
+> [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the pure model,
+> and focus as a Bundle. Selection, column state, editing, virtualization and
+> the view come in later phases. Nothing here renders yet.
 
 ## Who owns what
 
@@ -109,6 +109,50 @@ row indexes `[start, end)` and the columns it covers.
 Every answer is an `Option`. A cell is absent when its column is hidden, its
 row is gone, or its row is counted but not loaded yet.
 
+## Focus
+
+Focus is the grid's first piece of state: which cell is current, held in the
+Model by identity. Make it once per grid, then place its Bundle like any
+other.
+
+```ts
+import { Option } from 'effect'
+import { GridFocus } from 'foldkit-data-grid'
+
+const Focus = GridFocus.make(columns)
+// Focus.bundle is placed with foldkit-bundle; Focus.Model holds
+// { current: Option<CellAddress> }, stored as null when nothing is focused.
+
+const next = GridFocus.target(grid, {
+  current: Option.some({ row: 'p1', column: 'sku' }),
+  key: 'ArrowDown',
+  modifiers: { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false },
+  pageRows: 10,
+})
+// Option.some({ row: 'p2', column: 'sku' }): dispatch Focus.Message.Focused with it
+```
+
+- **`GridFocus.make(columns)`** builds the Bundle, its Model and its one
+  Message, `Focused`. The stored column is one of these columns' ids, so a
+  saved focus naming a removed column fails to decode. Focusing the focused
+  cell again returns the Model it was given.
+- **`GridFocus.target(projection, options)`** is the cell a key moves to:
+  arrows, Home and End (with Ctrl, the grid's corners), and PageUp and
+  PageDown by `pageRows`. Under `direction: 'rtl'` left and right swap. It
+  returns none for a key the grid leaves to the page, such as Enter, Tab, or
+  anything with Shift, Alt or Meta; a key it handles always lands somewhere,
+  staying put at an edge or before a row that has not loaded.
+- **`GridFocus.tabStop(projection, current)`** is the cell holding the grid's
+  one tab stop: the focused cell while it is shown, else the first cell. A
+  focused cell in a hidden column stays in the Model, so focus comes back
+  when the column does.
+- **`GridFocus.cellId(gridId, address)`** is a cell's DOM id, unique across
+  cells whatever their keys hold. The grid keeps DOM focus on its container
+  and points at the current cell with `aria-activedescendant`, so a cell can
+  scroll out of a virtual window without losing focus.
+
+The keyboard wiring onto the drawn grid arrives with the view in Phase 3.
+
 ## Row counts
 
 A `RowModel`'s `count` is a `RowCount`:
@@ -127,7 +171,7 @@ only the first place of an id named twice.
 
 ## Limits
 
-- No state or view yet: focus, selection, column state, editing, two-axis
-  virtualization and the accessible renderer are later phases of the design.
+- No view yet, and no state beyond focus: selection, column state, editing,
+  two-axis virtualization and the accessible renderer are later phases.
 - Rows have no variable heights and columns no widths yet; both arrive with
   virtualization.

@@ -1,8 +1,8 @@
 # foldkit-data-grid
 
-**In development, not published.** Phase 0 of the DataGrid design is built:
-the pure model. Focus, selection, column state, editing, virtualization and
-the view are later phases; nothing here renders or holds state yet.
+**In development, not published.** Phases 0 and 1 of the DataGrid design are
+built: the pure model, and focus as a Bundle. Selection, column state,
+editing, virtualization and the view are later phases; nothing here renders.
 
 ## What it owns
 
@@ -56,6 +56,12 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   across renders, or it re-indexes every time. It throws on a duplicate key.
 - A `ColumnLayout` is ids only: start, center and end regions plus a hidden
   list. A saved layout that omits a column gets it appended to the center.
+- Focus is `GridFocus.make(columns)`: a Bundle with one Message, `Focused`.
+  `GridFocus.target(projection, { current, key, modifiers, pageRows })` is
+  the cell a key moves to, or none for a key the grid leaves to the page
+  (Enter, Tab, anything with Shift, Alt or Meta). Dispatch `Focused` with it.
+- DOM focus stays on the grid's container; point at the current cell with
+  `aria-activedescendant` and `GridFocus.cellId(gridId, address)`.
 
 See also: [the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
 and [the DataGrid design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-grid-DESIGN.md).

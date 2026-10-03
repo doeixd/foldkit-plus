@@ -1720,6 +1720,10 @@ importers:
         version: 5.9.3
 
   packages/data-grid:
+    dependencies:
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
     devDependencies:
       effect:
         specifier: 4.0.0

@@ -7,8 +7,14 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-data-grid": ["./src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    {
+      "path": "../bundle/tsconfig.build.json"
+    }
+  ]
 }

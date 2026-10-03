@@ -5,6 +5,7 @@ import {
   type ColumnId,
   ColumnLayout,
   Columns,
+  GridFocus,
   GridProjection,
   RowModel,
 } from 'foldkit-data-grid'
@@ -73,3 +74,27 @@ const idOnly = Columns.define<{ readonly id: string }>()({
   id: { header: 'Id', value: row => row.id },
 })
 GridProjection.make({ rows, columns: idOnly, layout: ColumnLayout.initial(idOnly) })
+
+const Focus = GridFocus.make(columns)
+expectTypeOf<typeof Focus.Model.Type>().toEqualTypeOf<{
+  readonly current: Option.Option<{ readonly row: string; readonly column: 'sku' | 'price' }>
+}>()
+
+// @ts-expect-error a focused cell names a column the grid defines
+Focus.Message.Focused({ address: { row: 'p:1', column: 'name' } })
+
+GridFocus.target(projection, {
+  current: Option.none(),
+  key: 'ArrowDown',
+  modifiers: { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false },
+  // @ts-expect-error a direction is ltr or rtl
+  direction: 'up',
+  pageRows: 10,
+})
+
+// @ts-expect-error PageUp and PageDown need the rows a page shows
+GridFocus.target(projection, {
+  current: Option.none(),
+  key: 'ArrowDown',
+  modifiers: { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false },
+})

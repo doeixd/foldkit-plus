@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import type { Columns, ColumnSpec } from './columns.js'
 import type { ColumnLayout } from './layout.js'
 import { addressableRows, type RowCount, type RowModel } from './rows.js'
@@ -7,6 +7,17 @@ import { addressableRows, type RowCount, type RowModel } from './rows.js'
 export interface CellAddress<Id extends string> {
   readonly row: string
   readonly column: Id
+}
+
+export const CellAddress = {
+  /**
+   * An address as stored or sent: the row key as text, and the column as one
+   * of these columns' ids, so a saved address naming a removed column fails
+   * to decode instead of naming nothing.
+   */
+  schema: <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
+    columns: Columns<Row, Specs>,
+  ) => Schema.Struct({ row: Schema.String, column: Schema.Literals(columns.ids) }),
 }
 
 /** Where a cell is drawn now: its row index, and its column's index in display order. */

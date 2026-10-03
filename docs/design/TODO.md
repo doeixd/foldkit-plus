@@ -452,22 +452,26 @@ the steps land in the packages that own them.
 
 `foldkit-data-grid` and `foldkit-mixins-data-grid`, in the order of
 [data-grid-DESIGN.md](./data-grid-DESIGN.md) §21
-([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phase 0 is
-built. Each phase lists its deliverables and acceptance there.
+([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 and 1
+are built. Each phase lists its deliverables and acceptance there.
 
 - [x] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
   union, `RowKey`/`ColumnKey`, `CellAddress`, `CellRange`, `GridProjection`, a
   static array adapter, and table-driven tests of hide, order, pin and
   reorder geometry. Built 2026-10-03 as `foldkit-data-grid`, private; the
   design's "Phase 0 as built" records where it departs from the sketch.
-- [ ] **Phase 1, `GridFocus`:** keyed movement over the projection, one tab
+- [x] **Phase 1, `GridFocus`:** keyed movement over the projection, one tab
   stop, RTL, Home/End, Ctrl+Home/End, a PageUp/PageDown hook, and an
-  ensure-visible request.
+  ensure-visible request. Built 2026-10-03 as a Bundle and pure functions;
+  the key Behavior moves to Phase 3 and ensure-visible to Phase 2 (see the
+  design's "Phase 1 as built").
 - [ ] **Phase 2, `VirtualGrid`:** a fixed-height row axis and a
   controlled-width column axis, overscan, pinned columns outside the
   horizontal window, and benchmarks under `packages/*/bench`. Reuse
-  `Virtual`'s Mounts, not its keys array.
-- [ ] **Phase 3, the accessible view:** Slots, `role="grid"` with virtualized
+  `Virtual`'s Mounts, not its keys array. Revealing the focused cell when it
+  is outside the window lands here.
+- [ ] **Phase 3, the accessible view:** Slots, the focus Behavior (keys on
+  the container, `aria-activedescendant`), `role="grid"` with virtualized
   `aria-rowindex`/`aria-colindex`, an unknown row count, `aria-sort`, loading,
   empty and error states, a default Recipe.
 - [ ] **Phase 4, `ColumnState`:** widths with `Move`, visibility, order with

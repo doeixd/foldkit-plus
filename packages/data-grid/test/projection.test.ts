@@ -1,56 +1,18 @@
 import { Option } from 'effect'
 import { describe, expect, test } from 'vitest'
+import { type CellAddress, ColumnLayout, Columns, RowCount, RowModel } from 'foldkit-data-grid'
 import {
-  type CellAddress,
-  type ColumnId,
-  ColumnLayout,
-  Columns,
-  GridProjection,
-  RowCount,
-  RowModel,
-} from 'foldkit-data-grid'
-
-interface Product {
-  readonly id: string
-  readonly sku: string
-  readonly name: string
-  readonly price: number
-}
-
-// Ids agree up to a prefix, and the array is not in key order, so a lookup
-// by prefix or by position cannot pass for a lookup by key.
-const products: ReadonlyArray<Product> = [
-  { id: 'p:10', sku: 'B-2', name: 'Bolt', price: 2 },
-  { id: 'p:1', sku: 'A-1', name: 'Anchor', price: 9 },
-  { id: 'p:100', sku: 'C-3', name: 'Cable', price: 4 },
-]
-
-const productKey = (product: Product) => product.id
-
-// Definition order is not the order any test displays, so a projection that
-// ignored the layout would put the wrong column first.
-const columns = Columns.define<Product>()({
-  name: { header: 'Name', value: product => product.name },
-  sku: { header: 'SKU', value: product => product.sku },
-  price: { header: 'Price', value: product => product.price },
-  notes: { header: 'Notes', value: () => '' },
-})
-type Id = ColumnId<typeof columns>
-
-const rows = RowModel.fromArray(products, productKey)
-
-const layout = (overrides: Partial<ColumnLayout<Id>>): ColumnLayout<Id> => ({
-  start: [],
-  center: [],
-  end: [],
-  hidden: [],
-  ...overrides,
-})
-
-const project = (columnLayout: ColumnLayout<Id>, rowModel: RowModel<Product> = rows) =>
-  GridProjection.make({ rows: rowModel, columns, layout: columnLayout })
-
-const at = (row: string, column: Id): CellAddress<Id> => ({ row, column })
+  type Id,
+  type Product,
+  at,
+  columns,
+  layout,
+  moving,
+  productKey,
+  products,
+  project,
+  rows,
+} from './fixture.js'
 
 describe('RowModel.fromArray', () => {
   test('reads rows and keys by index, and indexes by key', () => {
@@ -209,11 +171,6 @@ describe('GridProjection columns', () => {
     expect(projection.columnIndex('price')).toEqual(Option.some(1))
   })
 })
-
-// Display order: sku | price, name (notes hidden between them) | nothing at the end.
-const moving = project(
-  layout({ start: ['sku'], center: ['price', 'notes', 'name'], hidden: ['notes'] }),
-)
 
 describe('GridProjection movement', () => {
   test.each<{

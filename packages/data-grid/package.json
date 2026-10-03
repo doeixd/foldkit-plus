@@ -39,6 +39,9 @@
     "build": "tsdown",
     "typecheck": "tsc -b"
   },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*"
+  },
   "peerDependencies": {
     "effect": "^4.0.0",
     "foldkit": "^0.165.0"

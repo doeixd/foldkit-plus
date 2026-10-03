@@ -1,7 +1,7 @@
 # DataGrid design
 
-**Status:** Phase 0 built as `foldkit-data-grid` (private, `0.0.0`); Phase 1,
-`GridFocus`, is next. Proposed in
+**Status:** Phases 0 and 1 built as `foldkit-data-grid` (private, `0.0.0`);
+Phase 2, `VirtualGrid`, is next. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -101,6 +101,29 @@ The pure model is `packages/data-grid`: `Columns`, `RowModel` with
 - **`Columns.define` refuses numeric ids and `__proto__`.** JavaScript
   enumerates integer keys first, which would reorder the columns, and a
   `__proto__` key sets the prototype, which would drop the column silently.
+
+## Phase 1 as built (2026-10-03)
+
+`GridFocus` in `packages/data-grid/src/focus.ts`. Where it departs from §7
+and §21's Phase 1:
+
+- **One Message, `Focused`.** The view works out the target with
+  `GridFocus.target` over the projection it already holds and dispatches the
+  address, as `GridNavigation` does; `Moved` would carry the same fact.
+  `RequestedFocus` waits for something to request it.
+- **`GridFocus.make(columns)`, one Bundle per grid.** The Model's column is
+  `Schema.Literals(columns.ids)`, so a focus saved before a column was
+  removed fails to decode instead of naming nothing.
+- **Active descendant, not roving tabindex.** DOM focus stays on the
+  container and `aria-activedescendant` names the current cell by
+  `GridFocus.cellId`. A cell scrolled out of a virtual window is removed from
+  the DOM; with roving tabindex the browser would drop focus to the body.
+- **A cell that disappears keeps its place in the Model.** `tabStop` moves to
+  the first cell while the focused column is hidden or its row is gone, and
+  focus returns when the cell does. Nothing is written for it.
+- **The Behavior and ensure-visible move.** Wiring keys onto Slots needs the
+  Slots, so it is built with the view in Phase 3; revealing a target outside
+  the window needs the window, so it is Phase 2's.
 
 ---
 
