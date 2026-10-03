@@ -57,26 +57,34 @@ export class RemoteClient extends Context.Service<
  * environment a handler needs; it defaults to `never`, which is what a real
  * transport client satisfies. `RemoteServer.handlers` returns this type with its
  * own `R`, so the two sides cannot drift apart.
+ *
+ * `TransportError` is what the transport itself may fail with on top of the
+ * declared errors: `RpcClientError` for the client `RpcClient.make` builds,
+ * `never` for in-process handlers.
  */
-export interface RemoteRpcClient<R = never> {
+export interface RemoteRpcClient<R = never, TransportError = never> {
   readonly FoldkitRemoteRead: (
     payload: Schema.Schema.Type<typeof ReadBatch>,
   ) => Effect.Effect<
     Schema.Schema.Type<typeof ReadBatchResult>,
-    RemoteReadError | RemoteProtocolError,
+    RemoteReadError | RemoteProtocolError | TransportError,
     R
   >
   readonly FoldkitRemoteQuery: (
     payload: Schema.Schema.Type<typeof QueryRequest>,
-  ) => Effect.Effect<Schema.Schema.Type<typeof QueryResult>, RemoteQueryError, R>
+  ) => Effect.Effect<Schema.Schema.Type<typeof QueryResult>, RemoteQueryError | TransportError, R>
   readonly FoldkitRemoteMutate: (
     payload: Schema.Schema.Type<typeof MutationRequest>,
-  ) => Effect.Effect<Schema.Schema.Type<typeof MutationResult>, RemoteMutationError, R>
+  ) => Effect.Effect<
+    Schema.Schema.Type<typeof MutationResult>,
+    RemoteMutationError | TransportError,
+    R
+  >
   readonly FoldkitRemoteLive: (
     payload: Schema.Schema.Type<typeof LiveRequirement>,
   ) => Stream.Stream<
     Schema.Schema.Type<typeof LiveChange>,
-    RemoteLiveError | RemoteProtocolError,
+    RemoteLiveError | RemoteProtocolError | TransportError,
     R
   >
 }

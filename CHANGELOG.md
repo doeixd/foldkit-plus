@@ -17,6 +17,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`, `Remote.clientLayer` with the stock `RpcClient`:** it
+  refused the client `RpcClient.make(RemoteRpc)` builds, whose calls can also
+  fail with `RpcClientError`, so every application wrote an adapter. It takes
+  that client as it is now, and a transport failure becomes the call's own
+  Remote error (`RemoteReadError`, `RemoteQueryError`, `RemoteMutationError`,
+  `RemoteLiveError`), which the UI shows and retries, rather than a defect.
+  `RemoteRpcClient` gained a `TransportError` parameter, `never` by default,
+  so in-process handlers are unchanged (#141).
 - **`foldkit-remote-server`, `RemoteServer.entity` with a related Entity:** it
   declared only the Entity's scalar `fields`, so a relation such as `owner`
   was settled as withheld and a nested selection through it returned nothing.

@@ -331,12 +331,27 @@ const clientLayer = RemoteServer.memory({
 }).layer
 ```
 
-With a server, adapt your configured Effect RPC client instead; the
+With a server, hand Remote the Effect RPC client for `RemoteRpc`; the
 [server guide](../remote-server/README.md) supplies the other side:
 
 ```ts
-const clientLayer = Remote.clientLayer(rpcClient)
+import { Effect, Layer } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
+import { RemoteRpc } from 'foldkit-remote'
+
+const clientLayer = Layer.unwrap(
+  Effect.map(RpcClient.make(RemoteRpc), rpcClient => Remote.clientLayer(rpcClient)),
+).pipe(
+  Layer.provide(RpcClient.layerProtocolHttp({ url: '/rpc' })),
+  Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
+)
 ```
+
+The stock client is accepted as it is. When its transport fails, the call
+fails with its own Remote error (`RemoteReadError`, `RemoteQueryError`,
+`RemoteMutationError`, `RemoteLiveError`), which the UI shows and retries like
+any other failure.
 
 Either is a Layer the runtime provides to `subscriptions` and Commands. The
 transport itself is not owned by Remote. See
@@ -1755,7 +1770,9 @@ The wire schemas (`ReadBatch`, `QueryRequest`, `MutationRequest`,
 `LiveRequirement`, results/errors) and the `RemoteRpc` group are exported.
 
 `Remote.clientLayer(rpcClient, { window? })` adapts an Effect RPC client,
-including live-change mapping. Compatible reads and queries coalesce:
+including live-change mapping. It takes the client `RpcClient.make(RemoteRpc)`
+builds, whose calls can also fail with `RpcClientError`; each such failure
+becomes the call's Remote error rather than a defect. Compatible reads and queries coalesce:
 requirements issued together become one `ReadBatch`, an identical in-flight
 requirement/query is joined, and a failed request releases the coalesced entry.
 A relation request with its own pagination window stays separate because one

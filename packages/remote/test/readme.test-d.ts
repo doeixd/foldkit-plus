@@ -3,7 +3,9 @@
  * documentation cannot drift from the API. `Route` and `rpcClient` stand in
  * for what an application supplies.
  */
-import { Schema, Option } from 'effect'
+import { Effect, Layer, Schema, Option } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { expectTypeOf } from 'vitest'
 import { Entity as DomainEntity, Expr, Order, type AnyQuery } from 'foldkit-entity'
 import { Bundle } from 'foldkit-bundle'
@@ -19,6 +21,7 @@ import {
   RemoteData,
   RemoteClient,
   RemotePolicy,
+  RemoteRpc,
   type LiveDependencies,
   type ReadDependencies,
   type RemoteRpcClient,
@@ -130,6 +133,15 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
 
 // 6. Provide the client
 const clientLayer = Remote.clientLayer(rpcClient)
+
+// …or the stock RpcClient over HTTP, handed over as it is.
+const httpClientLayer = Layer.unwrap(
+  Effect.map(RpcClient.make(RemoteRpc), rpcClient => Remote.clientLayer(rpcClient)),
+).pipe(
+  Layer.provide(RpcClient.layerProtocolHttp({ url: '/rpc' })),
+  Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
+)
+expectTypeOf(httpClientLayer).toEqualTypeOf<Layer.Layer<RemoteClient>>()
 
 void subscriptions
 void clientLayer

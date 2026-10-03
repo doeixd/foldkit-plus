@@ -9,6 +9,7 @@ import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
 import { Entity as DomainEntity, Query as Relational, SelectionTypeId } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
+import type { RpcClientError } from 'effect/rpc'
 import { mapMessage, type Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -113,6 +114,7 @@ import {
   REMOTE_PROTOCOL_VERSION,
   WindowSchema,
   RemoteLiveError,
+  RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
   RemoteReadError,
@@ -2103,10 +2105,13 @@ export const Remote = {
   /**
    * Adapts an Effect RPC client for `RemoteRpc` to `RemoteClient`, so an
    * application provides the transport's RPC layer instead of writing the
-   * `LiveChange`-to-`LiveEvent` mapping by hand.
+   * `LiveChange`-to-`LiveEvent` mapping by hand. The client `RpcClient.make`
+   * builds is accepted as it is: when its transport fails (`RpcClientError`),
+   * the call fails with its own Remote error, which the application shows and
+   * retries like any failed read, query, mutation or live stream.
    */
   clientLayer: <R = never>(
-    client: RemoteRpcClient<R>,
+    client: RemoteRpcClient<R, RpcClientError.RpcClientError>,
     options: CoalesceOptions = {},
   ): Layer.Layer<RemoteClient, never, R> =>
     coalescedLayer(
@@ -2117,15 +2122,37 @@ export const Remote = {
           // nothing under a transport) is supplied once, when the layer is built.
           const context = yield* Effect.context<R>()
           return {
-            read: batch => client.FoldkitRemoteRead(batch).pipe(Effect.provideContext(context)),
+            read: batch =>
+              client.FoldkitRemoteRead(batch).pipe(
+                Effect.catchTag('RpcClientError', error =>
+                  Effect.fail(new RemoteReadError({ message: error.message })),
+                ),
+                Effect.provideContext(context),
+              ),
             query: request =>
-              client.FoldkitRemoteQuery(request).pipe(Effect.provideContext(context)),
+              client.FoldkitRemoteQuery(request).pipe(
+                Effect.catchTag('RpcClientError', error =>
+                  Effect.fail(new RemoteQueryError({ message: error.message })),
+                ),
+                Effect.provideContext(context),
+              ),
             mutate: request =>
-              client.FoldkitRemoteMutate(request).pipe(Effect.provideContext(context)),
+              client.FoldkitRemoteMutate(request).pipe(
+                Effect.catchTag('RpcClientError', error =>
+                  Effect.fail(new RemoteMutationError({ message: error.message })),
+                ),
+                Effect.provideContext(context),
+              ),
             live: ({ requirements, after }) =>
               client
                 .FoldkitRemoteLive({ version: REMOTE_PROTOCOL_VERSION, requirements, after })
-                .pipe(Stream.map(liveEventOf), Stream.provideContext(context)),
+                .pipe(
+                  Stream.catchTag('RpcClientError', error =>
+                    Stream.fail(new RemoteLiveError({ message: error.message })),
+                  ),
+                  Stream.map(liveEventOf),
+                  Stream.provideContext(context),
+                ),
           }
         }),
       ),

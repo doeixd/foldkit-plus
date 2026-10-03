@@ -134,6 +134,8 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
 
 declare const rpcClient: RemoteRpcClient
 const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the runtime
+// rpcClient: what RpcClient.make(RemoteRpc) builds, as it is; a transport failure
+// (RpcClientError) becomes the call's Remote error, not a defect
 
 // One list instead of the four hand-wiring steps above.
 const Page = Bundle.parent({ Model, Message })
