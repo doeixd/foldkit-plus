@@ -3,7 +3,7 @@ name: foldkit-plus
 description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react with -codegen, foldkit-bundle with -surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-crud, foldkit-cms with -drizzle), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, admin screens, or a CMS with drafts and publishing, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.relate, Entity.select, Form.make, Crud.editor, or Cms.content.
 license: MIT
 metadata:
-  version: '0.11.0'
+  version: '0.13.0'
   repository: https://github.com/doeixd/foldkit-plus
 ---
 
@@ -43,14 +43,14 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
 | An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [crud.md](references/crud.md) |
 | Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (editor state and server) | [cms.md](references/cms.md) |
-| What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (0.1.0, early) | [ssr.md](references/ssr.md) |
+| What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (early) | [ssr.md](references/ssr.md) |
 | What a page is: Blocks in Regions, stored as a Document and checked against a Catalog; editing it | the Document, as a stored field; the Builder, as one form key | `foldkit-composition` + `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; in development, unpublished) | [composition.md](references/composition.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
-| A semantic rich-text document, the commands that edit it, and what each kind may hold | the local Model | `foldkit-richtext` (0.1.0, early) | [richtext.md](references/richtext.md) |
-| An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (0.1.0, early) | [richtext.md](references/richtext.md) |
-| Rich-text editor chrome (toolbars, slash menu, link editor, block handle, command palette, status line, Markdown source mode) drawn through slots | the view contract | `foldkit-mixins-richtext` (0.1.0, early) | [richtext.md](references/richtext.md) |
-| Markdown in and out of a semantic rich-text document | the document; this package only maps its syntax | `foldkit-richtext-markdown` (0.1.0, early) | [richtext.md](references/richtext.md) |
-| Syntax highlighting for a rich-text code block | nobody: tokens are derived decorations, never stored | `foldkit-richtext-code` (JSON) or `foldkit-richtext-code-shiki` (any Shiki grammar) (0.1.0, early) | [richtext.md](references/richtext.md) |
+| A semantic rich-text document, the commands that edit it, and what each kind may hold | the local Model | `foldkit-richtext` (early) | [richtext.md](references/richtext.md) |
+| An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (early) | [richtext.md](references/richtext.md) |
+| Rich-text editor chrome (toolbars, slash menu, link editor, block handle, command palette, status line, Markdown source mode) drawn through slots | the view contract | `foldkit-mixins-richtext` (early) | [richtext.md](references/richtext.md) |
+| Markdown in and out of a semantic rich-text document | the document; this package only maps its syntax | `foldkit-richtext-markdown` (early) | [richtext.md](references/richtext.md) |
+| Syntax highlighting for a rich-text code block | nobody: tokens are derived decorations, never stored | `foldkit-richtext-code` (JSON) or `foldkit-richtext-code-shiki` (any Shiki grammar) (early) | [richtext.md](references/richtext.md) |
 
 Install the peers with the packages you pick, for example
 `pnpm add effect foldkit foldkit-surface foldkit-sync`. `foldkit-durable` needs

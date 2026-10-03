@@ -5,9 +5,39 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.13.0
 
-### Upgrading
+`foldkit-agent` 0.6.0; `foldkit-agent-a2a`, `foldkit-agent-mcp`,
+`foldkit-agent-native` and `foldkit-agent-webmcp` 0.5.0; `foldkit-bundle`
+0.5.0; `foldkit-bundle-surface` 0.3.0; `foldkit-cms` 0.4.0;
+`foldkit-cms-drizzle` 0.4.0; `foldkit-crud` 0.5.0; `foldkit-durable` 0.6.0;
+`foldkit-entity` 0.6.0; `foldkit-form` 0.4.0; `foldkit-mirror` 0.5.0;
+`foldkit-mixins` 0.6.0; `foldkit-mixins-crud` 0.6.0; `foldkit-mixins-form`
+0.4.0; `foldkit-mixins-richtext` 0.2.0; `foldkit-mixins-surface` 0.5.0;
+`foldkit-mixins-ui` 0.6.0; `foldkit-primitives` 0.5.0; `foldkit-react` 0.3.0;
+`foldkit-remote` 0.10.0; `foldkit-remote-drizzle` 0.9.0;
+`foldkit-remote-server` 0.10.0; `foldkit-richtext` 0.3.0;
+`foldkit-richtext-code`, `foldkit-richtext-code-shiki` and
+`foldkit-richtext-markdown` 0.2.0; `foldkit-richtext-dom` 0.3.0; `foldkit-ssr`
+0.3.0; `foldkit-surface` 0.6.0; `foldkit-sync` 0.8.0. `foldkit-metadata` and
+`foldkit-react-codegen` are unchanged.
+
+Every package moves a minor version, including those whose only change is
+the new requirement. A `0.x` caret range accepts any patch of its minor, so a
+patch that now needs Effect 4.0.0 would install itself into an application
+still on the release candidate; a minor is the step an application takes on
+purpose.
+
+**On stable Effect.** Every package now requires Effect 4.0.0, the first
+stable release of Effect 4, and Foldkit 0.165.0, the first Foldkit on it. The
+code changes that follow from it are import paths and two type fixes; nothing
+here changes behaviour on its own account.
+
+**Smaller additions.** `form.value` reads a whole decoded form or nothing,
+`Link.child` states a plain child once, `RowListView` draws a list as rows,
+and the CMS history card can retry.
+
+### Upgrading from 0.12
 
 - **Effect 4.0.0 stable and Foldkit 0.165.0.** Every package now
   peer-depends on `effect@^4.0.0` (from `>=4.0.0-rc.116 <4.0.0-rc.118`) and
@@ -67,6 +97,11 @@ version changed; `pnpm` skips versions already in the registry.
   Foldkit 0.165's `match` no longer passes the declared return type into each
   arm, so `{ ...model, status: 'connecting' }` widened `status` to `string`
   and failed to type-check. It infers from the current Model alone now.
+- **`foldkit-primitives`, `PointerDrag`'s drop target:** a drop named the
+  place the last move reported, so a scroll or a layout change between the
+  final move and the release dropped onto a stale target. The release is
+  hit-tested again when it carries a position; one without keeps the last
+  move's answer.
 - **`foldkit-mixins-ui`, `Recipes.Dialog`:** restores the modal's
   `margin: auto`, which `Defaults.reset` zeroes, so a dialog opens centered
   rather than in the top corner.
