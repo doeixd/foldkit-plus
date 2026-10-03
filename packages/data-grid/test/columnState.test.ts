@@ -196,6 +196,78 @@ describe('ColumnState', () => {
   })
 })
 
+// Customer is 200 wide (middle 100), Total 120 (middle 260); Notes is hidden.
+describe('ColumnState.dropAt', () => {
+  const resized = State.resize(start, 'customer', 300)
+  const between = State.move(start, 'notes', 'center', 1)
+  test.each<{
+    readonly name: string
+    readonly state: typeof start
+    readonly column: Id
+    readonly delta: number
+    readonly center: ReadonlyArray<Id>
+  }>([
+    {
+      name: 'stays short of a neighbour’s middle',
+      state: start,
+      column: 'customer',
+      delta: 159,
+      center: ['customer', 'total', 'notes'],
+    },
+    {
+      name: 'passes a neighbour’s middle, the hidden column staying last',
+      state: start,
+      column: 'customer',
+      delta: 161,
+      center: ['total', 'customer', 'notes'],
+    },
+    {
+      name: 'moves back past a neighbour',
+      state: start,
+      column: 'total',
+      delta: -161,
+      center: ['total', 'customer', 'notes'],
+    },
+    {
+      name: 'measures with resized widths',
+      state: resized,
+      column: 'customer',
+      delta: 205,
+      center: ['customer', 'total', 'notes'],
+    },
+    {
+      name: 'keeps a hidden column ahead of the one it was ahead of',
+      state: between,
+      column: 'customer',
+      delta: 161,
+      center: ['notes', 'total', 'customer'],
+    },
+    {
+      name: 'leaves a hidden column where it is',
+      state: start,
+      column: 'notes',
+      delta: -500,
+      center: ['customer', 'total', 'notes'],
+    },
+    {
+      name: 'leaves a column where it is for a delta that is not a number',
+      state: start,
+      column: 'customer',
+      delta: Number.NaN,
+      center: ['customer', 'total', 'notes'],
+    },
+  ])('$name', ({ state, column, delta, center }) => {
+    const region = State.regionOf(state, column)
+    expect(State.move(state, column, region, State.dropAt(state, column, delta)).center).toEqual(
+      center,
+    )
+  })
+
+  test('a column alone in its region stays', () => {
+    expect(State.dropAt(start, 'status', 900)).toBe(0)
+  })
+})
+
 describe('ColumnState.restore', () => {
   test('reads a saved state back as it was', () => {
     const saved = State.move(

@@ -26,6 +26,7 @@ const start = placed.init({
     viewport: { top: 5, left: 5, width: 5, height: 5 },
     columns: { start: ['sku'], center: [], end: [], hidden: [], widths: [] },
     resizing: Option.some({ column: 'sku', from: 1 }),
+    dragging: Option.some({ column: 'sku', delta: 1 }),
     selection: {
       rows: RowSelection.Keys({ keys: ['p:1'] }),
       anchor: Option.some('p:1'),
@@ -50,6 +51,7 @@ describe('DataGrid', () => {
         widths: [],
       },
       resizing: Option.none(),
+      dragging: Option.none(),
       selection: {
         rows: RowSelection.Keys({ keys: [] }),
         anchor: Option.none(),
@@ -190,6 +192,57 @@ describe('DataGrid', () => {
     expect(step(start, Grid.Message.ResizeEnded({ completed: false })).model).toBe(start)
   })
 
+  // Every column is 120 wide: Name's middle is 60, SKU's 180, Price's 300.
+  test('a dragged header lands past the middles it crossed when let go', () => {
+    const dragging = step(
+      start,
+      Grid.Message.ColumnDragStarted({ header: GridFocus.headerId('products', 'name') }),
+    ).model
+    expect(dragging.grid.dragging).toEqual(Option.some({ column: 'name', delta: 0 }))
+    const moved = step(dragging, Grid.Message.ColumnDragged({ delta: 130 })).model
+    expect(step(moved, Grid.Message.ColumnDragged({ delta: 130 })).model).toBe(moved)
+    // Nothing moves until it is let go.
+    expect(moved.grid.columns).toBe(start.grid.columns)
+    const dropped = step(moved, Grid.Message.ColumnDragEnded({ completed: true })).model
+    expect(dropped.grid.columns.center).toEqual(['sku', 'name', 'price', 'notes'])
+    expect(dropped.grid.dragging).toEqual(Option.none())
+    expect(step(dropped, Grid.Message.ColumnDragged({ delta: 400 })).model).toBe(dropped)
+  })
+
+  test('a dragged header lands by the columns as they are when it is let go', () => {
+    const dragging = step(
+      start,
+      Grid.Message.ColumnDragStarted({ header: GridFocus.headerId('products', 'name') }),
+    ).model
+    const moved = step(dragging, Grid.Message.ColumnDragged({ delta: 130 })).model
+    // SKU widened mid-drag: its middle is now 270, which 190 has not passed.
+    const widened = step(moved, Grid.Message.ColumnResized({ column: 'sku', width: 300 })).model
+    const dropped = step(widened, Grid.Message.ColumnDragEnded({ completed: true })).model
+    expect(dropped.grid.columns.center).toEqual(['name', 'sku', 'price', 'notes'])
+  })
+
+  test('a cancelled header drag moves nothing', () => {
+    const dragging = step(
+      start,
+      Grid.Message.ColumnDragStarted({ header: GridFocus.headerId('products', 'name') }),
+    ).model
+    const moved = step(dragging, Grid.Message.ColumnDragged({ delta: 500 })).model
+    const cancelled = step(moved, Grid.Message.ColumnDragEnded({ completed: false })).model
+    expect(cancelled.grid.columns).toBe(start.grid.columns)
+    expect(cancelled.grid.dragging).toEqual(Option.none())
+    expect(step(start, Grid.Message.ColumnDragEnded({ completed: true })).model).toBe(start)
+  })
+
+  test.each([
+    ['another grid’s header', GridFocus.headerId('orders', 'name')],
+    ['a column the grid does not define', GridFocus.headerId('products', 'missing')],
+    ['a cell’s id', GridFocus.cellId('products', at('p:1', 'name'))],
+    ['a hidden column', GridFocus.headerId('products', 'notes')],
+  ])('a drag on %s starts nothing', (_, header) => {
+    const hidden = step(start, Grid.Message.ColumnHidden({ column: 'notes' })).model
+    expect(step(hidden, Grid.Message.ColumnDragStarted({ header })).model).toBe(hidden)
+  })
+
   test('a column that does not resize starts no drag', () => {
     const Fixed = DataGrid.make({
       id: 'fixed',
@@ -225,6 +278,7 @@ describe('DataGrid', () => {
         widths: [],
       },
       resizing: null,
+      dragging: null,
       selection: { rows: { _tag: 'Keys', keys: [] }, anchor: null, cells: null },
       editing: null,
     })

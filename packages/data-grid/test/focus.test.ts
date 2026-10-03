@@ -252,6 +252,22 @@ describe('GridFocus.cellOf', () => {
   })
 })
 
+describe('GridFocus.headerOf', () => {
+  test('reads back the column a header id names', () => {
+    expect(GridFocus.headerOf('grid', GridFocus.headerId('grid', 'a:b c'))).toEqual(
+      Option.some('a:b c'),
+    )
+  })
+
+  test.each([
+    ['another grid’s header', GridFocus.headerId('other', 'b')],
+    ['a cell’s id', GridFocus.cellId('grid', { row: 'a', column: 'b' })],
+    ['a malformed escape', 'grid:%E0%A4%A'],
+  ])('is none for %s', (_, id) => {
+    expect(GridFocus.headerOf('grid', id)).toEqual(Option.none())
+  })
+})
+
 describe('GridFocus.cellId', () => {
   test('no two cells share an id, whatever their keys hold', () => {
     const ids = [

@@ -391,6 +391,12 @@ const { state, dropped } = State.restore(JSON.parse(saved))
 - **`move(state, column, region, index)`** is a reorder within a region, or a
   pin or an unpin across them; `index` counts the region with the column
   taken out.
+- **`dropAt(state, column, delta)`** is where a column dragged `delta`
+  pixels toward its region's end lands, as the `index` `move` takes: past
+  the middle of each shown neighbour it crossed. The grid's
+  `ColumnDragStarted`, `ColumnDragged` and `ColumnDragEnded` hold the drag
+  as the column and its delta, and work the drop out when it is let go,
+  from the widths and order as they are then.
 - **`restore(saved)`** reads a saved state leniently: an id the columns no
   longer define, or one named twice, is dropped and listed in `dropped`; a
   column the save predates takes its declared place; a width is clamped.

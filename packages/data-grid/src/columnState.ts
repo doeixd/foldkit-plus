@@ -118,6 +118,34 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
   }
 
   /**
+   * Where a column dragged `delta` pixels toward its region's end lands, as
+   * the index `move` takes in that region: past the middle of each shown
+   * neighbour it crossed. Hidden columns keep their places among the rest,
+   * and a hidden column, or a delta that is not a number, stays where it is.
+   */
+  const dropAt = (state: State, id: Id, delta: number): number => {
+    const order = state[regionOf(state, id)]
+    const hidden = new Set(state.hidden)
+    if (hidden.has(id) || !Number.isFinite(delta)) return order.indexOf(id)
+    const width = widthOf(state)
+    const shown: Array<{ readonly id: Id; readonly middle: number }> = []
+    let dragged = 0
+    let edge = 0
+    for (const each of order) {
+      if (hidden.has(each)) continue
+      const middle = edge + width(each) / 2
+      if (each === id) dragged = middle + delta
+      else shown.push({ id: each, middle })
+      edge += width(each)
+    }
+    const others = without(order, id)
+    const next = shown.find(other => other.middle > dragged)
+    if (next !== undefined) return others.indexOf(next.id)
+    const last = shown.at(-1)
+    return last === undefined ? order.indexOf(id) : others.indexOf(last.id) + 1
+  }
+
+  /**
    * A saved state read back leniently: an id these columns no longer define,
    * or one named twice, is dropped and listed; a column the save predates
    * takes its initial place; a width is clamped to its column's limits.
@@ -168,7 +196,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
       },
     })
 
-  return { Model, initial, widthOf, resize, hide, show, move, restore }
+  return { Model, initial, widthOf, regionOf, resize, hide, show, move, dropAt, restore }
 }
 
 export const ColumnState = { make }

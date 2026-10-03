@@ -91,6 +91,14 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **A column header dragged to reorder it (`foldkit-data-grid`).** The grid
+  holds a drag as its column and the pointer's delta (`dragging`), from
+  `ColumnDragStarted` with the header's DOM id (`GridFocus.headerOf` reads
+  it back), `ColumnDragged` and `ColumnDragEnded`. Let go, the column moves
+  within its region past the middle of each shown neighbour it crossed,
+  worked out then by `ColumnState.dropAt` from the columns as they stand; a
+  cancelled drag moves nothing. `ColumnState.regionOf` says which region a
+  column is in.
 - **`examples/data-grid`, a 100,000-row product registry.** The UPC
   pinned, descriptions and prices edited with validation, rows and ranges
   selected, and copy and paste; the products are the application's, written

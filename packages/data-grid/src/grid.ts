@@ -41,6 +41,11 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     columns: columnState.Model,
     /** A column being resized by the pointer, and its width when the drag began. */
     resizing: Schema.OptionFromNullOr(Schema.Struct({ column: Column, from: Schema.Number })),
+    /**
+     * A column header being dragged by the pointer, and how far toward its
+     * region's end. Where it lands is worked out when it is let go.
+     */
+    dragging: Schema.OptionFromNullOr(Schema.Struct({ column: Column, delta: Schema.Number })),
     selection: Schema.Struct({
       rows: RowSelection,
       /** Where the last plain row selection happened; a Shift range extends from it. */
@@ -91,6 +96,19 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     ResizeMoved: { delta: Schema.Number },
     /** The pointer let go, or the drag was cancelled and the width goes back. */
     ResizeEnded: { completed: Schema.Boolean },
+    /**
+     * The pointer began dragging the column header whose DOM id is `header`
+     * (`GridFocus.headerId`). The id comes from the page, so one that is not
+     * a shown column of this grid changes nothing.
+     */
+    ColumnDragStarted: { header: Schema.String },
+    /** The pointer is `delta` pixels toward the region's end from where the drag began. */
+    ColumnDragged: { delta: Schema.Number },
+    /**
+     * The pointer let go and the column moves where it was dropped
+     * (`ColumnState.dropAt`), or the drag was cancelled and nothing moves.
+     */
+    ColumnDragEnded: { completed: Schema.Boolean },
     /** A row was chosen: in single mode it is the selection, in multiple it toggles. */
     RowSelected: { row: Schema.String },
     /** A Shift range of rows, worked out by the view from the projection it drew. */
@@ -277,6 +295,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         viewport: GridViewport.bundle.init(undefined).model,
         columns: columnState.initial(),
         resizing: Option.none(),
+        dragging: Option.none(),
         selection: { rows: GridSelection.none, anchor: Option.none(), cells: Option.none() },
         editing: Option.none(),
       },
@@ -349,6 +368,51 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             onNone: () => model,
             onSome: ({ column, from }) =>
               columnsBy(model, columnState.resize(model.columns, column, from + delta)),
+          }),
+        }),
+        ColumnDragStarted: ({ header }): Return => ({
+          model: Option.match(
+            Option.filter(
+              Option.flatMap(GridFocus.headerOf(options.id, header), column =>
+                isColumn(column) ? Option.some(column) : Option.none(),
+              ),
+              column => !model.columns.hidden.includes(column),
+            ),
+            {
+              onNone: () => model,
+              onSome: column =>
+                modifyFields(model, { dragging: () => Option.some({ column, delta: 0 }) }),
+            },
+          ),
+        }),
+        ColumnDragged: ({ delta }): Return => ({
+          model: Option.match(model.dragging, {
+            onNone: () => model,
+            onSome: dragging =>
+              dragging.delta === delta
+                ? model
+                : modifyFields(model, { dragging: () => Option.some({ ...dragging, delta }) }),
+          }),
+        }),
+        // The drop is worked out from the columns as they stand now, not as
+        // they stood when the pointer last moved.
+        ColumnDragEnded: ({ completed }): Return => ({
+          model: Option.match(model.dragging, {
+            onNone: () => model,
+            onSome: ({ column, delta }) => {
+              const dropped = completed
+                ? columnsBy(
+                    model,
+                    columnState.move(
+                      model.columns,
+                      column,
+                      columnState.regionOf(model.columns, column),
+                      columnState.dropAt(model.columns, column, delta),
+                    ),
+                  )
+                : model
+              return modifyFields(dropped, { dragging: () => Option.none() })
+            },
           }),
         }),
         RowSelected: ({ row }): Return => ({

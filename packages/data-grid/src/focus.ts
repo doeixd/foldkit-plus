@@ -93,11 +93,15 @@ const decode = Option.liftThrowable(decodeURIComponent)
 const cellOf = (
   grid: string,
   id: string,
-): Option.Option<{ readonly row: string; readonly column: string }> => {
+): Option.Option<{ readonly row: string; readonly column: string }> =>
+  Option.map(partsOf(grid, id, 3), ([row, column]) => ({ row: row!, column: column! }))
+
+/** The parts of one of this grid's ids after the grid's own, when it has `count` parts in all. */
+const partsOf = (grid: string, id: string, count: number): Option.Option<ReadonlyArray<string>> => {
   const parts = id.split(':')
-  if (parts.length !== 3) return Option.none()
-  return Option.flatMap(Option.all(parts.map(part => decode(part))), ([owner, row, column]) =>
-    owner === grid ? Option.some({ row: row!, column: column! }) : Option.none(),
+  if (parts.length !== count) return Option.none()
+  return Option.flatMap(Option.all(parts.map(part => decode(part))), ([owner, ...rest]) =>
+    owner === grid ? Option.some(rest) : Option.none(),
   )
 }
 
@@ -108,6 +112,10 @@ const cellOf = (
  */
 const headerId = (grid: string, column: string): string =>
   [grid, column].map(encodeURIComponent).join(':')
+
+/** The column a `headerId` names, if it is one of this grid's, as written. */
+const headerOf = (grid: string, id: string): Option.Option<string> =>
+  Option.map(partsOf(grid, id, 2), ([column]) => column!)
 
 /**
  * Focus for one grid: which cell is current, by identity. Make it once per
@@ -159,4 +167,4 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
   return { Address, Model, Message, bundle }
 }
 
-export const GridFocus = { make, target, tabStop, cellId, cellOf, headerId }
+export const GridFocus = { make, target, tabStop, cellId, cellOf, headerId, headerOf }
