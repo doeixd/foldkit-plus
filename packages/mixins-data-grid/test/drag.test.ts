@@ -74,7 +74,8 @@ test('a dragged header follows the pointer toward its end, mirrored right to lef
   expect(transformOf('rtl')).toBe('translateX(-160px)')
 })
 
-test('a header is dragged to a new place, cancelled with Escape, and leaves clicks alone', async () => {
+/** The grid on the real runtime, and the last Model its update returned. */
+const mount = (direction: 'ltr' | 'rtl') => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -99,19 +100,25 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
         latest = next.model
         return next
       },
-      view: (model: Model, h: HtmlBuilder<Message>) => View(inputOf(model.grid), h),
+      view: (model: Model, h: HtmlBuilder<Message>) => View(inputOf(model.grid, direction), h),
     }),
   )
-  const header = (column: Id) => document.getElementById(GridFocus.headerId('lines', column))!
-  const order = () =>
-    Array.from(document.querySelectorAll('#lines [role="columnheader"]'), each => each.textContent)
-  // jsdom has no PointerEvent: a MouseEvent with the pointer's id is what the Mounts read.
-  const pointer = (target: Element, type: string, x: number) => {
-    const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x })
-    Object.defineProperty(event, 'pointerId', { value: 3 })
-    target.dispatchEvent(event)
-  }
-  const settle = () => new Promise(resolve => setTimeout(resolve, 20))
+  return { handle, latest: () => latest }
+}
+
+const header = (column: Id) => document.getElementById(GridFocus.headerId('lines', column))!
+const order = () =>
+  Array.from(document.querySelectorAll('#lines [role="columnheader"]'), each => each.textContent)
+// jsdom has no PointerEvent: a MouseEvent with the pointer's id is what the Mounts read.
+const pointer = (target: Element, type: string, x: number) => {
+  const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x })
+  Object.defineProperty(event, 'pointerId', { value: 3 })
+  target.dispatchEvent(event)
+}
+const settle = () => new Promise(resolve => setTimeout(resolve, 20))
+
+test('a header is dragged to a new place, cancelled with Escape, and leaves clicks alone', async () => {
+  const { handle, latest } = mount('ltr')
   const sortButton = () => header('b').querySelector('button')!
   try {
     await vi.waitFor(() => expect(order()).toEqual(['A', 'B', 'C', 'D', 'E']))
@@ -120,7 +127,7 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     pointer(sortButton(), 'pointerdown', 120)
     pointer(sortButton(), 'pointerup', 120)
     sortButton().click()
-    await vi.waitFor(() => expect(latest.sorts).toBe(1))
+    await vi.waitFor(() => expect(latest().sorts).toBe(1))
 
     // Within 4px nothing is dragged; past it the header follows, and C is
     // marked as where A would land: past B's middle, short of C's.
@@ -144,10 +151,10 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     pointer(sortButton(), 'pointerup', 260)
     sortButton().click()
     await vi.waitFor(() => expect(order()).toEqual(['A', 'C', 'B', 'D', 'E']))
-    expect(latest.sorts).toBe(1)
+    expect(latest().sorts).toBe(1)
     await settle()
     sortButton().click()
-    await vi.waitFor(() => expect(latest.sorts).toBe(2))
+    await vi.waitFor(() => expect(latest().sorts).toBe(2))
 
     // Escape lets a drag go back, and its release then moves nothing.
     pointer(header('e'), 'pointerdown', 450)
@@ -170,6 +177,21 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     pointer(handleOf, 'pointerup', 450)
     await settle()
     expect(order()).toEqual(['A', 'C', 'B', 'D', 'E'])
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('right to left, a header dragged toward the end goes left', async () => {
+  const { handle } = mount('rtl')
+  try {
+    await vi.waitFor(() => expect(order()).toEqual(['A', 'B', 'C', 'D', 'E']))
+    // 160px to the left is toward the end: past B's middle, short of C's.
+    pointer(header('a'), 'pointerdown', 400)
+    pointer(header('a'), 'pointermove', 240)
+    await vi.waitFor(() => expect(header('c').dataset['drop']).toBe('before'))
+    pointer(header('a'), 'pointerup', 240)
+    await vi.waitFor(() => expect(order()).toEqual(['B', 'A', 'C', 'D', 'E']))
   } finally {
     handle.dispose()
   }
