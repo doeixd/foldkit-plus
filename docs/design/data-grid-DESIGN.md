@@ -152,11 +152,12 @@ Command) in `src/viewport.ts`. Where it departs from §9 and §21's Phase 2:
 `foldkit-mixins-data-grid`: `GridSlots`, `DataGridView`, `GridStyle`. Where
 it departs from §10, §13 and §21's Phase 3:
 
-- **Foldkit's HTML layer has no row or column ARIA builders.** §10 says it
-  does; `h` has `AriaActiveDescendant` and `AriaSelected` but no
-  `aria-rowcount`, `aria-rowindex`, `aria-colcount` or `aria-colindex`. The
-  view writes them with `h.Attribute`, and the slots declare `Attr` tokens
-  for them so attachments cannot write them twice.
+- **Foldkit's row and column ARIA builders are spelled lower-case after the
+  first word:** `AriaRowcount`, `AriaRowindex`, `AriaColcount`,
+  `AriaColindex`, as §10 says they exist. (A search for `AriaRowCount`
+  missed them, and the first build wrote the attributes with `h.Attribute`.)
+  The slots declare `Attr` tokens for them so attachments cannot write them
+  twice.
 - **One Bundle for the grid.** `DataGrid.make({ id, columns })` joins
   `GridFocus` and `GridViewport`; its `Moved` carries the reveal the view
   worked out, and its update issues `GridViewport.scrollTo`. That is §19's

@@ -848,6 +848,12 @@ of its own named a form field "fits the Catalog". Read words with
   own snippet was the violation. Both claims were then used to justify further
   decisions. Scope the search to the claim, or narrow the claim to the search.
 
+- **Search a library for a name by its own spelling.** A grep for
+  `AriaRowCount` found nothing, so the grid wrote `aria-rowcount` with
+  `h.Attribute` and its design said Foldkit had no such builder; Foldkit spells
+  it `AriaRowcount`. Before calling something absent, search case-insensitively
+  and read the builder list itself.
+
 - **Update the summary in the same change as the section.** Per-phase notes
   landed while `§0`'s findings table and `§13`'s status banner still described
   the old state — the banner said "3 onwards are not started" directly above

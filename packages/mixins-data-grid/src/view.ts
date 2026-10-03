@@ -182,15 +182,16 @@ const view = <Message>() => ({
 
         const rowCount = RowCount.match(projection.rowCount, {
           // The header row is the first row ARIA counts.
-          Known: ({ total }) => String(total + 1),
-          Unknown: () => '-1',
+          Known: ({ total }) => total + 1,
+          // ARIA's own spelling of a count not known yet.
+          Unknown: () => -1,
         })
 
         const headerCell = (id: Id): Html =>
           h.div(
             slots.headerCell.attrs([
               h.Role('columnheader'),
-              h.Attribute('aria-colindex', String(indexOf.get(id)! + 1)),
+              h.AriaColindex(indexOf.get(id)! + 1),
               h.Style(cellStyle(id)),
               ...Option.match(pinned(id), {
                 onNone: () => [],
@@ -226,7 +227,7 @@ const view = <Message>() => ({
                   slots.row.attrs([
                     h.Key(key),
                     h.Role('row'),
-                    h.Attribute('aria-rowindex', String(index + 2)),
+                    h.AriaRowindex(index + 2),
                     h.Style({ display: 'flex', height: px(rowHeight), width: px(shown.width) }),
                   ]),
                   across(id => {
@@ -239,7 +240,7 @@ const view = <Message>() => ({
                       slots.cell.attrs([
                         h.Role('gridcell'),
                         h.Id(GridFocus.cellId(grid.id, address)),
-                        h.Attribute('aria-colindex', String(indexOf.get(id)! + 1)),
+                        h.AriaColindex(indexOf.get(id)! + 1),
                         h.Style(cellStyle(id)),
                         h.OnMouseDown(input.wrap(grid.Message.Focused({ address }))),
                         ...(focused ? [h.DataAttribute('focused', 'true')] : []),
@@ -266,8 +267,8 @@ const view = <Message>() => ({
             h.Role('grid'),
             h.AriaLabel(input.label),
             h.Tabindex(0),
-            h.Attribute('aria-rowcount', rowCount),
-            h.Attribute('aria-colcount', String(projection.columns.length)),
+            h.AriaRowcount(rowCount),
+            h.AriaColcount(projection.columns.length),
             ...Option.match(activeDescendant, {
               onNone: () => [],
               onSome: address => [h.AriaActiveDescendant(GridFocus.cellId(grid.id, address))],
@@ -283,7 +284,7 @@ const view = <Message>() => ({
                 h.div(
                   slots.headerRow.attrs([
                     h.Role('row'),
-                    h.Attribute('aria-rowindex', '1'),
+                    h.AriaRowindex(1),
                     h.Style({ display: 'flex', height: px(headerHeight), width: px(shown.width) }),
                   ]),
                   across(headerCell),
