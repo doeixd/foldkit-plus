@@ -120,29 +120,36 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
   /**
    * Where a column dragged `delta` pixels toward its region's end lands, as
    * the index `move` takes in that region: past the middle of each shown
-   * neighbour it crossed. Hidden columns keep their places among the rest,
-   * and a hidden column, or a delta that is not a number, stays where it is.
+   * neighbour it crossed. A column that crosses none stays where it is, so
+   * hidden columns keep their places; so do a hidden column and a delta that
+   * is not a number.
    */
   const dropAt = (state: State, id: Id, delta: number): number => {
     const order = state[regionOf(state, id)]
+    const here = order.indexOf(id)
     const hidden = new Set(state.hidden)
-    if (hidden.has(id) || !Number.isFinite(delta)) return order.indexOf(id)
+    if (hidden.has(id) || !Number.isFinite(delta)) return here
     const width = widthOf(state)
     const shown: Array<{ readonly id: Id; readonly middle: number }> = []
     let dragged = 0
+    let before = 0
     let edge = 0
     for (const each of order) {
       if (hidden.has(each)) continue
       const middle = edge + width(each) / 2
-      if (each === id) dragged = middle + delta
-      else shown.push({ id: each, middle })
+      if (each === id) {
+        dragged = middle + delta
+        before = shown.length
+      } else shown.push({ id: each, middle })
       edge += width(each)
     }
+    // How many shown neighbours end up before it, in middle order.
+    const passed = shown.filter(other => other.middle <= dragged).length
+    if (passed === before) return here
     const others = without(order, id)
-    const next = shown.find(other => other.middle > dragged)
-    if (next !== undefined) return others.indexOf(next.id)
-    const last = shown.at(-1)
-    return last === undefined ? order.indexOf(id) : others.indexOf(last.id) + 1
+    return passed < shown.length
+      ? others.indexOf(shown[passed]!.id)
+      : others.indexOf(shown[passed - 1]!.id) + 1
   }
 
   /**

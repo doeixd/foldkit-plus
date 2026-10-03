@@ -243,6 +243,13 @@ describe('ColumnState.dropAt', () => {
       center: ['notes', 'total', 'customer'],
     },
     {
+      name: 'crossing no neighbour, stays on its side of a hidden column',
+      state: between,
+      column: 'customer',
+      delta: 20,
+      center: ['customer', 'notes', 'total'],
+    },
+    {
       name: 'leaves a hidden column where it is',
       state: start,
       column: 'notes',
