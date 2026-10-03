@@ -9,6 +9,7 @@ import {
   GridFocus,
   GridProjection,
   RowModel,
+  type RowSelection,
   VirtualGrid,
 } from 'foldkit-data-grid'
 
@@ -134,7 +135,18 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
     readonly widths: ReadonlyArray<{ readonly column: 'sku' | 'price'; readonly width: number }>
   }
   readonly resizing: Option.Option<{ readonly column: 'sku' | 'price'; readonly from: number }>
+  readonly selection: {
+    readonly rows: RowSelection
+    readonly anchor: Option.Option<string>
+    readonly cells: Option.Option<{
+      readonly anchor: { readonly row: string; readonly column: 'sku' | 'price' }
+      readonly focus: { readonly row: string; readonly column: 'sku' | 'price' }
+    }>
+  }
 }>()
+
+// @ts-expect-error row selection is single or multiple
+DataGrid.make({ id: 'bad', columns, rowSelection: 'many' })
 
 // @ts-expect-error a resize names a column the grid defines
 Grid.Message.ColumnResized({ column: 'name', width: 10 })

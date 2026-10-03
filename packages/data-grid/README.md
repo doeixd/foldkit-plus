@@ -239,6 +239,33 @@ once per rows model and state, so the view and the application share it.
 `GridFocus` and `GridViewport` stay available for a grid that composes its
 own state.
 
+## Selection
+
+Selection is the grid's and opt-in: `DataGrid.make({ id, columns, rowSelection:
+'multiple', cellSelection: true })`. Without the options the selection
+Messages change nothing.
+
+```ts
+const Picking = DataGrid.make({ id: 'picking', columns, rowSelection: 'multiple' })
+const start = Picking.bundle.init(undefined).model
+const picked = Picking.bundle.update(start, Picking.Message.RowSelected({ row: 'p1' }), undefined).model
+GridSelection.isSelected(picked.selection.rows)('p1') // true
+```
+
+- **Rows** are a `RowSelection`: `Keys({ keys })`, or `AllExcept({ except })`
+  after `AllRowsSelected`, so select-all holds every row whether loaded or
+  counted at all. `RowSelected` toggles a row in `'multiple'` mode and is the
+  selection in `'single'` mode; either way it becomes the anchor.
+  `RowsExtended({ rows, to })` adds a Shift range the view worked out with
+  `GridSelection.rowsBetween`; `RowsCleared` empties it.
+- **Cells** are one rectangle, `CellsSelected({ anchor, focus })`, named by
+  its corners, so it survives a re-sort as the same two cells and
+  `GridSelection.boxOf(projection, range)` is what it covers now. A plain
+  click or key (`Focused`, `Moved`) lets it go: one focused cell is the
+  default selection. `GridSelection.extend` is the range a Shift key makes.
+- **`GridSelection.isSelected(selection)`** indexes a selection once; call it
+  once per render, not per row.
+
 ## Row counts
 
 A `RowModel`'s `count` is a `RowCount`:

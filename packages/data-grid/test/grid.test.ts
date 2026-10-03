@@ -1,7 +1,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
+import { Columns, DataGrid, GridSelection, RowModel, RowSelection } from 'foldkit-data-grid'
 import { describe, expect, test } from 'vitest'
 import { at, columns, productKey, products } from './fixture.js'
 
@@ -18,6 +18,11 @@ const start = placed.init({
     viewport: { top: 5, left: 5, width: 5, height: 5 },
     columns: { start: ['sku'], center: [], end: [], hidden: [], widths: [] },
     resizing: Option.some({ column: 'sku', from: 1 }),
+    selection: {
+      rows: RowSelection.Keys({ keys: ['p:1'] }),
+      anchor: Option.some('p:1'),
+      cells: Option.none(),
+    },
   },
 }).model
 const step = (model: typeof start, message: typeof Grid.Message.Type) =>
@@ -36,6 +41,11 @@ describe('DataGrid', () => {
         widths: [],
       },
       resizing: Option.none(),
+      selection: {
+        rows: RowSelection.Keys({ keys: [] }),
+        anchor: Option.none(),
+        cells: Option.none(),
+      },
     })
   })
 
@@ -179,7 +189,126 @@ describe('DataGrid', () => {
         widths: [],
       },
       resizing: null,
+      selection: { rows: { _tag: 'Keys', keys: [] }, anchor: null, cells: null },
     })
     expect(Schema.decodeUnknownSync(Grid.Model)(encoded)).toEqual(model)
+  })
+})
+
+const Selecting = DataGrid.make({
+  id: 'selecting',
+  columns,
+  rowSelection: 'multiple',
+  cellSelection: true,
+})
+const Single = DataGrid.make({ id: 'single', columns, rowSelection: 'single' })
+const fresh = Selecting.bundle.init(undefined).model
+const send = (model: typeof fresh, message: typeof Selecting.Message.Type) =>
+  Selecting.bundle.update(model, message, undefined).model
+const selected = (model: typeof fresh) => {
+  const isSelected = GridSelection.isSelected(model.selection.rows)
+  return ['p:10', 'p:1', 'p:100'].filter(isSelected)
+}
+
+describe('DataGrid selection', () => {
+  test('in multiple mode a row toggles and becomes the anchor', () => {
+    const one = send(fresh, Selecting.Message.RowSelected({ row: 'p:1' }))
+    expect(selected(one)).toEqual(['p:1'])
+    expect(one.selection.anchor).toEqual(Option.some('p:1'))
+    const two = send(one, Selecting.Message.RowSelected({ row: 'p:100' }))
+    expect(selected(two)).toEqual(['p:1', 'p:100'])
+    expect(selected(send(two, Selecting.Message.RowSelected({ row: 'p:1' })))).toEqual(['p:100'])
+  })
+
+  test('in single mode a row replaces the selection', () => {
+    const start = Single.bundle.init(undefined).model
+    const one = Single.bundle.update(
+      start,
+      Single.Message.RowSelected({ row: 'p:1' }),
+      undefined,
+    ).model
+    const other = Single.bundle.update(
+      one,
+      Single.Message.RowSelected({ row: 'p:10' }),
+      undefined,
+    ).model
+    expect(GridSelection.isSelected(other.selection.rows)('p:1')).toBe(false)
+    expect(GridSelection.isSelected(other.selection.rows)('p:10')).toBe(true)
+    // Choosing the chosen row keeps it, as a radio button does.
+    expect(
+      GridSelection.isSelected(
+        Single.bundle.update(other, Single.Message.RowSelected({ row: 'p:10' }), undefined).model
+          .selection.rows,
+      )('p:10'),
+    ).toBe(true)
+    // A single grid takes no ranges and no select-all.
+    expect(
+      Single.bundle.update(
+        other,
+        Single.Message.RowsExtended({ rows: ['p:1', 'p:100'], to: 'p:100' }),
+        undefined,
+      ).model,
+    ).toBe(other)
+    expect(Single.bundle.update(other, Single.Message.AllRowsSelected(), undefined).model).toBe(
+      other,
+    )
+  })
+
+  test('a Shift range adds its rows and keeps the anchor', () => {
+    const anchored = send(fresh, Selecting.Message.RowSelected({ row: 'p:10' }))
+    const ranged = send(
+      anchored,
+      Selecting.Message.RowsExtended({ rows: ['p:10', 'p:1'], to: 'p:1' }),
+    )
+    expect(selected(ranged)).toEqual(['p:10', 'p:1'])
+    expect(ranged.selection.anchor).toEqual(Option.some('p:10'))
+    expect(send(ranged, Selecting.Message.RowsExtended({ rows: ['p:1'], to: 'p:1' }))).toBe(ranged)
+  })
+
+  test('select-all holds every row, and a toggle takes one out', () => {
+    const all = send(fresh, Selecting.Message.AllRowsSelected())
+    expect(selected(all)).toEqual(['p:10', 'p:1', 'p:100'])
+    // Rows not loaded yet are selected too.
+    expect(GridSelection.isSelected(all.selection.rows)('p:9999')).toBe(true)
+    expect(selected(send(all, Selecting.Message.RowSelected({ row: 'p:1' })))).toEqual([
+      'p:10',
+      'p:100',
+    ])
+  })
+
+  test('clearing empties the selection, and clearing it again changes nothing', () => {
+    const one = send(fresh, Selecting.Message.RowSelected({ row: 'p:1' }))
+    const cleared = send(one, Selecting.Message.RowsCleared())
+    expect(selected(cleared)).toEqual([])
+    expect(cleared.selection.anchor).toEqual(Option.none())
+    expect(send(cleared, Selecting.Message.RowsCleared())).toBe(cleared)
+  })
+
+  test('a cell range holds its corners, and a plain click or key lets it go', () => {
+    const range = send(
+      fresh,
+      Selecting.Message.CellsSelected({ anchor: at('p:10', 'sku'), focus: at('p:1', 'price') }),
+    )
+    expect(range.selection.cells).toEqual(
+      Option.some({ anchor: at('p:10', 'sku'), focus: at('p:1', 'price') }),
+    )
+    expect(
+      send(range, Selecting.Message.Focused({ address: at('p:1', 'sku') })).selection.cells,
+    ).toEqual(Option.none())
+    expect(
+      send(range, Selecting.Message.Moved({ address: at('p:1', 'sku'), reveal: Option.none() }))
+        .selection.cells,
+    ).toEqual(Option.none())
+  })
+
+  test('without the option, selection Messages change nothing', () => {
+    const plain = Grid.bundle.init(undefined).model
+    const update = (message: typeof Grid.Message.Type) =>
+      Grid.bundle.update(plain, message, undefined).model
+    expect(update(Grid.Message.RowSelected({ row: 'p:1' }))).toBe(plain)
+    expect(update(Grid.Message.AllRowsSelected())).toBe(plain)
+    expect(
+      update(Grid.Message.CellsSelected({ anchor: at('p:1', 'sku'), focus: at('p:1', 'sku') })),
+    ).toBe(plain)
   })
 })

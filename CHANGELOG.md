@@ -60,6 +60,14 @@ version changed; `pnpm` skips versions already in the registry.
   `ResizeEnded`; a cancelled drag puts the width back), and a focused handle
   steps with the arrow keys, mirrored in right-to-left text. The grid now
   takes only keys aimed at itself, so a handle's keys do not move focus.
+- **`foldkit-data-grid`, selection (Phase 5, the state).** Opt-in with
+  `rowSelection: 'single' | 'multiple'` and `cellSelection: true`. Rows are a
+  `RowSelection` of `Keys` or `AllExcept`, so select-all holds rows not
+  loaded; `RowSelected`, `RowsExtended`, `AllRowsSelected` and
+  `RowsCleared` change it, with an anchor for Shift ranges. One rectangle of
+  cells is held by its corners (`CellsSelected`, `CellsCleared`); a plain
+  click or key lets it go. `GridSelection.extend` is the range a Shift key
+  makes and `rowsBetween` a Shift range of rows.
 - **`foldkit-data-grid`, `Columns.define` written inline keeps its row type.**
   Inside `DataGrid.make({ columns: Columns.define<Row>()({...}) })` every
   `row` was `unknown`; the return type is `NoInfer` now.

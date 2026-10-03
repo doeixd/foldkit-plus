@@ -94,6 +94,9 @@ the whole wiring, compiled.
 - `root` is the scroll container: give it a height with a Style. A Style that
   sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
   row's `height`, throws `slot "cell" protects style property`.
+- Selection is opt-in: `DataGrid.make({ ..., rowSelection: 'multiple',
+  cellSelection: true })`. Ask `GridSelection.isSelected(model.grid.selection.rows)`
+  once per render; select-all is `AllExcept`, so it holds rows not loaded.
 - Resizable columns get a drag handle (`resizeHandle`, a `role="separator"`);
   it is out of the tab order, so keyboard resizing needs the application's
   own control sending `ColumnResized`.

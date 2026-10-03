@@ -8,6 +8,7 @@ import type { Columns, ColumnSpec } from './columns.js'
 import { GridFocus } from './focus.js'
 import { GridProjection } from './projection.js'
 import type { RowModel } from './rows.js'
+import { GridSelection, RowSelection } from './selection.js'
 import { GridViewport } from './viewport.js'
 
 const Offsets = Schema.Struct({ top: Schema.Number, left: Schema.Number })
@@ -18,11 +19,16 @@ const Offsets = Schema.Struct({ top: Schema.Number, left: Schema.Number })
  * off screen carries the scroll that reveals the cell, and the grid issues it.
  *
  * `id` names the grid in the DOM: the scroll container's id, and the prefix
- * of every cell's id (`GridFocus.cellId`).
+ * of every cell's id (`GridFocus.cellId`). Selection is opt-in:
+ * `rowSelection` lets rows be selected one at a time or several, and
+ * `cellSelection` lets a rectangle of cells be selected; without them their
+ * Messages change nothing.
  */
 const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(options: {
   readonly id: string
   readonly columns: Columns<Row, Specs>
+  readonly rowSelection?: 'single' | 'multiple'
+  readonly cellSelection?: boolean
 }) => {
   const focus = GridFocus.make(options.columns)
   const columnState = ColumnState.make(options.columns)
@@ -33,6 +39,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     columns: columnState.Model,
     /** A column being resized by the pointer, and its width when the drag began. */
     resizing: Schema.OptionFromNullOr(Schema.Struct({ column: Column, from: Schema.Number })),
+    selection: Schema.Struct({
+      rows: RowSelection,
+      /** Where the last plain row selection happened; a Shift range extends from it. */
+      anchor: Schema.OptionFromNullOr(Schema.String),
+      /** A rectangle of cells, by its corners; a single focused cell is none. */
+      cells: Schema.OptionFromNullOr(
+        Schema.Struct({ anchor: focus.Address, focus: focus.Address }),
+      ),
+    }),
   })
   const Region = Schema.Literals(['start', 'center', 'end'])
   type Model = typeof Model.Type
@@ -64,6 +79,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     ResizeMoved: { delta: Schema.Number },
     /** The pointer let go, or the drag was cancelled and the width goes back. */
     ResizeEnded: { completed: Schema.Boolean },
+    /** A row was chosen: in single mode it is the selection, in multiple it toggles. */
+    RowSelected: { row: Schema.String },
+    /** A Shift range of rows, worked out by the view from the projection it drew. */
+    RowsExtended: { rows: Schema.Array(Schema.String), to: Schema.String },
+    AllRowsSelected: {},
+    RowsCleared: {},
+    /** A rectangle of cells, from Shift with a key or the pointer. */
+    CellsSelected: { anchor: focus.Address, focus: focus.Address },
+    CellsCleared: {},
   })
   type Message = typeof Message.Type
   type Return = Update.Return<Model, Message, never>
@@ -82,6 +106,24 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   }
   const columnsBy = (model: Model, next: typeof columnState.Model.Type): Model =>
     next === model.columns ? model : modifyFields(model, { columns: () => next })
+  type Selection = Model['selection']
+  const selectionBy = (model: Model, next: Selection): Model =>
+    next === model.selection ? model : modifyFields(model, { selection: () => next })
+  const clearCells = (model: Model): Model =>
+    Option.isNone(model.selection.cells)
+      ? model
+      : selectionBy(model, { ...model.selection, cells: Option.none() })
+  // Single mode replaces, as a radio group does; RowsCleared empties it.
+  const choose = (selection: Selection, row: string): Selection => {
+    if (options.rowSelection === 'single') {
+      return { ...selection, rows: RowSelection.Keys({ keys: [row] }), anchor: Option.some(row) }
+    }
+    return {
+      ...selection,
+      rows: GridSelection.toggle(selection.rows, row),
+      anchor: Option.some(row),
+    }
+  }
 
   const bundle = Bundle.make('DataGrid', {
     Model,
@@ -92,13 +134,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         viewport: GridViewport.bundle.init(undefined).model,
         columns: columnState.initial(),
         resizing: Option.none(),
+        selection: { rows: GridSelection.none, anchor: Option.none(), cells: Option.none() },
       },
     }),
     update: (model: Model, message: Message): Return =>
       Message.match(message, {
-        Focused: ({ address }): Return => ({ model: focusTo(model, address) }),
+        // A plain click or key is a single cell again: any range it leaves goes.
+        Focused: ({ address }): Return => ({ model: clearCells(focusTo(model, address)) }),
         Moved: ({ address, reveal }): Return => ({
-          model: focusTo(model, address),
+          model: clearCells(focusTo(model, address)),
           commands: Option.match(reveal, {
             onNone: () => [],
             onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
@@ -140,6 +184,58 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
               columnsBy(model, columnState.resize(model.columns, column, from + delta)),
           }),
         }),
+        RowSelected: ({ row }): Return => ({
+          model:
+            options.rowSelection === undefined
+              ? model
+              : selectionBy(model, choose(model.selection, row)),
+        }),
+        RowsExtended: ({ rows, to }): Return => {
+          if (options.rowSelection !== 'multiple') return { model }
+          const added = GridSelection.add(model.selection.rows, rows)
+          const anchor = Option.orElse(model.selection.anchor, () => Option.some(to))
+          return {
+            model:
+              added === model.selection.rows && Option.isSome(model.selection.anchor)
+                ? model
+                : selectionBy(model, { ...model.selection, rows: added, anchor }),
+          }
+        },
+        AllRowsSelected: (): Return => ({
+          model:
+            options.rowSelection !== 'multiple'
+              ? model
+              : selectionBy(model, {
+                  ...model.selection,
+                  rows: RowSelection.AllExcept({ except: [] }),
+                }),
+        }),
+        RowsCleared: (): Return => {
+          const empty = RowSelection.match(model.selection.rows, {
+            Keys: ({ keys }) => keys.length === 0,
+            AllExcept: () => false,
+          })
+          return {
+            model:
+              empty && Option.isNone(model.selection.anchor)
+                ? model
+                : selectionBy(model, {
+                    ...model.selection,
+                    rows: GridSelection.none,
+                    anchor: Option.none(),
+                  }),
+          }
+        },
+        CellsSelected: ({ anchor, focus: far }): Return => ({
+          model:
+            options.cellSelection === true
+              ? selectionBy(model, {
+                  ...model.selection,
+                  cells: Option.some({ anchor, focus: far }),
+                })
+              : model,
+        }),
+        CellsCleared: (): Return => ({ model: clearCells(model) }),
         ResizeEnded: ({ completed }): Return => ({
           model: Option.match(model.resizing, {
             onNone: () => model,

@@ -185,6 +185,25 @@ it departs from §10, §13 and §21's Phase 3:
   grid and draws a placeholder for a row counted but not loaded; Remote's
   loading and failure are Phase 7's to map.
 
+## Phase 5 as built so far (2026-10-03)
+
+`GridSelection` and `RowSelection` in `src/selection.ts`, held in the
+`DataGrid` Model as `selection: { rows, anchor, cells }`. Where it departs
+from §8:
+
+- **Not the `Selection` primitive.** It keeps an array of ids and takes the
+  whole order with every Shift click; select-all over 100,000 rows would be
+  100,000 ids, and over an unknown count it cannot be written. `RowSelection`
+  is `Keys` or `AllExcept`, and membership is a `Set` built once per value.
+- **A Shift range is worked out by the view** (`rowsBetween` over the
+  projection it drew) and added in the same tick; the Model keeps keys, so a
+  re-sort keeps the rows, not the positions.
+- **One cell range, named by its corners.** `cells: Option<{ anchor, focus }>`;
+  multi-range is §8's follow-up. A plain click or key clears it.
+- **Single mode replaces,** as a radio group does; `RowsCleared` empties it.
+- **Opt-in by option,** not `.with({...})`: `rowSelection` and
+  `cellSelection` on `DataGrid.make`; without them the Messages are no-ops.
+
 ## Phase 4 as built so far (2026-10-03)
 
 `ColumnState` in `src/columnState.ts`, held in the `DataGrid` Model. Where it
