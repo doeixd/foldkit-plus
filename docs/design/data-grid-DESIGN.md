@@ -321,8 +321,19 @@ departs from §12:
   arrow is browser history on Windows and Linux and Ctrl with Option is
   VoiceOver's. Header ids have two parts and cell ids three, so they never
   meet.
-- **Still to build:** drag reordering (`PointerDrag`), and controls for
-  hiding and pinning (a column menu on the header is the natural home).
+- **Drag reordering is its own Mount, not `PointerDrag`.** `PointerDrag`
+  hit-tests drop targets; a header moves along one axis among neighbours of
+  known widths, so the drop is arithmetic, `ColumnState.dropAt`: past the
+  middle of each shown neighbour crossed, within the column's region. The
+  Model holds the drag as `{ column, delta }`, and the drop is worked out on
+  release from the columns as they are then, so a resize mid-drag counts;
+  the view marks the neighbour it would land beside from the same function.
+  `HeaderDrag` is one delegated listener on the header row that captures
+  the pointer only past 4px, since capturing on press would send a sort
+  button's click to the row; a press on a resize handle is the handle's,
+  and Escape cancels. On touch, the browser's scroll takes the gesture.
+- **Still to build:** controls for hiding and pinning (a column menu on the
+  header is the natural home), and a drag across regions to pin.
 
 ---
 
