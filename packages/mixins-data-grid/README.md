@@ -185,8 +185,10 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   holds no row order. Shift+Space does it from the keyboard.
 - Keys read the state the last render drew, so two keys inside one frame
   both start from the same cell, as `GridNavigation`'s do.
-- Hiding and pinning have no built-in control, and there is no drag
-  reordering; the column Messages are sent by the application's own controls.
+- Hiding and pinning have no built-in control; the column Messages are sent
+  by the application's own controls. A header dragged with the pointer
+  reorders within its region; on touch the browser's scroll takes the
+  gesture.
 - An edit is text: the grid reports what was typed, and the application
   turns it into a value. There are no select or date editors yet.
 - A copy's text is drawn with the grid, built once per range and rows, so

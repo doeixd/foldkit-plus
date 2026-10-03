@@ -48,10 +48,15 @@ export const GridSlots = Slots.define({
     capability: Capability.Container,
     protected: { attributes: [Attr.Role, AriaRowIndex], style: geometry },
   }),
-  /** One per drawn column; `--fk-grid-pinned` says `start`, `end` or nothing. */
+  /**
+   * One per drawn column. `data-pinned` is `start` or `end` on a pinned
+   * column; while a header is dragged it has `data-dragging` and follows the
+   * pointer by a `transform`, and the shown neighbour it would land beside
+   * has `data-drop`, `before` or `after`.
+   */
   headerCell: Slot.make({
     capability: Capability.Base,
-    protected: { attributes: [Attr.Role, AriaColIndex], style: geometry },
+    protected: { attributes: [Attr.Role, AriaColIndex], style: [...geometry, 'transform'] },
   }),
   /**
    * A column's resize handle at its end edge: a `role="separator"` with its

@@ -3,7 +3,7 @@
 **In development, not published.** Phases 0 to 8 of the DataGrid design are
 built: the pure model, focus, two-axis virtualization, the accessible view in
 `foldkit-mixins-data-grid`, column state, selection, editing as text, Remote
-and CRUD rows, and the clipboard. Drag reordering, a column menu, typed
+and CRUD rows, and the clipboard. A column menu, typed
 editors and fill are not.
 
 ## What it owns

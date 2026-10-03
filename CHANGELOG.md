@@ -98,7 +98,10 @@ version changed; `pnpm` skips versions already in the registry.
   within its region past the middle of each shown neighbour it crossed,
   worked out then by `ColumnState.dropAt` from the columns as they stand; a
   cancelled drag moves nothing. `ColumnState.regionOf` says which region a
-  column is in.
+  column is in. `foldkit-mixins-data-grid` draws it: a press on a header
+  moved past 4px drags it (a click, on a sort button too, stays a click),
+  the header follows the pointer with `data-dragging`, the neighbour it
+  would land beside has `data-drop`, and Escape lets it go back.
 - **`examples/data-grid`, a 100,000-row product registry.** The UPC
   pinned, descriptions and prices edited with validation, rows and ranges
   selected, and copy and paste; the products are the application's, written

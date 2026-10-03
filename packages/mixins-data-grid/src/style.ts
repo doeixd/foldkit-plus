@@ -35,8 +35,22 @@ export const GridStyle = Style.forSlots(GridSlots)(
         fontSize: ref.size.sm,
         fontWeight: ref.weight.semibold,
         paddingInline: ref.space.sm,
+        // A drag that began on a header's text would otherwise select it.
+        userSelect: 'none',
       }),
       Style.nest('&[data-pinned]', { zIndex: '1' }),
+      Style.nest('&[data-dragging]', {
+        zIndex: '3',
+        background: ref.surface.default,
+        opacity: '0.9',
+        cursor: 'grabbing',
+      }),
+      Style.nest('&[data-drop="before"]', {
+        borderInlineStart: `${ref.border.thick} solid ${ref.outline.focus}`,
+      }),
+      Style.nest('&[data-drop="after"]', {
+        borderInlineEnd: `${ref.border.thick} solid ${ref.outline.focus}`,
+      }),
     ),
     cell: Style.compose(
       Style.self({

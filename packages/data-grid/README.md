@@ -413,7 +413,7 @@ twice keeps its first place.
 
 ## Limits
 
-- Not built: dragging a column to reorder it, a column menu to hide or pin
+- Not built: a column menu to hide or pin
   one, a Shift-click row range, more than one cell range, editors other than
   text, a fill handle, and reading the next page as the viewport nears the
   end (the view offers a More button instead).

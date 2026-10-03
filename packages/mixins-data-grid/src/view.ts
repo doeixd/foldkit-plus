@@ -24,6 +24,7 @@ import {
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
 import { EditorFocus } from './editorFocus.js'
+import { HeaderDrag } from './headerDrag.js'
 import { CellPress } from './press.js'
 import { GridSlots } from './slots.js'
 
@@ -48,7 +49,7 @@ export interface ColumnSort<Message> {
 
 /** What the grid's view reads, and what the application gives it. */
 export interface GridInput<Row, Id extends string, GridMessage, Message> {
-  /** The `DataGrid` Model as placed in the parent: focus, viewport and column state. */
+  /** The `DataGrid` Model as placed in the parent. */
   readonly state: {
     readonly focus: {
       readonly current: Option.Option<CellAddress<Id>>
@@ -69,6 +70,7 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
       readonly draft: string
       readonly error: Option.Option<string>
     }>
+    readonly dragging: Option.Option<{ readonly column: Id; readonly delta: number }>
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
   readonly rows: RowModel<Row>
@@ -520,7 +522,13 @@ const view = <Message>() => ({
             ? Option.map(sortOf(column), sorted => sorted.message)
             : Option.none()
 
+        // Escape while a header is dragged lets it go back; the pointer's own
+        // release after that finds no drag.
         const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> =>
+          key === 'Escape' && Option.isSome(state.dragging)
+            ? Option.some(input.wrap(grid.Message.ColumnDragEnded({ completed: false })))
+            : keyOf(key, modifiers)
+        const keyOf = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> =>
           Option.match(onHeader, {
             onSome: column =>
               Option.orElse(sortKey(column, key, modifiers), () =>
@@ -567,6 +575,40 @@ const view = <Message>() => ({
 
         // The end edge is the side the text runs toward, so a drag that way widens.
         const toward = input.direction === 'rtl' ? -1 : 1
+
+        // A header drag is measured toward the region's end, as a resize is.
+        const headerDragged = Mount.mapMessage(HeaderDrag(), fact =>
+          input.wrap(
+            Match.valueTags(fact, {
+              HeaderDragStarted: ({ header }) => grid.Message.ColumnDragStarted({ header }),
+              HeaderDragged: ({ deltaX }) => grid.Message.ColumnDragged({ delta: deltaX * toward }),
+              HeaderDragEnded: ({ completed }) => grid.Message.ColumnDragEnded({ completed }),
+            }),
+          ),
+        )
+        // The shown neighbour a dragged header would land beside if let go now,
+        // by the same `dropAt` the grid applies on release; none while it
+        // would stay where it is.
+        const landing = Option.flatMap(
+          state.dragging,
+          ({ column, delta }): Option.Option<{ readonly column: Id; readonly side: string }> => {
+            const columns = grid.columnState
+            const region = columns.regionOf(state.columns, column)
+            const moved = columns.move(
+              state.columns,
+              column,
+              region,
+              columns.dropAt(state.columns, column, delta),
+            )
+            if (moved === state.columns) return Option.none()
+            const hidden = new Set(moved.hidden)
+            const order = moved[region].filter(id => !hidden.has(id))
+            const at = order.indexOf(column)
+            return at + 1 < order.length
+              ? Option.some({ column: order[at + 1]!, side: 'before' })
+              : Option.some({ column: order[at - 1]!, side: 'after' })
+          },
+        )
         const resizeHandle = (id: Id): ReadonlyArray<Html> => {
           const column = grid.columns.byId[id]
           if (column.resizable === false) return []
@@ -619,8 +661,9 @@ const view = <Message>() => ({
           ]
         }
 
-        const headerCell = (id: Id): Html =>
-          h.div(
+        const headerCell = (id: Id): Html => {
+          const dragged = Option.filter(state.dragging, dragging => dragging.column === id)
+          return h.div(
             slots.headerCell.attrs([
               h.Role('columnheader'),
               h.Id(GridFocus.headerId(grid.id, id)),
@@ -630,7 +673,19 @@ const view = <Message>() => ({
               h.Style({
                 ...cellStyle(id),
                 ...(Option.isNone(pinned(id)) ? { position: 'relative' } : {}),
+                ...Option.match(dragged, {
+                  onNone: () => ({}),
+                  onSome: ({ delta }) => ({ transform: `translateX(${px(delta * toward)})` }),
+                }),
               }),
+              ...(Option.isSome(dragged) ? [h.DataAttribute('dragging', 'true')] : []),
+              ...Option.match(
+                Option.filter(landing, place => place.column === id),
+                {
+                  onNone: () => [],
+                  onSome: place => [h.DataAttribute('drop', place.side)],
+                },
+              ),
               ...Option.match(pinned(id), {
                 onNone: () => [],
                 onSome: edge => [h.DataAttribute('pinned', edge)],
@@ -653,6 +708,7 @@ const view = <Message>() => ({
               ...resizeHandle(id),
             ],
           )
+        }
 
         const rowAt = (index: number): Html =>
           Option.match(
@@ -840,6 +896,9 @@ const view = <Message>() => ({
                   slots.headerRow.attrs([
                     h.Role('row'),
                     h.AriaRowindex(1),
+                    // A Mount reads its args once: key it by what its mapping closes over.
+                    h.Key(`header-drag:${toward}`),
+                    h.OnMount(headerDragged),
                     h.Style({ display: 'flex', height: px(headerHeight), width: px(shown.width) }),
                   ]),
                   across(headerCell),
