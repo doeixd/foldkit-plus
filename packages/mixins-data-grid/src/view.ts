@@ -32,7 +32,10 @@ export interface GridWords {
 export interface GridInput<Row, Id extends string, GridMessage, Message> {
   /** The `DataGrid` Model as placed in the parent: focus, viewport and column state. */
   readonly state: {
-    readonly focus: { readonly current: Option.Option<CellAddress<Id>> }
+    readonly focus: {
+      readonly current: Option.Option<CellAddress<Id>>
+      readonly header: Option.Option<Id>
+    }
     readonly viewport: Viewport
     readonly columns: ColumnState<Id>
     readonly selection: {
@@ -156,7 +159,18 @@ const view = <Message>() => ({
             onSome: ({ row }) =>
               row >= shown.rows.start && row < shown.rows.end && drawn.includes(address.column),
           })
-        const activeDescendant = Option.filter(stop, isDrawn)
+        const isRowShown = (address: CellAddress<Id>) =>
+          Option.isSome(projection.positionOf(address))
+        const onHeader = state.focus.header
+        // The header row's cells are drawn whenever their column is.
+        const activeDescendant: Option.Option<string> = Option.match(onHeader, {
+          onSome: column =>
+            drawn.includes(column)
+              ? Option.some(GridFocus.headerId(grid.id, column))
+              : Option.none(),
+          onNone: () =>
+            Option.map(Option.filter(stop, isDrawn), address => GridFocus.cellId(grid.id, address)),
+        })
 
         const revealOf = (address: CellAddress<Id>) =>
           Option.flatMap(projection.positionOf(address), position =>
@@ -232,9 +246,109 @@ const view = <Message>() => ({
             address => grid.Message.Moved({ address, reveal: revealOf(address) }),
           )
 
+        const flip = input.direction === 'rtl' ? -1 : 1
+        const sideways = new Map([
+          ['ArrowRight', flip],
+          ['ArrowLeft', -flip],
+        ])
+        const plainKey = (modifiers: KeyboardModifiers) =>
+          !modifiers.shiftKey && !modifiers.ctrlKey && !modifiers.altKey && !modifiers.metaKey
+        // A header off screen sideways is brought in; the rows stay where they are.
+        const revealHeader = (column: Id) =>
+          Option.flatMap(projection.columnIndex(column), columnIndex =>
+            Option.flatMap(
+              VirtualGrid.reveal({
+                projection,
+                rowHeight,
+                width,
+                headerHeight,
+                viewport,
+                position: { row: shown.rows.start, column: columnIndex },
+              }),
+              ({ left }) =>
+                left === viewport.left ? Option.none() : Option.some({ top: viewport.top, left }),
+            ),
+          )
+        const headerTo = (column: Id) =>
+          grid.Message.HeaderFocused({ column, reveal: revealHeader(column) })
+
+        // Keys on a column header: move along the header row, back down to the
+        // cells, resize with Shift, reorder within the column's region with
+        // Ctrl or Meta and Shift.
+        const headerKey = (
+          column: Id,
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> => {
+          const columns = projection.columns
+          const at = columns.indexOf(column)
+          const step = sideways.get(key)
+          if (modifiers.altKey) return Option.none()
+          if (
+            step !== undefined &&
+            modifiers.shiftKey &&
+            (modifiers.ctrlKey || modifiers.metaKey)
+          ) {
+            const region = (['start', 'center', 'end'] as const).find(name =>
+              state.columns[name].includes(column),
+            )
+            if (region === undefined) return Option.none()
+            const index = state.columns[region].indexOf(column) + step
+            return Option.some(grid.Message.ColumnMoved({ column, region, index }))
+          }
+          if (
+            step !== undefined &&
+            modifiers.shiftKey &&
+            !modifiers.ctrlKey &&
+            !modifiers.metaKey
+          ) {
+            return Option.some(
+              grid.Message.ColumnResized({ column, width: width(column) + resizeStep * step }),
+            )
+          }
+          if (!plainKey(modifiers)) return Option.none()
+          if (step !== undefined) {
+            const next = columns[Math.min(Math.max(at + step, 0), columns.length - 1)]
+            return Option.fromUndefinedOr(next).pipe(Option.map(headerTo))
+          }
+          if (key === 'Home') return Option.fromUndefinedOr(columns[0]).pipe(Option.map(headerTo))
+          if (key === 'End') {
+            return Option.fromUndefinedOr(columns[columns.length - 1]).pipe(Option.map(headerTo))
+          }
+          if (key === 'ArrowDown' || key === 'Escape') {
+            // Back to the row focus left, in this column, or the first row.
+            const row = Option.orElse(
+              Option.map(Option.filter(stop, isRowShown), current => current.row),
+              () => Option.map(projection.first(), first => first.row),
+            )
+            return Option.map(row, key => {
+              const address = { row: key, column }
+              return grid.Message.Moved({ address, reveal: revealOf(address) })
+            })
+          }
+          return Option.none()
+        }
+
+        // ArrowUp on the first row goes up to the header.
+        const upToHeader = (key: string, modifiers: KeyboardModifiers) =>
+          key === 'ArrowUp' && plainKey(modifiers)
+            ? Option.flatMap(
+                Option.filter(stop, current =>
+                  Option.exists(projection.positionOf(current), ({ row }) => row === 0),
+                ),
+                current => Option.some(headerTo(current.column)),
+              )
+            : Option.none()
+
         const onKey = (key: string, modifiers: KeyboardModifiers) =>
           Option.map(
-            Option.orElse(selectionKey(key, modifiers), () => focusKey(key, modifiers)),
+            Option.match(onHeader, {
+              onSome: column => headerKey(column, key, modifiers),
+              onNone: () =>
+                Option.orElse(selectionKey(key, modifiers), () =>
+                  Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                ),
+            }),
             input.wrap,
           )
 
@@ -324,6 +438,8 @@ const view = <Message>() => ({
           h.div(
             slots.headerCell.attrs([
               h.Role('columnheader'),
+              h.Id(GridFocus.headerId(grid.id, id)),
+              ...(Option.contains(onHeader, id) ? [h.DataAttribute('focused', 'true')] : []),
               h.AriaColindex(indexOf.get(id)! + 1),
               // A pinned header is already sticky; any other holds its handle with relative.
               h.Style({
@@ -372,10 +488,9 @@ const view = <Message>() => ({
                   ]),
                   across(id => {
                     const address = { row: key, column: id }
-                    const focused = Option.exists(
-                      stop,
-                      current => current.row === key && current.column === id,
-                    )
+                    const focused =
+                      Option.isNone(onHeader) &&
+                      Option.exists(stop, current => current.row === key && current.column === id)
                     const inRange = Option.exists(
                       Option.zipWith(range, rangeColumns, (box, ids) => ({ box, ids })),
                       ({ box, ids }) =>
@@ -419,7 +534,7 @@ const view = <Message>() => ({
               : []),
             ...Option.match(activeDescendant, {
               onNone: () => [],
-              onSome: address => [h.AriaActiveDescendant(GridFocus.cellId(grid.id, address))],
+              onSome: id => [h.AriaActiveDescendant(id)],
             }),
             // Only keys aimed at the grid itself: a resize handle's arrows are its own.
             h.OnKeyDownSelfPreventDefault(onKey),

@@ -76,6 +76,12 @@ version changed; `pnpm` skips versions already in the registry.
   a range and scrolls its far corner in, Space and Shift+Space select rows,
   Ctrl or Meta with A selects all, and Escape lets a range go. The per-cell
   `mousedown` handlers are gone.
+- **The header row by keyboard.** Focus holds a `header` beside the current
+  cell (`HeaderFocused`, revealing a header scrolled away): ArrowUp from the
+  first row reaches it, the arrows and Home and End walk it, and ArrowDown or
+  Escape return. On a header, Shift with an arrow resizes the column and Ctrl
+  or Meta with Shift and an arrow reorders it. `GridFocus.headerId` names a
+  header cell.
 - **`foldkit-data-grid`, `GridFocus.cellOf`** reads a cell id back into an
   address; an id from another grid, or with a malformed escape, is none.
 - **`foldkit-data-grid`, `Columns.define` written inline keeps its row type.**

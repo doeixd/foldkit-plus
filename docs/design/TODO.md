@@ -481,10 +481,10 @@ are built. Each phase lists its deliverables and acceptance there.
   where the sort and Remote's states they show come from.
 - [ ] **Phase 4, `ColumnState`:** widths with `Move`, visibility, order with
   `PointerDrag` and a keyboard equivalent, start/end pinning, and a saved
-  layout decoded strictly. The state, its Messages, `restore` and pointer
-  resize handles are built (2026-10-03); drag reordering is not, and the
-  keyboard route to resize, reorder, hide and pin needs a decision (the
-  design's "Phase 4 as built so far").
+  layout decoded strictly. The state, its Messages, `restore`, pointer
+  resize handles and keyboard resize and reorder on a focused header are
+  built (2026-10-03); drag reordering and controls to hide and pin are not
+  (the design's "Phase 4 as built so far").
 - [ ] **Phase 5, selection:** rows (adapt `Selection` or replace it; it holds
   every id in an array) and a rectangular `CellSelection`. Built 2026-10-03:
   `RowSelection` (`Keys` or `AllExcept`), one cell range, the clicks and keys

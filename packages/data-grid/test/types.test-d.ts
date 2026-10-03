@@ -81,6 +81,7 @@ GridProjection.make({ rows, columns: idOnly, layout: ColumnLayout.initial(idOnly
 const Focus = GridFocus.make(columns)
 expectTypeOf<typeof Focus.Model.Type>().toEqualTypeOf<{
   readonly current: Option.Option<{ readonly row: string; readonly column: 'sku' | 'price' }>
+  readonly header: Option.Option<'sku' | 'price'>
 }>()
 
 // @ts-expect-error a focused cell names a column the grid defines
@@ -120,6 +121,7 @@ const Grid = DataGrid.make({ id: 'products', columns })
 expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
   readonly focus: {
     readonly current: Option.Option<{ readonly row: string; readonly column: 'sku' | 'price' }>
+    readonly header: Option.Option<'sku' | 'price'>
   }
   readonly viewport: {
     readonly top: number

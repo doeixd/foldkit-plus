@@ -22,7 +22,7 @@ const placed = Page.at(Placement)
 
 const start = placed.init({
   grid: {
-    focus: { current: Option.some(at('p:1', 'sku')) },
+    focus: { current: Option.some(at('p:1', 'sku')), header: Option.none() },
     viewport: { top: 5, left: 5, width: 5, height: 5 },
     columns: { start: ['sku'], center: [], end: [], hidden: [], widths: [] },
     resizing: Option.some({ column: 'sku', from: 1 }),
@@ -39,7 +39,7 @@ const step = (model: typeof start, message: typeof Grid.Message.Type) =>
 describe('DataGrid', () => {
   test('starts with nothing focused, nothing measured, and the columns as declared', () => {
     expect(start.grid).toEqual({
-      focus: { current: Option.none() },
+      focus: { current: Option.none(), header: Option.none() },
       viewport: { top: 0, left: 0, width: 0, height: 0 },
       columns: {
         start: [],
@@ -119,6 +119,31 @@ describe('DataGrid', () => {
     expect(after.grid.viewport).toEqual({ top: 64, left: 0, width: 0, height: 0 })
   })
 
+  test('goes up to a header, scrolling it in when it is away, and back down', () => {
+    const cell = step(start, Grid.Message.Focused({ address: at('p:1', 'price') })).model
+    const up = step(cell, Grid.Message.HeaderFocused({ column: 'price', reveal: Option.none() }))
+    expect(up.model.grid.focus.header).toEqual(Option.some('price'))
+    expect(up.commands ?? []).toEqual([])
+    const away = step(
+      up.model,
+      Grid.Message.HeaderFocused({ column: 'notes', reveal: Option.some({ top: 0, left: 300 }) }),
+    )
+    expect(away.commands?.[0]?.args).toEqual({ viewportId: 'products', top: 0, left: 300 })
+    const again = step(
+      away.model,
+      Grid.Message.HeaderFocused({ column: 'notes', reveal: Option.none() }),
+    )
+    expect(again.model).toBe(away.model)
+    const down = step(
+      away.model,
+      Grid.Message.Moved({ address: at('p:1', 'notes'), reveal: Option.none() }),
+    )
+    expect(down.model.grid.focus).toEqual({
+      current: Option.some(at('p:1', 'notes')),
+      header: Option.none(),
+    })
+  })
+
   test('measures the viewport', () => {
     const next = step(start, Grid.Message.Measured({ top: 10, left: 20, width: 300, height: 100 }))
     expect(next.model.grid.viewport).toEqual({ top: 10, left: 20, width: 300, height: 100 })
@@ -187,7 +212,7 @@ describe('DataGrid', () => {
     const model = step(start, Grid.Message.Focused({ address: at('p:1', 'price') })).model.grid
     const encoded = Schema.encodeSync(Grid.Model)(model)
     expect(encoded).toEqual({
-      focus: { current: { row: 'p:1', column: 'price' } },
+      focus: { current: { row: 'p:1', column: 'price' }, header: null },
       viewport: { top: 0, left: 0, width: 0, height: 0 },
       columns: {
         start: [],

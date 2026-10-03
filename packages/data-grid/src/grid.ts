@@ -60,6 +60,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * the cell is shown.
      */
     Moved: { address: focus.Address, reveal: Schema.OptionFromNullOr(Offsets) },
+    /** A key moved focus up to a column's header, revealing it when scrolled away. */
+    HeaderFocused: { column: Column, reveal: Schema.OptionFromNullOr(Offsets) },
     /** The scroll container moved or changed size: `GridViewport.Measure` reports it. */
     Measured: { ...Offsets.fields, width: Schema.Number, height: Schema.Number },
     /** The reveal a `Moved` asked for has scrolled the container. */
@@ -199,6 +201,20 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
           }),
         }),
+        HeaderFocused: ({ column, reveal }): Return => {
+          const next = focus.bundle.update(
+            model.focus,
+            focus.Message.HeaderFocused({ column }),
+            undefined,
+          ).model
+          return {
+            model: next === model.focus ? model : modifyFields(model, { focus: () => next }),
+            commands: Option.match(reveal, {
+              onNone: () => [],
+              onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
+            }),
+          }
+        },
         Measured: (fields): Return => ({
           model: viewportBy(model, GridViewport.Message.Measured(fields)),
         }),

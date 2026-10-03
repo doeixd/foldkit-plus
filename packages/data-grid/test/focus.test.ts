@@ -279,10 +279,30 @@ const focus = (address: CellAddress<Id>) =>
   Placement.wrapper.make(Focus.Message.Focused({ address }))
 
 describe('GridFocus placement', () => {
-  const start = placed.init({ focus: { current: Option.some(at('p:1', 'sku')) } }).model
+  const start = placed.init({
+    focus: { current: Option.some(at('p:1', 'sku')), header: Option.some('price') },
+  }).model
 
   test('starts with nothing focused', () => {
-    expect(start.focus.current).toEqual(Option.none())
+    expect(start.focus).toEqual({ current: Option.none(), header: Option.none() })
+  })
+
+  test('goes up to a header, keeps the cell, and comes back down to a cell', () => {
+    const cell = Option.getOrThrow(placed.update(start, focus(at('p:1', 'price')))).model
+    const up = Option.getOrThrow(
+      placed.update(cell, Placement.wrapper.make(Focus.Message.HeaderFocused({ column: 'price' }))),
+    ).model
+    expect(up.focus).toEqual({
+      current: Option.some(at('p:1', 'price')),
+      header: Option.some('price'),
+    })
+    // Focusing the cell it left comes down, though the cell is the same.
+    const down = Option.getOrThrow(placed.update(up, focus(at('p:1', 'price')))).model
+    expect(down.focus).toEqual({ current: Option.some(at('p:1', 'price')), header: Option.none() })
+    const again = Option.getOrThrow(
+      placed.update(up, Placement.wrapper.make(Focus.Message.HeaderFocused({ column: 'price' }))),
+    ).model
+    expect(again).toBe(up)
   })
 
   test('remembers the focused cell', () => {
@@ -306,17 +326,24 @@ describe('GridFocus Model', () => {
   const encode = Schema.encodeSync(Focus.Model)
 
   test('stores no focus as null and a focus as its address', () => {
-    expect(encode({ current: Option.none() })).toEqual({ current: null })
-    expect(encode({ current: Option.some(at('p:1', 'price')) })).toEqual({
-      current: { row: 'p:1', column: 'price' },
+    expect(encode({ current: Option.none(), header: Option.none() })).toEqual({
+      current: null,
+      header: null,
     })
-    expect(decode({ current: { row: 'p:1', column: 'price' } })).toEqual({
+    expect(
+      encode({ current: Option.some(at('p:1', 'price')), header: Option.some('sku') }),
+    ).toEqual({
+      current: { row: 'p:1', column: 'price' },
+      header: 'sku',
+    })
+    expect(decode({ current: { row: 'p:1', column: 'price' }, header: null })).toEqual({
       current: Option.some(at('p:1', 'price')),
+      header: Option.none(),
     })
   })
 
   test('refuses a stored focus on a column the grid does not define', () => {
-    expect(() => decode({ current: { row: 'p:1', column: 'removed' } })).toThrow(
+    expect(() => decode({ current: { row: 'p:1', column: 'removed' }, header: null })).toThrow(
       /Expected "name" \| "sku" \| "price" \| "notes"\s+at \["current"\]\["column"\]/,
     )
   })

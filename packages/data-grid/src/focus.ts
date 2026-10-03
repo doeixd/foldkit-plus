@@ -102,6 +102,14 @@ const cellOf = (
 }
 
 /**
+ * A column header's DOM id: the grid's id and the column id, URI-encoded and
+ * joined by `:`. It has two parts where a cell's has three, so the two never
+ * meet.
+ */
+const headerId = (grid: string, column: string): string =>
+  [grid, column].map(encodeURIComponent).join(':')
+
+/**
  * Focus for one grid: which cell is current, by identity. Make it once per
  * grid from its columns, so a focus saved in the Model decodes only against
  * columns that exist.
@@ -113,22 +121,42 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
   const Model = Schema.Struct({
     /** The focused cell; stored as `null` when none is. */
     current: Schema.OptionFromNullOr(Address),
+    /**
+     * The column header focus is on, when it is on the header row. The cell
+     * focused before stays in `current`, so going back down returns to it.
+     */
+    header: Schema.OptionFromNullOr(Address.fields.column),
   })
   type Model = typeof Model.Type
   const Message = defineMessageUnion({
     /** A cell became current: the user focused it, or a key moved there. */
     Focused: { address: Address },
+    /** Focus went up to a column's header. */
+    HeaderFocused: { column: Address.fields.column },
   })
   const bundle = Bundle.make('GridFocus', {
     Model,
     Message,
-    init: () => ({ model: { current: Option.none() } }),
-    update: (model: Model, message: typeof Message.Type) =>
-      Option.isSome(model.current) && sameAddress(model.current.value, message.address)
-        ? { model }
-        : { model: modifyFields(model, { current: () => Option.some(message.address) }) },
+    init: () => ({ model: { current: Option.none(), header: Option.none() } }),
+    update: (model: Model, message: typeof Message.Type) => ({
+      model: Message.match(message, {
+        Focused: ({ address }) =>
+          Option.isNone(model.header) &&
+          Option.isSome(model.current) &&
+          sameAddress(model.current.value, address)
+            ? model
+            : modifyFields(model, {
+                current: () => Option.some(address),
+                header: () => Option.none(),
+              }),
+        HeaderFocused: ({ column }) =>
+          Option.contains(model.header, column)
+            ? model
+            : modifyFields(model, { header: () => Option.some(column) }),
+      }),
+    }),
   })
   return { Address, Model, Message, bundle }
 }
 
-export const GridFocus = { make, target, tabStop, cellId, cellOf }
+export const GridFocus = { make, target, tabStop, cellId, cellOf, headerId }

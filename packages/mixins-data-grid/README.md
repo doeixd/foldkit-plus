@@ -135,6 +135,12 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   Home or End moves a range's far corner (scrolling it into view), Space
   selects the focused row and Shift+Space extends the rows to it, Ctrl or
   Meta with A selects every row (or every cell), and Escape lets a range go.
+- **The header row is part of the grid.** ArrowUp from the first row goes up
+  to the header (`aria-activedescendant` names the header cell), the arrows
+  and Home and End walk it, ArrowDown or Escape go back to the row focus came
+  from. On a header, Shift with an arrow resizes the column 16px, and Ctrl or
+  Meta with Shift and an arrow moves it within its region; both are mirrored
+  in right-to-left text.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.
@@ -155,10 +161,8 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   holds no row order. Shift+Space does it from the keyboard.
 - Keys read the state the last render drew, so two keys inside one frame
   both start from the same cell, as `GridNavigation`'s do.
-- A keyboard user cannot reach a resize handle yet: it is out of the tab
-  order, and the grid has no key that resizes or reorders the focused
-  column. Reordering, hiding and pinning have no built-in control either;
-  the column Messages are sent by the application's own controls.
-- No selection or editing yet.
+- Hiding and pinning have no built-in control, and there is no drag
+  reordering; the column Messages are sent by the application's own controls.
+- No editing yet.
 - Cells say their value as text unless `cell` draws them; the Display
   vocabulary of `foldkit-crud` arrives with the CRUD adapter in Phase 7.

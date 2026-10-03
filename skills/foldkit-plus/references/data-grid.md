@@ -99,9 +99,9 @@ the whole wiring, compiled.
   once per render; select-all is `AllExcept`, so it holds rows not loaded.
   The view handles the clicks and keys (Shift ranges, Space, Ctrl+A, Escape);
   a Shift click over rows does not extend a row range, Shift+Space does.
-- Resizable columns get a drag handle (`resizeHandle`, a `role="separator"`);
-  it is out of the tab order, so keyboard resizing needs the application's
-  own control sending `ColumnResized`.
+- Resizable columns get a drag handle (`resizeHandle`, a `role="separator"`),
+  out of the tab order. By keyboard: ArrowUp from the first row reaches the
+  header, where Shift+Arrow resizes and Ctrl/Meta+Shift+Arrow reorders.
 - ARIA is logical: `aria-rowindex` and `aria-colindex` count every row and
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 

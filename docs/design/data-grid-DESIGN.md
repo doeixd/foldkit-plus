@@ -241,11 +241,16 @@ departs from §12:
   handle steps with the arrows, mirrored for right-to-left. The handles are
   `tabindex="-1"`: with `0`, Tab walked into every handle and the grid was no
   longer one tab stop (the browser test caught it).
-- **Still to build:** drag reordering (`PointerDrag`), and a keyboard route
-  to resize, reorder, hide and pin. There is no standard key for these in a
-  grid, Alt with an arrow is the browser's history on Windows and Linux, and
-  Ctrl with Option is VoiceOver's; it needs a decision, perhaps a column
-  menu on a focusable header.
+- **The keyboard reaches columns through the header row.** Focus has a
+  `header` beside `current`: ArrowUp from the first row puts it on the
+  column's header, as WAI-ARIA's grid counts headers as cells. There Shift
+  with an arrow resizes and Ctrl or Meta with Shift and an arrow reorders
+  within the region: keys a header has no other use for, where Alt with an
+  arrow is browser history on Windows and Linux and Ctrl with Option is
+  VoiceOver's. Header ids have two parts and cell ids three, so they never
+  meet.
+- **Still to build:** drag reordering (`PointerDrag`), and controls for
+  hiding and pinning (a column menu on the header is the natural home).
 
 ---
 

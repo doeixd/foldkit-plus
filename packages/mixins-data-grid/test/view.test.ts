@@ -56,7 +56,7 @@ const input = (
 ): GridInput<Item, Id, GridMessage, GridMessage> => ({
   state: {
     ...Grid.bundle.init(undefined).model,
-    focus: { current: current },
+    focus: { current: current, header: Option.none() },
     viewport: { top: 0, left: 0, width: 400, height: 120, ...viewport },
   },
   rows: allRows,
@@ -162,7 +162,7 @@ describe('DataGridView', () => {
     const drawn = Inert.draw(EndView, {
       state: {
         ...EndGrid.bundle.init(undefined).model,
-        focus: { current: Option.none() },
+        focus: { current: Option.none(), header: Option.none() },
         viewport: { top: 0, left: 0, width: 400, height: 60 },
       },
       rows: allRows,
@@ -195,7 +195,7 @@ describe('DataGridView', () => {
       Inert.draw(WideView, {
         state: {
           ...WideGrid.bundle.init(undefined).model,
-          focus: { current: current },
+          focus: { current: current, header: Option.none() },
           viewport: { top: 0, left: 250, width: 280, height: 60 },
         },
         rows: allRows,
@@ -264,7 +264,7 @@ describe('DataGridView', () => {
     const drawn = Inert.draw(FixedView, {
       state: {
         ...FixedGrid.bundle.init(undefined).model,
-        focus: { current: Option.none() },
+        focus: { current: Option.none(), header: Option.none() },
         viewport: { top: 0, left: 0, width: 400, height: 60 },
       },
       rows: allRows,
