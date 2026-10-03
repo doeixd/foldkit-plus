@@ -48,6 +48,14 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         Schema.Struct({ anchor: focus.Address, focus: focus.Address }),
       ),
     }),
+    /** The cell being edited, its draft, and the error that refused it, if one did. */
+    editing: Schema.OptionFromNullOr(
+      Schema.Struct({
+        address: focus.Address,
+        draft: Schema.String,
+        error: Schema.OptionFromNullOr(Schema.String),
+      }),
+    ),
   })
   const Region = Schema.Literals(['start', 'center', 'end'])
   type Model = typeof Model.Type
@@ -104,9 +112,30 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      */
     CellPressed: { cell: Schema.String, shiftKey: Schema.Boolean, toggleKey: Schema.Boolean },
     CellsCleared: {},
+    /** An edit began on an editable cell, with the text it starts from. */
+    EditStarted: { address: focus.Address, draft: Schema.String },
+    EditChanged: { draft: Schema.String },
+    /**
+     * The draft is to be kept. When the column accepts it the edit ends, focus
+     * goes to `next` (the cell below, or beside, worked out by the view), and
+     * the grid reports `Edited`; when it refuses it, the edit stays with the
+     * error.
+     */
+    EditCommitted: {
+      next: Schema.OptionFromNullOr(focus.Address),
+      reveal: Schema.OptionFromNullOr(Offsets),
+    },
+    EditCancelled: {},
   })
   type Message = typeof Message.Type
-  type Return = Update.Return<Model, Message, never>
+  /** The text a cell was edited to: the application turns it into a value and writes it. */
+  const Edited = Schema.TaggedStruct('Edited', {
+    row: Schema.String,
+    column: Column,
+    text: Schema.String,
+  })
+  type Edited = typeof Edited.Type
+  type Return = Update.ReturnWithOutMessage<Model, Message, Edited, never>
 
   const focusTo = (model: Model, address: typeof focus.Address.Type): Model => {
     const next = focus.bundle.update(
@@ -166,6 +195,52 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     return { model: focused }
   }
 
+  const sameCell = (a: Address, b: Address): boolean => a.row === b.row && a.column === b.column
+  /**
+   * Ends an edit with its draft: none to report when nothing was edited,
+   * `refused` with the column's error when the draft does not pass, or the
+   * edit closed and `Edited` to report.
+   */
+  const finish = (
+    model: Model,
+  ): { readonly model: Model; readonly edited: Option.Option<Edited>; readonly refused: boolean } =>
+    Option.match(model.editing, {
+      onNone: () => ({ model, edited: Option.none(), refused: false }),
+      onSome: editing => {
+        const { address, draft } = editing
+        const error = options.columns.byId[address.column].edit?.validate?.(draft) ?? Option.none()
+        return Option.match(error, {
+          onSome: message => ({
+            model: modifyFields(model, {
+              editing: () => Option.some({ ...editing, error: Option.some(message) }),
+            }),
+            edited: Option.none(),
+            refused: true,
+          }),
+          onNone: () => ({
+            model: modifyFields(model, { editing: () => Option.none() }),
+            edited: Option.some(
+              Edited.make({ row: address.row, column: address.column, text: draft }),
+            ),
+            refused: false,
+          }),
+        })
+      },
+    })
+  /**
+   * The pointer leaving an edit commits it first, as a spreadsheet does; a
+   * draft the column refuses keeps the edit, and the pointer's change waits.
+   */
+  const afterEdit = (model: Model, then: (settled: Model) => Return): Return => {
+    const finished = finish(model)
+    if (finished.refused) return { model: finished.model }
+    const next = then(finished.model)
+    return Option.match(finished.edited, {
+      onNone: () => next,
+      onSome: outMessage => ({ ...next, outMessage }),
+    })
+  }
+
   // Single mode replaces, as a radio group does; RowsCleared empties it.
   const choose = (selection: Selection, row: string): Selection => {
     if (options.rowSelection === 'single') {
@@ -188,12 +263,14 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         columns: columnState.initial(),
         resizing: Option.none(),
         selection: { rows: GridSelection.none, anchor: Option.none(), cells: Option.none() },
+        editing: Option.none(),
       },
     }),
     update: (model: Model, message: Message): Return =>
       Message.match(message, {
         // A plain click or key is a single cell again: any range it leaves goes.
-        Focused: ({ address }): Return => ({ model: clearCells(focusTo(model, address)) }),
+        Focused: ({ address }): Return =>
+          afterEdit(model, settled => ({ model: clearCells(focusTo(settled, address)) })),
         Moved: ({ address, reveal }): Return => ({
           model: clearCells(focusTo(model, address)),
           commands: Option.match(reveal, {
@@ -224,9 +301,17 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         ColumnResized: ({ column, width }): Return => ({
           model: columnsBy(model, columnState.resize(model.columns, column, width)),
         }),
-        ColumnHidden: ({ column }): Return => ({
-          model: columnsBy(model, columnState.hide(model.columns, column)),
-        }),
+        // Hiding the column being edited ends the edit: there is nowhere to show it.
+        ColumnHidden: ({ column }): Return => {
+          const hidden = columnsBy(model, columnState.hide(model.columns, column))
+          return {
+            model:
+              hidden !== model &&
+              Option.exists(model.editing, editing => editing.address.column === column)
+                ? modifyFields(hidden, { editing: () => Option.none() })
+                : hidden,
+          }
+        },
         ColumnShown: ({ column }): Return => ({
           model: columnsBy(model, columnState.show(model.columns, column)),
         }),
@@ -309,8 +394,54 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         CellPressed: ({ cell, shiftKey, toggleKey }): Return =>
           Option.match(addressOf(cell), {
             onNone: () => ({ model }),
-            onSome: address => pressed(model, address, shiftKey, toggleKey),
+            onSome: address =>
+              Option.exists(model.editing, editing => sameCell(editing.address, address))
+                ? { model }
+                : afterEdit(model, settled => pressed(settled, address, shiftKey, toggleKey)),
           }),
+        EditStarted: ({ address, draft }): Return =>
+          options.columns.byId[address.column].edit === undefined
+            ? { model }
+            : {
+                model: modifyFields(clearCells(focusTo(model, address)), {
+                  editing: () => Option.some({ address, draft, error: Option.none() }),
+                }),
+              },
+        EditChanged: ({ draft }): Return => ({
+          model: Option.match(model.editing, {
+            onNone: () => model,
+            onSome: editing =>
+              editing.draft === draft && Option.isNone(editing.error)
+                ? model
+                : modifyFields(model, {
+                    editing: () => Option.some({ ...editing, draft, error: Option.none() }),
+                  }),
+          }),
+        }),
+        EditCommitted: ({ next, reveal }): Return => {
+          const finished = finish(model)
+          if (finished.refused) return { model: finished.model }
+          const moved = Option.match(next, {
+            onNone: () => finished.model,
+            onSome: address => focusTo(finished.model, address),
+          })
+          return {
+            model: moved,
+            ...Option.match(finished.edited, {
+              onNone: () => ({}),
+              onSome: outMessage => ({ outMessage }),
+            }),
+            commands: Option.match(reveal, {
+              onNone: () => [],
+              onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
+            }),
+          }
+        },
+        EditCancelled: (): Return => ({
+          model: Option.isNone(model.editing)
+            ? model
+            : modifyFields(model, { editing: () => Option.none() }),
+        }),
 
         CellsCleared: (): Return => ({ model: clearCells(model) }),
         ResizeEnded: ({ completed }): Return => ({
@@ -356,6 +487,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     focus,
     columnState,
     project,
+    Edited,
     Model,
     Message,
     bundle,

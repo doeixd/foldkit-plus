@@ -20,6 +20,7 @@ import {
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
+import { EditorFocus } from './editorFocus.js'
 import { CellPress } from './press.js'
 import { GridSlots } from './slots.js'
 
@@ -46,6 +47,11 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
         readonly focus: CellAddress<Id>
       }>
     }
+    readonly editing: Option.Option<{
+      readonly address: CellAddress<Id>
+      readonly draft: string
+      readonly error: Option.Option<string>
+    }>
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
   readonly rows: RowModel<Row>
@@ -340,13 +346,72 @@ const view = <Message>() => ({
               )
             : Option.none()
 
+        // An edit is only where its cell is drawn; one scrolled away waits.
+        const editing = Option.filter(state.editing, edit => isDrawn(edit.address))
+        const draftOf = (address: CellAddress<Id>): string =>
+          Option.match(
+            Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
+            {
+              onNone: () => '',
+              onSome: row => {
+                const column = grid.columns.byId[address.column]
+                return column.edit?.draft?.(row) ?? textOf(column.value(row))
+              },
+            },
+          )
+        // Enter or F2 edits the focused cell from its text; a printable key
+        // starts it over with that character.
+        const editKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> =>
+          Option.flatMap(
+            Option.filter(stop, address => grid.columns.byId[address.column].edit !== undefined),
+            address => {
+              if ((key === 'Enter' || key === 'F2') && plainKey(modifiers)) {
+                return Option.some(grid.Message.EditStarted({ address, draft: draftOf(address) }))
+              }
+              const typed =
+                key.length === 1 && !modifiers.ctrlKey && !modifiers.metaKey && !modifiers.altKey
+              return typed
+                ? Option.some(grid.Message.EditStarted({ address, draft: key }))
+                : Option.none()
+            },
+          )
+        // The editor's own keys: Enter commits and moves down (Shift, up), Tab
+        // commits and moves on (Shift, back), Escape cancels.
+        const editorKey = (
+          address: CellAddress<Id>,
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> => {
+          if (key === 'Escape') return Option.some(grid.Message.EditCancelled())
+          const back = modifiers.shiftKey ? -1 : 1
+          const offsets: Readonly<
+            Record<string, { readonly rows?: number; readonly columns?: number }>
+          > = {
+            Enter: { rows: back },
+            Tab: { columns: back * flip },
+          }
+          const offset = Object.hasOwn(offsets, key) ? offsets[key] : undefined
+          if (offset === undefined || modifiers.ctrlKey || modifiers.metaKey || modifiers.altKey) {
+            return Option.none()
+          }
+          const next = projection.moveBy(address, offset)
+          return Option.some(
+            grid.Message.EditCommitted({ next, reveal: Option.flatMap(next, revealOf) }),
+          )
+        }
+
         const onKey = (key: string, modifiers: KeyboardModifiers) =>
           Option.map(
             Option.match(onHeader, {
               onSome: column => headerKey(column, key, modifiers),
               onNone: () =>
                 Option.orElse(selectionKey(key, modifiers), () =>
-                  Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                  Option.orElse(editKey(key, modifiers), () =>
+                    Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                  ),
                 ),
             }),
             input.wrap,
@@ -509,7 +574,39 @@ const view = <Message>() => ({
                           onSome: edge => [h.DataAttribute('pinned', edge)],
                         }),
                       ]),
-                      [input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row))],
+                      Option.match(
+                        Option.filter(
+                          editing,
+                          edit => edit.address.row === key && edit.address.column === id,
+                        ),
+                        {
+                          onNone: () => [
+                            input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
+                          ],
+                          onSome: edit => [
+                            h.input(
+                              slots.editor.attrs([
+                                // A new edit is a new field, so it is focused afresh.
+                                h.Key(`edit:${key}:${id}`),
+                                h.Type('text'),
+                                h.Value(edit.draft),
+                                h.AriaLabel(grid.columns.byId[id].header),
+                                h.AriaInvalid(Option.isSome(edit.error)),
+                                ...Option.match(edit.error, {
+                                  onNone: () => [],
+                                  onSome: error => [h.AriaDescription(error)],
+                                }),
+                                h.OnInput(draft => input.wrap(grid.Message.EditChanged({ draft }))),
+                                h.OnKeyDownPreventDefault((pressed, modifiers) =>
+                                  Option.map(editorKey(address, pressed, modifiers), input.wrap),
+                                ),
+                                h.OnMount(EditorFocus()),
+                                h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
+                              ]),
+                            ),
+                          ],
+                        },
+                      ),
                     )
                   }),
                 ),

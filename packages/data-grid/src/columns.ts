@@ -1,3 +1,4 @@
+import type { Option } from 'effect'
 /** What a column shows and where it starts out. Its id is its key in `Columns.define`. */
 export interface ColumnSpec<Row, Value> {
   readonly header: string
@@ -16,6 +17,19 @@ export interface ColumnSpec<Row, Value> {
   readonly resizable?: boolean
   /** Whether it can be hidden. Default `true`. */
   readonly hideable?: boolean
+  /**
+   * Makes the column's cells editable as text. The grid holds the draft and
+   * reports the committed text as an `Edited` OutMessage; turning the text
+   * into a value and writing it is the application's.
+   */
+  readonly edit?: ColumnEdit<Row>
+}
+
+export interface ColumnEdit<Row> {
+  /** The text an edit of a row's cell begins with. Default the value as a string. */
+  readonly draft?: (row: Row) => string
+  /** An error to show for a draft, or none when it may be committed. */
+  readonly validate?: (text: string) => Option.Option<string>
 }
 
 export interface Column<Row, Id extends string, Value> extends ColumnSpec<Row, Value> {

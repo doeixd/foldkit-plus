@@ -185,6 +185,26 @@ it departs from §10, §13 and §21's Phase 3:
   grid and draws a placeholder for a row counted but not loaded; Remote's
   loading and failure are Phase 7's to map.
 
+## Phase 6 as built (2026-10-03)
+
+Editing in the `DataGrid` Bundle, and the editor in the view. Where it
+departs from §11:
+
+- **One Bundle, not `Editing.bundle` beside it.** A commit moves focus, so
+  the edit and the focus have to change in one update; two Bundles would
+  need the parent to relay between them.
+- **The commit is an OutMessage, `Edited { row, column, text }`.** §11's
+  `Editor.text({ message })` would put the application's Message in the
+  column, making columns generic over it; an OutMessage keeps the columns the
+  application's data and hands the commit to the parent's `onOut`, the
+  Bundle way. The cost is that every placement names an `onOut`.
+- **An edit is text.** `edit: { draft?, validate? }`: the grid keeps the
+  draft and asks `validate`; turning the text into a value is the
+  application's, as is writing it. `Editor.number`, a select and a date
+  editor are not built.
+- **A pointer leaving an edit commits it,** as a spreadsheet does; a refused
+  draft keeps the edit and the click waits.
+
 ## Phase 5 as built so far (2026-10-03)
 
 `GridSelection` and `RowSelection` in `src/selection.ts`, held in the

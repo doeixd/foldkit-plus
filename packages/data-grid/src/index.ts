@@ -1,5 +1,5 @@
 export { ColumnState, type Region, type Restored } from './columnState.js'
-export { Columns, type Column, type ColumnId, type ColumnSpec } from './columns.js'
+export { Columns, type Column, type ColumnEdit, type ColumnId, type ColumnSpec } from './columns.js'
 export { DataGrid, type DataGridOf } from './grid.js'
 export { GridFocus, type Direction, type KeyOptions } from './focus.js'
 export { ColumnLayout } from './layout.js'

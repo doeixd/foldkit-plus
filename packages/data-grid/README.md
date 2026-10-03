@@ -266,6 +266,40 @@ GridSelection.isSelected(picked.selection.rows)('p1') // true
 - **`GridSelection.isSelected(selection)`** indexes a selection once; call it
   once per render, not per row.
 
+## Editing
+
+A column with `edit` is editable. The grid owns the edit session (which
+cell, the draft, an error); the application owns the value, and hears of a
+commit as the grid's OutMessage:
+
+```ts
+const priced = Columns.define<Product>()({
+  sku: { header: 'SKU', value: product => product.sku },
+  price: {
+    header: 'Price',
+    value: product => product.price,
+    edit: {
+      draft: product => product.price.toFixed(2),
+      validate: text =>
+        Number.isFinite(Number(text)) ? Option.none() : Option.some('Not a number'),
+    },
+  },
+})
+const Prices = DataGrid.make({ id: 'prices', columns: priced })
+type Edited = typeof Prices.Edited.Type // { _tag: 'Edited', row, column, text }
+```
+
+- **`EditStarted({ address, draft })`** opens an edit on an editable cell;
+  `EditChanged` keeps the draft; `EditCancelled` drops it.
+- **`EditCommitted({ next, reveal })`** asks the column's `validate`. A draft
+  it refuses keeps the edit with the error, and nothing is reported. One it
+  accepts ends the edit, moves focus to `next`, and the update returns the
+  OutMessage `Edited({ row, column, text })`.
+- **Place the grid with `onOut`.** Every placement handles the OutMessage, as
+  any Bundle's must; a grid that edits nothing passes `onOut: Bundle.ignore`.
+- **A click on another cell commits first;** a refused draft keeps the edit
+  and the click waits. Hiding the edited column ends the edit.
+
 ## Row counts
 
 A `RowModel`'s `count` is a `RowCount`:

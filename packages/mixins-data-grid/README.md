@@ -56,7 +56,8 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Placement.cases })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
-  Bundle.parent({ Model, Message }).at(Placement),
+  // A grid reports edits as an OutMessage; this one edits nothing, so it ignores them.
+  Bundle.parent({ Model, Message }).at(Placement, { onOut: Bundle.ignore }),
 ])
 
 const ItemsGrid = DataGridView<Message>().define(Grid).pipe(Style.attach(GridStyle))
@@ -141,6 +142,13 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   from. On a header, Shift with an arrow resizes the column 16px, and Ctrl or
   Meta with Shift and an arrow moves it within its region; both are mirrored
   in right-to-left text.
+- **Editing**, for a column with `edit`: Enter or F2 opens a text field in
+  the focused cell on its text, and a printable key opens it on that
+  character. In the field, Enter commits and moves down (Shift+Enter up), Tab
+  commits and moves across (Shift+Tab back), and Escape cancels; the arrows
+  are the field's own. A draft the column's `validate` refuses stays open
+  with `aria-invalid` and the error as `aria-description`. Focus comes back
+  to the grid when the field goes. Clicking another cell commits first.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.
@@ -163,6 +171,7 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   both start from the same cell, as `GridNavigation`'s do.
 - Hiding and pinning have no built-in control, and there is no drag
   reordering; the column Messages are sent by the application's own controls.
-- No editing yet.
+- An edit is text: the grid reports what was typed, and the application
+  turns it into a value. There are no select or date editors yet.
 - Cells say their value as text unless `cell` draws them; the Display
   vocabulary of `foldkit-crud` arrives with the CRUD adapter in Phase 7.

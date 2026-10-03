@@ -92,6 +92,15 @@ export const GridSlots = Slots.define({
     capability: Capability.Base,
     protected: { style: ['height', 'width'] },
   }),
+  /**
+   * The text field a cell is edited in, drawn in place of its content while
+   * the edit lasts; `aria-invalid` when the column refused the draft.
+   */
+  editor: Slot.make({
+    capability: Capability.TextInput,
+    events: [Event.Input, Event.KeyDown],
+    protected: { events: [Event.Input, Event.KeyDown] },
+  }),
   /** Said in place of rows when there are none. */
   status: Slot.make({ capability: Capability.Base }),
 })

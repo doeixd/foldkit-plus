@@ -38,7 +38,7 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Placement.cases })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
-  Bundle.parent({ Model, Message }).at(Placement),
+  Bundle.parent({ Model, Message }).at(Placement, { onOut: Bundle.ignore }),
 ])
 
 // 300 by 160: a 20px header over seven 20px rows, and 160px of center between the pins.

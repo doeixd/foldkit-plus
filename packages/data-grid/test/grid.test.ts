@@ -11,14 +11,14 @@ import {
   RowSelection,
 } from 'foldkit-data-grid'
 import { describe, expect, test } from 'vitest'
-import { type Id, at, columns, productKey, products } from './fixture.js'
+import { type Id, type Product, at, columns, productKey, products } from './fixture.js'
 
 const Grid = DataGrid.make({ id: 'products', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
 const Model = Schema.Struct({ ...Placement.fields })
 const Message = defineMessageUnion({ ...Placement.cases })
 const Page = Bundle.parent({ Model, Message })
-const placed = Page.at(Placement)
+const placed = Page.at(Placement, { onOut: Bundle.ignore })
 
 const start = placed.init({
   grid: {
@@ -31,6 +31,7 @@ const start = placed.init({
       anchor: Option.some('p:1'),
       cells: Option.none(),
     },
+    editing: Option.none(),
   },
 }).model
 const step = (model: typeof start, message: typeof Grid.Message.Type) =>
@@ -54,6 +55,8 @@ describe('DataGrid', () => {
         anchor: Option.none(),
         cells: Option.none(),
       },
+
+      editing: Option.none(),
     })
   })
 
@@ -223,6 +226,7 @@ describe('DataGrid', () => {
       },
       resizing: null,
       selection: { rows: { _tag: 'Keys', keys: [] }, anchor: null, cells: null },
+      editing: null,
     })
     expect(Schema.decodeUnknownSync(Grid.Model)(encoded)).toEqual(model)
   })
@@ -439,5 +443,147 @@ describe('DataGrid selection', () => {
         }),
       ),
     ).toBe(plain)
+  })
+})
+
+const editable = Columns.define<Product>()({
+  sku: { header: 'SKU', value: product => product.sku },
+  name: { header: 'Name', value: product => product.name, edit: {} },
+  price: {
+    header: 'Price',
+    value: product => product.price,
+    edit: {
+      draft: product => product.price.toFixed(2),
+      validate: text =>
+        Number.isFinite(Number(text)) ? Option.none() : Option.some('Not a number'),
+    },
+  },
+})
+const Editing = DataGrid.make({ id: 'editing', columns: editable })
+type EditingModel = typeof Editing.Model.Type
+const blank = Editing.bundle.init(undefined).model
+const edit = (model: EditingModel, message: typeof Editing.Message.Type) =>
+  Editing.bundle.update(model, message, undefined)
+const begun = edit(
+  blank,
+  Editing.Message.EditStarted({ address: { row: 'p:1', column: 'price' }, draft: '9.00' }),
+).model
+const typed = (draft: string) => edit(begun, Editing.Message.EditChanged({ draft })).model
+
+describe('DataGrid editing', () => {
+  test('an edit begins on an editable cell, focused, from its draft', () => {
+    expect(begun.editing).toEqual(
+      Option.some({
+        address: { row: 'p:1', column: 'price' },
+        draft: '9.00',
+        error: Option.none(),
+      }),
+    )
+    expect(begun.focus.current).toEqual(Option.some({ row: 'p:1', column: 'price' }))
+  })
+
+  test('a cell whose column does not edit begins nothing', () => {
+    const start = Editing.Message.EditStarted({
+      address: { row: 'p:1', column: 'sku' },
+      draft: 'x',
+    })
+    expect(edit(blank, start).model).toBe(blank)
+  })
+
+  test('a commit the column accepts ends the edit, moves focus and reports the text', () => {
+    const committed = edit(
+      typed('12.5'),
+      Editing.Message.EditCommitted({
+        next: Option.some({ row: 'p:100', column: 'price' }),
+        reveal: Option.some({ top: 40, left: 0 }),
+      }),
+    )
+    expect(committed.model.editing).toEqual(Option.none())
+    expect(committed.model.focus.current).toEqual(Option.some({ row: 'p:100', column: 'price' }))
+    expect(committed.outMessage).toEqual(
+      Editing.Edited.make({ row: 'p:1', column: 'price', text: '12.5' }),
+    )
+    expect(committed.commands?.[0]?.args).toEqual({ viewportId: 'editing', top: 40, left: 0 })
+  })
+
+  test('a draft the column refuses keeps the edit with the error, and reports nothing', () => {
+    const refused = edit(
+      typed('twelve'),
+      Editing.Message.EditCommitted({
+        next: Option.some({ row: 'p:100', column: 'price' }),
+        reveal: Option.none(),
+      }),
+    )
+    expect(refused.outMessage).toBeUndefined()
+    expect(refused.model.editing).toEqual(
+      Option.some({
+        address: { row: 'p:1', column: 'price' },
+        draft: 'twelve',
+        error: Option.some('Not a number'),
+      }),
+    )
+    expect(refused.model.focus.current).toEqual(Option.some({ row: 'p:1', column: 'price' }))
+    // Typing again clears the error.
+    const retyped = edit(refused.model, Editing.Message.EditChanged({ draft: 'twelv' })).model
+    expect(Option.map(retyped.editing, editing => editing.error)).toEqual(
+      Option.some(Option.none()),
+    )
+  })
+
+  test('the same draft again changes nothing', () => {
+    expect(edit(begun, Editing.Message.EditChanged({ draft: '9.00' })).model).toBe(begun)
+  })
+
+  test('a cancel ends the edit and reports nothing; with no edit it changes nothing', () => {
+    const cancelled = edit(typed('1'), Editing.Message.EditCancelled())
+    expect(cancelled.model.editing).toEqual(Option.none())
+    expect(cancelled.outMessage).toBeUndefined()
+    expect(edit(blank, Editing.Message.EditCancelled()).model).toBe(blank)
+  })
+
+  test('focusing another cell commits the edit first', () => {
+    const left = edit(
+      typed('3'),
+      Editing.Message.Focused({ address: { row: 'p:10', column: 'sku' } }),
+    )
+    expect(left.outMessage).toEqual(Editing.Edited.make({ row: 'p:1', column: 'price', text: '3' }))
+    expect(left.model.editing).toEqual(Option.none())
+    expect(left.model.focus.current).toEqual(Option.some({ row: 'p:10', column: 'sku' }))
+  })
+
+  test('focusing another cell with a refused draft keeps the edit where it is', () => {
+    const kept = edit(
+      typed('x'),
+      Editing.Message.Focused({ address: { row: 'p:10', column: 'sku' } }),
+    )
+    expect(kept.outMessage).toBeUndefined()
+    expect(kept.model.focus.current).toEqual(Option.some({ row: 'p:1', column: 'price' }))
+    expect(Option.isSome(kept.model.editing)).toBe(true)
+  })
+
+  test('a press on the cell being edited leaves the edit alone', () => {
+    const own = GridFocus.cellId('editing', { row: 'p:1', column: 'price' })
+    const model = typed('4')
+    expect(
+      edit(model, Editing.Message.CellPressed({ cell: own, shiftKey: false, toggleKey: false }))
+        .model,
+    ).toBe(model)
+    const other = GridFocus.cellId('editing', { row: 'p:10', column: 'name' })
+    const pressed = edit(
+      model,
+      Editing.Message.CellPressed({ cell: other, shiftKey: false, toggleKey: false }),
+    )
+    expect(pressed.outMessage).toEqual(
+      Editing.Edited.make({ row: 'p:1', column: 'price', text: '4' }),
+    )
+  })
+
+  test('hiding the edited column ends the edit; hiding another keeps it', () => {
+    expect(edit(begun, Editing.Message.ColumnHidden({ column: 'price' })).model.editing).toEqual(
+      Option.none(),
+    )
+    expect(
+      Option.isSome(edit(begun, Editing.Message.ColumnHidden({ column: 'name' })).model.editing),
+    ).toBe(true)
   })
 })

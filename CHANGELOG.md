@@ -76,6 +76,16 @@ version changed; `pnpm` skips versions already in the registry.
   a range and scrolls its far corner in, Space and Shift+Space select rows,
   Ctrl or Meta with A selects all, and Escape lets a range go. The per-cell
   `mousedown` handlers are gone.
+- **Editing (Phase 6).** A column with `edit: { draft?, validate? }` is
+  editable as text. The `DataGrid` Model holds the session (`editing`), with
+  `EditStarted`, `EditChanged`, `EditCommitted` and `EditCancelled`; a commit
+  the column accepts moves focus and returns the OutMessage `Edited({ row,
+  column, text })`, so every grid is now placed with `onOut`
+  (`Bundle.ignore` for one that edits nothing). A refused draft stays with
+  its error; a click elsewhere commits first; hiding the column ends it. The
+  view opens a focused field on Enter, F2 or a typed key, commits with Enter
+  and Tab, cancels with Escape, marks a refused draft `aria-invalid`, and
+  hands focus back to the grid.
 - **The header row by keyboard.** Focus holds a `header` beside the current
   cell (`HeaderFocused`, revealing a header scrolled away): ArrowUp from the
   first row reaches it, the arrows and Home and End walk it, and ArrowDown or

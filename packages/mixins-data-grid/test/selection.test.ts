@@ -35,7 +35,7 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Placement.cases })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
-  Bundle.parent({ Model, Message }).at(Placement),
+  Bundle.parent({ Model, Message }).at(Placement, { onOut: Bundle.ignore }),
 ])
 const View = DataGridView<Message>().define(Grid)
 const view = (model: Model, h: HtmlBuilder<Message>) =>

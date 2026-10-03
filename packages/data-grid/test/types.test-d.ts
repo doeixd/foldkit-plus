@@ -145,6 +145,11 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
       readonly focus: { readonly row: string; readonly column: 'sku' | 'price' }
     }>
   }
+  readonly editing: Option.Option<{
+    readonly address: { readonly row: string; readonly column: 'sku' | 'price' }
+    readonly draft: string
+    readonly error: Option.Option<string>
+  }>
 }>()
 
 // @ts-expect-error row selection is single or multiple

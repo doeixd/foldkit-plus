@@ -94,6 +94,9 @@ the whole wiring, compiled.
 - `root` is the scroll container: give it a height with a Style. A Style that
   sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
   row's `height`, throws `slot "cell" protects style property`.
+- A grid has an OutMessage, `Edited({ row, column, text })`: place it with
+  `onOut` (`Bundle.ignore` if no column has `edit`). An edit is text; the
+  application parses and writes it.
 - Selection is opt-in: `DataGrid.make({ ..., rowSelection: 'multiple',
   cellSelection: true })`. Ask `GridSelection.isSelected(model.grid.selection.rows)`
   once per render; select-all is `AllExcept`, so it holds rows not loaded.
