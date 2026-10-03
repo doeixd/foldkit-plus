@@ -5,7 +5,37 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.14.0
+
+`foldkit-entity` 0.7.0; `foldkit-remote` 0.11.0; `foldkit-remote-server`
+0.11.0; `foldkit-remote-drizzle` 0.9.1. Republished to re-pin:
+`foldkit-cms` 0.4.1, `foldkit-cms-drizzle` 0.4.1, `foldkit-crud` 0.5.1,
+`foldkit-form` 0.4.1, `foldkit-mixins-crud` 0.6.1 and `foldkit-mixins-form`
+0.4.1, each of which pins a bumped package exactly. Every other package is
+unchanged.
+
+**Queries mean the same thing everywhere.** Nine reports from testing a second,
+independent implementation against the published packages: a query is now a
+frozen value, a shared node costs one visit, dependencies are reported per
+Entity identity, `contains` folds the same way in memory and in SQL, and an
+ordering refusal reads the same on every engine. On the server, related
+entities serve their relations, field names from `Object.prototype` are
+refused, and the memory backend can be served over a real transport. On the
+client, `Remote.clientLayer` takes the stock `RpcClient` as it is.
+
+### Upgrading from 0.13
+
+- **A dependency's field names its owner.** `dependenciesOf` and
+  `Query.dependencies` return `{ entity, key, owner }` per field. Code that
+  compares the whole entry with `toEqual` needs the `owner` too, or compares
+  `entity` and `key` alone. `Data.explain` is unchanged.
+- **`Expr` nodes are frozen.** Code that changed a node after building it
+  now throws in strict mode. Build a new node instead.
+- **`evaluate` refuses more, the same way every time.** A null order key is
+  refused wherever it is, including where an earlier term already separates
+  the rows, and `contains` refuses text holding a NUL character, as the SQL
+  compiler now does. `contains` folds ASCII letters only, so a search that
+  relied on `É` matching `é` in memory no longer does; it never did in SQL.
 
 ### Added
 
