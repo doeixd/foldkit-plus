@@ -826,6 +826,11 @@ of its own named a form field "fits the Catalog". Read words with
   took the first claimant, so a second URL mirror never read the URL and the
   application never saw its own `UrlChanged`. Assert what each claimant and
   the parent receive.
+- **A transition's end value is not its end.** A `Measure` test waited until a
+  row's height read its final value, then asserted a stylesheet was not yet
+  seen; the transition still had a frame to run, `Measure` measures every
+  frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
+  empty before asserting what a later step alone causes.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist

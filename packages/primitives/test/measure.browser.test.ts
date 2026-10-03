@@ -165,6 +165,11 @@ it('measures again when something moves the target without a change or a resize'
     await new Promise(resolve => requestAnimationFrame(resolve))
     rows[0]!.style.height = '60px'
     await vi.waitFor(() => expect(read('y')).toBe('60px'))
+    // The transition can still have a frame to run after the height reads its
+    // end value, and Measure measures on every frame of one: wait until it has
+    // ended, so the next step sees only the stylesheet.
+    await vi.waitFor(() => expect(rows[0]!.getAnimations()).toHaveLength(0))
+    for (const _ of [1, 2]) await new Promise(resolve => requestAnimationFrame(resolve))
 
     // A font arrives: a stylesheet moved it first, as a font's metrics would.
     sheet.textContent = '[data-mark] { margin-top: 5px }'
