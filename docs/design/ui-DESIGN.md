@@ -1,3 +1,9 @@
+**Status:** not built; checked against the code on 2026-10-03, when none of
+Anatomy, `Collection`, `Overlay`, knobs or the Tier A widgets existed. The text
+is a ChatGPT conversation kept as written, citation markers included. Open
+phases are tracked in [TODO.md](./TODO.md) "UI platform". Its DataTable is
+superseded by [data-grid-DESIGN.md](./data-grid-DESIGN.md).
+
 Yes. I looked at the current `foldkit-plus` main branch, Foldkit’s `@foldkit/ui`, and the current Base UI/shadcn surfaces. You already have more of the *underlying architecture* than I expected. The main problem now is that the UI story is **unevenly filled in**.
 
 `@foldkit/ui` already gives you Button, Calendar, DatePicker, Checkbox, Combobox, Dialog, DragAndDrop, Disclosure, Fieldset, FileDrop, Listbox, Menu, Nav, Popover, RadioGroup, Select, Slider, Switch, Tabs, Toast, Tooltip, VirtualList, etc. And `foldkit-mixins-ui` already adapts a meaningful subset into Slots/Mixins and has the beginnings of a real design system through `Recipes`, typed theme tokens, variants, accessibility patterns, layers, and primitives such as focus management, list/grid/tree navigation, press, dismiss layers, selection, presence/motion, live announce, and so on.
@@ -856,7 +862,9 @@ DescriptionList
 
 But keep these mostly **view/recipe oriented**, not state-machine oriented.
 
-For `DataTable`, though, leverage Foldkit:
+For `DataTable`, though, leverage Foldkit (superseded by
+[data-grid-DESIGN.md](./data-grid-DESIGN.md), which builds a grid from a
+`RowModel`, typed Columns and a `GridProjection` instead):
 
 ```text
 DataTable
@@ -2657,6 +2665,8 @@ PropertyPanel
 ```
 
 These should demonstrate how multiple lower-level capabilities cooperate rather than becoming new monoliths.
+
+The DataGrid has its own design: [data-grid-DESIGN.md](./data-grid-DESIGN.md).
 
 For example:
 

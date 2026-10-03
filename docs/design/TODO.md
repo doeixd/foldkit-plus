@@ -144,7 +144,7 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   error. [entity-DX-PLAN.md](./entity-DX-PLAN.md)
 - [ ] **Entity §54:** Remote integration beyond its first slice
   (`Entity.from`/`Selection.from`). [entity-DESIGN.md](./entity-DESIGN.md) §54
-- [ ] **Query native findings** ([query-native-FINDINGS.md](./query-native-FINDINGS.md),
+- [x] **Query native findings** ([query-native-FINDINGS.md](./query-native-FINDINGS.md),
   from the reffect integration; application-code-only surface today, none of
   them blocks a release): decide the Unicode/NUL containment contract shared
   by evaluate and SQLite (or refuse outside a portable profile) with shared
@@ -154,6 +154,16 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   carry owner tokens in semantic dependencies instead of name/key strings.
   Migrate the `effect/unstable/rpc` import to `effect/rpc` with the workspace
   Effect upgrade past rc.116, then widen the peer range again.
+  Done in 0.14.0 (issues #136 to #139): ASCII folding with NUL refused by
+  every interpreter, one visit per shared node, frozen nodes, dependencies
+  keyed by owner. The import moved with the Effect 4.0.0 upgrade, and the peer
+  range is `^4.0.0`.
+- [ ] **A tagged requirement algebra,** `Requirement.make('remote' | 'replica'
+  | 'resource', ...)`, once a second, non-Remote interpreter exists; Remote's
+  nested selection needs only `relations` on the flat shape (#65). Decide
+  `Sync.for(Surface)` before adding anything: a Surface's projection is
+  read-only, and Sync must write the slice it installs.
+  [#64](https://github.com/doeixd/foldkit-plus/issues/64)
 
 ## CMS
 
@@ -437,6 +447,68 @@ the steps land in the packages that own them.
   properties, and a check that keeps them out.
 - [ ] Generated pages per locale and negotiation at the edge: SSR Phase S9,
   server-DESIGN §19.9.
+
+## Data grid
+
+`foldkit-data-grid` and `foldkit-mixins-data-grid`, in the order of
+[data-grid-DESIGN.md](./data-grid-DESIGN.md) §21
+([#144](https://github.com/doeixd/foldkit-plus/issues/144)). None is started.
+Each phase lists its deliverables and acceptance there.
+
+- [ ] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
+  union, `RowKey`/`ColumnKey`, `CellAddress`, `CellRange`, `GridProjection`, a
+  static array adapter, and table-driven tests of hide, order, pin and
+  reorder geometry.
+- [ ] **Phase 1, `GridFocus`:** keyed movement over the projection, one tab
+  stop, RTL, Home/End, Ctrl+Home/End, a PageUp/PageDown hook, and an
+  ensure-visible request.
+- [ ] **Phase 2, `VirtualGrid`:** a fixed-height row axis and a
+  controlled-width column axis, overscan, pinned columns outside the
+  horizontal window, and benchmarks under `packages/*/bench`. Reuse
+  `Virtual`'s Mounts, not its keys array.
+- [ ] **Phase 3, the accessible view:** Slots, `role="grid"` with virtualized
+  `aria-rowindex`/`aria-colindex`, an unknown row count, `aria-sort`, loading,
+  empty and error states, a default Recipe.
+- [ ] **Phase 4, `ColumnState`:** widths with `Move`, visibility, order with
+  `PointerDrag` and a keyboard equivalent, start/end pinning, and a saved
+  layout decoded strictly.
+- [ ] **Phase 5, selection:** rows (adapt `Selection` or replace it; it holds
+  every id in an array) and a rectangular `CellSelection`.
+- [ ] **Phase 6, editing:** `Editing.bundle` and the `Editor` contract; a
+  commit leaves the grid as the application's Message.
+- [ ] **Phase 7, CRUD and Remote:** columns from an Entity Selection, a
+  `RowModel` over Remote pages, server sort through the query input,
+  load-more and an unknown count. Build the reference application here.
+- [ ] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
+  bulk edits grouped as one transaction.
+- [ ] **The reference application:** a 100k-row product registry (§22).
+
+## UI platform
+
+[ui-DESIGN.md](./ui-DESIGN.md) orders this as a contract, then capabilities,
+then widgets. None of the pieces below exists yet; `mixins-ui` has a Field,
+Recipes and accessibility patterns to build from. Its Phase 1A is the gated
+`@foldkit/ui` adapter item above.
+
+- [ ] **Phase 0:** write down the UI contract in `docs/ui-architecture.md`:
+  anatomy, capability, pattern, behavior, state, style, recipe, theme, widget
+  and block, before more APIs.
+- [ ] **Phase 1:** finish the substrate: `mixins-ui` adapters for Toast,
+  FileDrop, VirtualList, DragAndDrop and Animation; Anatomy as a value; slot
+  capabilities; public and internal Slots.
+- [ ] **Phase 2:** the capability algebra: `Collection`, `Overlay`, the
+  selection and navigation family, interaction, form-control semantics.
+- [ ] **Phase 3:** a small shared vocabulary of Styles and Recipes
+  (`Control`, `Interactive`, `Surface`, `FocusRing`, `CollectionItem` and the
+  rest), recipes aware of anatomy, and recipe composition.
+- [ ] **Phase 4:** themes as values, and knobs (density, radius, motion,
+  contrast) apart from variants.
+- [ ] **Phase 5:** the platform floor and an accessibility gate.
+- [ ] **Phase 6:** five representative widgets: Combobox, Menu, Tree, Field,
+  Drawer.
+- [ ] **Phases 7 to 10:** the component matrix in three waves, the stateless
+  visual vocabulary, patterns (CommandPalette among them; DataGrid is its own
+  section above), and blocks.
 
 ## Mixins and styling
 
