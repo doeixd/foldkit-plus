@@ -1951,6 +1951,9 @@ importers:
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../primitives
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0

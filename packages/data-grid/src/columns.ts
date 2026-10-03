@@ -55,7 +55,9 @@ export const Columns = {
    */
   define:
     <Row>() =>
-    <Specs extends Record<string, ColumnSpec<Row, unknown>>>(specs: Specs): Columns<Row, Specs> => {
+    <Specs extends Record<string, ColumnSpec<Row, unknown>>>(
+      specs: Specs,
+    ): NoInfer<Columns<Row, Specs>> => {
       // A literal `__proto__:` key sets the prototype instead of naming a
       // column, so the column would vanish from `Object.keys`.
       if (Object.getPrototypeOf(specs) !== Object.prototype || Object.hasOwn(specs, '__proto__')) {

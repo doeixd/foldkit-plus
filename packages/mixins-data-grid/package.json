@@ -41,7 +41,8 @@
   },
   "dependencies": {
     "foldkit-data-grid": "workspace:*",
-    "foldkit-mixins": "workspace:*"
+    "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.0.0",

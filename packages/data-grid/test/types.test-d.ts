@@ -133,6 +133,7 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
     readonly hidden: ReadonlyArray<'sku' | 'price'>
     readonly widths: ReadonlyArray<{ readonly column: 'sku' | 'price'; readonly width: number }>
   }
+  readonly resizing: Option.Option<{ readonly column: 'sku' | 'price'; readonly from: number }>
 }>()
 
 // @ts-expect-error a resize names a column the grid defines
@@ -146,3 +147,17 @@ Grid.Message.Moved({ address: { row: 'p:1', column: 'name' }, reveal: Option.non
 
 // @ts-expect-error a reveal is offsets, not a cell
 Grid.Message.Moved({ address: { row: 'p:1', column: 'sku' }, reveal: Option.some({ row: 1 }) })
+
+// Columns written inline in DataGrid.make keep their row type: without
+// NoInfer on Columns.define's return, the outer call's inference made `row`
+// unknown.
+const Inline = DataGrid.make({
+  id: 'inline',
+  columns: Columns.define<{ readonly id: string; readonly n: number }>()({
+    id: { header: 'Id', value: row => row.id },
+    n: { header: 'N', value: row => row.n },
+  }),
+})
+expectTypeOf(Inline.columns.byId.n.value).returns.toEqualTypeOf<number>()
+// @ts-expect-error an inline grid's columns are its own
+Inline.Message.Focused({ address: { row: 'r', column: 'sku' } })

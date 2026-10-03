@@ -686,6 +686,13 @@ of its own named a form field "fits the Catalog". Read words with
   not excess-property-checked, so the unknown-key rejection has to move into the
   template.
 
+- **A curried generic's return type is an inference site for the outer call.**
+  `Columns.define<Row>()({...})` written inline in `DataGrid.make({ columns })`
+  typed every `row` as `unknown`: the outer call's still-uninferred `Columns`
+  became the inner call's contextual return type, and won over `Row`. A
+  separate `const columns = ...` passed. `NoInfer` on the inner return type
+  stops it; test the inline form, not only the hoisted one.
+
 - **Thread `Encoded`, not only `Type`, through a generic reference.**
   `ModelRef<Root, Value>` typed `Schema.Codec<Value, unknown>`, so a transforming
   field (`NumberFromString`) lost its encoded `string` through `Projection.pick`, and

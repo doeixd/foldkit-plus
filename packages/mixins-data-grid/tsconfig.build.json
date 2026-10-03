@@ -8,6 +8,7 @@
   "references": [
     { "path": "../bundle/tsconfig.build.json" },
     { "path": "../data-grid/tsconfig.build.json" },
-    { "path": "../mixins/tsconfig.build.json" }
+    { "path": "../mixins/tsconfig.build.json" },
+    { "path": "../primitives/tsconfig.build.json" }
   ]
 }

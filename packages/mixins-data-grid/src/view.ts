@@ -1,9 +1,10 @@
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
 import type { Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import {
   addressableRows,
   type CellAddress,
+  Columns,
   type ColumnSpec,
   type ColumnState,
   type DataGridOf,
@@ -16,6 +17,7 @@ import {
   VirtualGrid,
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
+import { Move } from 'foldkit-primitives/dom'
 import { GridSlots } from './slots.js'
 
 export interface GridWords {
@@ -47,6 +49,9 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
 }
 
 const px = (value: number): string => `${value}px`
+
+/** How far one press of an arrow key on a resize handle moves the edge, in pixels. */
+const resizeStep = 16
 
 const textOf = (value: unknown): string =>
   value === null || value === undefined ? '' : String(value)
@@ -187,18 +192,76 @@ const view = <Message>() => ({
           Unknown: () => -1,
         })
 
+        // The end edge is the side the text runs toward, so a drag that way widens.
+        const toward = input.direction === 'rtl' ? -1 : 1
+        const resizeHandle = (id: Id): ReadonlyArray<Html> => {
+          const column = grid.columns.byId[id]
+          if (column.resizable === false) return []
+          const now = width(id)
+          const steps = new Map([
+            ['ArrowRight', resizeStep * toward],
+            ['ArrowLeft', -resizeStep * toward],
+          ])
+          const dragged = Mount.mapMessage(Move(), fact =>
+            input.wrap(
+              Match.valueTags(fact, {
+                MoveStarted: () => grid.Message.ResizeStarted({ column: id }),
+                Moved: ({ deltaX }) => grid.Message.ResizeMoved({ delta: deltaX * toward }),
+                MoveEnded: ({ completed }) => grid.Message.ResizeEnded({ completed }),
+              }),
+            ),
+          )
+          return [
+            h.div(
+              slots.resizeHandle.attrs([
+                // A Mount reads its args once: key it by what its mapping closes over.
+                h.Key(`resize:${id}:${toward}`),
+                h.Role('separator'),
+                h.AriaOrientation('vertical'),
+                h.AriaLabel(`Resize ${column.header}`),
+                h.AriaValuenow(now),
+                h.AriaValuemin(column.minWidth ?? Columns.minWidth),
+                ...(column.maxWidth === undefined ? [] : [h.AriaValuemax(column.maxWidth)]),
+                // Out of the tab order, so the grid stays one tab stop; a handle
+                // the pointer or a script focused still steps with the arrows.
+                h.Tabindex(-1),
+                h.OnKeyDownSelfPreventDefault(key =>
+                  Option.map(Option.fromUndefinedOr(steps.get(key)), by =>
+                    input.wrap(grid.Message.ColumnResized({ column: id, width: now + by })),
+                  ),
+                ),
+                h.OnMount(dragged),
+                h.Style({
+                  position: 'absolute',
+                  top: '0',
+                  bottom: '0',
+                  insetInlineEnd: '0',
+                  width: px(resizeStep / 2),
+                  cursor: 'col-resize',
+                  touchAction: 'none',
+                }),
+              ]),
+              [],
+            ),
+          ]
+        }
+
         const headerCell = (id: Id): Html =>
           h.div(
             slots.headerCell.attrs([
               h.Role('columnheader'),
               h.AriaColindex(indexOf.get(id)! + 1),
-              h.Style(cellStyle(id)),
+              // A pinned header is already sticky; any other holds its handle with relative.
+              h.Style({
+                ...cellStyle(id),
+                ...(Option.isNone(pinned(id)) ? { position: 'relative' } : {}),
+              }),
               ...Option.match(pinned(id), {
                 onNone: () => [],
                 onSome: edge => [h.DataAttribute('pinned', edge)],
               }),
             ]),
-            [grid.columns.byId[id].header],
+            [grid.columns.byId[id].header, ...resizeHandle(id)],
           )
 
         const rowAt = (index: number): Html =>
@@ -273,7 +336,8 @@ const view = <Message>() => ({
               onNone: () => [],
               onSome: address => [h.AriaActiveDescendant(GridFocus.cellId(grid.id, address))],
             }),
-            h.OnKeyDownPreventDefault(onKey),
+            // Only keys aimed at the grid itself: a resize handle's arrows are its own.
+            h.OnKeyDownSelfPreventDefault(onKey),
             h.OnMount(measured),
             h.Style({ overflow: 'auto', position: 'relative' }),
           ]),

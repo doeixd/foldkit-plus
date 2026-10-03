@@ -26,12 +26,14 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
 }) => {
   const focus = GridFocus.make(options.columns)
   const columnState = ColumnState.make(options.columns)
+  const Column = focus.Address.fields.column
   const Model = Schema.Struct({
     focus: focus.Model,
     viewport: GridViewport.Model,
     columns: columnState.Model,
+    /** A column being resized by the pointer, and its width when the drag began. */
+    resizing: Schema.OptionFromNullOr(Schema.Struct({ column: Column, from: Schema.Number })),
   })
-  const Column = focus.Address.fields.column
   const Region = Schema.Literals(['start', 'center', 'end'])
   type Model = typeof Model.Type
   const Message = defineMessageUnion({
@@ -53,6 +55,15 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     ColumnShown: { column: Column },
     /** A column moved to `index` in `region`: a reorder, a pin or an unpin. */
     ColumnMoved: { column: Column, region: Region, index: Schema.Number },
+    /** The pointer went down on a column's resize handle. */
+    ResizeStarted: { column: Column },
+    /**
+     * The pointer moved `delta` pixels toward the column's end edge since the
+     * resize began: positive widens it, in either direction of text.
+     */
+    ResizeMoved: { delta: Schema.Number },
+    /** The pointer let go, or the drag was cancelled and the width goes back. */
+    ResizeEnded: { completed: Schema.Boolean },
   })
   type Message = typeof Message.Type
   type Return = Update.Return<Model, Message, never>
@@ -80,6 +91,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         focus: focus.bundle.init(undefined).model,
         viewport: GridViewport.bundle.init(undefined).model,
         columns: columnState.initial(),
+        resizing: Option.none(),
       },
     }),
     update: (model: Model, message: Message): Return =>
@@ -109,6 +121,35 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         }),
         ColumnMoved: ({ column, region, index }): Return => ({
           model: columnsBy(model, columnState.move(model.columns, column, region, index)),
+        }),
+        // Each move is measured from where the drag began, so the width is the
+        // pointer's place now, not a sum of every step on the way.
+        ResizeStarted: ({ column }): Return => ({
+          model:
+            options.columns.byId[column].resizable === false
+              ? model
+              : modifyFields(model, {
+                  resizing: () =>
+                    Option.some({ column, from: columnState.widthOf(model.columns)(column) }),
+                }),
+        }),
+        ResizeMoved: ({ delta }): Return => ({
+          model: Option.match(model.resizing, {
+            onNone: () => model,
+            onSome: ({ column, from }) =>
+              columnsBy(model, columnState.resize(model.columns, column, from + delta)),
+          }),
+        }),
+        ResizeEnded: ({ completed }): Return => ({
+          model: Option.match(model.resizing, {
+            onNone: () => model,
+            onSome: ({ column, from }) => {
+              const settled = completed
+                ? model
+                : columnsBy(model, columnState.resize(model.columns, column, from))
+              return modifyFields(settled, { resizing: () => Option.none() })
+            },
+          }),
         }),
       }),
   })

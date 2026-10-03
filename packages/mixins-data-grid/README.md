@@ -101,6 +101,7 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   header   role="rowgroup", sticky at the top
     headerRow  role="row" aria-rowindex="1"
       headerCell  role="columnheader" aria-colindex
+        resizeHandle  role="separator", its width as aria-valuenow
   body     role="rowgroup", the full height of every row
     row        role="row" aria-rowindex (2 for the first data row)
       cell       role="gridcell" aria-colindex, id for the active descendant
@@ -119,6 +120,12 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   corners, PageUp and PageDown by the rows the viewport holds. A key the grid
   does not handle (Enter, Tab, anything with Shift, Alt or Meta) keeps its
   default.
+- **Resize handles** sit at each resizable column's end edge. A pointer drag
+  resizes from where it began, and a cancelled pointer (`pointercancel`, or
+  a lost capture) puts the width back; a focused handle steps 16px with the
+  arrow keys, its
+  own keys only, so the grid's focus stays put. Handles are out of the tab
+  order, so the grid stays one tab stop.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.
@@ -133,9 +140,11 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
 
 ## Limits
 
-- Every row is one height. Column widths come from the column state; there
-  are no resize handles or drag reordering yet, so the column Messages are
-  sent by the application's own controls.
+- Every row is one height.
+- A keyboard user cannot reach a resize handle yet: it is out of the tab
+  order, and the grid has no key that resizes or reorders the focused
+  column. Reordering, hiding and pinning have no built-in control either;
+  the column Messages are sent by the application's own controls.
 - No selection or editing yet.
 - Cells say their value as text unless `cell` draws them; the Display
   vocabulary of `foldkit-crud` arrives with the CRUD adapter in Phase 7.

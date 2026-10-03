@@ -54,6 +54,15 @@ version changed; `pnpm` skips versions already in the registry.
   the ids it dropped. `Grid.project(rows, state)` is the projection for a
   column state, built once per rows model and state. The view takes `rows`
   in place of `projection` and `width`, and draws the column state.
+- **`foldkit-mixins-data-grid`, resize handles.** Each resizable column has a
+  `role="separator"` handle with its width in `aria-valuenow`: a pointer drag
+  resizes from where it began (`ResizeStarted`, `ResizeMoved`,
+  `ResizeEnded`; a cancelled drag puts the width back), and a focused handle
+  steps with the arrow keys, mirrored in right-to-left text. The grid now
+  takes only keys aimed at itself, so a handle's keys do not move focus.
+- **`foldkit-data-grid`, `Columns.define` written inline keeps its row type.**
+  Inside `DataGrid.make({ columns: Columns.define<Row>()({...}) })` every
+  `row` was `unknown`; the return type is `NoInfer` now.
 - **`foldkit-data-grid`, `GridViewport.scrollTo` on a container that cannot
   scroll** still reports `Revealed`: a DOM with no layout has no `scrollTo`,
   and the Command threw there.

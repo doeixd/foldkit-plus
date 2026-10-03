@@ -227,8 +227,13 @@ Grid.Message.Moved({
   `GridViewport.Measure` and the scroll Command.
 - **`ColumnResized`**, **`ColumnHidden`**, **`ColumnShown`** and
   **`ColumnMoved`** change the column state (below).
+- **`ResizeStarted`**, **`ResizeMoved`** and **`ResizeEnded`** are a pointer
+  drag on a resize handle. The grid records the width the drag began at, so
+  each move is measured from there, not summed; a cancelled drag puts the
+  width back. A column that does not resize starts no drag.
 
-The Model is `{ focus, viewport, columns }` and encodes to plain data.
+The Model is `{ focus, viewport, columns, resizing }` and encodes to plain
+data.
 `Grid.project(rows, model.columns)` is the projection for that state, built
 once per rows model and state, so the view and the application share it.
 `GridFocus` and `GridViewport` stay available for a grid that composes its

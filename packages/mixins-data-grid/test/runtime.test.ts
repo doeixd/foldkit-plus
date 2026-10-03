@@ -40,9 +40,10 @@ const placed = Page.at(Placement)
 const application = Bundle.assemble<Model, Message>()([placed])
 
 const View = DataGridView<Message>().define(Grid)
-const view = (model: Model, h: HtmlBuilder<Message>) =>
+const viewIn = (direction: 'ltr' | 'rtl') => (model: Model, h: HtmlBuilder<Message>) =>
   View(
     {
+      direction,
       state: model.grid,
       rows,
       wrap: message => Placement.wrapper.make(message),
@@ -91,7 +92,7 @@ test('the keyboard moves the active descendant and scrolls a move off screen int
       container,
       init: () => application.initial({ grid: Grid.bundle.init(undefined).model }),
       update: application.update(),
-      view,
+      view: viewIn('ltr'),
     }),
   )
   const grid = () => document.getElementById('items')!
@@ -127,12 +128,76 @@ test('the keyboard moves the active descendant and scrolls a move off screen int
 
     expect(press('Enter').defaultPrevented).toBe(false)
 
+    // A resize handle's arrows resize its column and leave the grid's focus alone.
+    const nameHandle = () =>
+      Array.from(document.querySelectorAll('#items [role="separator"]')).find(
+        handle => handle.getAttribute('aria-label') === 'Resize Name',
+      )!
+    // ArrowLeft, which the grid would take as a move to the Id column.
+    const handleKey = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      bubbles: true,
+      cancelable: true,
+    })
+    nameHandle().dispatchEvent(handleKey)
+    expect(handleKey.defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(nameHandle().getAttribute('aria-valuenow')).toBe('84'))
+    expect(document.getElementById(cell('r6', 'name'))!.style.width).toBe('84px')
+    expect(grid().getAttribute('aria-activedescendant')).toBe(cell('r6', 'name'))
+
     document
       .getElementById(cell('r4', 'id'))!
       .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await vi.waitFor(() =>
       expect(grid().getAttribute('aria-activedescendant')).toBe(cell('r4', 'id')),
     )
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('in right-to-left text the end edge is on the left, for the keys and the pointer', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(120)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+  const container = document.createElement('div')
+  container.id = 'grid-rtl'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => application.initial({ grid: Grid.bundle.init(undefined).model }),
+      update: application.update(),
+      view: viewIn('rtl'),
+    }),
+  )
+  const nameHandle = () =>
+    Array.from(document.querySelectorAll('#items [role="separator"]')).find(
+      separator => separator.getAttribute('aria-label') === 'Resize Name',
+    )!
+  try {
+    await vi.waitFor(() => expect(nameHandle()).toBeDefined())
+    // ArrowLeft moves the end edge outward, so the column widens.
+    nameHandle().dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+    )
+    await vi.waitFor(() => expect(nameHandle().getAttribute('aria-valuenow')).toBe('116'))
+    // A drag to the left widens it too. jsdom has no PointerEvent; Move reads these fields.
+    const pointer = (type: string, clientX: number) =>
+      nameHandle().dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX }))
+    pointer('pointerdown', 100)
+    pointer('pointermove', 60)
+    pointer('pointerup', 60)
+    await vi.waitFor(() => expect(nameHandle().getAttribute('aria-valuenow')).toBe('156'))
+    // And ArrowRight moves the end edge inward.
+    nameHandle().dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+    )
+    await vi.waitFor(() => expect(nameHandle().getAttribute('aria-valuenow')).toBe('140'))
   } finally {
     handle.dispose()
   }

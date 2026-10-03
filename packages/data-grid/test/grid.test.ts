@@ -1,7 +1,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { DataGrid, RowModel } from 'foldkit-data-grid'
+import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
 import { describe, expect, test } from 'vitest'
 import { at, columns, productKey, products } from './fixture.js'
 
@@ -17,6 +17,7 @@ const start = placed.init({
     focus: { current: Option.some(at('p:1', 'sku')) },
     viewport: { top: 5, left: 5, width: 5, height: 5 },
     columns: { start: ['sku'], center: [], end: [], hidden: [], widths: [] },
+    resizing: Option.some({ column: 'sku', from: 1 }),
   },
 }).model
 const step = (model: typeof start, message: typeof Grid.Message.Type) =>
@@ -34,6 +35,7 @@ describe('DataGrid', () => {
         hidden: [],
         widths: [],
       },
+      resizing: Option.none(),
     })
   })
 
@@ -116,6 +118,45 @@ describe('DataGrid', () => {
     ).toBe(measured)
   })
 
+  test('resizes from where the drag began, not by summing its steps', () => {
+    const resizing = step(start, Grid.Message.ResizeStarted({ column: 'price' })).model
+    expect(resizing.grid.resizing).toEqual(Option.some({ column: 'price', from: 120 }))
+    const wider = step(resizing, Grid.Message.ResizeMoved({ delta: 30 })).model
+    const widest = step(wider, Grid.Message.ResizeMoved({ delta: 50 })).model
+    expect(widest.grid.columns.widths).toEqual([{ column: 'price', width: 170 }])
+    const done = step(widest, Grid.Message.ResizeEnded({ completed: true })).model
+    expect(done.grid.resizing).toEqual(Option.none())
+    expect(done.grid.columns.widths).toEqual([{ column: 'price', width: 170 }])
+    // After the drag, a stray move changes nothing.
+    expect(step(done, Grid.Message.ResizeMoved({ delta: 99 })).model).toBe(done)
+  })
+
+  test('a cancelled drag puts the width back', () => {
+    const resized = step(start, Grid.Message.ColumnResized({ column: 'price', width: 90 })).model
+    const resizing = step(resized, Grid.Message.ResizeStarted({ column: 'price' })).model
+    const dragged = step(resizing, Grid.Message.ResizeMoved({ delta: 200 })).model
+    const cancelled = step(dragged, Grid.Message.ResizeEnded({ completed: false })).model
+    expect(cancelled.grid.columns.widths).toEqual([{ column: 'price', width: 90 }])
+    expect(cancelled.grid.resizing).toEqual(Option.none())
+  })
+
+  test('a resize that never began ends as nothing', () => {
+    expect(step(start, Grid.Message.ResizeEnded({ completed: false })).model).toBe(start)
+  })
+
+  test('a column that does not resize starts no drag', () => {
+    const Fixed = DataGrid.make({
+      id: 'fixed',
+      columns: Columns.define<{ readonly id: string }>()({
+        id: { header: 'Id', value: row => row.id, resizable: false },
+      }),
+    })
+    const model = Fixed.bundle.init(undefined).model
+    expect(
+      Fixed.bundle.update(model, Fixed.Message.ResizeStarted({ column: 'id' }), undefined).model,
+    ).toBe(model)
+  })
+
   test('refuses a stored Model whose columns name one the grid does not define', () => {
     const stored = Schema.encodeSync(Grid.Model)(start.grid)
     const renamed = { ...stored, columns: { ...stored.columns, center: ['name', 'removed'] } }
@@ -137,6 +178,7 @@ describe('DataGrid', () => {
         hidden: [],
         widths: [],
       },
+      resizing: null,
     })
     expect(Schema.decodeUnknownSync(Grid.Model)(encoded)).toEqual(model)
   })

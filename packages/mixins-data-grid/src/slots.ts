@@ -6,6 +6,9 @@ const AriaRowIndex = Attr.make('aria-rowindex')
 const AriaColIndex = Attr.make('aria-colindex')
 const AriaActiveDescendant = Attr.make('aria-activedescendant')
 const Tabindex = Attr.make('tabindex')
+const AriaValueNow = Attr.make('aria-valuenow')
+const AriaValueMin = Attr.make('aria-valuemin')
+const AriaValueMax = Attr.make('aria-valuemax')
 const Id = Attr.make('id')
 const MouseDown = Event.make('mousedown')
 
@@ -49,6 +52,21 @@ export const GridSlots = Slots.define({
   headerCell: Slot.make({
     capability: Capability.Base,
     protected: { attributes: [Attr.Role, AriaColIndex], style: geometry },
+  }),
+  /**
+   * A column's resize handle at its end edge: a `role="separator"` with its
+   * width as `aria-valuenow`, dragged with the pointer, or stepped with the
+   * arrow keys once focused. It is out of the tab order, so the grid stays
+   * one tab stop. Only resizable columns have one.
+   */
+  resizeHandle: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    protected: {
+      events: [Event.KeyDown],
+      attributes: [Attr.Role, Tabindex, AriaValueNow, AriaValueMin, AriaValueMax],
+      style: ['position', 'insetInlineEnd', 'top', 'bottom'],
+    },
   }),
   body: Slot.make({
     capability: Capability.Container,

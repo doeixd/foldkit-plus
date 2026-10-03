@@ -2,7 +2,8 @@
 
 **Status:** Phases 0 to 3 built as `foldkit-data-grid` and
 `foldkit-mixins-data-grid` (both private, `0.0.0`), and Phase 4's column
-state; its resize handles and drag reordering are next. Proposed in
+state and resize handles; drag reordering and the keyboard route to column
+operations are open. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -202,9 +203,18 @@ departs from §12:
 - **The view reads the state.** It takes `rows`, not a projection and a
   width function: the layout and widths are the grid's, and
   `Grid.project(rows, state)` is the one projection for them.
-- **Still to build:** resize handles (`Move`), drag reordering
-  (`PointerDrag`) and their keyboard equivalents, which need a decision on
-  keys a grid does not already use.
+- **Resize handles** are `role="separator"` elements at each resizable
+  column's end edge, dragged through the `Move` Mount. The drag is a session
+  in the Model (`resizing: { column, from }`), so every move is measured
+  from the width it began at, and a cancelled drag restores it. A focused
+  handle steps with the arrows, mirrored for right-to-left. The handles are
+  `tabindex="-1"`: with `0`, Tab walked into every handle and the grid was no
+  longer one tab stop (the browser test caught it).
+- **Still to build:** drag reordering (`PointerDrag`), and a keyboard route
+  to resize, reorder, hide and pin. There is no standard key for these in a
+  grid, Alt with an arrow is the browser's history on Windows and Linux, and
+  Ctrl with Option is VoiceOver's; it needs a decision, perhaps a column
+  menu on a focusable header.
 
 ---
 

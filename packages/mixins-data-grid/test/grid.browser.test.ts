@@ -133,6 +133,28 @@ test('focus stays on the grid, pins stay at their edges, and a move scrolls its 
     expect(shown.bottom).toBeLessThanOrEqual(
       body.top + grid().clientTop + grid().clientHeight + 0.5,
     )
+
+    // Dragging C0's handle widens it from where the drag began.
+    const c0 = Array.from(grid().querySelectorAll('[role="separator"]')).find(
+      separator => separator.getAttribute('aria-label') === 'Resize C0',
+    )!
+    const edge = c0.getBoundingClientRect()
+    const pointer = (type: string, x: number) =>
+      c0.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 7,
+          button: 0,
+          clientX: x,
+          clientY: edge.top + 2,
+        }),
+      )
+    pointer('pointerdown', edge.left + 2)
+    pointer('pointermove', edge.left + 22)
+    pointer('pointermove', edge.left + 42)
+    pointer('pointerup', edge.left + 42)
+    await vi.waitFor(() => expect(c0.getAttribute('aria-valuenow')).toBe('140'))
+    expect(cell('r10', 'c0').getBoundingClientRect().width).toBeCloseTo(140, 0)
   } finally {
     handle.dispose()
   }

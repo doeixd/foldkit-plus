@@ -236,6 +236,46 @@ describe('DataGridView', () => {
     expect(Inert.style(qty).width).toBe('150px')
   })
 
+  test('gives each resizable column a handle that says its width', () => {
+    const handles = Inert.byRole(draw(input()), 'separator')
+    expect(handles.map(handle => Inert.value(handle, 'aria-label'))).toEqual([
+      'Resize Id',
+      'Resize Name',
+      'Resize Qty',
+    ])
+    const [, name] = handles
+    expect(Inert.value(name, 'aria-valuenow')).toBe('200')
+    expect(Inert.value(name, 'aria-valuemin')).toBe(String(Columns.minWidth))
+    expect(Inert.value(name, 'aria-orientation')).toBe('vertical')
+    expect(Inert.value(name, 'tabIndex')).toBe(-1)
+    const [, nameHeader] = Inert.byRole(draw(input()), 'columnheader')
+    expect(Inert.style(nameHeader).position).toBe('relative')
+  })
+
+  test('a column that does not resize has no handle', () => {
+    const fixed = Columns.define<Item>()({
+      id: { header: 'Id', value: item => item.id, resizable: false },
+      name: { header: 'Name', value: item => item.name, maxWidth: 300 },
+    })
+    const FixedGrid = DataGrid.make({ id: 'fixed', columns: fixed })
+    const FixedView = DataGridView<typeof FixedGrid.Message.Type>().define(FixedGrid)
+    const drawn = Inert.draw(FixedView, {
+      state: {
+        focus: { current: Option.none() },
+        viewport: { top: 0, left: 0, width: 400, height: 60 },
+        columns: FixedGrid.columnState.initial(),
+      },
+      rows: allRows,
+      wrap: message => message,
+      label: 'Fixed',
+      rowHeight: 20,
+      headerHeight: 20,
+    })
+    const handles = Inert.byRole(drawn, 'separator')
+    expect(handles.map(handle => Inert.value(handle, 'aria-label'))).toEqual(['Resize Name'])
+    expect(Inert.value(handles[0], 'aria-valuemax')).toBe('300')
+  })
+
   test('counts an open-ended result as unknown', () => {
     const open: RowModel<Item> = {
       ...RowModel.fromArray(items, itemKey),
