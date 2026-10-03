@@ -69,6 +69,33 @@ export const GridStyle = Style.forSlots(GridSlots)(
         outlineOffset: `calc(-1 * ${ref.border.thick})`,
       }),
     ),
+    menuButton: Style.compose(
+      Style.self({
+        background: 'none',
+        border: 'none',
+        color: ref.text.muted,
+        cursor: 'pointer',
+        marginInlineStart: 'auto',
+        paddingInline: ref.space.xs,
+      }),
+      Style.nest('&[aria-expanded="true"]', { color: ref.text.default }),
+    ),
+    menu: Style.compose(
+      Style.self({
+        background: ref.surface.base,
+        border: line,
+        borderRadius: ref.radius.md,
+        fontWeight: ref.weight.normal,
+        minWidth: '10rem',
+        paddingBlock: ref.space.xs,
+        zIndex: '4',
+      }),
+      Style.pseudo(':focus-visible', { outline: `${ref.border.thick} solid ${ref.outline.focus}` }),
+    ),
+    menuItem: Style.compose(
+      Style.self({ cursor: 'pointer', paddingBlock: ref.space.xs, paddingInline: ref.space.sm }),
+      Style.nest('&[data-active="true"]', { background: ref.surface.muted }),
+    ),
     placeholder: Style.self({ background: ref.surface.subtle }),
     status: Style.self({ color: ref.text.muted, padding: ref.space.md }),
   },

@@ -3,8 +3,8 @@
 **In development, not published.** Phases 0 to 8 of the DataGrid design are
 built: the pure model, focus, two-axis virtualization, the accessible view in
 `foldkit-mixins-data-grid`, column state, selection, editing as text, Remote
-and CRUD rows, and the clipboard. A column menu, typed
-editors and fill are not.
+and CRUD rows, the clipboard, header drag and a column menu. Typed editors
+and fill are not.
 
 ## What it owns
 
@@ -111,7 +111,9 @@ the whole wiring, compiled.
   a Shift click over rows does not extend a row range, Shift+Space does.
 - Resizable columns get a drag handle (`resizeHandle`, a `role="separator"`),
   out of the tab order. By keyboard: ArrowUp from the first row reaches the
-  header, where Shift+Arrow resizes and Ctrl/Meta+Shift+Arrow reorders.
+  header, where Shift+Arrow resizes and Ctrl/Meta+Shift+Arrow reorders. A
+  header dragged with the pointer reorders too. `columnMenu: true` on the
+  view adds a menu to each header to pin, unpin, hide and show columns.
 - ARIA is logical: `aria-rowindex` and `aria-colindex` count every row and
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 

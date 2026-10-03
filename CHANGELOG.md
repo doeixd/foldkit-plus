@@ -91,6 +91,13 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **A column menu (`foldkit-mixins-data-grid`).** `columnMenu: true` puts a
+  menu button on each header (`menuButton`) opening a `role="menu"`
+  (`menu`, `menuItem`) of `Grid.menuItems`; Alt+ArrowDown, Shift+F10 or the
+  menu key opens it from a focused header. It takes focus, walks with the
+  arrows, Home and End, runs an item on Enter, Space or a click, and closes
+  on Escape, a choice or focus leaving it. Words: `menu`, `pinStart`,
+  `pinEnd`, `unpin`, `hide`, `show`.
 - **A column menu's state (`foldkit-data-grid`).** `menu` in the Model
   holds the column whose menu is open and its active item; `MenuOpened`,
   `MenuMoved`, `MenuChosen` and `MenuClosed` drive it. `Grid.menuItems`

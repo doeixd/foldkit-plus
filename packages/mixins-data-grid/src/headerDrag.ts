@@ -35,7 +35,8 @@ interface Press {
  * Column headers dragged with the pointer, from one listener on the row that
  * holds them. A press on a header becomes a drag once it has moved 4px, and
  * only then is the pointer captured, so a click (on a sort button, say) stays
- * a click. A press on a resize handle is the handle's. The listeners that
+ * a click. A press on a resize handle, or in a column's open menu, is not a
+ * drag. The listeners that
  * follow the pointer are attached for the length of a press. Where a drag
  * lands is the grid's update.
  */
@@ -106,7 +107,10 @@ export const HeaderDrag = Mount.defineStream('DataGridHeaderDrag', {
             const pointer = event as PointerLike
             const from = event.target
             if ((pointer.button ?? 0) !== 0 || Option.isSome(press)) return
-            if (!(from instanceof Element) || from.closest('[role="separator"]') !== null) return
+            // A resize handle's press is the handle's, and an open menu's its own.
+            if (!(from instanceof Element) || from.closest('[role="separator"], [role="menu"]')) {
+              return
+            }
             const header = from.closest('[role="columnheader"]')
             if (header === null || !element.contains(header) || header.id === '') return
             press = Option.some({

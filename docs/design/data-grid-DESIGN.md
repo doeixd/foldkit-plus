@@ -337,8 +337,18 @@ departs from §12:
   the pointer only past 4px, since capturing on press would send a sort
   button's click to the row; a press on a resize handle is the handle's,
   and Escape cancels. On touch, the browser's scroll takes the gesture.
-- **Still to build:** controls for hiding and pinning (a column menu on the
-  header is the natural home), and a drag across regions to pin.
+- **The column menu is the grid's own.** The Model holds `menu: { column,
+  active }`, and `menuItems` derives what it offers from the column state,
+  each item only when its operation changes something. A choice is an index
+  into the menu as it stands when chosen, run as the column Message it
+  stands for through the grid's own update, so hiding from the menu does
+  what `ColumnHidden` does (now also clearing that header's focus and its
+  menu). The menu is drawn in the header cell, takes focus (the editor's
+  `HoldFocus`, renamed) and uses `aria-activedescendant`, the grid's own
+  model; `OnFocusLeave` closes it, so no document listener or DismissLayer
+  is needed. Its ids have four parts, never a cell's three or a header's
+  two.
+- **Still to build:** a drag across regions to pin; the menu pins.
 
 ---
 

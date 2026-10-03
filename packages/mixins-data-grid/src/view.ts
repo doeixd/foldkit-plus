@@ -23,7 +23,7 @@ import {
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
-import { EditorFocus } from './editorFocus.js'
+import { HoldFocus } from './holdFocus.js'
 import { HeaderDrag } from './headerDrag.js'
 import { Nearing } from './nearEnd.js'
 import { CellPress } from './press.js'
@@ -40,6 +40,14 @@ export interface GridWords {
   readonly retry?: string
   /** On the button that loads more rows. Default `More`. */
   readonly more?: string
+  /** The name of a column's menu button. `{column}` is its header. Default `{column} menu`. */
+  readonly menu?: string
+  /** Menu items. `{column}` in `show` is the hidden column's header. */
+  readonly pinStart?: string
+  readonly pinEnd?: string
+  readonly unpin?: string
+  readonly hide?: string
+  readonly show?: string
 }
 
 /** How a column is sorted, and the Message that sorts it next: `foldkit-crud`'s `Sort` gives these. */
@@ -72,6 +80,7 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
       readonly error: Option.Option<string>
     }>
     readonly dragging: Option.Option<{ readonly column: Id; readonly delta: number }>
+    readonly menu: Option.Option<{ readonly column: Id; readonly active: number }>
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
   readonly rows: RowModel<Row>
@@ -101,6 +110,12 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
    * stays for the keyboard. Nothing is asked while the grid is busy.
    */
   readonly moreOnScroll?: boolean
+  /**
+   * A menu button on each header, opening the column's menu: pin it to the
+   * start or the end or unpin it, hide it, or show a hidden column. On a
+   * focused header Alt+ArrowDown, Shift+F10 or the menu key opens it.
+   */
+  readonly columnMenu?: boolean
   /** The columns that sort, each with its direction and its Message. */
   readonly sort?: { readonly [K in Id]?: ColumnSort<Message> }
 }
@@ -345,6 +360,13 @@ const view = <Message>() => ({
           const columns = projection.columns
           const at = columns.indexOf(column)
           const step = sideways.get(key)
+          const opensMenu =
+            (key === 'ArrowDown' && modifiers.altKey) ||
+            (key === 'F10' && modifiers.shiftKey) ||
+            key === 'ContextMenu'
+          if (input.columnMenu === true && opensMenu) {
+            return Option.some(grid.Message.MenuOpened({ column }))
+          }
           if (modifiers.altKey) return Option.none()
           if (
             step !== undefined &&
@@ -668,6 +690,102 @@ const view = <Message>() => ({
           ]
         }
 
+        // Four parts, so a menu's id is never a cell's (three) or a header's (two).
+        const menuPart = (column: Id, part: string): string =>
+          [grid.id, column, 'menu', part].map(encodeURIComponent).join(':')
+        const say = (template: string, column: Id) =>
+          template.replace('{column}', grid.columns.byId[column].header)
+        const itemLabel = (item: typeof grid.MenuItem.Type): string =>
+          grid.MenuItem.match(item, {
+            Pin: ({ region }) =>
+              ({
+                start: words.pinStart ?? 'Pin to start',
+                end: words.pinEnd ?? 'Pin to end',
+                center: words.unpin ?? 'Unpin',
+              })[region],
+            Hide: () => words.hide ?? 'Hide column',
+            Show: ({ column: other }) => say(words.show ?? 'Show {column}', other),
+          })
+        const columnMenu = (id: Id): ReadonlyArray<Html> => {
+          if (input.columnMenu !== true) return []
+          const open = Option.filter(state.menu, menu => menu.column === id)
+          const button = h.button(
+            slots.menuButton.attrs([
+              h.Type('button'),
+              h.Tabindex(-1),
+              h.AriaHasPopup('menu'),
+              h.AriaExpanded(Option.isSome(open)),
+              h.AriaLabel(say(words.menu ?? '{column} menu', id)),
+              // Clear of the resize handle at the same edge, so each takes its own presses.
+              ...(grid.columns.byId[id].resizable === false
+                ? []
+                : [h.Style({ marginInlineEnd: px(resizeStep / 2) })]),
+              h.OnClick(
+                input.wrap(
+                  Option.match(open, {
+                    onNone: () => grid.Message.MenuOpened({ column: id }),
+                    onSome: () => grid.Message.MenuClosed(),
+                  }),
+                ),
+              ),
+            ]),
+            [String.fromCharCode(0x22ee)],
+          )
+          return Option.match(open, {
+            onNone: () => [button],
+            onSome: ({ active }) => {
+              const items = grid.menuItems(state.columns, id)
+              const count = items.length
+              const menuKey = (key: string): Option.Option<typeof grid.Message.Type> => {
+                if (key === 'ArrowDown') {
+                  return Option.some(grid.Message.MenuMoved({ active: (active + 1) % count }))
+                }
+                if (key === 'ArrowUp') {
+                  return Option.some(
+                    grid.Message.MenuMoved({ active: (active - 1 + count) % count }),
+                  )
+                }
+                if (key === 'Home') return Option.some(grid.Message.MenuMoved({ active: 0 }))
+                if (key === 'End') return Option.some(grid.Message.MenuMoved({ active: count - 1 }))
+                if (key === 'Enter' || key === ' ') {
+                  return Option.some(grid.Message.MenuChosen({ index: active }))
+                }
+                if (key === 'Escape') return Option.some(grid.Message.MenuClosed())
+                // Tab is left to the browser: focus leaving the menu closes it.
+                return Option.none()
+              }
+              return [
+                button,
+                h.div(
+                  slots.menu.attrs([
+                    h.Key(menuPart(id, 'list')),
+                    h.Role('menu'),
+                    h.Id(menuPart(id, 'list')),
+                    h.Tabindex(-1),
+                    h.AriaLabel(grid.columns.byId[id].header),
+                    ...(count === 0 ? [] : [h.AriaActiveDescendant(menuPart(id, String(active)))]),
+                    h.OnKeyDownPreventDefault(key => Option.map(menuKey(key), input.wrap)),
+                    h.OnFocusLeave(input.wrap(grid.Message.MenuClosed())),
+                    h.OnMount(HoldFocus()),
+                    h.Style({ position: 'absolute', top: '100%', insetInlineEnd: '0' }),
+                  ]),
+                  items.map((item, index) =>
+                    h.div(
+                      slots.menuItem.attrs([
+                        h.Role('menuitem'),
+                        h.Id(menuPart(id, String(index))),
+                        ...(index === active ? [h.DataAttribute('active', 'true')] : []),
+                        h.OnClick(input.wrap(grid.Message.MenuChosen({ index }))),
+                      ]),
+                      [itemLabel(item)],
+                    ),
+                  ),
+                ),
+              ]
+            },
+          })
+        }
+
         const headerCell = (id: Id): Html => {
           const dragged = Option.filter(state.dragging, dragging => dragging.column === id)
           return h.div(
@@ -712,6 +830,7 @@ const view = <Message>() => ({
                     [grid.columns.byId[id].header],
                   ),
               }),
+              ...columnMenu(id),
               ...resizeHandle(id),
             ],
           )
@@ -798,7 +917,7 @@ const view = <Message>() => ({
                                 h.OnKeyDownPreventDefault((pressed, modifiers) =>
                                   Option.map(editorKey(address, pressed, modifiers), input.wrap),
                                 ),
-                                h.OnMount(EditorFocus()),
+                                h.OnMount(HoldFocus()),
                                 h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
                               ]),
                             ),

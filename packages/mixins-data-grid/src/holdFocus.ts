@@ -8,11 +8,12 @@ type Editable = Element & {
 }
 
 /**
- * Focuses a cell's editor when it mounts, with the caret after its text, and
- * hands focus back to the grid when it goes, so a commit or a cancel leaves
- * the keyboard on the grid rather than on the page's body.
+ * Focuses what the grid draws over itself while it is open (a cell's editor,
+ * with the caret after its text, or a column's menu) and hands focus back to
+ * the grid when it goes, so closing it leaves the keyboard on the grid rather
+ * than on the page's body. Focus the user moved elsewhere stays there.
  */
-export const EditorFocus = Mount.defineStream('DataGridEditorFocus', {
+export const HoldFocus = Mount.defineStream('DataGridHoldFocus', {
   messages: [Schema.Never],
   execute: ({ element }) =>
     Stream.callback<never>(() =>

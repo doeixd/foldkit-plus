@@ -1,8 +1,9 @@
 # Product registry
 
 A data grid over 100,000 products: the UPC pinned at the left, descriptions
-and prices edited in place, rows and cell ranges selected, columns resized and
-reordered from the header, and copy and paste with a spreadsheet.
+and prices edited in place, rows and cell ranges selected, columns resized,
+dragged, and hidden or pinned from their menus, and copy and paste with a
+spreadsheet.
 
 It shows the ownership split in [`foldkit-data-grid`](../../packages/data-grid/README.md):
 

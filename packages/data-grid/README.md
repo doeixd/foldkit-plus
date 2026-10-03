@@ -421,6 +421,7 @@ twice keeps its first place.
 
 ## Limits
 
-- Not built: a column menu to hide or pin one, a Shift-click row range,
+- Not built: a drag across regions to pin a column (the view's column
+  menu pins), a Shift-click row range,
   more than one cell range, editors other than text, and a fill handle.
 - Every row is one height.

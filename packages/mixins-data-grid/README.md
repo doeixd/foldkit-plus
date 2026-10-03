@@ -165,6 +165,16 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   visible box, and again after each load while it stays there. Nothing is
   asked while the grid is busy, so give `status` too: without it, the button
   asks again each time it comes back into view before the page lands.
+- **The column menu**, with `columnMenu: true`: each header has a button
+  (`menuButton`, `aria-haspopup="menu"`) that opens a `role="menu"` below
+  it, listing `Grid.menuItems`: pin to the start or the end or unpin, hide,
+  and show each hidden column. On a focused header Alt+ArrowDown, Shift+F10
+  or the menu key opens it. The menu takes focus and points at its active
+  item with `aria-activedescendant`; the arrows, Home and End walk it, Enter
+  or Space or a click runs an item, and Escape, a choice, or focus leaving
+  closes it, focus going back to the grid unless the user sent it
+  elsewhere. Its words are `menu`, `pinStart`, `pinEnd`, `unpin`, `hide`
+  and `show` in `words`.
 - **Sorting** is the application's: `sort` gives a column its direction and
   the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
   The header says `aria-sort`, and its label is a button the pointer sorts
@@ -189,10 +199,11 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   holds no row order. Shift+Space does it from the keyboard.
 - Keys read the state the last render drew, so two keys inside one frame
   both start from the same cell, as `GridNavigation`'s do.
-- Hiding and pinning have no built-in control; the column Messages are sent
-  by the application's own controls. A header dragged with the pointer
-  reorders within its region; on touch the browser's scroll takes the
+- A header dragged with the pointer reorders within its region; pinning
+  goes through the column menu. On touch the browser's scroll takes the
   gesture.
+- A column menu opens below its header, inside the scroll container: a grid
+  shorter than the menu clips it.
 - An edit is text: the grid reports what was typed, and the application
   turns it into a value. There are no select or date editors yet.
 - A copy's text is drawn with the grid, built once per range and rows, so

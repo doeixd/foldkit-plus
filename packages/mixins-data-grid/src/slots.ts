@@ -11,6 +11,7 @@ const AriaValueMin = Attr.make('aria-valuemin')
 const AriaValueMax = Attr.make('aria-valuemax')
 const Id = Attr.make('id')
 const MouseDown = Event.make('mousedown')
+const AriaHasPopup = Attr.make('aria-haspopup')
 
 // What the virtual window is worked out from: a Style that changed one of
 // these would draw rows where the window math does not think they are.
@@ -108,6 +109,37 @@ export const GridSlots = Slots.define({
   }),
   /** Said in place of rows when there are none: empty, loading, or failed. */
   status: Slot.make({ capability: Capability.Base }),
+  /**
+   * The button on a column's header that opens its menu, when the view is
+   * given `columnMenu`: `aria-haspopup="menu"` and `aria-expanded`, out of
+   * the tab order like the grid's other controls.
+   */
+  menuButton: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel],
+    protected: { events: [Event.Click], attributes: [AriaHasPopup, Attr.AriaExpanded, Tabindex] },
+  }),
+  /**
+   * A column's open menu, below its header: a `role="menu"` that takes focus
+   * and points at its active item with `aria-activedescendant`, as the grid
+   * points at its cell. Focus leaving it closes it.
+   */
+  menu: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.KeyDown],
+    protected: {
+      events: [Event.KeyDown],
+      attributes: [Attr.Role, Tabindex, AriaActiveDescendant],
+      style: ['position'],
+    },
+  }),
+  /** One of a menu's items; `data-active` marks the one the keyboard is on. */
+  menuItem: Slot.make({
+    capability: Capability.Base,
+    events: [Event.Click],
+    protected: { events: [Event.Click], attributes: [Attr.Role, Id] },
+  }),
   /** The button on a sortable column's header: a click sends its sort Message. */
   sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   /** Below the rows: a failure that left them on screen, and the More button. */

@@ -1,7 +1,8 @@
 /**
  * A product registry in a data grid: 100,000 rows with the UPC pinned,
- * editable descriptions and prices, rows and ranges selected, columns resized
- * and reordered, and copy and paste with a spreadsheet.
+ * editable descriptions and prices, rows and ranges selected, columns resized,
+ * dragged, hidden and pinned from their menus, and copy and paste with a
+ * spreadsheet.
  *
  * The products are the application's: they are in its Model, and only its
  * `onOut` changes them, from the text the grid reports. The grid owns where
@@ -161,6 +162,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             rowHeight: 32,
             headerHeight: 36,
             overscan: { rows: 6, columns: 1 },
+            columnMenu: true,
           },
           h,
         ),
