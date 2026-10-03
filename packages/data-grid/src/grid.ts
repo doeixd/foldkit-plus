@@ -46,6 +46,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * region's end. Where it lands is worked out when it is let go.
      */
     dragging: Schema.OptionFromNullOr(Schema.Struct({ column: Column, delta: Schema.Number })),
+    /** The column whose menu is open, and the item the keyboard is on (`menuItems`). */
+    menu: Schema.OptionFromNullOr(Schema.Struct({ column: Column, active: Schema.Number })),
     selection: Schema.Struct({
       rows: RowSelection,
       /** Where the last plain row selection happened; a Shift range extends from it. */
@@ -66,6 +68,17 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   })
   const Region = Schema.Literals(['start', 'center', 'end'])
   type Model = typeof Model.Type
+  /**
+   * What a column's menu offers: pinning it to another region, hiding it,
+   * and showing each hidden column. Each is a column Message the grid
+   * already has; the menu only gathers them.
+   */
+  const MenuItem = defineTaggedUnion({
+    Pin: { region: Region },
+    Hide: {},
+    Show: { column: Column },
+  })
+  type MenuItem = typeof MenuItem.Type
   const Message = defineMessageUnion({
     /** The pointer or the browser focused a cell. */
     Focused: { address: focus.Address },
@@ -109,6 +122,19 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * (`ColumnState.dropAt`), or the drag was cancelled and nothing moves.
      */
     ColumnDragEnded: { completed: Schema.Boolean },
+    /**
+     * A column's menu opened, from its button or a key on its header; focus
+     * goes to the header, so closing the menu returns there.
+     */
+    MenuOpened: { column: Column },
+    /** The keyboard moved to item `active` of the open menu. */
+    MenuMoved: { active: Schema.Number },
+    /**
+     * Item `index` of the open menu was chosen. It is read from the menu as
+     * it stands now, and the menu closes.
+     */
+    MenuChosen: { index: Schema.Number },
+    MenuClosed: {},
     /** A row was chosen: in single mode it is the selection, in multiple it toggles. */
     RowSelected: { row: Schema.String },
     /** A Shift range of rows, worked out by the view from the projection it drew. */
@@ -286,6 +312,45 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     }
   }
 
+  /**
+   * The items of a column's menu, in order: pin to each other region, hide
+   * when it can be hidden, and show each hidden column. An item is offered
+   * only when it changes something.
+   */
+  const menuItems = (
+    state: Model['columns'],
+    column: keyof Specs & string,
+  ): ReadonlyArray<MenuItem> => [
+    ...(['start', 'end', 'center'] as const)
+      .filter(region => region !== columnState.regionOf(state, column))
+      .map(region => MenuItem.Pin({ region })),
+    ...(columnState.hide(state, column) === state ? [] : [MenuItem.Hide()]),
+    ...state.hidden.map(other => MenuItem.Show({ column: other })),
+  ]
+  /** The column Message a menu item stands for. */
+  const messageOf = (
+    state: Model['columns'],
+    column: keyof Specs & string,
+    item: MenuItem,
+  ): Message =>
+    MenuItem.match(item, {
+      // Pinned, it goes next to the center; unpinned, to the center's edge it came from.
+      Pin: ({ region }) =>
+        Message.ColumnMoved({
+          column,
+          region,
+          index: {
+            start: state.start.length,
+            end: 0,
+            center: columnState.regionOf(state, column) === 'start' ? 0 : state.center.length,
+          }[region],
+        }),
+      Hide: () => Message.ColumnHidden({ column }),
+      Show: ({ column: other }) => Message.ColumnShown({ column: other }),
+    })
+  const closeMenu = (model: Model): Model =>
+    Option.isNone(model.menu) ? model : modifyFields(model, { menu: () => Option.none() })
+
   const bundle = Bundle.make('DataGrid', {
     Model,
     Message,
@@ -296,6 +361,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         columns: columnState.initial(),
         resizing: Option.none(),
         dragging: Option.none(),
+        menu: Option.none(),
         selection: { rows: GridSelection.none, anchor: Option.none(), cells: Option.none() },
         editing: Option.none(),
       },
@@ -335,15 +401,19 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         ColumnResized: ({ column, width }): Return => ({
           model: columnsBy(model, columnState.resize(model.columns, column, width)),
         }),
-        // Hiding the column being edited ends the edit: there is nowhere to show it.
+        // What was on a hidden column goes with it: its edit, its header's focus, its menu.
         ColumnHidden: ({ column }): Return => {
           const hidden = columnsBy(model, columnState.hide(model.columns, column))
+          if (hidden === model) return { model }
+          const off = (on: Option.Option<string>) => Option.contains(on, column)
           return {
-            model:
-              hidden !== model &&
-              Option.exists(model.editing, editing => editing.address.column === column)
-                ? modifyFields(hidden, { editing: () => Option.none() })
-                : hidden,
+            model: modifyFields(hidden, {
+              editing: editing =>
+                off(Option.map(editing, each => each.address.column)) ? Option.none() : editing,
+              focus: current =>
+                off(current.header) ? { ...current, header: Option.none() } : current,
+              menu: menu => (off(Option.map(menu, each => each.column)) ? Option.none() : menu),
+            }),
           }
         },
         ColumnShown: ({ column }): Return => ({
@@ -370,6 +440,49 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
               columnsBy(model, columnState.resize(model.columns, column, from + delta)),
           }),
         }),
+        MenuOpened: ({ column }): Return =>
+          model.columns.hidden.includes(column)
+            ? { model }
+            : afterEdit(model, settled => {
+                const focused = focus.bundle.update(
+                  settled.focus,
+                  focus.Message.HeaderFocused({ column }),
+                  undefined,
+                ).model
+                return {
+                  model: modifyFields(settled, {
+                    focus: () => focused,
+                    menu: () => Option.some({ column, active: 0 }),
+                  }),
+                }
+              }),
+        MenuMoved: ({ active }): Return => ({
+          model: Option.match(model.menu, {
+            onNone: () => model,
+            onSome: menu => {
+              const last = menuItems(model.columns, menu.column).length - 1
+              const clamped = Math.min(Math.max(0, Math.trunc(active)), Math.max(0, last))
+              return clamped === menu.active
+                ? model
+                : modifyFields(model, { menu: () => Option.some({ ...menu, active: clamped }) })
+            },
+          }),
+        }),
+        MenuChosen: ({ index }): Return =>
+          Option.match(model.menu, {
+            onNone: () => ({ model }),
+            onSome: ({ column }) =>
+              Option.match(Option.fromUndefinedOr(menuItems(model.columns, column)[index]), {
+                onNone: () => ({ model: closeMenu(model) }),
+                onSome: item =>
+                  bundle.update(
+                    closeMenu(model),
+                    messageOf(model.columns, column, item),
+                    undefined,
+                  ),
+              }),
+          }),
+        MenuClosed: (): Return => ({ model: closeMenu(model) }),
         ColumnDragStarted: ({ header }): Return => ({
           model: Option.match(
             Option.filter(
@@ -575,6 +688,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
 
   return {
     id: options.id,
+    MenuItem,
+    menuItems,
     columns: options.columns,
     rowSelection: options.rowSelection,
     cellSelection: options.cellSelection === true,

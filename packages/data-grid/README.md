@@ -397,6 +397,14 @@ const { state, dropped } = State.restore(JSON.parse(saved))
   `ColumnDragStarted`, `ColumnDragged` and `ColumnDragEnded` hold the drag
   as the column and its delta, and work the drop out when it is let go,
   from the widths and order as they are then.
+- **A column's menu** gathers these for the pointer and the keyboard:
+  `Grid.menuItems(state, column)` lists pinning the column to each other
+  region, hiding it, and showing each hidden column, each only when it
+  changes something. `MenuOpened`, `MenuMoved`, `MenuChosen` and
+  `MenuClosed` hold which menu is open and its active item; a chosen item
+  is read from the menu as it stands then and sent as the column Message it
+  stands for, so hiding from the menu ends an edit on the column, takes its
+  header's focus and closes its menu, as `ColumnHidden` always does.
 - **`restore(saved)`** reads a saved state leniently: an id the columns no
   longer define, or one named twice, is dropped and listed in `dropped`; a
   column the save predates takes its declared place; a width is clamped.

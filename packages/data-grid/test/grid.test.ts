@@ -27,6 +27,7 @@ const start = placed.init({
     columns: { start: ['sku'], center: [], end: [], hidden: [], widths: [] },
     resizing: Option.some({ column: 'sku', from: 1 }),
     dragging: Option.some({ column: 'sku', delta: 1 }),
+    menu: Option.some({ column: 'sku', active: 1 }),
     selection: {
       rows: RowSelection.Keys({ keys: ['p:1'] }),
       anchor: Option.some('p:1'),
@@ -52,6 +53,7 @@ describe('DataGrid', () => {
       },
       resizing: Option.none(),
       dragging: Option.none(),
+      menu: Option.none(),
       selection: {
         rows: RowSelection.Keys({ keys: [] }),
         anchor: Option.none(),
@@ -243,6 +245,126 @@ describe('DataGrid', () => {
     expect(step(hidden, Grid.Message.ColumnDragStarted({ header })).model).toBe(hidden)
   })
 
+  test('a column’s menu offers pinning, hiding and showing, and only what changes something', () => {
+    const notesHidden = step(start, Grid.Message.ColumnHidden({ column: 'notes' })).model.grid
+    expect(Grid.menuItems(notesHidden.columns, 'sku')).toEqual([
+      Grid.MenuItem.Pin({ region: 'start' }),
+      Grid.MenuItem.Pin({ region: 'end' }),
+      Grid.MenuItem.Hide(),
+      Grid.MenuItem.Show({ column: 'notes' }),
+    ])
+    const pinned = step(
+      start,
+      Grid.Message.ColumnMoved({ column: 'sku', region: 'start', index: 0 }),
+    ).model.grid
+    expect(Grid.menuItems(pinned.columns, 'sku')).toEqual([
+      Grid.MenuItem.Pin({ region: 'end' }),
+      Grid.MenuItem.Pin({ region: 'center' }),
+      Grid.MenuItem.Hide(),
+    ])
+    // The last column shown cannot be hidden, so its menu does not offer it.
+    const one = (['name', 'sku', 'price'] as const).reduce(
+      (model, column) => step(model, Grid.Message.ColumnHidden({ column })).model,
+      start,
+    ).grid
+    expect(Grid.menuItems(one.columns, 'notes')).not.toContainEqual(Grid.MenuItem.Hide())
+  })
+
+  test('a menu opens on its column’s header, moves within its items, and closes', () => {
+    const opened = step(start, Grid.Message.MenuOpened({ column: 'sku' })).model
+    expect(opened.grid.menu).toEqual(Option.some({ column: 'sku', active: 0 }))
+    expect(opened.grid.focus.header).toEqual(Option.some('sku'))
+    // Three items (pin to start, pin to end, hide): a move past either end stops there.
+    const last = step(opened, Grid.Message.MenuMoved({ active: 9 })).model
+    expect(last.grid.menu).toEqual(Option.some({ column: 'sku', active: 2 }))
+    expect(step(last, Grid.Message.MenuMoved({ active: 2 })).model).toBe(last)
+    const first = step(last, Grid.Message.MenuMoved({ active: -4 })).model
+    expect(first.grid.menu).toEqual(Option.some({ column: 'sku', active: 0 }))
+    const closed = step(first, Grid.Message.MenuClosed()).model
+    expect(closed.grid.menu).toEqual(Option.none())
+    expect(step(closed, Grid.Message.MenuClosed()).model).toBe(closed)
+    expect(step(closed, Grid.Message.MenuMoved({ active: 1 })).model).toBe(closed)
+  })
+
+  test.each<{
+    readonly name: string
+    readonly column: Id
+    readonly index: number
+    readonly expected: { readonly start: ReadonlyArray<Id>; readonly center: ReadonlyArray<Id> }
+  }>([
+    {
+      name: 'pins to the start, next to the center',
+      column: 'price',
+      index: 0,
+      expected: { start: ['price'], center: ['name', 'sku', 'notes'] },
+    },
+    {
+      name: 'hides the column',
+      column: 'sku',
+      index: 2,
+      expected: { start: [], center: ['name', 'sku', 'price', 'notes'] },
+    },
+  ])('a chosen item $name and closes the menu', ({ column, index, expected }) => {
+    const opened = step(start, Grid.Message.MenuOpened({ column })).model
+    const chosen = step(opened, Grid.Message.MenuChosen({ index })).model.grid
+    expect(chosen.columns).toMatchObject(expected)
+    expect(chosen.menu).toEqual(Option.none())
+  })
+
+  test('hiding from the menu takes the header’s focus off the hidden column', () => {
+    const opened = step(start, Grid.Message.MenuOpened({ column: 'sku' })).model
+    const hidden = step(opened, Grid.Message.MenuChosen({ index: 2 })).model.grid
+    expect(hidden.columns.hidden).toEqual(['sku'])
+    expect(hidden.focus.header).toEqual(Option.none())
+  })
+
+  test('a pinned column unpinned from the start goes back to the center’s start', () => {
+    const pinned = step(
+      start,
+      Grid.Message.ColumnMoved({ column: 'sku', region: 'start', index: 0 }),
+    ).model
+    const opened = step(pinned, Grid.Message.MenuOpened({ column: 'sku' })).model
+    const unpinned = step(opened, Grid.Message.MenuChosen({ index: 1 })).model.grid
+    expect(unpinned.columns.center).toEqual(['sku', 'name', 'price', 'notes'])
+  })
+
+  test('a second column pinned to the start goes after the first, next to the center', () => {
+    const pinned = step(
+      start,
+      Grid.Message.ColumnMoved({ column: 'sku', region: 'start', index: 0 }),
+    ).model
+    const opened = step(pinned, Grid.Message.MenuOpened({ column: 'price' })).model
+    expect(step(opened, Grid.Message.MenuChosen({ index: 0 })).model.grid.columns.start).toEqual([
+      'sku',
+      'price',
+    ])
+  })
+
+  test('showing a hidden column from another column’s menu', () => {
+    const hidden = step(start, Grid.Message.ColumnHidden({ column: 'notes' })).model
+    const opened = step(hidden, Grid.Message.MenuOpened({ column: 'name' })).model
+    const shown = step(opened, Grid.Message.MenuChosen({ index: 3 })).model.grid
+    expect(shown.columns.hidden).toEqual([])
+  })
+
+  test('a menu does not open on a hidden column, and an item it does not have only closes it', () => {
+    const hidden = step(start, Grid.Message.ColumnHidden({ column: 'notes' })).model
+    expect(step(hidden, Grid.Message.MenuOpened({ column: 'notes' })).model).toBe(hidden)
+    const opened = step(start, Grid.Message.MenuOpened({ column: 'sku' })).model
+    const closed = step(opened, Grid.Message.MenuChosen({ index: 7 })).model
+    expect(closed.grid.menu).toEqual(Option.none())
+    expect(closed.grid.columns).toBe(opened.grid.columns)
+  })
+
+  test('hiding a column with its menu open, by other means, closes the menu', () => {
+    const opened = step(start, Grid.Message.MenuOpened({ column: 'sku' })).model
+    const hidden = step(opened, Grid.Message.ColumnHidden({ column: 'sku' })).model.grid
+    expect(hidden.menu).toEqual(Option.none())
+    const other = step(opened, Grid.Message.ColumnHidden({ column: 'name' })).model.grid
+    expect(other.menu).toEqual(Option.some({ column: 'sku', active: 0 }))
+    expect(other.focus.header).toEqual(Option.some('sku'))
+  })
+
   test('a column that does not resize starts no drag', () => {
     const Fixed = DataGrid.make({
       id: 'fixed',
@@ -279,6 +401,7 @@ describe('DataGrid', () => {
       },
       resizing: null,
       dragging: null,
+      menu: null,
       selection: { rows: { _tag: 'Keys', keys: [] }, anchor: null, cells: null },
       editing: null,
     })

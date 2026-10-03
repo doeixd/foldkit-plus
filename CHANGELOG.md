@@ -91,6 +91,13 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **A column menu's state (`foldkit-data-grid`).** `menu` in the Model
+  holds the column whose menu is open and its active item; `MenuOpened`,
+  `MenuMoved`, `MenuChosen` and `MenuClosed` drive it. `Grid.menuItems`
+  lists pin to another region, hide, and show each hidden column, each only
+  when it changes something, as `Grid.MenuItem`s; a chosen item runs the
+  column Message it stands for. Hiding a column now also takes its header's
+  focus and closes its menu, as it already ended its edit.
 - **More rows as the end comes into view (`foldkit-mixins-data-grid`).**
   `moreOnScroll: true` beside `onMore` sends it when the More button comes
   within 200px of the grid's visible box (an IntersectionObserver rooted at
