@@ -160,7 +160,11 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   page): the grid is `aria-busy` while loading or refreshing; with no rows
   it says loading, or the failure with a retry when `onRetry` is given; with
   rows, a failure is said in the `footer`, below them. `onMore` puts a More
-  button in the footer while the count is not known.
+  button in the footer while the count is not known; with `moreOnScroll`
+  the button also sends it when it comes within 200px of the grid's
+  visible box, and again after each load while it stays there. Nothing is
+  asked while the grid is busy, so give `status` too: without it, the button
+  asks again each time it comes back into view before the page lands.
 - **Sorting** is the application's: `sort` gives a column its direction and
   the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
   The header says `aria-sort`, and its label is a button the pointer sorts

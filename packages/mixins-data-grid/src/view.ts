@@ -25,6 +25,7 @@ import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
 import { EditorFocus } from './editorFocus.js'
 import { HeaderDrag } from './headerDrag.js'
+import { Nearing } from './nearEnd.js'
 import { CellPress } from './press.js'
 import { GridSlots } from './slots.js'
 
@@ -94,6 +95,12 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   readonly onRetry?: Message
   /** Loads more rows; given, a grid whose count is not known yet shows a button that sends it. */
   readonly onMore?: Message
+  /**
+   * Also sends `onMore` when the More button comes within 200px of the grid's
+   * visible box, and again after each load while it stays there; the button
+   * stays for the keyboard. Nothing is asked while the grid is busy.
+   */
+  readonly moreOnScroll?: boolean
   /** The columns that sort, each with its direction and its Message. */
   readonly sort?: { readonly [K in Id]?: ColumnSort<Message> }
 }
@@ -859,9 +866,22 @@ const view = <Message>() => ({
           ...Option.match(more, {
             onNone: () => [],
             onSome: message => [
-              h.button(slots.more.attrs([h.Type('button'), h.Disabled(busy), h.OnClick(message)]), [
-                words.more ?? 'More',
-              ]),
+              h.button(
+                slots.more.attrs([
+                  h.Type('button'),
+                  h.Disabled(busy),
+                  h.OnClick(message),
+                  // Keyed by the rows loaded, so each load observes afresh and a
+                  // button still in view asks again.
+                  ...(input.moreOnScroll === true && !busy
+                    ? [
+                        h.Key(`more:${addressableRows(projection.rowCount)}`),
+                        h.OnMount(Mount.mapMessage(Nearing(), () => message)),
+                      ]
+                    : []),
+                ]),
+                [words.more ?? 'More'],
+              ),
             ],
           }),
         ]

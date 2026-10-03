@@ -199,8 +199,13 @@ Where it departs from §18:
   say the same thing; a cell renderer can still draw the row its own way.
 - **Loading and failure are a `RowStatus` the source's owner gives.** The
   grid holds none: Remote's `RemoteData` maps to it, and so can a store.
-- **Load-more is a button**, offered while the count is unknown; reading
-  the next page as the viewport nears the end is not built.
+- **Load-more is a button**, offered while the count is unknown, and with
+  `moreOnScroll` an IntersectionObserver on it, rooted at the grid, sends
+  `onMore` within 200px of view. The button is keyed by the rows loaded,
+  so after a load it observes afresh and asks again while still in view; it
+  watches nothing while `status` is busy. A view cannot send a Message as
+  it draws, so the window's own end is no trigger: an element coming into
+  view is.
 - **Not built:** the reference application over Remote with local-first
   writes; the in-memory registry is below.
 

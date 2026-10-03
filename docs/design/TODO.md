@@ -500,8 +500,8 @@ are built. Each phase lists its deliverables and acceptance there.
   `aria-sort` on the header), load-more and an unknown count, and the
   view's loading and error states. Build the reference application here.
   Built 2026-10-03 as `foldkit-data-grid/crud` and the view's `status`,
-  `onRetry`, `onMore` and `sort`; the reference application and reading the
-  next page as the viewport nears the end are not.
+  `onRetry`, `onMore` and `sort`, and `moreOnScroll` reads the next page as
+  the end comes into view; the reference application over Remote is not.
 - [ ] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
   bulk edits grouped as one transaction. Copy, cut and paste are built
   (2026-10-03), a paste reported as one `Out.Pasted`; fill is not.

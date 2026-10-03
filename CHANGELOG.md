@@ -91,6 +91,11 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **More rows as the end comes into view (`foldkit-mixins-data-grid`).**
+  `moreOnScroll: true` beside `onMore` sends it when the More button comes
+  within 200px of the grid's visible box (an IntersectionObserver rooted at
+  the grid), and again after each load while the button stays in view; it
+  asks nothing while `status` is busy.
 - **A column header dragged to reorder it (`foldkit-data-grid`).** The grid
   holds a drag as its column and the pointer's delta (`dragging`), from
   `ColumnDragStarted` with the header's DOM id (`GridFocus.headerOf` reads

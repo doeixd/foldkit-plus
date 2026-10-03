@@ -102,7 +102,8 @@ the whole wiring, compiled.
 - Over a `Crud.list`: `foldkit-data-grid/crud`'s `GridCrud.columns(list)`,
   `GridCrud.rows(page, key)` and `GridCrud.status(page)`; give the view
   `status`, `onRetry` (`list.refresh`), `onMore` (`list.more`) and `sort`
-  (`foldkit-crud`'s `Sort`). Sorting stays the query's.
+  (`foldkit-crud`'s `Sort`). Sorting stays the query's. `moreOnScroll: true`
+  also sends `onMore` as the end comes into view.
 - Selection is opt-in: `DataGrid.make({ ..., rowSelection: 'multiple',
   cellSelection: true })`. Ask `GridSelection.isSelected(model.grid.selection.rows)`
   once per render; select-all is `AllExcept`, so it holds rows not loaded.
