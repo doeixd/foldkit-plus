@@ -279,6 +279,7 @@ in a line.
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
+| Move between cells and span ranges in an interactive grid over rows the application owns | `foldkit-data-grid` (in development, not published; the pure model only) | [package README](./packages/data-grid) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
 | Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
 | Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |
@@ -328,11 +329,13 @@ flowchart TB
   composition["foldkit-composition<br/>a page as Blocks in Regions · in development"]
   builder["foldkit-builder<br/>the page editor, as a form key · in development"]
   mixinsBuilder["foldkit-mixins-builder<br/>the page editor, drawn · in development"]
+  dataGrid["foldkit-data-grid<br/>grid geometry · in development"]
 
   app -- "describe observation / capability" --> surface
   app --> mixins
   app --> bundle --> bundleSurface
   app --> primitives
+  app --> dataGrid
   bundle --> primitives
   surface --> bundleSurface
   surface --> agent --> agentAdapters

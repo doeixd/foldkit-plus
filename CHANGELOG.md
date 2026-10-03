@@ -5,6 +5,19 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- **`foldkit-data-grid`, the grid's pure model (private, `0.0.0`).** Phase 0
+  of [the DataGrid design](docs/design/data-grid-DESIGN.md): typed `Columns`
+  by stable id, a `RowModel` with a `Known` or `Unknown` `RowCount`, a
+  saveable `ColumnLayout` of start, center and end regions with hidden
+  columns, and a `GridProjection` that answers moves, edges and rectangular
+  ranges in display order, each as an `Option`. A cell is named by row key
+  and column id, so it survives a re-sort or a reorder. Nothing renders or
+  holds state yet.
+
 ## 0.14.0
 
 `foldkit-entity` 0.7.0; `foldkit-remote` 0.11.0; `foldkit-remote-server`

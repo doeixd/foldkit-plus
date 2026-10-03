@@ -1,6 +1,7 @@
 # DataGrid design
 
-**Status:** not built; Phase 0 is next. Proposed in
+**Status:** Phase 0 built as `foldkit-data-grid` (private, `0.0.0`); Phase 1,
+`GridFocus`, is next. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -78,6 +79,28 @@ The check found three things the plan does not say.
   over the Message universe. Infer it from the `message` callbacks and pin it
   with a negative type test: issue #80 found `SlotView.define` inferring its
   Message only from the render callback.
+
+## Phase 0 as built (2026-10-03)
+
+The pure model is `packages/data-grid`: `Columns`, `RowModel` with
+`RowCount`, `ColumnLayout` and `GridProjection`. Where it departs from §4 to §6:
+
+- **No `Column.make` and no branded keys.** Columns are plain specs inside
+  `Columns.define<Row>()({...})`, which infers each id as a literal and each
+  value's type; a separate constructor would be a second way to write one.
+  Column ids are that literal union, so a row key, a plain `string`, cannot
+  stand in for one, and a brand would only add constructor calls.
+- **A layout is three regions and a hidden list,** not an order plus two pin
+  lists: every column stands in exactly one of start, center and end, so no
+  two lists can disagree about its place. Hidden keeps the place.
+- **`moveBy(address, { rows, columns })` and the edges** replace
+  `nextCell(address, direction)`: arrows are one step, PageUp and PageDown
+  are a viewport's worth of rows, and RTL is Phase 1 swapping the sign.
+- **`RowModel.indexOf` is required.** Focus and ranges name rows by key, so
+  every source must find one.
+- **`Columns.define` refuses numeric ids and `__proto__`.** JavaScript
+  enumerates integer keys first, which would reorder the columns, and a
+  `__proto__` key sets the prototype, which would drop the column silently.
 
 ---
 

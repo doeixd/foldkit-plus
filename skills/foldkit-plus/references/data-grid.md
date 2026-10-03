@@ -1,0 +1,61 @@
+# foldkit-data-grid
+
+**In development, not published.** Phase 0 of the DataGrid design is built:
+the pure model. Focus, selection, column state, editing, virtualization and
+the view are later phases; nothing here renders or holds state yet.
+
+## What it owns
+
+Geometry: which cells exist and where they stand, given rows the application
+supplies, typed columns, and a column layout. The grid never sorts, filters or
+fetches; row order is the application's (its Model or Remote query). For a
+plain sortable list of records, use `foldkit-crud`'s `Crud.list` with
+`foldkit-mixins-crud` instead.
+
+## Basic use
+
+```ts
+import { ColumnLayout, Columns, GridProjection, RowModel } from 'foldkit-data-grid'
+
+interface Product {
+  readonly id: string
+  readonly sku: string
+  readonly price: number
+}
+
+const columns = Columns.define<Product>()({
+  sku: { header: 'SKU', value: product => product.sku, pinned: 'start' },
+  price: { header: 'Price', value: product => product.price },
+})
+
+const products: ReadonlyArray<Product> = [
+  { id: 'p1', sku: 'A-1', price: 9 },
+  { id: 'p2', sku: 'B-2', price: 2 },
+]
+const productKey = (product: Product) => product.id
+
+const grid = GridProjection.make({
+  rows: RowModel.fromArray(products, productKey),
+  columns,
+  layout: ColumnLayout.initial(columns),
+})
+
+grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
+// Option.some({ row: 'p2', column: 'price' })
+```
+
+## Gotchas
+
+- A cell is `{ row: key, column: id }`, never a position, so it survives a
+  re-sort. Ask `positionOf` where it stands now.
+- Every lookup returns an `Option`: a hidden column, a removed row, or a
+  counted row not loaded yet has no cell.
+- `Columns.define` is called twice (`<Row>()` then the specs) so ids and
+  value types are inferred. It throws for a numeric id and for `__proto__`.
+- `RowModel.fromArray` caches per array and key function; keep both stable
+  across renders, or it re-indexes every time. It throws on a duplicate key.
+- A `ColumnLayout` is ids only: start, center and end regions plus a hidden
+  list. A saved layout that omits a column gets it appended to the center.
+
+See also: [the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
+and [the DataGrid design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-grid-DESIGN.md).

@@ -21,6 +21,7 @@
     { "path": "./packages/entity" },
     { "path": "./packages/form" },
     { "path": "./packages/crud" },
+    { "path": "./packages/data-grid" },
     { "path": "./packages/surface" },
     { "path": "./packages/remote" },
     { "path": "./packages/remote-server" },

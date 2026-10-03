@@ -452,13 +452,14 @@ the steps land in the packages that own them.
 
 `foldkit-data-grid` and `foldkit-mixins-data-grid`, in the order of
 [data-grid-DESIGN.md](./data-grid-DESIGN.md) §21
-([#144](https://github.com/doeixd/foldkit-plus/issues/144)). None is started.
-Each phase lists its deliverables and acceptance there.
+([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phase 0 is
+built. Each phase lists its deliverables and acceptance there.
 
-- [ ] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
+- [x] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
   union, `RowKey`/`ColumnKey`, `CellAddress`, `CellRange`, `GridProjection`, a
   static array adapter, and table-driven tests of hide, order, pin and
-  reorder geometry.
+  reorder geometry. Built 2026-10-03 as `foldkit-data-grid`, private; the
+  design's "Phase 0 as built" records where it departs from the sketch.
 - [ ] **Phase 1, `GridFocus`:** keyed movement over the projection, one tab
   stop, RTL, Home/End, Ctrl+Home/End, a PageUp/PageDown hook, and an
   ensure-visible request.
