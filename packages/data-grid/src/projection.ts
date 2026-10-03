@@ -49,7 +49,10 @@ export interface GridProjection<Row, Id extends string> {
   rowIndex(key: string): Option.Option<number>
   cellAt(position: CellPosition): Option.Option<CellAddress<Id>>
   positionOf(address: CellAddress<Id>): Option.Option<CellPosition>
-  /** The cell `offset` away, stopping at the grid's edges. */
+  /**
+   * The cell `offset` away, stopping at the grid's edges. A fractional offset
+   * (a page of rows worked out from a height) drops its fraction.
+   */
   moveBy(address: CellAddress<Id>, offset: CellOffset): Option.Option<CellAddress<Id>>
   rowStart(address: CellAddress<Id>): Option.Option<CellAddress<Id>>
   rowEnd(address: CellAddress<Id>): Option.Option<CellAddress<Id>>
@@ -132,8 +135,8 @@ export const GridProjection = {
       positionOf,
       moveBy: (address, offset) =>
         within(address, ({ row, column }) => ({
-          row: clamp(row + (offset.rows ?? 0), lastRow),
-          column: clamp(column + (offset.columns ?? 0), lastColumn),
+          row: clamp(row + Math.trunc(offset.rows ?? 0), lastRow),
+          column: clamp(column + Math.trunc(offset.columns ?? 0), lastColumn),
         })),
       rowStart: address => within(address, ({ row }) => ({ row, column: 0 })),
       rowEnd: address => within(address, ({ row }) => ({ row, column: lastColumn })),

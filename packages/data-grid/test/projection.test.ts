@@ -259,6 +259,18 @@ describe('GridProjection movement', () => {
       to: Option.some(at('p:100', 'price')),
     },
     {
+      name: 'a fractional page drops its fraction',
+      move: from => moving.moveBy(from, { rows: 1.9 }),
+      from: at('p:10', 'price'),
+      to: Option.some(at('p:1', 'price')),
+    },
+    {
+      name: 'a fractional column step drops its fraction',
+      move: from => moving.moveBy(from, { columns: 1.5 }),
+      from: at('p:10', 'sku'),
+      to: Option.some(at('p:10', 'price')),
+    },
+    {
       name: 'up stops at the first row',
       move: from => moving.moveBy(from, { rows: -1 }),
       from: at('p:10', 'name'),
