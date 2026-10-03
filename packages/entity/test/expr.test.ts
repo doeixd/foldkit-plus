@@ -71,7 +71,7 @@ describe('dependenciesOf says what an expression reads', () => {
     const predicate = Expr.eq(Post.fields.title, Expr.input('title', Schema.String))
 
     expect(dependenciesOf(predicate)).toEqual({
-      fields: [{ entity: 'Post', key: 'title' }],
+      fields: [{ entity: 'Post', key: 'title', owner: Post.identity }],
       inputs: ['title'],
       operations: ['eq'],
     })
@@ -81,7 +81,9 @@ describe('dependenciesOf says what an expression reads', () => {
     const left = Expr.eq(Post.fields.id, 'p1')
     const right = Expr.eq(Post.fields.id, Expr.input('id', Schema.String))
 
-    expect(dependenciesOf(left, right).fields).toEqual([{ entity: 'Post', key: 'id' }])
+    expect(dependenciesOf(left, right).fields).toEqual([
+      { entity: 'Post', key: 'id', owner: Post.identity },
+    ])
   })
 
   it('reads an ordering term as well as a predicate', () => {
@@ -92,9 +94,9 @@ describe('dependenciesOf says what an expression reads', () => {
     )
 
     expect(found.fields).toEqual([
-      { entity: 'Post', key: 'published' },
-      { entity: 'Post', key: 'title' },
-      { entity: 'Post', key: 'id' },
+      { entity: 'Post', key: 'published', owner: Post.identity },
+      { entity: 'Post', key: 'title', owner: Post.identity },
+      { entity: 'Post', key: 'id', owner: Post.identity },
     ])
     expect(found.inputs).toEqual([])
   })
@@ -115,8 +117,8 @@ describe('dependenciesOf says what an expression reads', () => {
 
     expect(dependenciesOf(where, ...order)).toEqual({
       fields: [
-        { entity: 'Post', key: 'title' },
-        { entity: 'Post', key: 'id' },
+        { entity: 'Post', key: 'title', owner: Post.identity },
+        { entity: 'Post', key: 'id', owner: Post.identity },
       ],
       inputs: ['slug'],
       operations: ['eq'],
@@ -196,8 +198,8 @@ describe('Query composes which rows, as data', () => {
 
     expect(Query.dependencies(q)).toEqual({
       fields: [
-        { entity: 'Post', key: 'title' },
-        { entity: 'Post', key: 'id' },
+        { entity: 'Post', key: 'title', owner: Post.identity },
+        { entity: 'Post', key: 'id', owner: Post.identity },
       ],
       inputs: ['title'],
       operations: ['eq'],
@@ -255,8 +257,8 @@ describe('The operations the CMS worklist needs', () => {
 
     expect(dependenciesOf(...worklist)).toEqual({
       fields: [
-        { entity: 'Post', key: 'title' },
-        { entity: 'Post', key: 'published' },
+        { entity: 'Post', key: 'title', owner: Post.identity },
+        { entity: 'Post', key: 'published', owner: Post.identity },
       ],
       inputs: ['type', 'archived', 'search'],
       operations: ['eq', 'isNotNull', 'contains'],

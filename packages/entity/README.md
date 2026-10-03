@@ -417,7 +417,14 @@ placeholder instead of a branch around it.
 
 `dependenciesOf(...)` says which fields and inputs an expression reads and which
 operations it uses, so a planner knows what it needs and an interpreter can
-refuse a query it cannot run.
+refuse a query it cannot run. Each field names its `owner`, the Entity's
+identity, as well as the Entity's name, so two Entities defined with the same
+name are two entries.
+
+Every node is frozen as it is built, so a query is the value it was when
+`Query.where` checked it: nothing can swap a field or a literal in afterwards.
+A node may be shared, `Expr.eq(n, n)`, and every walk over one visits each
+node once, so a deeply shared predicate costs its size, not its paths.
 
 ### Asking a question that depends on an input, without branching on it
 
@@ -443,7 +450,10 @@ flipped, so nothing has to negate a predicate to get the other.
 **`contains` is case-insensitive**, which is what a search means — and which
 has to be said, not left to the interpreter: SQLite's `like` ignores case and
 Postgres's does not, so a body that left it open would mean two things. Folding
-is ASCII-only, since that is what `lower` does in SQLite without ICU.
+is ASCII-only, since that is what `lower` does in SQLite without ICU: `É` does
+not match `é`, though each matches itself. Text holding a NUL character is
+refused by every interpreter here, since Postgres text cannot hold one and
+SQLite's `like` stops at it.
 
 **It searches text, and the operand is constrained to text.** `contains` over a
 number would compile to `lower(rank) like …`, which SQLite coerces into an

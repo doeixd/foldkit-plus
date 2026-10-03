@@ -270,6 +270,25 @@ describe('A body the binding cannot answer is refused when it is registered', ()
   })
 })
 
+describe('A search the compiled SQL cannot hold', () => {
+  it('is refused when it holds a NUL character, as the reference interpreter refuses it', async () => {
+    const BySearch = Query.define('PostsBySearch', { slug: Schema.String }, ({ input }) =>
+      Query.from(Post).pipe(
+        Query.where(Expr.contains(Post.fields.slug, input.slug)),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+    )
+    const { database, calls } = fakeDatabase()
+    const source = query(BySearch, { entity: PostBinding })
+    const outcome = await run(source, database, `a${String.fromCharCode(0)}b`).then(
+      result => (result._tag === 'Failure' ? String(result.failure) : 'answered'),
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    )
+    expect(outcome).toMatch(/NUL character/)
+    expect(calls).toEqual([])
+  })
+})
+
 describe('A body needing what this compiler does not run', () => {
   it('is refused at registration, naming the operation', () => {
     const Needs = Query.define('NeedsContains', { q: Schema.String }, ({ input }) =>

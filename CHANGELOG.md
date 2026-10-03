@@ -15,8 +15,36 @@ version changed; `pnpm` skips versions already in the registry.
   undefined))`, instead of copying the backend's private read and query
   closures (#140).
 
+### Changed
+
+- **`foldkit-entity`, a field's dependency names its owner:**
+  `dependenciesOf` and `Query.dependencies` report each field as
+  `{ entity, key, owner }` and keep one entry per Entity identity, so two
+  Entities defined with the same name are no longer one dependency.
+  `Data.explain` keeps the plain `{ entity, key }` form, which serializes and
+  is unambiguous for a query reading one Entity (#139).
+- **`foldkit-entity`, `evaluate` checks an ordering before sorting:** every
+  term over every matched row, in row order. A refusal now names the first row
+  that breaks the order, the same on every engine, rather than whichever pair
+  the engine's sort compared first; and a null key is refused wherever it is,
+  even where an earlier term already separates the rows. One matched row is
+  never refused (#142).
+
 ### Fixed
 
+- **`foldkit-entity`, `Expr` nodes are frozen:** a predicate could be changed
+  after `Query.where` checked it, changing a built query's results or slipping
+  another Entity's field past the ownership check. Every node is frozen as it
+  is built (#138).
+- **`foldkit-entity`, a shared expression node is visited once:** the
+  ownership check and the dependency walk followed every path to a node, so
+  `Expr.eq(n, n)` nested a dozen deep took thousands of visits. Each walk keeps
+  the nodes it has seen (#137).
+- **`foldkit-entity`, `contains` in `evaluate` folds ASCII only:** it folded
+  full Unicode while the compiled SQL folds ASCII, so `É` matched `é` in one
+  and not the other. It folds ASCII letters only now, as `Expr.contains`
+  documents, and text holding a NUL character is refused by both
+  interpreters. Two conformance cases pin the folding (#136).
 - **`foldkit-remote`, `Remote.clientLayer` with the stock `RpcClient`:** it
   refused the client `RpcClient.make(RemoteRpc)` builds, whose calls can also
   fail with `RpcClientError`, so every application wrote an adapter. It takes

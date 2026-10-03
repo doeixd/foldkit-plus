@@ -146,6 +146,14 @@ const predicate = (
       if (typeof search !== 'string') {
         throw new QueryCompileError(`query "${query}" searches for something that is not text`)
       }
+      // Postgres text cannot hold NUL and SQLite's `like` stops at it, so a
+      // search holding one means nothing portable; the reference interpreter
+      // refuses it too. A NUL inside a stored value cannot be seen from here.
+      if (search.includes(String.fromCharCode(0))) {
+        throw new QueryCompileError(
+          `query "${query}" searches for text holding a NUL character, which SQL text cannot hold portably`,
+        )
+      }
       // Folded on both sides rather than left to `like`, which is
       // case-insensitive in SQLite and case-sensitive in Postgres: a query body
       // that means two things by dialect is the thing this package exists to

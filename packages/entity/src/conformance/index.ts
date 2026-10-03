@@ -97,6 +97,7 @@ export interface ConformanceCase {
 const from = Query.from(Subject)
 const byId = Query.orderBy(Order.asc(Subject.fields.id))
 const label = Expr.input('label', Schema.String)
+const text = Expr.input('text', Schema.String)
 const tag = Expr.input('tag', Schema.String)
 const present = Expr.input('present', Schema.Boolean)
 const at = Expr.input('at', Timestamp)
@@ -208,6 +209,20 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     body: from.pipe(Query.where(Expr.contains(Subject.fields.tag, label)), byId),
     input: { label: '' },
     expected: ['b', 'd', 'e'],
+  },
+  // The text searched is an input here so the fixture rows stay ASCII: each
+  // case asks the same of every row, so it matches all of them or none.
+  {
+    what: 'contains folds ASCII letters only: an accented capital does not match its lowercase',
+    body: from.pipe(Query.where(Expr.contains(text, label)), byId),
+    input: { text: 'Élan', label: 'é' },
+    expected: [],
+  },
+  {
+    what: 'contains still matches a non-ASCII letter written the same way',
+    body: from.pipe(Query.where(Expr.contains(text, label)), byId),
+    input: { text: 'Élan', label: 'Él' },
+    expected: ['a', 'b', 'c', 'd', 'e'],
   },
   {
     what: 'contains with a null search is unknown for every row',

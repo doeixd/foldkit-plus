@@ -210,10 +210,12 @@ const published = Expr.eq(Blog.Post.fields.published, true)   // literal coerced
 const newest = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
 
 dependenciesOf(byTitle, ...newest)
-// { fields: [{entity:'Post',key:'title'}, {entity:'Post',key:'id'}], inputs: ['title'], operations: ['eq'] }
+// { fields: [{entity:'Post',key:'title',owner}, {entity:'Post',key:'id',owner}], inputs: ['title'], operations: ['eq'] }
+// owner is the Entity's identity: two Entities that share a name are two entries
 ```
 
-Immutable data: building one reads nothing, names no database, runs no query.
+Immutable data, frozen as it is built: building one reads nothing, names no
+database, runs no query, and nothing can change it after `Query.where` checked it.
 An interpreter compiles it (`foldkit-remote-drizzle` to SQL, an in-memory
 evaluator to a row predicate). `Expr.eq` coerces a field or a plain value on
 either side; a field compared to the wrong type is an error where it is written.

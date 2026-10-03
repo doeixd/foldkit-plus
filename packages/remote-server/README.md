@@ -346,15 +346,22 @@ is *unknown* in SQL and matches no row, where JavaScript would call the two
 equal. A comparison keeps a row only when it is true, so a null on either side
 drops it.
 
-Two things it refuses rather than guesses:
+What it refuses rather than guesses:
 
 - **Ordering by a column that is null in some row.** SQLite sorts nulls first,
   Postgres sorts them last for `asc`: the databases disagree with each other, so
   there is no answer to be conformant to and picking one would make this wrong
   against the other.
 - **Comparing values it has no order for**, such as a number against a string.
+- **Searching text that holds a NUL character**, which Postgres text cannot
+  hold and SQLite's `like` stops at.
 
-Both throw where the query runs, naming the query and the field.
+Each throws where the query runs, naming the query. An ordering is checked
+before anything is sorted: every term over every matched row, in row order, so
+the error names the first row that breaks it (`number and string` when a later
+row holds text), the same on every engine, whichever pair a sort would have
+compared first. One matched row, or none, has nothing to order and is never
+refused.
 
 ### Checking an interpreter against the semantics
 

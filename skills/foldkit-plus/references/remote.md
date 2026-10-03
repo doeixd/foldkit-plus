@@ -450,8 +450,9 @@ field.
 
 `Data.explain(model, queryProjection)` explains one query read as a single
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
-the `body` as readable text with its `dependencies` (absent for a `Query.make`
-descriptor, whose meaning lives on the server), and `state` — taken from the
+the `body` as readable text with its `dependencies` (each field `{ entity, key }`,
+without the owner identity `Query.dependencies` carries; absent for a
+`Query.make` descriptor, whose meaning lives on the server), and `state` — taken from the
 projection's own read, so an explanation and the view cannot disagree. Given
 `{ surfaces }` — the same active record `subscriptions` takes — it also reports
 every active Surface reading the connection and, for those placed with

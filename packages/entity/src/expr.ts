@@ -143,14 +143,23 @@ const tagOf = (value: unknown): unknown =>
  * idempotent on its own output. Nothing needs to tell them apart, which is
  * better than telling them apart by which extra member happens to be present.
  */
-const literal = <T>(value: T): LiteralExpr<T> => ({ _tag: 'Literal', value })
+/**
+ * Every node is frozen as it is made, so a query built from it stays the value
+ * it was when `Query.where` checked it: nothing can swap a field or a literal
+ * in afterwards. It also means no node can come to contain itself. A literal's
+ * own payload is the caller's; the kernel compares scalars.
+ */
+const node = <T extends object>(value: T): T => Object.freeze(value)
 
-const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): FieldExpr<unknown> => ({
-  _tag: 'Field',
-  owner: field.owner,
-  key: field.key,
-  schema: field.schema as unknown as Schema.Codec<unknown, unknown>,
-})
+const literal = <T>(value: T): LiteralExpr<T> => node({ _tag: 'Literal', value })
+
+const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): FieldExpr<unknown> =>
+  node({
+    _tag: 'Field',
+    owner: field.owner,
+    key: field.key,
+    schema: field.schema as unknown as Schema.Codec<unknown, unknown>,
+  })
 
 const predicateTags = new Set(['Eq', 'Null', 'Contains'])
 
@@ -191,10 +200,19 @@ const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
  */
 export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains'
 
+/** One field an expression reads: its Entity's name and key, and the identity that owns it. */
+export interface FieldDependency {
+  /** The owning Entity's name, for display; two Entities may share one. */
+  readonly entity: string
+  readonly key: string
+  /** Which Entity it is. Two defined with the same name are two entries. */
+  readonly owner: EntityIdentity<string>
+}
+
 /** Which fields and inputs an expression reads, and which operations it uses. */
 export interface Dependencies {
-  /** One entry per distinct field, as `Entity.key`. */
-  readonly fields: ReadonlyArray<{ readonly entity: string; readonly key: string }>
+  /** One entry per distinct field of each Entity identity. */
+  readonly fields: ReadonlyArray<FieldDependency>
   /** One entry per distinct input key. */
   readonly inputs: ReadonlyArray<string>
   /** One entry per distinct operation, so an interpreter can refuse what it cannot run. */
@@ -209,11 +227,8 @@ export const Expr = {
    * A value the query is given when it runs. A definition builds these from its
    * `Input` schema; written by hand only when constructing a body directly.
    */
-  input: <T>(key: string, schema: Schema.Codec<T, unknown>): InputExpr<T> => ({
-    _tag: 'Input',
-    key,
-    schema,
-  }),
+  input: <T>(key: string, schema: Schema.Codec<T, unknown>): InputExpr<T> =>
+    node({ _tag: 'Input', key, schema }),
 
   /** One field of one Entity, as a scalar. */
   field: <Name extends string, Key extends string, S extends Schema.Constraint>(
@@ -232,29 +247,19 @@ export const Expr = {
   eq: <L extends Operand<any>>(
     left: L,
     right: ValueOf<L> | Expr<ValueOf<L>> | (boolean extends ValueOf<L> ? Predicate : never),
-  ): EqPredicate => ({
-    _tag: 'Eq',
-    left: toOperand(left),
-    right: toOperand(right as never),
-  }),
+  ): EqPredicate => node({ _tag: 'Eq', left: toOperand(left), right: toOperand(right as never) }),
 
   /**
    * Whether a field holds no value. Its opposite is `isNotNull`; both are the
    * one node, because a query asks which of the two it means and nothing here
    * can negate a predicate.
    */
-  isNull: <L extends Operand<any>>(operand: L): NullPredicate => ({
-    _tag: 'Null',
-    operand: toExpr(operand, 'isNull'),
-    present: false,
-  }),
+  isNull: <L extends Operand<any>>(operand: L): NullPredicate =>
+    node({ _tag: 'Null', operand: toExpr(operand, 'isNull'), present: false }),
 
   /** Whether a field holds a value. */
-  isNotNull: <L extends Operand<any>>(operand: L): NullPredicate => ({
-    _tag: 'Null',
-    operand: toExpr(operand, 'isNotNull'),
-    present: true,
-  }),
+  isNotNull: <L extends Operand<any>>(operand: L): NullPredicate =>
+    node({ _tag: 'Null', operand: toExpr(operand, 'isNotNull'), present: true }),
 
   /**
    * Whether a text value contains `search`, anywhere in it. Containing the
@@ -273,14 +278,12 @@ export const Expr = {
    * `Expr.or` does not exist yet, so for now such a column needs its own
    * predicate or a native escape hatch.
    */
-  contains: <L extends TextOperand>(
-    value: L,
-    search: string | Expr<string>,
-  ): ContainsPredicate => ({
-    _tag: 'Contains',
-    value: toExpr(value, 'contains'),
-    search: toOperand(search as never),
-  }),
+  contains: <L extends TextOperand>(value: L, search: string | Expr<string>): ContainsPredicate =>
+    node({
+      _tag: 'Contains',
+      value: toExpr(value, 'contains'),
+      search: toOperand(search as never),
+    }),
 
   /** An expression as readable text; see `showExpr` for what it is and is not. */
   show: (node: Operandish): string => showExpr(node),
@@ -293,44 +296,58 @@ export interface OrderTerm {
 }
 
 export const Order = {
-  asc: <E extends Operand<any>>(expr: E): OrderTerm => ({
-    direction: 'asc',
-    expr: toExpr(expr as never, 'asc'),
-  }),
-  desc: <E extends Operand<any>>(expr: E): OrderTerm => ({
-    direction: 'desc',
-    expr: toExpr(expr as never, 'desc'),
-  }),
+  asc: <E extends Operand<any>>(expr: E): OrderTerm =>
+    node({ direction: 'asc', expr: toExpr(expr as never, 'asc') }),
+  desc: <E extends Operand<any>>(expr: E): OrderTerm =>
+    node({ direction: 'desc', expr: toExpr(expr as never, 'desc') }),
 }
 
-const walk = (
-  node: AnyExpr | Predicate,
-  fields: Map<string, { readonly entity: string; readonly key: string }>,
-  inputs: Set<string>,
-  operations: Set<Operation>,
-): void => {
-  switch (node._tag) {
+/** What a walk has found, and the nodes it has already been through. */
+interface Found {
+  readonly seen: Set<object>
+  /** By owner identity, then key: two Entities sharing a name are two entries. */
+  readonly fields: Map<symbol, Map<string, FieldDependency>>
+  readonly order: Array<FieldDependency>
+  readonly inputs: Set<string>
+  readonly operations: Set<Operation>
+}
+
+/**
+ * Visits each node once. A node can be shared by several paths (`eq(n, n)`),
+ * and a walk that followed every path would take time exponential in the depth.
+ */
+const walk = (expr: AnyExpr | Predicate, found: Found): void => {
+  if (found.seen.has(expr)) return
+  found.seen.add(expr)
+  switch (expr._tag) {
     case 'Literal':
       return
-    case 'Field':
-      fields.set(`${node.owner.name}.${node.key}`, { entity: node.owner.name, key: node.key })
+    case 'Field': {
+      const byKey = found.fields.get(expr.owner.token) ?? new Map<string, FieldDependency>()
+      found.fields.set(expr.owner.token, byKey)
+      if (!byKey.has(expr.key)) {
+        const field = { entity: expr.owner.name, key: expr.key, owner: expr.owner }
+        byKey.set(expr.key, field)
+        found.order.push(field)
+      }
       return
+    }
     case 'Input':
-      inputs.add(node.key)
+      found.inputs.add(expr.key)
       return
     case 'Eq':
-      operations.add('eq')
-      walk(node.left, fields, inputs, operations)
-      walk(node.right, fields, inputs, operations)
+      found.operations.add('eq')
+      walk(expr.left, found)
+      walk(expr.right, found)
       return
     case 'Null':
-      operations.add(node.present ? 'isNotNull' : 'isNull')
-      walk(node.operand, fields, inputs, operations)
+      found.operations.add(expr.present ? 'isNotNull' : 'isNull')
+      walk(expr.operand, found)
       return
     case 'Contains':
-      operations.add('contains')
-      walk(node.value, fields, inputs, operations)
-      walk(node.search, fields, inputs, operations)
+      found.operations.add('contains')
+      walk(expr.value, found)
+      walk(expr.search, found)
       return
   }
 }
@@ -343,13 +360,15 @@ const walk = (
 export const dependenciesOf = (
   ...nodes: ReadonlyArray<AnyExpr | Predicate | OrderTerm>
 ): Dependencies => {
-  const fields = new Map<string, { readonly entity: string; readonly key: string }>()
-  const inputs = new Set<string>()
-  const operations = new Set<Operation>()
-  for (const node of nodes) {
-    walk('direction' in node ? node.expr : node, fields, inputs, operations)
+  const found: Found = {
+    seen: new Set(),
+    fields: new Map(),
+    order: [],
+    inputs: new Set(),
+    operations: new Set(),
   }
-  return { fields: [...fields.values()], inputs: [...inputs], operations: [...operations] }
+  for (const term of nodes) walk('direction' in term ? term.expr : term, found)
+  return { fields: found.order, inputs: [...found.inputs], operations: [...found.operations] }
 }
 
 /**
@@ -380,25 +399,30 @@ export interface Query<E extends AnyEntity> extends Pipeable.Pipeable {
 /** A `Query` over any Entity, for the places that hold one without caring which. */
 export type AnyQuery = Query<AnyEntity>
 
-/** Every field an expression reads, as the nodes themselves. */
-const fieldsIn = function* (node: AnyExpr | Predicate): Generator<FieldExpr<unknown>> {
-  switch (node._tag) {
+/** Every field an expression reads, as the nodes themselves, each node visited once. */
+const fieldsIn = function* (
+  expr: AnyExpr | Predicate,
+  seen: Set<object>,
+): Generator<FieldExpr<unknown>> {
+  if (seen.has(expr)) return
+  seen.add(expr)
+  switch (expr._tag) {
     case 'Field':
-      yield node
+      yield expr
       return
     case 'Literal':
     case 'Input':
       return
     case 'Eq':
-      yield* fieldsIn(node.left)
-      yield* fieldsIn(node.right)
+      yield* fieldsIn(expr.left, seen)
+      yield* fieldsIn(expr.right, seen)
       return
     case 'Null':
-      yield* fieldsIn(node.operand)
+      yield* fieldsIn(expr.operand, seen)
       return
     case 'Contains':
-      yield* fieldsIn(node.value)
-      yield* fieldsIn(node.search)
+      yield* fieldsIn(expr.value, seen)
+      yield* fieldsIn(expr.search, seen)
       return
   }
 }
@@ -415,8 +439,9 @@ const checkOwnership = (
   entity: AnyEntity,
   nodes: ReadonlyArray<AnyExpr | Predicate | OrderTerm>,
 ): void => {
-  for (const node of nodes) {
-    for (const field of fieldsIn('direction' in node ? node.expr : node)) {
+  const seen = new Set<object>()
+  for (const term of nodes) {
+    for (const field of fieldsIn('direction' in term ? term.expr : term, seen)) {
       if (field.owner.token !== entity.identity.token) {
         throw new Error(
           `[foldkit-entity] Query.${step}: ${what} reads ${field.owner.name}.${field.key}, but the query is from ${entity.name}`,

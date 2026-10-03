@@ -51,6 +51,15 @@ type Truth = boolean | 'unknown'
 
 const isNull = (value: unknown): boolean => value === null || value === undefined
 
+/**
+ * Lowercases ASCII letters and leaves every other character as it is, which is
+ * what SQLite's `lower` does without ICU and so what the compiled SQL folds to.
+ * `toLowerCase` would fold `É` to `é` here and not there.
+ */
+const foldAscii = (text: string): string => text.replace(/[A-Z]+/g, upper => upper.toLowerCase())
+
+const NUL = String.fromCharCode(0)
+
 /** A predicate used as a value is its own truth; anything else is its value. */
 const sideOf = (node: Operandish, row: Row, input: Row): unknown =>
   isPredicate(node) ? truthValue(holds(node, row, input)) : valueOf(node, row, input)
@@ -86,11 +95,16 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       if (typeof value !== 'string' || typeof search !== 'string') {
         throw new QueryEvaluateError('a containment test was given something that is not text')
       }
-      // Case-insensitive, because that is what `Expr.contains` means and what
-      // the compiled SQL folds both sides to. Plain `includes` would be
-      // case-sensitive here and case-insensitive under SQLite's `like`, which
-      // is a body meaning two things.
-      return value.toLowerCase().includes(search.toLowerCase())
+      // Postgres text cannot hold NUL and SQLite's `like` stops at it, so no
+      // two interpreters agree on such a value: refused rather than answered.
+      if (value.includes(NUL) || search.includes(NUL)) {
+        throw new QueryEvaluateError(
+          'a containment test was given text holding a NUL character, which SQL text cannot hold portably',
+        )
+      }
+      // Case-insensitive for ASCII letters only, because that is what
+      // `Expr.contains` documents and what the compiled SQL folds both sides to.
+      return foldAscii(value).includes(foldAscii(search))
     }
   }
 }
@@ -99,36 +113,60 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
 const matches = (body: AnyQuery, row: Row, input: Row): boolean =>
   body.where.every(node => holds(node, row, input) === true)
 
-const compare = (left: unknown, right: unknown, query: string): number => {
+/** The kinds of value this interpreter orders by; every key of one term must share one. */
+const comparable = new Set(['string', 'number', 'boolean'])
+
+const compare = (left: unknown, right: unknown): number => {
   if (typeof left === 'string' && typeof right === 'string') {
     return left < right ? -1 : left > right ? 1 : 0
   }
-  if (typeof left === 'number' && typeof right === 'number') return left - right
   if (typeof left === 'boolean' && typeof right === 'boolean') {
     return Number(left) - Number(right)
   }
-  throw new QueryEvaluateError(
-    `query "${query}" orders by values this interpreter cannot compare (${typeof left} and ${typeof right})`,
-  )
+  return (left as number) - (right as number)
+}
+
+/**
+ * Refuses an ordering this interpreter will not answer for, before sorting, so
+ * the refusal names the first offending row in row order rather than whichever
+ * pair the engine's sort happened to compare first. Every term is checked over
+ * every row: a null key, or a key whose kind differs from the first row's.
+ */
+const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
+  for (const term of terms) {
+    if (term.expr._tag !== 'Field') {
+      throw new QueryEvaluateError(
+        `query "${query}" orders by something that is not a field, which this interpreter cannot run yet`,
+      )
+    }
+    const key = term.expr.key
+    let first: string | undefined
+    for (const row of rows) {
+      const value = row[key]
+      if (isNull(value)) {
+        throw new QueryEvaluateError(
+          `query "${query}" orders by "${key}", which is null in a row; where nulls sort is a thing databases disagree about, so it is outside what this interpreter will answer for`,
+        )
+      }
+      const kind = typeof value
+      first ??= kind
+      if (kind !== first || !comparable.has(kind)) {
+        throw new QueryEvaluateError(
+          `query "${query}" orders by values this interpreter cannot compare (${first} and ${kind})`,
+        )
+      }
+    }
+  }
 }
 
 const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
-  if (terms.length === 0) return [...rows]
+  // One row, or none, is in order whatever its keys hold.
+  if (terms.length === 0 || rows.length < 2) return [...rows]
+  checkOrder(rows, terms, query)
   return [...rows].sort((left, right) => {
     for (const term of terms) {
-      if (term.expr._tag !== 'Field') {
-        throw new QueryEvaluateError(
-          `query "${query}" orders by something that is not a field, which this interpreter cannot run yet`,
-        )
-      }
-      const a = left[term.expr.key]
-      const b = right[term.expr.key]
-      if (isNull(a) || isNull(b)) {
-        throw new QueryEvaluateError(
-          `query "${query}" orders by "${term.expr.key}", which is null in a row; where nulls sort is a thing databases disagree about, so it is outside what this interpreter will answer for`,
-        )
-      }
-      const sign = compare(a, b, query)
+      const key = (term.expr as Extract<OrderTerm['expr'], { readonly _tag: 'Field' }>).key
+      const sign = compare(left[key], right[key])
       if (sign !== 0) return term.direction === 'asc' ? sign : -sign
     }
     return 0

@@ -1,5 +1,12 @@
 /** A serializable summary of a RemoteModel for DevTools and diagnostics. */
 import type { Dependencies } from 'foldkit-entity'
+
+/** A query body's `Dependencies` as plain data: each field by its Entity's name and key. */
+export interface ExplainedDependencies {
+  readonly fields: ReadonlyArray<{ readonly entity: string; readonly key: string }>
+  readonly inputs: Dependencies['inputs']
+  readonly operations: Dependencies['operations']
+}
 import type { Failures, RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
@@ -146,8 +153,12 @@ export interface QueryExplanation {
    * `Query.make`, whose meaning lives on the server that answers it.
    */
   readonly body?: string | undefined
-  /** The fields, inputs and operations the body reads; absent with the body. */
-  readonly dependencies?: Dependencies | undefined
+  /**
+   * The fields, inputs and operations the body reads; absent with the body.
+   * Plain data, so it serializes: a field is its Entity's name and key, which
+   * is unambiguous because a query reads one Entity.
+   */
+  readonly dependencies?: ExplainedDependencies | undefined
   /** What the read answers from this Model right now. */
   readonly state: RemoteData<unknown>['_tag']
   /**

@@ -48,9 +48,17 @@ import {
   type FieldsFrom,
 } from './entity.js'
 import { belongsEncoded, matching, type Matched } from './matching.js'
+
+/** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
+const explainedDependencies = (dependencies: Domain.Dependencies): ExplainedDependencies => ({
+  fields: dependencies.fields.map(({ entity, key }) => ({ entity, key })),
+  inputs: dependencies.inputs,
+  operations: dependencies.operations,
+})
 import {
   inspectEntity,
   inspectRemote,
+  type ExplainedDependencies,
   type QueryExplanation,
   type ReadDiagnosis,
   type RemoteInspection,
@@ -2782,7 +2790,10 @@ const bindDomain = <
         select: connection!.select,
         ...(body === undefined
           ? {}
-          : { body: Relational.show(body), dependencies: Relational.dependencies(body) }),
+          : {
+              body: Relational.show(body),
+              dependencies: explainedDependencies(Relational.dependencies(body)),
+            }),
         state: projection.read(model)._tag,
         ...(options?.surfaces === undefined
           ? {}

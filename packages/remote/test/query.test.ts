@@ -207,8 +207,8 @@ describe('Query.define declares a query by what it means', () => {
   it('says what it reads, which is the whole point of carrying the body', () => {
     expect(Query.dependencies(PostsBySlug.body!)).toEqual({
       fields: [
-        { entity: 'Post', key: 'slug' },
-        { entity: 'Post', key: 'id' },
+        { entity: 'Post', key: 'slug', owner: Post.identity },
+        { entity: 'Post', key: 'id', owner: Post.identity },
       ],
       inputs: ['slug'],
       operations: ['eq'],
@@ -246,8 +246,8 @@ describe('Query.define declares a query by what it means', () => {
 
     expect(Published.body!.where).toHaveLength(2)
     expect(Query.dependencies(Published.body!).fields).toEqual([
-      { entity: 'Post', key: 'published' },
-      { entity: 'Post', key: 'slug' },
+      { entity: 'Post', key: 'published', owner: Post.identity },
+      { entity: 'Post', key: 'slug', owner: Post.identity },
     ])
   })
 })
