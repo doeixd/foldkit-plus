@@ -29,7 +29,11 @@ version changed; `pnpm` skips versions already in the registry.
   `GridViewport` keeps the container's offsets and size in the Model, its
   `Measure` Mount reports them on mount, scroll and resize, and `scrollTo` is
   the Command that applies a reveal. A benchmark at 100,000 rows is in
-  `docs/benchmarks.md`. Nothing renders yet.
+  `docs/benchmarks.md`.
+- **`foldkit-data-grid`, `DataGrid.make({ id, columns })`.** Focus and the
+  viewport as the one Bundle a grid places. A key's `Moved` carries the
+  reveal the view worked out, and the update issues the scroll for the
+  container named `id`. Nothing renders yet.
 
 ## 0.14.0
 

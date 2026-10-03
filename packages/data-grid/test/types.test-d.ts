@@ -5,6 +5,7 @@ import {
   type ColumnId,
   ColumnLayout,
   Columns,
+  DataGrid,
   GridFocus,
   GridProjection,
   RowModel,
@@ -113,3 +114,22 @@ VirtualGrid.window({
 
 // @ts-expect-error a viewport has a size as well as offsets
 VirtualGrid.window({ projection, rowHeight: 32, width: () => 100, viewport: { top: 0, left: 0 } })
+
+const Grid = DataGrid.make({ id: 'products', columns })
+expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
+  readonly focus: {
+    readonly current: Option.Option<{ readonly row: string; readonly column: 'sku' | 'price' }>
+  }
+  readonly viewport: {
+    readonly top: number
+    readonly left: number
+    readonly width: number
+    readonly height: number
+  }
+}>()
+
+// @ts-expect-error a move names a column the grid defines
+Grid.Message.Moved({ address: { row: 'p:1', column: 'name' }, reveal: Option.none() })
+
+// @ts-expect-error a reveal is offsets, not a cell
+Grid.Message.Moved({ address: { row: 'p:1', column: 'sku' }, reveal: Option.some({ row: 1 }) })

@@ -1,4 +1,5 @@
 export { Columns, type Column, type ColumnId, type ColumnSpec } from './columns.js'
+export { DataGrid, type DataGridOf } from './grid.js'
 export { GridFocus, type Direction, type KeyOptions } from './focus.js'
 export { ColumnLayout } from './layout.js'
 export {

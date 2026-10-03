@@ -57,7 +57,11 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   across renders, or it re-indexes every time. It throws on a duplicate key.
 - A `ColumnLayout` is ids only: start, center and end regions plus a hidden
   list. A saved layout that omits a column gets it appended to the center.
-- Focus is `GridFocus.make(columns)`: a Bundle with one Message, `Focused`.
+- Place `DataGrid.make({ id, columns }).bundle`: focus and the viewport in
+  one Model. Send `Moved({ address, reveal })` for a key (with `reveal` from
+  `VirtualGrid.reveal`) and `Focused({ address })` for the pointer; the
+  update scrolls the container whose DOM id is `id`.
+- The parts are `GridFocus.make(columns)`, a Bundle with one Message, `Focused`.
   `GridFocus.target(projection, { current, key, modifiers, pageRows })` is
   the cell a key moves to, or none for a key the grid leaves to the page
   (Enter, Tab, anything with Shift, Alt or Meta). Dispatch `Focused` with it.

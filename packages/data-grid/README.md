@@ -6,9 +6,10 @@ supplies, so focus, selection, virtualization and the clipboard all ask one
 value instead of reading positions from the DOM.
 
 > **Status:** private, `0.0.0`. Phases 0 to 2 of
-> [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the pure model,
-> focus as a Bundle, and two-axis virtualization. Selection, column state,
-> editing and the view come in later phases. Nothing here renders yet.
+> [the DataGrid design](../../docs/design/data-grid-DESIGN.md), and the grid's
+> state as one Bundle: the pure model, focus, and two-axis virtualization.
+> Selection, column state, editing and the view come in later phases.
+> Nothing here renders yet.
 
 ## Who owns what
 
@@ -195,6 +196,37 @@ const shown = VirtualGrid.window({
 
 `packages/data-grid/bench` measures this at 100,000 rows; see
 [the benchmarks](../../docs/benchmarks.md#foldkit-data-grid-100000-rows).
+
+## One grid's state
+
+`DataGrid.make({ id, columns })` joins focus and the viewport into the one
+Bundle an application places for a grid. Its update is the two parts' own;
+what it adds is the seam between them: a key that moves focus off screen
+scrolls the container.
+
+```ts
+import { Option } from 'effect'
+import { DataGrid } from 'foldkit-data-grid'
+
+const Grid = DataGrid.make({ id: 'products', columns })
+
+Grid.Message.Moved({
+  address: { row: 'p2', column: 'price' },
+  reveal: Option.some({ top: 64, left: 0 }),
+})
+// update focuses the cell and returns GridViewport.scrollTo('products', ...)
+```
+
+- **`Focused`** is a cell focused by the pointer or the browser; it scrolls
+  nothing.
+- **`Moved`** is a key's move, with `reveal` from `VirtualGrid.reveal`, worked
+  out by the view from the viewport it drew. When it is some, the update
+  issues the Command that scrolls the container whose DOM id is `id`.
+- **`Measured`** and **`Revealed`** are the viewport's, from
+  `GridViewport.Measure` and the scroll Command.
+
+The Model is `{ focus, viewport }` and encodes to plain data. `GridFocus` and
+`GridViewport` stay available for a grid that composes its own state.
 
 ## Row counts
 
