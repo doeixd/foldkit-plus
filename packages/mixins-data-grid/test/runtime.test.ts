@@ -9,14 +9,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { Bundle } from 'foldkit-bundle'
-import {
-  ColumnLayout,
-  Columns,
-  DataGrid,
-  GridFocus,
-  GridProjection,
-  RowModel,
-} from 'foldkit-data-grid'
+import { Columns, DataGrid, GridFocus, RowModel } from 'foldkit-data-grid'
 import { DataGridView } from 'foldkit-mixins-data-grid'
 import { afterEach, expect, test, vi } from 'vitest'
 
@@ -31,14 +24,10 @@ const items: ReadonlyArray<Item> = Array.from({ length: 50 }, (_, index) => ({
 }))
 const itemKey = (item: Item) => item.id
 const columns = Columns.define<Item>()({
-  id: { header: 'Id', value: item => item.id, pinned: 'start' },
-  name: { header: 'Name', value: item => item.name },
+  id: { header: 'Id', value: item => item.id, pinned: 'start', width: 100 },
+  name: { header: 'Name', value: item => item.name, width: 100 },
 })
-const projection = GridProjection.make({
-  rows: RowModel.fromArray(items, itemKey),
-  columns,
-  layout: ColumnLayout.initial(columns),
-})
+const rows = RowModel.fromArray(items, itemKey)
 
 const Grid = DataGrid.make({ id: 'items', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
@@ -55,12 +44,11 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
   View(
     {
       state: model.grid,
-      projection,
+      rows,
       wrap: message => Placement.wrapper.make(message),
       label: 'Items',
       rowHeight: 20,
       headerHeight: 20,
-      width: () => 100,
     },
     h,
   )

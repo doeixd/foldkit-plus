@@ -1,9 +1,9 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { DataGrid } from 'foldkit-data-grid'
+import { DataGrid, RowModel } from 'foldkit-data-grid'
 import { describe, expect, test } from 'vitest'
-import { at, columns } from './fixture.js'
+import { at, columns, productKey, products } from './fixture.js'
 
 const Grid = DataGrid.make({ id: 'products', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
@@ -16,17 +16,55 @@ const start = placed.init({
   grid: {
     focus: { current: Option.some(at('p:1', 'sku')) },
     viewport: { top: 5, left: 5, width: 5, height: 5 },
+    columns: { start: ['sku'], center: [], end: [], hidden: [], widths: [] },
   },
 }).model
 const step = (model: typeof start, message: typeof Grid.Message.Type) =>
   Option.getOrThrow(placed.update(model, Placement.wrapper.make(message)))
 
 describe('DataGrid', () => {
-  test('starts with nothing focused and nothing measured', () => {
+  test('starts with nothing focused, nothing measured, and the columns as declared', () => {
     expect(start.grid).toEqual({
       focus: { current: Option.none() },
       viewport: { top: 0, left: 0, width: 0, height: 0 },
+      columns: {
+        start: [],
+        center: ['name', 'sku', 'price', 'notes'],
+        end: [],
+        hidden: [],
+        widths: [],
+      },
     })
+  })
+
+  test('runs the column Messages on its column state', () => {
+    const resized = step(start, Grid.Message.ColumnResized({ column: 'price', width: 90 })).model
+    expect(resized.grid.columns.widths).toEqual([{ column: 'price', width: 90 }])
+    const hidden = step(resized, Grid.Message.ColumnHidden({ column: 'notes' })).model
+    expect(hidden.grid.columns.hidden).toEqual(['notes'])
+    const shown = step(hidden, Grid.Message.ColumnShown({ column: 'notes' })).model
+    expect(shown.grid.columns.hidden).toEqual([])
+    const pinned = step(
+      shown,
+      Grid.Message.ColumnMoved({ column: 'sku', region: 'start', index: 0 }),
+    ).model
+    expect(pinned.grid.columns).toMatchObject({
+      start: ['sku'],
+      center: ['name', 'price', 'notes'],
+    })
+  })
+
+  test('a column Message that changes nothing returns the Model it was given', () => {
+    expect(step(start, Grid.Message.ColumnShown({ column: 'notes' })).model).toBe(start)
+  })
+
+  test('projects rows through its column state, once per state', () => {
+    const rows = RowModel.fromArray(products, productKey)
+    const hidden = step(start, Grid.Message.ColumnHidden({ column: 'name' })).model
+    const projection = Grid.project(rows, hidden.grid.columns)
+    expect(projection.columns).toEqual(['sku', 'price', 'notes'])
+    expect(Grid.project(rows, hidden.grid.columns)).toBe(projection)
+    expect(Grid.project(rows, start.grid.columns)).not.toBe(projection)
   })
 
   test('a focused cell becomes current and scrolls nothing', () => {
@@ -78,12 +116,27 @@ describe('DataGrid', () => {
     ).toBe(measured)
   })
 
+  test('refuses a stored Model whose columns name one the grid does not define', () => {
+    const stored = Schema.encodeSync(Grid.Model)(start.grid)
+    const renamed = { ...stored, columns: { ...stored.columns, center: ['name', 'removed'] } }
+    expect(() => Schema.decodeUnknownSync(Grid.Model)(renamed)).toThrow(
+      /at \["columns"\]\["center"\]\[1\]/,
+    )
+  })
+
   test('stores its state as plain data', () => {
     const model = step(start, Grid.Message.Focused({ address: at('p:1', 'price') })).model.grid
     const encoded = Schema.encodeSync(Grid.Model)(model)
     expect(encoded).toEqual({
       focus: { current: { row: 'p:1', column: 'price' } },
       viewport: { top: 0, left: 0, width: 0, height: 0 },
+      columns: {
+        start: [],
+        center: ['name', 'sku', 'price', 'notes'],
+        end: [],
+        hidden: [],
+        widths: [],
+      },
     })
     expect(Schema.decodeUnknownSync(Grid.Model)(encoded)).toEqual(model)
   })

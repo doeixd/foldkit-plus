@@ -1,8 +1,8 @@
 # DataGrid design
 
 **Status:** Phases 0 to 3 built as `foldkit-data-grid` and
-`foldkit-mixins-data-grid` (both private, `0.0.0`); Phase 4, column state, is
-next. Proposed in
+`foldkit-mixins-data-grid` (both private, `0.0.0`), and Phase 4's column
+state; its resize handles and drag reordering are next. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -182,6 +182,28 @@ it departs from §10, §13 and §21's Phase 3:
 - **No loading or error state yet.** The view says "No rows." for an empty
   grid and draws a placeholder for a row counted but not loaded; Remote's
   loading and failure are Phase 7's to map.
+
+## Phase 4 as built so far (2026-10-03)
+
+`ColumnState` in `src/columnState.ts`, held in the `DataGrid` Model. Where it
+departs from §12:
+
+- **Three regions and a hidden list, plus widths,** not `order`, `hidden`,
+  `widths` as a record, `pinnedStart`, `pinnedEnd`. Every column stands in one
+  region, so pinning is a move between regions and no two lists can
+  disagree. Widths list only the columns resized, as entries, because a
+  `Schema.Record` drops a key its key schema refuses without saying so
+  (AGENTS.md); an entry's column is `Schema.Literals` of the grid's ids.
+- **Two readers of a saved state.** The Model's Schema is strict, so a
+  stored Model naming a removed column fails; `restore` is lenient and
+  reports the ids it dropped, for a layout saved separately (local storage,
+  a user preference row).
+- **The view reads the state.** It takes `rows`, not a projection and a
+  width function: the layout and widths are the grid's, and
+  `Grid.project(rows, state)` is the one projection for them.
+- **Still to build:** resize handles (`Move`), drag reordering
+  (`PointerDrag`) and their keyboard equivalents, which need a decision on
+  keys a grid does not already use.
 
 ---
 

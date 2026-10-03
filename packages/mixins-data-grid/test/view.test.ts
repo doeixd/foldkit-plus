@@ -7,11 +7,9 @@ import { Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import {
   type CellAddress,
-  ColumnLayout,
   Columns,
   DataGrid,
   GridFocus,
-  GridProjection,
   RowCount,
   RowModel,
   type Viewport,
@@ -35,10 +33,10 @@ const items: ReadonlyArray<Item> = Array.from({ length: 50 }, (_, index) => ({
 const itemKey = (item: Item) => item.id
 
 const columns = Columns.define<Item>()({
-  id: { header: 'Id', value: item => item.id, pinned: 'start' },
-  name: { header: 'Name', value: item => item.name },
-  notes: { header: 'Notes', value: () => 'hidden', hidden: true },
-  qty: { header: 'Qty', value: item => item.qty },
+  id: { header: 'Id', value: item => item.id, pinned: 'start', width: 80 },
+  name: { header: 'Name', value: item => item.name, width: 200 },
+  notes: { header: 'Notes', value: () => 'hidden', hidden: true, width: 80 },
+  qty: { header: 'Qty', value: item => item.qty, width: 80 },
 })
 type Id = keyof typeof columns.byId
 
@@ -46,8 +44,7 @@ const Grid = DataGrid.make({ id: 'items', columns })
 type GridMessage = typeof Grid.Message.Type
 const View = DataGridView<GridMessage>().define(Grid)
 
-const projectionOf = (rows: RowModel<Item> = RowModel.fromArray(items, itemKey)) =>
-  GridProjection.make({ rows, columns, layout: ColumnLayout.initial(columns) })
+const allRows = RowModel.fromArray(items, itemKey)
 
 // A 20px header and five 20px rows fit the 120px viewport.
 const input = (
@@ -58,13 +55,13 @@ const input = (
   state: {
     focus: { current },
     viewport: { top: 0, left: 0, width: 400, height: 120, ...viewport },
+    columns: Grid.columnState.initial(),
   },
-  projection: projectionOf(),
+  rows: allRows,
   wrap: message => message,
   label: 'Items',
   rowHeight: 20,
   headerHeight: 20,
-  width: column => (column === 'name' ? 200 : 80),
   ...overrides,
 })
 
@@ -154,9 +151,9 @@ describe('DataGridView', () => {
 
   test('holds each end-pinned column its neighbours’ width from the end edge', () => {
     const ends = Columns.define<Item>()({
-      name: { header: 'Name', value: item => item.name },
-      qty: { header: 'Qty', value: item => item.qty, pinned: 'end' },
-      total: { header: 'Total', value: item => item.qty * 3, pinned: 'end' },
+      name: { header: 'Name', value: item => item.name, width: 80 },
+      qty: { header: 'Qty', value: item => item.qty, pinned: 'end', width: 80 },
+      total: { header: 'Total', value: item => item.qty * 3, pinned: 'end', width: 60 },
     })
     const EndGrid = DataGrid.make({ id: 'ends', columns: ends })
     const EndView = DataGridView<typeof EndGrid.Message.Type>().define(EndGrid)
@@ -164,17 +161,13 @@ describe('DataGridView', () => {
       state: {
         focus: { current: Option.none() },
         viewport: { top: 0, left: 0, width: 400, height: 60 },
+        columns: EndGrid.columnState.initial(),
       },
-      projection: GridProjection.make({
-        rows: RowModel.fromArray(items, itemKey),
-        columns: ends,
-        layout: ColumnLayout.initial(ends),
-      }),
+      rows: allRows,
       wrap: message => message,
       label: 'Ends',
       rowHeight: 20,
       headerHeight: 20,
-      width: column => (column === 'total' ? 60 : 80),
     })
     const [, qty, total] = Inert.byRole(drawn, 'columnheader')
     expect(Inert.text(qty)).toBe('Qty')
@@ -184,13 +177,13 @@ describe('DataGridView', () => {
 
   test('draws only the center columns the viewport shows, with spacers for the rest', () => {
     const wide = Columns.define<Item>()({
-      id: { header: 'Id', value: item => item.id, pinned: 'start' },
-      c0: { header: 'C0', value: () => 0 },
-      c1: { header: 'C1', value: () => 1 },
-      c2: { header: 'C2', value: () => 2 },
-      c3: { header: 'C3', value: () => 3 },
-      c4: { header: 'C4', value: () => 4 },
-      c5: { header: 'C5', value: () => 5 },
+      id: { header: 'Id', value: item => item.id, pinned: 'start', width: 80 },
+      c0: { header: 'C0', value: () => 0, width: 100 },
+      c1: { header: 'C1', value: () => 1, width: 100 },
+      c2: { header: 'C2', value: () => 2, width: 100 },
+      c3: { header: 'C3', value: () => 3, width: 100 },
+      c4: { header: 'C4', value: () => 4, width: 100 },
+      c5: { header: 'C5', value: () => 5, width: 100 },
     })
     const WideGrid = DataGrid.make({ id: 'wide', columns: wide })
     const WideView = DataGridView<typeof WideGrid.Message.Type>().define(WideGrid)
@@ -201,17 +194,13 @@ describe('DataGridView', () => {
         state: {
           focus: { current },
           viewport: { top: 0, left: 250, width: 280, height: 60 },
+          columns: WideGrid.columnState.initial(),
         },
-        projection: GridProjection.make({
-          rows: RowModel.fromArray(items, itemKey),
-          columns: wide,
-          layout: ColumnLayout.initial(wide),
-        }),
+        rows: allRows,
         wrap: message => message,
         label: 'Wide',
         rowHeight: 20,
         headerHeight: 20,
-        width: column => (column === 'id' ? 80 : 100),
       })
     const drawn = drawWith(Option.none())
     const headers = Inert.byRole(drawn, 'columnheader')
@@ -237,19 +226,29 @@ describe('DataGridView', () => {
     expect(descendant('c3')).toBe(GridFocus.cellId('wide', { row: 'r0', column: 'c3' }))
   })
 
+  test('draws the column state it is given: a resize and a hidden column', () => {
+    const { columnState } = Grid
+    const state = columnState.hide(columnState.resize(columnState.initial(), 'qty', 150), 'name')
+    const given = input()
+    const drawn = draw({ ...given, state: { ...given.state, columns: state } })
+    expect(textsOf(Inert.byRole(drawn, 'columnheader'))).toEqual(['Id', 'Qty'])
+    const [, qty] = Inert.byRole(drawn, 'gridcell')
+    expect(Inert.style(qty).width).toBe('150px')
+  })
+
   test('counts an open-ended result as unknown', () => {
     const open: RowModel<Item> = {
       ...RowModel.fromArray(items, itemKey),
       count: RowCount.Unknown({ atLeast: 50 }),
     }
-    const [grid] = Inert.byRole(draw(input({ projection: projectionOf(open) })), 'grid')
+    const [grid] = Inert.byRole(draw(input({ rows: open })), 'grid')
     expect(Inert.value(grid, 'aria-rowcount')).toBe('-1')
   })
 
   test('holds the place of rows counted but not loaded', () => {
     const loaded = RowModel.fromArray(items.slice(0, 2), itemKey)
     const partly: RowModel<Item> = { ...loaded, count: RowCount.Known({ total: 50 }) }
-    const drawn = draw(input({ projection: projectionOf(partly) }))
+    const drawn = draw(input({ rows: partly }))
     expect(rowsOf(drawn)).toHaveLength(2)
     const placeholders = Inert.bySlot(drawn, 'placeholder')
     expect(placeholders).toHaveLength(3)
@@ -262,11 +261,9 @@ describe('DataGridView', () => {
   })
 
   test('says when there are no rows, in the application’s words', () => {
-    const none = projectionOf(RowModel.fromArray([], itemKey))
-    expect(Inert.text(Inert.byRole(draw(input({ projection: none })), 'status')[0])).toBe(
-      'No rows.',
-    )
-    const worded = draw(input({ projection: none, words: { empty: 'Nothing in stock.' } }))
+    const none = RowModel.fromArray([], itemKey)
+    expect(Inert.text(Inert.byRole(draw(input({ rows: none })), 'status')[0])).toBe('No rows.')
+    const worded = draw(input({ rows: none, words: { empty: 'Nothing in stock.' } }))
     expect(Inert.text(Inert.byRole(worded, 'status')[0])).toBe('Nothing in stock.')
   })
 

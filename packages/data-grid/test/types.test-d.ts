@@ -126,7 +126,20 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
     readonly width: number
     readonly height: number
   }
+  readonly columns: {
+    readonly start: ReadonlyArray<'sku' | 'price'>
+    readonly center: ReadonlyArray<'sku' | 'price'>
+    readonly end: ReadonlyArray<'sku' | 'price'>
+    readonly hidden: ReadonlyArray<'sku' | 'price'>
+    readonly widths: ReadonlyArray<{ readonly column: 'sku' | 'price'; readonly width: number }>
+  }
 }>()
+
+// @ts-expect-error a resize names a column the grid defines
+Grid.Message.ColumnResized({ column: 'name', width: 10 })
+
+// @ts-expect-error a column moves to a region the grid has
+Grid.Message.ColumnMoved({ column: 'sku', region: 'left', index: 0 })
 
 // @ts-expect-error a move names a column the grid defines
 Grid.Message.Moved({ address: { row: 'p:1', column: 'name' }, reveal: Option.none() })

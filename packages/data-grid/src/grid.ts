@@ -3,16 +3,19 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { ColumnState } from './columnState.js'
 import type { Columns, ColumnSpec } from './columns.js'
 import { GridFocus } from './focus.js'
+import { GridProjection } from './projection.js'
+import type { RowModel } from './rows.js'
 import { GridViewport } from './viewport.js'
 
 const Offsets = Schema.Struct({ top: Schema.Number, left: Schema.Number })
 
 /**
- * One grid's interaction state: focus and the viewport, as one Bundle. Its
- * update is the two parts' own, joined: a key that moves focus off screen
- * carries the scroll that reveals the cell, and the grid issues it.
+ * One grid's interaction state: focus, the viewport and the column state, as
+ * one Bundle. Its update is the parts' own, joined: a key that moves focus
+ * off screen carries the scroll that reveals the cell, and the grid issues it.
  *
  * `id` names the grid in the DOM: the scroll container's id, and the prefix
  * of every cell's id (`GridFocus.cellId`).
@@ -22,7 +25,14 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   readonly columns: Columns<Row, Specs>
 }) => {
   const focus = GridFocus.make(options.columns)
-  const Model = Schema.Struct({ focus: focus.Model, viewport: GridViewport.Model })
+  const columnState = ColumnState.make(options.columns)
+  const Model = Schema.Struct({
+    focus: focus.Model,
+    viewport: GridViewport.Model,
+    columns: columnState.Model,
+  })
+  const Column = focus.Address.fields.column
+  const Region = Schema.Literals(['start', 'center', 'end'])
   type Model = typeof Model.Type
   const Message = defineMessageUnion({
     /** The pointer or the browser focused a cell. */
@@ -37,6 +47,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     Measured: { ...Offsets.fields, width: Schema.Number, height: Schema.Number },
     /** The reveal a `Moved` asked for has scrolled the container. */
     Revealed: Offsets.fields,
+    /** A column was resized; the width is clamped to its limits. */
+    ColumnResized: { column: Column, width: Schema.Number },
+    ColumnHidden: { column: Column },
+    ColumnShown: { column: Column },
+    /** A column moved to `index` in `region`: a reorder, a pin or an unpin. */
+    ColumnMoved: { column: Column, region: Region, index: Schema.Number },
   })
   type Message = typeof Message.Type
   type Return = Update.Return<Model, Message, never>
@@ -53,6 +69,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     const next = GridViewport.bundle.update(model.viewport, message, undefined).model
     return next === model.viewport ? model : modifyFields(model, { viewport: () => next })
   }
+  const columnsBy = (model: Model, next: typeof columnState.Model.Type): Model =>
+    next === model.columns ? model : modifyFields(model, { columns: () => next })
 
   const bundle = Bundle.make('DataGrid', {
     Model,
@@ -61,6 +79,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       model: {
         focus: focus.bundle.init(undefined).model,
         viewport: GridViewport.bundle.init(undefined).model,
+        columns: columnState.initial(),
       },
     }),
     update: (model: Model, message: Message): Return =>
@@ -79,9 +98,52 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         Revealed: (fields): Return => ({
           model: viewportBy(model, GridViewport.Message.Revealed(fields)),
         }),
+        ColumnResized: ({ column, width }): Return => ({
+          model: columnsBy(model, columnState.resize(model.columns, column, width)),
+        }),
+        ColumnHidden: ({ column }): Return => ({
+          model: columnsBy(model, columnState.hide(model.columns, column)),
+        }),
+        ColumnShown: ({ column }): Return => ({
+          model: columnsBy(model, columnState.show(model.columns, column)),
+        }),
+        ColumnMoved: ({ column, region, index }): Return => ({
+          model: columnsBy(model, columnState.move(model.columns, column, region, index)),
+        }),
       }),
   })
-  return { id: options.id, columns: options.columns, focus, Model, Message, bundle }
+
+  // One projection per rows model and column state, so the view and the
+  // application's own reads of the same render share it.
+  const projections = new WeakMap<
+    RowModel<Row>,
+    {
+      readonly state: Model['columns']
+      readonly projection: GridProjection<Row, keyof Specs & string>
+    }
+  >()
+  /** The grid as presented: the rows through the column state in the Model. */
+  const project = (
+    rows: RowModel<Row>,
+    state: Model['columns'],
+  ): GridProjection<Row, keyof Specs & string> => {
+    const cached = projections.get(rows)
+    if (cached !== undefined && cached.state === state) return cached.projection
+    const projection = GridProjection.make({ rows, columns: options.columns, layout: state })
+    projections.set(rows, { state, projection })
+    return projection
+  }
+
+  return {
+    id: options.id,
+    columns: options.columns,
+    focus,
+    columnState,
+    project,
+    Model,
+    Message,
+    bundle,
+  }
 }
 
 export const DataGrid = { make }

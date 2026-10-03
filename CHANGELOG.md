@@ -44,6 +44,16 @@ version changed; `pnpm` skips versions already in the registry.
   geometry the window depends on is refused. `GridStyle` is a default look in
   the `components` layer. It renders on a server as markup a parser reads
   back the same.
+- **`foldkit-data-grid`, column state (Phase 4).** A column spec takes
+  `width`, `minWidth`, `maxWidth`, `resizable` and `hideable`. The
+  `DataGrid` Model holds the column state, a `ColumnLayout` plus the widths
+  resized, with `ColumnResized`, `ColumnHidden`, `ColumnShown` and
+  `ColumnMoved` (a reorder, a pin or an unpin) to change it; each returns the
+  Model it was given when it changes nothing, and the last column shown
+  stays. `columnState.restore` reads a saved state back leniently and lists
+  the ids it dropped. `Grid.project(rows, state)` is the projection for a
+  column state, built once per rows model and state. The view takes `rows`
+  in place of `projection` and `width`, and draws the column state.
 - **`foldkit-data-grid`, `GridViewport.scrollTo` on a container that cannot
   scroll** still reports `Revealed`: a DOM with no layout has no `scrollTo`,
   and the Command threw there.

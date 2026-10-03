@@ -5,12 +5,13 @@ import {
   addressableRows,
   type CellAddress,
   type ColumnSpec,
+  type ColumnState,
   type DataGridOf,
   type Direction,
   GridFocus,
-  type GridProjection,
   GridViewport,
   RowCount,
+  type RowModel,
   type Viewport,
   VirtualGrid,
 } from 'foldkit-data-grid'
@@ -24,19 +25,20 @@ export interface GridWords {
 
 /** What the grid's view reads, and what the application gives it. */
 export interface GridInput<Row, Id extends string, GridMessage, Message> {
-  /** The `DataGrid` Model as placed in the parent. */
+  /** The `DataGrid` Model as placed in the parent: focus, viewport and column state. */
   readonly state: {
     readonly focus: { readonly current: Option.Option<CellAddress<Id>> }
     readonly viewport: Viewport
+    readonly columns: ColumnState<Id>
   }
-  readonly projection: GridProjection<Row, Id>
+  /** The application's rows, in its order; the view draws them through `state.columns`. */
+  readonly rows: RowModel<Row>
   /** Lifts the grid's own Messages into the parent's: the placement's wrapper. */
   readonly wrap: (message: GridMessage) => Message
   /** The grid's accessible name. */
   readonly label: string
   readonly rowHeight: number
   readonly headerHeight: number
-  readonly width: (column: Id) => number
   readonly overscan?: { readonly rows?: number; readonly columns?: number }
   readonly direction?: Direction
   /** Draws one cell; by default the column's value, as text. */
@@ -82,7 +84,9 @@ const view = <Message>() => ({
     return SlotView.forMessages<Message>().define(
       GridSlots,
       (input: GridInput<Row, Id, typeof grid.Message.Type, Message>, slots, h): Html => {
-        const { projection, rowHeight, headerHeight, width, state } = input
+        const { rowHeight, headerHeight, state } = input
+        const projection = grid.project(input.rows, state.columns)
+        const width = grid.columnState.widthOf(state.columns)
         const viewport = state.viewport
         const shown = VirtualGrid.window({
           projection,

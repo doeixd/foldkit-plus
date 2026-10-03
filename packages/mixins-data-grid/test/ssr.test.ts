@@ -9,7 +9,7 @@ import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { ColumnLayout, Columns, DataGrid, GridProjection, RowModel } from 'foldkit-data-grid'
+import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
 import { DataGridView } from 'foldkit-mixins-data-grid'
 import { expect, test } from 'vitest'
 
@@ -22,14 +22,10 @@ const items: ReadonlyArray<Item> = [
   { id: 'b', name: 'Bolt' },
 ]
 const columns = Columns.define<Item>()({
-  id: { header: 'Id', value: item => item.id, pinned: 'start' },
-  name: { header: 'Name', value: item => item.name },
+  id: { header: 'Id', value: item => item.id, pinned: 'start', width: 100 },
+  name: { header: 'Name', value: item => item.name, width: 100 },
 })
-const projection = GridProjection.make({
-  rows: RowModel.fromArray(items, item => item.id),
-  columns,
-  layout: ColumnLayout.initial(columns),
-})
+const rows = RowModel.fromArray(items, item => item.id)
 
 const Grid = DataGrid.make({ id: 'served', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
@@ -59,12 +55,11 @@ test('renders on a server as markup a parser reads back the same', async () => {
           body: View(
             {
               state: model.grid,
-              projection,
+              rows,
               wrap: message => Placement.wrapper.make(message),
               label: 'Items',
               rowHeight: 20,
               headerHeight: 20,
-              width: () => 100,
             },
             h,
           ),

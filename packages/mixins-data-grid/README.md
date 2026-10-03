@@ -29,7 +29,7 @@ import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { ColumnLayout, Columns, DataGrid, GridProjection, RowModel } from 'foldkit-data-grid'
+import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridStyle } from 'foldkit-mixins-data-grid'
 
@@ -44,8 +44,8 @@ const items: ReadonlyArray<Item> = [
 const itemKey = (item: Item) => item.id
 
 const columns = Columns.define<Item>()({
-  id: { header: 'Id', value: item => item.id, pinned: 'start' },
-  name: { header: 'Name', value: item => item.name },
+  id: { header: 'Id', value: item => item.id, pinned: 'start', width: 96 },
+  name: { header: 'Name', value: item => item.name, width: 240 },
 })
 const Grid = DataGrid.make({ id: 'items', columns })
 
@@ -60,21 +60,17 @@ const application = Bundle.assemble<Model, Message>()([
 ])
 
 const ItemsGrid = DataGridView<Message>().define(Grid).pipe(Style.attach(GridStyle))
+const rows = RowModel.fromArray(items, itemKey)
 
 const view = (model: Model, h: HtmlBuilder<Message>) =>
   ItemsGrid(
     {
       state: model.grid,
-      projection: GridProjection.make({
-        rows: RowModel.fromArray(items, itemKey),
-        columns,
-        layout: ColumnLayout.initial(columns),
-      }),
+      rows,
       wrap: message => Placement.wrapper.make(message),
       label: 'Items',
       rowHeight: 32,
       headerHeight: 36,
-      width: column => (column === 'name' ? 240 : 96),
     },
     h,
   )
@@ -87,11 +83,12 @@ Style on `root` (`height: '24rem'`, say): it is the scroll container.
 - **`DataGridView<Message>().define(Grid)`** is a SlotView for that grid. Its
   row and column types come from the grid, so a cell renderer and the focused
   cell are checked against them.
-- **`state`** is the placed `DataGrid` Model. The view reads the focused cell
-  and the viewport from it, and works out the window with
+- **`state`** is the placed `DataGrid` Model. The view reads the focused cell,
+  the viewport and the column state from it, and works out the window with
   `VirtualGrid.window`.
-- **`projection`** is the application's rows through the column layout. The
-  view draws in its order and never sorts.
+- **`rows`** is the application's rows, in its order; the view draws them
+  through the column state (`Grid.project`) and never sorts. Keep the rows
+  model between renders, or the projection is rebuilt every time.
 - **`wrap`** lifts the grid's Messages into the application's: keys send
   `Moved` (with the scroll that reveals the cell), a pressed cell sends
   `Focused`, and the scroll container sends `Measured`.
@@ -136,8 +133,9 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
 
 ## Limits
 
-- Every row is one height, and column widths are the function you pass;
-  resizing them is Phase 4.
+- Every row is one height. Column widths come from the column state; there
+  are no resize handles or drag reordering yet, so the column Messages are
+  sent by the application's own controls.
 - No selection or editing yet.
 - Cells say their value as text unless `cell` draws them; the Display
   vocabulary of `foldkit-crud` arrives with the CRUD adapter in Phase 7.

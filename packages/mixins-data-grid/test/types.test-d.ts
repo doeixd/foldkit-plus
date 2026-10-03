@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import { ColumnLayout, Columns, DataGrid, GridProjection, RowModel } from 'foldkit-data-grid'
+import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { DataGridView } from 'foldkit-mixins-data-grid'
 import { expectTypeOf } from 'vitest'
@@ -15,22 +15,17 @@ const columns = Columns.define<Item>()({
 const Grid = DataGrid.make({ id: 'items', columns })
 type GridMessage = typeof Grid.Message.Type
 const View = DataGridView<GridMessage>().define(Grid)
-const projection = GridProjection.make({
-  rows: RowModel.fromArray<Item>([], item => item.id),
-  columns,
-  layout: ColumnLayout.initial(columns),
-})
+const rows = RowModel.fromArray<Item>([], item => item.id)
 const state = Grid.bundle.init(undefined).model
 const h = SlotView.inertBuilder<GridMessage>()
 
 const base = {
   state,
-  projection,
+  rows,
   wrap: (message: GridMessage) => message,
   label: 'Items',
   rowHeight: 20,
   headerHeight: 20,
-  width: () => 80,
 }
 View(base, h)
 
@@ -59,18 +54,11 @@ View(
   h,
 )
 
-const narrow = Columns.define<{ readonly id: string }>()({
-  id: { header: 'Id', value: row => row.id },
-})
 View(
   {
     ...base,
-    // @ts-expect-error the projection is over the grid's own rows
-    projection: GridProjection.make({
-      rows: RowModel.fromArray<{ readonly id: string }>([], row => row.id),
-      columns: narrow,
-      layout: ColumnLayout.initial(narrow),
-    }),
+    // @ts-expect-error the rows are the type the grid's columns read
+    rows: RowModel.fromArray<{ readonly id: string }>([], row => row.id),
   },
   h,
 )

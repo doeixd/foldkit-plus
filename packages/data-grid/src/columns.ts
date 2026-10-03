@@ -6,6 +6,16 @@ export interface ColumnSpec<Row, Value> {
   readonly pinned?: 'start' | 'end'
   /** Whether the column starts hidden; `ColumnLayout.initial` reads it. */
   readonly hidden?: boolean
+  /** Its width in pixels until resized. Default `Columns.defaultWidth`. */
+  readonly width?: number
+  /** The narrowest a resize makes it. Default `Columns.minWidth`. */
+  readonly minWidth?: number
+  /** The widest a resize makes it. Default no limit. */
+  readonly maxWidth?: number
+  /** Whether it can be resized. Default `true`. */
+  readonly resizable?: boolean
+  /** Whether it can be hidden. Default `true`. */
+  readonly hideable?: boolean
 }
 
 export interface Column<Row, Id extends string, Value> extends ColumnSpec<Row, Value> {
@@ -34,6 +44,10 @@ export interface Columns<Row, Specs extends Record<string, ColumnSpec<Row, unkno
 const arrayIndex = /^(0|[1-9][0-9]*)$/
 
 export const Columns = {
+  /** The width of a column that names none. */
+  defaultWidth: 120,
+  /** The narrowest a column with no `minWidth` resizes to. */
+  minWidth: 40,
   /**
    * Declares a grid's columns over `Row`. Call it twice, once with the row
    * type and once with the specs, so the ids and values are inferred:

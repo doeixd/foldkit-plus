@@ -9,14 +9,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { Bundle } from 'foldkit-bundle'
-import {
-  ColumnLayout,
-  Columns,
-  DataGrid,
-  GridFocus,
-  GridProjection,
-  RowModel,
-} from 'foldkit-data-grid'
+import { Columns, DataGrid, GridFocus, RowModel } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots } from 'foldkit-mixins-data-grid'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -27,21 +20,16 @@ interface Line {
 }
 const lines: ReadonlyArray<Line> = Array.from({ length: 200 }, (_, index) => ({ id: `r${index}` }))
 const columns = Columns.define<Line>()({
-  id: { header: 'Id', value: line => line.id, pinned: 'start' },
-  c0: { header: 'C0', value: () => 'zero' },
-  c1: { header: 'C1', value: () => 'one' },
-  c2: { header: 'C2', value: () => 'two' },
-  c3: { header: 'C3', value: () => 'three' },
-  c4: { header: 'C4', value: () => 'four' },
-  total: { header: 'Total', value: () => 9, pinned: 'end' },
+  id: { header: 'Id', value: line => line.id, pinned: 'start', width: 80 },
+  c0: { header: 'C0', value: () => 'zero', width: 100 },
+  c1: { header: 'C1', value: () => 'one', width: 100 },
+  c2: { header: 'C2', value: () => 'two', width: 100 },
+  c3: { header: 'C3', value: () => 'three', width: 100 },
+  c4: { header: 'C4', value: () => 'four', width: 100 },
+  total: { header: 'Total', value: () => 9, pinned: 'end', width: 60 },
 })
 type Id = keyof typeof columns.byId
-const widths: Partial<Record<Id, number>> = { id: 80, total: 60 }
-const projection = GridProjection.make({
-  rows: RowModel.fromArray(lines, line => line.id),
-  columns,
-  layout: ColumnLayout.initial(columns),
-})
+const rows = RowModel.fromArray(lines, line => line.id)
 
 const Grid = DataGrid.make({ id: 'lines', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
@@ -68,12 +56,11 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
       Sized(
         {
           state: model.grid,
-          projection,
+          rows,
           wrap: message => Placement.wrapper.make(message),
           label: 'Lines',
           rowHeight: 20,
           headerHeight: 20,
-          width: (column: Id) => widths[column] ?? 100,
         },
         h,
       ),

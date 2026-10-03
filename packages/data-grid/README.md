@@ -200,10 +200,10 @@ const shown = VirtualGrid.window({
 
 ## One grid's state
 
-`DataGrid.make({ id, columns })` joins focus and the viewport into the one
-Bundle an application places for a grid. Its update is the two parts' own;
-what it adds is the seam between them: a key that moves focus off screen
-scrolls the container.
+`DataGrid.make({ id, columns })` joins focus, the viewport and the column
+state into the one Bundle an application places for a grid. Its update is
+the parts' own; what it adds is the seam between them: a key that moves
+focus off screen scrolls the container.
 
 ```ts
 import { Option } from 'effect'
@@ -225,9 +225,14 @@ Grid.Message.Moved({
   issues the Command that scrolls the container whose DOM id is `id`.
 - **`Measured`** and **`Revealed`** are the viewport's, from
   `GridViewport.Measure` and the scroll Command.
+- **`ColumnResized`**, **`ColumnHidden`**, **`ColumnShown`** and
+  **`ColumnMoved`** change the column state (below).
 
-The Model is `{ focus, viewport }` and encodes to plain data. `GridFocus` and
-`GridViewport` stay available for a grid that composes its own state.
+The Model is `{ focus, viewport, columns }` and encodes to plain data.
+`Grid.project(rows, model.columns)` is the projection for that state, built
+once per rows model and state, so the view and the application share it.
+`GridFocus` and `GridViewport` stay available for a grid that composes its
+own state.
 
 ## Row counts
 
@@ -238,17 +243,50 @@ A `RowModel`'s `count` is a `RowCount`:
 - **`Unknown({ atLeast })`**: a cursor that may have more. Movement stops at
   the rows seen so far.
 
-## Layouts from storage
+## Column state
 
-A saved layout may be older than the columns. The projection places a column
-the layout omits at the end of the center region, in definition order. It
-drops an id the columns no longer define, `constructor` included, and keeps
-only the first place of an id named twice.
+The grid owns where its columns stand and how wide they are: a
+`ColumnLayout` plus the widths of the columns resized. A column's spec says
+how it starts and what it allows: `width`, `minWidth`, `maxWidth`,
+`resizable` and `hideable`.
+
+```ts
+const State = Grid.columnState
+
+const resized = State.resize(State.initial(), 'price', 90)
+State.widthOf(resized)('price') // 90
+State.move(resized, 'price', 'start', 0) // pinned first
+const saved = JSON.stringify(State.hide(resized, 'sku'))
+
+const { state, dropped } = State.restore(JSON.parse(saved))
+// state is what was saved; dropped lists ids these columns no longer define
+```
+
+- **Each operation returns the state it was given when it changes nothing**:
+  a resize to the width a column has, hiding a hidden column, a move to where
+  a column stands. A resize is clamped to the column's limits; a column that
+  is not `resizable` or `hideable` refuses.
+- **The last column shown stays shown,** so the grid always has a cell to
+  focus.
+- **`move(state, column, region, index)`** is a reorder within a region, or a
+  pin or an unpin across them; `index` counts the region with the column
+  taken out.
+- **`restore(saved)`** reads a saved state leniently: an id the columns no
+  longer define, or one named twice, is dropped and listed in `dropped`; a
+  column the save predates takes its declared place; a width is clamped.
+  Input that is not a saved state is the initial state. The Model's own
+  Schema, by contrast, decodes only these columns' ids, so a stored Model
+  naming a removed column fails to decode: restore a saved layout with
+  `restore`, not by decoding it as the Model.
+- **`widthOf(state)`** is the width each column is drawn at. Call it once per
+  state: it indexes the widths.
+
+A projection built from a hand-written layout is lenient too: a column the
+layout omits joins the center, an unknown id is dropped, and an id named
+twice keeps its first place.
 
 ## Limits
 
-- No state beyond focus and the viewport yet: selection, column state and
-  editing are later phases. The view is
+- No selection or editing yet; both are later phases. The view is
   [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md).
-- Every row is one height. Column widths are a function the caller passes;
-  resizing and saving them is Phase 4's column state.
+- Every row is one height.

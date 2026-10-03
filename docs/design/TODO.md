@@ -481,7 +481,8 @@ are built. Each phase lists its deliverables and acceptance there.
   where the sort and Remote's states they show come from.
 - [ ] **Phase 4, `ColumnState`:** widths with `Move`, visibility, order with
   `PointerDrag` and a keyboard equivalent, start/end pinning, and a saved
-  layout decoded strictly.
+  layout decoded strictly. The state, its Messages and `restore` are built
+  (2026-10-03); the resize handles, drag reordering and their keys are not.
 - [ ] **Phase 5, selection:** rows (adapt `Selection` or replace it; it holds
   every id in an array) and a rectangular `CellSelection`.
 - [ ] **Phase 6, editing:** `Editing.bundle` and the `Editor` contract; a

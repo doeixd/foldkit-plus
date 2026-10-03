@@ -57,6 +57,11 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   across renders, or it re-indexes every time. It throws on a duplicate key.
 - A `ColumnLayout` is ids only: start, center and end regions plus a hidden
   list. A saved layout that omits a column gets it appended to the center.
+- Column order, visibility, pinning and widths live in the `DataGrid` Model
+  (`model.grid.columns`); change them with `ColumnResized`, `ColumnHidden`,
+  `ColumnShown` and `ColumnMoved`. Restore a saved layout with
+  `Grid.columnState.restore(saved)`, which lists the ids it dropped; do not
+  decode it as the Model, whose Schema refuses an id the grid no longer has.
 - Place `DataGrid.make({ id, columns }).bundle`: focus and the viewport in
   one Model. Send `Moved({ address, reveal })` for a key (with `reveal` from
   `VirtualGrid.reveal`) and `Focused({ address })` for the pointer; the
@@ -79,9 +84,10 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
 
 `DataGridView<Message>().define(Grid)` from `foldkit-mixins-data-grid` is a
 SlotView; attach `GridStyle` for the default look. Its input is the placed
-`DataGrid` Model as `state`, the `projection`, `wrap` (the placement's
-wrapper), a `label`, `rowHeight`, `headerHeight` and `width`. The view's
-README has the whole wiring, compiled.
+`DataGrid` Model as `state`, the application's `rows` (a `RowModel`, kept
+between renders), `wrap` (the placement's wrapper), a `label`, `rowHeight`
+and `headerHeight`; widths come from the column state. The view's README has
+the whole wiring, compiled.
 
 - The view sends the grid's own Messages through `wrap`; place
   `DataGrid.make(...).bundle` with `Bundle.declare` and pass its wrapper.
