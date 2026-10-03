@@ -1,5 +1,6 @@
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
@@ -33,6 +34,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const focus = GridFocus.make(options.columns)
   const columnState = ColumnState.make(options.columns)
   const Column = focus.Address.fields.column
+  const CellText = Schema.Struct({ row: Schema.String, column: Column, text: Schema.String })
   const Model = Schema.Struct({
     focus: focus.Model,
     viewport: GridViewport.Model,
@@ -118,7 +120,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     /**
      * The draft is to be kept. When the column accepts it the edit ends, focus
      * goes to `next` (the cell below, or beside, worked out by the view), and
-     * the grid reports `Edited`; when it refuses it, the edit stays with the
+     * the grid reports `Out.Edited`; when it refuses it, the edit stays with the
      * error.
      */
     EditCommitted: {
@@ -126,16 +128,29 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       reveal: Schema.OptionFromNullOr(Offsets),
     },
     EditCancelled: {},
+    /**
+     * Text pasted, or a cut's cleared cells, laid onto editable cells by the
+     * view (`Clipboard.pasteAt`). Each is checked against its column, and the
+     * whole is reported as one `Pasted`.
+     */
+    Pasted: { cells: Schema.Array(CellText) },
   })
   type Message = typeof Message.Type
-  /** The text a cell was edited to: the application turns it into a value and writes it. */
-  const Edited = Schema.TaggedStruct('Edited', {
-    row: Schema.String,
-    column: Column,
-    text: Schema.String,
+  /**
+   * What the grid reports to its parent: one cell's committed text, or a
+   * paste's, as one change. Turning text into values and writing them is the
+   * application's.
+   */
+  const Out = defineTaggedUnion({
+    Edited: { row: Schema.String, column: Column, text: Schema.String },
+    /** The cells their columns accepted, and those they refused, with why. */
+    Pasted: {
+      accepted: Schema.Array(CellText),
+      refused: Schema.Array(Schema.Struct({ ...CellText.fields, error: Schema.String })),
+    },
   })
-  type Edited = typeof Edited.Type
-  type Return = Update.ReturnWithOutMessage<Model, Message, Edited, never>
+  type Out = typeof Out.Type
+  type Return = Update.ReturnWithOutMessage<Model, Message, Out, never>
 
   const focusTo = (model: Model, address: typeof focus.Address.Type): Model => {
     const next = focus.bundle.update(
@@ -203,7 +218,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
    */
   const finish = (
     model: Model,
-  ): { readonly model: Model; readonly edited: Option.Option<Edited>; readonly refused: boolean } =>
+  ): { readonly model: Model; readonly edited: Option.Option<Out>; readonly refused: boolean } =>
     Option.match(model.editing, {
       onNone: () => ({ model, edited: Option.none(), refused: false }),
       onSome: editing => {
@@ -220,7 +235,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           onNone: () => ({
             model: modifyFields(model, { editing: () => Option.none() }),
             edited: Option.some(
-              Edited.make({ row: address.row, column: address.column, text: draft }),
+              Out.Edited({ row: address.row, column: address.column, text: draft }),
             ),
             refused: false,
           }),
@@ -437,6 +452,21 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             }),
           }
         },
+        // An edit in progress has the keyboard and the clipboard: a paste then is the field's.
+        Pasted: ({ cells }): Return => {
+          if (Option.isSome(model.editing) || cells.length === 0) return { model }
+          const accepted: Array<typeof CellText.Type> = []
+          const refused: Array<typeof CellText.Type & { readonly error: string }> = []
+          for (const cell of cells) {
+            const edit = options.columns.byId[cell.column].edit
+            if (edit === undefined) continue
+            Option.match(edit.validate?.(cell.text) ?? Option.none(), {
+              onNone: () => accepted.push(cell),
+              onSome: error => refused.push({ ...cell, error }),
+            })
+          }
+          return { model, outMessage: Out.Pasted({ accepted, refused }) }
+        },
         EditCancelled: (): Return => ({
           model: Option.isNone(model.editing)
             ? model
@@ -487,7 +517,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     focus,
     columnState,
     project,
-    Edited,
+    Out,
     Model,
     Message,
     bundle,

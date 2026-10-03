@@ -500,7 +500,8 @@ are built. Each phase lists its deliverables and acceptance there.
   `aria-sort` on the header), load-more and an unknown count, and the
   view's loading and error states. Build the reference application here.
 - [ ] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
-  bulk edits grouped as one transaction.
+  bulk edits grouped as one transaction. Copy, cut and paste are built
+  (2026-10-03), a paste reported as one `Out.Pasted`; fill is not.
 - [ ] **The reference application:** a 100k-row product registry (§22).
 
 ## UI platform

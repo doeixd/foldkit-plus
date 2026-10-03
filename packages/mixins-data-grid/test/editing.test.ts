@@ -45,11 +45,18 @@ const Message = defineMessageUnion({ ...Placement.cases })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, {
-    onOut: edited => model => ({
-      model: modifyFields(model, {
-        edits: () => [...model.edits, `${edited.row}.${edited.column}=${edited.text}`],
-      }),
-    }),
+    // Every cell the grid reports, an edit's or a paste's, as row.column=text.
+    onOut: out => model => {
+      const cells = Grid.Out.match(out, {
+        Edited: edited => [edited],
+        Pasted: pasted => pasted.accepted,
+      })
+      return {
+        model: modifyFields(model, {
+          edits: () => [...model.edits, ...cells.map(c => `${c.row}.${c.column}=${c.text}`)],
+        }),
+      }
+    },
   }),
 ])
 const View = DataGridView<Message>().define(Grid)

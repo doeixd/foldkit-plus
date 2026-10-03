@@ -1,3 +1,4 @@
+export { Clipboard, type CellText } from './clipboard.js'
 export { ColumnState, type Region, type Restored } from './columnState.js'
 export { Columns, type Column, type ColumnEdit, type ColumnId, type ColumnSpec } from './columns.js'
 export { DataGrid, type DataGridOf } from './grid.js'

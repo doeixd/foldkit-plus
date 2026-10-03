@@ -185,6 +185,23 @@ it departs from §10, §13 and §21's Phase 3:
   grid and draws a placeholder for a row counted but not loaded; Remote's
   loading and failure are Phase 7's to map.
 
+## Phase 8 as built so far (2026-10-03)
+
+`Clipboard` in `src/clipboard.ts` (pure), `Pasted` in the `DataGrid` Bundle,
+and the copy, cut and paste handlers in the view. Where it departs from §14:
+
+- **Foldkit's copy builder takes the text at draw time** (`OnCopyText`), and
+  `clipboardData` must be filled while the event runs, so the copied text is
+  worked out with the view. It is built once per projection and box, not per
+  frame; a very large range costs its size each time the range changes.
+  `navigator.clipboard` would be asynchronous and ask for permission.
+- **One OutMessage union, `Out.Edited | Out.Pasted`.** A paste is one change
+  to the application with what each column refused, the transaction §16
+  asks for; turning text into values is still the application's.
+- **Cut is a paste of empty text** over the copied range's editable cells,
+  so a column that refuses empty text refuses the cut there.
+- **Not built:** fill (§15), HTML clipboard data, multi-range copy.
+
 ## Phase 6 as built (2026-10-03)
 
 Editing in the `DataGrid` Bundle, and the editor in the view. Where it

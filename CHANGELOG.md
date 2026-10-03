@@ -76,6 +76,13 @@ version changed; `pnpm` skips versions already in the registry.
   a range and scrolls its far corner in, Space and Shift+Space select rows,
   Ctrl or Meta with A selects all, and Escape lets a range go. The per-cell
   `mousedown` handlers are gone.
+- **The clipboard (Phase 8).** `Clipboard.toTsv` and `parseTsv` write and
+  read spreadsheet text (quoted cells, any line end); `copy` is a box's cells
+  and `pasteAt` where pasted text lands. The grid's OutMessage is now a union,
+  `Out.Edited | Out.Pasted`: a paste is checked cell by cell against each
+  column and reported once, with what was refused. The view copies the range
+  (or the focused cell), pastes from the range's corner, and cuts by copying
+  and clearing, leaving the clipboard to a cell being edited.
 - **Editing (Phase 6).** A column with `edit: { draft?, validate? }` is
   editable as text. The `DataGrid` Model holds the session (`editing`), with
   `EditStarted`, `EditChanged`, `EditCommitted` and `EditCancelled`; a commit

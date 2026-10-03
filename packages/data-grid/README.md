@@ -286,7 +286,7 @@ const priced = Columns.define<Product>()({
   },
 })
 const Prices = DataGrid.make({ id: 'prices', columns: priced })
-type Edited = typeof Prices.Edited.Type // { _tag: 'Edited', row, column, text }
+type Out = typeof Prices.Out.Type // Edited({ row, column, text }) | Pasted({ accepted, refused })
 ```
 
 - **`EditStarted({ address, draft })`** opens an edit on an editable cell;
@@ -294,11 +294,32 @@ type Edited = typeof Prices.Edited.Type // { _tag: 'Edited', row, column, text }
 - **`EditCommitted({ next, reveal })`** asks the column's `validate`. A draft
   it refuses keeps the edit with the error, and nothing is reported. One it
   accepts ends the edit, moves focus to `next`, and the update returns the
-  OutMessage `Edited({ row, column, text })`.
+  OutMessage `Out.Edited({ row, column, text })`.
 - **Place the grid with `onOut`.** Every placement handles the OutMessage, as
   any Bundle's must; a grid that edits nothing passes `onOut: Bundle.ignore`.
 - **A click on another cell commits first;** a refused draft keeps the edit
   and the click waits. Hiding the edited column ends the edit.
+
+## The clipboard
+
+Copy and paste speak the tab-separated text spreadsheets do. `Clipboard` is
+pure: it writes and reads that text and lays a paste onto the grid; the view
+wires it to the browser's copy, cut and paste events.
+
+```ts
+Clipboard.toTsv([['SKU', 'Price'], ['A-1', '9']]) // 'SKU\tPrice\nA-1\t9'
+Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
+```
+
+- **`Clipboard.copy(projection, box, textOf)`** is a box's cells as TSV,
+  rows in the projection's order and columns in display order.
+- **`Clipboard.pasteAt(projection, anchor, matrix, editable)`** is where
+  pasted text lands: laid from the anchor, dropping cells past the edges, on
+  columns that do not edit, or on rows not loaded.
+- **`Pasted({ cells })`** hands those cells to the grid, which checks each
+  against its column's `validate` and reports one `Out.Pasted({ accepted,
+  refused })`: one change for the application to apply, and say what it
+  refused. A paste while a cell is edited is the field's.
 
 ## Row counts
 

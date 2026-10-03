@@ -501,7 +501,7 @@ describe('DataGrid editing', () => {
     expect(committed.model.editing).toEqual(Option.none())
     expect(committed.model.focus.current).toEqual(Option.some({ row: 'p:100', column: 'price' }))
     expect(committed.outMessage).toEqual(
-      Editing.Edited.make({ row: 'p:1', column: 'price', text: '12.5' }),
+      Editing.Out.Edited({ row: 'p:1', column: 'price', text: '12.5' }),
     )
     expect(committed.commands?.[0]?.args).toEqual({ viewportId: 'editing', top: 40, left: 0 })
   })
@@ -546,7 +546,7 @@ describe('DataGrid editing', () => {
       typed('3'),
       Editing.Message.Focused({ address: { row: 'p:10', column: 'sku' } }),
     )
-    expect(left.outMessage).toEqual(Editing.Edited.make({ row: 'p:1', column: 'price', text: '3' }))
+    expect(left.outMessage).toEqual(Editing.Out.Edited({ row: 'p:1', column: 'price', text: '3' }))
     expect(left.model.editing).toEqual(Option.none())
     expect(left.model.focus.current).toEqual(Option.some({ row: 'p:10', column: 'sku' }))
   })
@@ -574,7 +574,7 @@ describe('DataGrid editing', () => {
       Editing.Message.CellPressed({ cell: other, shiftKey: false, toggleKey: false }),
     )
     expect(pressed.outMessage).toEqual(
-      Editing.Edited.make({ row: 'p:1', column: 'price', text: '4' }),
+      Editing.Out.Edited({ row: 'p:1', column: 'price', text: '4' }),
     )
   })
 
@@ -585,5 +585,37 @@ describe('DataGrid editing', () => {
     expect(
       Option.isSome(edit(begun, Editing.Message.ColumnHidden({ column: 'name' })).model.editing),
     ).toBe(true)
+  })
+})
+
+describe('DataGrid paste', () => {
+  test('checks each pasted cell against its column, and reports them as one', () => {
+    const pasted = edit(
+      blank,
+      Editing.Message.Pasted({
+        cells: [
+          { row: 'p:1', column: 'price', text: '3.5' },
+          { row: 'p:10', column: 'price', text: 'lots' },
+          { row: 'p:1', column: 'name', text: 'Anchor' },
+          { row: 'p:1', column: 'sku', text: 'not editable' },
+        ],
+      }),
+    )
+    expect(pasted.model).toBe(blank)
+    expect(pasted.outMessage).toEqual(
+      Editing.Out.Pasted({
+        accepted: [
+          { row: 'p:1', column: 'price', text: '3.5' },
+          { row: 'p:1', column: 'name', text: 'Anchor' },
+        ],
+        refused: [{ row: 'p:10', column: 'price', text: 'lots', error: 'Not a number' }],
+      }),
+    )
+  })
+
+  test('a paste while a cell is edited is the field’s, and an empty one is nothing', () => {
+    const cell = { row: 'p:1', column: 'name' as const, text: 'x' }
+    expect(edit(begun, Editing.Message.Pasted({ cells: [cell] })).outMessage).toBeUndefined()
+    expect(edit(blank, Editing.Message.Pasted({ cells: [] })).outMessage).toBeUndefined()
   })
 })

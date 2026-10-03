@@ -4,6 +4,8 @@ import * as Mount from 'foldkit/mount'
 import {
   addressableRows,
   type CellAddress,
+  type CellBox,
+  Clipboard,
   Columns,
   type ColumnSpec,
   type ColumnState,
@@ -75,6 +77,19 @@ const resizeStep = 16
 
 const textOf = (value: unknown): string =>
   value === null || value === undefined ? '' : String(value)
+
+// The copied text of a box, once per projection and box: a copy handler is
+// drawn with its text, and redrawing for a scroll should not rebuild it.
+const copies = new WeakMap<object, Map<string, string>>()
+const remembered = (projection: object, key: string, make: () => string): string => {
+  const known = copies.get(projection) ?? new Map<string, string>()
+  copies.set(projection, known)
+  const text = known.get(key)
+  if (text !== undefined) return text
+  const made = make()
+  known.set(key, made)
+  return made
+}
 
 /** The offset of each pinned column from its edge: the widths of the ones before it. */
 const insets = <Id extends string>(
@@ -403,6 +418,67 @@ const view = <Message>() => ({
           )
         }
 
+        // The clipboard works on the range, or the focused cell when there is none.
+        // While a cell is edited, the field has the clipboard to itself.
+        const clipboardBox = Option.filter(
+          Option.orElse(range, () =>
+            Option.flatMap(stop, address => projection.box(address, address)),
+          ),
+          () => Option.isNone(editing),
+        )
+        const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
+        const clipboard = (box: CellBox<Id>) => {
+          const text = remembered(projection, JSON.stringify(box), () =>
+            Clipboard.copy(projection, box, address =>
+              textOf(
+                Option.match(
+                  Option.flatMap(projection.rowIndex(address.row), index =>
+                    projection.rows.rowAt(index),
+                  ),
+                  {
+                    onNone: () => '',
+                    onSome: row => grid.columns.byId[address.column].value(row),
+                  },
+                ),
+              ),
+            ),
+          )
+          const corner = Option.map(projection.rows.keyAt(box.rows.start), row => ({
+            row,
+            column: box.columns[0]!,
+          }))
+          // A cut clears the cells it copied that can be edited.
+          const cleared = Option.match(corner, {
+            onNone: () => [],
+            onSome: anchor =>
+              Clipboard.pasteAt(
+                projection,
+                anchor,
+                Array.from({ length: box.rows.end - box.rows.start }, () =>
+                  box.columns.map(() => ''),
+                ),
+                editable,
+              ),
+          })
+          return [
+            h.OnCopyText(text),
+            h.OnCutText(text, input.wrap(grid.Message.Pasted({ cells: cleared }))),
+            h.OnPastePreventDefault(pasted =>
+              Option.flatMap(corner, anchor => {
+                const cells = Clipboard.pasteAt(
+                  projection,
+                  anchor,
+                  Clipboard.parseTsv(pasted),
+                  editable,
+                )
+                return cells.length === 0
+                  ? Option.none()
+                  : Option.some(input.wrap(grid.Message.Pasted({ cells })))
+              }),
+            ),
+          ]
+        }
+
         const onKey = (key: string, modifiers: KeyboardModifiers) =>
           Option.map(
             Option.match(onHeader, {
@@ -635,6 +711,7 @@ const view = <Message>() => ({
             }),
             // Only keys aimed at the grid itself: a resize handle's arrows are its own.
             h.OnKeyDownSelfPreventDefault(onKey),
+            ...Option.match(clipboardBox, { onNone: () => [], onSome: clipboard }),
             h.OnMount(measured),
             h.Style({ overflow: 'auto', position: 'relative' }),
           ]),

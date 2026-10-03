@@ -149,6 +149,11 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   are the field's own. A draft the column's `validate` refuses stays open
   with `aria-invalid` and the error as `aria-description`. Focus comes back
   to the grid when the field goes. Clicking another cell commits first.
+- **The clipboard** works on the range, or the focused cell. Copy puts it on
+  the clipboard as tab-separated text, as spreadsheets read it; paste lays
+  text from the range's corner onto editable cells and the application
+  hears one `Out.Pasted`; cut copies and clears the editable cells. While a
+  cell is edited, the field has the clipboard.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.
@@ -173,5 +178,8 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   reordering; the column Messages are sent by the application's own controls.
 - An edit is text: the grid reports what was typed, and the application
   turns it into a value. There are no select or date editors yet.
+- A copy's text is drawn with the grid, built once per range and rows, so
+  copying a very large range costs its size each time the range changes.
+- No fill handle yet.
 - Cells say their value as text unless `cell` draws them; the Display
   vocabulary of `foldkit-crud` arrives with the CRUD adapter in Phase 7.
