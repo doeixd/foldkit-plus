@@ -1,7 +1,7 @@
 # DataGrid design
 
-**Status:** Phases 0 and 1 built as `foldkit-data-grid` (private, `0.0.0`);
-Phase 2, `VirtualGrid`, is next. Proposed in
+**Status:** Phases 0 to 2 built as `foldkit-data-grid` (private, `0.0.0`);
+Phase 3, the accessible view, is next. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -124,6 +124,26 @@ and §21's Phase 1:
 - **The Behavior and ensure-visible move.** Wiring keys onto Slots needs the
   Slots, so it is built with the view in Phase 3; revealing a target outside
   the window needs the window, so it is Phase 2's.
+
+## Phase 2 as built (2026-10-03)
+
+`VirtualGrid` (pure) in `src/virtual.ts`, and `GridViewport` (state, Mount,
+Command) in `src/viewport.ts`. Where it departs from §9 and §21's Phase 2:
+
+- **Its own Mount, not `Virtual`'s.** `Virtual.Viewport` reports only
+  `scrollTop`; a grid needs both offsets and the container's size, so
+  `GridViewport.Measure` reports all four on mount, scroll and resize.
+  Nothing else of `Virtual` fits: its row axis is a keys array with measured
+  heights, and this one is arithmetic on one height.
+- **Widths are a function the caller passes.** No width is stored yet:
+  Phase 4's column state owns widths, and the window reads whatever it is
+  given. The column window sums the center's widths per call, which costs the
+  column count; at 40 columns a window is about a microsecond.
+- **A reveal is two steps.** `VirtualGrid.reveal` works out the offsets, and
+  the `scrollTo` Command moves the container and reports `Revealed`, so the
+  Model has the new offsets before the scroll event confirms them. Wiring a
+  focus change to a reveal is the composed grid's, in Phase 3.
+- **The benchmarks** are in [benchmarks.md](../benchmarks.md#foldkit-data-grid-100000-rows).
 
 ---
 

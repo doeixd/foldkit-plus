@@ -11,7 +11,7 @@
       "foldkit-data-grid": ["./src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "bench/**/*.ts", "tsdown.config.ts"],
   "references": [
     {
       "path": "../bundle/tsconfig.build.json"

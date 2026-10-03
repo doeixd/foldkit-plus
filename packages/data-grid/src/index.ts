@@ -10,3 +10,13 @@ export {
   type ProjectionOptions,
 } from './projection.js'
 export { RowCount, RowModel, addressableRows } from './rows.js'
+export { GridViewport } from './viewport.js'
+export {
+  VirtualGrid,
+  type AxisWindow,
+  type Geometry,
+  type GridWindow,
+  type RevealOptions,
+  type Viewport,
+  type WindowOptions,
+} from './virtual.js'

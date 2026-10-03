@@ -5,10 +5,10 @@ where a move or a range lands. It is pure geometry over rows the application
 supplies, so focus, selection, virtualization and the clipboard all ask one
 value instead of reading positions from the DOM.
 
-> **Status:** private, `0.0.0`. Phases 0 and 1 of
+> **Status:** private, `0.0.0`. Phases 0 to 2 of
 > [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the pure model,
-> and focus as a Bundle. Selection, column state, editing, virtualization and
-> the view come in later phases. Nothing here renders yet.
+> focus as a Bundle, and two-axis virtualization. Selection, column state,
+> editing and the view come in later phases. Nothing here renders yet.
 
 ## Who owns what
 
@@ -153,6 +153,49 @@ const next = GridFocus.target(grid, {
 
 The keyboard wiring onto the drawn grid arrives with the view in Phase 3.
 
+## Virtualization
+
+A grid draws only what its scroll container shows. The container's scroll
+offsets and size are the fact; `GridViewport` keeps them in the Model, and
+`VirtualGrid.window` turns them into the rows and columns to draw.
+
+```ts
+import { VirtualGrid } from 'foldkit-data-grid'
+
+const shown = VirtualGrid.window({
+  projection: grid,
+  rowHeight: 32,
+  width: column => (column === 'sku' ? 120 : 80),
+  viewport: { top: 0, left: 0, width: 600, height: 320 },
+  overscan: { rows: 4, columns: 1 },
+})
+// shown.rows: { start: 0, end: 2, before: 0, after: 0 }: draw rows [start, end)
+// shown.start, shown.centerColumns, shown.end: the columns to draw, in order
+// shown.width, shown.height: the size of the scrollable content
+```
+
+- **`VirtualGrid.window(options)`** is pure. Rows are one fixed height, so the
+  row window is arithmetic on the scroll offset and never walks the rows; the
+  center columns are found by binary search over their widths. Pinned
+  columns are always drawn, outside the horizontal window. `before` and
+  `after` are the space the undrawn rows and columns take, for spacers.
+  `headerHeight` leaves header rows inside the container out of the body.
+  It throws for a row height that is not a positive number.
+- **`VirtualGrid.reveal(options)`** is the least scroll that shows a cell,
+  as `{ top, left }`, or none when it is already in view. A pinned column
+  never scrolls, so only its row is brought in.
+- **`GridViewport.bundle`** holds `{ top, left, width, height }`.
+  `GridViewport.Measure` is a Mount for the scroll container: it reports the
+  geometry when it mounts and on every scroll and resize. Readings that are
+  not numbers are ignored, and an overscroll reads as the edge.
+- **`GridViewport.scrollTo(viewportId, offsets)`** is the Command that
+  applies a reveal: it scrolls the container and reports `Revealed`, so the
+  next window is drawn from the new offsets without waiting for the scroll
+  event.
+
+`packages/data-grid/bench` measures this at 100,000 rows; see
+[the benchmarks](../../docs/benchmarks.md#foldkit-data-grid-100000-rows).
+
 ## Row counts
 
 A `RowModel`'s `count` is a `RowCount`:
@@ -171,7 +214,7 @@ only the first place of an id named twice.
 
 ## Limits
 
-- No view yet, and no state beyond focus: selection, column state, editing,
-  two-axis virtualization and the accessible renderer are later phases.
-- Rows have no variable heights and columns no widths yet; both arrive with
-  virtualization.
+- No view yet, and no state beyond focus and the viewport: selection, column
+  state, editing and the accessible renderer are later phases.
+- Every row is one height. Column widths are a function the caller passes;
+  resizing and saving them is Phase 4's column state.

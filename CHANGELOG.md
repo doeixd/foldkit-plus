@@ -21,8 +21,15 @@ version changed; `pnpm` skips versions already in the registry.
   decoded only against the grid's own column ids. `GridFocus.target` is the
   cell a key moves to (arrows, Home and End, Ctrl for the corners, PageUp and
   PageDown, RTL), `tabStop` the cell holding the one tab stop, and `cellId` a
-  DOM id for `aria-activedescendant` that no two cells share. Nothing renders
-  yet.
+  DOM id for `aria-activedescendant` that no two cells share.
+- **`foldkit-data-grid`, virtualization (Phase 2).** `VirtualGrid.window` is
+  the rows and center columns a viewport shows, with overscan and spacers;
+  rows are one height, so it never walks them, and pinned columns are always
+  drawn. `VirtualGrid.reveal` is the least scroll that shows a cell.
+  `GridViewport` keeps the container's offsets and size in the Model, its
+  `Measure` Mount reports them on mount, scroll and resize, and `scrollTo` is
+  the Command that applies a reveal. A benchmark at 100,000 rows is in
+  `docs/benchmarks.md`. Nothing renders yet.
 
 ## 0.14.0
 

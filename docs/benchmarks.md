@@ -132,6 +132,33 @@ It is skipped without `VITE_MEASURE`, since a timing is not a gate. The results,
 and what memoizing the editor changed, are in
 [pagebuilder-DESIGN.md](./design/pagebuilder-DESIGN.md) §25.
 
+## foldkit-data-grid: 100,000 rows
+
+`packages/data-grid/bench/window.bench.ts` holds a grid of 100,000 rows and 40
+columns, one pinned. The design's rule is that nothing run per scroll frame or
+per key walks the rows; indexing the rows by key, once per change of the rows
+array, may.
+
+```sh
+pnpm exec vitest bench --run --reporter=verbose packages/data-grid/bench
+```
+
+Means in Node 26.5 on Windows 11, 2026-10-03, order of magnitude only:
+
+| Scenario | Mean |
+| --- | ---: |
+| The window for one viewport, with overscan | 1 µs |
+| 1,000 scroll frames, one window each | 0.93 ms |
+| A projection from a layout | 5.7 µs |
+| A move from the middle row | 0.1 µs |
+| A cell's position | 0.2 µs |
+| Revealing a cell far below | 2.1 µs |
+| Indexing 100,000 rows by key | 17 ms |
+
+The window costs the column count, not the row count: rows are one height, so
+their window is arithmetic, and the center columns' edges are summed per call
+and searched. The 17 ms is why `RowModel.fromArray` caches per array.
+
 ## foldkit-bundle: type-checking cost of placements
 
 A generated parent with `n` placements of one bundle, each with its own

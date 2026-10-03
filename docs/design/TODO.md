@@ -452,7 +452,7 @@ the steps land in the packages that own them.
 
 `foldkit-data-grid` and `foldkit-mixins-data-grid`, in the order of
 [data-grid-DESIGN.md](./data-grid-DESIGN.md) §21
-([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 and 1
+([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 to 2
 are built. Each phase lists its deliverables and acceptance there.
 
 - [x] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
@@ -465,11 +465,13 @@ are built. Each phase lists its deliverables and acceptance there.
   ensure-visible request. Built 2026-10-03 as a Bundle and pure functions;
   the key Behavior moves to Phase 3 and ensure-visible to Phase 2 (see the
   design's "Phase 1 as built").
-- [ ] **Phase 2, `VirtualGrid`:** a fixed-height row axis and a
+- [x] **Phase 2, `VirtualGrid`:** a fixed-height row axis and a
   controlled-width column axis, overscan, pinned columns outside the
   horizontal window, and benchmarks under `packages/*/bench`. Reuse
   `Virtual`'s Mounts, not its keys array. Revealing the focused cell when it
-  is outside the window lands here.
+  is outside the window lands here. Built 2026-10-03 as `VirtualGrid` and
+  `GridViewport`, with its own Mount (`Virtual`'s reports only `scrollTop`);
+  wiring focus to a reveal is Phase 3's.
 - [ ] **Phase 3, the accessible view:** Slots, the focus Behavior (keys on
   the container, `aria-activedescendant`), `role="grid"` with virtualized
   `aria-rowindex`/`aria-colindex`, an unknown row count, `aria-sort`, loading,

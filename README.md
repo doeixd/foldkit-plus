@@ -279,7 +279,7 @@ in a line.
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
-| Move between cells and span ranges in an interactive grid over rows the application owns | `foldkit-data-grid` (in development, not published; the model and focus, no view yet) | [package README](./packages/data-grid) |
+| Move between cells and span ranges in an interactive grid over rows the application owns | `foldkit-data-grid` (in development, not published; model, focus and windowing, no view yet) | [package README](./packages/data-grid) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
 | Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
 | Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |

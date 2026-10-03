@@ -1,8 +1,9 @@
 # foldkit-data-grid
 
-**In development, not published.** Phases 0 and 1 of the DataGrid design are
-built: the pure model, and focus as a Bundle. Selection, column state,
-editing, virtualization and the view are later phases; nothing here renders.
+**In development, not published.** Phases 0 to 2 of the DataGrid design are
+built: the pure model, focus as a Bundle, and two-axis virtualization.
+Selection, column state, editing and the view are later phases; nothing here
+renders.
 
 ## What it owns
 
@@ -62,6 +63,13 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   (Enter, Tab, anything with Shift, Alt or Meta). Dispatch `Focused` with it.
 - DOM focus stays on the grid's container; point at the current cell with
   `aria-activedescendant` and `GridFocus.cellId(gridId, address)`.
+- Draw only `VirtualGrid.window({ projection, rowHeight, width, viewport })`:
+  rows `[rows.start, rows.end)`, then `start`, `centerColumns` and `end`, with
+  `before`/`after` as spacers. Every row is one height.
+- The viewport is `GridViewport`: place its Bundle and attach
+  `GridViewport.Measure` to the scroll container. To bring a cell into view,
+  emit `GridViewport.scrollTo(viewportId, offsets)` with the offsets from
+  `VirtualGrid.reveal`.
 
 See also: [the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
 and [the DataGrid design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-grid-DESIGN.md).

@@ -8,6 +8,7 @@ import {
   GridFocus,
   GridProjection,
   RowModel,
+  VirtualGrid,
 } from 'foldkit-data-grid'
 
 interface Product {
@@ -98,3 +99,17 @@ GridFocus.target(projection, {
   key: 'ArrowDown',
   modifiers: { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false },
 })
+
+const viewport = { top: 0, left: 0, width: 300, height: 100 }
+VirtualGrid.window({ projection, rowHeight: 32, width: () => 100, viewport })
+
+VirtualGrid.window({
+  projection,
+  rowHeight: 32,
+  // @ts-expect-error a width is asked of the grid's own columns
+  width: (column: 'name') => column.length,
+  viewport,
+})
+
+// @ts-expect-error a viewport has a size as well as offsets
+VirtualGrid.window({ projection, rowHeight: 32, width: () => 100, viewport: { top: 0, left: 0 } })
