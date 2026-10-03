@@ -24,6 +24,11 @@
   },
   "sideEffects": false,
   "exports": {
+    "./crud": {
+      "foldkit-plus:source": "./src/crud.ts",
+      "types": "./dist/crud.d.mts",
+      "import": "./dist/crud.mjs"
+    },
     ".": {
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
@@ -44,11 +49,24 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.165.0",
+    "foldkit-crud": "workspace:*",
+    "foldkit-remote": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "foldkit-crud": {
+      "optional": true
+    },
+    "foldkit-remote": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "effect": "4.0.0",
     "foldkit": "0.165.0",
+    "foldkit-crud": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-remote": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }

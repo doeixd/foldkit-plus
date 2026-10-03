@@ -76,6 +76,14 @@ version changed; `pnpm` skips versions already in the registry.
   a range and scrolls its far corner in, Space and Shift+Space select rows,
   Ctrl or Meta with A selects all, and Escape lets a range go. The per-cell
   `mousedown` handlers are gone.
+- **Over Remote and CRUD (Phase 7).** `foldkit-data-grid/crud` (optional
+  peers `foldkit-crud` and `foldkit-remote`): `GridCrud.columns(list)` from a
+  `Crud.list`'s members and Displays, `rows(page, key)` a row model of a
+  Remote page (unknown while there are more; the rows a failed read had),
+  and `status(page)` a `RowStatus`. The view takes `status` (busy while
+  loading or refreshing, a failure with `onRetry`), `onMore` while the count
+  is unknown, and `sort` for `aria-sort` and a sort button, Enter on a
+  header sending it too.
 - **The clipboard (Phase 8).** `Clipboard.toTsv` and `parseTsv` write and
   read spreadsheet text (quoted cells, any line end); `copy` is a box's cells
   and `pasteAt` where pasted text lands. The grid's OutMessage is now a union,

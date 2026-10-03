@@ -154,6 +154,15 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   text from the range's corner onto editable cells and the application
   hears one `Out.Pasted`; cut copies and clears the editable cells. While a
   cell is edited, the field has the clipboard.
+- **Where the rows stand**, from `status` (`GridCrud.status` for a Remote
+  page): the grid is `aria-busy` while loading or refreshing; with no rows
+  it says loading, or the failure with a retry when `onRetry` is given; with
+  rows, a failure is said in the `footer`, below them. `onMore` puts a More
+  button in the footer while the count is not known.
+- **Sorting** is the application's: `sort` gives a column its direction and
+  the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
+  The header says `aria-sort`, and its label is a button the pointer sorts
+  with; Enter on the focused header sends it too.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.

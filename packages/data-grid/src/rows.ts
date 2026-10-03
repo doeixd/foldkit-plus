@@ -14,6 +14,20 @@ export const RowCount = defineTaggedUnion({
 })
 export type RowCount = typeof RowCount.Type
 
+/**
+ * Where the rows' source stands, for a view to say: `Loading` before any
+ * answer, `Refreshing` while a newer one is on its way and the rows shown are
+ * the last good ones, `Failed` with what went wrong. The grid holds no
+ * loading state of its own; the source's owner (Remote, a store) says this.
+ */
+export const RowStatus = defineTaggedUnion({
+  Ready: {},
+  Loading: {},
+  Refreshing: {},
+  Failed: { message: Schema.String },
+})
+export type RowStatus = typeof RowStatus.Type
+
 /** The number of row indexes a grid may address: the total, or the lower bound. */
 export const addressableRows = RowCount.match({
   Known: ({ total }) => total,

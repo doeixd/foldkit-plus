@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-data-grid": ["../data-grid/src/index.ts"],
+      "foldkit-data-grid/crud": ["../data-grid/src/crud.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-data-grid": ["./src/index.ts"],
       "foldkit-mixins/app": ["../mixins/src/app.ts"],

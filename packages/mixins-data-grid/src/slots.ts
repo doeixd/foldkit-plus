@@ -101,6 +101,12 @@ export const GridSlots = Slots.define({
     events: [Event.Input, Event.KeyDown],
     protected: { events: [Event.Input, Event.KeyDown] },
   }),
-  /** Said in place of rows when there are none. */
+  /** Said in place of rows when there are none: empty, loading, or failed. */
   status: Slot.make({ capability: Capability.Base }),
+  /** The button on a sortable column's header: a click sends its sort Message. */
+  sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** Below the rows: a failure that left them on screen, and the More button. */
+  footer: Slot.make({ capability: Capability.Container }),
+  retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  more: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })

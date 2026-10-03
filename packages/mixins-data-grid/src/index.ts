@@ -10,4 +10,4 @@
  */
 export { GridSlots } from './slots.js'
 export { GridStyle } from './style.js'
-export { DataGridView, type GridInput, type GridWords } from './view.js'
+export { DataGridView, type ColumnSort, type GridInput, type GridWords } from './view.js'

@@ -499,6 +499,9 @@ are built. Each phase lists its deliverables and acceptance there.
   `RowModel` over Remote pages, server sort through the query input (with
   `aria-sort` on the header), load-more and an unknown count, and the
   view's loading and error states. Build the reference application here.
+  Built 2026-10-03 as `foldkit-data-grid/crud` and the view's `status`,
+  `onRetry`, `onMore` and `sort`; the reference application and reading the
+  next page as the viewport nears the end are not.
 - [ ] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
   bulk edits grouped as one transaction. Copy, cut and paste are built
   (2026-10-03), a paste reported as one `Out.Pasted`; fill is not.

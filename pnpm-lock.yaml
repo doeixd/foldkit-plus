@@ -1731,6 +1731,15 @@ importers:
       foldkit:
         specifier: 0.165.0
         version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      foldkit-crud:
+        specifier: workspace:*
+        version: link:../crud
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

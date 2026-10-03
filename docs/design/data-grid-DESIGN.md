@@ -185,6 +185,25 @@ it departs from §10, §13 and §21's Phase 3:
   grid and draws a placeholder for a row counted but not loaded; Remote's
   loading and failure are Phase 7's to map.
 
+## Phase 7 as built so far (2026-10-03)
+
+`foldkit-data-grid/crud`, a subpath with `foldkit-crud` and `foldkit-remote`
+as optional peers, and `status`, `onRetry`, `onMore` and `sort` on the view.
+Where it departs from §18:
+
+- **A subpath, not `DataGrid.fromCrud`.** The core keeps no dependency on
+  CRUD or Remote; `GridCrud` reads a list and a page into columns, a row
+  model and a `RowStatus`, and the application places the grid as any
+  other.
+- **A column's value is its Display text,** so copy, paste and a plain cell
+  say the same thing; a cell renderer can still draw the row its own way.
+- **Loading and failure are a `RowStatus` the source's owner gives.** The
+  grid holds none: Remote's `RemoteData` maps to it, and so can a store.
+- **Load-more is a button**, offered while the count is unknown; reading
+  the next page as the viewport nears the end is not built.
+- **Not built:** the reference application of §22 (a 100,000-row registry
+  over Remote with local-first writes).
+
 ## Phase 8 as built so far (2026-10-03)
 
 `Clipboard` in `src/clipboard.ts` (pure), `Pasted` in the `DataGrid` Bundle,

@@ -12,7 +12,7 @@ export {
   type CellPosition,
   type ProjectionOptions,
 } from './projection.js'
-export { RowCount, RowModel, addressableRows } from './rows.js'
+export { RowCount, RowModel, RowStatus, addressableRows } from './rows.js'
 export { GridSelection, RowSelection, type CellRange, type ExtendOptions } from './selection.js'
 export { GridViewport } from './viewport.js'
 export {

@@ -321,6 +321,38 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   refused })`: one change for the application to apply, and say what it
   refused. A paste while a cell is edited is the field's.
 
+## Over a `foldkit-crud` list
+
+`foldkit-data-grid/crud` reads a `Crud.list` and the Remote page it reads in
+the grid's terms. Remote still owns the page, its loading, its retries and
+its next page; this subpath fetches nothing and holds nothing.
+
+```ts
+import { GridCrud } from 'foldkit-data-grid/crud'
+
+const columns = GridCrud.columns(Posts) // a Crud.list
+const Grid = DataGrid.make({ id: 'posts', columns })
+
+const rows = GridCrud.rows(page, post => post.id) // page: RemoteData<Page<Row>>
+const status = GridCrud.status(page) // RowStatus: Ready, Loading, Refreshing, Failed
+```
+
+- **`GridCrud.columns(list)`** is a column per listed member, headed by its
+  label, its value the member's text as its Display says it; a hidden
+  Display (usually the id) starts hidden.
+- **`GridCrud.rows(page, key)`** is the page's rows in its order. A page
+  with more after it counts as unknown, at least its rows; a failed read
+  keeps the rows it had. The same page value gives the same row model, so
+  what is built from it is kept across renders.
+- **`GridCrud.status(page)`** is a `RowStatus` for the view to say.
+- **Sorting stays the query's.** Pass `foldkit-crud`'s sort state to the
+  view's `sort`; a header sends its Message, and the application changes the
+  query input. `list.more` is the view's `onMore`, `list.refresh` behind its
+  `onRetry`.
+
+The subpath needs `foldkit-crud` and `foldkit-remote`, optional peers of this
+package; the core works without them.
+
 ## Row counts
 
 A `RowModel`'s `count` is a `RowCount`:

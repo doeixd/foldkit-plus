@@ -17,6 +17,7 @@ import {
   type RowSelection,
   RowCount,
   type RowModel,
+  RowStatus,
   type Viewport,
   VirtualGrid,
 } from 'foldkit-data-grid'
@@ -29,6 +30,20 @@ import { GridSlots } from './slots.js'
 export interface GridWords {
   /** In place of rows when there are none. Default `No rows.` */
   readonly empty?: string
+  /** While the first rows are awaited. Default `Loading…`. */
+  readonly loading?: string
+  /** When the read failed. `{message}` is the failure's. Default `{message}`. */
+  readonly failed?: string
+  /** On the button that asks again after a failure. Default `Try again`. */
+  readonly retry?: string
+  /** On the button that loads more rows. Default `More`. */
+  readonly more?: string
+}
+
+/** How a column is sorted, and the Message that sorts it next: `foldkit-crud`'s `Sort` gives these. */
+export interface ColumnSort<Message> {
+  readonly direction?: 'asc' | 'desc' | undefined
+  readonly message: Message
 }
 
 /** What the grid's view reads, and what the application gives it. */
@@ -68,9 +83,26 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   /** Draws one cell; by default the column's value, as text. */
   readonly cell?: (column: Id, row: Row, h: HtmlBuilder<Message>) => Html | string
   readonly words?: GridWords
+  /**
+   * Where the rows' source stands (`GridCrud.status` for a Remote page).
+   * Default `Ready`. The grid holds no loading state: the source's owner does.
+   */
+  readonly status?: RowStatus
+  /** Asks again after a failure; given, a failed grid shows a button that sends it. */
+  readonly onRetry?: Message
+  /** Loads more rows; given, a grid whose count is not known yet shows a button that sends it. */
+  readonly onMore?: Message
+  /** The columns that sort, each with its direction and its Message. */
+  readonly sort?: { readonly [K in Id]?: ColumnSort<Message> }
 }
 
 const px = (value: number): string => `${value}px`
+
+const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descending' | 'none' => {
+  if (direction === 'asc') return 'ascending'
+  if (direction === 'desc') return 'descending'
+  return 'none'
+}
 
 /** How far one press of an arrow key on a resize handle moves the edge, in pixels. */
 const resizeStep = 16
@@ -479,19 +511,31 @@ const view = <Message>() => ({
           ]
         }
 
-        const onKey = (key: string, modifiers: KeyboardModifiers) =>
-          Option.map(
-            Option.match(onHeader, {
-              onSome: column => headerKey(column, key, modifiers),
-              onNone: () =>
+        const sortOf = (column: Id): Option.Option<ColumnSort<Message>> =>
+          Option.fromUndefinedOr(input.sort?.[column])
+
+        // Enter on a header that sorts sends the application's sort Message.
+        const sortKey = (column: Id, key: string, modifiers: KeyboardModifiers) =>
+          key === 'Enter' && plainKey(modifiers)
+            ? Option.map(sortOf(column), sorted => sorted.message)
+            : Option.none()
+
+        const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> =>
+          Option.match(onHeader, {
+            onSome: column =>
+              Option.orElse(sortKey(column, key, modifiers), () =>
+                Option.map(headerKey(column, key, modifiers), input.wrap),
+              ),
+            onNone: () =>
+              Option.map(
                 Option.orElse(selectionKey(key, modifiers), () =>
                   Option.orElse(editKey(key, modifiers), () =>
                     Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
                   ),
                 ),
-            }),
-            input.wrap,
-          )
+                input.wrap,
+              ),
+          })
 
         const pressed = Mount.mapMessage(CellPress(), click =>
           input.wrap(
@@ -591,8 +635,23 @@ const view = <Message>() => ({
                 onNone: () => [],
                 onSome: edge => [h.DataAttribute('pinned', edge)],
               }),
+              ...Option.match(sortOf(id), {
+                onNone: () => [],
+                onSome: sorted => [h.AriaSort(ariaSort(sorted.direction))],
+              }),
             ]),
-            [grid.columns.byId[id].header, ...resizeHandle(id)],
+            [
+              Option.match(sortOf(id), {
+                onNone: () => grid.columns.byId[id].header,
+                // A button the pointer sorts with; the keyboard sorts with Enter on the header.
+                onSome: sorted =>
+                  h.button(
+                    slots.sort.attrs([h.Type('button'), h.Tabindex(-1), h.OnClick(sorted.message)]),
+                    [grid.columns.byId[id].header],
+                  ),
+              }),
+              ...resizeHandle(id),
+            ],
           )
 
         const rowAt = (index: number): Html =>
@@ -694,10 +753,68 @@ const view = <Message>() => ({
         )
         const empty = addressableRows(projection.rowCount) === 0
 
+        const status = input.status ?? RowStatus.Ready()
+        const busy = RowStatus.match(status, {
+          Ready: () => false,
+          Loading: () => true,
+          Refreshing: () => true,
+          Failed: () => false,
+        })
+        const words = input.words ?? {}
+        const failure = (message: string): ReadonlyArray<Html> => [
+          h.p(slots.status.attrs([h.Role('alert')]), [
+            (words.failed ?? '{message}').replaceAll('{message}', message),
+          ]),
+          ...(input.onRetry === undefined
+            ? []
+            : [
+                h.button(slots.retry.attrs([h.Type('button'), h.OnClick(input.onRetry)]), [
+                  words.retry ?? 'Try again',
+                ]),
+              ]),
+        ]
+        // With no rows the body says where the source stands; with rows, a
+        // failure is said below them, where it moves no row.
+        const emptyBody: ReadonlyArray<Html> = RowStatus.match(status, {
+          Loading: () => [
+            h.p(slots.status.attrs([h.Role('status'), h.AriaBusy(true)]), [
+              words.loading ?? 'Loading…',
+            ]),
+          ],
+          Refreshing: () => [
+            h.p(slots.status.attrs([h.Role('status')]), [words.empty ?? 'No rows.']),
+          ],
+          Ready: () => [h.p(slots.status.attrs([h.Role('status')]), [words.empty ?? 'No rows.'])],
+          Failed: ({ message }) => failure(message),
+        })
+        // More rows to ask for: only while the count is not known yet.
+        const more = Option.filter(Option.fromUndefinedOr(input.onMore), () =>
+          RowCount.match(projection.rowCount, { Known: () => false, Unknown: () => true }),
+        )
+        const footer: ReadonlyArray<Html> = [
+          ...(empty
+            ? []
+            : RowStatus.match(status, {
+                Ready: () => [],
+                Loading: () => [],
+                Refreshing: () => [],
+                Failed: ({ message }) => failure(message),
+              })),
+          ...Option.match(more, {
+            onNone: () => [],
+            onSome: message => [
+              h.button(slots.more.attrs([h.Type('button'), h.Disabled(busy), h.OnClick(message)]), [
+                words.more ?? 'More',
+              ]),
+            ],
+          }),
+        ]
+
         return h.div(
           slots.root.attrs([
             h.Id(grid.id),
             h.Role('grid'),
+            ...(busy ? [h.AriaBusy(true)] : []),
             h.AriaLabel(input.label),
             h.Tabindex(0),
             h.AriaRowcount(rowCount),
@@ -737,7 +854,7 @@ const view = <Message>() => ({
                 h.Style({ height: px(shown.height - headerHeight), width: px(shown.width) }),
               ]),
               empty
-                ? [h.p(slots.status.attrs([h.Role('status')]), [input.words?.empty ?? 'No rows.'])]
+                ? emptyBody
                 : [
                     ...(shown.rows.before > 0
                       ? [
@@ -750,6 +867,7 @@ const view = <Message>() => ({
                     ...bodyRows,
                   ],
             ),
+            ...(footer.length === 0 ? [] : [h.div(slots.footer.attrs(), footer)]),
           ],
         )
       },

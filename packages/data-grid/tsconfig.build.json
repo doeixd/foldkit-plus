@@ -5,5 +5,27 @@
     "tsBuildInfoFile": ".tsbuild/build/tsconfig.build.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../bundle/tsconfig.build.json" }]
+  "references": [
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../crud/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../form/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    }
+  ]
 }
