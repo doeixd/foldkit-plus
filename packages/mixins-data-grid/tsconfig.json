@@ -1,0 +1,37 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-data-grid": ["../data-grid/src/index.ts"],
+      "foldkit-mixins": ["../mixins/src/index.ts"],
+      "foldkit-mixins-data-grid": ["./src/index.ts"],
+      "foldkit-mixins/app": ["../mixins/src/app.ts"],
+      "foldkit-mixins/defaults": ["../mixins/src/defaults.ts"],
+      "foldkit-mixins/foundations": ["../mixins/src/foundations.ts"],
+      "foldkit-mixins/layers": ["../mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../mixins/src/layout.ts"],
+      "foldkit-mixins/prose": ["../mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../mixins/src/testing.ts"],
+      "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
+      "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../data-grid/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
+    }
+  ]
+}

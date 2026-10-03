@@ -1943,6 +1943,37 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/mixins-data-grid:
+    dependencies:
+      foldkit-data-grid:
+        specifier: workspace:*
+        version: link:../data-grid
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../mixins
+    devDependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
+      effect:
+        specifier: 4.0.0
+        version: 4.0.0
+      foldkit:
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/mixins-form:
     dependencies:
       foldkit-bundle:
@@ -13434,7 +13465,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.21.3
+      ws: 8.22.0
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil

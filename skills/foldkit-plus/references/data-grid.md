@@ -1,9 +1,9 @@
-# foldkit-data-grid
+# foldkit-data-grid and foldkit-mixins-data-grid
 
-**In development, not published.** Phases 0 to 2 of the DataGrid design are
-built: the pure model, focus as a Bundle, and two-axis virtualization.
-Selection, column state, editing and the view are later phases; nothing here
-renders.
+**In development, not published.** Phases 0 to 3 of the DataGrid design are
+built: the pure model, focus, two-axis virtualization, and the accessible
+view in `foldkit-mixins-data-grid`. Selection, column state and editing are
+later phases.
 
 ## What it owns
 
@@ -75,5 +75,22 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   emit `GridViewport.scrollTo(viewportId, offsets)` with the offsets from
   `VirtualGrid.reveal`.
 
-See also: [the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
+## Drawing it
+
+`DataGridView<Message>().define(Grid)` from `foldkit-mixins-data-grid` is a
+SlotView; attach `GridStyle` for the default look. Its input is the placed
+`DataGrid` Model as `state`, the `projection`, `wrap` (the placement's
+wrapper), a `label`, `rowHeight`, `headerHeight` and `width`. The view's
+README has the whole wiring, compiled.
+
+- The view sends the grid's own Messages through `wrap`; place
+  `DataGrid.make(...).bundle` with `Bundle.declare` and pass its wrapper.
+- `root` is the scroll container: give it a height with a Style. A Style that
+  sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
+  row's `height`, throws `slot "cell" protects style property`.
+- ARIA is logical: `aria-rowindex` and `aria-colindex` count every row and
+  visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
+
+See also: [the view's README](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-data-grid/README.md),
+[the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
 and [the DataGrid design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-grid-DESIGN.md).

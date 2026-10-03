@@ -38,6 +38,7 @@
     { "path": "./packages/mixins-form" },
     { "path": "./packages/mixins-richtext" },
     { "path": "./packages/mixins-crud" },
+    { "path": "./packages/mixins-data-grid" },
     { "path": "./packages/cms" },
     { "path": "./packages/cms-drizzle" },
     { "path": "./examples/todo" },

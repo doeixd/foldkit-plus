@@ -33,7 +33,20 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-data-grid`, `DataGrid.make({ id, columns })`.** Focus and the
   viewport as the one Bundle a grid places. A key's `Moved` carries the
   reveal the view worked out, and the update issues the scroll for the
-  container named `id`. Nothing renders yet.
+  container named `id`.
+- **`foldkit-mixins-data-grid` (private, `0.0.0`), the grid drawn (Phase 3).**
+  `DataGridView<Message>().define(Grid)` draws a `DataGrid` as a WAI-ARIA
+  grid of the viewport's window of cells: `aria-rowcount` (or `-1` when the
+  count is unknown), each cell's logical `aria-rowindex` and `aria-colindex`,
+  one tab stop with `aria-activedescendant` while the focused cell is drawn,
+  sticky pinned columns, a placeholder for rows not loaded, and the keyboard
+  through `GridFocus.target`. Every element is a Slot; a Style that sets the
+  geometry the window depends on is refused. `GridStyle` is a default look in
+  the `components` layer. It renders on a server as markup a parser reads
+  back the same.
+- **`foldkit-data-grid`, `GridViewport.scrollTo` on a container that cannot
+  scroll** still reports `Revealed`: a DOM with no layout has no `scrollTo`,
+  and the Command threw there.
 
 ## 0.14.0
 

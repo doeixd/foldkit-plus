@@ -5,11 +5,11 @@ where a move or a range lands. It is pure geometry over rows the application
 supplies, so focus, selection, virtualization and the clipboard all ask one
 value instead of reading positions from the DOM.
 
-> **Status:** private, `0.0.0`. Phases 0 to 2 of
-> [the DataGrid design](../../docs/design/data-grid-DESIGN.md), and the grid's
-> state as one Bundle: the pure model, focus, and two-axis virtualization.
-> Selection, column state, editing and the view come in later phases.
-> Nothing here renders yet.
+> **Status:** private, `0.0.0`. Phases 0 to 3 of
+> [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the pure model,
+> focus, two-axis virtualization, and the grid's state as one Bundle. This
+> package draws nothing; [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md)
+> draws it. Selection, column state and editing come in later phases.
 
 ## Who owns what
 
@@ -152,7 +152,8 @@ const next = GridFocus.target(grid, {
   and points at the current cell with `aria-activedescendant`, so a cell can
   scroll out of a virtual window without losing focus.
 
-The keyboard wiring onto the drawn grid arrives with the view in Phase 3.
+[`foldkit-mixins-data-grid`](../mixins-data-grid/README.md) wires these keys
+onto the drawn grid.
 
 ## Virtualization
 
@@ -246,7 +247,8 @@ only the first place of an id named twice.
 
 ## Limits
 
-- No view yet, and no state beyond focus and the viewport: selection, column
-  state, editing and the accessible renderer are later phases.
+- No state beyond focus and the viewport yet: selection, column state and
+  editing are later phases. The view is
+  [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md).
 - Every row is one height. Column widths are a function the caller passes;
   resizing and saving them is Phase 4's column state.

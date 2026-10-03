@@ -199,6 +199,21 @@ describe('GridViewport.scrollTo', () => {
     }
   })
 
+  test('reports the offsets from a container that cannot scroll', async () => {
+    const element = document.createElement('div')
+    element.id = 'grid:static'
+    Object.defineProperty(element, 'scrollTo', { value: undefined })
+    document.body.append(element)
+    try {
+      const message = await Effect.runPromise(
+        GridViewport.scrollTo('grid:static', { top: 7, left: 0 }).effect,
+      )
+      expect(message).toEqual(GridViewport.Message.Revealed({ top: 7, left: 0 }))
+    } finally {
+      element.remove()
+    }
+  })
+
   test('still reports the offsets when the container is gone', async () => {
     const message = await Effect.runPromise(
       GridViewport.scrollTo('missing', { top: 5, left: 0 }).effect,

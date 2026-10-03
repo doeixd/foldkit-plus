@@ -128,7 +128,10 @@ const scrollTo = (
   args: { viewportId, ...offsets },
   effect: Effect.sync(() => {
     const element = typeof document === 'undefined' ? null : document.getElementById(viewportId)
-    element?.scrollTo({ top: offsets.top, left: offsets.left })
+    // A DOM with no layout (jsdom, in a test) has no scrollTo and nothing to scroll.
+    if (element !== null && typeof element.scrollTo === 'function') {
+      element.scrollTo({ top: offsets.top, left: offsets.left })
+    }
     return Message.Revealed(offsets)
   }),
 })

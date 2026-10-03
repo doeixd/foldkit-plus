@@ -1,0 +1,59 @@
+{
+  "name": "foldkit-mixins-data-grid",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A foldkit-data-grid grid drawn as an accessible, virtualized WAI-ARIA grid through slots.",
+  "keywords": [
+    "foldkit",
+    "data-grid",
+    "mixins",
+    "accessibility",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/mixins-data-grid"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-data-grid#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-data-grid": "workspace:*",
+    "foldkit-mixins": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
+    "jsdom": "26.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

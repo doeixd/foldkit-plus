@@ -1,7 +1,8 @@
 # DataGrid design
 
-**Status:** Phases 0 to 2 built as `foldkit-data-grid` (private, `0.0.0`);
-Phase 3, the accessible view, is next. Proposed in
+**Status:** Phases 0 to 3 built as `foldkit-data-grid` and
+`foldkit-mixins-data-grid` (both private, `0.0.0`); Phase 4, column state, is
+next. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -144,6 +145,43 @@ Command) in `src/viewport.ts`. Where it departs from §9 and §21's Phase 2:
   Model has the new offsets before the scroll event confirms them. Wiring a
   focus change to a reveal is the composed grid's, in Phase 3.
 - **The benchmarks** are in [benchmarks.md](../benchmarks.md#foldkit-data-grid-100000-rows).
+
+## Phase 3 as built (2026-10-03)
+
+`DataGrid.make` in `foldkit-data-grid` (`src/grid.ts`), and
+`foldkit-mixins-data-grid`: `GridSlots`, `DataGridView`, `GridStyle`. Where
+it departs from §10, §13 and §21's Phase 3:
+
+- **Foldkit's HTML layer has no row or column ARIA builders.** §10 says it
+  does; `h` has `AriaActiveDescendant` and `AriaSelected` but no
+  `aria-rowcount`, `aria-rowindex`, `aria-colcount` or `aria-colindex`. The
+  view writes them with `h.Attribute`, and the slots declare `Attr` tokens
+  for them so attachments cannot write them twice.
+- **One Bundle for the grid.** `DataGrid.make({ id, columns })` joins
+  `GridFocus` and `GridViewport`; its `Moved` carries the reveal the view
+  worked out, and its update issues `GridViewport.scrollTo`. That is §19's
+  "DataGrid core" without `.with(...)`: selection and column state join it
+  when they exist.
+- **Divs with roles, not a `<table>`.** Sticky pinned cells, spacers and a
+  body the height of every row are layout a table fights, and a server
+  render of a table needs its `tbody` (AGENTS.md); the roles are the grid's
+  semantics.
+- **The Slots are fewer than §13's.** `root`, `header`, `headerRow`,
+  `headerCell`, `body`, `row`, `cell`, `placeholder` and `status`. `viewport`
+  is `root`, which is the scroll container; `headerLabel`, `sortIndicator`,
+  `resizeHandle`, `rowSelector`, `cellContent`, `cellEditor`,
+  `selectionOverlay` and `fillHandle` arrive with the phases that draw them.
+- **The geometry is protected.** A cell's `width`, `position`,
+  `insetInlineStart` and `boxSizing`, a row's `height`, and the root's
+  `overflow` are the view's; a Style that sets one is refused. Cells are
+  `border-box`, or a padded cell would be wider than the window assumed.
+  The root's `height` is the application's.
+- **Per-cell `mousedown`, not `Targets`.** A window is a few hundred cells,
+  and each handler is a Message value; delegation can replace it if a
+  profile asks.
+- **No loading or error state yet.** The view says "No rows." for an empty
+  grid and draws a placeholder for a row counted but not loaded; Remote's
+  loading and failure are Phase 7's to map.
 
 ---
 

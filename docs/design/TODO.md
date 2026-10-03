@@ -452,7 +452,7 @@ the steps land in the packages that own them.
 
 `foldkit-data-grid` and `foldkit-mixins-data-grid`, in the order of
 [data-grid-DESIGN.md](./data-grid-DESIGN.md) §21
-([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 to 2
+([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 to 3
 are built. Each phase lists its deliverables and acceptance there.
 
 - [x] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
@@ -472,10 +472,13 @@ are built. Each phase lists its deliverables and acceptance there.
   is outside the window lands here. Built 2026-10-03 as `VirtualGrid` and
   `GridViewport`, with its own Mount (`Virtual`'s reports only `scrollTop`);
   wiring focus to a reveal is Phase 3's.
-- [ ] **Phase 3, the accessible view:** Slots, the focus Behavior (keys on
+- [x] **Phase 3, the accessible view:** Slots, the focus Behavior (keys on
   the container, `aria-activedescendant`), `role="grid"` with virtualized
   `aria-rowindex`/`aria-colindex`, an unknown row count, `aria-sort`, loading,
-  empty and error states, a default Recipe.
+  empty and error states, a default Recipe. Built 2026-10-03 as
+  `foldkit-mixins-data-grid`, with the empty state and a placeholder for rows
+  not loaded; `aria-sort` and the loading and error states move to Phase 7,
+  where the sort and Remote's states they show come from.
 - [ ] **Phase 4, `ColumnState`:** widths with `Move`, visibility, order with
   `PointerDrag` and a keyboard equivalent, start/end pinning, and a saved
   layout decoded strictly.
@@ -484,8 +487,9 @@ are built. Each phase lists its deliverables and acceptance there.
 - [ ] **Phase 6, editing:** `Editing.bundle` and the `Editor` contract; a
   commit leaves the grid as the application's Message.
 - [ ] **Phase 7, CRUD and Remote:** columns from an Entity Selection, a
-  `RowModel` over Remote pages, server sort through the query input,
-  load-more and an unknown count. Build the reference application here.
+  `RowModel` over Remote pages, server sort through the query input (with
+  `aria-sort` on the header), load-more and an unknown count, and the
+  view's loading and error states. Build the reference application here.
 - [ ] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
   bulk edits grouped as one transaction.
 - [ ] **The reference application:** a 100k-row product registry (§22).
