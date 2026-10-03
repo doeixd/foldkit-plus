@@ -415,7 +415,7 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
                 const values: Record<string, unknown> = Object.create(null)
                 for (const field of wanted) {
                   if (allowedSet.has(field) && Object.hasOwn(record.values, field)) {
-                    values[renames[field] ?? field] = record.values[field]
+                    values[renamed(renames, field)] = record.values[field]
                   }
                 }
                 const changed = Object.keys(values)
@@ -466,6 +466,13 @@ interface EntityGroup {
 /** A request, or the part of one that reads a relation under an alias. */
 type Part = Requirement & { readonly renames?: Readonly<Record<string, string>> }
 
+/**
+ * The name a field is answered under. A requested field is client input, so
+ * `constructor` must find no rename rather than `Object.prototype`'s.
+ */
+const renamed = (renames: Readonly<Record<string, string>>, field: string): string =>
+  Object.hasOwn(renames, field) ? renames[field]! : field
+
 const pickNames = <T>(
   record: Readonly<Record<string, T>> | undefined,
   names: ReadonlyArray<string>,
@@ -494,11 +501,14 @@ const splitAliases = (request: Requirement): ReadonlyArray<Part> => {
     relations: Record<string, RelationRequirement>
     renames: Record<string, string>
   }
+  // Keyed by requested field names, so a `__proto__` names an entry, not the prototype.
+  const keyed = <T>(entries?: Readonly<Record<string, T>>): Record<string, T> =>
+    Object.assign(Object.create(null) as Record<string, T>, entries)
   const first: Building = {
     fields: [...plain],
-    windows: { ...pickNames(request.windows, plain) },
-    relations: { ...pickNames(request.relations, plain) },
-    renames: {},
+    windows: keyed(pickNames(request.windows, plain)),
+    relations: keyed(pickNames(request.relations, plain)),
+    renames: keyed(),
   }
   const building: Building[] = [first]
   for (const alias of aliases) {
@@ -510,7 +520,7 @@ const splitAliases = (request: Requirement): ReadonlyArray<Part> => {
     // costs one read unless the list and a page of it are both wanted.
     let part = building.find(candidate => !candidate.fields.includes(field))
     if (part === undefined) {
-      part = { fields: [], windows: {}, relations: {}, renames: {} }
+      part = { fields: [], windows: keyed(), relations: keyed(), renames: keyed() }
       building.push(part)
     }
     part.fields.push(field)
@@ -558,10 +568,15 @@ const groupByEntity = (requests: ReadonlyArray<Requirement>): EntityGroup[] => {
   return [...grouped.values()]
 }
 
-/** A descriptor's name and, when it declares them, its fields. */
+/**
+ * A descriptor's name and, when it declares them, its readable members: an
+ * Entity's `members` (its fields, relations and derived members), or a plain
+ * descriptor's `fields`.
+ */
 interface EntityName {
   readonly name: string
   readonly fields?: Readonly<Record<string, unknown>> | undefined
+  readonly members?: Readonly<Record<string, unknown>> | undefined
 }
 
 /** One entity's rows in their wire shape: a relation is its ref key, `'User:u1'`. */
@@ -584,6 +599,11 @@ export interface MemoryStore {
 export interface MemoryBackend extends MemoryStore {
   /** A `RemoteClient` answering from the rows. Provide it where the real one would go. */
   readonly layer: Layer.Layer<RemoteClient>
+  /**
+   * The server the layer answers through, for serving the rows over a real
+   * transport: `RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined))`.
+   */
+  readonly server: ServerDefinition<undefined>
 }
 
 /** Where a cursor falls among ordered items: before `index`, or at it when `exact`. */
@@ -743,7 +763,9 @@ const memory = (config: {
                 if (row === undefined) return []
                 const values = Object.fromEntries(
                   fields.flatMap(field =>
-                    field in row ? [[field, valueFor(row[field], windows?.[field])] as const] : [],
+                    Object.hasOwn(row, field)
+                      ? [[field, valueFor(row[field], windows?.[field])] as const]
+                      : [],
                   ),
                 )
                 return [{ id, values }]
@@ -821,6 +843,7 @@ const memory = (config: {
   })
   return {
     ...store,
+    server,
     layer: Remote.clientLayer(
       RemoteServer.handlers(server, undefined),
     ) as Layer.Layer<RemoteClient>,
@@ -850,9 +873,10 @@ export const RemoteServer = {
   ): ConnectionChange => connectionChange(connection, ref, 'remove'),
 
   /**
-   * An entity source. Given the Entity (or anything with its `name` and
-   * `fields`), a request for a field the entity does not declare never
-   * reaches `read` or `authorize`.
+   * An entity source. Given the Entity, every member it declares (fields,
+   * relations, derived members) may be requested; given anything with a
+   * `name` and `fields`, those fields. A request for anything else never
+   * reaches `read` or `authorize`. Given only a `name`, every field passes.
    */
   entity: <P = unknown, R = never>(
     entity: EntityName,
@@ -862,7 +886,9 @@ export const RemoteServer = {
     },
   ): EntitySource<P, R> => ({
     entity: entity.name,
-    ...(entity.fields === undefined ? {} : { fields: new Set(Object.keys(entity.fields)) }),
+    ...((entity.members ?? entity.fields) === undefined
+      ? {}
+      : { fields: new Set(Object.keys(entity.members ?? entity.fields!)) }),
     read: options.read,
     ...(options.authorize === undefined ? {} : { authorize: options.authorize }),
   }),
@@ -1075,7 +1101,7 @@ export const RemoteServer = {
               id,
               [...asked]
                 .filter(field => !allowedSet.has(field))
-                .map(field => renames[field] ?? field),
+                .map(field => renamed(renames, field)),
             )
           }
           if (allowed.length === 0) continue
@@ -1105,15 +1131,15 @@ export const RemoteServer = {
             const asked = ids.get(record.id)
             for (const field of allowed) {
               if (Object.hasOwn(record.values, field))
-                values[renames[field] ?? field] = record.values[field]
-              else if (asked?.has(field) === true) omitted.push(renames[field] ?? field)
+                values[renamed(renames, field)] = record.values[field]
+              else if (asked?.has(field) === true) omitted.push(renamed(renames, field))
             }
             entities.push({ entity: name, id: record.id, values })
             settle(name, record.id, omitted)
 
             const key = `${name}:${record.id}`
             const known = fetched.get(key) ?? new Set<string>()
-            for (const field of allowed) known.add(renames[field] ?? field)
+            for (const field of allowed) known.add(renamed(renames, field))
             fetched.set(key, known)
             fetchedValues.set(key, { ...fetchedValues.get(key), ...values })
 

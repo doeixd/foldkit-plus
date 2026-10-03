@@ -5,6 +5,30 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- **`foldkit-remote-server`, `MemoryBackend.server`:** the server definition
+  a memory backend answers through, so it can be served over a real
+  transport, `RemoteRpc.toLayer(RemoteServer.handlers(backend.server,
+  undefined))`, instead of copying the backend's private read and query
+  closures (#140).
+
+### Fixed
+
+- **`foldkit-remote-server`, `RemoteServer.entity` with a related Entity:** it
+  declared only the Entity's scalar `fields`, so a relation such as `owner`
+  was settled as withheld and a nested selection through it returned nothing.
+  It declares the Entity's `members` now: fields, relations and derived
+  members (#135).
+- **`foldkit-remote-server`, requested fields named like `Object.prototype`
+  members:** a request for `constructor` or `toString` was answered from the
+  prototype by the memory source and renamed to it by the read path, so the
+  field was neither answered nor settled. Field presence is an own-property
+  check, renames are looked up the same way, and the alias maps have no
+  prototype, so `__proto__@first=1` is an alias like any other (#143).
+
 ## 0.13.0
 
 `foldkit-agent` 0.6.0; `foldkit-agent-a2a`, `foldkit-agent-mcp`,

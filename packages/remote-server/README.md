@@ -211,7 +211,12 @@ RemoteServer.entity(entity, {
 
 Important consequences:
 
-- a field the Entity does not declare never reaches `authorize` or `read`;
+- a field the Entity does not declare never reaches `authorize` or `read`.
+  Its fields, relations and derived members are all declared, so a relation
+  such as `owner` is read and followed like any field;
+- a requested field is client input, answered only when the source returns it
+  as its own: `constructor` or `__proto__` is settled, never read off
+  `Object.prototype`;
 - `authorize` can only remove requested fields, never add new ones;
 - a Source may return a partial entity — a requested field it omits is settled,
   so the client records it unavailable rather than asking again;
@@ -628,6 +633,14 @@ const backend = RemoteServer.memory({
 })
 
 backend.layer // provide it where the real RemoteClient would go
+```
+
+`backend.server` is the server definition the layer answers through. Serve
+it over a real transport to try a client against HTTP, or to test another
+server against it:
+
+```ts
+const served = RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined))
 ```
 
 - Rows are in their **wire shape**: a relation is its ref key (`'User:u1'`),
