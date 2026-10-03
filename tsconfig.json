@@ -52,6 +52,7 @@
     { "path": "./examples/tanstack" },
     { "path": "./examples/livestore" },
     { "path": "./examples/kitchen-sink" },
+    { "path": "./examples/data-grid" },
     { "path": "./examples/todo-app" },
     { "path": "./examples/richtext" },
     { "path": "./examples/form" },

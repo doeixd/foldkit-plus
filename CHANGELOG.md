@@ -91,6 +91,11 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **`examples/data-grid`, a 100,000-row product registry.** The UPC
+  pinned, descriptions and prices edited with validation, rows and ranges
+  selected, and copy and paste; the products are the application's, written
+  by `onOut` from the grid's `Edited` and `Pasted`. Tested in jsdom and, at
+  full size, in Chromium.
 - **Editing (Phase 6).** A column with `edit: { draft?, validate? }` is
   editable as text. The `DataGrid` Model holds the session (`editing`), with
   `EditStarted`, `EditChanged`, `EditCommitted` and `EditCancelled`; a commit

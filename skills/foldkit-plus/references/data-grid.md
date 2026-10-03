@@ -1,9 +1,10 @@
 # foldkit-data-grid and foldkit-mixins-data-grid
 
-**In development, not published.** Phases 0 to 3 of the DataGrid design are
-built: the pure model, focus, two-axis virtualization, and the accessible
-view in `foldkit-mixins-data-grid`. Selection, column state and editing are
-later phases.
+**In development, not published.** Phases 0 to 8 of the DataGrid design are
+built: the pure model, focus, two-axis virtualization, the accessible view in
+`foldkit-mixins-data-grid`, column state, selection, editing as text, Remote
+and CRUD rows, and the clipboard. Drag reordering, a column menu, typed
+editors and fill are not.
 
 ## What it owns
 
@@ -113,6 +114,7 @@ the whole wiring, compiled.
 - ARIA is logical: `aria-rowindex` and `aria-colindex` count every row and
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 
-See also: [the view's README](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-data-grid/README.md),
+See also: [the 100,000-row registry example](https://github.com/doeixd/foldkit-plus/blob/main/examples/data-grid),
+[the view's README](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-data-grid/README.md),
 [the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
 and [the DataGrid design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-grid-DESIGN.md).

@@ -5,11 +5,12 @@ where a move or a range lands. It is pure geometry over rows the application
 supplies, so focus, selection, virtualization and the clipboard all ask one
 value instead of reading positions from the DOM.
 
-> **Status:** private, `0.0.0`. Phases 0 to 3 of
-> [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the pure model,
-> focus, two-axis virtualization, and the grid's state as one Bundle. This
-> package draws nothing; [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md)
-> draws it. Selection, column state and editing come in later phases.
+> **Status:** private, `0.0.0`. Phases 0 to 8 of
+> [the DataGrid design](../../docs/design/data-grid-DESIGN.md), with the gaps
+> under [Limits](#limits). This package draws nothing;
+> [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md) draws it.
+> [`examples/data-grid`](../../examples/data-grid/README.md) is a 100,000-row
+> product registry built on both.
 
 ## Who owns what
 
@@ -406,6 +407,8 @@ twice keeps its first place.
 
 ## Limits
 
-- No selection or editing yet; both are later phases. The view is
-  [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md).
+- Not built: dragging a column to reorder it, a column menu to hide or pin
+  one, a Shift-click row range, more than one cell range, editors other than
+  text, a fill handle, and reading the next page as the viewport nears the
+  end (the view offers a More button instead).
 - Every row is one height.

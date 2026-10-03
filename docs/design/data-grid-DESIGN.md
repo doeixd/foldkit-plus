@@ -1,9 +1,9 @@
 # DataGrid design
 
-**Status:** Phases 0 to 3 built as `foldkit-data-grid` and
-`foldkit-mixins-data-grid` (both private, `0.0.0`), and Phase 4's column
-state and resize handles; drag reordering and the keyboard route to column
-operations are open. Proposed in
+**Status:** Phases 0 to 8 built as `foldkit-data-grid` and
+`foldkit-mixins-data-grid` (both private, `0.0.0`), each with the gaps its
+"as built" section names, and an in-memory reference application in
+`examples/data-grid`. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
 and checked against the code the same day. The plan below is the issue's,
 with its sketches brought in line with this repository's conventions; the
@@ -201,8 +201,24 @@ Where it departs from §18:
   grid holds none: Remote's `RemoteData` maps to it, and so can a store.
 - **Load-more is a button**, offered while the count is unknown; reading
   the next page as the viewport nears the end is not built.
-- **Not built:** the reference application of §22 (a 100,000-row registry
-  over Remote with local-first writes).
+- **Not built:** the reference application over Remote with local-first
+  writes; the in-memory registry is below.
+
+## The reference application as built so far (2026-10-03)
+
+`examples/data-grid`: 100,000 products in the application's Model, the UPC
+pinned, descriptions and prices editable with validation, multiple row
+selection and cell ranges, and copy and paste. `onOut` writes `Edited` and
+`Pasted` into the products; the grid writes none. A jsdom test drives an edit,
+a refused edit, a paste with a refused cell and select-all; a Chromium test
+scrolls to the last product and checks the pinned column at full size.
+
+- **In memory, not over Remote.** §22's registry reads its products through
+  Remote and writes them local-first. That needs a server for the products
+  and Sync for the writes; the grid's part of it, `GridCrud` over a Remote
+  page, is tested in the package.
+- **Not built from §22:** search and filter, saved column layout, custom
+  columns and bulk edits beyond a paste.
 
 ## Phase 8 as built so far (2026-10-03)
 

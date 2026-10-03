@@ -1,0 +1,24 @@
+{
+  "name": "foldkit-example-data-grid",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-data-grid": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-data-grid": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.0",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}
