@@ -98,7 +98,9 @@ version changed; `pnpm` skips versions already in the registry.
   Playwright. The registry's covers reading on scroll, a server sort, an
   edit read back from the table and kept across a reload, and the column
   menu. The todo app's covers a todo reaching a second person's page without
-  a reload, written to the journal, and kept across one.
+  a reload, written to the journal, and kept across one. The CMS's covers a
+  writer's draft that the site does not show, and an editor's publish that
+  it does.
 - **Messages carry intent: the guide, and `Frames.hold` to test it.**
   `docs/state-model.md` says why a Message should carry what the user did
   and `update` work out what it means, with the cases that were bugs.
@@ -227,6 +229,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/cms` starts its studio again.** Since the studio's sections
+  share one runtime, the entry drew it into a new element in place of `#app`
+  that had no id, which the runtime refuses before drawing, so `pnpm dev` and
+  the sandbox build showed a blank studio. The element takes `#app`'s id.
 - **`examples/todo-app` adds what was typed, and keeps edits from a second
   browser.** The composer sent `RequestedTodo({ title: model.draft })`, the
   draft of the frame last drawn, so Enter pressed before the next frame

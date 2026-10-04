@@ -565,7 +565,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
-  an empty element and hides the actual initialization failure.
+  an empty element and hides the actual initialization failure. The CMS studio
+  drew into a `div` its entry made in place of `#app`, with no id, and
+  `pnpm dev` showed a blank page for a week: every test mounts its own
+  container. Only an e2e test runs the real entry.
 
 - **Probe, do not assume, what a library type means.** `Schema.Struct({})` is
   not an empty-object schema: it accepts `{foo:1}`, `[]` and `"str"` even with

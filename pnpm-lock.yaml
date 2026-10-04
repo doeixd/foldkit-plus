@@ -178,6 +178,9 @@ importers:
       foldkit:
         specifier: 0.165.0
         version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      playwright:
+        specifier: ^1.63.0
+        version: 1.63.0
       typescript:
         specifier: 5.9.3
         version: 5.9.3

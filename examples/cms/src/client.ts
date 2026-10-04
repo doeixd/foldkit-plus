@@ -74,6 +74,8 @@ if (path.startsWith('/site')) {
   // The studio's two sections share one document and one runtime: moving
   // between them swaps no application, so nothing reloads and nothing refetches.
   const host = document.createElement('div')
+  // The runtime refuses a container without an id, and fails before drawing.
+  host.id = container.id
   container.replaceWith(host)
   Runtime.run(
     Runtime.makeApplication<Studio.Model, Studio.Message, RemoteClient>({
