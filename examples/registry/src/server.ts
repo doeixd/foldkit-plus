@@ -20,6 +20,7 @@ const products = sqliteTable('products', {
   line: text('line').notNull(),
   status: text('status').notNull(),
   cents: integer('cents').notNull(),
+  revision: integer('revision').notNull(),
 })
 
 export const Db = bind(Registry, { Product: { table: products } })
@@ -60,9 +61,10 @@ export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`create table products (
     id text primary key, upc text not null, description text not null,
-    line text not null, status text not null, cents integer not null
+    line text not null, status text not null, cents integer not null,
+    revision integer not null
   )`)
-  const insert = sqlite.prepare('insert into products values (?, ?, ?, ?, ?, ?)')
+  const insert = sqlite.prepare('insert into products values (?, ?, ?, ?, ?, ?, 0)')
   sqlite.exec('begin')
   for (let index = 0; index < count; index += 1) {
     const { id, upc, description, line, status, cents } = seedOf(index)
@@ -71,13 +73,26 @@ export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}
   sqlite.exec('commit')
   const db = drizzle({ client: sqlite })
 
-  // A committed edit, applied: the journal calls this once per change, in
-  // the order it committed them. A field a change does not hold is left.
-  const setDescription = sqlite.prepare('update products set description = ? where id = ?')
-  const setCents = sqlite.prepare('update products set cents = ? where id = ?')
-  const apply = (change: ProductChange) => {
-    if (Option.isSome(change.description)) setDescription.run(change.description.value, change.id)
-    if (Option.isSome(change.cents)) setCents.run(change.cents.value, change.id)
+  // A committed edit, applied, with the sequence it committed at: the journal
+  // calls this once per change, in the order it committed them. Only the
+  // journal writes the table. The write and the revision are one statement,
+  // and it never moves a row back, so recovery may run it again (the effect
+  // ledger and this table are separate databases): an older edit run after a
+  // newer one changes nothing. `<=`, not `<`, so a second change to the same
+  // product in one operation is applied too. A field a change does not hold
+  // is left.
+  const write = sqlite.prepare(
+    `update products set description = coalesce(?, description), cents = coalesce(?, cents),
+      revision = ? where id = ? and revision <= ?`,
+  )
+  const apply = (change: ProductChange, at: number) => {
+    write.run(
+      Option.getOrNull(change.description),
+      Option.getOrNull(change.cents),
+      at,
+      change.id,
+      at,
+    )
   }
 
   return {

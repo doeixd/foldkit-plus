@@ -7,15 +7,16 @@
  *
  * - the journal owns the edits: `edits` is the replicated slice, changed only
  *   by the durable `EditedProducts`, and the server orders and keeps them;
- * - the server owns the products, the seed with every committed edit applied,
- *   and Remote caches what it has read of them;
+ * - the table is the journal's read model: the seed with each committed edit
+ *   applied, each row carrying the `revision` it has read the journal to, and
+ *   Remote caches what it has read of it;
  * - the grid owns focus, selection, column state and the viewport;
  * - this application owns the order the list is read in.
  *
- * A row is drawn as Remote read it with this replica's edits over it, pending
- * ones included. So an edit shows at once, survives a reload while offline,
- * and an edit from another device shows when the exchange brings it, before
- * Remote reads the row again.
+ * A row is drawn as Remote read it with the edits it has not absorbed over
+ * it: those still pending, and those committed after its revision. So an edit
+ * shows at once, survives a reload while offline, shows while the table has
+ * not written it, and gives way to the table once a read of the row has it.
  */
 import { Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
@@ -84,6 +85,27 @@ export const Grid = DataGrid.make({
   cellSelection: true,
 })
 
+/**
+ * An edited field: its value, and the journal sequence its edit committed at,
+ * none while it is pending. Stored and sent, so `null` on the wire.
+ */
+const DescriptionEdit = Schema.Struct({
+  value: Product.fields.description.schema,
+  at: Schema.OptionFromNullOr(Schema.Number),
+})
+const CentsEdit = Schema.Struct({
+  value: Product.fields.cents.schema,
+  at: Schema.OptionFromNullOr(Schema.Number),
+})
+
+/** One product's edited fields, the latest per field. */
+export const ProductEdit = Schema.Struct({
+  id: ProductId,
+  description: Schema.OptionFromNullOr(DescriptionEdit),
+  cents: Schema.OptionFromNullOr(CentsEdit),
+})
+export type ProductEdit = typeof ProductEdit.Type
+
 /** Where this replica's edits stand with the server, as its status last said. */
 const Exchange = Schema.Struct({
   /** Edits this device made that the server has not taken yet. */
@@ -98,9 +120,10 @@ const Base = Bundle.compose({
   sort: ProductSort.Schema,
   /**
    * Every product edited, with the fields edited, last write winning per
-   * field. The replicated slice: the journal's, not this device's.
+   * field, and when each committed. The replicated slice: the journal's, not
+   * this device's.
    */
-  edits: Schema.Array(ProductChange),
+  edits: Schema.Array(ProductEdit),
   exchange: Exchange,
 }).pipe(
   Bundle.withMessages({
@@ -109,8 +132,16 @@ const Base = Bundle.compose({
     SortedProducts: { column: Schema.Literals(ProductSort.columns) },
     RequestedMoreProducts: {},
     RetriedProducts: {},
-    /** The durable fact: products' fields were edited. Replayed, so state only. */
-    EditedProducts: { changes: Schema.Array(ProductChange) },
+    /**
+     * The durable fact: products' fields were edited. Replayed, so state only.
+     * `at` is the journal's: absent on what this device sends, and stamped
+     * with the sequence it committed at (`sync.ts`). Messages cross ports and
+     * the journal as they are, so it is a plain optional key, not an `Option`.
+     */
+    EditedProducts: {
+      changes: Schema.Array(ProductChange),
+      at: Schema.optionalKey(Schema.Number),
+    },
     /** The replica's status, for the status line; local, not replicated. */
     ExchangeChanged: Exchange.fields,
   }),
@@ -152,24 +183,26 @@ const changeOf = (cell: Cell): ProductChange => {
   })
 }
 
-/** The edits with `changes` laid over them: a field a change holds wins. */
+/** The edits with `changes` laid over them, each field it holds as committed `at`, or pending. */
 const merged = (
-  edits: ReadonlyArray<ProductChange>,
+  edits: ReadonlyArray<ProductEdit>,
   changes: ReadonlyArray<ProductChange>,
-): ReadonlyArray<ProductChange> => {
+  at: Option.Option<number>,
+): ReadonlyArray<ProductEdit> => {
   const byId = new Map(edits.map(edit => [edit.id, edit]))
   for (const change of changes) {
     const before = byId.get(change.id)
-    byId.set(
-      change.id,
-      before === undefined
-        ? change
-        : {
-            id: change.id,
-            description: Option.orElse(change.description, () => before.description),
-            cents: Option.orElse(change.cents, () => before.cents),
-          },
-    )
+    byId.set(change.id, {
+      id: change.id,
+      description: Option.orElse(
+        Option.map(change.description, value => ({ value, at })),
+        () => Option.flatMap(Option.fromUndefinedOr(before), edit => edit.description),
+      ),
+      cents: Option.orElse(
+        Option.map(change.cents, value => ({ value, at })),
+        () => Option.flatMap(Option.fromUndefinedOr(before), edit => edit.cents),
+      ),
+    })
   }
   return [...byId.values()]
 }
@@ -208,8 +241,10 @@ export const update = placements.update((model: Model, message: Message) =>
       }),
       // A failed read is not asked for again on its own; this is the asking.
       RetriedProducts: () => ({ model: Products.refresh(model) }),
-      EditedProducts: ({ changes }) => ({
-        model: modifyFields(model, { edits: edits => merged(edits, changes) }),
+      EditedProducts: ({ changes, at }) => ({
+        model: modifyFields(model, {
+          edits: edits => merged(edits, changes, Option.fromUndefinedOr(at)),
+        }),
       }),
       ExchangeChanged: ({ pending, error }) => ({
         model: modifyFields(model, { exchange: () => ({ pending, error }) }),
@@ -231,6 +266,21 @@ export const initial = (): Model =>
 export const App = Made.runnable({ initial: initial(), update })
 
 /**
+ * A field's edit, if the row has not absorbed it: pending, or committed after
+ * the revision the table had when Remote read the row.
+ */
+const unabsorbed = <A>(
+  field: Option.Option<{ readonly value: A; readonly at: Option.Option<number> }>,
+  revision: number,
+): Option.Option<A> =>
+  Option.flatMap(field, edit =>
+    Option.match(edit.at, {
+      onNone: () => Option.some(edit.value),
+      onSome: at => (at > revision ? Option.some(edit.value) : Option.none()),
+    }),
+  )
+
+/**
  * The rows Remote read, with the edits over them: each row as it is read, so
  * a page of thousands is not copied when one product changes, and the same
  * rows while neither the page nor the edits do.
@@ -246,8 +296,11 @@ export const rowsOf = (model: Model): RowModel<Row> =>
           onNone: () => row,
           onSome: edit => ({
             ...row,
-            description: Option.getOrElse(edit.description, () => row.description),
-            cents: Option.getOrElse(edit.cents, () => row.cents),
+            description: Option.getOrElse(
+              unabsorbed(edit.description, row.revision),
+              () => row.description,
+            ),
+            cents: Option.getOrElse(unabsorbed(edit.cents, row.revision), () => row.cents),
           }),
         })
     },

@@ -98,10 +98,17 @@ test('a commit wakes another replica’s exchange loop, which brings it the edit
     writing.synchronize.pipe(Effect.provide(Sync.transport.socket({ url: server.syncUrl }))),
   )
   await expect
-    .poll(() => Effect.runSync(watching.shared).edits.map(edit => [edit.id, edit.cents]), {
-      timeout: 5_000,
-    })
-    .toContainEqual([productId(9), Option.some(42)])
+    .poll(
+      () =>
+        Effect.runSync(watching.shared).edits.map(edit => [
+          edit.id,
+          Option.map(edit.cents, field => field.value),
+          // It arrived committed: the journal stamped the sequence it committed at.
+          Option.isSome(Option.flatMap(edit.cents, field => field.at)),
+        ]),
+      { timeout: 5_000 },
+    )
+    .toContainEqual([productId(9), Option.some(42), true])
   await Effect.runPromise(Fiber.interrupt(loop))
   await Effect.runPromise(watching.close)
   await Effect.runPromise(writing.close)

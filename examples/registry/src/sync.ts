@@ -16,16 +16,23 @@ import {
   type Replica,
   type Sync as SyncContract,
 } from 'foldkit-sync'
-import { App, Message, type Model, placements } from './app.js'
-import type { ProductChange } from './domain.js'
+import { App, Message, type Model, type ProductEdit, placements } from './app.js'
 import { view } from './view.js'
 
-export type Shared = { readonly edits: ReadonlyArray<ProductChange> }
+export type Shared = { readonly edits: ReadonlyArray<ProductEdit> }
 
 const definition = Sync.forApplication(App).make({
-  documentId: DocumentId.make('registry-edits'),
+  // Versioned with the shape of `edits`: a replica stored under the last one
+  // does not decode as this one, so it is a document of its own.
+  documentId: DocumentId.make('registry-edits-2'),
   shared: Projection.pick(App.model.edits),
   durable: MessageSet.make(App, [Message.EditedProducts]),
+  // The journal writes in the sequence each edit committed at, which the
+  // table's revision is compared with to know which edits a row holds.
+  stamp: {
+    EditedProducts: ({ changes }, { sequence }) =>
+      Message.EditedProducts({ changes, at: sequence }),
+  },
 })
 
 /**

@@ -252,6 +252,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/registry`: a committed edit no longer hides the table for good.**
+  Every edit a device knew of was laid over every row Remote read, with
+  nothing to say when the table had it, so a row changed afterwards by any
+  other commit kept showing the old edit. The table is the journal's read
+  model: each row carries the `revision` it has read the journal to, written
+  with the change in one statement that never moves a row back; the journal
+  stamps each edit with the sequence it committed at; and a row shows an edit
+  only while it is pending or committed after the row's revision. A table
+  write that throws now fails its recovery intent and is retried on the next
+  exchange, where it died before; an operation that says when it committed
+  is refused. The document is `registry-edits-2`, since `edits` changed
+  shape, so a replica stored under the old one is not opened (#159).
 - **`examples/cms` starts its studio again.** Since the studio's sections
   share one runtime, the entry drew it into a new element in place of `#app`
   that had no id, which the runtime refuses before drawing, so `pnpm dev` and

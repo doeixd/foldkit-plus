@@ -28,7 +28,7 @@ sessionStorage.setItem(replicaKey, replicaId)
 const storageScope = Effect.runSync(Scope.make())
 const storage = await Effect.runPromise(
   Effect.provideService(
-    Sync.indexedDb(`foldkit-registry/edits/${replicaId}`),
+    Sync.indexedDb(`foldkit-registry/${RegistrySync.documentId}/${replicaId}`),
     Scope.Scope,
     storageScope,
   ),

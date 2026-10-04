@@ -75,3 +75,27 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
   expect(taken).toMatchObject({ acknowledged: [operation!.opId] })
   expect(backend.row(productId(1))).toMatchObject({ cents: 5 })
 })
+
+test('the table only moves forward, so recovery may write an edit again', () => {
+  const backend = openServer({ count: 10 })
+  const price = (cents: number) => ({
+    id: ProductId.make(productId(1)),
+    description: Option.none(),
+    cents: Option.some(cents),
+  })
+  backend.apply(price(500), 5)
+  // An older edit run again after a newer one, as recovery may: nothing changes.
+  backend.apply(price(300), 3)
+  expect(backend.row(productId(1))).toMatchObject({ cents: 500, revision: 5 })
+  // A second change to the product in the same operation is written too.
+  backend.apply(
+    { id: ProductId.make(productId(1)), description: Option.some('Renamed'), cents: Option.none() },
+    5,
+  )
+  expect(backend.row(productId(1))).toMatchObject({
+    description: 'Renamed',
+    cents: 500,
+    revision: 5,
+  })
+  expect(backend.row(productId(2))).toMatchObject({ cents: seedOf(2).cents, revision: 0 })
+})

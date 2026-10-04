@@ -10,7 +10,8 @@
  * - an edit made while the server cannot be reached stays on the device, through
  *   a remount over the same storage, and goes once the server is back;
  * - an edit another device made shows here after an exchange, before Remote
- *   reads the row again.
+ *   reads the row again;
+ * - a committed edit shows until a read of the row has it, by its revision.
  */
 import { Effect, Layer, Option } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
@@ -43,10 +44,14 @@ const memoryStorage = (): Storage => {
   }
 }
 
-/** The server, its journal, and a transport to it that can be cut. */
+/** The server, its journal, and a transport to it that can be cut, over a table that can fail. */
 const serve = () => {
   const backend = openServer({ count })
-  const journal = openJournal(backend.apply)
+  let writable = true
+  const journal = openJournal((change, at) => {
+    if (!writable) throw new Error('the table cannot be written')
+    backend.apply(change, at)
+  })
   let online = true
   const transport: TransportClient = {
     exchange: (cursor, pending, epoch) =>
@@ -58,6 +63,7 @@ const serve = () => {
     backend,
     journal,
     setOnline: (value: boolean) => (online = value),
+    setWritable: (value: boolean) => (writable = value),
     resources: Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
       Layer.provide(backend.layer),
     ),
@@ -289,4 +295,76 @@ test('a price is drawn from this device’s edit, not from what Remote last read
   } finally {
     await dispose()
   }
+})
+
+test('a committed edit shows until the table has it, then the table shows, whoever wrote it next', async () => {
+  const server = serve()
+  const { dispose, exchange, mounted } = await mount(server, memoryStorage())
+  const reread = () => mounted.dispatch(Message.RetriedProducts())
+  try {
+    await vi.waitFor(() => expect(cell(productId(7), 'cents')?.textContent).toBe(priceOf(7)))
+    await edit(productId(7), 'cents', '3.00')
+    await vi.waitFor(() => expect(cell(productId(7), 'cents')?.textContent).toBe('3.00'))
+
+    // Committed while the table cannot be written: the journal has it, the
+    // table does not, and a read of the row still says the seed's price.
+    server.setWritable(false)
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(7))).toMatchObject({ cents: seedOf(7).cents, revision: 0 })
+    reread()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(cell(productId(7), 'cents')?.textContent).toBe('3.00')
+
+    // The next exchange writes it, at the sequence it committed at.
+    server.setWritable(true)
+    await exchange()
+    expect(server.backend.row(productId(7))).toMatchObject({ cents: 300, revision: 1 })
+
+    // A later change this page has not exchanged for: once Remote reads the
+    // row at that revision, the table shows, not this device's older edit.
+    const importer = await Effect.runPromise(
+      RegistrySync.openReplica(ReplicaId.make('importer'), memoryStorage()),
+    )
+    await Effect.runPromise(
+      importer.submit(
+        Message.EditedProducts({
+          changes: [
+            {
+              id: ProductId.make(productId(7)),
+              description: Option.none(),
+              cents: Option.some(999),
+            },
+          ],
+        }),
+      ),
+    )
+    await Effect.runPromise(importer.synchronize.pipe(Effect.provide(server.transport)))
+    expect(server.backend.row(productId(7))).toMatchObject({ cents: 999, revision: 2 })
+    expect(cell(productId(7), 'cents')?.textContent).toBe('3.00')
+    reread()
+    await vi.waitFor(() => expect(cell(productId(7), 'cents')?.textContent).toBe('9.99'))
+  } finally {
+    await dispose()
+  }
+})
+
+test('an edit that says when it committed is refused, and the table keeps its price', async () => {
+  const server = serve()
+  const forger = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make('forger'), memoryStorage()),
+  )
+  await Effect.runPromise(
+    forger.submit(
+      Message.EditedProducts({
+        changes: [
+          { id: ProductId.make(productId(8)), description: Option.none(), cents: Option.some(1) },
+        ],
+        at: 1_000_000,
+      }),
+    ),
+  )
+  await Effect.runPromise(forger.synchronize.pipe(Effect.provide(server.transport)))
+  expect((await Effect.runPromise(forger.status)).rejected).toHaveLength(1)
+  expect(server.backend.row(productId(8))).toMatchObject({ cents: seedOf(8).cents, revision: 0 })
 })

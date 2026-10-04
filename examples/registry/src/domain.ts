@@ -24,10 +24,16 @@ export const Product = Entity.define(
     line: Schema.String.annotate({ title: 'Line' }),
     status: Status.annotate({ title: 'Status' }),
     cents: Cents.annotate({ title: 'Price' }),
+    /**
+     * The journal sequence of the last edit the table applied to this product,
+     * 0 for the seed: how far the table has read the journal, for this row.
+     */
+    revision: Schema.Int.annotate({ title: 'Revision' }),
   }),
 ).pipe(
   Entity.annotateMembers({
     id: Display.of(Display.hidden()),
+    revision: Display.of(Display.hidden()),
     cents: Display.of(Display.number(cents => (cents / 100).toFixed(2))),
   }),
 )
@@ -42,6 +48,7 @@ export const ProductRow = Entity.select(Product, {
   line: true,
   status: true,
   cents: true,
+  revision: true,
 })
 
 /**

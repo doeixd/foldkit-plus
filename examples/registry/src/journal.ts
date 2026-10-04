@@ -37,7 +37,7 @@ export interface EditJournal {
 const decodeMessage = Schema.decodeUnknownSync(Message)
 
 /** The journal, applying each committed change through `apply`. */
-export const openJournal = (apply: (change: ProductChange) => void): EditJournal => {
+export const openJournal = (apply: (change: ProductChange, at: number) => void): EditJournal => {
   const scope = Effect.runSync(Scope.make())
   const journal = Effect.runSync(
     Journal.make<Operation, Shared, Principal>({
@@ -50,6 +50,14 @@ export const openJournal = (apply: (change: ProductChange) => void): EditJournal
       validate: ({ operation, cursor }) => {
         if (operation.baseCursor > cursor)
           throw new Error('Operation cursor is ahead of the server')
+        // When an edit committed is the journal's to say: one that says so
+        // itself claims a commit it did not get, and its sender would show it
+        // as committed.
+        const claimsCommit = Match.value(decodeMessage(operation.message)).pipe(
+          Match.tag('EditedProducts', ({ at }) => at !== undefined),
+          Match.orElse(() => false),
+        )
+        if (claimsCommit) throw new Error('An edit cannot say when it committed')
       },
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )
@@ -59,10 +67,17 @@ export const openJournal = (apply: (change: ProductChange) => void): EditJournal
   let applied = Cursor.make(0)
   const intents = (operation: Operation) =>
     Match.value(decodeMessage(operation.message)).pipe(
-      Match.tag('EditedProducts', ({ changes }) =>
+      Match.tag('EditedProducts', ({ changes, at }) =>
         changes.map((change, index) => ({
           key: `${operation.opId}:${index}`,
-          run: Effect.sync(() => apply(change)),
+          // The stamp gave every committed edit its sequence; one without is
+          // not this journal's, and fails rather than writing revision 0.
+          run:
+            at === undefined
+              ? Effect.fail(new Error(`Edit ${operation.opId} committed without its sequence`))
+              : // A write that throws fails the intent rather than dying, so
+                // recovery stops there and the next exchange tries it again.
+                Effect.try(() => apply(change, at)),
         })),
       ),
       Match.orElse(() => []),

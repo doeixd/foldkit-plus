@@ -12,37 +12,57 @@ once the rows are a server's and the edits must survive going offline.
 ## Who owns what
 
 ```text
-the journal owns the edits          foldkit-durable, ordered by the server (journal.ts)
-the server owns the products        SQLite: the seed with every committed edit applied (server.ts)
-Remote caches what has been read    a page at a time (app.ts: Data, Products)
-the grid owns the interaction       focus, selection, columns, viewport, the open editor
-the application owns the order      the query's input
+the journal owns the edits           foldkit-durable, ordered by the server (journal.ts)
+the table is the journal's read model SQLite: the seed with each committed edit applied, and
+                                     on each row the revision it has read the journal to (server.ts)
+Remote caches the read model         a page at a time (app.ts: Data, Products)
+the grid owns the interaction        focus, selection, columns, viewport, the open editor
+the application owns the order       the query's input
 ```
 
 The edits are a Sync document: its replicated slice is `edits`, every product
 edited with the fields edited, and its one durable Message is
-`EditedProducts`. The table is derived from the journal, not a second owner:
-the journal applies each committed edit to it, once, through its effect
-recovery (`recover`, keyed by operation and change). Each exchange settles
-what is committed, so a change whose write failed is tried again on the next
-one; the cursor only passes an operation once all its changes are written.
+`EditedProducts`. The journal stamps each edit with the sequence it committed
+at (`stamp` in `sync.ts`), so every replica knows when each field's edit
+committed.
 
-A row is drawn as Remote read it with this replica's `edits` over it, pending
-ones included (`rowsOf`). So:
+The table is not a second owner. Only the journal writes it: through its effect
+recovery (`recover`, keyed by operation and change), each committed change is
+written with its sequence as the row's `revision`, in one statement that never
+moves a row back. Each exchange settles what is committed, so a change whose
+write failed is tried again on the next one, and the cursor only passes an
+operation once all its changes are written. Any other change to the products
+would be an operation the server appends, never a write to the table.
+
+So a row knows how far it has read the journal, and the page draws each row as
+Remote read it with the edits it has not absorbed over it (`rowsOf`):
 
 ```text
-an edit                    shows at once, before any exchange
-an edit made offline       stays in the replica's storage, through a reload, and goes when the server is back
-another device's edit      shows when the exchange brings it, before Remote reads the row again
+row on screen = the table's row + the edits it has not absorbed
+an edit shows ⇔ it is pending, or it committed after the row's revision
 ```
+
+```text
+an edit                       shows at once, before any exchange
+an edit made offline          stays in the replica's storage, through a reload, and goes when the server is back
+committed, not yet written    shows: the journal has it, and the row's revision is older
+written, the row not re-read  shows: the cached row's revision is still older
+the row read again            the table shows, with the edit in it, or whatever the journal wrote since
+another device's edit         shows when the exchange brings it, before Remote reads the row again
+```
+
+The `revision` column is hidden; a column's menu shows it, to watch a row catch
+up with the journal.
 
 ## An edit, end to end
 
 ```text
 cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: edits merged
   -> replica persists the operation (IndexedDB) -> the cell shows it
-  -> exchange: the journal commits it, applies it to the table, and wakes other replicas
+  -> exchange: the journal commits it, stamped with its sequence, writes it to
+     the table with that revision, and wakes other replicas
   -> their exchange brings it into their edits
+  -> a read of the row at that revision shows the table's row, and the edit gives way
 ```
 
 Each editable column's `schema` decides what its text means: `Dollars` reads
@@ -72,8 +92,17 @@ negative or fractional number of cents is refused whatever a client sent.
   which would hold every edit behind it.
 - **Two devices edit the same field.** The journal's order decides: the edit
   committed last wins, on every replica. There is no merge of text.
+- **The table's write fails.** The edit is committed and stays shown, since the
+  row's revision is older than it; recovery writes it on the next exchange.
+- **A client says when its edit committed.** That is the journal's to stamp, so
+  an operation carrying `at` is refused.
 - **The data is in memory.** A restart of the server resets the table and the
-  journal together.
+  journal together, which the revisions rely on: a table kept across a journal
+  reset would hold revisions from the old history, and would have to be rebuilt
+  from the seed and the new journal.
+- **An unabsorbed edit in a sorted list** shows its new value in a row the
+  server sorted by the old one, like a pending edit, until the page is read
+  again.
 
 ## Run it
 
@@ -95,12 +124,15 @@ pre-bundles the workspace packages.
    list's sort.
 3. [app.ts](src/app.ts): Remote over the Product, the list, the grid's
    columns from it (`GridCrud.columns`, with pinning, widths and editing
-   added), `EditedProducts` and the `edits` it folds into, and `rowsOf`, the
-   rows with the edits over them.
+   added), `EditedProducts` and the `edits` it folds into, each field with when
+   it committed, and `rowsOf`, the rows with the edits they have not absorbed
+   over them.
 4. [sync.ts](src/sync.ts): the Sync contract derived from the application,
-   and `mountRegistry`, which runs it over a replica.
-5. [server.ts](src/server.ts) and [journal.ts](src/journal.ts): the table and
-   its seed; the journal, its exchange, and the edits it applies.
+   with the stamp that writes each edit's sequence in, and `mountRegistry`,
+   which runs it over a replica.
+5. [server.ts](src/server.ts) and [journal.ts](src/journal.ts): the table, its
+   seed, and the forward-only write of a change with its revision; the journal,
+   its exchange, and the edits it applies.
 6. [view.ts](src/view.ts) and [client.ts](src/client.ts): the page, and the
    browser entry that opens the replica on IndexedDB and starts the exchange
    loop.
@@ -115,10 +147,14 @@ pre-bundles the workspace packages.
   - an edit made offline is kept through a remount over the same storage, and
     sent when the server is back;
   - another device's edit shows after an exchange;
-  - each field's last edit wins on a row edited twice.
+  - each field's last edit wins on a row edited twice;
+  - a committed edit shows while the table cannot be written, is written on
+    the next exchange, and gives way to the table once the row is read at a
+    later revision, whoever wrote it;
+  - an edit that says when it committed is refused.
 - `test/journal.test.ts`: the journal refuses an operation a client
   tampered with, and one naming another document, and writes nothing for
-  either.
+  either; the table only moves forward, so recovery may write an edit again.
 - `test/http.test.ts`: over real HTTP and a real WebSocket to the full
   100,000-row seed; an edit sent over the socket is read back through Remote,
   a commit wakes another replica's exchange loop, and a request naming an
