@@ -100,7 +100,13 @@ version changed; `pnpm` skips versions already in the registry.
   menu. The todo app's covers a todo reaching a second person's page without
   a reload, written to the journal, and kept across one. The CMS's covers a
   writer's draft that the site does not show, and an editor's publish that
-  it does.
+  it does. The entity example's covers a title saved from the form, read
+  back from the table and kept across a reload; the pages example's, two
+  tabs typing into one page, read back by a browser with nothing stored.
+  `examples/pages` gains `startPagesServer` (run by `serverMain.ts`) and a
+  Vite config: the page connects to `/sync` on its own origin, proxied to
+  the server, and the workspace packages resolve to their source, so it no
+  longer needs `pnpm build`.
 - **Messages carry intent: the guide, and `Frames.hold` to test it.**
   `docs/state-model.md` says why a Message should carry what the user did
   and `update` work out what it means, with the cases that were bugs.

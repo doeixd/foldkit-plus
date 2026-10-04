@@ -46,7 +46,9 @@ const mounted = mountPages(session, replica, {
 const transport = Context.get(
   await Effect.runPromise(
     Layer.buildWithScope(
-      Sync.transport.socket({ url: `ws://127.0.0.1:8787/?tab=${encodeURIComponent(tab)}` }),
+      Sync.transport.socket({
+        url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/sync?tab=${encodeURIComponent(tab)}`,
+      }),
       scope,
     ),
   ),

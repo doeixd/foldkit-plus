@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "server": "tsx src/server.ts",
+    "server": "tsx src/serverMain.ts",
     "demo": "tsx src/demo.ts",
     "typecheck": "tsc -b"
   },
@@ -24,6 +24,7 @@
     "@effect/platform-browser": "4.0.0",
     "@types/ws": "^8.5.12",
     "jsdom": "26.1.0",
+    "playwright": "^1.63.0",
     "typescript": "5.9.3",
     "vite": "5.4.21"
   }

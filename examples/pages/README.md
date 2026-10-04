@@ -70,12 +70,14 @@ Alice starts a page and both people edit it without seeing each other; Bob reach
 server first. It prints each replica's page as Markdown before and after they exchange,
 and asserts that both replicas and the server agree.
 
-The browser app needs the packages built (`pnpm build`) and two processes:
+The browser app needs two processes:
 
 ```bash
 pnpm --filter foldkit-example-pages run server   # the journal, on ws://127.0.0.1:8787
 pnpm --filter foldkit-example-pages dev      # the page, on http://127.0.0.1:5173
 ```
+
+The page connects to `/sync` on its own origin, and Vite proxies it to the server.
 
 Open the page in two windows (or one private) and edit one page from both. Stop the
 server and keep typing: the edits stay in the tab's IndexedDB outbox, through a reload,
@@ -88,10 +90,12 @@ and reach the other window once the server is back.
 - `src/contract.ts`: the Sync contract and the mount.
 - `src/journal.ts`: the server's Durable journal and the exchange a transport calls.
 - `src/view.ts`: the page list, title, toolbar, editor, and a Markdown preview.
-- `src/demo.ts`, `src/browser.ts`, `src/server.ts`: the trace, the browser entry, the
-  sync server.
+- `src/demo.ts`, `src/browser.ts`, `src/server.ts`, `src/serverMain.ts`: the trace, the
+  browser entry, the sync server, and the script that runs it on the journal's file.
 - `test/pages.test.ts`: one tab mounted, another replica headless, meeting in the
   journal.
+- `e2e/pages.e2e.ts`: the server and Vite started, and two Chromium tabs editing one
+  page, read back by a third with nothing stored (`pnpm e2e`).
 
 ## Limits
 
