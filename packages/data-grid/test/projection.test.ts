@@ -1,6 +1,14 @@
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import { describe, expect, test } from 'vitest'
-import { type CellAddress, ColumnLayout, Columns, RowCount, RowModel } from 'foldkit-data-grid'
+import {
+  type CellAddress,
+  CellEditor,
+  ColumnLayout,
+  Columns,
+  DataGrid,
+  RowCount,
+  RowModel,
+} from 'foldkit-data-grid'
 import {
   type Id,
   type Product,
@@ -414,5 +422,36 @@ describe('GridProjection.box', () => {
     },
   ])('$name', ({ anchor, focus, box }) => {
     expect(moving.box(anchor, focus)).toEqual(box)
+  })
+})
+
+describe('a column’s editor', () => {
+  const Line = Schema.Literals(['Hardware', 'Garden'])
+  const Price = Schema.NumberFromString
+  const edited = Columns.define<Product>()({
+    sku: { header: 'SKU', value: product => product.sku },
+    name: { header: 'Name', value: product => product.name, edit: {} },
+    line: { header: 'Line', value: () => 'Hardware', edit: { schema: Line } },
+    price: { header: 'Price', value: product => product.price, edit: { schema: Price } },
+    // A union with a member that is not a text literal is not a choice.
+    either: {
+      header: 'Either',
+      value: () => '',
+      edit: { schema: Schema.Union([Schema.Literal('a'), Schema.String]) },
+    },
+  })
+  const Editing = DataGrid.make({ id: 'editors', columns: edited })
+
+  test.each<{ readonly column: keyof typeof edited.byId; readonly editor: CellEditor }>([
+    { column: 'name', editor: CellEditor.Text() },
+    { column: 'line', editor: CellEditor.Choice({ options: ['Hardware', 'Garden'] }) },
+    { column: 'price', editor: CellEditor.Number() },
+    { column: 'either', editor: CellEditor.Text() },
+  ])('$column is edited as its schema says', ({ column, editor }) => {
+    expect(Editing.editorFor(column)).toEqual(Option.some(editor))
+  })
+
+  test('a column that does not edit has no editor', () => {
+    expect(Editing.editorFor('sku')).toEqual(Option.none())
   })
 })

@@ -283,10 +283,20 @@ departs from §11:
   column, making columns generic over it; an OutMessage keeps the columns the
   application's data and hands the commit to the parent's `onOut`, the
   Bundle way. The cost is that every placement names an `onOut`.
-- **An edit is text.** `edit: { draft?, validate? }`: the grid keeps the
-  draft and asks `validate`; turning the text into a value is the
-  application's, as is writing it. `Editor.number`, a select and a date
-  editor are not built.
+- **An edit is text, and the column's schema says what it means.**
+  `edit: { draft?, schema? }`, the schema from the text typed to the value:
+  the grid commits a draft only when it decodes, the failure's message is
+  the cell's error, and `Grid.matchEdit` reads a reported cell's value back,
+  typed per column. The OutMessage stays text, which a parent can store or
+  send. Writing the value is the application's.
+- **The editor is read from the schema** (`CellEditor`, worked out once per
+  column): a text side that is a union of string literals is a `select` of
+  them, opened on the cell's value even by a typed key (a letter is no
+  option); a schema that decodes to a number is a text field with
+  `inputmode="decimal"`, not `type="number"`, which drops an invalid draft
+  instead of showing why it is refused; anything else is text. A date
+  editor is not built: Effect's date schemas are declarations, and reading
+  their text format from the AST would be a guess.
 - **A pointer leaving an edit commits it,** as a spreadsheet does; a refused
   draft keeps the edit and the click waits.
 

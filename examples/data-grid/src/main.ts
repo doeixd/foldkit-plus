@@ -50,7 +50,13 @@ export const columns = Columns.define<Product>()({
     edit: { schema: Description },
   },
   line: { header: 'Line', value: product => product.line, width: 130 },
-  status: { header: 'Status', value: product => product.status, width: 120 },
+  // One of the Product's own statuses: edited as a choice of them.
+  status: {
+    header: 'Status',
+    value: product => product.status,
+    width: 120,
+    edit: { schema: Product.fields.status },
+  },
   price: {
     header: 'Price',
     value: product => product.price.toFixed(2),
@@ -103,6 +109,7 @@ const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Produc
     next[index.value] = Grid.matchEdit(cell, {
       description: ({ value }) => ({ ...product, description: value }),
       price: ({ value }) => ({ ...product, price: value }),
+      status: ({ value }) => ({ ...product, status: value }),
     })
   }
   return next

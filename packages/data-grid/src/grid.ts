@@ -5,7 +5,14 @@ import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import { ColumnState } from './columnState.js'
-import type { Columns, ColumnSpec, EditValue, EditableId } from './columns.js'
+import {
+  type CellEditor,
+  type Columns,
+  type ColumnSpec,
+  type EditValue,
+  type EditableId,
+  editorOf,
+} from './columns.js'
 import { GridFocus } from './focus.js'
 import { GridProjection } from './projection.js'
 import type { RowModel } from './rows.js'
@@ -260,14 +267,20 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     return { model: focused }
   }
 
-  // Each editable column's decoder, made once: a draft is accepted when it decodes.
+  // Each editable column's decoder and editor, made once: a draft is accepted
+  // when it decodes, and drawn as its schema says.
   type Id = keyof Specs & string
   const decoders = new Map<string, (text: string) => Result.Result<unknown, Schema.SchemaError>>()
+  const editors = new Map<string, CellEditor>()
   for (const id of options.columns.ids) {
     const edit = options.columns.byId[id].edit
-    if (edit !== undefined)
-      decoders.set(id, Schema.decodeUnknownResult(edit.schema ?? Schema.String))
+    if (edit === undefined) continue
+    decoders.set(id, Schema.decodeUnknownResult(edit.schema ?? Schema.String))
+    editors.set(id, editorOf(edit.schema))
   }
+  /** How a column's cells are edited: as text, a number, or a choice; none when it does not edit. */
+  const editorFor = (column: Id): Option.Option<CellEditor> =>
+    Option.fromUndefinedOr(editors.get(column))
   /** Why a column refuses a text, or none when it takes it. */
   const errorOf = (column: Id, text: string): Option.Option<string> =>
     Option.flatMap(Option.fromUndefinedOr(decoders.get(column)), decode =>
@@ -763,6 +776,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   return {
     id: options.id,
     matchEdit,
+    editorFor,
     MenuItem,
     menuItems,
     columns: options.columns,

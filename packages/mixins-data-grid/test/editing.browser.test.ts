@@ -3,7 +3,7 @@
  * editor, typed text and Enter commit it to the application, and focus comes
  * back to the grid; Escape cancels a typed start.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'

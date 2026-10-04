@@ -5,7 +5,7 @@
  * range's corner and the application hears it as one `Pasted`; cut copies
  * and clears; while a cell is edited the field keeps the clipboard.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'

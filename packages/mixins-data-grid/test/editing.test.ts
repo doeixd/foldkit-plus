@@ -5,7 +5,7 @@
  * draft the column refuses stays with `aria-invalid`; the application hears
  * `Edited` through its `onOut`, and focus comes back to the grid.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'

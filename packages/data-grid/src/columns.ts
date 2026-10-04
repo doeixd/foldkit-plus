@@ -1,4 +1,5 @@
-import type { Schema } from 'effect'
+import { Schema, SchemaAST } from 'effect'
+import { defineTaggedUnion } from 'foldkit/schema'
 /** What a column shows and where it starts out. Its id is its key in `Columns.define`. */
 export interface ColumnSpec<Row, Value> {
   readonly header: string
@@ -36,6 +37,33 @@ export interface ColumnEdit<Row, Value = string> {
    * any text, as itself.
    */
   readonly schema?: Schema.Codec<Value, string>
+}
+
+/**
+ * How a cell's edit is drawn, read from its column's schema: a choice of the
+ * literals its text may be, a number typed, or text.
+ */
+export const CellEditor = defineTaggedUnion({
+  Text: {},
+  /** The schema decodes to a number: typed with a decimal keypad on touch. */
+  Number: {},
+  /** The schema's text is one of these, offered in order. */
+  Choice: { options: Schema.Array(Schema.String) },
+})
+export type CellEditor = typeof CellEditor.Type
+
+/** A column's editor, from its schema; a column with none edits text. */
+export const editorOf = (schema: Schema.Top | undefined): CellEditor => {
+  if (schema === undefined) return CellEditor.Text()
+  const encoded = SchemaAST.toEncoded(schema.ast)
+  if (SchemaAST.isUnion(encoded)) {
+    const options = encoded.types.flatMap(member =>
+      SchemaAST.isLiteral(member) && typeof member.literal === 'string' ? [member.literal] : [],
+    )
+    // Every member a text literal: anything else typed would be refused.
+    if (options.length === encoded.types.length) return CellEditor.Choice({ options })
+  }
+  return SchemaAST.isNumber(SchemaAST.toType(schema.ast)) ? CellEditor.Number() : CellEditor.Text()
 }
 
 /** The ids of the columns that edit. */

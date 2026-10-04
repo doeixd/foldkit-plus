@@ -107,6 +107,18 @@ export const GridSlots = Slots.define({
     events: [Event.Input, Event.KeyDown],
     protected: { events: [Event.Input, Event.KeyDown] },
   }),
+  /**
+   * The editor of a column whose schema's text is one of a few literals: a
+   * `select` of them, drawn in place of the cell's content while the edit
+   * lasts, like `editor`.
+   */
+  choice: Slot.make({
+    capability: Capability.Focusable,
+    events: [Event.Change, Event.KeyDown],
+    protected: { events: [Event.Change, Event.KeyDown] },
+  }),
+  /** One literal a `choice` offers. */
+  choiceOption: Slot.make({ capability: Capability.Base }),
   /** Said in place of rows when there are none: empty, loading, or failed. */
   status: Slot.make({ capability: Capability.Base }),
   /**

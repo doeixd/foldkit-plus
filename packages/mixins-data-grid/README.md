@@ -144,6 +144,11 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   from. On a header, Shift with an arrow resizes the column 16px, and Ctrl or
   Meta with Shift and an arrow moves it within its region; both are mirrored
   in right-to-left text.
+- **The editor follows the column's schema** (`Grid.editorFor`): a schema
+  whose text is one of a few literals (`Schema.Literals`) is a `select` of
+  them (the `choice` and `choiceOption` slots), opened on the cell's value
+  even by a typed key; one that decodes to a number is a text field with a
+  decimal keypad on touch; anything else is text (`editor`).
 - **Editing**, for a column with `edit`: Enter or F2 opens a text field in
   the focused cell on its text, and a printable key opens it on that
   character (`EditTyped`); keys typed before the field is drawn add to it,
@@ -206,8 +211,8 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   gesture.
 - A column menu opens below its header, inside the scroll container: a grid
   shorter than the menu clips it.
-- An edit is drawn as a text field whatever its column's schema decodes to:
-  there are no number, select or date editors yet.
+- There is no date editor: a column whose schema decodes to a date is
+  edited as text.
 - A copy's text is drawn with the grid, built once per range and rows, so
   copying a very large range costs its size each time the range changes.
 - No fill handle yet.

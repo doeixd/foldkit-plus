@@ -4,6 +4,7 @@ import * as Mount from 'foldkit/mount'
 import {
   addressableRows,
   type CellAddress,
+  CellEditor,
   type CellBox,
   Clipboard,
   Columns,
@@ -454,9 +455,18 @@ const view = <Message>() => ({
               if (key === 'Escape') return Option.some(grid.Message.EditCancelled())
               const typed =
                 key.length === 1 && !modifiers.ctrlKey && !modifiers.metaKey && !modifiers.altKey
-              return typed
-                ? Option.some(grid.Message.EditTyped({ address, text: key }))
-                : Option.none()
+              if (!typed) return Option.none()
+              // A choice opens on the cell's value: a letter is no option, and the
+              // select, once focused, finds one by what is typed.
+              const choice = Option.exists(
+                grid.editorFor(address.column),
+                CellEditor.match({ Text: () => false, Number: () => false, Choice: () => true }),
+              )
+              return Option.some(
+                choice
+                  ? grid.Message.EditStarted({ address, draft: draftOf(address) })
+                  : grid.Message.EditTyped({ address, text: key }),
+              )
             },
           )
         // The editor's own keys: Enter commits and moves down (Shift, up), Tab
@@ -482,6 +492,63 @@ const view = <Message>() => ({
           return Option.some(
             grid.Message.EditCommitted({ next, reveal: Option.flatMap(next, revealOf) }),
           )
+        }
+
+        // The field an edit is typed in, as the column's schema says: a select
+        // of its literals, a number with a decimal keypad, or text.
+        const editorOf = (
+          address: CellAddress<Id>,
+          edit: { readonly draft: string; readonly error: Option.Option<string> },
+        ): Html => {
+          const shared = [
+            // A new edit is a new field, so it is focused afresh.
+            h.Key(`edit:${address.row}:${address.column}`),
+            h.AriaLabel(grid.columns.byId[address.column].header),
+            h.AriaInvalid(Option.isSome(edit.error)),
+            ...Option.match(edit.error, {
+              onNone: () => [],
+              onSome: error => [h.AriaDescription(error)],
+            }),
+            h.OnKeyDownPreventDefault((pressed: string, modifiers: KeyboardModifiers) =>
+              Option.map(editorKey(address, pressed, modifiers), input.wrap),
+            ),
+            h.OnMount(HoldFocus()),
+            h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
+          ]
+          const changed = (draft: string) => input.wrap(grid.Message.EditChanged({ draft }))
+          const field = (mode: Option.Option<'decimal'>) =>
+            h.input(
+              slots.editor.attrs([
+                ...shared,
+                h.Type('text'),
+                h.Value(edit.draft),
+                ...Option.match(mode, {
+                  onNone: () => [],
+                  onSome: decimal => [h.InputMode(decimal)],
+                }),
+                h.OnInput(changed),
+              ]),
+            )
+          return Option.match(grid.editorFor(address.column), {
+            onNone: () => field(Option.none()),
+            onSome: CellEditor.match({
+              Text: () => field(Option.none()),
+              Number: () => field(Option.some('decimal')),
+              Choice: ({ options }) =>
+                h.select(
+                  slots.choice.attrs([...shared, h.OnChange(changed)]),
+                  options.map(option =>
+                    h.option(
+                      slots.choiceOption.attrs([
+                        h.Value(option),
+                        ...(option === edit.draft ? [h.Selected(true)] : []),
+                      ]),
+                      [option],
+                    ),
+                  ),
+                ),
+            }),
+          })
         }
 
         // The clipboard works on the range, or the focused cell when there is none.
@@ -911,28 +978,7 @@ const view = <Message>() => ({
                           onNone: () => [
                             input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
                           ],
-                          onSome: edit => [
-                            h.input(
-                              slots.editor.attrs([
-                                // A new edit is a new field, so it is focused afresh.
-                                h.Key(`edit:${key}:${id}`),
-                                h.Type('text'),
-                                h.Value(edit.draft),
-                                h.AriaLabel(grid.columns.byId[id].header),
-                                h.AriaInvalid(Option.isSome(edit.error)),
-                                ...Option.match(edit.error, {
-                                  onNone: () => [],
-                                  onSome: error => [h.AriaDescription(error)],
-                                }),
-                                h.OnInput(draft => input.wrap(grid.Message.EditChanged({ draft }))),
-                                h.OnKeyDownPreventDefault((pressed, modifiers) =>
-                                  Option.map(editorKey(address, pressed, modifiers), input.wrap),
-                                ),
-                                h.OnMount(HoldFocus()),
-                                h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
-                              ]),
-                            ),
-                          ],
+                          onSome: edit => [editorOf(address, edit)],
                         },
                       ),
                     )

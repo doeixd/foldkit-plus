@@ -88,7 +88,7 @@ test('the registry draws a window of 100,000 products, and edits and pastes reac
   press(editor()!, 'Escape')
   await vi.waitFor(() => expect(editor()).toBeNull())
 
-  // A paste from a spreadsheet: two descriptions and two prices, one refused.
+  // A paste from a spreadsheet: two descriptions, statuses and prices, one price refused.
   cell('p0', 'description')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   await vi.waitFor(() =>
     expect(grid().getAttribute('aria-activedescendant')).toBe(
@@ -98,15 +98,17 @@ test('the registry draws a window of 100,000 products, and edits and pastes reac
   const paste = new Event('paste', { bubbles: true, cancelable: true })
   Object.defineProperty(paste, 'clipboardData', {
     value: {
-      getData: () => 'Brass anchor\tLine A\tActive\t3.25\nSteel bolt\tLine B\tActive\tfree\n',
+      getData: () => 'Brass anchor\tLine A\tPending\t3.25\nSteel bolt\tLine B\tActive\tfree\n',
     },
   })
   grid().dispatchEvent(paste)
   await vi.waitFor(() => expect(latest?.products[0]?.description).toBe('Brass anchor'))
   expect(latest?.products[1]?.description).toBe('Steel bolt')
   expect(latest?.products[0]?.price).toBe(3.25)
+  // Status is a choice of the Product's statuses, and takes one.
+  expect(latest?.products[0]?.status).toBe('Pending')
   await vi.waitFor(() =>
-    expect(status()).toContain('Pasted 3 cells; refused 1: A price, like 4.99.'),
+    expect(status()).toContain('Pasted 5 cells; refused 1: A price, like 4.99.'),
   )
 
   // Ctrl+A selects every product, drawn or not.

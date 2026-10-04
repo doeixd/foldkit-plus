@@ -493,8 +493,8 @@ are built. Each phase lists its deliverables and acceptance there.
 - [x] **Phase 6, editing:** `Editing.bundle` and the `Editor` contract; a
   commit leaves the grid as the application's Message. Built 2026-10-03 as
   text editing in the `DataGrid` Bundle, the commit an `Edited` OutMessage
-  (the design's "Phase 6 as built"); typed editors (number, select, date)
-  are not built.
+  (the design's "Phase 6 as built"); typed editors from Schema (a choice,
+  a number) are built too, and a date editor is not.
 - [ ] **Phase 7, CRUD and Remote:** columns from an Entity Selection, a
   `RowModel` over Remote pages, server sort through the query input (with
   `aria-sort` on the header), load-more and an unknown count, and the

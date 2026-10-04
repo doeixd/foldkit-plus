@@ -99,7 +99,10 @@ version changed; `pnpm` skips versions already in the registry.
   reported cell's value back, one handler per editable column, each typed
   by its column's schema. `GridCrud.columns` keeps each member's options in
   its type, and `Columns` carries its specs type-only, so a grid infers a
-  column's schema exactly.
+  column's schema exactly. The editor is read from the schema
+  (`CellEditor`, `Grid.editorFor`): a union of string literals is a `select`
+  of them (new `choice` and `choiceOption` slots), a number a text field
+  with `inputmode="decimal"`, anything else text.
 - **`RowModel.map(rows, input, make)` (`foldkit-data-grid`).** Transforms
   each row as it is read, with the per-row function made from `input` once
   per `rows` and `input`, and the same model while both are. The registry's
