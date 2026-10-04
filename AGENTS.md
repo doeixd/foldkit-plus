@@ -552,6 +552,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
   `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
 
+- **A replica id names a store, not a person.** Sync operation ids are
+  `replicaId:localSequence`. todo-app named its replica by the sign-in token,
+  so a second browser for one person counted from 0 again and the journal
+  rejected every new operation as a reused id, with nothing shown. Mint the id
+  per tab (`sessionStorage`) and name the storage after it.
+
 - **A no-op must return the Model it was given.** Foldkit renders only when the root Model
   changes identity, and `Update.foldChild` writes the child back unconditionally, so a
   `{ ...model }` equal copy (or a placement that re-wrote an unchanged child) rendered the
