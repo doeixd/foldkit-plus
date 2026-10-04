@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-data-grid`: cell marks.** `marks: address =>
+  Option.some({ name, description })` gives a cell a state of the
+  application's: `data-mark` on its Slot, which the default style shows as a
+  dot in the corner and an application styles by name, and the description
+  as its `aria-description`. Asked only for the cells drawn (#161).
+
 - **`foldkit-durable`: a commit stamp.** `JournalOptions.stamp(operation,
   { sequence, actorId })` writes what the commit decided into the operation,
   after `validate` and `authorize` and before `reduce`. The stamped operation

@@ -4,7 +4,7 @@
  * descendant, a move off screen scrolls the window to the cell, a key the
  * grid leaves alone keeps its default, and pressing a cell focuses it.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -198,6 +198,59 @@ test('in right-to-left text the end edge is on the left, for the keys and the po
       new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
     )
     await vi.waitFor(() => expect(nameHandle().getAttribute('aria-valuenow')).toBe('140'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a mark moved to another cell leaves nothing on the cell it was on', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(120)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+  // The row marked, read as each render draws: the next render moves it.
+  let marked = 'r1'
+  const container = document.createElement('div')
+  container.id = 'grid-marks'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => application.initial({ grid: Grid.bundle.init(undefined).model }),
+      update: application.update(),
+      view: (model: Model, h: HtmlBuilder<Message>) =>
+        View(
+          {
+            state: model.grid,
+            rows,
+            wrap: message => Placement.wrapper.make(message),
+            label: 'Items',
+            rowHeight: 20,
+            headerHeight: 20,
+            marks: address =>
+              address.row === marked && address.column === 'name'
+                ? Option.some({ name: 'pending', description: 'Not yet sent' })
+                : Option.none(),
+          },
+          h,
+        ),
+    }),
+  )
+  const at = (row: string) => document.getElementById(cell(row, 'name'))!
+  try {
+    await vi.waitFor(() => expect(at('r1').getAttribute('data-mark')).toBe('pending'))
+    marked = 'r2'
+    // Any transition redraws: a key that moves the focus.
+    document
+      .getElementById('items')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    await vi.waitFor(() => expect(at('r2').getAttribute('data-mark')).toBe('pending'))
+    expect(at('r2').getAttribute('aria-description')).toBe('Not yet sent')
+    expect(at('r1').hasAttribute('data-mark')).toBe(false)
+    expect(at('r1').hasAttribute('aria-description')).toBe(false)
   } finally {
     handle.dispose()
   }

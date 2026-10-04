@@ -68,6 +68,12 @@ export const GridStyle = Style.forSlots(GridSlots)(
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: `calc(-1 * ${ref.border.thick})`,
       }),
+      // A marked cell gets a dot in its top end corner. A background image,
+      // after the pinned ground in the source, so a pinned cell keeps it, and
+      // no geometry; an application styles its own marks by name.
+      Style.nest('&[data-mark]', {
+        backgroundImage: `radial-gradient(circle at calc(100% - 6px) 6px, ${ref.outline.focus} 3px, transparent 3.5px)`,
+      }),
     ),
     menuButton: Style.compose(
       Style.self({

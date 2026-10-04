@@ -181,6 +181,13 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   closes it, focus going back to the grid unless the user sent it
   elsewhere. Its words are `menu`, `pinStart`, `pinEnd`, `unpin`, `hide`
   and `show` in `words`.
+- **Marks** are the application's states on single cells, such as an edit
+  not yet saved: `marks: address => Option.some({ name, description })`.
+  The name is drawn as `data-mark` on the cell's Slot, which the default
+  style gives a dot in the corner and an application styles by name
+  (`&[data-mark="refused"]` in its own `Style.forSlots(GridSlots)`), and the
+  description is the cell's `aria-description`, so a screen reader says what
+  the dot shows. It is asked only for the cells drawn.
 - **Sorting** is the application's: `sort` gives a column its direction and
   the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
   The header says `aria-sort`, and its label is a button the pointer sorts

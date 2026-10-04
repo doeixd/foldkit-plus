@@ -58,6 +58,16 @@ export interface ColumnSort<Message> {
 }
 
 /** What the grid's view reads, and what the application gives it. */
+/**
+ * A state the application gives one cell, such as an edit not yet saved. The
+ * grid draws its `name` as `data-mark` on the cell's Slot, for a style, and
+ * its `description` as the cell's `aria-description`, for a screen reader.
+ */
+export interface CellMark {
+  readonly name: string
+  readonly description: string
+}
+
 export interface GridInput<Row, Id extends string, GridMessage, Message> {
   /** The `DataGrid` Model as placed in the parent. */
   readonly state: {
@@ -95,6 +105,8 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   readonly direction?: Direction
   /** Draws one cell; by default the column's value, as text. */
   readonly cell?: (column: Id, row: Row, h: HtmlBuilder<Message>) => Html | string
+  /** A cell's mark, if it has one; asked only for the cells drawn. */
+  readonly marks?: (address: CellAddress<Id>) => Option.Option<CellMark>
   readonly words?: GridWords
   /**
    * Where the rows' source stands (`GridCrud.status` for a Remote page).
@@ -201,6 +213,8 @@ const view = <Message>() => ({
         const indexOf = new Map(projection.columns.map((id, index) => [id, index]))
         const startInsets = insets(shown.start, width)
         const endInsets = insets([...shown.end].reverse(), width)
+        const markOf = (address: CellAddress<Id>): Option.Option<CellMark> =>
+          input.marks === undefined ? Option.none() : input.marks(address)
         const pinned = (id: Id): Option.Option<'start' | 'end'> => {
           if (startInsets.has(id)) return Option.some('start')
           if (endInsets.has(id)) return Option.some('end')
@@ -967,6 +981,13 @@ const view = <Message>() => ({
                         ...Option.match(pinned(id), {
                           onNone: () => [],
                           onSome: edge => [h.DataAttribute('pinned', edge)],
+                        }),
+                        ...Option.match(markOf(address), {
+                          onNone: () => [],
+                          onSome: mark => [
+                            h.DataAttribute('mark', mark.name),
+                            h.AriaDescription(mark.description),
+                          ],
                         }),
                       ]),
                       Option.match(

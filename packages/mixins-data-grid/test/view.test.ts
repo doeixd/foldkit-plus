@@ -418,4 +418,28 @@ describe('DataGridView', () => {
     const [cell] = Inert.byRole(Inert.draw(Painted, input()), 'gridcell')
     expect(Inert.style(cell).color).toBe('teal')
   })
+
+  test('draws a cell’s mark on its Slot and as its description, and only on that cell', () => {
+    const asked: Array<CellAddress<Id>> = []
+    const drawn = draw(
+      input({
+        marks: address => {
+          asked.push(address)
+          return address.row === 'r1' && address.column === 'qty'
+            ? Option.some({ name: 'pending', description: 'Not yet sent' })
+            : Option.none()
+        },
+      }),
+    )
+    const cells = Inert.byRole(drawn, 'gridcell')
+    const marked = cells.filter(cell => Inert.value(cell, 'data-mark') !== undefined)
+    expect(marked.map(cell => Inert.value(cell, 'id'))).toEqual([
+      GridFocus.cellId('items', { row: 'r1', column: 'qty' }),
+    ])
+    expect(Inert.value(marked[0]!, 'data-mark')).toBe('pending')
+    expect(Inert.value(marked[0]!, 'aria-description')).toBe('Not yet sent')
+    // Asked only for what is drawn: the window's rows, not the fifty behind it.
+    expect(asked.length).toBe(cells.length)
+    expect(asked.every(address => Number(address.row.slice(1)) < 10)).toBe(true)
+  })
 })
