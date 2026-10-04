@@ -56,6 +56,8 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   value types are inferred. It throws for a numeric id and for `__proto__`.
 - `RowModel.fromArray` caches per array and key function; keep both stable
   across renders, or it re-indexes every time. It throws on a duplicate key.
+- `RowModel.map(rows, input, make)` lays per-row state over rows (pending
+  edits over a Remote page), cached by `rows` and `input`.
 - A `ColumnLayout` is ids only: start, center and end regions plus a hidden
   list. A saved layout that omits a column gets it appended to the center.
 - Column order, visibility, pinning and widths live in the `DataGrid` Model

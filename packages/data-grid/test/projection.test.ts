@@ -41,6 +41,63 @@ describe('RowModel.fromArray', () => {
   })
 })
 
+describe('RowModel.map', () => {
+  // Prices edited for one row, laid over the rows as they are read.
+  const repriced = (edits: ReadonlyMap<string, number>) => {
+    let made = 0
+    const make = (prices: ReadonlyMap<string, number>) => {
+      made += 1
+      return (product: Product): Product => ({
+        ...product,
+        price: prices.get(product.id) ?? product.price,
+      })
+    }
+    return { mapped: () => RowModel.map(rows, edits, make), made: () => made }
+  }
+
+  test('transforms a row as it is read, and keeps the keys, count and order', () => {
+    const { mapped } = repriced(new Map([['p:1', 50]]))
+    expect(Option.map(mapped().rowAt(1), product => product.price)).toEqual(Option.some(50))
+    expect(Option.map(mapped().rowAt(0), product => product.price)).toEqual(Option.some(2))
+    expect(mapped().count).toEqual(rows.count)
+    expect(mapped().keyAt(2)).toEqual(Option.some('p:100'))
+    expect(mapped().indexOf('p:1')).toEqual(Option.some(1))
+    expect(mapped().rowAt(3)).toEqual(Option.none())
+  })
+
+  test('is the same model for the same rows and input, made once', () => {
+    const edits = new Map([['p:1', 50]])
+    const { mapped, made } = repriced(edits)
+    expect(mapped()).toBe(mapped())
+    expect(made()).toBe(1)
+    // Another input is another model, built from it.
+    const other = repriced(new Map([['p:1', 60]]))
+    expect(other.mapped()).not.toBe(mapped())
+    expect(Option.map(other.mapped().rowAt(1), product => product.price)).toEqual(Option.some(60))
+  })
+
+  test('another row model is another map, for the same input', () => {
+    const edits = new Map([['p:1', 50]])
+    const make = (prices: ReadonlyMap<string, number>) => (product: Product) => ({
+      ...product,
+      price: prices.get(product.id) ?? product.price,
+    })
+    const reversed = RowModel.fromArray([...products].reverse(), productKey)
+    expect(RowModel.map(reversed, edits, make)).not.toBe(RowModel.map(rows, edits, make))
+    expect(RowModel.map(reversed, edits, make).keyAt(0)).toEqual(Option.some('p:100'))
+  })
+
+  test('transforms no row that is not read', () => {
+    let calls = 0
+    const counted = RowModel.map(rows, new Map<string, number>(), () => (product: Product) => {
+      calls += 1
+      return product
+    })
+    counted.rowAt(0)
+    expect(calls).toBe(1)
+  })
+})
+
 describe('Columns.define', () => {
   test('keeps definition order and gives each column its id', () => {
     expect(columns.ids).toEqual(['name', 'sku', 'price', 'notes'])

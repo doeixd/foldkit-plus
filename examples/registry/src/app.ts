@@ -21,7 +21,7 @@ import { Match, Option, Schema } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
-import { DataGrid, type RowModel } from 'foldkit-data-grid'
+import { DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
@@ -219,26 +219,18 @@ export const initial = (): Model =>
 /** The application as Sync replays it: its Model, Messages, initial value and update. */
 export const App = Surface.application({ Model, Message, initial: initial(), update })
 
-// One overlay per row model and edits, so the projection the grid builds from
-// it is kept across renders while neither changes.
-const overlays = new WeakMap<
-  RowModel<Row>,
-  { readonly edits: ReadonlyArray<ProductChange>; readonly rows: RowModel<Row> }
->()
-
 /**
- * The rows Remote read, with the edits over them. Read per row, so a page of
- * thousands is not copied when one product changes.
+ * The rows Remote read, with the edits over them: each row as it is read, so
+ * a page of thousands is not copied when one product changes, and the same
+ * rows while neither the page nor the edits do.
  */
-export const rowsOf = (model: Model): RowModel<Row> => {
-  const read = GridCrud.rows(Products.page(model), row => row.id)
-  const known = overlays.get(read)
-  if (known !== undefined && known.edits === model.edits) return known.rows
-  const byId = new Map(model.edits.map(edit => [edit.id, edit]))
-  const rows: RowModel<Row> = {
-    ...read,
-    rowAt: index =>
-      Option.map(read.rowAt(index), row =>
+export const rowsOf = (model: Model): RowModel<Row> =>
+  RowModel.map(
+    GridCrud.rows(Products.page(model), row => row.id),
+    model.edits,
+    edits => {
+      const byId = new Map(edits.map(edit => [edit.id, edit]))
+      return row =>
         Option.match(Option.fromUndefinedOr(byId.get(row.id)), {
           onNone: () => row,
           onSome: edit => ({
@@ -246,12 +238,9 @@ export const rowsOf = (model: Model): RowModel<Row> => {
             description: Option.getOrElse(edit.description, () => row.description),
             cents: Option.getOrElse(edit.cents, () => row.cents),
           }),
-        }),
-      ),
-  }
-  overlays.set(read, { edits: model.edits, rows })
-  return rows
-}
+        })
+    },
+  )
 
 /** Where the edits stand with the server, for the status line. */
 export const exchangeOf = (model: Model): string =>

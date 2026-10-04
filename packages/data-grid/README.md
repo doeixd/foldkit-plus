@@ -97,6 +97,11 @@ What each call does:
   keys once per array and key function, so keep both stable across renders,
   and it throws when two rows share a key. A paged or cursor source implements
   the `RowModel` interface itself.
+- **`RowModel.map(rows, input, make)`** transforms each row as it is read,
+  for local state laid over rows a server sent. `make` turns `input` (the
+  edits, say) into the per-row function once per `rows` and `input`, and the
+  result is the same model while both are, so the grid's projection is kept.
+  Keys, count and order are `rows`' own.
 - **`ColumnLayout.initial(columns)`** is the layout the columns declare. A
   layout is plain data, column ids only, so it can be saved.
 - **`GridProjection.make(...)`** combines the three. It performs no I/O and

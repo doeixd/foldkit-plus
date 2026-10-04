@@ -92,6 +92,10 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **`RowModel.map(rows, input, make)` (`foldkit-data-grid`).** Transforms
+  each row as it is read, with the per-row function made from `input` once
+  per `rows` and `input`, and the same model while both are. The registry's
+  edits over Remote's rows are one call.
 - **`examples/registry`, the registry over Remote and Sync.** 100,000
   products in SQLite behind a Drizzle `RemoteServer`, read a page at a time
   through a `Crud.list`, sorted on the server, loaded more on scroll. Edits

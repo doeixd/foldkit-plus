@@ -83,6 +83,13 @@ const makeArrayModel = <Row>(
   }
 }
 
+// One mapped model per row model and input, so a projection built from it is
+// kept across renders while neither changes.
+const mappedModels = new WeakMap<
+  RowModel<unknown>,
+  { readonly input: object; readonly model: RowModel<unknown> }
+>()
+
 export const RowModel = {
   /**
    * Rows held in memory, in the order given. Throws when two rows share a
@@ -93,6 +100,32 @@ export const RowModel = {
     if (cached !== undefined && cached.key === key) return cached.model as RowModel<Row>
     const model = makeArrayModel(rows, key)
     arrayModels.set(rows, { key, model })
+    return model
+  },
+
+  /**
+   * The rows with each one transformed as it is read: a local edit laid over
+   * a row a server sent, say. `make` turns `input` into the per-row function,
+   * once per `rows` and `input`, so a lookup it builds is built once; the
+   * result is the same model while both are, and a new one when either
+   * changes. Keys, count and order are `rows`' own, so `make`'s function must
+   * keep each row's key.
+   */
+  map: <Row, Mapped, Input extends object>(
+    rows: RowModel<Row>,
+    input: Input,
+    make: (input: Input) => (row: Row) => Mapped,
+  ): RowModel<Mapped> => {
+    const cached = mappedModels.get(rows)
+    if (cached !== undefined && cached.input === input) return cached.model as RowModel<Mapped>
+    const each = make(input)
+    const model: RowModel<Mapped> = {
+      count: rows.count,
+      rowAt: index => Option.map(rows.rowAt(index), each),
+      keyAt: index => rows.keyAt(index),
+      indexOf: key => rows.indexOf(key),
+    }
+    mappedModels.set(rows, { input, model })
     return model
   },
 }
