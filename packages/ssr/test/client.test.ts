@@ -39,7 +39,8 @@ describe('foldkit-ssr/client', () => {
     expect(client.filter(fromServer)).toEqual([])
     // The same walk sees the server where it is.
     expect(full.some(fromServer)).toBe(true)
-  })
+    // Two whole bundles: under 400ms alone, past the default 5s beside the full suite.
+  }, 60_000)
 
   it('names the root attribute Foldkit’s server stamps', () => {
     expect(FOLDKIT_APP_ATTRIBUTE).toBe(SERVER_APP_ATTRIBUTE)
