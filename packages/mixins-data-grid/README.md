@@ -146,7 +146,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   in right-to-left text.
 - **Editing**, for a column with `edit`: Enter or F2 opens a text field in
   the focused cell on its text, and a printable key opens it on that
-  character. In the field, Enter commits and moves down (Shift+Enter up), Tab
+  character (`EditTyped`); keys typed before the field is drawn add to it,
+  and Escape before then cancels it. In the field, Enter commits and moves down (Shift+Enter up), Tab
   commits and moves across (Shift+Tab back), and Escape cancels; the arrows
   are the field's own. A draft the column's `validate` refuses stays open
   with `aria-invalid` and the error as `aria-description`. Focus comes back

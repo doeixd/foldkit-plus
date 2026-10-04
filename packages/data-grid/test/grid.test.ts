@@ -648,6 +648,23 @@ const begun = edit(
 const typed = (draft: string) => edit(begun, Editing.Message.EditChanged({ draft })).model
 
 describe('DataGrid editing', () => {
+  test('a key typed on the grid starts an edit, or adds to the one open on that cell', () => {
+    const price = { row: 'p:1', column: 'price' } as const
+    const started = edit(blank, Editing.Message.EditTyped({ address: price, text: '4' })).model
+    expect(Option.map(started.editing, editing => editing.draft)).toEqual(Option.some('4'))
+    const more = edit(started, Editing.Message.EditTyped({ address: price, text: '2' })).model
+    expect(Option.map(more.editing, editing => editing.draft)).toEqual(Option.some('42'))
+    // On another cell it starts over there.
+    const name = { row: 'p:10', column: 'name' } as const
+    const elsewhere = edit(more, Editing.Message.EditTyped({ address: name, text: 'x' })).model
+    expect(elsewhere.editing).toEqual(
+      Option.some({ address: name, draft: 'x', error: Option.none() }),
+    )
+    // A column that does not edit takes nothing.
+    const sku = Editing.Message.EditTyped({ address: { row: 'p:1', column: 'sku' }, text: 'x' })
+    expect(edit(blank, sku).model).toBe(blank)
+  })
+
   test('an edit begins on an editable cell, focused, from its draft', () => {
     expect(begun.editing).toEqual(
       Option.some({

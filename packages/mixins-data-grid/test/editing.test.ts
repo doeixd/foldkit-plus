@@ -150,9 +150,11 @@ test('cells are edited by keyboard, and the application hears the text', async (
     expect(grid().getAttribute('aria-activedescendant')).toBe(cell('r1', 'name'))
     expect(document.activeElement).toBe(grid())
 
-    // A typed key starts the edit over with that character; Tab commits and moves on.
+    // A typed key starts the edit over with that character, and keys typed
+    // before the editor is drawn add to it; Tab commits and moves on.
     press(grid(), 'B')
-    await vi.waitFor(() => expect(editor()?.value).toBe('B'))
+    press(grid(), 'o')
+    await vi.waitFor(() => expect(editor()?.value).toBe('Bo'))
     type('Bolt')
     press(editor()!, 'Tab')
     await vi.waitFor(() => expect(latest.edits).toEqual(['r0.name=Anchor', 'r1.name=Bolt']))
@@ -172,6 +174,13 @@ test('cells are edited by keyboard, and the application hears the text', async (
     // Escape cancels, reporting nothing, and hands focus back.
     press(editor()!, 'Escape')
     await vi.waitFor(() => expect(editor()).toBeNull())
+    expect(latest.edits).toHaveLength(2)
+
+    // Escape on the grid, before a typed edit's editor is drawn, cancels it too.
+    press(grid(), '7')
+    press(grid(), 'Escape')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(editor()).toBeNull()
     expect(latest.edits).toHaveLength(2)
     expect(document.activeElement).toBe(grid())
   } finally {

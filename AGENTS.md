@@ -822,6 +822,13 @@ of its own named a form field "fits the Catalog". Read words with
   longer restored the text, a commit made an empty undo step, and a second
   ask restarted the session. For state held across transitions, test each
   transition that can land in the middle.
+- **Keys faster than a frame meet the last frame's view.** Typing on the grid
+  opened an editor, but keys sent before it was drawn and focused reached
+  the grid, whose drawn state still said "not editing", so each restarted the
+  edit: "Dowel" became "l". A browser test caught it only some runs. When a
+  key opens something that takes the keys after it, make the Message carry
+  enough for `update` to continue what is open (`EditTyped` adds to an open
+  draft), since the view's own state may be a frame old.
 - **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
   and a `keydown` sent to an element leave focus where it was, so a jsdom test
   of the Builder kept focus in the layers through a crumb click and a key on

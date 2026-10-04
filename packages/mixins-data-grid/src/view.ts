@@ -449,10 +449,13 @@ const view = <Message>() => ({
               if ((key === 'Enter' || key === 'F2') && plainKey(modifiers)) {
                 return Option.some(grid.Message.EditStarted({ address, draft: draftOf(address) }))
               }
+              // Keys that reach the grid while an edit opens, before its editor
+              // has focus, are the edit's: typed ones add to it, Escape ends it.
+              if (key === 'Escape') return Option.some(grid.Message.EditCancelled())
               const typed =
                 key.length === 1 && !modifiers.ctrlKey && !modifiers.metaKey && !modifiers.altKey
               return typed
-                ? Option.some(grid.Message.EditStarted({ address, draft: key }))
+                ? Option.some(grid.Message.EditTyped({ address, text: key }))
                 : Option.none()
             },
           )

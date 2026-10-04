@@ -345,8 +345,10 @@ departs from §12:
   what `ColumnHidden` does (now also clearing that header's focus and its
   menu). The menu is drawn in the header cell, takes focus (the editor's
   `HoldFocus`, renamed) and uses `aria-activedescendant`, the grid's own
-  model; `OnFocusLeave` closes it, so no document listener or DismissLayer
-  is needed. Its ids have four parts, never a cell's three or a header's
+  model; `OnFocusLeave` on its header closes it, so no document listener or
+  DismissLayer is needed. On the header, not the menu: a press on the
+  menu's own button moves focus there first, and with the leave on the menu
+  that closed it and the click, drawn a frame later, opened it again. Its ids have four parts, never a cell's three or a header's
   two.
 - **Still to build:** a drag across regions to pin; the menu pins.
 

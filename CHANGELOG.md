@@ -91,6 +91,11 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **Fast typing on a grid keeps every key (`foldkit-data-grid`).** A key
+  typed on the grid itself is now `EditTyped({ address, text })`: it starts
+  the edit, or adds to the one open on that cell. Typing "Dowel" faster than
+  a frame used to restart the edit on each key that reached the grid before
+  its editor took focus, leaving "l"; Escape in that gap now cancels.
 - **A column menu (`foldkit-mixins-data-grid`).** `columnMenu: true` puts a
   menu button on each header (`menuButton`) opening a `role="menu"`
   (`menu`, `menuItem`) of `Grid.menuItems`; Alt+ArrowDown, Shift+F10 or the

@@ -160,6 +160,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     CellsCleared: {},
     /** An edit began on an editable cell, with the text it starts from. */
     EditStarted: { address: focus.Address, draft: Schema.String },
+    /**
+     * A key typed on the grid itself, over an editable cell: it starts an
+     * edit with the text, or, when that cell's edit is already open (the
+     * keys came faster than the editor took focus), adds to its draft.
+     */
+    EditTyped: { address: focus.Address, text: Schema.String },
     EditChanged: { draft: Schema.String },
     /**
      * The draft is to be kept. When the column accepts it the edit ends, focus
@@ -599,6 +605,18 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
                   editing: () => Option.some({ address, draft, error: Option.none() }),
                 }),
               },
+        EditTyped: ({ address, text }): Return => {
+          if (options.columns.byId[address.column].edit === undefined) return { model }
+          const draft = Option.match(
+            Option.filter(model.editing, editing => sameCell(editing.address, address)),
+            { onNone: () => text, onSome: editing => editing.draft + text },
+          )
+          return {
+            model: modifyFields(clearCells(focusTo(model, address)), {
+              editing: () => Option.some({ address, draft, error: Option.none() }),
+            }),
+          }
+        },
         EditChanged: ({ draft }): Return => ({
           model: Option.match(model.editing, {
             onNone: () => model,
