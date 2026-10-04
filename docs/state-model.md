@@ -157,9 +157,12 @@ the Model as it is then:
 | an edit started on the key typed (`EditStarted({ draft: key })`) | the key (`EditTyped({ text })`) | starts the edit, or adds to the one open on that cell |
 | the place a dragged column lands, worked out as the pointer moved | the pointer's offset, and the release (`ColumnDragEnded`) | works out the drop from the columns as they are at release |
 | the menu item under the keyboard, as drawn | its index (`MenuChosen({ index })`) | reads the item from the menu as it stands |
+| the draft a form submits, as drawn (`RequestedTodo({ title: model.draft })`) | the submit (`DraftSubmitted()`) | reads `model.draft` |
 
 Each of the first rows was a bug before it was a rule. Typing "Dowel" faster
-than the editor opened left "l": each key restarted the edit. Two clicks on a
+than the editor opened left "l": each key restarted the edit. The todo app
+added nothing when Enter came within a frame of the typing: the form sent the
+draft it was drawn with, still empty. Two clicks on a
 sort header inside one frame both sent "ascending". A drop worked out while
 the pointer moved would land by widths a resize had since changed.
 

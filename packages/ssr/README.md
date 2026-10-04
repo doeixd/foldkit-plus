@@ -661,6 +661,13 @@ rh.form(
 )
 ```
 
+The Message carries the title because a post without scripts fills it: the
+server starts from `init`, whose draft is empty. With scripts on, it is the
+Message as drawn, so a submit within a frame of the typing sends the text
+drawn before it ([`docs/state-model.md`](../../docs/state-model.md#messages-carry-intent-not-results-worked-out-from-the-last-frame)).
+A form that need not work without scripts sends `Added()` and reads
+`model.draft` in `update` instead.
+
 With scripts on, nothing changes: the page answers the submit and the form
 never posts. Without them, the server wrote the form to post the Message to the
 page's own URL, and `SSR.entry` hands that post to `SSR.handle`:
