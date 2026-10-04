@@ -506,9 +506,14 @@ are built. Each phase lists its deliverables and acceptance there.
   bulk edits grouped as one transaction. Copy, cut and paste are built
   (2026-10-03), a paste reported as one `Out.Pasted`; fill is not.
 - [ ] **The reference application:** a 100k-row product registry (§22).
-  Built in memory as `examples/data-grid`, and over Remote as
-  `examples/registry` with optimistic writes (2026-10-03); local-first
-  writes through Sync, search and saved layouts are not.
+  Built in memory as `examples/data-grid`, and over Remote with local-first
+  edits through Sync as `examples/registry` (2026-10-03); search and saved
+  layouts are not.
+- [ ] **`examples/todo-app`'s exchange throws on an operation it cannot
+  decode,** as the registry's did: the replica sends it again on every
+  exchange and the edits behind it never go. Reject it by its id
+  (`examples/registry/src/journal.ts` does), or give `foldkit-sync` a server
+  exchange that both examples use.
 
 ## UI platform
 

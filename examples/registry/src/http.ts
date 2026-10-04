@@ -1,19 +1,43 @@
 /**
- * The server behind one HTTP endpoint: the same `RemoteServer` handlers the
- * in-process demo calls, reached by `transport.ts`. Authentication would choose
- * the principal here; this example has none.
+ * The server on one port: Remote's reads at `/remote`, reached by
+ * `transport.ts`, and the edits' journal at `/sync`, a WebSocket the replica
+ * exchanges over. Authentication would choose the principal here; this
+ * example has none.
  */
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Effect } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
+import { Sequence, Sync, type SocketLike } from 'foldkit-sync'
+import { type WebSocket, WebSocketServer } from 'ws'
+import { openJournal } from './journal.js'
 import { openServer } from './server.js'
 import type { Operation } from './transport.js'
 
+/** Adapts one `ws` socket to the transport's minimal socket. */
+const socketLike = (socket: WebSocket): SocketLike => ({
+  send: data => socket.send(data),
+  close: () => socket.close(),
+  onMessage: listener => {
+    const handler = (data: unknown): void => listener(String(data))
+    socket.on('message', handler)
+    return () => socket.off('message', handler)
+  },
+  onClose: listener => {
+    socket.on('close', listener)
+    return () => socket.off('close', listener)
+  },
+})
+
 export const startHttpServer = async (
   port: number,
-): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
+): Promise<{
+  readonly url: string
+  readonly syncUrl: string
+  readonly close: () => Promise<void>
+}> => {
   const backend = openServer()
+  const journal = openJournal(backend.apply)
   const handlers = RemoteServer.handlers(backend.server, null)
   const run: Readonly<
     Record<Operation, (payload: never) => Effect.Effect<unknown, { readonly message: string }>>
@@ -59,13 +83,27 @@ export const startHttpServer = async (
     })
   })
 
+  // Each socket exchanges with the journal, and is woken when another commits.
+  const sockets = new WebSocketServer({ server, path: '/sync' })
+  sockets.on('connection', socket => {
+    const stop = Sync.transport.serve(socketLike(socket), {
+      exchange: (cursor, pending) => journal.transport.exchange(Sequence.make(cursor), pending),
+      changes: journal.changes,
+    })
+    socket.on('close', stop)
+  })
+
   await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve))
   const { port: bound } = server.address() as AddressInfo
   return {
     url: `http://127.0.0.1:${bound}/remote`,
+    syncUrl: `ws://127.0.0.1:${bound}/sync`,
     close: () =>
       new Promise<void>(resolve => {
+        for (const socket of sockets.clients) socket.terminate()
+        sockets.close()
         server.close(() => {
+          journal.close()
           backend.close()
           resolve()
         })

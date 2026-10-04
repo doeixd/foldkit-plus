@@ -1,14 +1,18 @@
 /**
- * The transport the browser uses, over real HTTP to the server seeded with all
- * 100,000 products: the first page is read and an edit is written, and a
- * request naming no operation the server has is refused.
+ * The transports the browser uses, over real HTTP and a real WebSocket to the
+ * server seeded with all 100,000 products: the first page is read, an edit
+ * sent over the socket is committed by the journal and read back through
+ * Remote, and a request naming no operation the server has is refused.
  */
-import { Effect, Option } from 'effect'
-import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Effect, Fiber, Option } from 'effect'
+import { Remote } from 'foldkit-remote'
+import { ReplicaId, Sync, type Storage } from 'foldkit-sync'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { Data, Grid, Message, Products, initial, update } from '../src/app.js'
+import { Data, Message, Products, initial } from '../src/app.js'
+import { ProductId } from '../src/domain.js'
 import { startHttpServer } from '../src/http.js'
 import { productId, seedOf } from '../src/server.js'
+import { RegistrySync } from '../src/sync.js'
 import { httpClient } from '../src/transport.js'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
@@ -17,40 +21,91 @@ beforeAll(async () => {
 }, 60_000)
 afterAll(() => server.close())
 
-const run = <A, E>(effect: Effect.Effect<A, E, RemoteClient>) =>
-  Effect.runPromise(effect.pipe(Effect.provide(Remote.clientLayer(httpClient(server.url)))))
-
-test('reads the first page and writes an edit over HTTP', async () => {
-  const listed = await run(
-    Data.prefetch(initial(), Option.getOrThrow(Products.active.projectionOf(initial()))),
+/** The first page, read over HTTP afresh. */
+const read = () =>
+  Effect.runPromise(
+    Data.prefetch(initial(), Option.getOrThrow(Products.active.projectionOf(initial()))).pipe(
+      Effect.provide(Remote.clientLayer(httpClient(server.url))),
+    ),
   )
-  const page = Products.page(listed)
+
+const memoryStorage = (): Storage => {
+  let stored: unknown
+  return {
+    load: () => Effect.sync(() => stored),
+    save: next => Effect.sync(() => (stored = structuredClone(next))),
+    close: Effect.void,
+  }
+}
+
+test('reads the first page over HTTP', async () => {
+  const page = Products.page(await read())
   expect(page._tag === 'Ready' && page.value.items.length).toBe(100)
   expect(page._tag === 'Ready' && page.value.hasNext).toBe(true)
+})
 
-  // The grid's own OutMessage, as an edit committed in a cell would send it.
-  const edited = update(
-    listed,
-    Message.GotGridMessage({
-      message: Grid.Message.EditStarted({
-        address: { row: productId(7), column: 'description' },
-        draft: 'Over HTTP',
-      }),
-    }),
-  ).model
-  const committed = update(
-    edited,
-    Message.GotGridMessage({
-      message: Grid.Message.EditCommitted({ next: Option.none(), reveal: Option.none() }),
-    }),
+test('an edit sent over the socket is committed and read back through Remote', async () => {
+  const replica = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make('http-test'), memoryStorage()),
   )
-  const settled = await run(committed.commands![0]!.effect)
-  const saved = update(committed.model, settled).model
-  const after = Products.page(saved)
+  await Effect.runPromise(
+    replica.submit(
+      Message.EditedProducts({
+        changes: [
+          {
+            id: ProductId.make(productId(7)),
+            description: Option.some('Over the socket'),
+            cents: Option.none(),
+          },
+        ],
+      }),
+    ),
+  )
+  await Effect.runPromise(
+    replica.synchronize.pipe(Effect.provide(Sync.transport.socket({ url: server.syncUrl }))),
+  )
+  expect(Effect.runSync(replica.status).pending).toBe(0)
+
+  const page = Products.page(await read())
   expect(
-    after._tag === 'Ready' && after.value.items.find(row => row.id === productId(7))?.description,
-  ).toBe('Over HTTP')
-  expect(seedOf(7).description).not.toBe('Over HTTP')
+    page._tag === 'Ready' && page.value.items.find(row => row.id === productId(7))?.description,
+  ).toBe('Over the socket')
+  expect(seedOf(7).description).not.toBe('Over the socket')
+  await Effect.runPromise(replica.close)
+})
+
+test('a commit wakes another replica’s exchange loop, which brings it the edit', async () => {
+  const watching = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make('watching'), memoryStorage()),
+  )
+  // The loop exchanges once, then waits: for its own submit, or the server's notice.
+  const loop = Effect.runFork(
+    watching.start.pipe(Effect.provide(Sync.transport.socket({ url: server.syncUrl }))),
+  )
+  const writing = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make('writing'), memoryStorage()),
+  )
+  await new Promise(resolve => setTimeout(resolve, 200))
+  await Effect.runPromise(
+    writing.submit(
+      Message.EditedProducts({
+        changes: [
+          { id: ProductId.make(productId(9)), description: Option.none(), cents: Option.some(42) },
+        ],
+      }),
+    ),
+  )
+  await Effect.runPromise(
+    writing.synchronize.pipe(Effect.provide(Sync.transport.socket({ url: server.syncUrl }))),
+  )
+  await expect
+    .poll(() => Effect.runSync(watching.shared).edits.map(edit => [edit.id, edit.cents]), {
+      timeout: 5_000,
+    })
+    .toContainEqual([productId(9), Option.some(42)])
+  await Effect.runPromise(Fiber.interrupt(loop))
+  await Effect.runPromise(watching.close)
+  await Effect.runPromise(writing.close)
 })
 
 test('a request naming an operation the server does not have is refused', async () => {

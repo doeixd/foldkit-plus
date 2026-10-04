@@ -119,7 +119,7 @@ the whole wiring, compiled.
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 
 See also: [the 100,000-row registry example](https://github.com/doeixd/foldkit-plus/blob/main/examples/data-grid),
-[the registry over Remote](https://github.com/doeixd/foldkit-plus/blob/main/examples/registry),
+[the registry over Remote and Sync](https://github.com/doeixd/foldkit-plus/blob/main/examples/registry),
 [the view's README](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-data-grid/README.md),
 [the package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/data-grid/README.md)
 and [the DataGrid design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-grid-DESIGN.md).

@@ -218,23 +218,38 @@ selection and cell ranges, and copy and paste. `onOut` writes `Edited` and
 a refused edit, a paste with a refused cell and select-all; a Chromium test
 scrolls to the last product and checks the pinned column at full size.
 
-`examples/registry` is the same registry over Remote: a Drizzle server on
-SQLite seeded with 100,000 products, read a page at a time through a
-`Crud.list` (`GridCrud.rows` and `status`), sorted by the server through the
-query input, loaded more on scroll (`moreOnScroll`), with the column menu.
-An edit or a paste is one `EditProducts` mutation with optimistic patches,
-so it shows at once and goes back if the server refuses. Tested on the real
-runtime over the in-process server, over real HTTP against the full seed,
-and checked by hand in Chromium.
+`examples/registry` is the same registry over Remote and Sync: a Drizzle
+server on SQLite seeded with 100,000 products, read a page at a time through
+a `Crud.list` (`GridCrud.rows` and `status`), sorted by the server through
+the query input, loaded more on scroll (`moreOnScroll`), with the column
+menu. The edits are a Sync document: its slice is every product edited and
+the fields edited, its durable Message `EditedProducts`, and the server's
+journal applies each committed edit to the table through `recover`. A row is
+drawn as Remote read it with the replica's edits over it, pending ones
+included, so an edit shows at once, survives a reload while offline, and
+another device's shows on the next exchange. Tested on the real runtime over
+the in-process server and journal, over real HTTP and a WebSocket against the
+full seed, and checked by hand in Chromium.
 
 - **What building it found:** `GridCrud.columns` could not pin, size or edit
   a column (it now takes per-member options); `GridStyle` left the sort
   button native, with no direction shown (it now draws one from
   `data-sort`); and a test clicking twice within a frame resent the first
   click's Message, since a click acts on the button drawn last.
-- **Writes are Remote's, not local-first.** A write in flight is lost if the
-  page closes, and refused rather than queued when the server is down;
-  §22's local-first writes are Sync's outbox, not yet used here.
+- **Two owners avoided, not merged.** The products are Remote's (server
+  facts, refetch is recovery); the edits are the journal's (user intent,
+  losing the outbox loses edits). The table is the journal's derivation, not
+  a second owner of an edit, and the grid lays edits over rows rather than
+  writing them into Remote's cache.
+- **What the Sync step found:** `Mounted.dispatch` decoded what it was given,
+  so a Message with an Option field never reached `update` (fixed in
+  `foldkit-sync`); a random replica id per page load met a fixed storage name
+  on reload and the page went blank; and an exchange that threw on one bad
+  operation would have blocked every edit behind it, so a refused operation
+  is now reported as rejected.
+- **A tab closed for good while offline** keeps its unsent edits in
+  IndexedDB under an id no tab opens again; one replica per profile with one
+  writer would keep them, and is not built.
 - **Not built from §22:** search and filter, saved column layout, custom
   columns and bulk edits beyond a paste.
 

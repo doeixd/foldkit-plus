@@ -3,16 +3,13 @@
  * status and the order are read from Remote and the Model on every render;
  * the grid draws only what is in view.
  */
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Document, HtmlBuilder } from 'foldkit/html'
 import { RowCount } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
-import { Grid, Message, Products, savingOf, type Model } from './app.js'
+import { Grid, Message, Products, exchangeOf, rowsOf, type Model } from './app.js'
 import { ProductSort } from './operations.js'
-import type { ProductRow } from './domain.js'
-
-const productKey = (row: typeof ProductRow.schema.Type) => row.id
 
 const Registry = DataGridView<Message>()
   .define(Grid)
@@ -25,10 +22,10 @@ const Registry = DataGridView<Message>()
     ),
   )
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const page = Products.page(model)
-  const rows = GridCrud.rows(page, productKey)
-  return h.main(
+  const rows = rowsOf(model)
+  const body = h.main(
     [h.Style({ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' })],
     [
       h.h1([], ['Product registry']),
@@ -42,7 +39,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
           }),
         ],
       ),
-      h.p([h.Id('saved'), h.Role('status')], [savingOf(model)]),
+      h.p([h.Id('exchange'), h.Role('status')], [exchangeOf(model)]),
       Registry(
         {
           state: model.grid,
@@ -64,4 +61,5 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
       ),
     ],
   )
+  return { title: 'Product registry', body }
 }

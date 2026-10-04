@@ -1,17 +1,17 @@
 /**
  * The server's interpretation of the domain: a `products` table in an
  * in-memory SQLite database, seeded with the registry, and the handlers that
- * read it a page at a time and write a batch of edits.
+ * read it a page at a time. Edits reach the table through the journal
+ * (`journal.ts`), which calls `apply` for each committed change.
  */
 import { DatabaseSync } from 'node:sqlite'
-import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Option } from 'effect'
-import { bind, databaseLayer, query, returning, sortTerms, source } from 'foldkit-remote-drizzle'
+import { Option } from 'effect'
+import { bind, databaseLayer, query, sortTerms, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Registry } from './domain.js'
-import { EditProductsMutation, ProductsQuery } from './operations.js'
+import { type ProductChange, Registry } from './domain.js'
+import { ProductsQuery } from './operations.js'
 
 const products = sqliteTable('products', {
   id: text('id').primaryKey(),
@@ -71,32 +71,18 @@ export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}
   sqlite.exec('commit')
   const db = drizzle({ client: sqlite })
 
-  // One mutation for a cell and for a paste: each change writes the fields it
-  // holds, and the rows written come back as patches for the client's store.
-  const written = returning(Db.Product, ['id', 'description', 'cents'])
-  const EditProducts = RemoteServer.mutation(EditProductsMutation, ({ input }) =>
-    Effect.promise(async () => {
-      const update = (id: string, set: { description?: string; cents?: number }) =>
-        db.update(products).set(set).where(eq(products.id, id)).returning(written.columns)
-      const rows: Array<Awaited<ReturnType<typeof update>>[number]> = []
-      for (const change of input.changes) {
-        const set = {
-          ...Option.match(change.description, {
-            onNone: () => ({}),
-            onSome: description => ({ description }),
-          }),
-          ...Option.match(change.cents, { onNone: () => ({}), onSome: cents => ({ cents }) }),
-        }
-        if (Object.keys(set).length > 0) rows.push(...(await update(change.id, set)))
-      }
-      return { output: { written: rows.length }, entities: written.patches(rows) }
-    }),
-  )
+  // A committed edit, applied: the journal calls this once per change, in
+  // the order it committed them. A field a change does not hold is left.
+  const setDescription = sqlite.prepare('update products set description = ? where id = ?')
+  const setCents = sqlite.prepare('update products set cents = ? where id = ?')
+  const apply = (change: ProductChange) => {
+    if (Option.isSome(change.description)) setDescription.run(change.description.value, change.id)
+    if (Option.isSome(change.cents)) setCents.run(change.cents.value, change.id)
+  }
 
   return {
     server: RemoteServer.make({
       entities: [source(Db.Product)],
-      mutations: [EditProducts],
       queries: [
         query(ProductsQuery, {
           entity: Db.Product,
@@ -107,6 +93,7 @@ export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}
       ],
     }),
     layer: databaseLayer(db),
+    apply,
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.prepare('select * from products where id = ?').get(id),
     close: () => sqlite.close(),

@@ -1,19 +1,28 @@
 // @vitest-environment jsdom
 /**
- * The registry on the real runtime over the in-process server and its SQLite
- * database: Remote's own Subscriptions read the first page, a header sorts
- * through the query's input, More reads the next page, an edited price and a
- * pasted block reach the rows, and a write the server refuses is taken back.
+ * The registry on the real runtime, over the in-process server, its SQLite
+ * database and the edits' journal:
+ *
+ * - Remote's own Subscriptions read the first page, a header sorts through the
+ *   query's input, and More reads the next page;
+ * - an edit shows at once, is sent on the next exchange, and the journal
+ *   applies it to the table;
+ * - an edit made while the server cannot be reached stays on the device, through
+ *   a remount over the same storage, and goes once the server is back;
+ * - an edit another device made shows here after an exchange, before Remote
+ *   reads the row again.
  */
-import { Effect, Layer } from 'effect'
-import * as Runtime from 'foldkit/runtime'
+import { Effect, Layer, Option } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
-import { Remote, RemoteMutationError } from 'foldkit-remote'
+import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
+import { ReplicaId, Sync, type Storage, type TransportClient } from 'foldkit-sync'
 import { afterEach, expect, test, vi } from 'vitest'
-import { Message, Model, Products, initial, placements, update } from '../src/app.js'
+import { Message, Products, type Model } from '../src/app.js'
+import { ProductId } from '../src/domain.js'
+import { openJournal } from '../src/journal.js'
 import { openServer, productId, seedOf } from '../src/server.js'
-import { view } from '../src/view.js'
+import { RegistrySync, mountRegistry } from '../src/sync.js'
 
 const count = 1_000
 
@@ -23,8 +32,40 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-/** The page on the runtime, over `backend`; `refuse` makes every write fail. */
-const mount = ({ refuse }: { readonly refuse?: Promise<void> } = {}) => {
+/** A replica's storage in memory: what IndexedDB keeps across a reload. */
+const memoryStorage = (): Storage => {
+  let stored: unknown
+  return {
+    load: () => Effect.sync(() => stored),
+    save: next => Effect.sync(() => (stored = structuredClone(next))),
+    close: Effect.void,
+  }
+}
+
+/** The server, its journal, and a transport to it that can be cut. */
+const serve = () => {
+  const backend = openServer({ count })
+  const journal = openJournal(backend.apply)
+  let online = true
+  const transport: TransportClient = {
+    exchange: (cursor, pending, epoch) =>
+      online
+        ? journal.transport.exchange(cursor, pending, epoch)
+        : Promise.reject(new Error('offline')),
+  }
+  return {
+    backend,
+    journal,
+    setOnline: (value: boolean) => (online = value),
+    resources: Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
+      Layer.provide(backend.layer),
+    ),
+    transport: Sync.transport.fromPromise(transport),
+  }
+}
+
+/** The page over a replica on `storage`, on the runtime, with the last Model it drew. */
+const mount = async (server: ReturnType<typeof serve>, storage: Storage, name = 'tab-1') => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -32,58 +73,29 @@ const mount = ({ refuse }: { readonly refuse?: Promise<void> } = {}) => {
   // jsdom lays nothing out: a 1,000 by 356 box is a 36px header over ten 32px rows.
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(356)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000)
-  const backend = openServer({ count })
-  const handlers = RemoteServer.handlers(backend.server, null)
-  // The server's own handlers, its writes replaced by a refusal when asked.
-  const transport = Remote.clientLayer(
-    refuse === undefined
-      ? handlers
-      : {
-          ...handlers,
-          // Refused once `refuse` settles, so a test can look before the answer.
-          FoldkitRemoteMutate: () =>
-            Effect.promise(() => refuse).pipe(
-              Effect.andThen(
-                Effect.fail(new RemoteMutationError({ message: 'the registry is locked' })),
-              ),
-            ),
-        },
-  ).pipe(Layer.provide(backend.layer))
-  let latest = initial()
+  const replica = await Effect.runPromise(RegistrySync.openReplica(ReplicaId.make(name), storage))
+  document.body.innerHTML = ''
   const container = document.createElement('div')
   container.id = 'registry-page'
   document.body.appendChild(container)
-  const handle = Runtime.embed(
-    Runtime.makeElement(
-      placements.complete({
-        Model,
-        container,
-        init: () => ({ model: initial() }),
-        update: (model: Model, message: Message) => {
-          const next = update(model, message)
-          latest = next.model
-          return next
-        },
-        view,
-        subscriptions: placements.subscriptions(),
-        resources: transport,
-      }),
-    ),
-  )
-  return { backend, handle, latest: () => latest }
+  const { mounted, dispose } = mountRegistry(replica, {
+    container,
+    resources: server.resources,
+  })
+  const exchange = () =>
+    Effect.runPromise(replica.synchronize.pipe(Effect.provide(server.transport), Effect.ignore))
+  return { replica, mounted, dispose, exchange, latest: (): Model => mounted.model() }
 }
 
 const grid = () => document.getElementById('products')!
 const cell = (row: string, column: string) =>
   document.getElementById(GridFocus.cellId('products', { row, column }))
-const press = (key: string, modifiers: KeyboardEventInit = {}) =>
-  grid().dispatchEvent(
-    new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
-  )
-const editor = () => document.querySelector<HTMLInputElement>('#products input')
-const status = () => document.getElementById('saved')!.textContent
+const status = () => document.getElementById('exchange')!.textContent
 const click = (element: Element) =>
   element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+const press = (target: Element, key: string) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+const editor = () => document.querySelector<HTMLInputElement>('#products input')
 const focusOn = async (row: string, column: string) => {
   click(cell(row, column)!)
   await vi.waitFor(() =>
@@ -94,21 +106,26 @@ const focusOn = async (row: string, column: string) => {
 }
 const edit = async (row: string, column: string, text: string) => {
   await focusOn(row, column)
-  press('Enter')
+  press(grid(), 'Enter')
   await vi.waitFor(() => expect(editor()).not.toBeNull())
   editor()!.value = text
   editor()!.dispatchEvent(new Event('input', { bubbles: true }))
-  editor()!.dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-  )
+  press(editor()!, 'Enter')
+}
+const pasteAt = async (row: string, column: string, text: string) => {
+  await focusOn(row, column)
+  const paste = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(paste, 'clipboardData', { value: { getData: () => text } })
+  grid().dispatchEvent(paste)
 }
 const loaded = (model: Model) => {
   const page = Products.page(model)
   return page._tag === 'Ready' ? page.value.items.length : 0
 }
+const priceOf = (index: number) => (seedOf(index).cents / 100).toFixed(2)
 
 test('reads the first page, sorts on the server, and reads more', async () => {
-  const { handle, latest } = mount()
+  const { dispose, latest } = await mount(serve(), memoryStorage())
   try {
     // Being on screen made the list a requirement; nothing asked for it.
     await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
@@ -116,7 +133,7 @@ test('reads the first page, sorts on the server, and reads more', async () => {
     // A thousand rows behind a page of a hundred: the count is not known yet.
     expect(grid().getAttribute('aria-rowcount')).toBe('-1')
     expect(document.querySelector('main p')!.textContent).toBe('100 products read, more to come.')
-    expect(cell(productId(0), 'cents')?.textContent).toBe((seedOf(0).cents / 100).toFixed(2))
+    expect(cell(productId(0), 'cents')?.textContent).toBe(priceOf(0))
 
     // Two clicks on Price ask for the dearest first; the server orders, and the
     // first row is the dearest of all thousand, not of the page that was loaded.
@@ -127,9 +144,9 @@ test('reads the first page, sorts on the server, and reads more', async () => {
       Array.from(
         document.querySelectorAll<HTMLButtonElement>('#products [role="columnheader"] button'),
       ).find(button => button.textContent === 'Price')!
-    click(sortPrice())
     // A click acts on the button drawn last: wait for the one that asks for the next order.
     const sorted = () => sortPrice().closest('[role="columnheader"]')!.getAttribute('aria-sort')
+    click(sortPrice())
     await vi.waitFor(() => expect(sorted()).toBe('ascending'))
     click(sortPrice())
     await vi.waitFor(() => expect(cell(dearest.id, 'upc')?.textContent).toBe(dearest.upc))
@@ -138,74 +155,135 @@ test('reads the first page, sorts on the server, and reads more', async () => {
     // More reads the next page of the same order.
     click(
       Array.from(document.querySelectorAll('#products button')).find(
-        b => b.textContent === 'More',
+        button => button.textContent === 'More',
       )!,
     )
     await vi.waitFor(() => expect(loaded(latest())).toBe(200))
   } finally {
-    handle.dispose()
+    await dispose()
   }
 })
 
-test('an edited price and a pasted block are written, and read back from the rows', async () => {
-  const { backend, handle } = mount()
+test('an edit and a paste show at once, and the journal writes them to the table', async () => {
+  const server = serve()
+  const { dispose, exchange } = await mount(server, memoryStorage())
   try {
     await vi.waitFor(() => expect(cell(productId(2), 'cents')).not.toBeNull())
-    // A paste its column refuses all of writes nothing, and says nothing of a save.
-    await focusOn(productId(5), 'cents')
-    const onLine = new Event('paste', { bubbles: true, cancelable: true })
-    Object.defineProperty(onLine, 'clipboardData', {
-      value: { getData: () => 'free\n' },
-    })
-    grid().dispatchEvent(onLine)
-    await new Promise(resolve => setTimeout(resolve, 50))
-    // Nothing was sent, so no save is spoken of.
-    expect(status()).toBe('')
-    expect(backend.row(productId(5))).toMatchObject({ cents: seedOf(5).cents })
 
+    // A paste its column refuses all of is no edit at all.
+    await pasteAt(productId(5), 'cents', 'free\n')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(status()).toBe('')
+
+    // Shown before any exchange, and waiting to be sent.
     await edit(productId(2), 'cents', '12.50')
-    await vi.waitFor(() => expect(status()).toBe('Saved.'))
-    expect(backend.row(productId(2))).toMatchObject({ cents: 1250 })
-    expect(cell(productId(2), 'cents')?.textContent).toBe('12.50')
+    await vi.waitFor(() => expect(cell(productId(2), 'cents')?.textContent).toBe('12.50'))
+    await vi.waitFor(() => expect(status()).toBe('Sending 1 edit…'))
+    expect(server.backend.row(productId(2))).toMatchObject({ cents: seedOf(2).cents })
 
     // Two rows of description, line and status pasted at row 0's description:
-    // line and status do not edit, so only the descriptions are written, as one write.
-    await focusOn(productId(0), 'description')
-    const paste = new Event('paste', { bubbles: true, cancelable: true })
-    Object.defineProperty(paste, 'clipboardData', {
-      value: { getData: () => 'Brass anchor\tGarden\tActive\nSteel bolt\tGarden\tActive\n' },
-    })
-    grid().dispatchEvent(paste)
-    await vi.waitFor(() =>
-      expect(backend.row(productId(1))).toMatchObject({ description: 'Steel bolt' }),
+    // line and status do not edit, so only the descriptions are one more edit.
+    await pasteAt(
+      productId(0),
+      'description',
+      'Brass anchor\tGarden\tActive\nSteel bolt\tGarden\tActive\n',
     )
-    expect(backend.row(productId(0))).toMatchObject({
+    await vi.waitFor(() => expect(status()).toBe('Sending 2 edits…'))
+
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(2))).toMatchObject({ cents: 1250 })
+    expect(server.backend.row(productId(0))).toMatchObject({
       description: 'Brass anchor',
       line: seedOf(0).line,
     })
-    await vi.waitFor(() =>
-      expect(cell(productId(0), 'description')?.textContent).toBe('Brass anchor'),
-    )
+    expect(server.backend.row(productId(1))).toMatchObject({ description: 'Steel bolt' })
+    expect(cell(productId(1), 'description')?.textContent).toBe('Steel bolt')
   } finally {
-    handle.dispose()
+    await dispose()
   }
 })
 
-test('a write the server refuses is shown, and the cell goes back to what the server holds', async () => {
-  let answer = () => {}
-  const { backend, handle } = mount({ refuse: new Promise(resolve => (answer = resolve)) })
+test('an edit made offline is kept on the device, through a remount, and sent when back', async () => {
+  const server = serve()
+  const storage = memoryStorage()
+  const first = await mount(server, storage)
+  await vi.waitFor(() => expect(cell(productId(3), 'cents')).not.toBeNull())
+  server.setOnline(false)
+  await edit(productId(3), 'cents', '7.00')
+  await first.exchange()
+  await vi.waitFor(() =>
+    expect(status()).toBe('1 edit kept on this device; the server cannot be reached (offline).'),
+  )
+  expect(cell(productId(3), 'cents')?.textContent).toBe('7.00')
+  await first.dispose()
+
+  // A reload: the page again, over the replica the same storage holds.
+  const second = await mount(server, storage)
   try {
-    await vi.waitFor(() => expect(cell(productId(3), 'cents')).not.toBeNull())
-    const before = (seedOf(3).cents / 100).toFixed(2)
-    await edit(productId(3), 'cents', '7.00')
-    // Before the server answers, the cell shows what was typed.
-    await vi.waitFor(() => expect(status()).toBe('Saving…'))
     await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('7.00'))
-    answer()
-    await vi.waitFor(() => expect(status()).toBe('Not saved: the registry is locked'))
-    expect(cell(productId(3), 'cents')?.textContent).toBe(before)
-    expect(backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
+    server.setOnline(true)
+    await second.exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
   } finally {
-    handle.dispose()
+    await second.dispose()
+  }
+})
+
+test('an edit another device made shows here after an exchange', async () => {
+  const server = serve()
+  const { dispose, exchange } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(4), 'description')).not.toBeNull())
+    // Another device, with its own replica, edits and sends.
+    const other = await Effect.runPromise(
+      RegistrySync.openReplica(ReplicaId.make('tab-2'), memoryStorage()),
+    )
+    await Effect.runPromise(
+      other.submit(
+        Message.EditedProducts({
+          changes: [
+            {
+              id: ProductId.make(productId(4)),
+              description: Option.some('From the other tab'),
+              cents: Option.none(),
+            },
+          ],
+        }),
+      ),
+    )
+    await Effect.runPromise(other.synchronize.pipe(Effect.provide(server.transport)))
+    expect(cell(productId(4), 'description')?.textContent).toBe(seedOf(4).description)
+
+    await exchange()
+    await vi.waitFor(() =>
+      expect(cell(productId(4), 'description')?.textContent).toBe('From the other tab'),
+    )
+  } finally {
+    await dispose()
+  }
+})
+
+test('a price is drawn from this device’s edit, not from what Remote last read', async () => {
+  const server = serve()
+  const { dispose } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe(priceOf(6)))
+    await edit(productId(6), 'cents', '1.00')
+    await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe('1.00'))
+    // The other columns of the row are still Remote's.
+    expect(cell(productId(6), 'description')?.textContent).toBe(seedOf(6).description)
+    // A second edit to the row keeps the first: each field's last edit wins.
+    await edit(productId(6), 'description', 'Repriced')
+    await vi.waitFor(() => expect(cell(productId(6), 'description')?.textContent).toBe('Repriced'))
+    expect(cell(productId(6), 'cents')?.textContent).toBe('1.00')
+    // And a price after it keeps the description.
+    await edit(productId(6), 'cents', '2.00')
+    await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe('2.00'))
+    expect(cell(productId(6), 'description')?.textContent).toBe('Repriced')
+  } finally {
+    await dispose()
   }
 })

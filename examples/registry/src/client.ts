@@ -1,15 +1,16 @@
 /**
- * The browser entry: the application on Foldkit's runtime, with the HTTP
- * transport as its `RemoteClient`. `pnpm dev` serves it.
+ * The browser entry: open the edits' replica on IndexedDB, mount the
+ * application over it with Remote's HTTP transport beside, and start the
+ * exchange loop over the journal's socket. `pnpm dev` serves it.
  */
-import * as Runtime from 'foldkit/runtime'
+import { Effect, Scope } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Theme } from 'foldkit-mixins/theme'
 import { Remote } from 'foldkit-remote'
-import { Model, initial, placements, update } from './app.js'
+import { ReplicaId, Sync } from 'foldkit-sync'
+import { RegistrySync, mountRegistry } from './sync.js'
 import { httpClient } from './transport.js'
-import { view } from './view.js'
 
 // The theme's tokens, which the grid's default style reads.
 Style.install(
@@ -19,16 +20,31 @@ Style.install(
 const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')
 
-Runtime.run(
-  Runtime.makeElement(
-    placements.runtime({
-      Model,
-      container,
-      initial: () => ({ model: initial() }),
-      update,
-      view,
-      // Vite proxies `/remote` to the server, so the browser talks to one origin.
-      resources: Remote.clientLayer(httpClient('/remote')),
-    }),
+// One replica per tab, and its storage named after it: a reload opens the same
+// one, edits it has not sent included, while two tabs never write one storage.
+// The id lives as long as the tab does.
+const replicaKey = 'foldkit-registry/replica'
+const replicaId = sessionStorage.getItem(replicaKey) ?? crypto.randomUUID()
+sessionStorage.setItem(replicaKey, replicaId)
+const storageScope = Effect.runSync(Scope.make())
+const storage = await Effect.runPromise(
+  Effect.provideService(
+    Sync.indexedDb(`foldkit-registry/edits/${replicaId}`),
+    Scope.Scope,
+    storageScope,
+  ),
+)
+const replica = await Effect.runPromise(
+  RegistrySync.openReplica(ReplicaId.make(replicaId), storage),
+)
+
+// Vite proxies `/remote` and `/sync` to the server, so the browser talks to one origin.
+mountRegistry(replica, { container, resources: Remote.clientLayer(httpClient('/remote')) })
+
+const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+Effect.runFork(
+  Effect.provide(
+    replica.start,
+    Sync.transport.socket({ url: `${protocol}://${location.host}/sync` }),
   ),
 )

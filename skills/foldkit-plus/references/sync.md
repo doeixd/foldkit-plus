@@ -292,3 +292,6 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/sync
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/registry (Remote
+  reads the rows, Sync keeps the edits, and the journal applies committed
+  edits to the table through `recover`)

@@ -527,6 +527,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `UrlChanged` for the shown address must not undo anything, pending work
   included: make it a no-op unless the app deliberately treats re-navigation
   as an event (Route Transitions logs "Stayed within route").
+- **An exchange that throws on one operation blocks the outbox.** The
+  journal decoded each pending operation outside any handling, so one a
+  client tampered with failed the whole exchange; the replica would send it
+  again on every exchange, and the edits behind it never went. Refuse such
+  an operation by its id (`rejected`), so the replica drops it, and fail the
+  exchange only for what is not an operation at all.
 - **A Port decodes what it is sent.** `Port.inbound(schema).send` takes the
   schema's encoded form; `Sync.mount`'s `dispatch`, typed to take a Message,
   passed it a decoded one, so a Message with an `Option` field failed with a

@@ -11,8 +11,8 @@ value instead of reading positions from the DOM.
 > [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md) draws it.
 > [`examples/data-grid`](../../examples/data-grid/README.md) is a 100,000-row
 > product registry built on both, and
-> [`examples/registry`](../../examples/registry/README.md) the same over
-> Remote, with a server.
+> [`examples/registry`](../../examples/registry/README.md) the same with a
+> server: read through Remote, edited through Sync.
 
 ## Who owns what
 

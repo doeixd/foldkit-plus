@@ -12,17 +12,22 @@
     "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-data-grid": "workspace:*",
+    "foldkit-durable": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-data-grid": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "foldkit-sync": "workspace:*",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0",
+    "@types/ws": "^8.5.12",
     "effect": "4.0.0",
+    "fake-indexeddb": "6.2.4",
     "foldkit": "0.165.0",
     "jsdom": "26.1.0",
     "typescript": "5.9.3",

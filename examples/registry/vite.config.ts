@@ -6,7 +6,11 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5175,
-    // The client posts to `/remote` on its own origin; proxy it to the server.
-    proxy: { '/remote': { target: 'http://127.0.0.1:8789' } },
+    // The client reads at `/remote` and exchanges edits at `/sync`, on its own
+    // origin; both go to the server.
+    proxy: {
+      '/remote': { target: 'http://127.0.0.1:8789' },
+      '/sync': { target: 'ws://127.0.0.1:8789', ws: true },
+    },
   },
 })
