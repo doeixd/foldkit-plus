@@ -17,7 +17,7 @@
  * and an edit from another device shows when the exchange brings it, before
  * Remote reads the row again.
  */
-import { Match, Option, Schema } from 'effect'
+import { Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
@@ -26,11 +26,28 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
-import { ProductChange, ProductId, ProductRow, Registry } from './domain.js'
+import { Product, ProductChange, ProductId, ProductRow, Registry } from './domain.js'
 import { ProductSort, ProductsQuery } from './operations.js'
 
-/** A price as typed: dollars, with at most two decimals. */
-const price = /^\d+(\.\d{1,2})?$/
+/** A description as typed: its spaces around dropped, and something left. */
+const Description = Schema.Trim.pipe(
+  Schema.decodeTo(Schema.String.check(Schema.isMinLength(1, { message: 'Say what it is' }))),
+)
+
+/**
+ * A price as typed, in dollars with at most two decimals, and the whole cents
+ * it means: the Product's own `cents` schema, so the cell and the server keep
+ * one rule.
+ */
+const Dollars = Schema.Trim.pipe(
+  Schema.decodeTo(
+    Schema.String.check(Schema.isPattern(/^\d+(\.\d{1,2})?$/, { message: 'A price, like 4.99' })),
+  ),
+  Schema.decodeTo(Product.fields.cents.schema, {
+    decode: SchemaGetter.transform(text => Math.round(Number(text) * 100)),
+    encode: SchemaGetter.transform(cents => (cents / 100).toFixed(2)),
+  }),
+)
 
 export const ProductList = Crud.list('Products', {
   query: ProductsQuery,
@@ -49,19 +66,13 @@ export const columns = GridCrud.columns(ProductList, {
     description: {
       width: 280,
       minWidth: 120,
-      edit: {
-        validate: text => (text.trim() === '' ? Option.some('Say what it is') : Option.none()),
-      },
+      edit: { schema: Description },
     },
     line: { width: 130 },
     status: { width: 120 },
     cents: {
       width: 110,
-      edit: {
-        draft: row => (row.cents / 100).toFixed(2),
-        validate: text =>
-          price.test(text.trim()) ? Option.none() : Option.some('A price, like 4.99'),
-      },
+      edit: { schema: Dollars, draft: row => Schema.encodeSync(Dollars)(row.cents) },
     },
   },
 })
@@ -130,17 +141,13 @@ type Cell = {
   readonly text: string
 }
 
-/**
- * A cell as a change to its product. Only `description` and `cents` edit,
- * and their columns checked the text, so it parses.
- */
+/** A cell as a change to its product, its value as its column's schema decodes it. */
 const changeOf = (cell: Cell): ProductChange => {
-  const text = cell.text.trim()
-  return {
-    id: ProductId.make(cell.row),
-    description: cell.column === 'description' ? Option.some(text) : Option.none(),
-    cents: cell.column === 'cents' ? Option.some(Math.round(Number(text) * 100)) : Option.none(),
-  }
+  const id = ProductId.make(cell.row)
+  return Grid.matchEdit(cell, {
+    description: ({ value }) => ({ id, description: Option.some(value), cents: Option.none() }),
+    cents: ({ value }) => ({ id, description: Option.none(), cents: Option.some(value) }),
+  })
 }
 
 /** The edits with `changes` laid over them: a field a change holds wins. */

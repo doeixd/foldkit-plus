@@ -92,6 +92,14 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **Typed editing from Schema (`foldkit-data-grid`).** A column's `edit`
+  takes a `schema` from the text typed to its value, in place of
+  `validate`: a draft is committed only when it decodes, and the failure's
+  message is the cell's error. `Grid.matchEdit(cell, handlers)` reads a
+  reported cell's value back, one handler per editable column, each typed
+  by its column's schema. `GridCrud.columns` keeps each member's options in
+  its type, and `Columns` carries its specs type-only, so a grid infers a
+  column's schema exactly.
 - **`RowModel.map(rows, input, make)` (`foldkit-data-grid`).** Transforms
   each row as it is read, with the per-row function made from `input` once
   per `rows` and `input`, and the same model while both are. The registry's
@@ -147,7 +155,7 @@ version changed; `pnpm` skips versions already in the registry.
   selected, and copy and paste; the products are the application's, written
   by `onOut` from the grid's `Edited` and `Pasted`. Tested in jsdom and, at
   full size, in Chromium.
-- **Editing (Phase 6).** A column with `edit: { draft?, validate? }` is
+- **Editing (Phase 6).** A column with `edit: { draft?, schema? }` is
   editable as text. The `DataGrid` Model holds the session (`editing`), with
   `EditStarted`, `EditChanged`, `EditCommitted` and `EditCancelled`; a commit
   the column accepts moves focus and returns the OutMessage `Edited({ row,

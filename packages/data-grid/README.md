@@ -278,31 +278,48 @@ GridSelection.isSelected(picked.selection.rows)('p1') // true
 
 A column with `edit` is editable. The grid owns the edit session (which
 cell, the draft, an error); the application owns the value, and hears of a
-commit as the grid's OutMessage:
+commit as the grid's OutMessage. The column's `schema` says what its text
+means, from the text typed to the value: a draft is committed only when it
+decodes, and the failure's message is the cell's error.
 
 ```ts
+// Dollars as typed, with at most two decimals, and the number they mean.
+const Price = Schema.String.check(
+  Schema.isPattern(/^\d+(\.\d{1,2})?$/, { message: 'A price, like 4.99' }),
+).pipe(
+  Schema.decodeTo(Schema.Number, {
+    decode: SchemaGetter.transform(text => Number(text)),
+    encode: SchemaGetter.transform(price => price.toFixed(2)),
+  }),
+)
 const priced = Columns.define<Product>()({
   sku: { header: 'SKU', value: product => product.sku },
   price: {
     header: 'Price',
     value: product => product.price,
-    edit: {
-      draft: product => product.price.toFixed(2),
-      validate: text =>
-        Number.isFinite(Number(text)) ? Option.none() : Option.some('Not a number'),
-    },
+    edit: { schema: Price, draft: product => Schema.encodeSync(Price)(product.price) },
   },
 })
 const Prices = DataGrid.make({ id: 'prices', columns: priced })
 type Out = typeof Prices.Out.Type // Edited({ row, column, text }) | Pasted({ accepted, refused })
+
+// In `onOut`: the committed text read back as its column's value, a number here.
+const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
+  Prices.matchEdit(cell, { price: ({ row, value }) => ({ row, price: value }) })
 ```
 
 - **`EditStarted({ address, draft })`** opens an edit on an editable cell;
   `EditChanged` keeps the draft; `EditCancelled` drops it.
-- **`EditCommitted({ next, reveal })`** asks the column's `validate`. A draft
-  it refuses keeps the edit with the error, and nothing is reported. One it
-  accepts ends the edit, moves focus to `next`, and the update returns the
-  OutMessage `Out.Edited({ row, column, text })`.
+- **`EditCommitted({ next, reveal })`** decodes the draft with the column's
+  `schema` (any text, without one). A draft it refuses keeps the edit with
+  the error, and nothing is reported. One it accepts ends the edit, moves
+  focus to `next`, and the update returns the OutMessage `Out.Edited({ row,
+  column, text })`.
+- **`Grid.matchEdit(cell, handlers)`** reads a reported cell's value back:
+  one handler per editable column, each given its column's decoded type, so
+  the application parses nothing itself. The OutMessage stays text, which a
+  parent can store or send; a cell that does not decode, or names a column
+  that does not edit, was not the grid's, and throws.
 - **Place the grid with `onOut`.** Every placement handles the OutMessage, as
   any Bundle's must; a grid that edits nothing passes `onOut: Bundle.ignore`.
 - **A click on another cell commits first;** a refused draft keeps the edit
@@ -325,7 +342,7 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   pasted text lands: laid from the anchor, dropping cells past the edges, on
   columns that do not edit, or on rows not loaded.
 - **`Pasted({ cells })`** hands those cells to the grid, which checks each
-  against its column's `validate` and reports one `Out.Pasted({ accepted,
+  against its column's `schema` and reports one `Out.Pasted({ accepted,
   refused })`: one change for the application to apply, and say what it
   refused. A paste while a cell is edited is the field's.
 

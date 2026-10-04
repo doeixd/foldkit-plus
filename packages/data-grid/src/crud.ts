@@ -22,13 +22,15 @@ type ColumnOptions<Row> = Partial<Omit<ColumnSpec<Row, string>, 'value'>>
  * grid knows to a member's column: pinning, widths, `edit`, or another
  * header; what it gives wins over what the list says.
  */
-const columns = <Key extends string, Row extends { readonly [K in Key]: unknown }>(
+const columns = <
+  Key extends string,
+  Row extends { readonly [K in Key]: unknown },
+  // Each member's options as written, so an edit's schema types its value.
+  Options extends { readonly [K in Key]?: ColumnOptions<Row> },
+>(
   list: { readonly columns: ReadonlyArray<DisplayColumn<Key>>; readonly Row: Row },
-  options: {
-    readonly words?: DisplayWords
-    readonly columns?: { readonly [K in Key]?: ColumnOptions<Row> }
-  } = {},
-): Columns<Row, Record<Key, ColumnSpec<Row, string>>> => {
+  options: { readonly words?: DisplayWords; readonly columns?: Options } = {},
+): Columns<Row, { readonly [K in Key]: ColumnSpec<Row, string> & Options[K] }> => {
   // Filled for every listed key below, so the record holds each Key.
   const specs = {} as Record<Key, ColumnSpec<Row, string>>
   for (const column of list.columns) {
@@ -39,7 +41,11 @@ const columns = <Key extends string, Row extends { readonly [K in Key]: unknown 
       ...options.columns?.[column.key],
     }
   }
-  return Columns.define<Row>()(specs)
+  // Each spec is the member's column with its options spread over it, so it
+  // holds what `Options` says of it.
+  return Columns.define<Row>()(
+    specs as { readonly [K in Key]: ColumnSpec<Row, string> & Options[K] },
+  )
 }
 
 /**

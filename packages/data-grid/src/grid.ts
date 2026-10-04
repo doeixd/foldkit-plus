@@ -1,11 +1,11 @@
-import { Option, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import { ColumnState } from './columnState.js'
-import type { Columns, ColumnSpec } from './columns.js'
+import type { Columns, ColumnSpec, EditValue, EditableId } from './columns.js'
 import { GridFocus } from './focus.js'
 import { GridProjection } from './projection.js'
 import type { RowModel } from './rows.js'
@@ -260,6 +260,64 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     return { model: focused }
   }
 
+  // Each editable column's decoder, made once: a draft is accepted when it decodes.
+  type Id = keyof Specs & string
+  const decoders = new Map<string, (text: string) => Result.Result<unknown, Schema.SchemaError>>()
+  for (const id of options.columns.ids) {
+    const edit = options.columns.byId[id].edit
+    if (edit !== undefined)
+      decoders.set(id, Schema.decodeUnknownResult(edit.schema ?? Schema.String))
+  }
+  /** Why a column refuses a text, or none when it takes it. */
+  const errorOf = (column: Id, text: string): Option.Option<string> =>
+    Option.flatMap(Option.fromUndefinedOr(decoders.get(column)), decode =>
+      Result.match(decode(text), {
+        onSuccess: () => Option.none(),
+        onFailure: error => Option.some(error.message),
+      }),
+    )
+  /**
+   * A reported cell's value, decoded by its column's schema, handed to the
+   * handler for that column: one for each column that edits, each given its
+   * own value type. The grid reports only text its column accepted, so a cell
+   * that does not decode, or names a column that does not edit, was not the
+   * grid's, and throws.
+   */
+  const matchEdit = <
+    const Handlers extends {
+      readonly [K in EditableId<Specs>]: (edited: {
+        readonly row: string
+        readonly value: EditValue<Specs[K]>
+      }) => unknown
+    },
+  >(
+    cell: { readonly row: string; readonly column: Id; readonly text: string },
+    handlers: Handlers & {
+      readonly [K in Exclude<keyof Handlers, EditableId<Specs>>]: never
+    },
+  ): ReturnType<Handlers[EditableId<Specs>]> => {
+    const decode = decoders.get(cell.column)
+    if (decode === undefined) {
+      throw new Error(`DataGrid.matchEdit: the ${cell.column} column does not edit.`)
+    }
+    return Result.match(decode(cell.text), {
+      onFailure: error => {
+        throw new Error(
+          `DataGrid.matchEdit: the ${cell.column} column refuses "${cell.text}" (${error.message}); the grid reports only text its column accepted.`,
+        )
+      },
+      // The handlers are keyed by the editable ids, and this column has a decoder,
+      // so it is one of them; its value is what that column's schema decodes to.
+      onSuccess: value =>
+        (
+          handlers[cell.column as EditableId<Specs>] as (edited: {
+            readonly row: string
+            readonly value: unknown
+          }) => ReturnType<Handlers[EditableId<Specs>]>
+        )({ row: cell.row, value }),
+    })
+  }
+
   const sameCell = (a: Address, b: Address): boolean => a.row === b.row && a.column === b.column
   /**
    * Ends an edit with its draft: none to report when nothing was edited,
@@ -273,8 +331,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       onNone: () => ({ model, edited: Option.none(), refused: false }),
       onSome: editing => {
         const { address, draft } = editing
-        const error = options.columns.byId[address.column].edit?.validate?.(draft) ?? Option.none()
-        return Option.match(error, {
+        return Option.match(errorOf(address.column, draft), {
           onSome: message => ({
             model: modifyFields(model, {
               editing: () => Option.some({ ...editing, error: Option.some(message) }),
@@ -653,9 +710,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           const accepted: Array<typeof CellText.Type> = []
           const refused: Array<typeof CellText.Type & { readonly error: string }> = []
           for (const cell of cells) {
-            const edit = options.columns.byId[cell.column].edit
-            if (edit === undefined) continue
-            Option.match(edit.validate?.(cell.text) ?? Option.none(), {
+            if (options.columns.byId[cell.column].edit === undefined) continue
+            Option.match(errorOf(cell.column, cell.text), {
               onNone: () => accepted.push(cell),
               onSome: error => refused.push({ ...cell, error }),
             })
@@ -706,6 +762,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
 
   return {
     id: options.id,
+    matchEdit,
     MenuItem,
     menuItems,
     columns: options.columns,

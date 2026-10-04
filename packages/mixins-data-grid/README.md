@@ -149,7 +149,7 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   character (`EditTyped`); keys typed before the field is drawn add to it,
   and Escape before then cancels it. In the field, Enter commits and moves down (Shift+Enter up), Tab
   commits and moves across (Shift+Tab back), and Escape cancels; the arrows
-  are the field's own. A draft the column's `validate` refuses stays open
+  are the field's own. A draft the column's `schema` refuses stays open
   with `aria-invalid` and the error as `aria-description`. Focus comes back
   to the grid when the field goes. Clicking another cell commits first.
 - **The clipboard** works on the range, or the focused cell. Copy puts it on
@@ -206,8 +206,8 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   gesture.
 - A column menu opens below its header, inside the scroll container: a grid
   shorter than the menu clips it.
-- An edit is text: the grid reports what was typed, and the application
-  turns it into a value. There are no select or date editors yet.
+- An edit is drawn as a text field whatever its column's schema decodes to:
+  there are no number, select or date editors yet.
 - A copy's text is drawn with the grid, built once per range and rows, so
   copying a very large range costs its size each time the range changes.
 - No fill handle yet.

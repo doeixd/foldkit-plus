@@ -31,7 +31,7 @@ const columns = Columns.define<Item>()({
     header: 'Qty',
     value: item => item.qty,
     width: 80,
-    edit: { validate: text => (/^\d*$/.test(text) ? Option.none() : Option.some('Digits only')) },
+    edit: { schema: Schema.String.check(Schema.isPattern(/^\d*$/, { message: 'Digits only' })) },
   },
 })
 

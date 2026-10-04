@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema, SchemaGetter } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import {
@@ -631,12 +631,20 @@ const editable = Columns.define<Product>()({
     value: product => product.price,
     edit: {
       draft: product => product.price.toFixed(2),
-      validate: text =>
-        Number.isFinite(Number(text)) ? Option.none() : Option.some('Not a number'),
+      // The text checked, then read as the number it means.
+      schema: Schema.String.check(
+        Schema.isPattern(/^-?\d+(\.\d+)?$/, { message: 'Not a number' }),
+      ).pipe(
+        Schema.decodeTo(Schema.Number, {
+          decode: SchemaGetter.transform(text => Number(text)),
+          encode: SchemaGetter.transform(price => String(price)),
+        }),
+      ),
     },
   },
 })
 const Editing = DataGrid.make({ id: 'editing', columns: editable })
+type EditCell = Parameters<typeof Editing.matchEdit>[0]
 type EditingModel = typeof Editing.Model.Type
 const blank = Editing.bundle.init(undefined).model
 const edit = (model: EditingModel, message: typeof Editing.Message.Type) =>
@@ -648,6 +656,25 @@ const begun = edit(
 const typed = (draft: string) => edit(begun, Editing.Message.EditChanged({ draft })).model
 
 describe('DataGrid editing', () => {
+  test('matchEdit hands each editable column its value, as its schema decodes it', () => {
+    const read = (cell: EditCell) =>
+      Editing.matchEdit(cell, {
+        name: ({ row, value }) => `${row}:${value}`,
+        price: ({ value }) => value * 2,
+      })
+    expect(read({ row: 'p:1', column: 'price', text: '4.5' })).toBe(9)
+    // With no schema a column takes any text, as itself.
+    expect(read({ row: 'p:1', column: 'name', text: ' Bolt ' })).toBe('p:1: Bolt ')
+    // The grid reports only text its column took: anything else was not the grid's.
+    expect(() => read({ row: 'p:1', column: 'sku', text: 'x' })).toThrow(/sku column does not edit/)
+    expect(() => read({ row: 'p:1', column: 'price', text: 'cheap' })).toThrow(
+      /refuses "cheap" \(Not a number\)/,
+    )
+    // @ts-expect-error a column the grid does not define
+    const forged: EditCell = { row: 'p:1', column: 'constructor', text: 'x' }
+    expect(() => read(forged)).toThrow(/constructor column does not edit/)
+  })
+
   test('a key typed on the grid starts an edit, or adds to the one open on that cell', () => {
     const price = { row: 'p:1', column: 'price' } as const
     const started = edit(blank, Editing.Message.EditTyped({ address: price, text: '4' })).model

@@ -32,7 +32,7 @@ const columns = Columns.define<Item>()({
     value: item => item.qty,
     width: 80,
     edit: {
-      validate: text => (/^\d+$/.test(text) ? Option.none() : Option.some('Whole numbers only')),
+      schema: Schema.String.check(Schema.isPattern(/^\d+$/, { message: 'Whole numbers only' })),
     },
   },
 })

@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
 import {
   type CellAddress,
@@ -182,3 +182,45 @@ const Inline = DataGrid.make({
 expectTypeOf(Inline.columns.byId.n.value).returns.toEqualTypeOf<number>()
 // @ts-expect-error an inline grid's columns are its own
 Inline.Message.Focused({ address: { row: 'r', column: 'sku' } })
+
+// A column's edit schema types the value `matchEdit` hands its handler: a
+// price decodes to a number, a schema-less name to its text, and only the
+// columns that edit take a handler, each of them required.
+const Cents = Schema.NumberFromString
+const Editing = DataGrid.make({
+  id: 'editing',
+  columns: Columns.define<{ readonly id: string; readonly name: string; readonly cents: number }>()(
+    {
+      id: { header: 'Id', value: row => row.id },
+      name: { header: 'Name', value: row => row.name, edit: {} },
+      cents: { header: 'Price', value: row => row.cents, edit: { schema: Cents } },
+    },
+  ),
+})
+const cell = { row: 'r', column: 'cents' as const, text: '4' }
+expectTypeOf(
+  Editing.matchEdit(cell, {
+    name: ({ value }) => value,
+    cents: ({ value }) => value,
+  }),
+).toEqualTypeOf<string | number>()
+Editing.matchEdit(cell, {
+  name: ({ value }) => expectTypeOf(value).toEqualTypeOf<string>(),
+  cents: ({ value }) => expectTypeOf(value).toEqualTypeOf<number>(),
+})
+// @ts-expect-error every editable column needs a handler
+Editing.matchEdit(cell, { name: () => 0 })
+Editing.matchEdit(cell, {
+  name: () => 0,
+  cents: () => 0,
+  // @ts-expect-error a column that does not edit takes no handler
+  id: () => 0,
+})
+Columns.define<{ readonly n: number }>()({
+  n: {
+    header: 'N',
+    value: row => row.n,
+    // @ts-expect-error an edit schema reads text
+    edit: { schema: Schema.Number },
+  },
+})

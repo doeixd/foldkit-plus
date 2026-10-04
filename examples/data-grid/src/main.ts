@@ -8,7 +8,7 @@
  * `onOut` changes them, from the text the grid reports. The grid owns where
  * focus is, what is selected, how the columns stand, and the viewport.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, SchemaGetter } from 'effect'
 import { type Document, type HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -18,8 +18,21 @@ import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
 import { Product, products } from './products.js'
 
-/** A price as typed: a number of whole cents' worth, at most two decimals. */
-const price = /^\d+(\.\d{1,2})?$/
+/** A description as typed: its spaces around dropped, and something left. */
+const Description = Schema.Trim.pipe(
+  Schema.decodeTo(Schema.String.check(Schema.isMinLength(1, { message: 'Say what it is' }))),
+)
+
+/** A price as typed, in dollars with at most two decimals, and the number it means. */
+const Price = Schema.Trim.pipe(
+  Schema.decodeTo(
+    Schema.String.check(Schema.isPattern(/^\d+(\.\d{1,2})?$/, { message: 'A price, like 4.99' })),
+  ),
+  Schema.decodeTo(Schema.Number, {
+    decode: SchemaGetter.transform(text => Number(text)),
+    encode: SchemaGetter.transform(price => price.toFixed(2)),
+  }),
+)
 
 export const columns = Columns.define<Product>()({
   upc: {
@@ -34,9 +47,7 @@ export const columns = Columns.define<Product>()({
     value: product => product.description,
     width: 280,
     minWidth: 120,
-    edit: {
-      validate: text => (text.trim() === '' ? Option.some('Say what it is') : Option.none()),
-    },
+    edit: { schema: Description },
   },
   line: { header: 'Line', value: product => product.line, width: 130 },
   status: { header: 'Status', value: product => product.status, width: 120 },
@@ -44,10 +55,7 @@ export const columns = Columns.define<Product>()({
     header: 'Price',
     value: product => product.price.toFixed(2),
     width: 110,
-    edit: {
-      validate: text =>
-        price.test(text.trim()) ? Option.none() : Option.some('A price, like 4.99'),
-    },
+    edit: { schema: Price },
   },
 })
 
@@ -80,7 +88,11 @@ type Cell = {
   readonly text: string
 }
 
-/** The products with each cell's text written into its field; a field that does not edit is left. */
+/**
+ * The products with each cell's value written into its field. The column's
+ * schema decoded the text when the grid took it; `matchEdit` reads that value
+ * back, typed for its column.
+ */
 const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Product> => {
   const rows = rowsOf(model)
   const next = [...model.products]
@@ -88,10 +100,10 @@ const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Produc
     const index = rows.indexOf(cell.row)
     if (Option.isNone(index)) continue
     const product = next[index.value]!
-    if (cell.column === 'description') {
-      next[index.value] = { ...product, description: cell.text.trim() }
-    }
-    if (cell.column === 'price') next[index.value] = { ...product, price: Number(cell.text.trim()) }
+    next[index.value] = Grid.matchEdit(cell, {
+      description: ({ value }) => ({ ...product, description: value }),
+      price: ({ value }) => ({ ...product, price: value }),
+    })
   }
   return next
 }

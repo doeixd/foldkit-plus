@@ -99,8 +99,10 @@ the whole wiring, compiled.
   row's `height`, throws `slot "cell" protects style property`.
 - A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })` or
   `Pasted({ accepted, refused })` (match it with `Grid.Out.match`). Place it
-  with `onOut` (`Bundle.ignore` if no column has `edit`). An edit is text;
-  the application parses and writes it. Copy, cut and paste are TSV.
+  with `onOut` (`Bundle.ignore` if no column has `edit`). A column's
+  `edit: { schema }` decodes the text typed; `Grid.matchEdit(cell, { price:
+  ({ value }) => ... })` reads it back typed per column, so the application
+  parses nothing. Copy, cut and paste are TSV.
 - Over a `Crud.list`: `foldkit-data-grid/crud`'s `GridCrud.columns(list,
   { columns })`, where `columns` gives a member `pinned`, `width` or `edit`,
   `GridCrud.rows(page, key)` and `GridCrud.status(page)`; give the view

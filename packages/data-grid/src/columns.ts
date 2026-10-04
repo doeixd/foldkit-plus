@@ -1,4 +1,4 @@
-import type { Option } from 'effect'
+import type { Schema } from 'effect'
 /** What a column shows and where it starts out. Its id is its key in `Columns.define`. */
 export interface ColumnSpec<Row, Value> {
   readonly header: string
@@ -18,19 +18,38 @@ export interface ColumnSpec<Row, Value> {
   /** Whether it can be hidden. Default `true`. */
   readonly hideable?: boolean
   /**
-   * Makes the column's cells editable as text. The grid holds the draft and
-   * reports the committed text as an `Edited` OutMessage; turning the text
-   * into a value and writing it is the application's.
+   * Makes the column's cells editable as text. The grid holds the draft,
+   * commits it only when the column's schema decodes it, and reports the
+   * committed text as an `Edited` OutMessage; `matchEdit` reads its value
+   * back, and writing it is the application's.
    */
-  readonly edit?: ColumnEdit<Row>
+  readonly edit?: ColumnEdit<Row, unknown>
 }
 
-export interface ColumnEdit<Row> {
+export interface ColumnEdit<Row, Value = string> {
   /** The text an edit of a row's cell begins with. Default the value as a string. */
   readonly draft?: (row: Row) => string
-  /** An error to show for a draft, or none when it may be committed. */
-  readonly validate?: (text: string) => Option.Option<string>
+  /**
+   * What the text means: from the text typed to the column's value. A draft
+   * is committed only when it decodes, and the failure's message is the
+   * cell's error, so a check's own `message` is what a person reads. Default
+   * any text, as itself.
+   */
+  readonly schema?: Schema.Codec<Value, string>
 }
+
+/** The ids of the columns that edit. */
+export type EditableId<Specs> = {
+  [K in keyof Specs]: Specs[K] extends { readonly edit: object } ? K : never
+}[keyof Specs] &
+  string
+
+/** What an editable column's text decodes to: its schema's value, or the text. */
+export type EditValue<Spec> = Spec extends {
+  readonly edit: { readonly schema: Schema.Codec<infer Value, string> }
+}
+  ? Value
+  : string
 
 export interface Column<Row, Id extends string, Value> extends ColumnSpec<Row, Value> {
   readonly id: Id
@@ -51,6 +70,11 @@ export interface Columns<Row, Specs extends Record<string, ColumnSpec<Row, unkno
   readonly byId: {
     readonly [Id in keyof Specs & string]: Column<Row, Id, ValueOf<Specs[Id]>>
   }
+  /**
+   * Type-only: the specs as written, so a grid made from these columns infers
+   * each one exactly, its edit's schema included. Never set.
+   */
+  readonly Specs?: Specs
 }
 
 // Integer-like keys are enumerated before every other key, whatever the order
