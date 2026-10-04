@@ -45,8 +45,11 @@ cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: edits m
   -> their exchange brings it into their edits
 ```
 
-The columns' `validate` keeps a draft that cannot be a price out of the
-operation. The journal decodes every operation against the Message's schema,
+Each editable column's `schema` decides what its text means: `Dollars` reads
+"4.99" as 499 cents through the Product's own `cents` schema, and
+`Description` trims and refuses an empty one. A draft is committed only when it
+decodes, and the check's message ("A price, like 4.99") is the cell's error, so
+nothing the schema refuses becomes an operation. The journal decodes every operation against the Message's schema,
 which is the Product's own field schemas, so an empty description or a
 negative or fractional number of cents is refused whatever a client sent.
 
