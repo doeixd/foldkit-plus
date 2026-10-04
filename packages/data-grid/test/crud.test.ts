@@ -61,6 +61,39 @@ describe('GridCrud.columns', () => {
   })
 })
 
+describe('GridCrud.columns with the grid’s own options', () => {
+  const columns = GridCrud.columns(Posts, {
+    columns: {
+      id: { hidden: false, pinned: 'start', width: 60 },
+      cents: {
+        header: 'Cost',
+        edit: { draft: row => (row.cents / 100).toFixed(2) },
+      },
+    },
+  })
+
+  test('adds pinning, widths and editing, and wins over what the list says', () => {
+    expect(ColumnLayout.initial(columns)).toMatchObject({
+      start: ['id'],
+      center: ['title', 'cents'],
+      hidden: [],
+    })
+    expect(columns.byId.id.width).toBe(60)
+    expect(columns.byId.cents.header).toBe('Cost')
+    expect(columns.byId.cents.edit?.draft?.(items[0]!)).toBe('12.50')
+    // The value is still the list's Display.
+    expect(columns.byId.cents.value(items[0]!)).toBe('$12.50')
+    expect(columns.byId.title.edit).toBeUndefined()
+  })
+
+  test('refuses options for a member the list does not have, and a value of their own', () => {
+    // @ts-expect-error -- `author` is not listed.
+    GridCrud.columns(Posts, { columns: { author: { width: 10 } } })
+    // @ts-expect-error -- the value is the list's Display, not the grid's to replace.
+    GridCrud.columns(Posts, { columns: { title: { value: () => 'x' } } })
+  })
+})
+
 describe('GridCrud.rows', () => {
   test('a page with nothing after it is every row there is', () => {
     const rows = GridCrud.rows(ready(), postKey)

@@ -338,9 +338,11 @@ const rows = GridCrud.rows(page, post => post.id) // page: RemoteData<Page<Row>>
 const status = GridCrud.status(page) // RowStatus: Ready, Loading, Refreshing, Failed
 ```
 
-- **`GridCrud.columns(list)`** is a column per listed member, headed by its
-  label, its value the member's text as its Display says it; a hidden
-  Display (usually the id) starts hidden.
+- **`GridCrud.columns(list, { columns, words })`** is a column per listed
+  member, headed by its label, its value the member's text as its Display
+  says it; a hidden Display (usually the id) starts hidden. `columns` adds
+  what only the grid knows, per member: `pinned`, `width`, `edit`, a
+  `header` of its own, or `hidden: false`. The value stays the Display's.
 - **`GridCrud.rows(page, key)`** is the page's rows in its order. A page
   with more after it counts as unknown, at least its rows; a failed read
   keeps the rows it had. The same page value gives the same row model, so

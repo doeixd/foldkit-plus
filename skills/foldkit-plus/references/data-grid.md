@@ -99,7 +99,8 @@ the whole wiring, compiled.
   `Pasted({ accepted, refused })` (match it with `Grid.Out.match`). Place it
   with `onOut` (`Bundle.ignore` if no column has `edit`). An edit is text;
   the application parses and writes it. Copy, cut and paste are TSV.
-- Over a `Crud.list`: `foldkit-data-grid/crud`'s `GridCrud.columns(list)`,
+- Over a `Crud.list`: `foldkit-data-grid/crud`'s `GridCrud.columns(list,
+  { columns })`, where `columns` gives a member `pinned`, `width` or `edit`,
   `GridCrud.rows(page, key)` and `GridCrud.status(page)`; give the view
   `status`, `onRetry` (`list.refresh`), `onMore` (`list.more`) and `sort`
   (`foldkit-crud`'s `Sort`). Sorting stays the query's. `moreOnScroll: true`

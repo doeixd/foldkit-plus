@@ -11,23 +11,32 @@ import { type Page, RemoteData } from 'foldkit-remote'
 import { Columns, type ColumnSpec } from './columns.js'
 import { RowCount, RowModel, RowStatus } from './rows.js'
 
+/** What a grid adds to a listed member's column: where it stands, its size, and editing. */
+type ColumnOptions<Row> = Partial<Omit<ColumnSpec<Row, string>, 'value'>>
+
 /**
  * The grid's columns for a list: one per listed member, keyed by its member
  * key, headed by its label, its value the member's text as its Display says
  * it. A member whose Display is hidden (usually the id) starts hidden: it is
- * read, and can be shown, but is not drawn.
+ * read, and can be shown, but is not drawn. `columns` adds what only the
+ * grid knows to a member's column: pinning, widths, `edit`, or another
+ * header; what it gives wins over what the list says.
  */
 const columns = <Key extends string, Row extends { readonly [K in Key]: unknown }>(
   list: { readonly columns: ReadonlyArray<DisplayColumn<Key>>; readonly Row: Row },
-  words: DisplayWords = {},
+  options: {
+    readonly words?: DisplayWords
+    readonly columns?: { readonly [K in Key]?: ColumnOptions<Row> }
+  } = {},
 ): Columns<Row, Record<Key, ColumnSpec<Row, string>>> => {
   // Filled for every listed key below, so the record holds each Key.
   const specs = {} as Record<Key, ColumnSpec<Row, string>>
   for (const column of list.columns) {
     specs[column.key] = {
       header: column.label,
-      value: row => Display.show(column.display, row[column.key], words),
+      value: row => Display.show(column.display, row[column.key], options.words ?? {}),
       ...(column.display.shown ? {} : { hidden: true }),
+      ...options.columns?.[column.key],
     }
   }
   return Columns.define<Row>()(specs)
