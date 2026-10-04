@@ -121,11 +121,12 @@ export type Model = typeof Model.Type
 export const Message = Base.Message
 export type Message = typeof Message.Type
 
-// The Model's references, for Remote; `App` below adds the update Sync replays.
-const Scope = Surface.application(Base)
+// The application's references, for Remote; made runnable below, once the
+// update built over them exists, for Sync to replay.
+const Made = Surface.application(Base)
 
 export const Data = Remote.make({
-  model: Scope.model.remote,
+  model: Made.model.remote,
   entities: Object.values(Registry),
   queries: [ProductsQuery],
 })
@@ -223,8 +224,8 @@ export const initial = (): Model =>
     exchange: { pending: 0, error: Option.none() },
   }).model
 
-/** The application as Sync replays it: its Model, Messages, initial value and update. */
-export const App = Surface.application({ Model, Message, initial: initial(), update })
+/** The application as Sync replays it: the same references, with its initial value and update. */
+export const App = Made.runnable({ initial: initial(), update })
 
 /**
  * The rows Remote read, with the edits over them: each row as it is read, so

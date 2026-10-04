@@ -829,6 +829,21 @@ export interface Application<
       readonly messages?: Ms
     },
   ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>>
+  /**
+   * This application made runnable, once its update exists: the same
+   * references and the same owner, with the initial Model and the transition
+   * function a replicator replays. An update is often built from what is made
+   * over the references (a Remote domain, a placed Bundle), so it cannot be
+   * given when they are; this joins the two without a second application,
+   * whose references would be another owner's.
+   */
+  readonly runnable: <Resources = never>(config: {
+    readonly initial: Root
+    readonly update: (
+      model: Root,
+      message: Schema.Schema.Type<MessageUnion<Cases>>,
+    ) => Update.Return<Root, Schema.Schema.Type<MessageUnion<Cases>>, Resources>
+  }) => RunnableApplication<Root, F, Cases, Resources>
 }
 
 /**
@@ -962,7 +977,14 @@ function application(config: any): any {
       },
       messages: surfaceConfig.messages,
     } as never)
-  return { ...scope, initial: config.initial, fields: scope.model, update: config.update, surface }
+  const made = { ...scope, fields: scope.model, surface }
+  const runnable = (run: { readonly initial: unknown; readonly update: unknown }): unknown => ({
+    ...made,
+    runnable,
+    initial: run.initial,
+    update: run.update,
+  })
+  return { ...made, runnable, initial: config.initial, update: config.update }
 }
 
 type ConstructorOfSubset<S> = S extends MessageSet<any, any, any, infer Ms, any> ? Ms : never

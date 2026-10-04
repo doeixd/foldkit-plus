@@ -46,7 +46,9 @@ Schema field -> ModelRef/FieldRef (optic + codec + path + app owner + get/set)
   Use `App.model` for it. `App.model` is the older name for the same tree, and
   it is also what `model` means inside `App.surface`. Add `initial` + `update` to
   get a `RunnableApplication`. Sync needs one to compute the initial value and
-  replay Messages.
+  replay Messages. When the update is built over the references (Remote, a
+  Bundle), `App.runnable({ initial, update })` adds it afterwards with the same
+  references and owner.
 - Every ref and Surface carries `App.owner`. Mixing two applications is a type
   error or throws at runtime.
 - Metadata is opaque. Each package stores entries under its own `Metadata.key`.

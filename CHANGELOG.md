@@ -92,6 +92,11 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **`App.runnable({ initial, update })` (`foldkit-surface`).** An
+  application made from its Model and Messages is made runnable afterwards,
+  with the same references and owner, for an update built over those
+  references (a Remote domain, a placed Bundle) that Sync replays. The
+  registry had two applications with two owners for this; it has one.
 - **`foldkit-sync/journal`, the server's exchange over a journal.**
   `serveJournal(socket, options)` answers one socket's exchanges over a
   `foldkit-durable` journal (an optional peer) and notifies it of each

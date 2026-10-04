@@ -179,6 +179,20 @@ that only inspects the Model needs nothing more.
 derive the initial shared value and replay. `update`'s Commands may carry
 resources; the resource set is threaded through the returned type.
 
+When the update is built from what is made over the references (a Remote
+domain over `App.model.remote`, a placed Bundle), it cannot be given when
+they are made. `App.runnable({ initial, update })` adds it afterwards and
+returns a `RunnableApplication` with the same references and the same owner.
+A second `Surface.application` for the update would be another application,
+whose references `Projection.pick` refuses to mix with the first's:
+
+```ts
+const Made = Surface.application({ Model, Message })
+// …what the update needs, built over Made.model…
+const App = Made.runnable({ initial, update })
+// App.model is Made.model: one application.
+```
+
 ## Message subsets
 
 A subset selects typed variants of one application's Message union by constructor

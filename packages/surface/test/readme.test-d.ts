@@ -81,3 +81,22 @@ void Explicit
   })
   void made
 }
+
+// Applications: made runnable afterwards, once the update built over the references exists.
+{
+  const initial: typeof Model.Type = { todos: [], todosById: {}, selectedTodoId: Option.none() }
+  const update = (model: typeof Model.Type, message: typeof Message.Type) =>
+    Message.match(message, {
+      CreatedTodo: ({ id, title }) => ({
+        model: { ...model, todos: [...model.todos, { id, title, done: false }] },
+      }),
+      ToggledTodo: () => ({ model }),
+      SelectedTodo: ({ id }) => ({ model: { ...model, selectedTodoId: Option.some(id) } }),
+    })
+  const Made = Surface.application({ Model, Message })
+  // …what the update needs, built over Made.model…
+  const App = Made.runnable({ initial, update })
+  // App.model is Made.model: one application.
+  const _same: typeof Made.model = App.model
+  void _same
+}

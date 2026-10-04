@@ -37,4 +37,22 @@ describe('Surface.application', () => {
     // Not a copy: code written against the old name selects the same fields.
     expect(App.fields).toBe(App.model)
   })
+
+  it('is made runnable later with the same references and owner', () => {
+    // An update built from what was made over the references, given afterwards.
+    const Made = Surface.application({ Model, Message })
+    const App = Made.runnable({ initial, update })
+
+    expect(App.model).toBe(Made.model)
+    expect(App.initial).toEqual(initial)
+    expect(App.update(initial, Message.CreatedTodo({ id: 'a', title: 'A' })).model.todos).toEqual([
+      { id: 'a', title: 'A' },
+    ])
+    // One owner: references from either pick together; another application's do not.
+    expect(() => Projection.pick(Made.model.todos, App.model.selectedTodoId)).not.toThrow()
+    const Other = Surface.application({ Model, Message })
+    expect(() => Projection.pick(Made.model.todos, Other.model.selectedTodoId)).toThrow(
+      /different applications/,
+    )
+  })
 })

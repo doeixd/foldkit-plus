@@ -44,3 +44,23 @@ Surface.application({
   initial: { count: 'zero' },
   update: (model: { readonly count: number }) => ({ model }),
 })
+
+// Made runnable later: the update is typed by the application, and its
+// resources carried through; an initial Model of another shape is refused.
+const Later = RefsOnly.runnable({
+  initial: { count: 0 },
+  update: (model, message) => {
+    const _incremented: { readonly _tag: 'Incremented' } = message
+    return { model: { count: model.count + 1 } }
+  },
+})
+const _laterInitial: { readonly count: number } = Later.initial
+const _laterResources = RefsOnly.runnable<'Service'>({
+  initial: { count: 0 },
+  update: model => ({
+    model,
+    commands: [{ name: 'serviced', effect: serviceEffect }],
+  }),
+})
+// @ts-expect-error the initial Model is the application's
+RefsOnly.runnable({ initial: { total: 0 }, update: model => ({ model }) })
