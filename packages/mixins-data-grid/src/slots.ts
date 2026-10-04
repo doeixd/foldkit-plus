@@ -140,7 +140,10 @@ export const GridSlots = Slots.define({
     events: [Event.Click],
     protected: { events: [Event.Click], attributes: [Attr.Role, Id] },
   }),
-  /** The button on a sortable column's header: a click sends its sort Message. */
+  /**
+   * The button on a sortable column's header: a click sends its sort Message.
+   * `data-sort` is `asc` or `desc` while the column is sorted.
+   */
   sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   /** Below the rows: a failure that left them on screen, and the More button. */
   footer: Slot.make({ capability: Capability.Container }),

@@ -179,7 +179,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **Sorting** is the application's: `sort` gives a column its direction and
   the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
   The header says `aria-sort`, and its label is a button the pointer sorts
-  with; Enter on the focused header sends it too.
+  with, marked `data-sort` (`asc` or `desc`) while sorted, which `GridStyle`
+  draws as an arrow; Enter on the focused header sends it too.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the focused cell carries
   `data-focused="true"`.

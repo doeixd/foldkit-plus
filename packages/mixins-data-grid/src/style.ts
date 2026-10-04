@@ -96,6 +96,19 @@ export const GridStyle = Style.forSlots(GridSlots)(
       Style.self({ cursor: 'pointer', paddingBlock: ref.space.xs, paddingInline: ref.space.sm }),
       Style.nest('&[data-active="true"]', { background: ref.surface.muted }),
     ),
+    // The header's label, as text: the direction is drawn after it.
+    sort: Style.compose(
+      Style.self({
+        background: 'none',
+        border: 'none',
+        color: 'inherit',
+        cursor: 'pointer',
+        font: 'inherit',
+        padding: '0',
+      }),
+      Style.nest('&[data-sort="asc"]::after', { content: '" ▲"', fontSize: ref.size.xs }),
+      Style.nest('&[data-sort="desc"]::after', { content: '" ▼"', fontSize: ref.size.xs }),
+    ),
     placeholder: Style.self({ background: ref.surface.subtle }),
     status: Style.self({ color: ref.text.muted, padding: ref.space.md }),
   },

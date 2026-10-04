@@ -829,7 +829,15 @@ const view = <Message>() => ({
                 // A button the pointer sorts with; the keyboard sorts with Enter on the header.
                 onSome: sorted =>
                   h.button(
-                    slots.sort.attrs([h.Type('button'), h.Tabindex(-1), h.OnClick(sorted.message)]),
+                    slots.sort.attrs([
+                      h.Type('button'),
+                      h.Tabindex(-1),
+                      h.OnClick(sorted.message),
+                      // For a stylist to draw the direction; the header says it with aria-sort.
+                      ...(sorted.direction === undefined
+                        ? []
+                        : [h.DataAttribute('sort', sorted.direction)]),
+                    ]),
                     [grid.columns.byId[id].header],
                   ),
               }),

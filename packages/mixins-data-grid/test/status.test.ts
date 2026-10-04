@@ -124,6 +124,13 @@ describe('the rows’ status', () => {
     expect(Inert.value(id, 'aria-sort')).toBeUndefined()
     expect(Inert.value(name, 'aria-sort')).toBe('descending')
     expect(Inert.text(Inert.bySlot(name, 'sort')[0])).toBe('Name')
+    // The button carries the direction for a stylist to draw; unsorted, none.
+    expect(Inert.value(Inert.bySlot(name, 'sort')[0], 'data-sort')).toBe('desc')
+    const unsorted = Inert.byRole(
+      draw(input({ sort: { name: { message: Message.Sorted({ column: 'name' }) } } })),
+      'columnheader',
+    )[1]
+    expect(Inert.value(Inert.bySlot(unsorted, 'sort')[0], 'data-sort')).toBeUndefined()
   })
 })
 
