@@ -195,8 +195,8 @@ internals.
 ## 3. The server: an exchange over the journal
 
 The journal takes its codecs, empty snapshot, reducer, replica binding, and the
-`authorize` rules from the contract. What you write is the **exchange**: one
-request from a replica, one answer.
+`authorize` rules from the contract. The **exchange** is one request from a
+replica and one answer:
 
 ```text
 request    cursor, pending operations, the epoch the replica last saw
@@ -209,112 +209,41 @@ answer     operations     committed after the cursor, in order
            epoch          this server's history
 ```
 
-```ts
-import { Effect, Fiber, Option, Stream } from 'effect'
-import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
-import { Sync, type Operation, type SocketLike } from 'foldkit-sync'
+`foldkit-sync/journal` answers it over the journal. What is yours is who the
+principal is:
 
-const PAGE = 500
+```ts
+import { Effect } from 'effect'
+import { ActorId, Journal, OpId } from 'foldkit-durable'
+import type { SocketLike } from 'foldkit-sync'
+import { serveJournal } from 'foldkit-sync/journal'
 
 const server = Effect.gen(function* () {
-  const contract = TodoSync.journalContract()
   const journal = yield* Journal.make({
-    ...contract,
+    ...TodoSync.journalContract(),
     file: 'todos.sqlite',
     opId: operation => OpId.make(operation.opId),
     actorId: (principal: Principal) => ActorId.make(principal.actorId),
-    validate: ({ key, operation, cursor }) => {
-      if (String(operation.documentId) !== String(key)) throw new Error('Wrong document')
+    validate: ({ operation, cursor }) => {
       if (operation.baseCursor > cursor) throw new Error('Operation is ahead of the server')
     },
   })
-  const key = DocumentId.make('todos')
-
-  const exchange = (
-    principal: Principal,
-    cursor: number,
-    pending: ReadonlyArray<Operation>,
-    seen?: string,
-  ) =>
-    Effect.gen(function* () {
-      // A replica that last saw another history is answered from the start.
-      const epoch = yield* journal.epoch(key)
-      const from = seen !== undefined && seen !== epoch ? 0 : cursor
-      if (from > (yield* journal.cursor(key)))
-        return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server`))
-
-      const acknowledged: Array<string> = []
-      const rejected: Array<string> = []
-      for (const operation of pending) {
-        if (!principal.canWrite) {
-          rejected.push(operation.opId)
-          continue
-        }
-        // A refusal, a payload that cannot apply, and an id reused for other content
-        // fail the same way on every retry, so they are rejected rather than resent.
-        const result = yield* journal
-          .append(key, operation, principal)
-          .pipe(
-            Effect.catchTag(
-              ['OperationRejectedError', 'InvalidOperationError', 'IdentityConflictError'],
-              () => Effect.void,
-            ),
-          )
-        if (result === undefined) rejected.push(operation.opId)
-        else acknowledged.push(result._tag === 'Committed' ? result.committed.opId : result.opId)
-      }
-
-      // Below the compaction floor there is no tail to send: send a checkpoint.
-      const read = yield* journal.read(key, Cursor.make(from), { limit: PAGE }).pipe(
-        Effect.map(Option.some),
-        Effect.catchTag('CompactedCursorError', () => Effect.succeed(Option.none())),
-      )
-      if (Option.isNone(read)) {
-        const { snapshot, cursor: at } = yield* journal.load(key)
-        return {
-          operations: [],
-          acknowledged,
-          rejected,
-          checkpoint: { cursor: at, model: contract.snapshot.encode(snapshot) },
-          epoch,
-        }
-      }
-      return {
-        operations: read.value.map(committed => ({
-          ...committed.operation,
-          serverSequence: committed.sequence,
-          actorId: committed.actorId,
-        })),
-        acknowledged,
-        rejected,
-        more: read.value.length === PAGE,
-        epoch,
-      }
-    })
-
   // One accepted socket; `principal` is what authenticating the connection established.
-  const serve = (socket: SocketLike, principal: Principal) =>
-    Sync.transport.serve(socket, {
-      exchange: (cursor, pending, epoch) =>
-        Effect.runPromise(exchange(principal, cursor, pending, epoch)),
-      // A commit to this document wakes every connected replica.
-      changes: listener => {
-        const fiber = Effect.runFork(
-          Stream.runForEach(journal.subscribe, changed =>
-            Effect.sync(() => {
-              if (changed === key) listener()
-            }),
-          ),
-        )
-        return () => Effect.runSync(Fiber.interrupt(fiber))
-      },
+  return (socket: SocketLike, principal: Principal) =>
+    serveJournal(socket, {
+      sync: TodoSync,
+      journal,
+      principal,
+      // A principal that may only read has every operation rejected.
+      refuse: () => !principal.canWrite,
     })
-
-  return serve
 }).pipe(Effect.scoped)
 ```
 
-Read it as the rules a server has to keep:
+`journalExchange` is the same exchange as a `TransportClient`, for an
+in-process replica; `settle` applies what committed to another store
+(`journal.recover`) after each exchange. It keeps the rules a server has to
+keep:
 
 - **Check the cursor before appending anything.** If the replica's cursor is
   ahead of the journal, the exchange must fail before any commit, or a commit's
@@ -342,8 +271,9 @@ Read it as the rules a server has to keep:
   claim to be someone else. Durable also binds each replica id to the first
   actor that commits from it, and refuses another's.
 
-[`examples/sync/src/journal.ts`](../examples/sync/src/journal.ts) is this
-handler with server-side effects settled before the acknowledgement, and
+[`examples/sync/src/journal.ts`](../examples/sync/src/journal.ts) writes the
+exchange by hand, the rules above as code, with server-side effects settled
+before the acknowledgement, and
 [`server.ts`](../examples/sync/src/server.ts) beside it binds `serve` to a `ws`
 server with a per-connection token.
 

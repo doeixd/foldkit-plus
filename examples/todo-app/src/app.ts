@@ -53,7 +53,6 @@ export const Shared = Schema.Struct({
   todos: Schema.Array(Todo),
 })
 export type Shared = typeof Shared.Type
-export const encodeShared = Schema.encodeSync(Shared)
 
 export const Filter = Schema.Union([
   Schema.Literal('all'),

@@ -2597,6 +2597,9 @@ importers:
       foldkit-agent:
         specifier: workspace:*
         version: link:../agent
+      foldkit-durable:
+        specifier: workspace:*
+        version: link:../durable
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

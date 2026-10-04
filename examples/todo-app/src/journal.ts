@@ -18,9 +18,11 @@ import {
   DocumentId as SyncDocumentId,
   type CommittedOperation as Committed,
   type Operation,
+  type SocketLike,
   type TransportClient,
 } from 'foldkit-sync'
-import { encodeShared, type Message, type Shared } from './app.js'
+import { journalExchange, serveJournal } from 'foldkit-sync/journal'
+import { type Message, type Shared } from './app.js'
 import type { SyncPrincipal } from './principal.js'
 import { TodoSync, journalContract } from './sync.js'
 
@@ -39,6 +41,8 @@ export interface ServerJournal {
   readonly snapshot: (documentId: string) => { readonly cursor: number; readonly model: Shared }
   readonly subscribe: (listener: (key: string) => void) => () => void
   readonly transport: (principal: SyncPrincipal) => TransportClient
+  /** Serves one socket as `principal`: its exchanges, and a notice after each commit. */
+  readonly serve: (socket: SocketLike, principal: SyncPrincipal) => () => void
   readonly close: () => void
 }
 
@@ -117,6 +121,15 @@ export const openJournal = (path: string): ServerJournal => {
     )
   }
 
+  // The shared exchange, as one principal: one that may only read has every
+  // operation refused, unread by the journal.
+  const exchangeAs = (principal: SyncPrincipal) => ({
+    sync: TodoSync,
+    journal: durable,
+    principal,
+    refuse: () => !principal.canWrite,
+  })
+
   const read = (documentId: string, after: number): ReadonlyArray<Committed> =>
     Effect.runSync(durable.read(DocumentId.make(documentId), Cursor.make(after))).map(committed =>
       toCommitted(committed, documentId),
@@ -137,60 +150,19 @@ export const openJournal = (path: string): ServerJournal => {
       )
       return () => Effect.runSync(Fiber.interrupt(fiber))
     },
-    transport: (principal: SyncPrincipal): TransportClient => ({
-      exchange: async (cursor, pending) => {
-        if (!principal.actorId) throw new Error('Unauthenticated reader')
-        const rejected: string[] = []
-        const acknowledged: string[] = []
-        for (const input of pending) {
-          const operation = TodoSync.codec.normalizeOperation(input)
-          if (!principal.canWrite) {
-            rejected.push(operation.opId)
-            continue
-          }
-          const result = Effect.runSync(
-            durable.append(DocumentId.make(principal.documentId), operation, principal).pipe(
-              Effect.catchTag('OperationRejectedError', error =>
-                Effect.sync(() => {
-                  rejected.push(error.opId)
-                  return undefined
-                }),
-              ),
-            ),
-          )
-          if (result === undefined) continue
-          // A commit made before compaction has no payload left to replay.
-          acknowledged.push(
-            result._tag === 'AlreadyCommitted' ? result.opId : result.committed.operation.opId,
-          )
-        }
-        // A read below the floor means the client must adopt a checkpoint. The
-        // read decides that itself, so a compaction cannot slip between the
-        // floor check and the read and produce a gapped stream.
-        const caught = Effect.runSync(
-          durable.read(DocumentId.make(principal.documentId), Cursor.make(cursor)).pipe(
-            Effect.map(rows => ({ rows })),
-            Effect.catchTag('CompactedCursorError', () =>
-              Effect.succeed({ checkpoint: true as const }),
-            ),
-          ),
-        )
-        if ('checkpoint' in caught) {
-          const { cursor: at, model } = snapshot(principal.documentId)
-          return {
-            checkpoint: { cursor: at, model: encodeShared(model) },
-            operations: [],
-            rejected,
-            acknowledged,
-          }
-        }
-        return {
-          operations: caught.rows.map(committed => toCommitted(committed, principal.documentId)),
-          rejected,
-          acknowledged,
-        }
-      },
-    }),
+    // The exchange is `foldkit-sync/journal`'s: an operation it cannot take is
+    // rejected by its id, so the edits behind it still go. A principal that may
+    // only read has every operation refused.
+    transport: (principal: SyncPrincipal): TransportClient => {
+      const exchange = journalExchange(exchangeAs(principal))
+      return {
+        exchange: (cursor, pending, epoch) =>
+          principal.actorId
+            ? exchange.exchange(cursor, pending, epoch)
+            : Promise.reject(new Error('Unauthenticated reader')),
+      }
+    },
+    serve: (socket, principal) => serveJournal(socket, exchangeAs(principal)),
     close: () => {
       Effect.runSync(Scope.close(scope, Exit.void))
     },

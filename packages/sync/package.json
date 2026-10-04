@@ -31,6 +31,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./journal": {
+      "foldkit-plus:source": "./src/journal.ts",
+      "types": "./dist/journal.d.mts",
+      "import": "./dist/journal.mjs"
     }
   },
   "files": [
@@ -47,15 +52,22 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.165.0"
+    "foldkit": "^0.165.0",
+    "foldkit-durable": "workspace:*"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0",
     "effect": "4.0.0",
     "foldkit": "0.165.0",
     "foldkit-agent": "workspace:*",
+    "foldkit-durable": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
+  },
+  "peerDependenciesMeta": {
+    "foldkit-durable": {
+      "optional": true
+    }
   }
 }

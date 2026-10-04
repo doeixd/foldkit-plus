@@ -244,13 +244,15 @@ const server = Effect.gen(function* () {
 - Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `epoch`, `subscribe` (a wake-up signal; catch up
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
-- Durable does **not** speak the sync exchange. Your server wires
-  `Sync.transport.serve(socket, { exchange, changes })` to a handler that appends pending
-  ops, collects `acknowledged`/`rejected`, reads after the cursor, and returns a
-  checkpoint on `CompactedCursorError`, and `changes` to `journal.subscribe`
-  for the document's key so readers hear of commits. Reject an op that does not decode rather
-  than throwing: a thrown exchange is retried with the same outbox, forever. The
-  handler is shown whole in `docs/replication.md` (section 3) and run in
+- Durable does **not** speak the sync exchange; `foldkit-sync/journal` does
+  (`foldkit-durable` an optional peer): `serveJournal(socket, { sync, journal,
+  principal, refuse?, settle? })` answers one socket and notifies it of each
+  commit; `journalExchange(options)` is the same as a `TransportClient` for an
+  in-process replica. An op that does not decode, names another document, or
+  is refused, invalid or a reused id is **rejected by id**, so it cannot block
+  the outbox; only a cursor ahead of the journal's or a `JournalError` fails
+  the exchange. `settle` (run every exchange) applies commits elsewhere via
+  `recover`. Written by hand: `docs/replication.md` (section 3) and
   `examples/sync/src/journal.ts`.
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every

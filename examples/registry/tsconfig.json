@@ -43,7 +43,8 @@
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
-      "foldkit-sync": ["../../packages/sync/src/index.ts"]
+      "foldkit-sync": ["../../packages/sync/src/index.ts"],
+      "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],

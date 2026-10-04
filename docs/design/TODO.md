@@ -509,11 +509,9 @@ are built. Each phase lists its deliverables and acceptance there.
   Built in memory as `examples/data-grid`, and over Remote with local-first
   edits through Sync as `examples/registry` (2026-10-03); search and saved
   layouts are not.
-- [ ] **`examples/todo-app`'s exchange throws on an operation it cannot
-  decode,** as the registry's did: the replica sends it again on every
-  exchange and the edits behind it never go. Reject it by its id
-  (`examples/registry/src/journal.ts` does), or give `foldkit-sync` a server
-  exchange that both examples use.
+- [x] **`examples/todo-app`'s exchange threw on an operation it cannot
+  decode,** as the registry's did. `foldkit-sync/journal` is now the shared
+  exchange (#152); todo-app, the registry and the kitchen sink use it.
 
 ## UI platform
 

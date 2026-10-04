@@ -225,24 +225,52 @@ commits what it accepts, and returns what the replica is missing. With
 snapshot, reducer, and any [authorization](#authorize-on-the-server):
 
 ```ts
-import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
+import { Effect } from 'effect'
+import { ActorId, Journal, OpId } from 'foldkit-durable'
+import type { SocketLike } from 'foldkit-sync'
+import { serveJournal } from 'foldkit-sync/journal'
 
 type Principal = { readonly actorId: string }
 
-const journal = yield* Journal.make({
-  ...TodoSync.journalContract(),
-  file: 'todos.sqlite',
-  opId: operation => OpId.make(operation.opId),
-  actorId: (principal: Principal) => ActorId.make(principal.actorId),
+const server = Effect.gen(function* () {
+  const journal = yield* Journal.make({
+    ...TodoSync.journalContract(),
+    file: 'todos.sqlite',
+    opId: operation => OpId.make(operation.opId),
+    actorId: (principal: Principal) => ActorId.make(principal.actorId),
+  })
+  // One accepted socket, as the principal its authentication established.
+  return (socket: SocketLike, principal: Principal) =>
+    serveJournal(socket, { sync: TodoSync, journal, principal })
 })
 ```
 
-The exchange handler itself is yours: it calls `journal.append` for each
-pending operation, `journal.read` for what follows the cursor, and serves the
-result on a socket with `Sync.transport.serve`. [The replicated state
-guide](../../docs/replication.md#3-the-server-an-exchange-over-the-journal) shows
-the whole handler in one page, and [`examples/sync`](../../examples/sync) runs
-it over `ws`.
+`foldkit-sync/journal` is the exchange over the journal (`foldkit-durable`,
+an optional peer of this package):
+
+- **`serveJournal(socket, options)`** answers one socket's exchanges and sends
+  a notice after each commit, so its replica hears of others' edits.
+  `journalExchange(options)` is the same exchange as a `TransportClient`, for
+  `Sync.transport.fromPromise` in process; `journalChanges` the notice alone.
+- **What cannot be taken is rejected by its id, not left to fail the
+  exchange.** An operation whose message does not decode, that names another
+  document, that `authorize` or `validate` refuses, or that reuses an id for
+  other content fails the same way on every retry, so the replica drops it
+  and the edits behind it still go. Only an entry with no id, a cursor ahead
+  of the journal's, or the journal failing fails the exchange.
+- **`refuse(operation)`** rejects before the journal reads it, by what the
+  transport established (a principal that may only read); a rule about the
+  document belongs in `authorize`.
+- **`settle`** runs after each exchange's appends: apply what committed to
+  another store, through `journal.recover`. It runs every exchange, so a
+  write that failed is tried again.
+- The reply carries what committed since the cursor, a page at a time
+  (`limit`, `more`), a checkpoint when that history was compacted, and the
+  journal's epoch: a replica of a reset journal is answered from the start.
+
+[The replicated state guide](../../docs/replication.md#3-the-server-an-exchange-over-the-journal)
+says why each rule is there, and [`examples/sync`](../../examples/sync) writes
+the exchange by hand, with an effect policy per committed operation.
 
 A server that is not Durable implements the same [exchange](#the-exchange).
 

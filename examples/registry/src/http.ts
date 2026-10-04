@@ -8,7 +8,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Effect } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Sequence, Sync, type SocketLike } from 'foldkit-sync'
+import type { SocketLike } from 'foldkit-sync'
 import { type WebSocket, WebSocketServer } from 'ws'
 import { openJournal } from './journal.js'
 import { openServer } from './server.js'
@@ -65,10 +65,7 @@ export const startHttpServer = async (
   // Each socket exchanges with the journal, and is woken when another commits.
   const sockets = new WebSocketServer({ server, path: '/sync' })
   sockets.on('connection', socket => {
-    const stop = Sync.transport.serve(socketLike(socket), {
-      exchange: (cursor, pending) => journal.transport.exchange(Sequence.make(cursor), pending),
-      changes: journal.changes,
-    })
+    const stop = journal.serve(socketLike(socket))
     socket.on('close', stop)
   })
 

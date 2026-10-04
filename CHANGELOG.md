@@ -92,6 +92,18 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **`foldkit-sync/journal`, the server's exchange over a journal.**
+  `serveJournal(socket, options)` answers one socket's exchanges over a
+  `foldkit-durable` journal (an optional peer) and notifies it of each
+  commit; `journalExchange(options)` is the same as a `TransportClient`, and
+  `journalChanges` the notice alone. An operation that does not decode,
+  names another document, is refused by `authorize` or `validate`, or reuses
+  an id is rejected by its id, so one bad operation no longer blocks the
+  outbox; a cursor ahead of the journal's fails before anything is appended,
+  and a replica of another epoch is answered from the start. `refuse`
+  rejects by what the transport established, and `settle` applies commits
+  elsewhere after each exchange. The todo-app, registry and kitchen-sink
+  servers use it; todo-app's replicas now hear of each other's commits.
 - **Remote over plain JSON (`foldkit-remote`, `foldkit-remote-server`).**
   `Remote.http(url, { headers })` is Remote's client over `POST`ed JSON,
   `Remote.json(send)` the same over any way of sending it (a worker, a

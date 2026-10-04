@@ -14,9 +14,12 @@ import {
   ReplicaId,
   Sync,
   type Replica,
+  type SocketLike,
   type Storage,
   type TransportClient,
 } from '../src/index.js'
+import { serveJournal } from '../src/journal.js'
+import { ActorId, Journal, OpId } from 'foldkit-durable'
 
 // Sixty seconds: say what is shared
 const Model = Schema.Struct({
@@ -91,15 +94,21 @@ mounted.dispatch(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' })
 mounted.model()
 await mounted.dispose()
 
-// The server: `Journal.make` is `foldkit-durable`'s, which is not a dependency
-// here, so only the half this package supplies is checked.
-const journalOptions = {
-  ...TodoSync.journalContract(),
-  file: 'todos.sqlite',
-  opId: (operation: { readonly opId: string }) => operation.opId,
-  actorId: (principal: { readonly actorId: string }) => principal.actorId,
-}
-void journalOptions
+// The server
+type Principal = { readonly actorId: string }
+
+const server = Effect.gen(function* () {
+  const journal = yield* Journal.make({
+    ...TodoSync.journalContract(),
+    file: 'todos.sqlite',
+    opId: operation => OpId.make(operation.opId),
+    actorId: (principal: Principal) => ActorId.make(principal.actorId),
+  })
+  // One accepted socket, as the principal its authentication established.
+  return (socket: SocketLike, principal: Principal) =>
+    serveJournal(socket, { sync: TodoSync, journal, principal })
+})
+void server
 
 // What to show the user
 const status = Effect.runSync(replica.status)

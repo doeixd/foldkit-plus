@@ -9,6 +9,7 @@
  *   replicates them, exchanging through a `TransportClient`.
  * - `foldkit-agent` (and its adapters) project the same Model and Messages.
  */
+import { journalExchange } from 'foldkit-sync/journal'
 import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -29,17 +30,10 @@ import {
 import { databaseLayer, entity, returning, one, query, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import {
-  ActorId as DurableActorId,
-  Cursor as DurableCursor,
-  DocumentId as DurableDocumentId,
-  Journal,
-  OpId,
-} from 'foldkit-durable'
+import { ActorId as DurableActorId, Journal, OpId } from 'foldkit-durable'
 import {
   DocumentId as SyncDocumentId,
   ReplicaId,
-  Sequence,
   StorageError,
   Sync,
   type Storage,
@@ -323,26 +317,9 @@ export const makeSyncServer = (principal: Principal) =>
       opId: operation => OpId.make(operation.opId),
       actorId: (value: Principal) => DurableActorId.make(value.actorId),
     })
-    const document = DurableDocumentId.make('kitchen')
-    const transport: TransportClient = {
-      exchange: async (cursor, pending) => {
-        for (const operation of pending) {
-          await Effect.runPromise(journal.append(document, operation, principal))
-        }
-        const committed = await Effect.runPromise(
-          journal.read(document, DurableCursor.make(Number(cursor))),
-        )
-        return {
-          operations: committed.map(entry => ({
-            ...entry.operation,
-            serverSequence: Sequence.make(Number(entry.sequence)),
-            actorId: String(entry.actorId),
-          })),
-          rejected: [],
-          acknowledged: pending.map(operation => operation.opId),
-        }
-      },
-    }
+    // The exchange is `foldkit-sync/journal`'s: refused operations are
+    // rejected by their id, and the reply is what committed since.
+    const transport: TransportClient = journalExchange({ sync: KitchenSync, journal, principal })
     return { journal, transport }
   })
 

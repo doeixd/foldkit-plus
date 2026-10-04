@@ -532,7 +532,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   client tampered with failed the whole exchange; the replica would send it
   again on every exchange, and the edits behind it never went. Refuse such
   an operation by its id (`rejected`), so the replica drops it, and fail the
-  exchange only for what is not an operation at all.
+  exchange only for what is not an operation at all. `foldkit-sync/journal`'s
+  `journalExchange` and `serveJournal` keep this; prefer them to a new
+  hand-written exchange.
 - **A Port decodes what it is sent.** `Port.inbound(schema).send` takes the
   schema's encoded form; `Sync.mount`'s `dispatch`, typed to take a Message,
   passed it a decoded one, so a Message with an `Option` field failed with a
