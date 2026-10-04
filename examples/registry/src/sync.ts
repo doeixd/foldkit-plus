@@ -5,6 +5,7 @@
  * the same operations the same way.
  */
 import { Effect, Fiber, Layer, Option, Stream } from 'effect'
+import { modifyFields } from 'foldkit/struct'
 import type { RemoteClient } from 'foldkit-remote'
 import { MessageSet, Projection } from 'foldkit-surface'
 import {
@@ -16,24 +17,37 @@ import {
   type Replica,
   type Sync as SyncContract,
 } from 'foldkit-sync'
-import { App, Message, type Model, type ProductEdit, placements } from './app.js'
+import { App, Message, type Model, type ProductEdit, placements, retiredOf } from './app.js'
 import { view } from './view.js'
 
 export type Shared = { readonly edits: ReadonlyArray<ProductEdit> }
 
-const definition = Sync.forApplication(App).make({
-  // Versioned with the shape of `edits`: a replica stored under the last one
-  // does not decode as this one, so it is a document of its own.
-  documentId: DocumentId.make('registry-edits-2'),
-  shared: Projection.pick(App.model.edits),
-  durable: MessageSet.make(App, [Message.EditedProducts]),
-  // The journal writes in the sequence each edit committed at, which the
-  // table's revision is compared with to know which edits a row holds.
-  stamp: {
-    EditedProducts: ({ changes }, { sequence }) =>
-      Message.EditedProducts({ changes, at: sequence }),
-  },
-})
+/** Who an exchange is from: there is no sign-in, so every client is one author. */
+export interface Principal {
+  readonly actorId: string
+}
+export const everyone: Principal = { actorId: 'registry' }
+/** The server itself, which alone records what the table has absorbed. */
+export const server: Principal = { actorId: 'registry-server' }
+
+const definition = Sync.forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    // Versioned with the shape of `edits`: a replica stored under the last one
+    // does not decode as this one, so it is a document of its own.
+    documentId: DocumentId.make('registry-edits-2'),
+    shared: Projection.pick(App.model.edits),
+    durable: MessageSet.make(App, [Message.EditedProducts, Message.AbsorbedEdits]),
+    // Dropping edits from every replica is the server's: a client's would drop
+    // someone else's edits before their rows were read.
+    authorize: { AbsorbedEdits: ({ principal }) => principal.actorId === server.actorId },
+    // The journal writes in the sequence each edit committed at, which the
+    // table's revision is compared with to know which edits a row holds.
+    stamp: {
+      EditedProducts: ({ changes }, { sequence }) =>
+        Message.EditedProducts({ changes, at: sequence }),
+    },
+  })
 
 /**
  * Annotated: the inferred type expands a Foldkit-private alias that
@@ -42,7 +56,7 @@ const definition = Sync.forApplication(App).make({
 export const RegistrySync: SyncContract<Message, Shared> = definition
 
 /** The journal's codecs, initial snapshot and reducer, for `Journal.make`. */
-export const journalContract = (): PolicyJournalContract<Operation, Shared, unknown> =>
+export const journalContract = (): PolicyJournalContract<Operation, Shared, Principal> =>
   definition.journalContract()
 
 /**
@@ -64,6 +78,17 @@ export const mountRegistry = (
     view,
     subscriptions: placements.subscriptions(),
     resources: options.resources,
+    // In the transition that replaces the edits, so no frame draws a cached
+    // row without an edit the journal absorbed after that row was read.
+    onReinstall: (next, previous) => {
+      const retired = retiredOf(previous, next)
+      return {
+        model:
+          retired.length === 0 && next.retired.length === 0
+            ? next
+            : modifyFields(next, { retired: () => retired }),
+      }
+    },
   })
   const status = Effect.runFork(
     Stream.runForEach(replica.statusChanges, ({ pending, lastError }) =>

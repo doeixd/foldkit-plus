@@ -54,6 +54,17 @@ another device's edit         shows when the exchange brings it, before Remote r
 The `revision` column is hidden; a column's menu shows it, to watch a row catch
 up with the journal.
 
+**The edits shrink to what the table lacks.** Every few seconds the server
+records, as an operation of its own, that the table holds every edit through
+its recovery cursor (`AbsorbedEdits`, which only the server may append). Each
+replica drops those edits, so the replicated slice holds what the table has not
+absorbed, usually nothing, and the journal compacts the log behind them: a
+replica that has never synchronized is sent the small snapshot, not the history.
+A page whose cached row is older than an edit it just dropped keeps that edit in
+`retired`, set in the same transition by the mount's `onReinstall`, so the row
+never shows the stale read; it lets the edit go at the next reinstall once the
+row has been read at its revision.
+
 ## An edit, end to end
 
 ```text
@@ -63,6 +74,7 @@ cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: edits m
      the table with that revision, and wakes other replicas
   -> their exchange brings it into their edits
   -> a read of the row at that revision shows the table's row, and the edit gives way
+  -> the server records that the table holds it; replicas drop it, the log is compacted
 ```
 
 Each editable column's `schema` decides what its text means: `Dollars` reads
@@ -151,10 +163,15 @@ pre-bundles the workspace packages.
   - a committed edit shows while the table cannot be written, is written on
     the next exchange, and gives way to the table once the row is read at a
     later revision, whoever wrote it;
-  - an edit that says when it committed is refused.
+  - an edit that says when it committed is refused;
+  - an edit the journal absorbed keeps showing, through another reinstall,
+    until the row is read at its revision, and is let go after.
 - `test/journal.test.ts`: the journal refuses an operation a client
   tampered with, and one naming another document, and writes nothing for
-  either; the table only moves forward, so recovery may write an edit again.
+  either; the table only moves forward, so recovery may write an edit again;
+  absorbing drops what the table holds from every replica, keeps an edit not
+  yet written, appends nothing when there is nothing to drop, and compacts, so
+  a newcomer starts from the snapshot; a client cannot absorb.
 - `test/http.test.ts`: over real HTTP and a real WebSocket to the full
   100,000-row seed; an edit sent over the socket is read back through Remote,
   a commit wakes another replica's exchange loop, and a request naming an

@@ -99,3 +99,101 @@ test('the table only moves forward, so recovery may write an edit again', () => 
   })
   expect(backend.row(productId(2))).toMatchObject({ cents: seedOf(2).cents, revision: 0 })
 })
+
+/** Edits `prices` (product index to cents) from a replica of its own, and exchanges. */
+const editAndSend = async (
+  journal: ReturnType<typeof openJournal>,
+  name: string,
+  prices: ReadonlyArray<readonly [number, number]>,
+) => {
+  const replica = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make(name), memoryStorage()),
+  )
+  for (const [index, cents] of prices)
+    await Effect.runPromise(
+      replica.submit(
+        Message.EditedProducts({
+          changes: [
+            {
+              id: ProductId.make(productId(index)),
+              description: Option.none(),
+              cents: Option.some(cents),
+            },
+          ],
+        }),
+      ),
+    )
+  const transport = Sync.transport.fromPromise(journal.transport)
+  await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
+  return { replica, transport }
+}
+
+test('absorbing records what the table holds, so replicas drop it and newcomers start small', async () => {
+  const backend = openServer({ count: 10 })
+  const journal = openJournal(backend.apply)
+  const { replica, transport } = await editAndSend(journal, 'editing', [
+    [1, 101],
+    [2, 202],
+  ])
+  // Committed, and written by the next exchange's recovery.
+  await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
+  expect(backend.row(productId(2))).toMatchObject({ cents: 202, revision: 2 })
+  expect((await Effect.runPromise(replica.shared)).edits).toHaveLength(2)
+
+  await Effect.runPromise(journal.absorb)
+  await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
+  expect((await Effect.runPromise(replica.shared)).edits).toEqual([])
+  const cursor = (await Effect.runPromise(replica.status)).cursor
+  // Nothing left to record: a second absorb appends nothing.
+  await Effect.runPromise(journal.absorb)
+  await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
+  expect((await Effect.runPromise(replica.status)).cursor).toBe(cursor)
+
+  // The log is compacted through what the table holds: an exchange from the
+  // start is answered with the snapshot, not the edits behind it.
+  expect(await journal.transport.exchange(Sequence.make(0), [])).toMatchObject({
+    checkpoint: { model: { edits: [] } },
+  })
+  // A replica that never saw the log is sent the compacted snapshot: no edits.
+  const newcomer = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make('newcomer'), memoryStorage()),
+  )
+  await Effect.runPromise(newcomer.synchronize.pipe(Effect.provide(transport)))
+  expect(await Effect.runPromise(newcomer.committed)).toEqual({ edits: [] })
+  expect((await Effect.runPromise(newcomer.status)).cursor).toBe(cursor)
+})
+
+test('an edit committed after the table was last written is kept by absorbing', async () => {
+  const backend = openServer({ count: 10 })
+  let writable = true
+  const journal = openJournal((change, at) => {
+    if (!writable) throw new Error('the table cannot be written')
+    backend.apply(change, at)
+  })
+  const { replica, transport } = await editAndSend(journal, 'editing', [[1, 101]])
+  await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
+  writable = false
+  await editAndSend(journal, 'later', [[2, 202]])
+  await Effect.runPromise(journal.absorb)
+  await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
+  // The first is in the table and gone; the second is not written yet and stays.
+  expect(
+    (await Effect.runPromise(replica.shared)).edits.map(edit => [
+      edit.id,
+      Option.map(edit.cents, field => field.value),
+    ]),
+  ).toEqual([[productId(2), Option.some(202)]])
+})
+
+test('a client cannot record what the table holds', async () => {
+  const backend = openServer({ count: 10 })
+  const journal = openJournal(backend.apply)
+  const { transport } = await editAndSend(journal, 'editing', [[1, 101]])
+  const forger = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make('forger'), memoryStorage()),
+  )
+  await Effect.runPromise(forger.submit(Message.AbsorbedEdits({ through: 100 })))
+  await Effect.runPromise(forger.synchronize.pipe(Effect.provide(transport)))
+  expect((await Effect.runPromise(forger.status)).rejected).toHaveLength(1)
+  expect((await Effect.runPromise(forger.shared)).edits).toHaveLength(1)
+})

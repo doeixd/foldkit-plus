@@ -69,6 +69,15 @@ export const startHttpServer = async (
     socket.on('close', stop)
   })
 
+  // What the table holds is recorded in the journal every few seconds, not
+  // per edit: each record is a commit every replica hears of. A failed one
+  // is tried again on the next tick.
+  const absorbing = setInterval(() => {
+    void Effect.runPromise(journal.absorb).catch(error =>
+      console.error('Could not record what the table holds', error),
+    )
+  }, 5_000)
+
   await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve))
   const { port: bound } = server.address() as AddressInfo
   return {
@@ -76,6 +85,7 @@ export const startHttpServer = async (
     syncUrl: `ws://127.0.0.1:${bound}/sync`,
     close: () =>
       new Promise<void>(resolve => {
+        clearInterval(absorbing)
         for (const socket of sockets.clients) socket.terminate()
         sockets.close()
         server.close(() => {

@@ -262,8 +262,14 @@ version changed; `pnpm` skips versions already in the registry.
   only while it is pending or committed after the row's revision. A table
   write that throws now fails its recovery intent and is retried on the next
   exchange, where it died before; an operation that says when it committed
-  is refused. The document is `registry-edits-2`, since `edits` changed
-  shape, so a replica stored under the old one is not opened (#159).
+  is refused. Every few seconds the server records, as its own operation
+  (`AbsorbedEdits`, refused from a client), that the table holds every edit
+  through its recovery cursor: replicas drop those edits and the log is
+  compacted, so the replicated slice is what the table lacks. A page keeps an
+  absorbed edit in `retired`, set by `onReinstall`, until its cached row is
+  read at the edit's revision. The document is `registry-edits-2`, since
+  `edits` changed shape, so a replica stored under the old one is not opened
+  (#159).
 - **`examples/cms` starts its studio again.** Since the studio's sections
   share one runtime, the entry drew it into a new element in place of `#app`
   that had no id, which the runtime refuses before drawing, so `pnpm dev` and

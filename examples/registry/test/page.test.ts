@@ -15,6 +15,7 @@
  */
 import { Effect, Layer, Option } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
+import { GridCrud } from 'foldkit-data-grid/crud'
 import { Frames } from 'foldkit-mixins/testing'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -130,6 +131,11 @@ const loaded = (model: Model) => {
   return page._tag === 'Ready' ? page.value.items.length : 0
 }
 const priceOf = (index: number) => (seedOf(index).cents / 100).toFixed(2)
+/** The revision of a row as Remote last read it. */
+const revisionOf = (model: Model, id: string) => {
+  const rows = GridCrud.rows(Products.page(model), row => row.id)
+  return Option.map(Option.flatMap(rows.indexOf(id), rows.rowAt), row => row.revision)
+}
 
 test('reads the first page, sorts on the server, and reads more', async () => {
   const { dispose, latest } = await mount(serve(), memoryStorage())
@@ -367,4 +373,63 @@ test('an edit that says when it committed is refused, and the table keeps its pr
   await Effect.runPromise(forger.synchronize.pipe(Effect.provide(server.transport)))
   expect((await Effect.runPromise(forger.status)).rejected).toHaveLength(1)
   expect(server.backend.row(productId(8))).toMatchObject({ cents: seedOf(8).cents, revision: 0 })
+})
+
+test('an edit the journal absorbed keeps showing until the row is read at its revision', async () => {
+  const server = serve()
+  const { dispose, exchange, mounted, latest } = await mount(server, memoryStorage())
+  /** Another device's price for product `index`, sent: a reinstall on this page's next exchange. */
+  const elsewhere = async (name: string, index: number) => {
+    const other = await Effect.runPromise(
+      RegistrySync.openReplica(ReplicaId.make(name), memoryStorage()),
+    )
+    await Effect.runPromise(
+      other.submit(
+        Message.EditedProducts({
+          changes: [
+            {
+              id: ProductId.make(productId(index)),
+              description: Option.none(),
+              cents: Option.some(index),
+            },
+          ],
+        }),
+      ),
+    )
+    await Effect.runPromise(other.synchronize.pipe(Effect.provide(server.transport)))
+    await exchange()
+  }
+  try {
+    await vi.waitFor(() => expect(cell(productId(9), 'cents')?.textContent).toBe(priceOf(9)))
+    await edit(productId(9), 'cents', '4.40')
+    await vi.waitFor(() => expect(cell(productId(9), 'cents')?.textContent).toBe('4.40'))
+    // Committed, then written by the next exchange; the cached row is still the seed's.
+    await exchange()
+    await exchange()
+    expect(server.backend.row(productId(9))).toMatchObject({ cents: 440, revision: 1 })
+
+    // The journal records what the table holds; the exchange drops the edit,
+    // and in the same transition this page keeps it, for its row is older.
+    await Effect.runPromise(server.journal.absorb)
+    await exchange()
+    expect(latest().edits).toEqual([])
+    expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
+    expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
+
+    // Another reinstall before the row is read again keeps it still.
+    await elsewhere('tab-2', 8)
+    expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
+    expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
+
+    // Read again, the row has it at its revision, and the price is the table's.
+    mounted.dispatch(Message.RetriedProducts())
+    await vi.waitFor(() => expect(revisionOf(latest(), productId(9))).toEqual(Option.some(1)))
+    expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
+
+    // The next reinstall lets it go.
+    await elsewhere('tab-3', 7)
+    expect(latest().retired).toEqual([])
+  } finally {
+    await dispose()
+  }
 })

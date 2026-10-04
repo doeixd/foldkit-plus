@@ -124,6 +124,12 @@ const Base = Bundle.compose({
    * this device's.
    */
   edits: Schema.Array(ProductEdit),
+  /**
+   * Committed edits the journal has absorbed that this device's cached rows
+   * have not been read since: kept here, locally, so the row does not show the
+   * stale read for a moment. Set by the mount's `onReinstall` (`retiredOf`).
+   */
+  retired: Schema.Array(ProductEdit),
   exchange: Exchange,
 }).pipe(
   Bundle.withMessages({
@@ -142,6 +148,12 @@ const Base = Bundle.compose({
       changes: Schema.Array(ProductChange),
       at: Schema.optionalKey(Schema.Number),
     },
+    /**
+     * Durable, and the server's alone: the table holds every edit committed
+     * through `through`, so the edits drop them. Keeps the replicated slice to
+     * what the table has not absorbed, usually nothing.
+     */
+    AbsorbedEdits: { through: Schema.Number },
     /** The replica's status, for the status line; local, not replicated. */
     ExchangeChanged: Exchange.fields,
   }),
@@ -207,6 +219,22 @@ const merged = (
   return [...byId.values()]
 }
 
+/** A field's edit, unless it committed at or before `through`. */
+const keepAfter = <A>(
+  field: Option.Option<{ readonly value: A; readonly at: Option.Option<number> }>,
+  through: number,
+) => Option.filter(field, edit => !Option.exists(edit.at, at => at <= through))
+
+/** The edits without what committed through `through`; a product left with none goes. */
+const absorbed = (edits: ReadonlyArray<ProductEdit>, through: number) =>
+  edits.flatMap(edit => {
+    const description = keepAfter(edit.description, through)
+    const cents = keepAfter(edit.cents, through)
+    return Option.isNone(description) && Option.isNone(cents)
+      ? []
+      : [{ id: edit.id, description, cents }]
+  })
+
 // The grid reports text; the fact it becomes is durable. `Sync.fact` applies
 // it within this transition, so no later Message sees the Model without it.
 // A paste the columns refused all of writes nothing.
@@ -246,6 +274,9 @@ export const update = placements.update((model: Model, message: Message) =>
           edits: edits => merged(edits, changes, Option.fromUndefinedOr(at)),
         }),
       }),
+      AbsorbedEdits: ({ through }) => ({
+        model: modifyFields(model, { edits: edits => absorbed(edits, through) }),
+      }),
       ExchangeChanged: ({ pending, error }) => ({
         model: modifyFields(model, { exchange: () => ({ pending, error }) }),
       }),
@@ -259,6 +290,7 @@ export const initial = (): Model =>
     remote: Remote.initial,
     sort: ProductSort.none,
     edits: [],
+    retired: [],
     exchange: { pending: 0, error: Option.none() },
   }).model
 
@@ -286,25 +318,77 @@ const unabsorbed = <A>(
  * rows while neither the page nor the edits do.
  */
 export const rowsOf = (model: Model): RowModel<Row> =>
+  // Two maps, each cached by its own input: the retired edits beneath, the
+  // current ones over them.
   RowModel.map(
-    GridCrud.rows(Products.page(model), row => row.id),
+    RowModel.map(
+      GridCrud.rows(Products.page(model), row => row.id),
+      model.retired,
+      overlaid,
+    ),
     model.edits,
-    edits => {
-      const byId = new Map(edits.map(edit => [edit.id, edit]))
-      return row =>
-        Option.match(Option.fromUndefinedOr(byId.get(row.id)), {
-          onNone: () => row,
-          onSome: edit => ({
-            ...row,
-            description: Option.getOrElse(
-              unabsorbed(edit.description, row.revision),
-              () => row.description,
-            ),
-            cents: Option.getOrElse(unabsorbed(edit.cents, row.revision), () => row.cents),
-          }),
-        })
-    },
+    overlaid,
   )
+
+/** Rows with the edits they have not absorbed laid over them. */
+const overlaid = (edits: ReadonlyArray<ProductEdit>) => {
+  const byId = new Map(edits.map(edit => [edit.id, edit]))
+  return (row: Row): Row =>
+    Option.match(Option.fromUndefinedOr(byId.get(row.id)), {
+      onNone: () => row,
+      onSome: edit => ({
+        ...row,
+        description: Option.getOrElse(
+          unabsorbed(edit.description, row.revision),
+          () => row.description,
+        ),
+        cents: Option.getOrElse(unabsorbed(edit.cents, row.revision), () => row.cents),
+      }),
+    })
+}
+
+/**
+ * The retired edits after the mount replaced the edits: what `previous`
+ * showed, retired or not, that `next` no longer holds, while a cached row's
+ * revision is still below it. Whatever a row has caught up with, or a row not
+ * cached, is let go: its next read has the table's value.
+ */
+export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEdit> => {
+  // The rows as the grid has them; the key lookup is the row model's own index.
+  const rows = GridCrud.rows(Products.page(next), row => row.id)
+  const revisionOf = (id: string) =>
+    Option.map(Option.flatMap(rows.indexOf(id), rows.rowAt), row => row.revision)
+  const current = new Map(next.edits.map(edit => [edit.id, edit]))
+  const held = <A>(
+    field: Option.Option<{ readonly value: A; readonly at: Option.Option<number> }>,
+    now: Option.Option<unknown>,
+    revision: number,
+  ) =>
+    Option.isSome(now)
+      ? Option.none()
+      : Option.filter(field, edit => Option.exists(edit.at, at => at > revision))
+  return [...previous.retired, ...previous.edits].flatMap(edit =>
+    Option.match(revisionOf(edit.id), {
+      onNone: () => [],
+      onSome: revision => {
+        const now = Option.fromUndefinedOr(current.get(edit.id))
+        const description = held(
+          edit.description,
+          Option.flatMap(now, kept => kept.description),
+          revision,
+        )
+        const cents = held(
+          edit.cents,
+          Option.flatMap(now, kept => kept.cents),
+          revision,
+        )
+        return Option.isNone(description) && Option.isNone(cents)
+          ? []
+          : [{ id: edit.id, description, cents }]
+      },
+    }),
+  )
+}
 
 /** Where the edits stand with the server, for the status line. */
 export const exchangeOf = (model: Model): string =>
