@@ -17,6 +17,14 @@ version changed; `pnpm` skips versions already in the registry.
   the operation as sent rather than by the stored text. A stamp that changes
   the `opId` is refused. For a read model that must know which commits it
   holds (#159).
+- **`foldkit-sync`: commit stamps on the contract.** `make({ stamp: {
+  Variant: (message, { sequence, actorId }) => … } })` writes what the
+  server's commit decided into a durable Message, per variant, and returns
+  that variant (another is rejected by id; a non-durable key is a type
+  error). It rides in `journalContract()` as Durable's `stamp`, so replicas
+  replay the stamped Message in place of what they sent. `defineSync` takes
+  the same as `stamp(message, commit)`. New types `CommitStamp` and
+  `StampPolicy`.
 
 - **`foldkit-data-grid`, the grid's pure model (private, `0.0.0`).** Phase 0
   of [the DataGrid design](docs/design/data-grid-DESIGN.md): typed `Columns`

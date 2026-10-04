@@ -166,6 +166,36 @@ const AuthorizedBoard = Authorized.make({
 })
 void AuthorizedBoard.journalContract()
 
+// Stamp what only the commit decides: a small price app of its own.
+const PriceModel = Schema.Struct({
+  prices: Schema.Array(Schema.Struct({ id: Schema.String, cents: Schema.Number })),
+})
+const PriceMessage = defineMessageUnion({
+  PriceEdited: { id: Schema.String, cents: Schema.Number, at: Schema.optionalKey(Schema.Number) },
+})
+type PriceMessage = typeof PriceMessage.Type
+const PriceApp = Surface.application({
+  Model: PriceModel,
+  Message: PriceMessage,
+  initial: { prices: [] },
+  update: (
+    model: typeof PriceModel.Type,
+    message: PriceMessage,
+  ): Update.Return<typeof PriceModel.Type, PriceMessage> => ({
+    model: { prices: [...model.prices, { id: message.id, cents: message.cents }] },
+  }),
+})
+const Prices = Sync.forApplication(PriceApp).make({
+  documentId: DocumentId.make('prices'),
+  shared: Projection.pick(PriceApp.model.prices),
+  durable: MessageSet.make(PriceApp, [PriceMessage.PriceEdited]),
+  stamp: {
+    PriceEdited: ({ id, cents }, { sequence }) =>
+      PriceMessage.PriceEdited({ id, cents, at: sequence }),
+  },
+})
+void Prices.journalContract().stamp
+
 // Coalesce a burst of typing
 const Coalesced = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),

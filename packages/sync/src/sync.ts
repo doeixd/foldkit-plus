@@ -206,6 +206,18 @@ export interface SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded> 
    * result must equal replaying `last` then `next`. Undefined keeps them apart.
    */
   readonly coalesce?: ((last: Message, next: Message) => Message | undefined) | undefined
+  /**
+   * Optional. Writes what the server's commit decided into a durable Message, on the
+   * server only: the journal stores, reduces and sends the stamped Message, so every
+   * replica replays the same one in place of what it sent.
+   */
+  readonly stamp?: ((message: Message, commit: CommitStamp) => Message) | undefined
+}
+
+/** What a commit decided, for `stamp`: the operation's place in the order, and who committed it. */
+export interface CommitStamp {
+  readonly sequence: number
+  readonly actorId: string
 }
 
 export interface Sync<Message, Shared> {
@@ -248,6 +260,8 @@ export interface JournalContract<Operation, Shared> {
   }
   readonly empty: () => Shared
   readonly reduce: (snapshot: Shared, operation: Operation) => Shared
+  /** Present when the definition stamps: Durable's `stamp`, over the operation's Message. */
+  readonly stamp?: (operation: Operation, commit: CommitStamp) => Operation
 }
 
 /**
@@ -372,6 +386,14 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     snapshot: { encode: encodeShared, decode: decodeShared },
     empty: () => definition.empty,
     reduce: (snapshot, operation) => definition.replay(snapshot, decodeMessage(operation.message)),
+    ...(definition.stamp === undefined
+      ? {}
+      : {
+          stamp: (operation: Operation, commit: CommitStamp): Operation => ({
+            ...operation,
+            message: encodeMessage(definition.stamp!(decodeMessage(operation.message), commit)),
+          }),
+        }),
   })
 
   const optimistic = (state: ReplicaState<Shared>): Shared =>

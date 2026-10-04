@@ -412,6 +412,41 @@ that is not a durable variant is a type error. The rules ride in
 An edit the policy refuses still shows at once on the client, then comes back
 as a rejection, as [above](#what-to-show-the-user).
 
+### Stamp what only the commit decides
+
+A fact carries its own nondeterminism, but a client cannot know where its
+operation lands in the server's order. A stamp writes it in, on the server, as
+the journal commits:
+
+```ts
+const Message = defineMessageUnion({
+  // `at` is absent on what a client sends: the server's sequence once committed.
+  PriceEdited: { id: Schema.String, cents: Schema.Number, at: Schema.optionalKey(Schema.Number) },
+})
+
+const Prices = Sync.forApplication(App).make({
+  documentId: DocumentId.make('prices'),
+  shared: Projection.pick(App.model.prices),
+  durable: MessageSet.make(App, [Message.PriceEdited]),
+  stamp: {
+    PriceEdited: ({ id, cents }, { sequence }) => Message.PriceEdited({ id, cents, at: sequence }),
+  },
+})
+```
+
+The rule gets that variant and `{ sequence, actorId }`, and returns the same
+variant; a key that is not durable is a type error, and a rule that returns
+another variant has its operation rejected. It rides in `journalContract()` as
+Durable's `stamp`, so the journal stores, reduces and sends the stamped
+Message. A replica shows what it sent until the exchange, then replays the
+stamped Message in its place, the same on every replica. A retry is still
+recognized by what was sent.
+
+Use it for what a reader compares with the server's order: a read model that
+records the last sequence it applied can tell which edits it holds by comparing
+the two. A client that sends the stamped field itself is claiming a commit it
+did not get; refuse it in the journal's `validate`.
+
 ### Coalesce a burst of typing
 
 Typing makes one durable Message per keystroke. `coalesce(last, next)` is

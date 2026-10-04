@@ -258,6 +258,11 @@ const server = Effect.gen(function* () {
   only the commit decides into the operation, after `validate`/`authorize` and
   before `reduce`; the stamped operation is what is stored, read and recovered,
   and a retry is still recognized by what was sent. A stamp must keep `opId`.
+  From Sync, declare it per durable variant on the contract:
+  `make({ …, stamp: { PriceEdited: ({ id, cents }, { sequence }) =>
+  Message.PriceEdited({ id, cents, at: sequence }) } })`; it rides in
+  `journalContract()`, and replicas replay the stamped Message in place of
+  what they sent. Refuse a client-sent stamped field in `validate`.
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it

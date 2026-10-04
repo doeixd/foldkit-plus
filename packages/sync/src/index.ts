@@ -109,6 +109,7 @@ export {
   type MakeOptions,
   type MsgOf,
   type PolicyJournalContract,
+  type StampPolicy,
   type SyncFragment,
 } from './make.js'
 export {
@@ -173,6 +174,7 @@ export {
   defineSync,
   syncMetrics,
   type Checkpoint,
+  type CommitStamp,
   type CommittedOperation,
   type Exchange,
   type JournalContract,

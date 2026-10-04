@@ -134,6 +134,22 @@ WideSync.make({
   authorize: { CreatedTodo: ({ principal }) => principal.owner === 'x' },
 })
 
+WideSync.make({
+  documentId: documentId('wide'),
+  ...WideSync.compose(TodosFragment),
+  // A stamp sees its own variant and the commit, and returns that variant.
+  stamp: {
+    CreatedTodo: (message, { sequence }) => ({ ...message, id: `${message.id}@${sequence}` }),
+  },
+})
+
+WideSync.make({
+  documentId: documentId('wide'),
+  ...WideSync.compose(TodosFragment),
+  // @ts-expect-error `SelectedTodo` is not durable, so it is not stamped
+  stamp: { SelectedTodo: message => message },
+})
+
 // Declared rules make the journal contract's `authorize` present.
 const _guarded: (request: never) => boolean = Composed.journalContract().authorize
 // @ts-expect-error without rules, `authorize` may be absent

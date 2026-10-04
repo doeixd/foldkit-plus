@@ -4,7 +4,7 @@
  * into the low-level `defineSync` contract, and exposes a read-only Surface over
  * the same projection.
  */
-import { Option, Predicate, Schema } from 'effect'
+import { Equal, Option, Predicate, Schema } from 'effect'
 import {
   MessageSet,
   Projection,
@@ -18,7 +18,13 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import type { DocumentId } from './ids.js'
-import { defineSync, type JournalContract, type Operation, type Sync } from './sync.js'
+import {
+  defineSync,
+  type CommitStamp,
+  type JournalContract,
+  type Operation,
+  type Sync,
+} from './sync.js'
 
 type MessageConstructor<Message> = (...args: never[]) => Message
 
@@ -94,6 +100,18 @@ export type AuthorizePolicy<
   ) => boolean
 }
 
+/**
+ * Per-variant commit stamps, keyed by durable tag: each writes what the server's commit
+ * decided (its sequence, its actor) into that variant, and returns the same variant. A
+ * variant without one is committed as sent.
+ */
+export type StampPolicy<Ms extends readonly unknown[]> = {
+  readonly [K in TagOf<Ms[number]>]?: (
+    message: Extract<MsgOf<Ms>, { readonly _tag: K }>,
+    commit: CommitStamp,
+  ) => Extract<MsgOf<Ms>, { readonly _tag: K }>
+}
+
 interface BaseOptions<
   Principal,
   Fields extends Schema.Struct.Fields,
@@ -114,6 +132,8 @@ interface BaseOptions<
   ) => Schema.Struct.Type<NoInfer<Fields>>
   /** Authorization the server journal applies before committing; see `AuthorizePolicy`. */
   readonly authorize?: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
+  /** What the server's commit writes into a durable Message; see `StampPolicy`. */
+  readonly stamp?: StampPolicy<NoInfer<Ms>>
   /**
    * Merges a durable Message into the one submitted before it while that one is unsent,
    * so a burst of edits is one operation. Replaying the result must equal replaying
@@ -387,6 +407,8 @@ const build = <
     // `AppScope` does not constrain its schemas' services; a Foldkit Message union
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
     const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
+    const stamps = options.stamp as
+      Record<string, (message: Message, commit: CommitStamp) => Message> | undefined
     const sync = defineSync<Message, Shared, unknown, unknown>({
       documentId: options.documentId,
       message: app.Message as unknown as Schema.Codec<Message, unknown>,
@@ -397,6 +419,23 @@ const build = <
       // `durable` has already rejected anything outside the declared subset.
       coalesce: options.coalesce as
         ((last: Message, next: Message) => Message | undefined) | undefined,
+      ...(stamps === undefined
+        ? {}
+        : {
+            stamp: (message: Message, commit: CommitStamp): Message =>
+              Option.match(
+                Option.flatMapNullishOr(tagOf(message), tag => stamps[tag]),
+                {
+                  onNone: () => message,
+                  onSome: rule => {
+                    const stamped = rule(message, commit)
+                    if (!Equal.equals(tagOf(stamped), tagOf(message)))
+                      throw new Error('A stamp must return the variant it was given')
+                    return stamped
+                  },
+                },
+              ),
+          }),
     })
 
     const rules = options.authorize as
