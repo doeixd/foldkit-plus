@@ -47,7 +47,7 @@
       "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
     {
       "path": "../../packages/metadata/tsconfig.build.json"

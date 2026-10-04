@@ -19,6 +19,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "test": "vitest run",
+    "e2e": "vitest run --config vitest.e2e.config.ts",
     "bench": "vitest bench --run",
     "bench:storage": "tsx packages/durable/bench/storage.ts",
     "bench:manifest": "tsx --tsconfig packages/ssr/tsconfig.json packages/ssr/bench/manifest.ts",

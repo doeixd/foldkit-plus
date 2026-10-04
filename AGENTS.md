@@ -444,6 +444,11 @@ before changing it.
   always defined), no tests that only exercise a mock, and never weaken an
   assertion to make a test pass.
 - If a test cannot be made to fail, delete it or replace it with one that can.
+- **A claim about focus, layout or the pointer is a browser test**
+  (`*.browser.test.ts`) in the view packages: jsdom lays nothing out and moves
+  no focus. An example with a server has an end-to-end test
+  (`examples/*/e2e/*.e2e.ts`, run with `pnpm e2e`) that starts it and drives
+  Chromium, for what only the running page shows.
 
 ## Traps already hit here
 
@@ -1077,6 +1082,7 @@ of its own named a form field "fits the Catalog". Read words with
 
 - Workspace: pnpm, `packages/*` and `examples/*`.
 - Build: `tsdown`. Tests: `vitest`. Types: `tsc -b`. Format: `prettier`.
-- CI runs `format:check`, `typecheck`, `test`, and `demo` on push and PR. Run
-  the same four locally before committing.
+- CI runs `format:check`, `typecheck`, `test`, `e2e`, and `demo` on push and
+  PR. Run them locally before committing; `pnpm e2e` starts servers and a
+  browser, so run it when a change reaches an example with a server.
 - `PLAN.md` is git-ignored and tracks in-progress work.

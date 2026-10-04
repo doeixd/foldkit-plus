@@ -121,6 +121,13 @@ pre-bundles the workspace packages.
   a commit wakes another replica's exchange loop, and a request naming an
   operation the server does not have is refused.
 
+- `e2e/registry.e2e.ts`: the server and the Vite dev server started, and a
+  real Chromium driving the page: reading on as the end comes into view, a
+  sort over all 100,000 products, an edit read back from the table through
+  Remote and still there after a reload, and a column hidden and shown from
+  the menus.
+
 ```bash
 npx vitest run examples/registry                  # from the repository root
+pnpm e2e                                          # the end-to-end suite
 ```

@@ -92,6 +92,12 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **`pnpm e2e`, the examples with a server end to end.** A Vitest project
+  of its own (`vitest.e2e.config.ts`), kept out of `pnpm test`, and a CI job:
+  each test starts the example's server and Vite and drives Chromium with
+  Playwright. The registry's covers reading on scroll, a server sort, an
+  edit read back from the table and kept across a reload, and the column
+  menu.
 - **Messages carry intent: the guide, and `Frames.hold` to test it.**
   `docs/state-model.md` says why a Message should carry what the user did
   and `update` work out what it means, with the cases that were bugs.
