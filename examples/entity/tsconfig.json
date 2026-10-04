@@ -44,7 +44,7 @@
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
   "references": [
     {
       "path": "../../packages/metadata/tsconfig.build.json"

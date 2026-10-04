@@ -36,7 +36,9 @@ pnpm dev     # the SQLite sync server plus Vite, on http://127.0.0.1:5173
 pnpm run server  # the sync server alone, on ws://127.0.0.1:8787
 ```
 
-`pnpm vitest run examples/todo-app` from the root runs the tests.
+`pnpm vitest run examples/todo-app` from the root runs the tests; `pnpm e2e`
+runs `e2e/todo-app.e2e.ts` too, which starts the server and Vite and drives two
+Chromium browsers as two people.
 
 Start with `pnpm demo`. It prints a labelled transcript — capabilities, the
 agent writing through `update`, both authorization boundaries, the ownership

@@ -237,6 +237,7 @@ belongs does not compile. On the wire and in SQLite they are plain text.
 | [`src/view.ts`](./src/view.ts) | The page drawn: a table from `PostList.columns`, the form through `foldkit-mixins-form`, the editor's `status` and `saveError` |
 | [`src/demo.ts`](./src/demo.ts) | The trace above, over that application and the in-process server |
 | [`src/http.ts`](./src/http.ts) | The server behind one endpoint, answering with `RemoteServer.answer`; the browser reaches it with `Remote.http('/remote')` |
+| [`e2e/entity.e2e.ts`](./e2e/entity.e2e.ts) | The server and Vite started, and Chromium saving a title read back from the table (`pnpm e2e` from the root) |
 
 `Remote.make` and `Data.get` take the domain's Entities and Selections as they
 are, so the client imports nothing of Remote's own `Entity` or `Selection`.

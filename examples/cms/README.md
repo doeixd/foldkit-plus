@@ -53,7 +53,9 @@ pnpm --filter foldkit-example-cms dev   # the same application, in a browser
 ```
 
 Both use an in-memory `node:sqlite` database, so there is no service to start,
-and a restart is a fresh start. `test/demo.test.ts` pins the transcript.
+and a restart is a fresh start. `test/demo.test.ts` pins the transcript;
+`e2e/cms.e2e.ts` (`pnpm e2e` from the root) starts the server and Vite and
+follows a post from the writer's draft to the visitor's blog.
 
 ### The address
 
