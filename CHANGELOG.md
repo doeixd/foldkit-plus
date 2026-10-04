@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-durable`: a commit stamp.** `JournalOptions.stamp(operation,
+  { sequence, actorId })` writes what the commit decided into the operation,
+  after `validate` and `authorize` and before `reduce`. The stamped operation
+  is what is stored, read, loaded and recovered; a retry is still recognized
+  by what was sent, since a retransmission is now compared by the hash of
+  the operation as sent rather than by the stored text. A stamp that changes
+  the `opId` is refused. For a read model that must know which commits it
+  holds (#159).
+
 - **`foldkit-data-grid`, the grid's pure model (private, `0.0.0`).** Phase 0
   of [the DataGrid design](docs/design/data-grid-DESIGN.md): typed `Columns`
   by stable id, a `RowModel` with a `Known` or `Unknown` `RowCount`, a

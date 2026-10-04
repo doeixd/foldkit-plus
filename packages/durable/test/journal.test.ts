@@ -1816,3 +1816,132 @@ describe('a retryFailed predicate', () => {
       )
     }))
 })
+
+describe('a commit stamp', () => {
+  // An edit whose sequence and author the journal writes in as it commits.
+  interface Edit {
+    readonly opId: string
+    readonly value: string
+    readonly at?: number
+    readonly by?: string
+  }
+  const edit: Codec<Edit> = {
+    encode: value => value,
+    decode: value => {
+      const { opId, value: text, at, by } = value as Record<string, unknown>
+      if (typeof opId !== 'string' || typeof text !== 'string') throw new Error('invalid edit')
+      return {
+        opId,
+        value: text,
+        ...(typeof at === 'number' ? { at } : {}),
+        ...(typeof by === 'string' ? { by } : {}),
+      }
+    },
+  }
+  type Stamped = ReadonlyArray<Edit>
+  const stamped: Codec<Stamped> = {
+    encode: value => value,
+    decode: value => (value as ReadonlyArray<unknown>).map(entry => edit.decode(entry)),
+  }
+  const withStamped = <A>(
+    body: (
+      journal: Journal<Edit, Stamped, Principal>,
+    ) => Generator<Effect.Effect<unknown, unknown, Scope.Scope>, A, unknown>,
+    hooks: Partial<JournalOptions<Edit, Stamped, Principal>> = {},
+  ): Promise<A> =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const journal = yield* makeJournal<Edit, Stamped, Principal>({
+            file: ':memory:',
+            operation: edit,
+            snapshot: stamped,
+            empty: () => [],
+            reduce: (state, value) => [...state, value],
+            opId: value => opId(value.opId),
+            actorId: value => actorId(value.actorId),
+            stamp: (value, commit) => ({ ...value, at: commit.sequence, by: commit.actorId }),
+            ...hooks,
+          })
+          return yield* Effect.gen(() => body(journal))
+        }),
+      ),
+    )
+  const sent = (n: number): Edit => ({ opId: `e:${n}`, value: `v${n}` })
+  const stampedAs = (n: number): Edit => ({ ...sent(n), at: n, by: 'owner' })
+
+  it('is what is stored, reduced, read, loaded and recovered', () =>
+    withStamped(function* (journal) {
+      yield* journal.append(todos, sent(1), principal)
+      const second = appendCommitted(yield* journal.append(todos, sent(2), principal))
+      expect(second.operation).toEqual(stampedAs(2))
+      expect((yield* journal.read(todos, cursor(0))).map(entry => entry.operation)).toEqual([
+        stampedAs(1),
+        stampedAs(2),
+      ])
+      expect(yield* journal.load(todos)).toEqual({
+        snapshot: [stampedAs(1), stampedAs(2)],
+        cursor: 2,
+      })
+      const seen: Array<Edit> = []
+      yield* journal.recover({
+        key: todos,
+        from: cursor(0),
+        intents: value => {
+          seen.push(value)
+          return []
+        },
+      })
+      expect(seen).toEqual([stampedAs(1), stampedAs(2)])
+    }))
+
+  it('recognizes a retry by what was sent, and still refuses other data under its id', () =>
+    withStamped(function* (journal) {
+      yield* journal.append(todos, sent(1), principal)
+      const again = appendCommitted(yield* journal.append(todos, sent(1), principal))
+      expect(again).toMatchObject({ sequence: 1, operation: stampedAs(1) })
+      expect(yield* journal.cursor(todos)).toBe(1)
+      const other = yield* Effect.result(
+        journal.append(todos, { ...sent(1), value: 'other' }, principal),
+      )
+      expect(other).toMatchObject({ _tag: 'Failure', failure: { _tag: 'IdentityConflictError' } })
+      // The stamped form is not what was sent, so it is not a retry either.
+      const claimed = yield* Effect.result(journal.append(todos, stampedAs(1), principal))
+      expect(claimed).toMatchObject({
+        _tag: 'Failure',
+        failure: { _tag: 'IdentityConflictError' },
+      })
+    }))
+
+  it('runs after validate and authorize, which see the operation as sent', () => {
+    const checked: Array<Edit> = []
+    return withStamped(
+      function* (journal) {
+        yield* journal.append(todos, sent(1), principal)
+        expect(checked).toEqual([sent(1), sent(1)])
+      },
+      {
+        validate: ({ operation: value }) => {
+          checked.push(value)
+        },
+        authorize: ({ operation: value }) => {
+          checked.push(value)
+          return true
+        },
+      },
+    )
+  })
+
+  it('refuses a stamp that changes the identity, committing nothing', () =>
+    withStamped(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, sent(1), principal))
+        expect(result).toMatchObject({
+          _tag: 'Failure',
+          failure: { _tag: 'InvalidOperationError' },
+        })
+        expect(yield* journal.cursor(todos)).toBe(0)
+      },
+      { stamp: value => ({ ...value, opId: 'elsewhere' }) },
+    ))
+})

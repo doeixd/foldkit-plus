@@ -155,7 +155,7 @@ boundary to `unknown`. A payload that does not decode is an `InvalidOperationErr
 For a new operation, inside one SQLite transaction:
 
 ```text
-decode → validate → authorize → reduce → assign sequence → persist op + snapshot + cursor → Committed
+decode → validate → authorize → assign sequence → stamp → reduce → persist op + snapshot + cursor → Committed
 ```
 
 For a retransmission, the stable `opId` is what matters:
@@ -168,6 +168,26 @@ same opId, different payload or actor    IdentityConflictError
 Payloads are canonicalized before hashing, so reordered JSON keys are the same
 operation. The guarantee lasts as long as the identity row does; see
 [retention](#retention).
+
+**A commit stamp** writes what only the commit decides into the operation:
+
+```ts
+type Edit = Operation & { readonly at?: number }
+const stamping: Pick<JournalOptions<Edit, Snapshot, Principal>, 'stamp'> = {
+  stamp: (operation, { sequence }) => ({ ...operation, at: sequence }),
+}
+```
+
+It runs after `validate` and `authorize`, which see the operation as it was
+sent, and before `reduce`. The stamped operation is what is stored, reduced,
+read, loaded and handed to `recover`'s intents, so every reader sees one
+version of it. A retry is still recognized by what was sent: the payload hash is
+of the operation as sent, so resending it is answered from history, while
+resending the stamped form, or other data under the id, is an
+`IdentityConflictError`. A stamp must keep the operation's `opId`; one that
+changes it is an `InvalidOperationError` and commits nothing. Use it for a
+fact a reader needs and a client cannot supply, such as the position a read
+model compares with to know which commits it holds.
 
 Read the results as three separate facts:
 

@@ -254,6 +254,10 @@ const server = Effect.gen(function* () {
   the exchange. `settle` (run every exchange) applies commits elsewhere via
   `recover`. Written by hand: `docs/replication.md` (section 3) and
   `examples/sync/src/journal.ts`.
+- `Journal.make({ stamp: (operation, { sequence, actorId }) => … })` writes what
+  only the commit decides into the operation, after `validate`/`authorize` and
+  before `reduce`; the stamped operation is what is stored, read and recovered,
+  and a retry is still recognized by what was sent. A stamp must keep `opId`.
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it

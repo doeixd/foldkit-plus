@@ -77,6 +77,14 @@ const hooks: Pick<JournalOptions<Operation, Snapshot, Principal>, 'validate' | '
 
 void hooks
 
+// A commit stamp: what only the commit decides, written into the operation.
+type Edit = Operation & { readonly at?: number }
+const stamping: Pick<JournalOptions<Edit, Snapshot, Principal>, 'stamp'> = {
+  stamp: (operation, { sequence }) => ({ ...operation, at: sequence }),
+}
+
+void stamping
+
 // Effect recovery: the identity is chosen before the action runs.
 type Order = { readonly opId: string; readonly id: string }
 type OrderSnapshot = { readonly confirmed: ReadonlyArray<string> }

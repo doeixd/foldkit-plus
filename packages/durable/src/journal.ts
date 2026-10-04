@@ -97,6 +97,17 @@ export interface JournalOptions<
   readonly empty: () => Snapshot
   /** Deterministic and fast: it runs inside the append transaction. */
   readonly reduce: (snapshot: Snapshot, operation: Operation) => Snapshot
+  /**
+   * Writes what the commit decided into the operation: its sequence and actor,
+   * which the client that sent it cannot know. Runs inside the append
+   * transaction after `validate` and `authorize`, before `reduce`, and must keep
+   * the operation's identity. The stamped operation is what is stored, reduced,
+   * read and recovered; a retry is still recognized by what was sent.
+   */
+  readonly stamp?: (
+    operation: Operation,
+    commit: { readonly sequence: Sequence; readonly actorId: ActorId },
+  ) => Operation
   /** Stable identity; a repeat is answered idempotently. */
   readonly opId: (operation: Operation) => OpId
   /** The trusted actor recorded for the commit. */
@@ -872,6 +883,17 @@ const makeShape = <
     })
   })
 
+  /** An operation as stored: canonical JSON, so equal operations are equal text. */
+  const encodeCanonical = (value: Operation) =>
+    Effect.try({
+      try: () => {
+        const json = canonicalJson(operationCodec.encode(value))
+        if (json === undefined) throw new Error('operation encoded to no JSON value')
+        return json
+      },
+      catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+    })
+
   interface PreparedOperation {
     readonly operation: Operation
     readonly opId: OpId
@@ -903,14 +925,7 @@ const makeShape = <
         try: () => options.actorId(principal),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
-      const encoded = yield* Effect.try({
-        try: () => {
-          const json = canonicalJson(operationCodec.encode(operation))
-          if (json === undefined) throw new Error('operation encoded to no JSON value')
-          return json
-        },
-        catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
-      })
+      const encoded = yield* encodeCanonical(operation)
       return { operation, opId, actorId, encoded, payloadHash: hashPayload(encoded) }
     })
 
@@ -938,15 +953,18 @@ const makeShape = <
         const sequence = toSequence(Number(row.sequence))
         const priorActor = toActorId(String(row.actor_id))
         if (row.input !== null) {
-          // Compare canonical forms, so a retransmission with a different key
-          // order is the same operation and rows written before canonicalization
-          // still match.
-          const storedJson = yield* Effect.try({
-            try: () => canonicalJson(JSON.parse(String(row.input))),
-            catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
-          })
-          if (storedJson !== encoded || priorActor !== actorId)
-            return yield* Effect.fail(conflict())
+          // Compare what was sent, by its canonical hash: the stored input is the
+          // stamped operation, and a retransmission with a different key order is
+          // the same operation. A row without a hash is compared by its canonical form.
+          const same =
+            row.payload_hash !== null
+              ? row.payload_hash === payloadHash
+              : (yield* Effect.try({
+                  try: () => canonicalJson(JSON.parse(String(row.input))),
+                  catch: cause =>
+                    new InvalidOperationError({ message: 'Invalid operation', cause }),
+                })) === encoded
+          if (!same || priorActor !== actorId) return yield* Effect.fail(conflict())
           const stored = yield* Effect.try({
             try: () => operationCodec.decode(JSON.parse(String(row.input))),
             catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
@@ -1029,17 +1047,30 @@ const makeShape = <
           }),
         )
       }
+      const sequence = toSequence(cursor + 1)
+      const stamped =
+        options.stamp === undefined
+          ? operation
+          : yield* Effect.try({
+              try: () => {
+                const value = options.stamp!(operation, { sequence, actorId })
+                if (options.opId(value) !== opId)
+                  throw new Error(`stamp changed the operation's identity from "${opId}"`)
+                return value
+              },
+              catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+            })
+      const input = stamped === operation ? encoded : yield* encodeCanonical(stamped)
       const reduced = yield* Effect.try({
-        try: () => options.reduce(snapshot, operation),
+        try: () => options.reduce(snapshot, stamped),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
-      const sequence = toSequence(cursor + 1)
       const encodeSnapshot = (value: Snapshot) =>
         Effect.try({
           try: () => JSON.stringify(snapshotCodec.encode(value)),
           catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
         })
-      yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash, replica_id) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${encoded}, ${payloadHash}, ${replica})`
+      yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash, replica_id) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${input}, ${payloadHash}, ${replica})`
       const writes = sequence - snapshotCursor >= snapshotEvery
       if (writes) {
         const encodedSnapshot = yield* encodeSnapshot(reduced)
@@ -1059,7 +1090,7 @@ const makeShape = <
       return {
         result: {
           _tag: 'Committed' as const,
-          committed: { operation, opId, sequence, actorId },
+          committed: { operation: stamped, opId, sequence, actorId },
         },
         changed: true,
       }
