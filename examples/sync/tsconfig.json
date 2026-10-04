@@ -11,16 +11,29 @@
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
-      "foldkit-sync": ["../../packages/sync/src/index.ts"]
+      "foldkit-sync": ["../../packages/sync/src/index.ts"],
+      "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
-    { "path": "../../packages/agent/tsconfig.build.json" },
-    { "path": "../../packages/agent-mcp/tsconfig.build.json" },
-    { "path": "../../packages/durable/tsconfig.build.json" },
-    { "path": "../../packages/sync/tsconfig.build.json" },
-    { "path": "../../packages/metadata/tsconfig.build.json" },
-    { "path": "../../packages/surface/tsconfig.build.json" }
+    {
+      "path": "../../packages/agent/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/agent-mcp/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/durable/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/sync/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    }
   ]
 }
