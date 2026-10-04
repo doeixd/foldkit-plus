@@ -527,6 +527,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `UrlChanged` for the shown address must not undo anything, pending work
   included: make it a no-op unless the app deliberately treats re-navigation
   as an event (Route Transitions logs "Stayed within route").
+- **A Port decodes what it is sent.** `Port.inbound(schema).send` takes the
+  schema's encoded form; `Sync.mount`'s `dispatch`, typed to take a Message,
+  passed it a decoded one, so a Message with an `Option` field failed with a
+  `SchemaError` and was dropped, and every test of it used plain strings.
+  Encode before `send`, and test a dispatch with a transforming field.
 - **A Mount reads its args once.** `OnMount` acquires on snabbdom's `insert` and releases on
   `destroy`; its `postpatch` only hands a replayed Mount to the live runtime. A render that
   passes new args to the same element changes nothing, so a block handle's anchor stayed beside

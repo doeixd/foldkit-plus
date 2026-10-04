@@ -491,9 +491,16 @@ export const mount = <
           },
         })
   const handle = Runtime.embed(program)
+  const encodeMessage = Schema.encodeExit(app.Message as unknown as Schema.Codec<Message, unknown>)
 
   return {
-    dispatch: message => handle.ports.message.send(message),
+    // The port decodes what it is sent, so it takes the Message encoded: a
+    // Message is sent as its type is, Option fields and all.
+    dispatch: message =>
+      Exit.match(encodeMessage(message), {
+        onSuccess: encoded => handle.ports.message.send(encoded),
+        onFailure: cause => Exit.failCause(cause),
+      }),
     model: () => latest,
     subscribe: listener => {
       modelListeners.add(listener)

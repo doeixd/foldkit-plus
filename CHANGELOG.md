@@ -165,6 +165,14 @@ version changed; `pnpm` skips versions already in the registry.
   scroll** still reports `Revealed`: a DOM with no layout has no `scrollTo`,
   and the Command threw there.
 
+### Fixed
+
+- **`foldkit-sync`, `Mounted.dispatch` takes a Message as its type is.** It
+  handed the value to a Foldkit inbound Port, which decodes what it is sent,
+  so a Message with a transforming field (`Schema.OptionFromNullOr`, a
+  `NumberFromString`) failed with a `SchemaError` and never reached
+  `update`. It encodes the Message first now.
+
 ## 0.14.0
 
 `foldkit-entity` 0.7.0; `foldkit-remote` 0.11.0; `foldkit-remote-server`

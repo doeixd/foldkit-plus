@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Duration, Effect, Schema } from 'effect'
+import { Duration, Effect, Exit, Option, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Command from 'foldkit/command'
@@ -44,6 +44,8 @@ const Message = defineMessageUnion({
   MappedFact: {},
   // A durable Message whose update returns a fact, which replay could not apply.
   ImportedTodo: { id: Schema.String, title: Schema.String },
+  // A local Message whose field transforms: an Option in code, `null` encoded.
+  Noted: { note: Schema.OptionFromNullOr(Schema.String) },
 })
 type Message = typeof Message.Type
 const initial: Model = { todos: [], selectedTodoId: null, lastError: null }
@@ -80,6 +82,7 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
       model: { ...model, todos: [...model.todos, { id, title }] },
       commands: [fact(Message.SelectedTodo({ id }))],
     }),
+    Noted: ({ note }) => ({ model: { ...model, lastError: Option.getOrNull(note) } }),
     // Two facts in order, the second a local one, around an ordinary Command.
     AddedAndSelected: ({ title }) => ({
       model,
@@ -209,6 +212,14 @@ describe('Sync.mount', () => {
     await vi.waitFor(() => expect(text()).toContain('Selection: a'))
     expect(pending(replica)).toHaveLength(1)
     expect(app.model().selectedTodoId).toBe('a')
+  })
+
+  it('dispatches a Message as its type is, though its fields encode otherwise', async () => {
+    const app = await open()
+    expect(Exit.isSuccess(app.dispatch(Message.Noted({ note: Option.some('Saved') })))).toBe(true)
+    await vi.waitFor(() => expect(app.model().lastError).toBe('Saved'))
+    app.dispatch(Message.Noted({ note: Option.none() }))
+    await vi.waitFor(() => expect(app.model().lastError).toBeNull())
   })
 
   it('reports transitions and the Messages the runtime applies, for an agent host', async () => {
