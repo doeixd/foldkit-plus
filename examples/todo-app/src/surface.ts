@@ -7,7 +7,7 @@
  * reads it, `Module` inspects it, and the tests check it, from one declaration.
  *
  * The Message list of a Surface is a capability boundary. A renderer bound to
- * `Board` cannot emit `RequestedTodo`; only `Composer` can. That is enforced by
+ * `Board` cannot emit `DraftSubmitted`; only `Composer` can. That is enforced by
  * the builder's type, not by convention.
  */
 import type { KeyValueStore } from 'effect/persistence'
@@ -80,7 +80,7 @@ export const Header = App.surface('Header', {
 
 export const Composer = App.surface('Composer', {
   model: ({ model }) => ({ draft: model.draft }),
-  messages: [Message.DraftChanged, Message.RequestedTodo],
+  messages: [Message.DraftChanged, Message.DraftSubmitted],
 })
 
 export const Board = App.surface('Board', {

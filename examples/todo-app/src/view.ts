@@ -72,10 +72,10 @@ export const HeaderView = SurfaceView.define(Header, HeaderSlots, (model, slots,
   ])
 }).pipe(Style.attach(HeaderStyle))
 
-// --- composer: the only Surface that may cause `RequestedTodo` --------------------
+// --- composer: the only Surface that may cause `DraftSubmitted` -------------------
 
 export const ComposerView = SurfaceView.define(Composer, ComposerSlots, (model, slots, h) =>
-  h.form(slots.root.attrs([h.OnSubmit(Message.RequestedTodo({ title: model.draft }))]), [
+  h.form(slots.root.attrs([h.OnSubmit(Message.DraftSubmitted())]), [
     h.input(
       slots.input.attrs([
         h.Type('text'),
@@ -237,7 +237,7 @@ export const FooterView = SurfaceView.define(Footer, FooterSlots, (model, slots,
  * `Surface.rootView` is where the whole Model meets a Surface: it projects the
  * Root and hands the projected Model to the renderer. The renderer's builder is
  * narrowed to the Surface's Messages, so a Board renderer cannot dispatch
- * `RequestedTodo` even though the page's builder could.
+ * `DraftSubmitted` even though the page's builder could.
  */
 const HeaderRoot = Surface.rootView(Header, undefined, SurfaceView.toRenderer(HeaderView))
 const ComposerRoot = Surface.rootView(Composer, undefined, SurfaceView.toRenderer(ComposerView))

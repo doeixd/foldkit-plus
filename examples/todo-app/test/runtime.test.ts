@@ -74,8 +74,13 @@ describe('the mounted app', () => {
     try {
       await vi.waitFor(() => expect(document.body.textContent).toContain('0 active'))
 
+      // Typed and submitted before a frame draws the draft: the submit still
+      // adds what was typed, since `update` reads the draft, not the view.
+      const input = document.querySelector<HTMLInputElement>('input[aria-label="New todo"]')!
+      input.value = 'From the UI'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.form!.requestSubmit()
       // The intent is local; the fact its Command emits is what reaches the outbox.
-      mounted.dispatch(Message.RequestedTodo({ title: 'From the UI' }))
       await vi.waitFor(() => expect(document.body.textContent).toContain('From the UI'))
       await vi.waitFor(() => expect(Effect.runSync(replica.pending)).toHaveLength(1))
       expect(Effect.runSync(replica.pending)[0]!.message).toMatchObject({ _tag: 'SubmittedTodo' })

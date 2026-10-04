@@ -79,7 +79,13 @@ export const Message = defineMessageUnion({
   UrlChanged: { url: Url },
   // --- effectful intents: local, and their Command emits a durable fact -----
   /**
-   * The composer was submitted, or an agent asked. The Command mints the id and
+   * The composer was submitted. It names no title: the view's draft is the one
+   * last drawn, and a key pressed before the next frame would send that older
+   * draft, so `update` reads the draft from the Model it is given.
+   */
+  DraftSubmitted: {},
+  /**
+   * An agent asked for a todo. The Command mints the id and
    * the timestamp; `requestId` is the call that waits for the fact (an agent's
    * invocation), carried onto it so two requests for one title are told apart.
    * Messages cross ports and the journal as they are, so it is a plain optional
@@ -152,11 +158,19 @@ export const makeUpdate =
       MirrorRestored: () => ({ model: mirrors(model, message) }),
       // Intents. Note that each one clears its *local* state here, in the local
       // transition; the durable fact it causes never touches local fields.
+      DraftSubmitted: () =>
+        model.draft.trim() === ''
+          ? { model }
+          : {
+              model: modifyFields(model, { draft: () => '' }),
+              commands: [mintTodo(model.draft.trim(), {})],
+            },
+      // An agent's request leaves the person's draft as it is.
       RequestedTodo: ({ title, requestId }) =>
         title.trim() === ''
           ? { model }
           : {
-              model: modifyFields(model, { draft: () => '' }),
+              model,
               commands: [mintTodo(title.trim(), requestId === undefined ? {} : { requestId })],
             },
       EditingCommitted: () => {

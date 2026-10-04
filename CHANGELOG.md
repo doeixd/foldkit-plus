@@ -97,7 +97,8 @@ version changed; `pnpm` skips versions already in the registry.
   each test starts the example's server and Vite and drives Chromium with
   Playwright. The registry's covers reading on scroll, a server sort, an
   edit read back from the table and kept across a reload, and the column
-  menu.
+  menu. The todo app's covers a todo reaching a second person's page without
+  a reload, written to the journal, and kept across one.
 - **Messages carry intent: the guide, and `Frames.hold` to test it.**
   `docs/state-model.md` says why a Message should carry what the user did
   and `update` work out what it means, with the cases that were bugs.
@@ -226,6 +227,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/todo-app` adds what was typed, and keeps edits from a second
+  browser.** The composer sent `RequestedTodo({ title: model.draft })`, the
+  draft of the frame last drawn, so Enter pressed before the next frame
+  added nothing; it sends `DraftSubmitted` and `update` reads the draft, and
+  an agent's `RequestedTodo` no longer clears it. The replica was named by
+  the token, so a second browser signed in as the same person restarted its
+  operation ids and the journal refused each new one as reused; each tab is
+  its own replica now. The end-to-end test found both.
 - **`foldkit-sync`, `Mounted.dispatch` takes a Message as its type is.** It
   handed the value to a Foldkit inbound Port, which decodes what it is sent,
   so a Message with a transforming field (`Schema.OptionFromNullOr`, a

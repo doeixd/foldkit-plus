@@ -88,8 +88,13 @@ describe('the todo app', () => {
   })
 
   it('mints the fact in a Command and keeps local state out of it', () => {
-    const requested = update(initialModel, Message.RequestedTodo({ title: '  Milk ' }))
-    expect(requested.model.draft).toBe('')
+    const submitted = update({ ...initialModel, draft: '  Milk ' }, Message.DraftSubmitted())
+    expect(submitted.model.draft).toBe('')
+    expect(submitted.commands).toHaveLength(1)
+    // An agent's request mints the same fact, and leaves the draft being typed.
+    const typing = { ...initialModel, draft: 'typing' }
+    const requested = update(typing, Message.RequestedTodo({ title: '  Milk ' }))
+    expect(requested.model).toBe(typing)
     expect(requested.commands).toHaveLength(1)
 
     const fact = update(

@@ -23,12 +23,19 @@ const token = new URLSearchParams(location.search).get('token') ?? 'owner'
 const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
 const url = `${protocol}://${location.host}/sync?token=${encodeURIComponent(token)}`
 
+// The token names the person; the replica is this tab. Operation ids are the
+// replica's id and a count, so a replica named by the token restarted its count
+// in a second browser, and the journal refused each new operation as a reused
+// id. A reload opens the same replica, unsent operations included.
+const replicaKey = 'foldkit-todo-app/replica'
+const replicaId = sessionStorage.getItem(replicaKey) ?? crypto.randomUUID()
+sessionStorage.setItem(replicaKey, replicaId)
 const storageScope = Effect.runSync(Scope.make())
 // Opening IndexedDB and reading the replica back are asynchronous.
 const storage = await Effect.runPromise(
-  Effect.provideService(Sync.indexedDb(`foldkit-todo-app/${token}`), Scope.Scope, storageScope),
+  Effect.provideService(Sync.indexedDb(`foldkit-todo-app/${replicaId}`), Scope.Scope, storageScope),
 )
-const replica = await Effect.runPromise(TodoSync.openReplica(ReplicaId.make(token), storage))
+const replica = await Effect.runPromise(TodoSync.openReplica(ReplicaId.make(replicaId), storage))
 
 const container = document.querySelector<HTMLElement>('#app')
 if (container === null) throw new Error('#app is missing from the page')

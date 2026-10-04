@@ -7,10 +7,12 @@ policy the server enforces.
 
 ## Follow one user action
 
-Start with adding a todo. The view emits `RequestedTodo`; `update` returns a
-Command that supplies an id and timestamp; its `SubmittedTodo` result is the
-durable fact. Sync persists and exchanges that fact, and the agent's `add_todo`
-capability enters through the same intent.
+Start with adding a todo. The composer emits `DraftSubmitted`, which names no
+title: `update` reads the draft from the Model, since the view's copy is the
+frame last drawn, and returns a Command that supplies an id and timestamp; its
+`SubmittedTodo` result is the durable fact. Sync persists and exchanges that
+fact. The agent's `add_todo` enters through `RequestedTodo`, which carries its
+title and mints the same fact.
 
 Before adding another feature, classify its state: shared intent belongs in
 the Sync projection, disposable URL/preferences belong in Mirror, and transient
@@ -93,8 +95,9 @@ derives them and refuses a durable Message that returns a Command or touches a
 local field.
 
 **Facts carry their own nondeterminism.** `SubmittedTodo` carries the id and
-the timestamp. `RequestedTodo` is the intent: local, and its `update` returns a
-Command that reads the clock, mints the id, and emits the fact. The agent
+the timestamp. `DraftSubmitted` and `RequestedTodo` are intents: local, and
+their `update` returns a Command that reads the clock, mints the id, and emits
+the fact. The agent
 exposes the intent, not the fact, and waits for the fact through a completion
 contract. Where the outcome is a state rather than a new fact, it waits for the
 state: `rename_list` is done when the list carries the title, whoever set it.
@@ -119,9 +122,9 @@ branches in the view.
 ## Things to try in the browser
 
 - Open the app in two tabs with `?token=owner` and `?token=guest`. Add a todo in
-  one; it reaches the SQLite journal at once. A replica exchanges on start and
-  after every submit, so the other tab picks it up on its next edit, or on
-  reload.
+  one; it reaches the SQLite journal at once, and the server tells the other
+  tab, which shows it without a reload. Each tab is its own replica, so two
+  browsers signed in with one token do not reuse each other's operation ids.
 - Rename the list as `guest`. The field reverts: the server refuses
   `RenamedList`, and the exchange the submit triggered rolls the edit back. The
   footer stays quiet — it reports `onPersistenceFailure`, which is the local
