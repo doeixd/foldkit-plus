@@ -190,7 +190,7 @@ PostTable(
 )
 ```
 
-- `sort: PostSort.inputs(model.postSort, sort => Message.SortedPosts({ sort }))`
+- `sort: PostSort.inputs(model.postSort, (_, column) => Message.SortedPosts({ column }))`
   is the whole `sort` input when the state is a `foldkit-crud` `Sort`.
 - **Sorting is state the application holds**, as the query's input (see
   [`foldkit-crud`](../crud/README.md#limits)). `sort` names the columns that sort,

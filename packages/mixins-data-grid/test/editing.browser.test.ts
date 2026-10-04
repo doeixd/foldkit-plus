@@ -12,6 +12,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, GridFocus, RowModel } from 'foldkit-data-grid'
 import { DataGridView } from 'foldkit-mixins-data-grid'
 import { afterEach, expect, test, vi } from 'vitest'
+import { Frames } from 'foldkit-mixins/testing'
 import { userEvent } from 'vitest/browser'
 
 interface Item {
@@ -113,8 +114,14 @@ test('real keys edit a cell, and focus comes back to the grid', async () => {
     await vi.waitFor(() => expect(latest.edits).toEqual(['r2.name=Cable']))
     await vi.waitFor(() => expect(editor()).toBeNull())
     expect(document.activeElement).toBe(grid())
-    // Typing on the grid starts the next edit there, below.
-    await userEvent.keyboard('Dowel{Escape}')
+    // Typing on the grid starts the next edit there, below. Typed inside one
+    // frame, every key reaches the grid before the editor is drawn, and each
+    // adds to the edit rather than starting it over.
+    const frames = Frames.hold()
+    await userEvent.keyboard('Dowel')
+    frames.release()
+    await vi.waitFor(() => expect(editor()?.value).toBe('Dowel'))
+    await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(editor()).toBeNull())
     expect(latest.edits).toEqual(['r2.name=Cable'])
     expect(document.activeElement).toBe(grid())

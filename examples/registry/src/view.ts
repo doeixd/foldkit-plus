@@ -54,7 +54,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onMore: Message.RequestedMoreProducts(),
           moreOnScroll: true,
           // The orders the query offers; a header asks for one, and the Model reads it.
-          sort: ProductSort.inputs(model.sort, sort => Message.SortedProducts({ sort })),
+          // The column clicked, not the order it leads to: two clicks in one frame
+          // toggle twice, from the Model as it is, not the order last drawn.
+          sort: ProductSort.inputs(model.sort, (_, column) => Message.SortedProducts({ column })),
           columnMenu: true,
         },
         h,

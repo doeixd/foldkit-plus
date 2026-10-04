@@ -205,7 +205,10 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   Message carries the cell, not the rows between, and the grid's update
   holds no row order. Shift+Space does it from the keyboard.
 - Keys read the state the last render drew, so two keys inside one frame
-  both start from the same cell, as `GridNavigation`'s do.
+  both start from the same cell, as `GridNavigation`'s do. Where a Message
+  could carry a stale result it carries the intent instead (`EditTyped`,
+  `MenuChosen`, a drag's offset), and `update` works it out from the Model;
+  see [Messages carry intent](../../docs/state-model.md#messages-carry-intent-not-results-worked-out-from-the-last-frame).
 - A header dragged with the pointer reorders within its region; pinning
   goes through the column menu. On touch the browser's scroll takes the
   gesture.

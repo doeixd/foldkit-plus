@@ -320,6 +320,11 @@ const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
   the application parses nothing itself. The OutMessage stays text, which a
   parent can store or send; a cell that does not decode, or names a column
   that does not edit, was not the grid's, and throws.
+- **A key typed on the grid is `EditTyped({ address, text })`:** it starts
+  the edit, or adds to the one open on that cell, so keys faster than the
+  editor opens all count. The grid's Messages carry what the user did and
+  `update` works out what it means, for the reason in
+  [Messages carry intent](../../docs/state-model.md#messages-carry-intent-not-results-worked-out-from-the-last-frame).
 - **Place the grid with `onOut`.** Every placement handles the OutMessage, as
   any Bundle's must; a grid that edits nothing passes `onOut: Bundle.ignore`.
 - **A click on another cell commits first;** a refused draft keeps the edit

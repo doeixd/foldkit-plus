@@ -43,4 +43,13 @@ describe('Sort', () => {
       message: { _tag: 'Sorted', next: { by: 'created', direction: 'asc' } },
     })
   })
+
+  it('also gives each header’s Message the column clicked, the intent to toggle from', () => {
+    const sort = PostSort.inputs({ by: 'title', direction: 'asc' }, (_, column) => ({
+      _tag: 'Sorted' as const,
+      column,
+    }))
+    expect(sort.title.message).toEqual({ _tag: 'Sorted', column: 'title' })
+    expect(sort.created.message).toEqual({ _tag: 'Sorted', column: 'created' })
+  })
 })

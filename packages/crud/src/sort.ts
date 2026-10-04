@@ -48,18 +48,22 @@ export const Sort = {
       toggle,
       /**
        * What a drawn table takes as `sort`: every order with how it is sorted now
-       * and the Message a click sends, made from the state the click leads to.
+       * and the Message a click sends, made from the state the click leads to and
+       * the column clicked. A click meets the state last drawn, so two clicks
+       * inside one frame both send the same `next`; send the column instead
+       * (`(_, column) => Sorted({ column })`) and `toggle` it in `update`, from
+       * the Model as it is then.
        */
       inputs: <Message>(
         current: State,
-        message: (next: State) => Message,
+        message: (next: State, column: Column) => Message,
       ): { readonly [K in Column]: SortedColumn<Message> } =>
         Object.fromEntries(
           columns.map(column => [
             column,
             {
               direction: current?.by === column ? current.direction : undefined,
-              message: message(toggle(current, column)),
+              message: message(toggle(current, column), column),
             },
           ]),
         ) as { readonly [K in Column]: SortedColumn<Message> },

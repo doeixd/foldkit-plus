@@ -140,6 +140,49 @@ Mount on the DOM, where it is measured and drawn without a transition.
   is the only path between the two. It is still presentation, so a stored
   Builder shown again drops it (`settle`) rather than showing a stale hover.
 
+## Messages carry intent, not results worked out from the last frame
+
+A view draws from the Model it was given, and Foldkit draws on the next
+animation frame. Input faster than a frame (a fast typist, a double click, a
+key pressed as a field opens) meets the view as it was last drawn, not as the
+Model is now. A Message the view worked out from that drawing carries a stale
+result, and `update` applies it as if it were current.
+
+So a Message says what the user did, and `update` works out what it means from
+the Model as it is then:
+
+| Instead of | Send | And `update` |
+| --- | --- | --- |
+| the sort order a click leads to (`Sorted({ sort })`) | the column clicked (`Sorted({ column })`) | toggles the Model's sort: `Sort.toggle(model.sort, column)` |
+| an edit started on the key typed (`EditStarted({ draft: key })`) | the key (`EditTyped({ text })`) | starts the edit, or adds to the one open on that cell |
+| the place a dragged column lands, worked out as the pointer moved | the pointer's offset, and the release (`ColumnDragEnded`) | works out the drop from the columns as they are at release |
+| the menu item under the keyboard, as drawn | its index (`MenuChosen({ index })`) | reads the item from the menu as it stands |
+
+Each of the first rows was a bug before it was a rule. Typing "Dowel" faster
+than the editor opened left "l": each key restarted the edit. Two clicks on a
+sort header inside one frame both sent "ascending". A drop worked out while
+the pointer moved would land by widths a resize had since changed.
+
+The same applies to focus: a click on an open menu's own button moved focus to
+the button, the menu closed on losing focus, and the click, drawn a frame
+later, opened it again. Close a menu on focus leaving the element that holds
+both the menu and its button.
+
+**Test it with the frames held.** `Frames.hold()` (`foldkit-mixins/testing`)
+holds the page's animation frames, so every event a test sends meets the view
+as last drawn; `release` lets them run. A test that waits for each change to
+show cannot see this class of bug at all. A sketch;
+[`examples/registry/test/page.test.ts`](../examples/registry/test/page.test.ts)
+has it in full:
+
+```ts
+const frames = Frames.hold()
+click(sortButton())
+click(sortButton())
+frames.release()
+// Descending: the update toggled twice, from the Model as it was each time.
+```
+
 ## The rule
 
 A setter is not unsafe — it is intentionally powerful infrastructure. What

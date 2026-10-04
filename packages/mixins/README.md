@@ -782,6 +782,11 @@ Slot's name, however deeply its views nest; a view drawn for real is never marke
 under a Foldkit Scene's render frame, so a view that embeds a Submodel with `h.submodel`
 (every `@foldkit/ui` component page) draws whole, `childAttributes` included; nothing is
 dispatched, and no Command or Mount it declares runs or is checked. On that tree,
+On the real runtime, `Frames.hold()` from `foldkit-mixins/testing` holds the
+page's animation frames until `release()`, so every event a test sends meets
+the view as last drawn, as input faster than a frame does; see
+[Messages carry intent](../../docs/state-model.md#messages-carry-intent-not-results-worked-out-from-the-last-frame).
+
 `Inert.bySlot(root, 'input')` finds a Slot's elements, `Inert.unslotted(root, { inside })` lists
 every element no Slot drew (skipping what a Slot named in `inside` holds, such as a canvas drawing
 the application's page), and `Inert.fixedInline(root, { inside })` every inline declaration that

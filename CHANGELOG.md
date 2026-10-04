@@ -92,6 +92,14 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **Messages carry intent: the guide, and `Frames.hold` to test it.**
+  `docs/state-model.md` says why a Message should carry what the user did
+  and `update` work out what it means, with the cases that were bugs.
+  `Frames.hold()` (`foldkit-mixins/testing`) holds the page's frames so a
+  test's events meet the view as last drawn. `Sort.inputs`'s callback also
+  gets the column clicked (`foldkit-crud`), so a sort header sends it and
+  `update` toggles; the entity and registry examples do, and two clicks
+  inside one frame now sort descending.
 - **`App.runnable({ initial, update })` (`foldkit-surface`).** An
   application made from its Model and Messages is made runnable afterwards,
   with the same references and owner, for an update built over those

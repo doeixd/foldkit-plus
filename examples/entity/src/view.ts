@@ -34,7 +34,8 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
       // Shown only when the list failed: its rows, if any, stay on screen.
       onRetry: Message.RetriedPosts(),
       // Every order the list offers, with its state and the Message a click sends.
-      sort: PostSort.inputs(model.postSort, sort => Message.SortedPosts({ sort })),
+      // The column clicked, toggled in `update`: two clicks in one frame toggle twice.
+      sort: PostSort.inputs(model.postSort, (_, column) => Message.SortedPosts({ column })),
       words,
     },
     h,

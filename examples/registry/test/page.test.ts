@@ -14,6 +14,7 @@
  */
 import { Effect, Layer, Option } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
+import { Frames } from 'foldkit-mixins/testing'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { ReplicaId, Sync, type Storage, type TransportClient } from 'foldkit-sync'
@@ -144,11 +145,13 @@ test('reads the first page, sorts on the server, and reads more', async () => {
       Array.from(
         document.querySelectorAll<HTMLButtonElement>('#products [role="columnheader"] button'),
       ).find(button => button.textContent === 'Price')!
-    // A click acts on the button drawn last: wait for the one that asks for the next order.
     const sorted = () => sortPrice().closest('[role="columnheader"]')!.getAttribute('aria-sort')
+    // Both clicks inside one frame, on the button drawn before either: each sends
+    // the column, and the update toggles it twice from the Model as it is.
+    const frames = Frames.hold()
     click(sortPrice())
-    await vi.waitFor(() => expect(sorted()).toBe('ascending'))
     click(sortPrice())
+    frames.release()
     await vi.waitFor(() => expect(cell(dearest.id, 'upc')?.textContent).toBe(dearest.upc))
     expect(sorted()).toBe('descending')
 

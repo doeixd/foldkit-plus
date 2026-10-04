@@ -3,7 +3,8 @@
  * (`SlotView.inertBuilder()`), for tests that check what a view draws without
  * a DOM. They read an element as the browser would: an attribute or a
  * property, whichever the builder wrote, so a test need not know that `title`
- * and `value` are properties while `aria-label` is an attribute.
+ * and `value` are properties while `aria-label` is an attribute. `Frames.hold`
+ * is for tests on the real runtime: input faster than a frame.
  */
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -255,3 +256,27 @@ export const Inert = {
   byLabel,
   pressed,
 } as const
+
+/**
+ * The page's animation frames, held: Foldkit draws on `requestAnimationFrame`,
+ * so while they are held nothing is drawn, and every event a test sends meets
+ * the view as it was last drawn, as keys and clicks faster than a frame do.
+ * `release` lets the held frames run, and those after. Test what a burst of
+ * input does here; a test that waits for each change to show cannot see it.
+ */
+export const Frames = {
+  hold: (): { readonly release: () => void } => {
+    const run = globalThis.requestAnimationFrame
+    const held: Array<FrameRequestCallback> = []
+    globalThis.requestAnimationFrame = callback => {
+      held.push(callback)
+      return held.length
+    }
+    return {
+      release: () => {
+        globalThis.requestAnimationFrame = run
+        for (const callback of held.splice(0)) run(callback)
+      },
+    }
+  },
+}

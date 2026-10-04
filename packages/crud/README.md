@@ -463,10 +463,12 @@ const PostsQuery = Query.make('Posts', {
   Result: Query.connection(Blog.Post),
 })
 // Model: `postSort: PostSort.Schema`, starting at `PostSort.none`
-// update: `SortedPosts` sets `postSort` to the state the Message carries
+// update: `SortedPosts` toggles `postSort` by the column the Message carries
 
 PostSort.toggle(model.postSort, 'title') // asc, then desc, then the server's own order
-PostSort.inputs(model.postSort, sort => Message.SortedPosts({ sort })) // a drawn table's `sort`
+// A drawn table's `sort`: each header sends the column clicked, not the order it
+// leads to, so two clicks inside one frame toggle twice.
+PostSort.inputs(model.postSort, (_, column) => Message.SortedPosts({ column }))
 ```
 
 `Sort` holds nothing. A name is an order the server offers, never a column; on

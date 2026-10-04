@@ -228,7 +228,8 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 
 - **Sort state written once:** `const PostSort = Sort.make(['title', 'created'])`
   gives `PostSort.Schema` (Model field and query input), `none`, `toggle(current, column)`,
-  and `inputs(current, sort => Message.Sorted({ sort }))` for `ListView`'s `sort`.
+  and `inputs(current, (_, column) => Message.Sorted({ column }))` for `ListView`'s
+  `sort`; `update` then `toggle`s from the Model, so two clicks in one frame toggle twice.
   Server: `orderBy: ({ sort }) => sortTerms(sort, { title: posts.title })` from
   `foldkit-remote-drizzle`.
 - **Sorting and filtering a list** are the query's input: keep them in your Model,

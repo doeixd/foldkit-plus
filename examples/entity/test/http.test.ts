@@ -67,17 +67,13 @@ describe('the HTTP transport the browser uses', () => {
       return page._tag === 'Ready' ? page.value.items.map(row => row.title) : page._tag
     }
 
-    const byTitle = update(
-      initial(),
-      Message.SortedPosts({ sort: { by: 'title', direction: 'asc' } }),
-    ).model
+    // A click on Title sorts ascending; a second, descending.
+    const byTitle = update(initial(), Message.SortedPosts({ column: 'title' })).model
+    expect(byTitle.postSort).toEqual({ by: 'title', direction: 'asc' })
     const [first, second] = (await titles(byTitle)) as ReadonlyArray<string>
     expect(first! < second!).toBe(true)
 
-    const reversed = update(
-      byTitle,
-      Message.SortedPosts({ sort: { by: 'title', direction: 'desc' } }),
-    ).model
+    const reversed = update(byTitle, Message.SortedPosts({ column: 'title' })).model
     expect(await titles(reversed)).toEqual([second, first])
 
     // The box is debounced, so a keystroke moves the box and not the query:

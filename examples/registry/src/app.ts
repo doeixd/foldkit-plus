@@ -105,7 +105,8 @@ const Base = Bundle.compose({
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
-    SortedProducts: { sort: ProductSort.Schema },
+    /** A sort header was clicked: the intent, toggled in `update` from the Model as it is. */
+    SortedProducts: { column: Schema.Literals(ProductSort.columns) },
     RequestedMoreProducts: {},
     RetriedProducts: {},
     /** The durable fact: products' fields were edited. Replayed, so state only. */
@@ -199,7 +200,9 @@ export const placements = Page.placements
 export const update = placements.update((model: Model, message: Message) =>
   Match.value(message).pipe(
     Match.tags({
-      SortedProducts: ({ sort }) => ({ model: modifyFields(model, { sort: () => sort }) }),
+      SortedProducts: ({ column }) => ({
+        model: modifyFields(model, { sort: sort => ProductSort.toggle(sort, column) }),
+      }),
       RequestedMoreProducts: () => ({
         model: Option.getOrElse(Products.more(model), () => model),
       }),

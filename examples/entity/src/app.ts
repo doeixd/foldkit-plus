@@ -90,7 +90,8 @@ const Base = Bundle.compose({
     RequestedMorePosts: {},
     RetriedPosts: {},
     CompletedFocusPosts: {},
-    SortedPosts: { sort: PostSort.Schema },
+    /** A sort header was clicked: the column, toggled from the Model as it is. */
+    SortedPosts: { column: Schema.Literals(PostSort.columns) },
   }),
   Bundle.withChild('editPost', EditorBundle),
   Bundle.withChild('removePost', Remover.bundle),
@@ -201,7 +202,11 @@ export const update = PostEditor.after(
       case 'RetriedPosts':
         return { model: Posts.refresh(model), commands: [FocusPosts()] }
       case 'SortedPosts':
-        return { model: modifyFields(model, { postSort: () => message.sort }) }
+        return {
+          model: modifyFields(model, {
+            postSort: sort => PostSort.toggle(sort, message.column),
+          }),
+        }
       default:
         return { model }
     }
