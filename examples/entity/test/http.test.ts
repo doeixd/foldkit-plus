@@ -15,7 +15,6 @@ import {
 import { PostId } from '../src/domain.js'
 import { EditPostForm } from '../src/editForm.js'
 import { startHttpServer } from '../src/http.js'
-import { httpClient } from '../src/transport.js'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 beforeAll(async () => {
@@ -25,7 +24,7 @@ afterAll(() => server.close())
 
 describe('the HTTP transport the browser uses', () => {
   it('reads a list, saves an edit, and reports a server failure, over real HTTP', async () => {
-    const client = Remote.clientLayer(httpClient(server.url))
+    const client = Remote.clientLayer(Remote.http(server.url))
     const run = <A, E>(effect: Effect.Effect<A, E, RemoteClient>) =>
       Effect.runPromise(effect.pipe(Effect.provide(client)))
 
@@ -57,7 +56,7 @@ describe('the HTTP transport the browser uses', () => {
   })
 
   it('sorts and searches a list by changing the query’s input, which the Model holds', async () => {
-    const client = Remote.clientLayer(httpClient(server.url))
+    const client = Remote.clientLayer(Remote.http(server.url))
     const titles = async (model: ReturnType<typeof initial>) => {
       const read = await Effect.runPromise(
         Data.prefetch(model, Option.getOrThrow(Posts.active.projectionOf(model))).pipe(
@@ -96,7 +95,7 @@ describe('the HTTP transport the browser uses', () => {
   })
 
   it('turns a failure on the server into the client’s own error', async () => {
-    const client = Remote.clientLayer(httpClient(server.url.replace('/remote', '/nowhere')))
+    const client = Remote.clientLayer(Remote.http(server.url.replace('/remote', '/nowhere')))
     const failed = await Effect.runPromise(
       Data.prefetch(initial(), Option.getOrThrow(Posts.active.projectionOf(initial()))).pipe(
         Effect.provide(client),

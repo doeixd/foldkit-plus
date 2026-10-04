@@ -114,7 +114,12 @@ export const openSandbox = async (options: { readonly fresh: boolean }): Promise
     const parsed: unknown = JSON.parse(body)
     const answered = await answer(backend, chair, parsed)
     // Reads change nothing; a mutation, and the drafts a save writes, are kept.
-    if (answered.ok && typeof parsed === 'object' && parsed !== null && 'operation' in parsed)
+    if (
+      answered.status === 200 &&
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'operation' in parsed
+    )
       if (parsed.operation === 'mutate') {
         markEdited()
         keepSoon()

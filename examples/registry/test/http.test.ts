@@ -13,7 +13,6 @@ import { ProductId } from '../src/domain.js'
 import { startHttpServer } from '../src/http.js'
 import { productId, seedOf } from '../src/server.js'
 import { RegistrySync } from '../src/sync.js'
-import { httpClient } from '../src/transport.js'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 beforeAll(async () => {
@@ -25,7 +24,7 @@ afterAll(() => server.close())
 const read = () =>
   Effect.runPromise(
     Data.prefetch(initial(), Option.getOrThrow(Products.active.projectionOf(initial()))).pipe(
-      Effect.provide(Remote.clientLayer(httpClient(server.url))),
+      Effect.provide(Remote.clientLayer(Remote.http(server.url))),
     ),
   )
 
@@ -115,5 +114,8 @@ test('a request naming an operation the server does not have is refused', async 
     body: JSON.stringify({ operation: 'constructor', payload: {} }),
   })
   expect(response.status).toBe(400)
-  expect(await response.json()).toEqual({ error: 'unknown operation' })
+  // Refused by the protocol's schema before any handler, `Object`'s names included.
+  expect(await response.json()).toEqual({
+    error: expect.stringContaining('"read" | "query" | "mutate"'),
+  })
 })

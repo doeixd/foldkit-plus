@@ -13,7 +13,7 @@ import * as Site from './apps/siteApp.js'
 import * as Studio from './apps/studioApp.js'
 import { siteConfig, takesOver } from './content/siteConfig.js'
 import { edited } from './server/sandboxKey.js'
-import { chairOf, httpSend, remoteClient, type Send } from './server/transport.js'
+import { chairOf, httpClient, remoteClient, type Send } from './server/transport.js'
 import { takeOver } from './ssr/sitePlan.js'
 
 /**
@@ -41,23 +41,24 @@ const container =
   document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 if (container === null) throw new Error('the page has no #app and no rendered application')
 container.id = 'app'
-// Vite proxies `/remote` to the server, so the browser talks to one origin; the
-// published demo, built in the `sandbox` mode, runs the server in the page instead.
-// The page is drawn while that starts, and what it asks waits for it.
-const send: Send =
-  import.meta.env.MODE === 'sandbox'
-    ? (() => {
-        const sandbox = import('./server/browser.js').then(({ openSandbox }) =>
-          openSandbox({ fresh: startsAfresh() }),
-        )
-        return async (asking, body) => (await sandbox)(asking, body)
-      })()
-    : httpSend('/remote')
 const path = window.location.pathname
 
 // The site is read as a visitor unless the address says otherwise; the studio as a writer.
 const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visitor' : 'wren')
-const remote = Remote.clientLayer(remoteClient(send, chair))
+// Vite proxies `/remote` to the server, so the browser talks to one origin; the
+// published demo, built in the `sandbox` mode, runs the server in the page instead.
+// The page is drawn while that starts, and what it asks waits for it.
+const sandboxed = (): Send => {
+  const sandbox = import('./server/browser.js').then(({ openSandbox }) =>
+    openSandbox({ fresh: startsAfresh() }),
+  )
+  return async (asking, request) => (await sandbox)(asking, request)
+}
+const remote = Remote.clientLayer(
+  import.meta.env.MODE === 'sandbox'
+    ? remoteClient(sandboxed(), chair)
+    : httpClient('/remote', chair),
+)
 
 if (path.startsWith('/site')) {
   const config = siteConfig({

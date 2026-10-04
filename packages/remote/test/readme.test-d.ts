@@ -143,6 +143,12 @@ const httpClientLayer = Layer.unwrap(
 )
 expectTypeOf(httpClientLayer).toEqualTypeOf<Layer.Layer<RemoteClient>>()
 
+// …or plain JSON over HTTP, for a server answering with `RemoteServer.answer`.
+const overHttp = Remote.clientLayer(
+  Remote.http('/remote', { headers: () => ({ 'x-session': 'the session token' }) }),
+)
+expectTypeOf(overHttp).toEqualTypeOf<Layer.Layer<RemoteClient>>()
+
 void subscriptions
 void clientLayer
 

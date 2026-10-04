@@ -10,7 +10,6 @@ import { Theme } from 'foldkit-mixins/theme'
 import { Remote } from 'foldkit-remote'
 import { ReplicaId, Sync } from 'foldkit-sync'
 import { RegistrySync, mountRegistry } from './sync.js'
-import { httpClient } from './transport.js'
 
 // The theme's tokens, which the grid's default style reads.
 Style.install(
@@ -39,7 +38,7 @@ const replica = await Effect.runPromise(
 )
 
 // Vite proxies `/remote` and `/sync` to the server, so the browser talks to one origin.
-mountRegistry(replica, { container, resources: Remote.clientLayer(httpClient('/remote')) })
+mountRegistry(replica, { container, resources: Remote.clientLayer(Remote.http('/remote')) })
 
 const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
 Effect.runFork(

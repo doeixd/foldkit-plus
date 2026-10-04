@@ -1,6 +1,6 @@
 /**
  * The server on one port: Remote's reads at `/remote`, reached by
- * `transport.ts`, and the edits' journal at `/sync`, a WebSocket the replica
+ * `Remote.http`, and the edits' journal at `/sync`, a WebSocket the replica
  * exchanges over. Authentication would choose the principal here; this
  * example has none.
  */
@@ -12,7 +12,6 @@ import { Sequence, Sync, type SocketLike } from 'foldkit-sync'
 import { type WebSocket, WebSocketServer } from 'ws'
 import { openJournal } from './journal.js'
 import { openServer } from './server.js'
-import type { Operation } from './transport.js'
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
 const socketLike = (socket: WebSocket): SocketLike => ({
@@ -39,15 +38,6 @@ export const startHttpServer = async (
   const backend = openServer()
   const journal = openJournal(backend.apply)
   const handlers = RemoteServer.handlers(backend.server, null)
-  const run: Readonly<
-    Record<Operation, (payload: never) => Effect.Effect<unknown, { readonly message: string }>>
-  > = {
-    read: payload => handlers.FoldkitRemoteRead(payload).pipe(Effect.provide(backend.layer)),
-    query: payload => handlers.FoldkitRemoteQuery(payload).pipe(Effect.provide(backend.layer)),
-    mutate: payload => handlers.FoldkitRemoteMutate(payload).pipe(Effect.provide(backend.layer)),
-  }
-
-  const isOperation = (name: string): name is Operation => Object.hasOwn(run, name)
 
   const server: Server = createServer((request, response) => {
     const reply = (status: number, body: unknown) => {
@@ -59,27 +49,16 @@ export const startHttpServer = async (
     const chunks: Buffer[] = []
     request.on('data', chunk => chunks.push(chunk as Buffer))
     request.on('end', () => {
-      void (async () => {
-        try {
-          const { operation, payload } = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
-            readonly operation: string
-            readonly payload: never
-          }
-          // The name is the client's: one the table does not own (`constructor`) is no operation.
-          if (!isOperation(operation)) return reply(400, { error: 'unknown operation' })
-          const result = await Effect.runPromise(
-            run[operation](payload).pipe(
-              Effect.map(value => ({ status: 200, body: { result: value } })),
-              Effect.catch(error =>
-                Effect.succeed({ status: 500, body: { error: error.message } }),
-              ),
-            ),
-          )
-          reply(result.status, result.body)
-        } catch (error) {
-          reply(400, { error: error instanceof Error ? error.message : String(error) })
-        }
-      })()
+      let body: unknown
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      } catch {
+        return reply(400, { error: 'The body is not JSON' })
+      }
+      // Decoded by the protocol's own schemas, so an operation is one of three.
+      void Effect.runPromise(
+        RemoteServer.answer(handlers, body).pipe(Effect.provide(backend.layer)),
+      ).then(answered => reply(answered.status, answered.body))
     })
   })
 

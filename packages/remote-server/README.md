@@ -32,7 +32,8 @@ Remote client -> Message -> Data.reduce -> Model
 
 A Source is deliberately small: it says how your application reads one Entity,
 runs one Query or Mutation, or produces one live stream. The package does **not**
-own HTTP, WebSockets, authentication, or a database connection. Authentication
+own HTTP, WebSockets, authentication, or a database connection;
+[`answer`](#over-plain-json) answers a JSON request a server you run received. Authentication
 resolves a `principal` outside this package; database/API clients remain Effect
 requirements of the Sources that use them.
 
@@ -659,6 +660,35 @@ const served = RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined
   pass a source for it in `queries`.
 - It pushes no live changes and authorizes nothing: every field is readable.
   It is not a server to deploy.
+
+## Over plain JSON
+
+`RemoteServer.answer(handlers, body)` answers one request as `Remote.http`
+and `Remote.json` send it, whatever received it: an HTTP route, a worker, a
+server running in the page. It decodes the request and its payload by the
+protocol's own schemas before a handler sees them, so an operation is one of
+Remote's three and nothing else, and says what to send:
+
+```ts
+// A fetch-style route (Bun, Deno, a Worker; Node through its own adapter).
+const route = async (request: Request): Promise<Response> => {
+  const body: unknown = await request.json().catch(() => null)
+  const answered = await Effect.runPromise(RemoteServer.answer(handlers, body))
+  return Response.json(answered.body, { status: answered.status })
+}
+```
+
+- **200** with `{ result }`: the handler answered.
+- **400** with `{ error }`: the body is not a request, names an operation
+  Remote does not have, or its payload fails the protocol's schema. No
+  handler ran.
+- **500** with `{ error }`: the handler failed, and the message is its own;
+  or something on this side broke, and the message is `Internal error`,
+  nothing more.
+
+It binds no principal: pass the `handlers` for the request's own,
+established by your authentication, as everywhere else. It carries no live
+data.
 
 ## What it does not own
 

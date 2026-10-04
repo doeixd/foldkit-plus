@@ -32,9 +32,22 @@ import {
   type RemoteDescriptor,
   Requirement,
   type RemoteRpcClient,
+  MutationRequest,
+  QueryRequest,
+  ReadBatch,
+  RemoteJsonAnswer,
+  RemoteJsonRequest,
   RELATION_ALIAS,
   aliasedField,
 } from 'foldkit-remote'
+
+/** What a call `RemoteServer.answer` makes can fail with, before the answer says so. */
+type AnswerError =
+  | Schema.SchemaError
+  | RemoteReadError
+  | RemoteQueryError
+  | RemoteMutationError
+  | RemoteProtocolError
 
 export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
   'RemoteServerError',
@@ -1158,6 +1171,55 @@ export const RemoteServer = {
         settled: [...settled.values()].map(entry => ({ ...entry, fields: [...entry.fields] })),
       }
     }),
+
+  /**
+   * Answers one JSON request through `handlers`: what an HTTP endpoint, a
+   * worker or a server in the page calls with the body it received, parsed.
+   * The request and its payload are decoded by the protocol's own schemas
+   * before a handler sees them, so an operation name is one of Remote's three
+   * and nothing else. A body that is not a request is a 400; a handler's
+   * failure a 500 with its message; a defect a 500 that says nothing of it.
+   * `Remote.json` and `Remote.http` are the other end.
+   */
+  answer: <R>(
+    handlers: RemoteRpcClient<R>,
+    body: unknown,
+  ): Effect.Effect<
+    { readonly status: 200 | 400 | 500; readonly body: RemoteJsonAnswer },
+    never,
+    R
+  > => {
+    const asked = {
+      read: (payload: unknown) =>
+        Effect.flatMap(Schema.decodeUnknownEffect(ReadBatch)(payload), handlers.FoldkitRemoteRead),
+      query: (payload: unknown) =>
+        Effect.flatMap(
+          Schema.decodeUnknownEffect(QueryRequest)(payload),
+          handlers.FoldkitRemoteQuery,
+        ),
+      mutate: (payload: unknown) =>
+        Effect.flatMap(
+          Schema.decodeUnknownEffect(MutationRequest)(payload),
+          handlers.FoldkitRemoteMutate,
+        ),
+    }
+    return Schema.decodeUnknownEffect(RemoteJsonRequest)(body).pipe(
+      Effect.flatMap(({ operation, payload }): Effect.Effect<unknown, AnswerError, R> =>
+        asked[operation](payload),
+      ),
+      Effect.map(result => ({ status: 200 as const, body: { result } })),
+      Effect.catchTag('SchemaError', error =>
+        Effect.succeed({ status: 400 as const, body: { error: error.message } }),
+      ),
+      Effect.catch(error =>
+        Effect.succeed({ status: 500 as const, body: { error: error.message } }),
+      ),
+      // A defect is a bug on this side: the caller learns there was one, not what.
+      Effect.catchCause(() =>
+        Effect.succeed({ status: 500 as const, body: { error: 'Internal error' } }),
+      ),
+    )
+  },
 
   handlers: <P, R>(
     server: ServerDefinition<P, R>,

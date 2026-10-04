@@ -140,9 +140,11 @@ import {
 } from './requirement.js'
 import { markAll, resumePart } from './resume.js'
 
+import { http as httpClient, json as jsonClient } from './json.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export * from './coalesce.js'
+export { RemoteJsonAnswer, RemoteJsonRequest, type RemoteJsonSend } from './json.js'
 export * from './connection.js'
 export * from './entity.js'
 export * from './inspect.js'
@@ -2118,6 +2120,19 @@ export const Remote = {
    * the call fails with its own Remote error, which the application shows and
    * retries like any failed read, query, mutation or live stream.
    */
+  /**
+   * Remote's client over any way of sending one JSON request and receiving its
+   * answer, for `clientLayer`: a worker, a server in the page. `RemoteServer.answer`
+   * is the other end.
+   */
+  json: jsonClient,
+
+  /**
+   * Remote's client over HTTP, for `clientLayer`: each call a `POST` of the JSON
+   * request to `url`. `headers` is read per request (a session token, say).
+   */
+  http: httpClient,
+
   clientLayer: <R = never>(
     client: RemoteRpcClient<R, RpcClientError.RpcClientError>,
     options: CoalesceOptions = {},

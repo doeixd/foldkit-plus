@@ -32,7 +32,7 @@ it('keeps its database, opens it again, and starts afresh when asked', async () 
   expect(seeded).not.toBeNull()
   // A body that is no request is answered as one that fails, not thrown.
   const refused = await send('visitor', JSON.stringify({ operation: 'nothing' }))
-  expect(refused.ok).toBe(false)
+  expect(refused.status).toBe(400)
   // Opened again over what was kept: its tables are there, so none is made twice.
   await openSandbox({ fresh: false })
   expect(localStorage.getItem(KEY)).toBe(seeded)
@@ -48,14 +48,14 @@ it('starts afresh from something kept that is no sandbox, rather than failing to
   localStorage.setItem(KEY, btoa('these bytes are no SQLite database at all'))
   const send = await openSandbox({ fresh: false })
   expect(localStorage.getItem(KEY)).not.toBe(btoa('these bytes are no SQLite database at all'))
-  expect((await send('visitor', '{}')).ok).toBe(false)
+  expect((await send('visitor', '{}')).status).toBe(400)
 })
 
 it('keeps a change a moment after it, or at once when the page is left', async () => {
   localStorage.removeItem(KEY)
   const send = await openSandbox({ fresh: false })
   const seeded = localStorage.getItem(KEY)
-  expect((await archiveHome(send)).ok).toBe(true)
+  expect((await archiveHome(send)).status).toBe(200)
   // Not yet: saves come in runs while someone types.
   expect(localStorage.getItem(KEY)).toBe(seeded)
   window.dispatchEvent(new Event('pagehide'))

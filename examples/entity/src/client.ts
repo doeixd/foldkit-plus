@@ -5,7 +5,6 @@
 import * as Runtime from 'foldkit/runtime'
 import { Remote } from 'foldkit-remote'
 import { Model, initial, placements, update } from './app.js'
-import { httpClient } from './transport.js'
 import { view } from './view.js'
 
 const container = document.getElementById('app')
@@ -20,7 +19,7 @@ Runtime.run(
       update,
       view,
       // Vite proxies `/remote` to the server, so the browser talks to one origin.
-      resources: Remote.clientLayer(httpClient('/remote')),
+      resources: Remote.clientLayer(Remote.http('/remote')),
     }),
   ),
 )

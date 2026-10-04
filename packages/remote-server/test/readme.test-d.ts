@@ -49,3 +49,13 @@ const handlers = RemoteServer.handlers(Server, principal)
 const layer = RemoteRpc.toLayer(handlers)
 
 void layer
+
+// Over plain JSON.
+// A fetch-style route (Bun, Deno, a Worker; Node through its own adapter).
+const route = async (request: Request): Promise<Response> => {
+  const body: unknown = await request.json().catch(() => null)
+  const answered = await Effect.runPromise(RemoteServer.answer(handlers, body))
+  return Response.json(answered.body, { status: answered.status })
+}
+
+void route

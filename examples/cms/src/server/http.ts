@@ -38,10 +38,7 @@ export const startHttpServer = async (
           return reply(400, { error: error instanceof Error ? error.message : String(error) })
         }
         const answered = await answer(backend, chair, body)
-        reply(
-          answered.ok ? 200 : 500,
-          answered.ok ? { result: answered.result } : { error: answered.error },
-        )
+        reply(answered.status, answered.body)
       })()
     })
   })

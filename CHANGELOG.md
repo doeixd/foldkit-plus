@@ -92,6 +92,16 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **Remote over plain JSON (`foldkit-remote`, `foldkit-remote-server`).**
+  `Remote.http(url, { headers })` is Remote's client over `POST`ed JSON,
+  `Remote.json(send)` the same over any way of sending it (a worker, a
+  server in the page), and `RemoteServer.answer(handlers, body)` the server's
+  side: it decodes the request and payload by the protocol's own schemas
+  before a handler sees them, and answers 200, 400 for a body that is not a
+  request (an operation named `constructor` included), or 500, a defect
+  saying only `Internal error`. `RemoteJsonRequest` and `RemoteJsonAnswer`
+  are the wire. The entity, CMS and registry examples use them in place of
+  their own copies.
 - **Typed editing from Schema (`foldkit-data-grid`).** A column's `edit`
   takes a `schema` from the text typed to its value, in place of
   `validate`: a draft is committed only when it decodes, and the failure's

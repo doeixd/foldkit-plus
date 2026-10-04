@@ -348,6 +348,21 @@ const clientLayer = Layer.unwrap(
 )
 ```
 
+Or, with no Effect RPC on the server, plain JSON over HTTP: each call a `POST`
+of `{ operation, payload }`, answered `{ result }` or `{ error }`.
+[`RemoteServer.answer`](../remote-server/README.md#over-plain-json) is the
+other end. `Remote.json(send)` is the same client over any other way of
+sending the request, a worker or a server running in the page:
+
+```ts
+const overHttp = Remote.clientLayer(
+  Remote.http('/remote', { headers: () => ({ 'x-session': 'the session token' }) }),
+)
+```
+
+`headers` is read for each request, so a token that changes reaches the next
+call. Neither carries live data.
+
 The stock client is accepted as it is. When its transport fails, the call
 fails with its own Remote error (`RemoteReadError`, `RemoteQueryError`,
 `RemoteMutationError`, `RemoteLiveError`), which the UI shows and retries like

@@ -8,10 +8,8 @@
  * It is also what keeps time. The CMS owns no timer, so the host asks what is
  * due every few seconds; behind a load balancer it would be one cron trigger.
  */
-import { Effect, Schema } from 'effect'
-import { MutationRequest, QueryRequest, ReadBatch } from 'foldkit-remote'
+import { Effect } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
-import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import type { openServer, Principal } from './server.js'
 import type { Answer } from './transport.js'
 
@@ -25,33 +23,15 @@ const principals: Readonly<Record<string, Principal>> = {
 const principalOf = (name: string | null): Principal =>
   name !== null && Object.hasOwn(principals, name) ? (principals[name] ?? null) : null
 
-const Envelope = Schema.Struct({
-  operation: Schema.Literals(['read', 'query', 'mutate']),
-  payload: Schema.Unknown,
-})
-
 /**
- * Answers one request, the body as JSON sent it: decoded by the protocol's own
- * schema before a handler sees it. `ok` is false for a body that is not a
- * request (a 400 over HTTP) or a handler's failure (a 500).
+ * Answers one request, the body as JSON sent it, as the chair: decoded by the
+ * protocol's own schemas before a handler sees it (`RemoteServer.answer`). A
+ * body that is not a request is a 400; a handler's failure a 500.
  */
 export const answer = (backend: Backend, chair: string, body: unknown): Promise<Answer> =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const { operation, payload } = yield* Schema.decodeUnknownEffect(Envelope)(body)
-      const handlers = RemoteServer.handlers(backend.server, principalOf(chair))
-      const as = <A>(schema: Schema.Codec<A, unknown>) =>
-        Schema.decodeUnknownEffect(schema)(payload)
-      const asked: Effect.Effect<unknown, { readonly message: string }, DrizzleDatabase> =
-        operation === 'read'
-          ? Effect.flatMap(as(ReadBatch), handlers.FoldkitRemoteRead)
-          : operation === 'query'
-            ? Effect.flatMap(as(QueryRequest), handlers.FoldkitRemoteQuery)
-            : Effect.flatMap(as(MutationRequest), handlers.FoldkitRemoteMutate)
-      return yield* asked.pipe(Effect.provide(backend.database))
-    }).pipe(
-      Effect.map((result): Answer => ({ ok: true, result })),
-      Effect.catch(error => Effect.succeed<Answer>({ ok: false, error: error.message })),
+    RemoteServer.answer(RemoteServer.handlers(backend.server, principalOf(chair)), body).pipe(
+      Effect.provide(backend.database),
     ),
   )
 
