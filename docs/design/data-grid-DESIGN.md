@@ -218,10 +218,23 @@ selection and cell ranges, and copy and paste. `onOut` writes `Edited` and
 a refused edit, a paste with a refused cell and select-all; a Chromium test
 scrolls to the last product and checks the pinned column at full size.
 
-- **In memory, not over Remote.** §22's registry reads its products through
-  Remote and writes them local-first. That needs a server for the products
-  and Sync for the writes; the grid's part of it, `GridCrud` over a Remote
-  page, is tested in the package.
+`examples/registry` is the same registry over Remote: a Drizzle server on
+SQLite seeded with 100,000 products, read a page at a time through a
+`Crud.list` (`GridCrud.rows` and `status`), sorted by the server through the
+query input, loaded more on scroll (`moreOnScroll`), with the column menu.
+An edit or a paste is one `EditProducts` mutation with optimistic patches,
+so it shows at once and goes back if the server refuses. Tested on the real
+runtime over the in-process server, over real HTTP against the full seed,
+and checked by hand in Chromium.
+
+- **What building it found:** `GridCrud.columns` could not pin, size or edit
+  a column (it now takes per-member options); `GridStyle` left the sort
+  button native, with no direction shown (it now draws one from
+  `data-sort`); and a test clicking twice within a frame resent the first
+  click's Message, since a click acts on the button drawn last.
+- **Writes are Remote's, not local-first.** A write in flight is lost if the
+  page closes, and refused rather than queued when the server is down;
+  §22's local-first writes are Sync's outbox, not yet used here.
 - **Not built from §22:** search and filter, saved column layout, custom
   columns and bulk edits beyond a paste.
 

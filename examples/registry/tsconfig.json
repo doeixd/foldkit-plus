@@ -1,0 +1,86 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
+      "foldkit-crud": ["../../packages/crud/src/index.ts"],
+      "foldkit-data-grid": ["../../packages/data-grid/src/index.ts"],
+      "foldkit-data-grid/crud": ["../../packages/data-grid/src/crud.ts"],
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-mixins-data-grid": ["../../packages/mixins-data-grid/src/index.ts"],
+      "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
+      "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
+      "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
+      "foldkit-mixins/layers": ["../../packages/mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
+      "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
+      "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
+      "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
+      "foldkit-primitives/device": ["../../packages/primitives/src/device/index.ts"],
+      "foldkit-primitives/dom": ["../../packages/primitives/src/dom/index.ts"],
+      "foldkit-primitives/events": ["../../packages/primitives/src/events/index.ts"],
+      "foldkit-primitives/interaction": ["../../packages/primitives/src/interaction/index.ts"],
+      "foldkit-primitives/media": ["../../packages/primitives/src/media/index.ts"],
+      "foldkit-primitives/motion": ["../../packages/primitives/src/motion/index.ts"],
+      "foldkit-primitives/net": ["../../packages/primitives/src/net/index.ts"],
+      "foldkit-primitives/observers": ["../../packages/primitives/src/observers/index.ts"],
+      "foldkit-primitives/state": ["../../packages/primitives/src/state/index.ts"],
+      "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"],
+      "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
+      "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+  "references": [
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/crud/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/primitives/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/data-grid/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-data-grid/tsconfig.build.json"
+    }
+  ]
+}

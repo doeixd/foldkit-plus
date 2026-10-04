@@ -10,7 +10,9 @@ value instead of reading positions from the DOM.
 > under [Limits](#limits). This package draws nothing;
 > [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md) draws it.
 > [`examples/data-grid`](../../examples/data-grid/README.md) is a 100,000-row
-> product registry built on both.
+> product registry built on both, and
+> [`examples/registry`](../../examples/registry/README.md) the same over
+> Remote, with a server.
 
 ## Who owns what
 

@@ -24,6 +24,7 @@ mechanisms compose. The kitchen sink is a later integration reference.
 | [`todo`](./todo) | `foldkit-agent` by itself: a contract, a hand-written host, and agent protocol adapters without Sync | Small agent-focused example |
 | [`react`](./react) | React interop in both directions, and compiling a Foldkit view to TSX | Focused jsdom trace |
 | [`data-grid`](./data-grid) | A 100,000-row product registry in `foldkit-data-grid`: a pinned column, editing with validation, row and range selection, and spreadsheet copy and paste, with the products owned by the application | Browser app (`pnpm dev`) and jsdom and Chromium tests |
+| [`registry`](./registry) | The same registry over Remote: 100,000 products on a Drizzle server, read a page at a time, sorted by the server, loaded on scroll, and written back with optimistic mutations | Browser app (`pnpm dev`) with its server; jsdom and HTTP tests |
 | [`kitchen-sink`](./kitchen-sink) | How the data, replication, agent, and view packages compose, including Remote + Drizzle, Sync/Durable, all agent adapters, and Mixins | Broad deterministic in-process integration trace |
 
 The todo app covers URL/device mirrors. The Bundle example authors small

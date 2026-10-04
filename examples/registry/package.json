@@ -1,0 +1,31 @@
+{
+  "name": "foldkit-example-registry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/dev.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-crud": "workspace:*",
+    "foldkit-data-grid": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-data-grid": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}

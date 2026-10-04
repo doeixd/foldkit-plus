@@ -92,6 +92,10 @@ version changed; `pnpm` skips versions already in the registry.
   column and reported once, with what was refused. The view copies the range
   (or the focused cell), pastes from the range's corner, and cuts by copying
   and clearing, leaving the clipboard to a cell being edited.
+- **`examples/registry`, the registry over Remote.** 100,000 products in
+  SQLite behind a Drizzle `RemoteServer`, read a page at a time through a
+  `Crud.list`, sorted on the server, loaded more on scroll; an edit or a
+  paste is one mutation with optimistic patches, taken back if refused.
 - **A sorted header shows its direction (`foldkit-mixins-data-grid`).** The
   sort button carries `data-sort` (`asc` or `desc`), and `GridStyle` now
   styles the `sort` slot as the header's text with an arrow after it; it
