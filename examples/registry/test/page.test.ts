@@ -75,7 +75,10 @@ const serve = () => {
   }
   // Remote's reads, which a test can hold to see the page between a reinstall and its next read.
   let gate: Promise<void> = Promise.resolve()
-  const waited = Effect.suspend(() => Effect.promise(() => gate))
+  let reads = 0
+  const waited = Effect.suspend(() => Effect.promise(() => gate)).pipe(
+    Effect.tap(() => Effect.sync(() => reads++)),
+  )
   const handlers = RemoteServer.handlers(backend.server, null)
   const gated: typeof handlers = {
     ...handlers,
@@ -88,6 +91,8 @@ const serve = () => {
     setOnline: (value: boolean) => (online = value),
     setWritable: (value: boolean) => (writable = value),
     setTampering: (value: boolean) => (tampering = value),
+    /** How many reads and queries the server has answered so far. */
+    reads: () => reads,
     /** Holds every read until the returned function is called. */
     holdReads: () => {
       let release = () => {}
@@ -110,6 +115,7 @@ const mount = async (server: ReturnType<typeof serve>, storage: Storage, name = 
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const frames = Frames.track()
   // jsdom lays nothing out: a 1,000 by 356 box is a 36px header over ten 32px rows.
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(356)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000)
@@ -126,7 +132,19 @@ const mount = async (server: ReturnType<typeof serve>, storage: Storage, name = 
   const transport = server.transportFor(name)
   const exchange = () =>
     Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport), Effect.ignore))
-  return { replica, mounted, dispose, exchange, transport, latest: (): Model => mounted.model() }
+  return {
+    replica,
+    mounted,
+    dispose: async () => {
+      await dispose()
+      frames.dispose()
+    },
+    exchange,
+    transport,
+    latest: (): Model => mounted.model(),
+    /** The page caught up with its replica and drawn, without a sleep. */
+    settle: () => frames.settle(mounted),
+  }
 }
 
 const grid = () => document.getElementById('products')!
@@ -165,8 +183,6 @@ const loaded = (model: Model) => {
   return page._tag === 'Ready' ? page.value.items.length : 0
 }
 const priceOf = (index: number) => (seedOf(index).cents / 100).toFixed(2)
-/** A frame later: what the last transition drew is on the page (frames are timeouts here). */
-const drawn = () => new Promise(resolve => setTimeout(resolve, 20))
 /** Another device's price for product `index`, committed. */
 const commitElsewhere = async (
   server: ReturnType<typeof serve>,
@@ -223,10 +239,12 @@ test('reads the first page, sorts on the server, and reads more', async () => {
     const sorted = () => sortPrice().closest('[role="columnheader"]')!.getAttribute('aria-sort')
     // Both clicks inside one frame, on the button drawn before either: each sends
     // the column, and the update toggles it twice from the Model as it is.
-    const frames = Frames.hold()
+    const frames = Frames.track()
+    frames.hold()
     click(sortPrice())
     click(sortPrice())
     frames.release()
+    frames.dispose()
     await vi.waitFor(() => expect(cell(dearest.id, 'upc')?.textContent).toBe(dearest.upc))
     expect(sorted()).toBe('descending')
 
@@ -258,13 +276,13 @@ test('reads the first page, sorts on the server, and reads more', async () => {
 
 test('an edit and a paste show at once, and the journal writes them to the table', async () => {
   const server = serve()
-  const { dispose, exchange } = await mount(server, memoryStorage())
+  const { dispose, exchange, settle } = await mount(server, memoryStorage())
   try {
     await vi.waitFor(() => expect(cell(productId(2), 'cents')).not.toBeNull())
 
     // A paste its column refuses all of is no edit at all.
     await pasteAt(productId(5), 'cents', 'free\n')
-    await new Promise(resolve => setTimeout(resolve, 30))
+    await settle()
     expect(status()).toBe('')
 
     // Shown before any exchange, and waiting to be sent.
@@ -389,7 +407,7 @@ test('a price is drawn from this deviceâ€™s edit, not from what Remote last read
 
 test('a committed edit shows until the table has it, then the table shows, whoever wrote it next', async () => {
   const server = serve()
-  const { dispose, exchange, mounted } = await mount(server, memoryStorage())
+  const { dispose, exchange, mounted, settle } = await mount(server, memoryStorage())
   const reread = () => mounted.dispatch(Message.RetriedProducts())
   try {
     await vi.waitFor(() => expect(cell(productId(7), 'cents')?.textContent).toBe(priceOf(7)))
@@ -402,8 +420,10 @@ test('a committed edit shows until the table has it, then the table shows, whoev
     await exchange()
     await vi.waitFor(() => expect(status()).toBe(''))
     expect(server.backend.row(productId(7))).toMatchObject({ cents: seedOf(7).cents, revision: 0 })
+    const before = server.reads()
     reread()
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await vi.waitFor(() => expect(server.reads()).toBeGreaterThan(before))
+    await settle()
     expect(cell(productId(7), 'cents')?.textContent).toBe('3.00')
 
     // The next exchange writes it, at the sequence it committed at.
@@ -469,7 +489,7 @@ test('an edit that says when it committed is refused, and the table keeps its pr
 
 test('an edit the journal absorbed keeps showing until the row is read at its revision', async () => {
   const server = serve()
-  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  const { dispose, exchange, latest, settle } = await mount(server, memoryStorage())
   /** Another device's price for product `index`, sent: a reinstall on this page's next exchange. */
   const elsewhere = async (name: string, index: number) => {
     const other = await Effect.runPromise(
@@ -511,14 +531,14 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     // The mount reinstalls on its own fiber; then a frame draws it.
     await vi.waitFor(() => expect(latest().edits).toEqual([]))
     expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
-    await drawn()
+    await settle()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
     // Another reinstall before the row is read again keeps it still.
     await elsewhere('tab-2', 8)
     await vi.waitFor(() => expect(latest().edits.map(kept => kept.id)).toEqual([productId(8)]))
     expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
-    await drawn()
+    await settle()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
     // Read again, the row has it at its revision: the price is the table's,
@@ -527,7 +547,7 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     await vi.waitFor(() => expect(revisionOf(latest(), productId(9))).toEqual(Option.some(1)))
     expect(latest().retired).toEqual([])
     expect(latest().replaced).toEqual([])
-    await drawn()
+    await settle()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
   } finally {
     await dispose()
@@ -660,7 +680,7 @@ test('working offline keeps edits on the device, and going back online sends the
 
 test('an edit another device committed later replaces this one, and the page says so', async () => {
   const server = serve()
-  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  const { dispose, exchange, latest, settle } = await mount(server, memoryStorage())
   const tab2 = (index: number, cents: number, device = 'tab-2') =>
     commitElsewhere(server, index, cents, device)
   const lines = () =>
@@ -707,7 +727,7 @@ test('an edit another device committed later replaces this one, and the page say
     await exchange()
     await tab2(6, 606)
     await exchange()
-    await drawn()
+    await settle()
     expect(latest().replaced).toEqual([])
 
     // A refused edit over this page's own commit goes back to that commit:
@@ -764,7 +784,7 @@ test('a line and a status are edited too, the status as a choice of the Productâ
 
 test('an editor left unchanged sends nothing, though another device changed the cell meanwhile', async () => {
   const server = serve()
-  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  const { dispose, exchange, latest, settle } = await mount(server, memoryStorage())
   try {
     await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
     await focusOn(productId(4), 'cents')
@@ -777,7 +797,7 @@ test('an editor left unchanged sends nothing, though another device changed the 
     // Committed as it opened: this device changed nothing, so it sends nothing.
     press(editor()!, 'Enter')
     await vi.waitFor(() => expect(editor()).toBeNull())
-    await drawn()
+    await settle()
     expect(latest().exchange.pending).toBe(0)
     await exchange()
     await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe('4.44'))
@@ -788,7 +808,7 @@ test('an editor left unchanged sends nothing, though another device changed the 
 
 test('a cell committed with the value it already shows is no edit', async () => {
   const server = serve()
-  const { dispose, latest } = await mount(server, memoryStorage())
+  const { dispose, latest, settle } = await mount(server, memoryStorage())
   try {
     await vi.waitFor(() => expect(cell(productId(2), 'cents')?.textContent).toBe(priceOf(2)))
     // The same price, typed as it shows, and the same price written otherwise.
@@ -802,7 +822,7 @@ test('a cell committed with the value it already shows is no edit', async () => 
     await vi.waitFor(() => expect(document.querySelector('#products select')).not.toBeNull())
     press(document.querySelector('#products select')!, 'Enter')
     await vi.waitFor(() => expect(document.querySelector('#products select')).toBeNull())
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await settle()
     expect(latest().edits).toEqual([])
     expect(latest().exchange.pending).toBe(0)
     expect(markOf(productId(2), 'cents')).toBeNull()

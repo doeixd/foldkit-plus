@@ -224,11 +224,14 @@ version changed; `pnpm` skips versions already in the registry.
   Vite config: the page connects to `/sync` on its own origin, proxied to
   the server, and the workspace packages resolve to their source, so it no
   longer needs `pnpm build`.
-- **Messages carry intent: the guide, and `Frames.hold` to test it.**
+- **Messages carry intent: the guide, and `Frames.track` to test it.**
   `docs/state-model.md` says why a Message should carry what the user did
   and `update` work out what it means, with the cases that were bugs.
-  `Frames.hold()` (`foldkit-mixins/testing`) holds the page's frames so a
-  test's events meet the view as last drawn. `Sort.inputs`'s callback also
+  `Frames.track()` (`foldkit-mixins/testing`) tracks the page's frames:
+  `hold()` keeps them back so a test's events meet the view as last drawn,
+  and `settle()` waits until everything asked for is drawn, instead of a
+  sleep. `Sync.mount`'s handle gains `settled()`, which waits until the Model
+  has caught up with the replica (#170). `Sort.inputs`'s callback also
   gets the column clicked (`foldkit-crud`), so a sort header sends it and
   `update` toggles; the entity and registry examples do, and two clicks
   inside one frame now sort descending.

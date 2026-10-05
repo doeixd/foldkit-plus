@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Duration, Effect, Exit, Option, Schema } from 'effect'
+import { Duration, Effect, Exit, Option, Schema, Stream } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Command from 'foldkit/command'
@@ -159,10 +159,13 @@ describe('Sync.mount', () => {
   const open = async (
     storage: Storage = memoryStorage(),
     onReinstall?: (next: Model, previous: Model) => Update.Return<Model, Message>,
+    statuses: (
+      changes: Replica<Message, Shared>['statusChanges'],
+    ) => Replica<Message, Shared>['statusChanges'] = changes => changes,
   ) => {
     replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), storage))
     mounted = mount(App, TodoSync, {
-      replica,
+      replica: { ...replica, statusChanges: statuses(replica.statusChanges) },
       container,
       view: (model, h) => ({
         title: 'todos',
@@ -318,6 +321,71 @@ describe('Sync.mount', () => {
     expect(text()).toContain('Selection: a')
     expect(pending(replica)).toEqual([])
     expect(app.model().lastError).toBe('StorageError')
+  })
+
+  describe('settled', () => {
+    it('resolves once the Model has what an exchange committed, though the mount hears late', async () => {
+      // Each status arrives late, and twice, as a checkpoint at the same cursor
+      // repeats one: the second asks for no reinstall while the first's waits.
+      const app = await open(undefined, undefined, changes =>
+        changes.pipe(
+          Stream.tap(() => Effect.sleep('20 millis')),
+          Stream.flatMap(status => Stream.make(status, status)),
+        ),
+      )
+      await app.settled()
+      await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+      // The replica has it now; the mount has not heard yet.
+      expect(app.model().todos).toEqual([])
+      await app.settled()
+      expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }])
+    })
+
+    it('resolves once a failed persist has been reverted', async () => {
+      const base = memoryStorage()
+      const app = await open({
+        ...base,
+        save: (state, revision) =>
+          revision === null
+            ? base.save(state, revision)
+            : Effect.sleep('10 millis').pipe(
+                Effect.andThen(Effect.fail(new StorageError({ message: 'disk full' }))),
+              ),
+      })
+      await app.settled()
+      app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+      await app.settled()
+      expect(app.model().todos).toEqual([])
+      expect(app.model().lastError).toBe('StorageError')
+    })
+
+    it('resolves at once when nothing is owed', async () => {
+      const app = await open()
+      await app.settled()
+      let resolved = false
+      void app.settled().then(() => (resolved = true))
+      await Promise.resolve()
+      expect(resolved).toBe(true)
+    })
+
+    it('rejects after dispose, and a wait that dispose cut short', async () => {
+      const base = memoryStorage()
+      const app = await open({
+        ...base,
+        save: (state, revision) =>
+          revision === null
+            ? base.save(state, revision)
+            : Effect.sleep('50 millis').pipe(Effect.andThen(base.save(state, revision))),
+      })
+      await app.settled()
+      app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+      const waiting = app.settled()
+      const disposing = app.dispose()
+      mounted = undefined
+      await expect(waiting).rejects.toThrow(/disposed before it settled/)
+      await disposing
+      await expect(app.settled()).rejects.toThrow(/after dispose/)
+    })
   })
 
   it('installs the shared slice after an exchange commits a remote change', async () => {

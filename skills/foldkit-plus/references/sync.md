@@ -166,7 +166,9 @@ await mounted.dispose()                                        // waits for in-f
   previous)`, which returns the transition when an exchange or a failed persist
   replaces the shared slice (carry a selection across, patch a DOM).
 - `Mounted` provides `model`, `dispatch`, `subscribe`, `observe`, `committed`,
-  and `dispose`. It is the host `foldkit-agent` binds to (add `principal`).
+  `settled` and `dispose`. `settled()` resolves once the Model has caught up
+  with the replica (in a test: `await frames.settle(mounted)`, with
+  `Frames.track` from `foldkit-mixins/testing`). It is the host `foldkit-agent` binds to (add `principal`).
   `dispose()` does not close the replica.
 
 **Waiting for the server.** The Model shows an edit before the server commits

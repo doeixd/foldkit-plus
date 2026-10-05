@@ -28,13 +28,17 @@ const PERSISTED = 'foldkit-sync/Persisted'
 const FAILED = 'foldkit-sync/PersistenceFailed'
 const NAVIGATE = 'foldkit-sync/Navigate'
 const NAVIGATED = 'foldkit-sync/Navigated'
+const DISPATCHED = 'foldkit-sync/Dispatched'
 
 type Private =
-  | { readonly _tag: typeof REFRESH }
+  // Every replica status, applied in order, so `settled` counts one seen only once `update` has it.
+  | { readonly _tag: typeof REFRESH; readonly status: ReplicaStatus; readonly changed: boolean }
   | { readonly _tag: typeof PERSISTED }
   | { readonly _tag: typeof FAILED; readonly error: ReplicaError }
   | { readonly _tag: typeof NAVIGATE; readonly request: UrlRequest }
   | { readonly _tag: typeof NAVIGATED }
+  // An application Message sent through `dispatch`, so `settled` counts it in.
+  | { readonly _tag: typeof DISPATCHED; readonly message: unknown }
 
 // A key per private tag, so a variant added to `Private` must be added here too.
 const PRIVATE: Readonly<Record<Private['_tag'], true>> = {
@@ -43,6 +47,7 @@ const PRIVATE: Readonly<Record<Private['_tag'], true>> = {
   [FAILED]: true,
   [NAVIGATE]: true,
   [NAVIGATED]: true,
+  [DISPATCHED]: true,
 }
 
 const isPrivate = (message: { readonly _tag: string }): message is Private =>
@@ -147,6 +152,15 @@ export interface Mounted<Model, Message, Shared = unknown> {
    * report an optimistic edit as done: `Agent.when({ source: mounted.committed, … })`.
    */
   readonly committed: CommittedView<Shared>
+  /**
+   * Resolves once the Model has caught up with the replica: no persist in
+   * flight or unanswered, every replica status the mount was told of seen,
+   * and every reinstall it asked for applied. It observes and never does the
+   * work. Frames are not its to wait for (`Frames.track` in
+   * `foldkit-mixins/testing` is), nor I/O a Command started. Rejects after
+   * `dispose`.
+   */
+  readonly settled: () => Promise<void>
   /** Waits for in-flight persists, then disposes the runtime. The replica stays open. */
   readonly dispose: () => Promise<void>
 }
@@ -161,7 +175,7 @@ const sharedChanged = (previous: ReplicaStatus | undefined, next: ReplicaStatus)
   previous.cursor !== next.cursor ||
   next.pending < previous.pending ||
   previous.rejected.length !== next.rejected.length ||
-  previous.rejected.some((id, index) => id !== next.rejected[index])
+  previous.rejected.some((rejection, index) => rejection.opId !== next.rejected[index]?.opId)
 
 /**
  * A durable edit the Model already shows. `started` is the replica's next local
@@ -260,6 +274,35 @@ export const mount = <
   }
 
   const inFlight = new Set<Promise<void>>()
+  // What `settled` waits on: dispatches and persists not yet answered in
+  // `update`, and the last replica status `update` applied.
+  let dispatchesOwed = 0
+  let persistsOwed = 0
+  let applied: ReplicaStatus | undefined
+  let disposed = false
+  const waiters = new Set<{
+    readonly resolve: () => void
+    readonly reject: (error: Error) => void
+  }>()
+  const quiet = (): boolean =>
+    dispatchesOwed === 0 &&
+    persistsOwed === 0 &&
+    !sharedChanged(applied, Effect.runSync(replica.status))
+  const notifySettled = (): void => {
+    if (!quiet()) return
+    for (const waiter of [...waiters]) {
+      waiters.delete(waiter)
+      waiter.resolve()
+    }
+  }
+  /**
+   * A private transition that leaves the Model as it was: the runtime sends
+   * no Subscription the change, so `settled` is told here, once it returns.
+   */
+  const unchanged = (model: Model): Update.Return<Model, RuntimeMessage, Resources> => {
+    queueMicrotask(notifySettled)
+    return { model }
+  }
   let latest: Model = install(app.initial)
   const modelListeners = new Set<() => void>()
   const committedListeners = new Set<() => void>()
@@ -287,15 +330,23 @@ export const mount = <
     switch (message._tag) {
       // Installs at once: edits still waiting for the replica are replayed on
       // top, so nothing is deferred behind them.
-      case REFRESH:
+      case REFRESH: {
+        applied = message.status
         // The first status, and any other that changed nothing the Model shows, reinstall
         // nothing, so `onReinstall` hears only of a real change.
-        return !editedSinceInstall && Effect.runSync(replica.snapshot).shared === installedFrom
-          ? { model }
-          : reinstalled(install(model), model)
+        if (
+          !message.changed ||
+          (!editedSinceInstall && Effect.runSync(replica.snapshot).shared === installedFrom)
+        ) {
+          return unchanged(model)
+        }
+        return reinstalled(install(model), model)
+      }
       case PERSISTED:
-        return { model }
+        persistsOwed--
+        return unchanged(model)
       case FAILED: {
+        persistsOwed--
         const { error } = message
         const reverted = install(model)
         return reinstalled(options.onPersistenceFailure?.(reverted, error) ?? reverted, model)
@@ -320,6 +371,9 @@ export const mount = <
       }
       case NAVIGATED:
         return { model }
+      case DISPATCHED:
+        dispatchesOwed--
+        return transition(model, message.message as Message & Tagged)
       default:
         return absurd(message)
     }
@@ -352,6 +406,7 @@ export const mount = <
     const result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
     if (!durable.has(message._tag)) return result
     editedSinceInstall = true
+    persistsOwed++
     const edit: LocalEdit<Message> = { message, started: undefined }
     edits.push(edit)
     const previous = tail
@@ -422,7 +477,10 @@ export const mount = <
     inbound: { message: Port.inbound(app.Message as unknown as Schema.Codec<Message, unknown>) },
   }
   const own = Subscription.make<Model, RuntimeMessage, Resources>()(() => ({
-    message: Port.subscription(ports.inbound.message, message => message as RuntimeMessage),
+    message: Port.subscription(ports.inbound.message, (message): RuntimeMessage => ({
+      _tag: DISPATCHED,
+      message,
+    })),
     // The replica's status carries the cursor and rejections, which is exactly
     // when the shared slice held locally can differ from the replica's.
     refresh: Subscription.persistent<RuntimeMessage, Resources>(
@@ -434,7 +492,7 @@ export const mount = <
           (): ReplicaStatus | undefined => undefined,
           (previous, status): readonly [ReplicaStatus, ReadonlyArray<RuntimeMessage>] => [
             status,
-            sharedChanged(previous, status) ? [{ _tag: REFRESH }] : [],
+            [{ _tag: REFRESH, status, changed: sharedChanged(previous, status) }],
           ],
         ),
       ),
@@ -446,6 +504,8 @@ export const mount = <
       modelToDependencies: (model: Model) => {
         latest = model
         notifyEach(modelListeners, undefined)
+        // After every transition, so `settled` resolves once `model()` has it.
+        notifySettled()
         return {}
       },
       dependenciesToStream: () => Stream.never,
@@ -498,7 +558,13 @@ export const mount = <
     // Message is sent as its type is, Option fields and all.
     dispatch: message =>
       Exit.match(encodeMessage(message), {
-        onSuccess: encoded => handle.ports.message.send(encoded),
+        onSuccess: encoded => {
+          // Counted before the send, in case the port delivers within it.
+          dispatchesOwed++
+          const sent = handle.ports.message.send(encoded)
+          if (Exit.isFailure(sent)) dispatchesOwed--
+          return sent
+        },
         onFailure: cause => Exit.failCause(cause),
       }),
     model: () => latest,
@@ -517,7 +583,17 @@ export const mount = <
         return () => committedListeners.delete(listener)
       },
     },
+    settled: () => {
+      if (disposed) return Promise.reject(new Error('Sync.mount: settled() after dispose'))
+      if (quiet()) return Promise.resolve()
+      return new Promise<void>((resolve, reject) => waiters.add({ resolve, reject }))
+    },
     dispose: async () => {
+      disposed = true
+      for (const waiter of [...waiters]) {
+        waiters.delete(waiter)
+        waiter.reject(new Error('Sync.mount: disposed before it settled'))
+      }
       await Promise.all([...inFlight])
       handle.dispose()
     },

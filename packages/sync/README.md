@@ -213,8 +213,13 @@ What each call does, and does not do:
 Reload the page: the todos come back from the outbox and the committed
 snapshot, the selection does not. That is the shared/local line, visible.
 
-`mounted` also exposes `model()`, `subscribe`, `observe`, `committed`, and
-`dispose()`, which waits for in-flight persists and leaves the replica open.
+`mounted` also exposes `model()`, `subscribe`, `observe`, `committed`,
+`settled()`, and `dispose()`, which waits for in-flight persists and leaves the
+replica open. `settled()` resolves once the Model has caught up with the
+replica: every dispatched Message applied, no persist unanswered, and every
+replica status applied. It waits for no frame and no I/O, so a test pairs it
+with `Frames.track` from `foldkit-mixins/testing`: `await
+frames.settle(mounted)`.
 Close the replica with its own scope.
 
 ## The server

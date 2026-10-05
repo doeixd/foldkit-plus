@@ -890,6 +890,14 @@ of its own named a form field "fits the Catalog". Read words with
   seen; the transition still had a frame to run, `Measure` measures every
   frame of one, and CI saw the margin early. Wait for `getAnimations()` to be
   empty before asserting what a later step alone causes.
+- **A negative assertion needs a settle, not a sleep.** Registry tests
+  asserted "no edit" after a 30-50ms sleep, and one absorbed-edit test failed
+  only under full-suite load, when the sleep ran out before the reinstall
+  and its frame. `await frames.settle(mounted)` (`Frames.track` from
+  `foldkit-mixins/testing`, `Mounted.settled`) waits for what was asked; for
+  I/O a Command started, wait for evidence it finished (a read counter),
+  then settle. A runtime still starting has asked for no frame: wait for its
+  first drawing before the first settle.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
