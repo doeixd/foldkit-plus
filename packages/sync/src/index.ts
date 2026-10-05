@@ -96,6 +96,7 @@ export {
   mount,
   type CommittedView,
   type MountOptions,
+  type Reinstall,
   type MountUrl,
   type Mounted,
 } from './mount.js'

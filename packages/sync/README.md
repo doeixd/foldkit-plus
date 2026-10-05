@@ -497,10 +497,13 @@ See [`examples/todo-app`](../../examples/todo-app) for both.
 ### Carry local state across a reinstall
 
 When an exchange or a failed persist replaces the shared slice outside
-`update`, `onReinstall(next, previous)` returns the transition instead. Use it
-to keep a selection that points into the slice, or to return a Command that
-patches a DOM the change has to reach. Omitted, the Model is simply `next`. It
-is not called for a status that changed nothing the Model shows.
+`update`, `onReinstall(next, previous, { reset })` returns the transition
+instead. Use it to keep a selection that points into the slice, or to return a
+Command that patches a DOM the change has to reach. Omitted, the Model is
+simply `next`. It is not called for a status that changed nothing the Model
+shows. `reset` is true when the server's history is a new one (a new
+`status.epoch`: the server was reset), so whatever the application derived
+from the old one, such as reads keyed by commit sequence, is to be read again.
 
 ## Testing without a browser or a server
 

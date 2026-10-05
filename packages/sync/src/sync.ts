@@ -150,6 +150,11 @@ export interface ReplicaStatus {
   readonly lastError: string | undefined
   /** Operations the server refused, most recent first, with its reason when it gave one. */
   readonly rejected: ReadonlyArray<Rejection>
+  /**
+   * The server history the cursor points into, once a server named one. A new
+   * one means the server was reset: what the replica had committed is gone.
+   */
+  readonly epoch: Option.Option<string>
 }
 
 /**
@@ -568,6 +573,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             cursor: current.cursor,
             lastError: yield* Ref.get(lastError),
             rejected: yield* Ref.get(rejectedOps),
+            epoch: Option.fromUndefinedOr(current.epoch),
           },
           shared: projected,
           committed: current.committed,

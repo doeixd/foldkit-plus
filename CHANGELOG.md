@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync`: a reinstall says when the server was reset.**
+  `ReplicaStatus.epoch` is the server history the cursor points into, and
+  `Sync.mount`'s `onReinstall(next, previous, { reset })` is told when it
+  changed. `examples/registry` reads its rows again on a reset: their
+  revisions counted the old history, so an edit committed since at a low
+  sequence looked as if the rows already held it (#166).
 - **`foldkit-mixins-data-grid`: a choice is a list the grid draws.** A
   column of literals edits as a `role="combobox"` beside its `role="listbox"`
   (new `choiceList` Slot), styled with the page, opening below the cell or

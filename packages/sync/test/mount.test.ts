@@ -19,6 +19,7 @@ import {
   StorageError,
   type CommittedOperation,
   type Mounted,
+  type Reinstall,
   type Replica,
   type Storage,
 } from '../src/index.js'
@@ -124,6 +125,7 @@ const exchange = (
     rejected: string[]
     acknowledged?: string[]
     checkpoint?: { cursor: number; model: Shared }
+    epoch?: string
   },
 ) =>
   Effect.runPromise(
@@ -158,7 +160,11 @@ describe('Sync.mount', () => {
   let mounted: Mounted<Model, Message, Shared> | undefined
   const open = async (
     storage: Storage = memoryStorage(),
-    onReinstall?: (next: Model, previous: Model) => Update.Return<Model, Message>,
+    onReinstall?: (
+      next: Model,
+      previous: Model,
+      change: Reinstall,
+    ) => Update.Return<Model, Message>,
     statuses: (
       changes: Replica<Message, Shared>['statusChanges'],
     ) => Replica<Message, Shared>['statusChanges'] = changes => changes,
@@ -386,6 +392,31 @@ describe('Sync.mount', () => {
       await disposing
       await expect(app.settled()).rejects.toThrow(/after dispose/)
     })
+  })
+
+  it('tells onReinstall when the server was reset, by a new epoch', async () => {
+    const changes: Array<boolean> = []
+    await open(memoryStorage(), (next, _previous, { reset }) => {
+      changes.push(reset)
+      return { model: next }
+    })
+    const answer = (epoch: string, title: string) => ({
+      operations: [committed('r', title, 1)],
+      rejected: [],
+      epoch,
+    })
+    await exchange(replica, answer('first', 'One'))
+    await vi.waitFor(() => expect(text()).toContain('One'))
+    // The same history again: no reset. Then a new one: a reset.
+    await exchange(replica, {
+      operations: [committed('s', 'Two', 2)],
+      rejected: [],
+      epoch: 'first',
+    })
+    await vi.waitFor(() => expect(text()).toContain('Two'))
+    await exchange(replica, answer('second', 'Three'))
+    await vi.waitFor(() => expect(text()).toContain('Three'))
+    expect(changes).toEqual([false, false, true])
   })
 
   it('installs the shared slice after an exchange commits a remote change', async () => {

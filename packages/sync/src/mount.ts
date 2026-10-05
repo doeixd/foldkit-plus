@@ -7,7 +7,7 @@
  * shared slice is re-installed from the replica when an exchange changes it or
  * a persist fails, through one private Message the application never sees.
  */
-import { Effect, Exit, Layer, Schema, Stream } from 'effect'
+import { Effect, Exit, Layer, Option, Schema, Stream } from 'effect'
 import { absurd } from 'effect/Function'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
@@ -120,7 +120,21 @@ export interface MountOptions<Model, Message, Shared, Resources> {
    * not called for a status that changes nothing the Model shows, such as the first.
    */
   readonly onReinstall?:
-    ((next: Model, previous: Model) => Update.Return<Model, Message, Resources>) | undefined
+    | ((
+        next: Model,
+        previous: Model,
+        change: Reinstall,
+      ) => Update.Return<Model, Message, Resources>)
+    | undefined
+}
+
+/**
+ * What a reinstall came from. `reset` is a server reset: the replica's
+ * committed history is a new one, so anything an application derived from
+ * the old one (reads cached by commit sequence, say) is to be read again.
+ */
+export interface Reinstall {
+  readonly reset: boolean
 }
 
 /**
@@ -331,6 +345,12 @@ export const mount = <
       // Installs at once: edits still waiting for the replica are replayed on
       // top, so nothing is deferred behind them.
       case REFRESH: {
+        // The server's history changed under the replica: a reset.
+        const reset =
+          applied !== undefined &&
+          Option.isSome(applied.epoch) &&
+          Option.isSome(message.status.epoch) &&
+          applied.epoch.value !== message.status.epoch.value
         applied = message.status
         // The first status, and any other that changed nothing the Model shows, reinstall
         // nothing, so `onReinstall` hears only of a real change.
@@ -340,7 +360,7 @@ export const mount = <
         ) {
           return unchanged(model)
         }
-        return reinstalled(install(model), model)
+        return reinstalled(install(model), model, { reset })
       }
       case PERSISTED:
         persistsOwed--
@@ -349,7 +369,9 @@ export const mount = <
         persistsOwed--
         const { error } = message
         const reverted = install(model)
-        return reinstalled(options.onPersistenceFailure?.(reverted, error) ?? reverted, model)
+        return reinstalled(options.onPersistenceFailure?.(reverted, error) ?? reverted, model, {
+          reset: false,
+        })
       }
       case NAVIGATE: {
         // A link the application did not claim: follow it. The runtime then
@@ -390,11 +412,16 @@ export const mount = <
   const reinstalled = (
     next: Model,
     previous: Model,
+    change: Reinstall,
   ): Update.Return<Model, RuntimeMessage, Resources> =>
     options.onReinstall === undefined
       ? { model: next }
       : applyFacts(
-          options.onReinstall(next, previous) as Update.Return<Model, RuntimeMessage, Resources>,
+          options.onReinstall(next, previous, change) as Update.Return<
+            Model,
+            RuntimeMessage,
+            Resources
+          >,
         )
 
   /** The application's transition for one of its Messages, with the persist a durable one needs. */

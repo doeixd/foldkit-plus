@@ -152,7 +152,18 @@ export const mountRegistry = (
     // An edit newly retired is asked of the table again rather than shown
     // as saved until some other read: a later edit may have replaced it, and
     // only the row says so once the journal has absorbed both (`settledOf`).
-    onReinstall: (next, previous) => {
+    // A server reset starts the journal's sequence over, so the revisions on
+    // the rows read before it count a history that is gone: an edit committed
+    // at a low sequence since would look absorbed. Nothing is held over it;
+    // the rows are read again.
+    onReinstall: (next, previous, { reset }) => {
+      if (reset) {
+        return {
+          model: Products.refresh(
+            next.retired.length === 0 ? next : modifyFields(next, { retired: () => [] }),
+          ),
+        }
+      }
       const retired = retiredOf(previous, next)
       const replaced = replacedOf(previous, next)
       if (retired.length === 0 && next.retired.length === 0 && replaced.length === 0) {

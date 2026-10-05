@@ -163,8 +163,9 @@ await mounted.dispose()                                        // waits for in-f
   failed persist reverts.
 - Options: `subscriptions` + `resources` (for example, Mirror entries and their
   Layer), `url: { init, onUrlChange, onUrlRequest? }`, and `onReinstall(next,
-  previous)`, which returns the transition when an exchange or a failed persist
-  replaces the shared slice (carry a selection across, patch a DOM).
+  previous, { reset })`, which returns the transition when an exchange or a
+  failed persist replaces the shared slice (carry a selection across, patch a
+  DOM); `reset` says the server's history is a new one (`status.epoch` changed).
 - `Mounted` provides `model`, `dispatch`, `subscribe`, `observe`, `committed`,
   `settled` and `dispose`. `settled()` resolves once the Model has caught up
   with the replica (in a test: `await frames.settle(mounted)`, with

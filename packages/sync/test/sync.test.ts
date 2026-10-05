@@ -534,6 +534,8 @@ describe('the replica', () => {
       pending: 0,
       cursor: 0,
       lastError: undefined,
+      // This server names no history.
+      epoch: Option.none(),
       // The operation the replica sent and has now dropped, so what it changed can be read.
       rejected: [
         {

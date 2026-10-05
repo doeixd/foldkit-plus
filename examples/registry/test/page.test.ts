@@ -13,11 +13,11 @@
  *   reads the row again;
  * - a committed edit shows until a read of the row has it, by its revision.
  */
-import { Effect, Layer, Option, Stream } from 'effect'
+import { Effect, Option, Stream } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Frames } from 'foldkit-mixins/testing'
-import { Remote } from 'foldkit-remote'
+import { Remote, type RemoteRpcClient } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import {
   ReplicaId,
@@ -53,14 +53,22 @@ const memoryStorage = (): Storage => {
   }
 }
 
-/** The server, its journal, and a transport to it that can be cut, over a table that can fail. */
+/**
+ * The server, its journal, and a transport to it that can be cut, over a
+ * table that can fail; `restart` starts it over, a fresh table and journal,
+ * as a dev server restarting does, behind the same transport and reads.
+ */
 const serve = () => {
-  const backend = openServer(memorySqlite(), { count })
   let writable = true
-  const journal = memoryJournal((change, at) => {
-    if (!writable) throw new Error('the table cannot be written')
-    backend.apply(change, at)
-  })
+  const start = () => {
+    const backend = openServer(memorySqlite(), { count })
+    const journal = memoryJournal((change, at) => {
+      if (!writable) throw new Error('the table cannot be written')
+      backend.apply(change, at)
+    })
+    return { backend, journal, handlers: RemoteServer.handlers(backend.server, null) }
+  }
+  let current = start()
   let online = true
   // A client between the page and the server that says its edits committed:
   // what the journal refuses, as a page's own edit never is.
@@ -71,11 +79,12 @@ const serve = () => {
   })
   /** The page's way to the server, as one device: it commits as `device`. */
   const transportFor = (device: string) => {
-    const as = journal.transportAs({ actorId: device })
     const client: TransportClient = {
       exchange: (cursor, pending, epoch) =>
         online
-          ? as.exchange(cursor, tampering ? pending.map(forged) : pending, epoch)
+          ? current.journal
+              .transportAs({ actorId: device })
+              .exchange(cursor, tampering ? pending.map(forged) : pending, epoch)
           : Promise.reject(new Error('offline')),
     }
     return Sync.transport.fromPromise(client)
@@ -86,15 +95,42 @@ const serve = () => {
   const waited = Effect.suspend(() => Effect.promise(() => gate)).pipe(
     Effect.tap(() => Effect.sync(() => reads++)),
   )
-  const handlers = RemoteServer.handlers(backend.server, null)
-  const gated: typeof handlers = {
-    ...handlers,
-    FoldkitRemoteRead: payload => Effect.andThen(waited, handlers.FoldkitRemoteRead(payload)),
-    FoldkitRemoteQuery: payload => Effect.andThen(waited, handlers.FoldkitRemoteQuery(payload)),
+  // Each call reaches the server running now, over its own table.
+  const gated: RemoteRpcClient = {
+    FoldkitRemoteRead: payload =>
+      Effect.andThen(
+        waited,
+        Effect.suspend(() =>
+          current.handlers.FoldkitRemoteRead(payload).pipe(Effect.provide(current.backend.layer)),
+        ),
+      ),
+    FoldkitRemoteQuery: payload =>
+      Effect.andThen(
+        waited,
+        Effect.suspend(() =>
+          current.handlers.FoldkitRemoteQuery(payload).pipe(Effect.provide(current.backend.layer)),
+        ),
+      ),
+    FoldkitRemoteMutate: payload =>
+      Effect.suspend(() =>
+        current.handlers.FoldkitRemoteMutate(payload).pipe(Effect.provide(current.backend.layer)),
+      ),
+    FoldkitRemoteLive: payload =>
+      Stream.suspend(() =>
+        current.handlers.FoldkitRemoteLive(payload).pipe(Stream.provide(current.backend.layer)),
+      ),
   }
   return {
-    backend,
-    journal,
+    get backend() {
+      return current.backend
+    },
+    get journal() {
+      return current.journal
+    },
+    /** A fresh table and journal, as a restarted server has: a new epoch. */
+    restart: () => {
+      current = start()
+    },
     setOnline: (value: boolean) => (online = value),
     setWritable: (value: boolean) => (writable = value),
     setTampering: (value: boolean) => (tampering = value),
@@ -109,7 +145,7 @@ const serve = () => {
         release()
       }
     },
-    resources: Remote.clientLayer(gated).pipe(Layer.provide(backend.layer)),
+    resources: Remote.clientLayer(gated),
     transportFor,
     /** Another device's way to the server. */
     transport: transportFor('elsewhere'),
@@ -603,6 +639,29 @@ test('an edit replaced while this device was away is said, though the journal ab
       ]),
     )
     expect(latest().retired).toEqual([])
+  } finally {
+    await dispose()
+  }
+})
+
+test('a server restarted under the page starts its rows over, so a new edit is not taken as read', async () => {
+  const server = serve()
+  const { dispose, exchange, mounted, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(2), 'cents')?.textContent).toBe(priceOf(2)))
+    // Three commits, read back: the row as the page holds it is at revision 3.
+    for (const cents of [201, 202, 203]) await commitElsewhere(server, 2, cents)
+    await exchange()
+    mounted.dispatch(Message.RetriedProducts())
+    await vi.waitFor(() => expect(revisionOf(latest(), productId(2))).toEqual(Option.some(3)))
+
+    // The server starts over: a fresh table, and a journal counting from 1.
+    server.restart()
+    await commitElsewhere(server, 2, 777)
+    await exchange()
+    // The new edit committed at 1, below the old revision; the page reads the
+    // rows of the new history rather than take it as already in them.
+    await vi.waitFor(() => expect(cell(productId(2), 'cents')?.textContent).toBe('7.77'))
   } finally {
     await dispose()
   }

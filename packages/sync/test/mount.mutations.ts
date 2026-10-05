@@ -51,4 +51,15 @@ export default [
     ],
     tests: ['packages/sync/test/mount.test.ts'],
   },
+  {
+    name: 'a reset is never told',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: '        return reinstalled(install(model), model, { reset })',
+        replace: '        return reinstalled(install(model), model, { reset: false })',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
 ]

@@ -91,4 +91,9 @@ export default [
     ],
     tests: ['examples/registry/test/page.test.ts'],
   },
+  {
+    name: 'a reset reads no rows again',
+    edits: [{ file: '../src/sync.ts', find: '      if (reset) {', replace: '      if (false) {' }],
+    tests: ['examples/registry/test/page.test.ts'],
+  },
 ]
