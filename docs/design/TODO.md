@@ -165,6 +165,55 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   read-only, and Sync must write the slice it installs.
   [#64](https://github.com/doeixd/foldkit-plus/issues/64)
 
+## Guards
+
+Who may do what, declared once on the domain. Nothing built; each item is one
+slice of [guard-DESIGN.md](./guard-DESIGN.md) §12, and the design's §13 lists
+the open questions to decide on the way.
+
+- [ ] **1. `foldkit-guard` core.** `declare` (with `key`, `unguarded`),
+  `principal`, `row` with the placeholder principal, `all`, `inherit`,
+  `on`/`redact`/`explain`, `Interaction.make`, `attach` (the metadata key and
+  the `may`/`mayWrite` derived members), `implement`, `matrix`. Pure. Type
+  tests reject a foreign member key, a foreign Entity's row guard, a guard from
+  another set, a branching placeholder, a mistyped redact, and a missing or
+  extra `implement` key. §3, §7
+- [ ] **2. `Expr.in`** in `foldkit-entity`: `evaluate` case, conformance row,
+  Drizzle compilation. §6.2
+- [ ] **3. Reads.** `Guards.source` and `Guards.binding`; `EntitySource.filter`
+  run by `readHelper`; `inherit`'s correlated subquery; the placement throw;
+  `RemoteServer.memory` honouring row guards; `validate`'s placed-and-implemented
+  checks. Kitchen-sink test: one Todo as owner, project member, admin and
+  visitor, by id, through a relation, through a query, in memory and SQLite.
+  §4, §5.1–5.2
+- [ ] **4. `G.Principal` and `key`.** `handlers` and the live hub read the tag
+  and group by key; two requests by one person share a hub read. §6.5
+- [ ] **5. `Forbidden` end to end.** `RemoteServerError`, `answer` 403,
+  `Remote.http` keeping the status, `RemoteMutationError`'s tag,
+  `Data.mutation`. §9
+- [ ] **6. Writes.** `Mutation.make` with an `Entity.input` and an
+  `interaction`; `Guards.fromPrincipal` presets; `Guards.guarded` deriving the
+  plan from the input; `validate`'s overpermits check. §5.3, §6.4
+- [ ] **7. `may`.** Served by `Guards.source`; Crud's `may` and `readonly`;
+  `mixins-form` disabled fields; `Data.forget` dropping it. §7
+- [ ] **8. Agents.** `Guards.variant` in its client and server modes;
+  `available` from `may`; `withPrincipal` inferred from `G`; `agent-mcp`'s
+  `authenticate` providing the tag. §5.4, §8b
+- [ ] **9. CMS.** `isAuthor`, `allow` and `published` re-expressed as guards;
+  the `principal as P` casts removed; the e2e audience test unchanged. §8
+- [ ] **10. Sync.** `Guards.document` as a connection-level refuse;
+  `Guards.journal` deriving the journal's `authorize`; an Effect-returning
+  `refuse` for row guards before `append`; `EditableEntity.make`'s one-audience
+  check; the registry's edits governed by `Product`'s guards. First confirm
+  whether the presence server stamps a peer's id from the connection. §8c
+- [ ] **11. Docs.** `packages/guard/README.md`, a `SKILL.md` row and
+  `references/guard.md`, `remote.md`'s gotchas pointing here, `CHANGELOG.md`
+  per slice.
+- [ ] **Routing's `Me` Entity.** One row per principal with route-level
+  interactions, read with `Guards.may`; navigation and `Surface.when` derive
+  from it. Belongs with the third routing cut. §8a,
+  [router-DESIGN.md](./router-DESIGN.md) §34.4
+
 ## CMS
 
 Each item says how it would attach; none is started.
