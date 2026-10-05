@@ -38,9 +38,9 @@ describe('the generated site', () => {
         a => a.textContent === 'Open the demo',
       )
       expect(open?.getAttribute('href')).toBe(demo.url)
-      expect(Array.from(card.querySelectorAll('ol li'), li => li.textContent)).toEqual([
-        ...demo.tryThis,
-      ])
+      expect(Array.from(card.querySelectorAll('ol li'), li => li.textContent)).toEqual(
+        demo.tryThis.map(step => `${step.title} ${step.text}`),
+      )
       const links = Array.from(card.querySelectorAll('a'), a => a.getAttribute('href'))
       expect(links).toContain(onGitHub(demo.readFirst))
       expect(links).toEqual(

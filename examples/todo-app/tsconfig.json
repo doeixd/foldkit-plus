@@ -13,6 +13,8 @@
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
+      "foldkit-example-site/demos": ["../site/src/demos.ts"],
+      "foldkit-example-site/intro": ["../site/src/intro.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
@@ -46,6 +48,9 @@
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
+    {
+      "path": "../site/tsconfig.json"
+    },
     {
       "path": "../../packages/agent-webmcp/tsconfig.build.json"
     },

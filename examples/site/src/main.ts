@@ -123,7 +123,12 @@ const card = (demo: Demo, slots: Slots, h: HtmlBuilder<Message>): Html =>
     h.p(slots.label.attrs(), ['Try this']),
     h.ol(
       slots.steps.attrs(),
-      demo.tryThis.map(step => h.li(slots.step.attrs(), [step])),
+      demo.tryThis.map(step =>
+        h.li(slots.step.attrs(), [
+          h.strong(slots.stepTitle.attrs(), [step.title]),
+          ` ${step.text}`,
+        ]),
+      ),
     ),
     h.p(slots.meta.attrs(), [
       'Read first: ',
@@ -146,7 +151,7 @@ const home = (slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
     h.p(slots.eyebrow.attrs(), ['Foldkit Plus']),
     h.h1(slots.heading.attrs([h.Id('page-title')]), ['The demos']),
     h.p(slots.lede.attrs(), [
-      'Each is an example from the repository, built as static files. Those with a server run it in your browser, shared by every tab, so nothing you do leaves it. Open one, follow its three steps, then read the file it names.',
+      'Each is an example from the repository, built as static files. Those with a server run it in your browser, shared by every tab, so nothing you do leaves it. Open one, follow its steps, then read the file it names.',
     ]),
   ]),
   h.ul(

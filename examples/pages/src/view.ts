@@ -1,4 +1,6 @@
 import type { Document, HtmlBuilder } from 'foldkit/html'
+import { pagesDemo } from 'foldkit-example-site/demos'
+import { demoIntro } from 'foldkit-example-site/intro'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { editorView } from 'foldkit-richtext-dom/editor-bundle'
 import { print } from 'foldkit-richtext-markdown'
@@ -6,6 +8,8 @@ import * as RichText from 'foldkit-richtext'
 import { editorViewOf, Message, pageOf, type Model } from './app.js'
 
 const { Replicated } = RichText
+
+const DemoIntro = demoIntro<Message>()
 
 const editorMessage = (message: EditorMessage): Message => Message.GotEditor({ message })
 
@@ -24,6 +28,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.nav(
           [h.Class('sidebar'), h.AriaLabel('Pages')],
           [
+            h.p([h.Class('brand')], ['Pages']),
             h.ul(
               [h.Class('page-list')],
               model.pages
@@ -82,7 +87,13 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ],
         ),
         open === undefined
-          ? h.main([h.Class('empty')], ['Open a page, or make a new one.'])
+          ? h.main(
+              [h.Class('empty')],
+              [
+                DemoIntro({ demo: pagesDemo }, h),
+                h.p([h.Class('hint')], ['Open a page, or make a new one.']),
+              ],
+            )
           : h.main(
               [h.Class('page-view')],
               [

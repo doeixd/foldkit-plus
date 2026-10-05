@@ -5,6 +5,7 @@
  * Every tab of the sandbox meets the same server.
  */
 import { Option, Schema } from 'effect'
+import { onGitHub, registryDemo, SITE_URL } from 'foldkit-example-site/demos'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from '../device.js'
 import { connectSandbox } from './connection.js'
@@ -27,20 +28,17 @@ const element = (
   return node
 }
 
+/** A link in the page's accent. */
+const link = (text: string, href: string): HTMLElement => {
+  const anchor = element('a', 'color: #4f46e5; text-underline-offset: .15em', [text])
+  anchor.setAttribute('href', href)
+  return anchor
+}
+
 const font = 'font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #18181b'
 
 const intro = (): HTMLElement => {
-  const steps = [
-    { title: 'Edit', text: 'Change a price in Device A. It shows in Device B a moment later.' },
-    {
-      title: 'Conflict',
-      text: 'Tick “Work offline” in Device B, edit the same price in both, then untick it. The later edit wins, and the device that lost says so.',
-    },
-    {
-      title: 'Reload',
-      text: 'Reload Device B while it is offline. Its edits are still waiting, and go when it is back.',
-    },
-  ].map(({ title, text }, index) =>
+  const steps = registryDemo.tryThis.map(({ title, text }, index) =>
     element(
       'li',
       'display: grid; gap: .25rem; padding: .875rem 1rem; background: #fff; border: 1px solid #e4e4e7; border-radius: 10px',
@@ -66,6 +64,11 @@ const intro = (): HTMLElement => {
       ]),
       element('p', 'margin: 0; max-width: 46rem; color: #52525b', [
         '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait on the device while it is offline and reach the other when it is back.',
+      ]),
+      element('p', 'margin: 0; font-size: .8125rem; color: #71717a', [
+        link('All the demos', SITE_URL),
+        ' · ',
+        link('Read its code', onGitHub(registryDemo.readFirst)),
       ]),
       element(
         'ol',

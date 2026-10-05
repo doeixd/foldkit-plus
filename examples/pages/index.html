@@ -6,19 +6,22 @@
     <title>Pages</title>
     <link rel="icon" href="data:," />
     <style>
-      :root { font-family: system-ui, sans-serif; color: #1f2328; background: #fff; }
+      :root { font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1f2328; background: #fff; }
       body { margin: 0; }
       #pages, .pages { height: 100vh; }
       .pages { display: grid; grid-template-columns: 240px 1fr; }
       .sidebar { background: #f6f7f8; border-right: 1px solid #e3e5e8; padding: 16px 8px; }
+      .brand { margin: 0 10px 14px; font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
       .page-list { list-style: none; margin: 0 0 12px; padding: 0; }
       .page-link, #new-page { width: 100%; text-align: left; border: 0; background: none;
         padding: 6px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
       .page.open .page-link { background: #e3e5e8; font-weight: 600; }
       .page-link:hover, #new-page:hover { background: #eceef0; }
-      #new-page { color: #59636e; }
+      #new-page { color: oklch(52% 0.17 270); font-weight: 600; }
       main { padding: 48px 72px; overflow: auto; }
-      .empty { color: #59636e; }
+      .empty, .page-view { max-width: 46rem; }
+      .empty { display: grid; gap: 16px; align-content: start; }
+      .hint { margin: 0; color: #59636e; }
       .title { font-size: 2.25rem; font-weight: 700; border: 0; outline: 0; width: 100%;
         margin-bottom: 12px; }
       .toolbar { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }

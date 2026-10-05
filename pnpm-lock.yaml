@@ -114,6 +114,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
@@ -202,6 +205,9 @@ importers:
       foldkit-data-grid:
         specifier: workspace:*
         version: link:../../packages/data-grid
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
@@ -1087,6 +1093,9 @@ importers:
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives
@@ -1197,6 +1206,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
@@ -1458,6 +1470,9 @@ importers:
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-mirror:
         specifier: workspace:*
         version: link:../../packages/mirror

@@ -13,6 +13,7 @@
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-data-grid": "workspace:*",
+    "foldkit-example-site": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-data-grid": "workspace:*"
   },

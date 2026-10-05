@@ -15,6 +15,8 @@
 import * as UiButton from '@foldkit/ui/button'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import { Option } from 'effect'
+import { todoDemo } from 'foldkit-example-site/demos'
+import { demoIntro } from 'foldkit-example-site/intro'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
@@ -245,18 +247,23 @@ const ComposerRoot = Surface.rootView(Composer, undefined, SurfaceView.toRendere
 const BoardRoot = Surface.rootView(Board, undefined, SurfaceView.toRenderer(BoardView))
 const FooterRoot = Surface.rootView(Footer, undefined, SurfaceView.toRenderer(FooterView))
 
+const DemoIntro = demoIntro<Message>()
+
 const PageView = SlotView.define(
   PageSlots,
   (
-    { model, note }: { readonly model: Model; readonly note: Option.Option<string> },
+    { model, as }: { readonly model: Model; readonly as: Option.Option<string> },
     slots,
     h: HtmlBuilder<Message>,
   ) =>
     h.main(slots.root.attrs(), [
-      ...Option.match(note, {
-        onNone: () => [],
-        onSome: text => [h.p(slots.note.attrs(), [text])],
-      }),
+      DemoIntro(
+        {
+          demo: todoDemo,
+          more: Option.match(as, { onNone: () => [], onSome: who => [`You are ${who}.`] }),
+        },
+        h,
+      ),
       HeaderRoot(model, h),
       ComposerRoot(model, h),
       BoardRoot(model, h),
@@ -264,12 +271,12 @@ const PageView = SlotView.define(
     ]),
 ).pipe(Style.attach(PageStyle))
 
-/** The page, with `note` above it where there is one: what to try first. */
+/** The page, saying who you are where the page knows (`as`, the token). */
 export const viewWith =
-  (note: Option.Option<string>) =>
+  (as: Option.Option<string>) =>
   (model: Model, h: HtmlBuilder<Message>): Document => ({
     title: model.listTitle,
-    body: PageView({ model, note }, h),
+    body: PageView({ model, as }, h),
   })
 
 export const view = viewWith(Option.none())

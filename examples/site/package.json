@@ -3,6 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./demos": {
+      "foldkit-plus:source": "./src/demos.ts",
+      "default": "./src/demos.ts"
+    },
+    "./intro": {
+      "foldkit-plus:source": "./src/intro.ts",
+      "default": "./src/intro.ts"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

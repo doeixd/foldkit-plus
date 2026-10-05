@@ -7,6 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { SlotView } from 'foldkit-mixins'
 import { Option } from 'effect'
 import { Cms, type EditorStatus, type State } from 'foldkit-cms'
+import { cmsDemo, onGitHub, SITE_URL } from 'foldkit-example-site/demos'
 import type { AdminSlots } from '../styles/adminStyle.js'
 import { icon } from './icons.js'
 import { chairOf, chairs, type Chair } from '../server/transport.js'
@@ -32,12 +33,11 @@ export const intro = <M>(slots: SlotView.SlotBuilders<typeof AdminSlots, M>, h: 
           : 'Its server is the one pnpm dev started, in memory.',
       ],
     ),
-    h.ol(slots.introSteps.attrs(), [
-      h.li([], ['As Wren, a writer, start a post. It saves as you type; a writer cannot publish.']),
-      h.li([], ['Switch to Edda, an editor, open it and publish it.']),
-      h.li([], ['View the site as a visitor: only what was published is there.']),
-      h.li([], ['In Pages, open Home and build it from blocks; publish, then look again.']),
-    ]),
+    // The steps every list of the demos shows (`foldkit-example-site/demos`).
+    h.ol(
+      slots.introSteps.attrs(),
+      cmsDemo.tryThis.map(step => h.li([], [h.strong([], [step.title]), ` ${step.text}`])),
+    ),
     ...(sandboxed
       ? [
           h.p(
@@ -50,6 +50,14 @@ export const intro = <M>(slots: SlotView.SlotBuilders<typeof AdminSlots, M>, h: 
           ),
         ]
       : []),
+    h.p(
+      [],
+      [
+        h.a([h.Href(SITE_URL)], ['All the demos']),
+        ' · ',
+        h.a([h.Href(onGitHub(cmsDemo.readFirst))], ['Read its code']),
+      ],
+    ),
   ])
 
 /** Who each chair is, as the sidebar introduces them. */

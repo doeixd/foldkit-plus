@@ -10,6 +10,8 @@
  */
 import { Option, Schema, SchemaGetter } from 'effect'
 import { type Document, type HtmlBuilder } from 'foldkit/html'
+import { gridDemo } from 'foldkit-example-site/demos'
+import { demoIntro } from 'foldkit-example-site/intro'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
@@ -45,7 +47,7 @@ export const columns = Columns.define<Product>()({
   description: {
     header: 'Description',
     value: product => product.description,
-    width: 280,
+    width: 320,
     minWidth: 120,
     edit: { schema: Description },
   },
@@ -153,6 +155,8 @@ const Registry = DataGridView<Message>()
     ),
   )
 
+const DemoIntro = demoIntro<Message>()
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   // Counted from the selection, not by asking each of 100,000 rows every render.
   const selectedCount = RowSelection.match(model.grid.selection.rows, {
@@ -162,11 +166,27 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   return {
     title: 'Product registry',
     body: h.main(
-      [h.Style({ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' })],
       [
-        h.h1([], ['Product registry']),
+        h.Style({
+          boxSizing: 'border-box',
+          display: 'grid',
+          gap: '1rem',
+          // The columns' 830px, the grid's border and this padding: no empty band beside the grid.
+          maxWidth: '55rem',
+          margin: '0 auto',
+          padding: '2rem 1.5rem',
+          font: '15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
+          color: 'oklch(25% 0.02 270)',
+        }),
+      ],
+      [
+        h.h1(
+          [h.Style({ margin: '0', fontSize: '1.75rem', letterSpacing: '-0.01em' })],
+          ['Product registry'],
+        ),
+        DemoIntro({ demo: gridDemo }, h),
         h.p(
-          [h.Role('status')],
+          [h.Role('status'), h.Style({ margin: '0', color: 'oklch(45% 0.02 270)' })],
           [
             `${model.products.length.toLocaleString()} products, ${selectedCount.toLocaleString()} selected. `,
             model.notice,

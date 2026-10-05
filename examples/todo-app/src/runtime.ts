@@ -26,15 +26,15 @@ export const mountApp = (
   replica: Replica<Message, Shared>,
   container: HTMLElement,
   options: {
-    /** What to try first, drawn above the app (the sandbox's). */
-    readonly note?: string
+    /** Who the page is signed in as, for the intro to say. */
+    readonly as?: string
   } = {},
 ): Mounted<Model, Message> => {
   const storage = KeyValueStore.layerStorage(() => window.localStorage)
   const start = wiring.initial(initialModel)
   const mounted = mountTodos(replica, {
     container,
-    view: viewWith(Option.fromUndefinedOr(options.note)),
+    view: viewWith(Option.fromUndefinedOr(options.as)),
     subscriptions: wiring.subscriptions(),
     resources: storage,
     url: wiring.url(url => Message.UrlChanged({ url })),

@@ -17,6 +17,8 @@
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-site/demos": ["../site/src/demos.ts"],
+      "foldkit-example-site/intro": ["../site/src/intro.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-data-grid": ["../../packages/mixins-data-grid/src/index.ts"],
@@ -53,6 +55,9 @@
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
+    {
+      "path": "../site/tsconfig.json"
+    },
     {
       "path": "../../packages/metadata/tsconfig.build.json"
     },

@@ -26,9 +26,11 @@ const dirs = folder =>
     .map(name => join(root, folder, name))
     .filter(path => statSync(path).isDirectory())
 
-// Each workspace package: its directory, and its specifiers' source files.
+// Each workspace package: its directory, and its specifiers' source files. An
+// example that declares exports is one too, for the examples that import it
+// (the demos import `examples/site`'s card data and intro).
 const packages = new Map()
-for (const dir of dirs('packages')) {
+for (const dir of [...dirs('packages'), ...dirs('examples')]) {
   const manifest = join(dir, 'package.json')
   if (!existsSync(manifest)) continue
   const pkg = JSON.parse(readFileSync(manifest, 'utf8'))

@@ -47,17 +47,7 @@ const replica = await Effect.runPromise(TodoSync.openReplica(ReplicaId.make(repl
 const container = document.querySelector<HTMLElement>('#app')
 if (container === null) throw new Error('#app is missing from the page')
 
-// The sandbox says what to try. The app draws it: its view is the whole body,
-// so an element placed beside the app's container would not survive the first draw.
-const mounted = mountApp(
-  replica,
-  container,
-  sandboxed
-    ? {
-        note: `The server runs in this browser; nothing is sent anywhere. You are ${token}. Open this page in a second tab, or add ?token=${token === 'bob' ? 'alice' : 'bob'} to the address to be someone else, and a todo added in one shows in the other. Only owner may clear or rename the list.`,
-      }
-    : {},
-)
+const mounted = mountApp(replica, container, { as: token })
 
 // The exchange loop: once, then after every submit, until the page unloads.
 // Committed operations from other replicas re-install the shared slice

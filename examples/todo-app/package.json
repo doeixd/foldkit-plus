@@ -20,6 +20,7 @@
     "foldkit-agent-webmcp": "workspace:*",
     "foldkit-bundle": "workspace:*",
     "foldkit-durable": "workspace:*",
+    "foldkit-example-site": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-surface": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",

@@ -13,7 +13,8 @@ smallest.
 ## One list of demos
 
 [`src/demos.ts`](src/demos.ts) holds every demo once. The site draws its cards
-from it, and the root README's list of demos is written from it:
+from it, every demo draws its "What this is, and what to try" box from its own
+entry, and the root README's list of demos is written from it:
 
 ```bash
 pnpm --filter foldkit-example-site readme   # rewrites the list between <!-- demos --> markers
@@ -38,5 +39,9 @@ every `foldkit-ssr` build does.
 - `src/demos.ts`: the cards' data.
 - `src/main.ts`: the Model (only the route), the view, and the resume plan.
 - `src/style.ts`: the Slots and their Styles.
+- `src/intro.ts`: the box each demo draws at the top of its first screen,
+  exported as `foldkit-example-site/intro` (the data as `foldkit-example-site/demos`).
+  It carries its own values, so it looks the same in every demo whatever its
+  theme. An application calls `demoIntro<Message>()` once, for its Messages.
 - `src/site.ts`: what `staticSite` renders.
 - `src/readme.ts`, `scripts/readme.ts`: the root README's list, and the script that writes it.

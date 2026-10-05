@@ -75,6 +75,7 @@ export const SiteStyle = slots(
       { paddingInlineStart: '1.25rem' },
     ],
     step: U.m('0'),
+    stepTitle: [U.font('semibold'), U.color('text.overt')],
     meta: [U.m('0'), U.text('sm')],
     packages: [
       L.in('layouts', Layout.cluster({ gap: t.space.xs })),

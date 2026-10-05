@@ -14,6 +14,7 @@
 import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
+import { IntroStyle } from 'foldkit-example-site/intro'
 import {
   AddButtonStyle,
   ClearButtonStyle,
@@ -44,4 +45,5 @@ export const stylesheet = Style.stylesheet(
   ToggleStyle,
   FooterStyle,
   ClearButtonStyle,
+  IntroStyle,
 )
