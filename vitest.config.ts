@@ -6,6 +6,7 @@ const everywhere = [
   'packages/*/test/**/*.test.ts',
   'examples/*/test/**/*.test.ts',
   'examples/foldkit/*/test/**/*.test.ts',
+  'scripts/test/**/*.test.ts',
 ]
 const browserTests = [
   'packages/*/test/**/*.browser.test.ts',

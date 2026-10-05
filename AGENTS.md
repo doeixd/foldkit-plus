@@ -438,7 +438,12 @@ before changing it.
 - **Verify every test can actually fail.** After writing tests, mutate the code
   under test (invert a condition, drop a guard, return a constant) and confirm
   the relevant test goes red, then revert. A test that passes against broken
-  code is worse than no test.
+  code is worse than no test. Declare the mutations beside the tests
+  (`test/<area>.mutations.ts`: `{ name, edits: [{ file, find, replace }],
+  tests }`) and run `pnpm mutate <spec>`: it refuses an anchor that is
+  missing or ambiguous, requires the tests green first, applies each edit
+  in memory (never to the file), and reports killed, survived, invalid or
+  not applied. A mutation that cannot be killed says why (`survives`).
 - Assert on real behaviour, not on restatements of the implementation. No
   assertions that hold vacuously (`expect(x).toBeDefined()` on a value that is
   always defined), no tests that only exercise a mock, and never weaken an
@@ -795,8 +800,8 @@ of its own named a form field "fits the Catalog". Read words with
 
 - **A mutation killed by a red test proves nothing.** A test added between
   two mutation runs was already failing, so the second run "killed" its
-  mutation for free. Confirm the suite is green before each run; the mutation
-  scripts now assert it.
+  mutation for free. Confirm the suite is green before each run; `pnpm
+  mutate` refuses a red baseline.
 - **Read a library's handler table before describing its semantics.** A
   comment said Foldkit keeps the last of two `OnClick`s on an element; its
   `addDataOn` chains them all, so the resumable builder dropped bindings. Cite
