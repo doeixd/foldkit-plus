@@ -36,6 +36,8 @@ Guards.attach(E, G, { row, members, … })        │
    └─ Guards.matrix(…)       the whole picture as data, committed and diffed
 ```
 
+§8a–8c say how this meets routing (routes carry no authorization; a `Me` Entity answers the visitor's questions), agents (one principal type with the MCP adapter; a two-mode `variant`), and Sync (a document is one audience, checked by guard identity).
+
 It is the `foldkit-metadata` pattern the entity design (§1) reserved for exactly this: "An Entity should not know whether a user is authorized to update it"; another package attaches that and interpreters read it. And it is the split Remote already makes between a Mutation descriptor the client imports and the Source only the server has.
 
 ---
@@ -276,7 +278,7 @@ On the client there are no bodies, so `Guards.variant` reads `may` from the row'
 
 ### 5.5 Sync and the CMS
 
-Sync's `authorize` per durable variant stays: a Sync document is not an Entity, and its rule sees the authoritative snapshot, which guards do not model. The CMS is re-expressed in §8.
+Sync's `authorize` per durable variant stays for documents Sync owns outright; for `foldkit-sync/entity`'s cell edits to Entity rows it is derived from the guards, and a document becomes one audience (§8c). The CMS is re-expressed in §8.
 
 ---
 
@@ -396,7 +398,7 @@ Per-member or per-row secrecy *within* a document is not something a replicated 
 
 **Durable** keeps `authorize`, `validate` and `actorId(principal)` as they are; it is a document log and learns nothing about Entities. `journalExchange({ principal })` takes `G.Principal`. The commit stamp's `by.actor`, shown to other replicas, is a display name resolved as the CMS's `nameOf` is, never the principal's key.
 
-**Presence** is ephemeral broadcast, validated by `decodeValue`, scoped by the document's `readers`. Its values are application-chosen and must not carry guarded fields; that is the author's responsibility, as `decodeValue` already is. A peer's `id` on the channel should be stamped by the server from `G.Principal` and `key`, not declared by the peer, as the commit stamp already does for edits; whether the server side does this today was not traced for this note and is the first thing slice 9 checks.
+**Presence** is ephemeral broadcast, validated by `decodeValue`, scoped by the document's `readers`. Its values are application-chosen and must not carry guarded fields; that is the author's responsibility, as `decodeValue` already is. A peer's `id` on the channel should be stamped by the server from `G.Principal` and `key`, not declared by the peer, as the commit stamp already does for edits; whether the server side does this today was not traced for this note and is the first thing slice 10 checks.
 
 ---
 
@@ -424,6 +426,8 @@ The new wire facts are the `Forbidden` tag and its optional `reason`. `Remote.ht
 5. **`foldkit-crud`.** `may` and `readonly` from the derived members; create/edit branch on the input's optional `id`.
 6. **`foldkit-agent`.** `withPrincipal<P>()` inferred from `G`; `Guards.variant`.
 7. **`foldkit-cms-drizzle`.** §8; the casts removed.
+8. **`foldkit-sync`.** `Guards.document` as a connection-level refuse on exchange; `Guards.journal` deriving a journal's `authorize` from an edit Message's changes; `JournalExchangeOptions.refuse` may return an `Effect` of the common decision type, run before `append`; `EditableEntity.make` checks the document's `readers` against the Entity's guards; `journalExchange({ principal })` reads `G.Principal`; the presence server stamps a peer's id from the connection if it does not already.
+9. **`foldkit-agent-mcp`.** `authenticate` provides `G.Principal`; `principalId` defaults to `declare`'s `key`.
 
 ---
 
@@ -434,7 +438,7 @@ The new wire facts are the `Forbidden` tag and its optional `reason`. `Remote.ht
 - **One new operator**, `Expr.in`. `exists` waits for the data-query Phase 13, and `inherit` covers the `one`-relation case without it.
 - **No negation.** gen2 defers `not` for SQL placement until null semantics are settled; `isNull`/`isNotNull` cover absence.
 - **No second evaluator.** Row guards are `Expr`, run by the two evaluators the conformance suite keeps in agreement.
-- **Sync is unchanged.** Its policy sees a document snapshot, not an Entity.
+- **No secrecy within a Sync document.** A document is one audience (§8c); per-row or per-member hiding inside a replicated log is refused at definition, not approximated.
 - **Authentication is the application's.** Sessions, cookies, tokens, accounts. The seam is `G.Principal`.
 
 ---
