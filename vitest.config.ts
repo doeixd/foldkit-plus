@@ -29,6 +29,8 @@ export default defineConfig({
         test: {
           name: 'browser',
           include: browserTests,
+          // The benchmarks measure Node; several cannot load in a page at all.
+          benchmark: { include: [] },
           browser: {
             enabled: true,
             headless: true,
