@@ -136,6 +136,9 @@ const application = Bundle.assemble<Model, Message>()([
                 : `Pasted ${accepted.length} cells; refused ${refused.length}: ${refused[0]!.error}.`,
           }),
         }),
+        // These rows keep no history; the registry demo shows undo as new edits.
+        UndoRequested: () => ({ model }),
+        RedoRequested: () => ({ model }),
       }),
   }),
 ])

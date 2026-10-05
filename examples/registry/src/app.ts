@@ -18,7 +18,7 @@
  * shows at once, survives a reload while offline, shows while the table has
  * not written it, and gives way to the table once a read of the row has it.
  */
-import { Match, Option, Schema, SchemaGetter } from 'effect'
+import { Equal, Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
@@ -148,6 +148,19 @@ const Exchange = Schema.Struct({
   error: Schema.OptionFromNullOr(Schema.String),
 })
 
+/** One cell an edit changed: what it held, and what the edit made it. */
+const CellStep = Schema.Struct({ before: ProductEdits.Change, after: ProductEdits.Change })
+/** One step to take back or do again: the cells of one edit, or of one paste. */
+const UndoStep = Schema.Array(CellStep)
+type UndoStep = typeof UndoStep.Type
+const UNDO_DEPTH = 100
+
+/** The cells an undo or a redo left alone, because they had changed since. */
+const HeldBack = Schema.Struct({
+  by: Schema.Literals(['undo', 'redo']),
+  cells: Schema.Array(Schema.Struct({ id: ProductId, column: EditedColumn })),
+})
+
 const Base = Bundle.compose({
   remote: Remote.Model,
   /** The order the list is read in: the query's input, so another order is another read. */
@@ -174,6 +187,14 @@ const Base = Bundle.compose({
   peers: Schema.Array(Peer),
   /** The replica this page commits from, so its own edits are told from another's. Local. */
   replica: Schema.String,
+  /**
+   * This tab's edits to take back, latest last, and those taken back to do
+   * again. Local to the tab, as an editor's undo is, so a reload starts none.
+   */
+  undo: Schema.Array(UndoStep),
+  redo: Schema.Array(UndoStep),
+  /** What the last undo or redo left alone, until dismissed or the next. Local. */
+  heldBack: Schema.OptionFromNullOr(HeldBack),
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
@@ -201,6 +222,8 @@ const Base = Bundle.compose({
     RefusalDismissed: { opId: Schema.String },
     /** The line about a replaced edit was dismissed. */
     ReplacementDismissed: { id: ProductId, column: EditedColumn },
+    /** The line about what an undo or a redo left alone was dismissed. */
+    HeldBackDismissed: {},
     /** The offline switch was pressed: the intent, flipped from the Model as it is. */
     OfflineToggled: {},
     /** Presence said where the other devices are now. */
@@ -261,13 +284,72 @@ const changeOf = (cell: Cell): ProductChange => {
 // it within this transition, so no later Message sees the Model without it.
 // A paste the columns refused all of writes nothing. The grid reports no
 // cell left as it began, so an unchanged one never reaches here.
-const edited = (model: Model, cells: ReadonlyArray<Cell>) =>
-  cells.length === 0
-    ? { model }
-    : {
-        model,
-        commands: [Sync.fact(Message.EditedProducts({ changes: cells.map(changeOf) }))],
-      }
+const edited = (model: Model, cells: ReadonlyArray<Cell>) => {
+  if (cells.length === 0) return { model }
+  const changes = cells.map(changeOf)
+  // What each cell showed before, read from the page: what an undo puts back.
+  const shown = shownOf(model)
+  const step = changes.flatMap(after =>
+    Option.match(shown(after.id), {
+      onNone: () => [],
+      onSome: row => [{ before: ProductEdits.changeAt(row, after.member), after }],
+    }),
+  )
+  return {
+    model: modifyFields(model, {
+      undo: undo => (step.length === 0 ? undo : [...undo, step].slice(-UNDO_DEPTH)),
+      redo: () => [],
+      heldBack: () => Option.none(),
+    }),
+    commands: [Sync.fact(Message.EditedProducts({ changes }))],
+  }
+}
+
+const flipped = (step: UndoStep): UndoStep =>
+  step.map(({ before, after }) => ({ before: after, after: before }))
+
+/**
+ * Takes the last step of `by`'s stack back (or, for redo, does it again) as a
+ * new edit: an edit may be committed and seen elsewhere, so nothing is
+ * rewound. Undo and redo are one move in opposite directions. A cell is
+ * changed only while the page still shows what the step left there: one
+ * another device, or a later edit here, has changed since is theirs, and is
+ * left alone and said.
+ */
+const replay = (model: Model, by: 'undo' | 'redo') => {
+  const from = model[by]
+  const last = from[from.length - 1]
+  if (last === undefined) return { model }
+  const step = by === 'undo' ? last : flipped(last)
+  const shown = shownOf(model)
+  const holds = (change: ProductChange) =>
+    Option.exists(shown(change.id), row => Equal.equals(row[change.member], change.value))
+  const taken = step.filter(cell => holds(cell.after))
+  const left = step.filter(cell => !holds(cell.after))
+  const other = by === 'undo' ? model.redo : model.undo
+  const moved =
+    taken.length === 0
+      ? other
+      : [...other, by === 'undo' ? taken : flipped(taken)].slice(-UNDO_DEPTH)
+  const popped = from.slice(0, -1)
+  return {
+    model: modifyFields(model, {
+      undo: () => (by === 'undo' ? popped : moved),
+      redo: () => (by === 'undo' ? moved : popped),
+      heldBack: () =>
+        left.length === 0
+          ? Option.none()
+          : Option.some({
+              by,
+              cells: left.map(({ after }) => ({ id: after.id, column: after.member })),
+            }),
+    }),
+    commands:
+      taken.length === 0
+        ? []
+        : [Sync.fact(Message.EditedProducts({ changes: taken.map(cell => cell.before) }))],
+  }
+}
 
 const Page = Base.pipe(
   Bundle.withServices<RemoteClient>(),
@@ -277,6 +359,8 @@ const Page = Base.pipe(
         Edited: cell => edited(model, [cell]),
         // What a column refused is the grid's to say; what it accepted is written.
         Pasted: ({ accepted }) => edited(model, accepted),
+        UndoRequested: () => replay(model, 'undo'),
+        RedoRequested: () => replay(model, 'redo'),
       }),
   }),
   Bundle.withWiring(Data.wiring(Crud.actives({ products: Products }))),
@@ -326,6 +410,11 @@ const transition = placements.update((model: Model, message: Message) =>
             replaced.filter(replacement => replacement.id !== id || replacement.column !== column),
         }),
       }),
+      HeldBackDismissed: () => ({
+        model: Option.isNone(model.heldBack)
+          ? model
+          : modifyFields(model, { heldBack: () => Option.none() }),
+      }),
       PeersChanged: ({ peers }) => ({ model: modifyFields(model, { peers: () => peers }) }),
       ReplicaNamed: ({ replica }) => ({
         model: model.replica === replica ? model : modifyFields(model, { replica: () => replica }),
@@ -363,6 +452,9 @@ export const initial = (): Model =>
     offline: false,
     peers: [],
     replica: '',
+    undo: [],
+    redo: [],
+    heldBack: Option.none(),
   }).model
 
 /** The application as Sync replays it: the same references, with its initial value and update. */
@@ -373,6 +465,14 @@ const rowOf =
   (model: Model) =>
   (id: ProductId): Option.Option<Row> => {
     const rows = GridCrud.rows(Products.page(model), row => row.id)
+    return Option.flatMap(rows.indexOf(id), rows.rowAt)
+  }
+
+/** A product's row as the page shows it, with the edits over it, if the page has it. */
+const shownOf =
+  (model: Model) =>
+  (id: ProductId): Option.Option<Row> => {
+    const rows = rowsOf(model)
     return Option.flatMap(rows.indexOf(id), rows.rowAt)
   }
 

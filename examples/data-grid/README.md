@@ -13,7 +13,7 @@ the grid owns the interaction       (focus, selection, column widths and order, 
 ```
 
 The grid never writes a product. A committed edit or a paste comes out as the
-grid's OutMessage (`Edited` or `Pasted`), carrying text that the column's
+grid's OutMessage (`Edited` or `Pasted`; this example keeps no undo history, so it ignores `UndoRequested` and `RedoRequested`), carrying text that the column's
 `validate` has already accepted, and `onOut` in [main.ts](src/main.ts) writes it
 into the products. A refused cell stays in the editor with its message, or is
 listed under `refused` in a paste.

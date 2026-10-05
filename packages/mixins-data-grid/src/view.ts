@@ -778,6 +778,22 @@ const view = <Message>() => ({
           key === 'Escape' && Option.isSome(state.dragging)
             ? Option.some(input.wrap(grid.Message.ColumnDragEnded({ completed: false })))
             : keyOf(key, modifiers)
+        // Ctrl or Meta with Z asks to undo, with Shift, or Ctrl+Y, to redo.
+        const historyKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> => {
+          if (!(modifiers.ctrlKey || modifiers.metaKey) || modifiers.altKey) return Option.none()
+          const pressed = key.toLowerCase()
+          if (pressed === 'z') {
+            return Option.some(
+              modifiers.shiftKey ? grid.Message.RedoRequested() : grid.Message.UndoRequested(),
+            )
+          }
+          return pressed === 'y' && !modifiers.shiftKey
+            ? Option.some(grid.Message.RedoRequested())
+            : Option.none()
+        }
         const keyOf = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> =>
           Option.match(onHeader, {
             onSome: column =>
@@ -786,9 +802,11 @@ const view = <Message>() => ({
               ),
             onNone: () =>
               Option.map(
-                Option.orElse(selectionKey(key, modifiers), () =>
-                  Option.orElse(editKey(key, modifiers), () =>
-                    Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                Option.orElse(historyKey(key, modifiers), () =>
+                  Option.orElse(selectionKey(key, modifiers), () =>
+                    Option.orElse(editKey(key, modifiers), () =>
+                      Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                    ),
                   ),
                 ),
                 input.wrap,

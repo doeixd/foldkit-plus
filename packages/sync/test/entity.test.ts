@@ -115,6 +115,14 @@ describe('overlay', () => {
   })
 })
 
+describe('changeAt', () => {
+  test('is the change that sets a cell to what the row holds, by its own member', () => {
+    const read = row('a:1', 4, 0)
+    expect(Edits.changeAt(read, 'price')).toEqual({ id: 'a:1', member: 'price', value: 4 })
+    expect(Edits.changeAt(read, 'status')).toEqual({ id: 'a:1', member: 'status', value: 'Active' })
+  })
+})
+
 describe('held edits', () => {
   const revisions = new Map([
     ['a:1', 2],

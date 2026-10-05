@@ -63,6 +63,11 @@ export default [
     tests,
   },
   {
+    name: 'changeAt reads one member whichever is asked',
+    edits: [{ file, find: 'value: row[member] })', replace: "value: row['price' as M] })" }],
+    tests,
+  },
+  {
     name: 'absorbing nothing makes a new array',
     edits: [{ file, find: '        : edits,\n', replace: '        : [...edits],\n' }],
     tests,

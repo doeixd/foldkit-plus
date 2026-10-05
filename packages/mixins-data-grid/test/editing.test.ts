@@ -46,17 +46,18 @@ const Message = defineMessageUnion({ ...Placement.cases })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, {
-    // Every cell the grid reports, an edit's or a paste's, as row.column=text.
+    // Every cell the grid reports, an edit's or a paste's, as row.column=text,
+    // and a request to undo or redo by its name.
     onOut: out => model => {
-      const cells = Grid.Out.match(out, {
-        Edited: edited => [edited],
-        Pasted: pasted => pasted.accepted,
+      const cell = (c: { readonly row: string; readonly column: string; readonly text: string }) =>
+        `${c.row}.${c.column}=${c.text}`
+      const reported = Grid.Out.match(out, {
+        Edited: edited => [cell(edited)],
+        Pasted: pasted => pasted.accepted.map(cell),
+        UndoRequested: () => ['undo'],
+        RedoRequested: () => ['redo'],
       })
-      return {
-        model: modifyFields(model, {
-          edits: () => [...model.edits, ...cells.map(c => `${c.row}.${c.column}=${c.text}`)],
-        }),
-      }
+      return { model: modifyFields(model, { edits: () => [...model.edits, ...reported] }) }
     },
   }),
 ])

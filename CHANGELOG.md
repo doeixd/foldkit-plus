@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Undo and redo in the data grid, and in the registry as new edits.** Ctrl
+  or Meta with Z on a `foldkit-data-grid` grid sends `UndoRequested`, with
+  Shift (or Ctrl+Y) `RedoRequested`, each reported as the OutMessage of the
+  same name. They carry nothing, since the history is the application's; an
+  open editor keeps the keys. `Grid.Out.match` now needs the two arms. The
+  registry keeps a per-tab stack: an undo is an `EditedProducts` of what each
+  cell held, so it goes through the outbox like any edit, and a cell changed
+  since is left alone and said. `foldkit-sync/entity`'s `EditableEntity`
+  gains `changeAt(row, member)`, a cell's value as a `Change` (#164).
 - **`foldkit-remote-server`: `RemoteServer.memory` authorizes per entity.**
   It takes `authorize`, per entity name, the function `RemoteServer.entity`
   takes, and the `principal` its `layer` answers as; `server` answers as any

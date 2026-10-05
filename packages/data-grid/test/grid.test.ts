@@ -866,6 +866,20 @@ describe('DataGrid editing', () => {
   })
 })
 
+describe('DataGrid undo and redo', () => {
+  test.each([
+    ['undo', Editing.Message.UndoRequested(), Editing.Out.UndoRequested()],
+    ['redo', Editing.Message.RedoRequested(), Editing.Out.RedoRequested()],
+  ])('%s is the application’s to do, and an open edit keeps the key', (_, message, out) => {
+    const asked = edit(blank, message)
+    expect(asked.model).toBe(blank)
+    expect(asked.outMessage).toEqual(out)
+    const editing = edit(begun, message)
+    expect(editing.model).toBe(begun)
+    expect(editing.outMessage).toBeUndefined()
+  })
+})
+
 describe('DataGrid paste', () => {
   test('checks each pasted cell against its column, and reports them as one', () => {
     const pasted = edit(

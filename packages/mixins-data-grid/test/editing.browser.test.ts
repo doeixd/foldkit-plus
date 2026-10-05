@@ -45,17 +45,18 @@ const Message = defineMessageUnion({ ...Placement.cases })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, {
-    // Every cell the grid reports, an edit's or a paste's, as row.column=text.
+    // Every cell the grid reports, an edit's or a paste's, as row.column=text,
+    // and a request to undo or redo by its name.
     onOut: out => model => {
-      const cells = Grid.Out.match(out, {
-        Edited: edited => [edited],
-        Pasted: pasted => pasted.accepted,
+      const cell = (c: { readonly row: string; readonly column: string; readonly text: string }) =>
+        `${c.row}.${c.column}=${c.text}`
+      const reported = Grid.Out.match(out, {
+        Edited: edited => [cell(edited)],
+        Pasted: pasted => pasted.accepted.map(cell),
+        UndoRequested: () => ['undo'],
+        RedoRequested: () => ['redo'],
       })
-      return {
-        model: modifyFields(model, {
-          edits: () => [...model.edits, ...cells.map(c => `${c.row}.${c.column}=${c.text}`)],
-        }),
-      }
+      return { model: modifyFields(model, { edits: () => [...model.edits, ...reported] }) }
     },
   }),
 ])
@@ -77,7 +78,8 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-test('real keys edit a cell, and focus comes back to the grid', async () => {
+/** The grid mounted on the real runtime, with the latest Model as `update` left it. */
+const mount = () => {
   const container = document.createElement('div')
   container.id = 'grid-editing-browser'
   document.body.appendChild(container)
@@ -97,21 +99,22 @@ test('real keys edit a cell, and focus comes back to the grid', async () => {
         h.div([h.Style({ height: '200px', display: 'grid' })], [view(model, h)]),
     }),
   )
+  return { latest: () => latest, dispose: () => handle.dispose() }
+}
+const cellOf = (row: string, column: 'name' | 'qty') =>
+  document.getElementById(GridFocus.cellId('items', { row, column }))
+
+test('real keys edit a cell, and focus comes back to the grid', async () => {
+  const mounted = mount()
   const grid = () => document.getElementById('items')!
   const editor = () => document.querySelector<HTMLInputElement>('#items input')
   try {
-    await vi.waitFor(() =>
-      expect(
-        document.getElementById(GridFocus.cellId('items', { row: 'r2', column: 'name' })),
-      ).not.toBeNull(),
-    )
-    await userEvent.click(
-      document.getElementById(GridFocus.cellId('items', { row: 'r2', column: 'name' }))!,
-    )
+    await vi.waitFor(() => expect(cellOf('r2', 'name')).not.toBeNull())
+    await userEvent.click(cellOf('r2', 'name')!)
     await userEvent.keyboard('{Enter}')
     await vi.waitFor(() => expect(document.activeElement).toBe(editor()))
     await userEvent.keyboard('{Control>}a{/Control}Cable{Enter}')
-    await vi.waitFor(() => expect(latest.edits).toEqual(['r2.name=Cable']))
+    await vi.waitFor(() => expect(mounted.latest().edits).toEqual(['r2.name=Cable']))
     await vi.waitFor(() => expect(editor()).toBeNull())
     expect(document.activeElement).toBe(grid())
     // Typing on the grid starts the next edit there, below. Typed inside one
@@ -125,9 +128,40 @@ test('real keys edit a cell, and focus comes back to the grid', async () => {
     await vi.waitFor(() => expect(editor()?.value).toBe('Dowel'))
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(editor()).toBeNull())
-    expect(latest.edits).toEqual(['r2.name=Cable'])
+    expect(mounted.latest().edits).toEqual(['r2.name=Cable'])
     expect(document.activeElement).toBe(grid())
   } finally {
-    handle.dispose()
+    mounted.dispose()
+  }
+})
+
+test('Ctrl+Z on a cell asks the application to undo; inside an editor it is the field’s', async () => {
+  const mounted = mount()
+  const editor = () => document.querySelector<HTMLInputElement>('#items input')
+  try {
+    await vi.waitFor(() => expect(cellOf('r1', 'name')).not.toBeNull())
+    await userEvent.click(cellOf('r1', 'name')!)
+    await userEvent.keyboard('{Control>}z{/Control}')
+    await userEvent.keyboard('{Control>}{Shift>}z{/Shift}{/Control}')
+    await userEvent.keyboard('{Control>}y{/Control}')
+    await vi.waitFor(() => expect(mounted.latest().edits).toEqual(['undo', 'redo', 'redo']))
+
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(editor()))
+    await userEvent.keyboard('Cable{Control>}z{/Control}')
+    expect(editor()).not.toBeNull()
+    // Enter and Ctrl+Z inside one frame: the grid has the key before the
+    // editor is drawn, and the edit it has opened keeps it.
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(editor()).toBeNull())
+    const frames = Frames.track()
+    frames.hold()
+    await userEvent.keyboard('{Enter}{Control>}z{/Control}')
+    frames.release()
+    frames.dispose()
+    await vi.waitFor(() => expect(document.activeElement).toBe(editor()))
+    expect(mounted.latest().edits).toEqual(['undo', 'redo', 'redo'])
+  } finally {
+    mounted.dispose()
   }
 })

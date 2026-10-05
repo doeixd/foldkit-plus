@@ -923,3 +923,169 @@ test('a cell committed with the value it already shows is no edit', async () => 
     await dispose()
   }
 })
+
+const undo = () =>
+  grid().dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }),
+  )
+const redo = () =>
+  grid().dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: 'Z',
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }),
+  )
+const heldBack = () =>
+  Array.from(document.querySelectorAll('#held-back li'), line => line.firstChild?.textContent)
+
+test('an undo is a new edit that puts the cell back, and a redo another', async () => {
+  const server = serve()
+  const { dispose, exchange, latest, settle } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    await edit(productId(3), 'cents', '7.00')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
+
+    // Committed, and so not rewound: the old price goes as an edit of its own.
+    undo()
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
+
+    redo()
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('7.00'))
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await vi.waitFor(() => expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 }))
+
+    // A new edit after an undo leaves nothing to redo.
+    undo()
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    expect(latest().redo).toHaveLength(1)
+    await edit(productId(4), 'cents', '4.40')
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe('4.40'))
+    expect(latest().redo).toEqual([])
+    redo()
+    await settle()
+    expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3))
+  } finally {
+    await dispose()
+  }
+})
+
+test('an undo leaves a cell another device changed since, and says so', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    await pasteAt(productId(3), 'description', 'Mine\t3.33\n')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await commitElsewhere(server, 3, 444)
+    await exchange()
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('4.44'))
+
+    // The description is still this page's, and goes back; the price is theirs.
+    undo()
+    await vi.waitFor(() =>
+      expect(cell(productId(3), 'description')?.textContent).toBe(seedOf(3).description),
+    )
+    expect(cell(productId(3), 'cents')?.textContent).toBe('4.44')
+    expect(heldBack()).toEqual([`Price of ${productId(3)} changed since; not undone. `])
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(3))).toMatchObject({
+      description: seedOf(3).description,
+      cents: 444,
+    })
+    click(document.querySelector('#held-back button')!)
+    await vi.waitFor(() => expect(heldBack()).toEqual([]))
+  } finally {
+    await dispose()
+  }
+})
+
+test('a paste undoes as one step', async () => {
+  const server = serve()
+  const { dispose, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(5), 'cents')).not.toBeNull())
+    await pasteAt(productId(5), 'description', 'Alpha\t1.00\nBeta\t2.00\n')
+    await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe('2.00'))
+
+    undo()
+    await vi.waitFor(() =>
+      expect(cell(productId(5), 'description')?.textContent).toBe(seedOf(5).description),
+    )
+    expect(cell(productId(5), 'cents')?.textContent).toBe(priceOf(5))
+    expect(cell(productId(6), 'description')?.textContent).toBe(seedOf(6).description)
+    expect(cell(productId(6), 'cents')?.textContent).toBe(priceOf(6))
+    expect(latest().undo).toEqual([])
+  } finally {
+    await dispose()
+  }
+})
+
+test('an undo made offline waits on the device, through a reload, like any edit', async () => {
+  const server = serve()
+  const storage = memoryStorage()
+  const first = await mount(server, storage)
+  await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+  await edit(productId(3), 'cents', '7.00')
+  await vi.waitFor(() => expect(first.latest().exchange.pending).toBe(1))
+  await first.exchange()
+  await vi.waitFor(() => expect(status()).toBe(''))
+
+  server.setOnline(false)
+  undo()
+  await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+  await first.exchange()
+  await vi.waitFor(() =>
+    expect(status()).toBe('1 edit kept on this device; the server cannot be reached (offline).'),
+  )
+  await first.dispose()
+
+  const second = await mount(server, storage)
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    // The history is the tab's: a reload starts with none.
+    expect(second.latest().redo).toEqual([])
+    server.setOnline(true)
+    await second.exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
+  } finally {
+    await second.dispose()
+  }
+})
+
+test('two undos inside one frame take back two steps, not one twice', async () => {
+  const { dispose, latest } = await mount(serve(), memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')).not.toBeNull())
+    await edit(productId(3), 'cents', '3.00')
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('3.00'))
+    await edit(productId(4), 'cents', '4.00')
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe('4.00'))
+
+    const frames = Frames.track()
+    frames.hold()
+    undo()
+    undo()
+    frames.release()
+    frames.dispose()
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4))
+    expect(latest().redo).toHaveLength(2)
+  } finally {
+    await dispose()
+  }
+})

@@ -65,6 +65,14 @@ this example's own is below.
   socket, the tab's short name), and the journal stamps each edit with that
   actor and the replica it came from. Nothing checks the name, which a real
   deployment would.
+- **Undo is a new edit.** Ctrl+Z on the grid (Ctrl+Shift+Z or Ctrl+Y to redo)
+  takes back this tab's last edit or paste as one step. An edit may already
+  be committed and seen elsewhere, so nothing is rewound: the undo is an
+  `EditedProducts` of the values each cell held, and waits in the outbox
+  offline like any edit. A cell another device, or a later edit here, has
+  changed since is left alone and said ("Price of p3 changed since; not
+  undone."). The history is the tab's, in the Model and not stored, so a
+  reload starts with none.
 - **The data is in memory.** A restart of the server resets the table and the
   journal together, which the revisions rely on; a page left open across one
   reads its rows again.

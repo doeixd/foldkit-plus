@@ -255,8 +255,8 @@ const server = Effect.gen(function* () {
 - `foldkit-sync/entity`'s `EditableEntity.make(entity, { members })` keeps
   edits to server-owned rows one per cell (`{ id, member, value, at, by }`)
   and lays them over Remote's rows by revision (`overlay`), with `merge`,
-  `absorb`, `held`/`settled`, `replaced` and `cellsOf` for `update` and
-  `onReinstall`; pure, no state of its own. On the server,
+  `absorb`, `held`/`settled`, `replaced`, `cellsOf` and `changeAt` (a cell's
+  value as a change, for an undo) for `update` and `onReinstall`; pure, no state of its own. On the server,
   `editsJournal({ documentId, journal, editsOf, apply, tableRevision,
   holdsThrough, absorbed, server })` (`foldkit-sync/journal`) gives `settle`,
   which applies each committed change to the table from the journal's floor,

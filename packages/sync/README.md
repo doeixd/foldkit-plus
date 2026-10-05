@@ -523,7 +523,8 @@ the schemas (`Change` on the wire, `Edit` in the slice, the Message fields
 (`stamped`) and `onReinstall`: `merge`, `absorb`, `overlay` (for
 `RowModel.map`), `held` and `settled` (an edit the journal absorbed, kept until
 a read of its row reaches it), `replaced` (a cell of this tab's that another's
-later commit took) and `cellsOf` (what a refusal undid). It owns no state and
+later commit took), `cellsOf` (what a refusal undid) and `changeAt` (what a
+row holds in a member, as the change that sets it: an undo's value). It owns no state and
 does no I/O. On the server, `editsJournal` from `foldkit-sync/journal` keeps
 the table: its `settle` (for `journalExchange`) applies each committed change
 through your `apply` as a recovery intent, from the journal's floor and keyed

@@ -229,6 +229,26 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ),
         ),
       ),
+      // What an undo or a redo left alone: a cell changed since is not overwritten.
+      h.ul(
+        [
+          h.Id('held-back'),
+          h.AriaLabel('Cells left alone'),
+          h.Style(list(Option.isSome(model.heldBack) ? 1 : 0)),
+        ],
+        Option.match(model.heldBack, {
+          onNone: () => [],
+          onSome: ({ by, cells }) => [
+            h.li(
+              [h.Style(notice(replacedTone))],
+              [
+                `${cells.map(({ id, column }) => `${columnName(column)} of ${id}`).join(', ')} changed since; not ${by === 'undo' ? 'undone' : 'redone'}. `,
+                dismiss(Message.HeldBackDismissed()),
+              ],
+            ),
+          ],
+        }),
+      ),
       Registry(
         {
           state: model.grid,

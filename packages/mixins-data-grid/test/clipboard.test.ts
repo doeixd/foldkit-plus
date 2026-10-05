@@ -58,6 +58,8 @@ const application = Bundle.assemble<Model, Message>()([
             refused: () => [...model.refused, ...pasted.refused.map(cellText)],
           }),
         }),
+        UndoRequested: () => ({ model }),
+        RedoRequested: () => ({ model }),
       }),
   }),
 ])

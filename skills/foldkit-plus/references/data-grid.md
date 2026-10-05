@@ -99,8 +99,10 @@ the whole wiring, compiled.
 - `root` is the scroll container: give it a height with a Style. A Style that
   sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
   row's `height`, throws `slot "cell" protects style property`.
-- A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })` or
-  `Pasted({ accepted, refused })` (match it with `Grid.Out.match`). Place it
+- A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })`,
+  `Pasted({ accepted, refused })`, or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z,
+  with Shift or Ctrl+Y; the application keeps the history and builds the
+  inverse from its Model; match it with `Grid.Out.match`). Place it
   with `onOut` (`Bundle.ignore` if no column has `edit`). A column's
   `edit: { schema }` decodes the text typed; `Grid.matchEdit(cell, { price:
   ({ value }) => ... })` reads it back typed per column, so the application

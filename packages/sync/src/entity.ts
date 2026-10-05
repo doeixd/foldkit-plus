@@ -275,6 +275,14 @@ const make = <E extends EntityFields, const Ms extends ReadonlyArray<Member<E>>>
     ): ReadonlyArray<{ readonly id: IdOf<E>; readonly member: M }> =>
       changes.map(({ id: row, member }) => ({ id: row, member })),
 
+    /**
+     * What a row holds in one member, as the change that would set it: the
+     * value an undo puts back.
+     */
+    changeAt: (row: Row, member: M): Change<E, M> =>
+      // The member and its value are read together, so they pair as `Change` does.
+      ({ id: row.id, member, value: row[member] }) as Change<E, M>,
+
     /** The edit of one cell, if the edits hold one. */
     editOf: (edits: ReadonlyArray<Edit>, row: IdOf<E>, member: M): Option.Option<Edit> =>
       Option.fromUndefinedOr(

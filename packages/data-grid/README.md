@@ -301,7 +301,8 @@ const priced = Columns.define<Product>()({
   },
 })
 const Prices = DataGrid.make({ id: 'prices', columns: priced })
-type Out = typeof Prices.Out.Type // Edited({ row, column, text }) | Pasted({ accepted, refused })
+// Edited({ row, column, text }) | Pasted({ accepted, refused }) | UndoRequested | RedoRequested
+type Out = typeof Prices.Out.Type
 
 // In `onOut`: the committed text read back as its column's value, a number here.
 const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
@@ -361,6 +362,11 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   })`: one change for the application to apply, and say what it refused. A
   paste or cut that changes no cell reports nothing. A paste while a cell is
   edited is the field's.
+- **`UndoRequested` and `RedoRequested`** (Ctrl or Meta with Z, with Shift or
+  Ctrl+Y to redo) report `Out.UndoRequested` and `Out.RedoRequested`. They
+  carry nothing: the grid keeps no history, since what an edit meant and how
+  to take it back are the application's, read from its Model when the
+  request arrives. While a cell is edited they are the field's.
 
 ## Over a `foldkit-crud` list
 

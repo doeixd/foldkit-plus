@@ -216,12 +216,20 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * their columns and reported as one `Pasted`, or nothing when none is left.
      */
     Pasted: { cells: Schema.Array(PastedCell) },
+    /**
+     * Ctrl or Meta with Z on the grid, or with Shift (or Ctrl+Y) for redo.
+     * An open edit keeps them, since the editor's own undo is the field's.
+     */
+    UndoRequested: {},
+    RedoRequested: {},
   })
   type Message = typeof Message.Type
   /**
    * What the grid reports to its parent: one cell's committed text, or a
    * paste's, as one change. Turning text into values and writing them is the
-   * application's.
+   * application's, and so is taking them back: `UndoRequested` and
+   * `RedoRequested` carry nothing, since what to undo is the application's
+   * history, read when the request arrives.
    */
   const Out = defineTaggedUnion({
     Edited: { row: Schema.String, column: Column, text: Schema.String },
@@ -230,6 +238,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       accepted: Schema.Array(CellText),
       refused: Schema.Array(Schema.Struct({ ...CellText.fields, error: Schema.String })),
     },
+    UndoRequested: {},
+    RedoRequested: {},
   })
   type Out = typeof Out.Type
   type Return = Update.ReturnWithOutMessage<Model, Message, Out, never>
@@ -872,6 +882,10 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             ? { model }
             : { model, outMessage: Out.Pasted({ accepted, refused }) }
         },
+        UndoRequested: (): Return =>
+          Option.isSome(model.editing) ? { model } : { model, outMessage: Out.UndoRequested() },
+        RedoRequested: (): Return =>
+          Option.isSome(model.editing) ? { model } : { model, outMessage: Out.RedoRequested() },
         EditCancelled: (): Return => ({
           model: Option.isNone(model.editing)
             ? model

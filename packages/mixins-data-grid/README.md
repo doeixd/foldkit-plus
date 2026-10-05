@@ -138,6 +138,9 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   Home or End moves a range's far corner (scrolling it into view), Space
   selects the focused row and Shift+Space extends the rows to it, Ctrl or
   Meta with A selects every row (or every cell), and Escape lets a range go.
+- **Undo and redo keys.** Ctrl or Meta with Z sends `UndoRequested`, with
+  Shift (or Ctrl+Y) `RedoRequested`; the application keeps the history. Keys
+  in an open editor stay the input's.
 - **The header row is part of the grid.** ArrowUp from the first row goes up
   to the header (`aria-activedescendant` names the header cell), the arrows
   and Home and End walk it, ArrowDown or Escape go back to the row focus came

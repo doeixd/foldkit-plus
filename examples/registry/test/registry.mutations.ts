@@ -100,4 +100,82 @@ export default [
     ],
     tests: ['examples/registry/test/journal.test.ts'],
   },
+  {
+    name: 'an edit leaves nothing to undo',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'undo: undo => (step.length === 0 ? undo : [...undo, step].slice(-UNDO_DEPTH)),',
+        replace: 'undo: undo => undo,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a new edit keeps the redo stack',
+    edits: [{ file: '../src/app.ts', find: '      redo: () => [],\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'an undo overwrites a cell changed since',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'const taken = step.filter(cell => holds(cell.after))',
+        replace: 'const taken = step',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a cell left alone is not said',
+    edits: [
+      { file: '../src/app.ts', find: '        left.length === 0\n', replace: '        true\n' },
+    ],
+    tests,
+  },
+  {
+    name: 'a step is moved to the other stack unflipped',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: "[...other, by === 'undo' ? taken : flipped(taken)]",
+        replace: '[...other, taken]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a step taken back stays on its stack',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'const popped = from.slice(0, -1)',
+        replace: 'const popped = from',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an undo sends the value it takes back',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'taken.map(cell => cell.before)',
+        replace: 'taken.map(cell => cell.after)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'changed since is read from the rows Remote read',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '    const rows = rowsOf(model)\n',
+        replace: '    const rows = GridCrud.rows(Products.page(model), row => row.id)\n',
+      },
+    ],
+    tests,
+  },
 ]
