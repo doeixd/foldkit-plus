@@ -18,6 +18,7 @@ imports.
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
 | A clipboard write or read, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
+| One in-browser server for every tab and frame: which conversations are open, and when a page is gone | the host it starts | `net`'s `SharedHost.define({ name, opening })`: `serve` in a SharedWorker, `connect({ worker, inPage }).open(opening)` returns a `MessagePort`; the host gets `{ port, signal }`, the signal aborting when the page's Web Lock is released. Speak Sync over it with `Sync.transport.portSocket(port, { signal })`, Remote with `foldkit-remote/port` |
 | The current item of a roving tab stop, a typeahead query, or both for a list; whether an element is pressed; the open dismissable layers; the selected items; the live-region text | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
 A bundle holds no state. Placing it twice observes twice; share the field

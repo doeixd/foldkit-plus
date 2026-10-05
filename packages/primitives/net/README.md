@@ -12,6 +12,7 @@ the Model; a payload only notifies, and the parent keeps what it wants of it.
 | `sse({ name, createSource? })` | bundle factory | `{ url, status, lastError }` | `Connecting`, `Opened`, `Received { data }`, `Closed`, `Failed` | `{ url }` |
 | `broadcastMessages(name)` | entry | | `Received { data }` | |
 | `postBroadcast(name, data)` | Command | | `Posted`, `BroadcastFailed` | |
+| `SharedHost.define({ name, opening })` | plain functions | | | |
 
 ## Start with one: online or not
 
@@ -96,6 +97,62 @@ channel arrive as `Received { data }`, and the parent maps them into its own
 Message. There is no bundle because a channel owns no state. `postBroadcast(name, data)`
 is the one-shot Command, yielding `Posted` or `BroadcastFailed`. A post never
 echoes to its own channel, per spec.
+
+## `SharedHost`: one server for every tab
+
+For a server that runs in the browser, such as a demo with no backend or a
+local-first app's own journal, every tab and frame should meet the same one.
+`SharedHost` hands it each conversation a page opens, as a `MessagePort`. It
+owns no Model and speaks nothing over the port: Sync's `portSocket` and
+Remote's `foldkit-remote/port` do that. It only routes, and says when a page
+is gone.
+
+```text
+page: open(opening) -> MessageChannel -> SharedWorker (or the top document) -> host(opening, { port, signal })
+page unloads -> its Web Lock is released -> signal aborts
+```
+
+```ts
+import { Schema } from 'effect'
+import { SharedHost } from 'foldkit-primitives/net'
+
+// Shared by the pages and the worker: what opens a conversation.
+export const Opening = Schema.TaggedStruct('Notes', { device: Schema.String })
+export const Notes = SharedHost.define({ name: 'notes', opening: Opening })
+
+// worker.ts, the SharedWorker's entry. `openHost` starts the server once and
+// returns what it does with each conversation.
+Notes.serve(openHost)
+
+// In each page.
+const host = Notes.connect({
+  worker: () => new SharedWorker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+  inPage: () => import('./host.js').then(({ openHost }) => openHost()),
+})
+const port = host.open(Opening.make({ device: 'a' }))
+```
+
+- `define` is a declaration: the name keeps two hosts on one origin apart, and
+  the opening's schema is what the host decodes first. A message that does
+  not decode, has no port, or names another host is ignored.
+- `serve` and `inPage` start the host at most once, when the first
+  conversation needs it. The application constructs the SharedWorker itself,
+  because a bundler finds a worker only in that literal form.
+- `open` returns at once. The opening goes when the page holds the
+  conversation's Web Lock, and the host's `signal` aborts when that lock is
+  released, which is when the page unloads or crashes. A host ends its work
+  there: `portSocket(port, { signal })` stops serving Sync.
+- Without SharedWorker, the top document runs the host, and a same-origin
+  frame sends its openings there (checked by origin), so frames on one page
+  still meet one server. Call `connect` in the top document too when it
+  frames the pages. Separate tabs then get a server each.
+
+What it does not do: survive the host. A SharedWorker lives while one of its
+tabs is open; a host in memory starts empty after the last closes, and a
+crashed worker answers nothing more. A port a page holds has no close signal
+of its own, so a page learns of a lost host only through its own timeouts.
+Browsers without Web Locks never abort a conversation. There is no
+authentication: an opening's claims (a device, a name) are the page's word.
 
 ## Failure
 

@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives/net`: `SharedHost`, one in-browser server for every
+  tab and frame.** `SharedHost.define({ name, opening })` gives `serve`, a
+  SharedWorker's entry, and `connect({ worker, inPage })`, whose `open(opening)`
+  returns a `MessagePort` for one conversation. The host decodes each opening
+  first and ignores one that does not decode or has no port, and its
+  `signal` aborts when the page's Web Lock is released. Without SharedWorker
+  the top document hosts, and same-origin frames send their openings there
+  (#167).
 - **`foldkit-sync`: `Sync.transport.portSocket(port, { signal? })`, a socket
   over a `MessagePort`.** Its frames are the port's strings, anything else is
   ignored, and `onClose` fires once, on `close()` or when `signal` aborts, so

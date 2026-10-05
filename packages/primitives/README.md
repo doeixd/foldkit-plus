@@ -146,7 +146,7 @@ reference: every Model shape, Message, argument, and failure rule.
 | Subpath | What it covers | Primitives |
 | --- | --- | --- |
 | [`media`](./media/README.md) | the environment | `MediaQuery` (+ `PrefersDark`, `PrefersReducedMotion`), `Breakpoints`, `platformFromUA`, `isBrowser` |
-| [`net`](./net/README.md) | the network | `Online`, `websocket`, `sse`, `broadcastMessages`, `postBroadcast` |
+| [`net`](./net/README.md) | the network | `Online`, `websocket`, `sse`, `broadcastMessages`, `postBroadcast`, `SharedHost` |
 | [`time`](./time/README.md) | the clock | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
 | [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
 | [`motion`](./motion/README.md) | animation | `Tween`, `Spring`, `Presence`, the `Motion` service |

@@ -1,4 +1,5 @@
 export * from './broadcast.js'
 export * from './online.js'
+export * from './sharedHost.js'
 export * from './sse.js'
 export * from './websocket.js'
