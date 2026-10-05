@@ -106,10 +106,13 @@ side by side, each a page of its own in a frame, with its own replica on
 IndexedDB, and both talking to one server that runs in a SharedWorker
 (`src/sandbox/`). The server is the same code as `pnpm dev`'s: the products
 table on sql.js, the journal on SQLite compiled to WebAssembly
-(`foldkit-durable/core`), `RemoteServer.answer` for reads and `serveJournal`
-for each device's socket, each over a `MessagePort`. It holds 10,000 products,
-so it starts quickly. Every tab of the sandbox meets the same server, and a
-browser with no SharedWorker runs it in the page. Each device has the offline
+(`foldkit-durable/core`), Remote's handlers for reads (`servePort`) and the
+journal for each device's socket (`portSocket`), each over a `MessagePort`.
+It holds 10,000 products, so it starts quickly. `SharedHost` from
+`foldkit-primitives/net` routes each page's conversations to it: every tab
+meets the same server, and a browser with no SharedWorker runs it in the top
+page, which both frames reach. A page that goes ends its conversations, so a
+reloaded device leaves nothing behind on the server. Each device has the offline
 switch, so a conflict takes three clicks: offline in B, the same price in
 both, online in B.
 

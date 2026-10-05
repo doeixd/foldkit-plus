@@ -5,7 +5,6 @@
  * Every tab of the sandbox meets the same server.
  */
 import { Option, Schema } from 'effect'
-import { Remote } from 'foldkit-remote'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from '../device.js'
 import { connectSandbox } from './connection.js'
@@ -120,11 +119,14 @@ const card = (id: string, name: string): HTMLElement => {
  * The sandbox's page: without `?pane=`, the introduction and a card for each
  * device; with it, that device. Each device is a page of its own, as two
  * devices would be, so nothing of one's document (a grid's ids, its focus)
- * meets the other's; every frame meets the one server through the worker.
+ * meets the other's; every frame meets the one server.
  */
 export const startSandbox = async (container: HTMLElement): Promise<void> => {
   const pane = devices.find(({ id }) => id === new URLSearchParams(location.search).get('pane'))
   if (pane !== undefined) return startPane(container, pane)
+  // Where a browser has no SharedWorker, this page runs the host, and both
+  // device frames send their conversations here, so they meet one server.
+  connectSandbox()
   document.body.style.cssText = `margin: 0; background: #f4f4f5; ${font}`
   const source = element('a', 'color: inherit', ['the source'])
   source.setAttribute('href', 'https://github.com/doeixd/foldkit-plus/tree/main/examples/registry')
@@ -162,7 +164,7 @@ const startPane = async (
     container: app,
     key: `foldkit-registry/sandbox/${id}`,
     name: () => name,
-    resources: Remote.clientLayer(connection.remote),
+    resources: connection.remote,
     transport: device => Sync.transport.socket({ makeSocket: () => connection.socket(device) }),
   })
   // Where the edits stand, for the card around the frame, said when it changes.

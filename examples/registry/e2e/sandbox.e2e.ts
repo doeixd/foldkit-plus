@@ -1,8 +1,9 @@
 /**
  * The published sandbox end to end: built as it is deployed (`vite build
  * --mode sandbox`), served as static files, and driven in Chromium. Two
- * devices on one page, the server in a SharedWorker: an edit in one shows in
- * the other, and an edit that loses to the other's later one is said.
+ * devices on one page, the server in a SharedWorker (or, without one, in the
+ * top document): an edit in one shows in the other, and an edit that loses to
+ * the other's later one is said.
  */
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -76,6 +77,28 @@ test('two devices on one page, the server in the browser: an edit in one shows i
   await expect
     .poll(() => cell(page, 'Device B', row, 'cents').textContent(), { timeout: 10_000 })
     .toBe('12.34')
+  expect(errors).toEqual([])
+  await page.close()
+})
+
+test('without SharedWorker, both frames meet the top document’s one server', async () => {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
+  // In every frame, before its scripts: a browser with no SharedWorker.
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(globalThis, 'SharedWorker')
+  })
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.goto(url)
+  expect(await page.evaluate(() => typeof SharedWorker)).toBe('undefined')
+  const row = 'p000003'
+  await cell(page, 'Device A', row, 'cents').waitFor({ timeout: 60_000 })
+  await cell(page, 'Device B', row, 'cents').waitFor({ timeout: 60_000 })
+
+  await editPrice(page, 'Device A', row, '3.33')
+  await expect
+    .poll(() => cell(page, 'Device B', row, 'cents').textContent(), { timeout: 10_000 })
+    .toBe('3.33')
   expect(errors).toEqual([])
   await page.close()
 })

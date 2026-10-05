@@ -1194,6 +1194,9 @@ importers:
       foldkit-mixins-data-grid:
         specifier: workspace:*
         version: link:../../packages/mixins-data-grid
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
       foldkit-remote:
         specifier: workspace:*
         version: link:../../packages/remote

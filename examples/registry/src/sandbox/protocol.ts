@@ -1,18 +1,21 @@
 /**
- * What a pane and the sandbox's host say to each other. A pane sends the host
- * a port for each conversation: one that carries the Sync socket's frames for
- * a device, and one that carries Remote's JSON requests, each answered with
- * its id.
+ * What a device's page and the sandbox's host say to each other: the two
+ * conversations a page opens with the host, and the status a device's frame
+ * tells the card around it.
  */
 import { Schema } from 'effect'
+import { SharedHost } from 'foldkit-primitives/net'
 
 /** A device's Sync socket. */
 export const SyncOpening = Schema.TaggedStruct('SyncOpening', { device: Schema.String })
 /** Remote's requests. */
 export const RemoteOpening = Schema.TaggedStruct('RemoteOpening', {})
-/** What a pane posts to the host, with the port it hands over. Decoded on arrival. */
+/** What opens a conversation, decoded by the host on arrival. */
 export const Opening = Schema.Union([SyncOpening, RemoteOpening])
 export type Opening = typeof Opening.Type
+
+/** The sandbox's one server, shared by every tab and frame of it. */
+export const RegistryHost = SharedHost.define({ name: 'foldkit-registry', opening: Opening })
 
 /**
  * Where a device's edits stand, as its frame tells the page around it, for
@@ -25,13 +28,3 @@ export const DeviceStatus = Schema.TaggedStruct('DeviceStatus', {
   unreachable: Schema.Boolean,
 })
 export type DeviceStatus = typeof DeviceStatus.Type
-
-export interface RemoteRequest {
-  readonly id: number
-  readonly request: string
-}
-
-export interface RemoteAnswer {
-  readonly id: number
-  readonly body: unknown
-}
