@@ -1,8 +1,8 @@
 /**
- * A shared host in a real browser, since its liveness is Web Locks: a pane's
- * conversations reach the host decoded, with a port that reaches the pane;
+ * A shared host in a real browser, since its liveness is Web Locks: a page's
+ * conversations reach the host decoded, with a port that reaches the page;
  * a message that is not an opening, or has no port, or comes from another
- * origin, reaches nothing; and a conversation ends when its pane's lock is
+ * origin, reaches nothing; and a conversation ends when its page's lock is
  * released, no other with it.
  */
 import { Schema } from 'effect'
@@ -30,7 +30,7 @@ const fresh = () => {
   return { shared, handed, start, starts: () => starts }
 }
 
-/** A pane's connection to `serve`, through a stand-in for the SharedWorker's port. */
+/** A page's connection to `serve`, through a stand-in for the SharedWorker's port. */
 const throughWorker = (
   shared: SharedHost<Opening>,
   start: () => (o: Opening, c: Conversation) => void,
@@ -57,16 +57,16 @@ afterEach(() => {
 })
 
 describe('SharedHost', () => {
-  it('hands the host each opening, decoded, with a port that reaches the pane', async () => {
+  it('hands the host each opening, decoded, with a port that reaches the page', async () => {
     const { shared, handed, start } = fresh()
     const { connection } = throughWorker(shared, start)
-    const pane = connection.open({ _tag: 'Sync', device: 'a' })
+    const page = connection.open({ _tag: 'Sync', device: 'a' })
     await expect.poll(() => handed.length).toBe(1)
     expect(handed[0]!.opening).toEqual({ _tag: 'Sync', device: 'a' })
-    const heard = firstMessage(pane)
+    const heard = firstMessage(page)
     handed[0]!.conversation.port.postMessage('hello')
     expect(await heard).toBe('hello')
-    // The pane holds its lock before the host asks for it, so it is not ended at birth.
+    // The page holds its lock before the host asks for it, so it is not ended at birth.
     await settle()
     expect(handed[0]!.conversation.signal.aborted).toBe(false)
   })
@@ -128,10 +128,10 @@ describe('SharedHost', () => {
     await expect.poll(() => handed.length).toBe(1)
   })
 
-  it('ends a conversation when its pane’s lock is released, and no other', async () => {
+  it('ends a conversation when its page’s lock is released, and no other', async () => {
     const { shared, handed, start } = fresh()
     const { port } = throughWorker(shared, start)
-    // What a pane does for each conversation: holds its lock while it lives.
+    // What a page does for each conversation: holds its lock while it lives.
     const held = (conversation: string) =>
       new Promise<() => void>(granted => {
         void navigator.locks.request(

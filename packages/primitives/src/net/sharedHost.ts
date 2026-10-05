@@ -1,9 +1,9 @@
 /**
  * One server in the browser for many documents: every tab and frame of an
- * application meets the same host. A pane opens conversations, each a
+ * application meets the same host. A page opens conversations, each a
  * `MessagePort` with a decoded opening that says what it is for; the host, in
  * a SharedWorker shared by every tab, or in the top document where there is no
- * SharedWorker, is handed each one with a signal that aborts when the pane
+ * SharedWorker, is handed each one with a signal that aborts when the page
  * that opened it is gone.
  *
  * It owns the host's lifetime and the routing of conversations, nothing
@@ -11,13 +11,13 @@
  */
 import { Option, Schema } from 'effect'
 
-/** One conversation a pane opened: its port, and a signal that aborts once the pane is gone. */
+/** One conversation a page opened: its port, and a signal that aborts once the page is gone. */
 export interface Conversation {
   readonly port: MessagePort
   readonly signal: AbortSignal
 }
 
-/** What the host does with each conversation, told what the pane opened it for. */
+/** What the host does with each conversation, told what the page opened it for. */
 export type ConversationHandler<Opening> = (opening: Opening, conversation: Conversation) => void
 
 /** Starts the host, once, the first time a conversation needs it. */
@@ -35,20 +35,20 @@ export interface SharedHostOptions<Opening> {
   readonly inPage: StartHost<Opening>
 }
 
-/** A pane's way to the host. */
+/** A page's way to the host. */
 export interface SharedHostConnection<Opening> {
-  /** Opens a conversation for `opening`, returning the pane's end of it. */
+  /** Opens a conversation for `opening`, returning the page's end of it. */
   readonly open: (opening: Opening) => MessagePort
 }
 
 export interface SharedHost<Opening> {
   readonly name: string
-  /** A SharedWorker's entry: hands the host every conversation a pane opens. */
+  /** A SharedWorker's entry: hands the host every conversation a page opens. */
   readonly serve: (start: StartHost<Opening>) => void
   /**
-   * A pane's connection: through the SharedWorker, or, without one, to the
+   * A page's connection: through the SharedWorker, or, without one, to the
    * host in the top document. Call it in the top document too when that
-   * document frames the panes, so that it is the one the frames meet.
+   * document frames the pages, so that it is the one the frames meet.
    */
   readonly connect: (options: SharedHostOptions<Opening>) => SharedHostConnection<Opening>
 }
@@ -84,13 +84,18 @@ const define = <Opening, Encoded>(options: {
         given,
       })),
       {
-        // Not a pane's opening, or one without its port: nothing to answer.
+        // Not a page's opening, or one without its port: nothing to answer.
         onNone: () => {},
         onSome: ({ envelope, given }) => {
           const ended = new AbortController()
-          // The pane holds this lock while it lives, so the host is granted it
-          // when the pane's document unloads or crashes.
-          void navigator.locks?.request(lockOf(envelope.conversation), () => ended.abort())
+          // The page holds this lock while it lives, so the host is granted it
+          // when the page's document unloads or crashes.
+          Option.match(locks(), {
+            onNone: () => {},
+            onSome: held => {
+              void held.request(lockOf(envelope.conversation), () => ended.abort())
+            },
+          })
           void host()
             .then(started => started(envelope.opening, { port: given, signal: ended.signal }))
             .catch(reportError)
@@ -171,13 +176,18 @@ const acceptingTop = (marker: string): Option.Option<Window> => {
 
 /** Resolves once this document holds `lock`, which it then holds while it lives. */
 const hold = (lock: string): Promise<void> =>
-  navigator.locks === undefined
-    ? Promise.resolve()
-    : new Promise(granted => {
-        void navigator.locks.request(lock, () => {
+  Option.match(locks(), {
+    onNone: () => Promise.resolve(),
+    onSome: held =>
+      new Promise(granted => {
+        void held.request(lock, () => {
           granted()
           return new Promise(() => {})
         })
-      })
+      }),
+  })
+
+/** Web Locks, which a page outside a secure context, or an older browser, lacks. */
+const locks = (): Option.Option<LockManager> => Option.fromUndefinedOr(navigator.locks)
 
 export const SharedHost = { define }

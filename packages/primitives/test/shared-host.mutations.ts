@@ -27,18 +27,18 @@ export default [
     tests,
   },
   {
-    name: 'a pane that goes ends nothing',
+    name: 'a page that goes ends nothing',
     edits: [
       {
         file,
-        find: '          void navigator.locks?.request(lockOf(envelope.conversation), () => ended.abort())\n',
+        find: '              void held.request(lockOf(envelope.conversation), () => ended.abort())\n',
         replace: '',
       },
     ],
     tests,
   },
   {
-    name: 'the opening goes before the pane holds its lock',
+    name: 'the opening goes before the page holds its lock',
     edits: [
       {
         file,
