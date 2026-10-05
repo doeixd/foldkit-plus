@@ -17,6 +17,8 @@
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
+      "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
+      "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },

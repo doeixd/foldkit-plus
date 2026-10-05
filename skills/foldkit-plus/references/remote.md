@@ -139,6 +139,9 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 // No Effect RPC on the server: Remote.clientLayer(Remote.http('/remote', { headers }))
 // posts JSON; RemoteServer.answer(handlers, body) answers it. Remote.json(send) for a
 // worker or a server in the page. Neither carries live data.
+// Over a MessagePort (a sandbox's worker): port(open) from 'foldkit-remote/port',
+// servePort(handlers, port) from 'foldkit-remote-server/port'; Effect's RPC worker
+// protocol, so live data, typed errors and interruption cross it.
 
 // One list instead of the four hand-wiring steps above.
 const Page = Bundle.parent({ Model, Message })

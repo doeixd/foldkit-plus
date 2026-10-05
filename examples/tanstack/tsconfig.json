@@ -12,15 +12,27 @@
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
-    { "path": "../../packages/entity/tsconfig.build.json" },
-    { "path": "../../packages/metadata/tsconfig.build.json" },
-    { "path": "../../packages/remote/tsconfig.build.json" },
-    { "path": "../../packages/remote-server/tsconfig.build.json" },
-    { "path": "../../packages/surface/tsconfig.build.json" }
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    }
   ]
 }

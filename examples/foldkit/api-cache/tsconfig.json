@@ -21,6 +21,8 @@
       "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"],
       "foldkit-remote": ["../../../packages/remote/src/index.ts"],
       "foldkit-remote-server": ["../../../packages/remote-server/src/index.ts"],
+      "foldkit-remote-server/port": ["../../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/port": ["../../../packages/remote/src/port.ts"],
       "foldkit-surface": ["../../../packages/surface/src/index.ts"]
     }
   },

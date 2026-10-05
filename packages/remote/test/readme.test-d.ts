@@ -27,6 +27,7 @@ import {
   type RemoteRpcClient,
   type RetentionRoots,
 } from '../src/index.js'
+import { port } from '../src/port.js'
 
 const Route = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('home') }),
@@ -274,3 +275,12 @@ const Tickets = Remote.make({ model: TicketApp.model.remote, entities: [Ticket] 
 
 const ticket = Tickets.get(TicketSummary, 't1')
 expectTypeOf(ticket.read).parameter(0).toEqualTypeOf<typeof TicketModel.Type>()
+
+// Over a MessagePort: a new conversation each time the protocol connects.
+declare const worker: SharedWorker
+const overPort = port(() => {
+  const channel = new MessageChannel()
+  worker.port.postMessage({ open: 'remote' }, [channel.port2])
+  return channel.port1
+})
+void overPort

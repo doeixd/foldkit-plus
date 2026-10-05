@@ -363,6 +363,25 @@ const overHttp = Remote.clientLayer(
 `headers` is read for each request, so a token that changes reaches the next
 call. Neither carries live data.
 
+For a server in a worker or in the page (a sandbox), `foldkit-remote/port`
+speaks Effect's own RPC worker protocol over a `MessagePort`, so live data,
+typed errors and interruption cross it too.
+[`servePort`](../remote-server/README.md#over-a-messageport) is the other end:
+
+```ts
+import { port } from 'foldkit-remote/port'
+
+// A new conversation each time the protocol connects: one port here, the other to the server.
+const overPort = port(() => {
+  const channel = new MessageChannel()
+  worker.port.postMessage({ open: 'remote' }, [channel.port2])
+  return channel.port1
+})
+```
+
+It is a `Layer<RemoteClient>` like the others; a port that cannot be set up is
+a defect, not a failed read.
+
 The stock client is accepted as it is. When its transport fails, the call
 fails with its own Remote error (`RemoteReadError`, `RemoteQueryError`,
 `RemoteMutationError`, `RemoteLiveError`), which the UI shows and retries like

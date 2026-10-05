@@ -22,6 +22,7 @@
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },

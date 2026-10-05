@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect'
 import { Entity, Remote, RemoteRpc } from 'foldkit-remote'
 import { RemoteServer } from '../src/index.js'
+import { servePort } from '../src/port.js'
 
 const Project = Entity.make(
   'Project',
@@ -59,3 +60,8 @@ const route = async (request: Request): Promise<Response> => {
 }
 
 void route
+
+// Over a MessagePort: in the host, for each port a page hands it.
+declare const port: MessagePort
+const served: Effect.Effect<void, unknown> = servePort(handlers, port)
+void served

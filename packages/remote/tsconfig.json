@@ -12,6 +12,7 @@
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["./src/index.ts"],
+      "foldkit-remote/port": ["./src/port.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },

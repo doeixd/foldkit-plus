@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote/port` and `foldkit-remote-server/port`: Remote over a
+  `MessagePort`.** `port(open)` is Remote's client and `servePort(handlers,
+  port)` its server, over Effect's own RPC worker protocol, driven through
+  `effect/workers` with no browser package: reads, queries, mutations and
+  live streams cross it with their typed errors, an interrupted call
+  interrupts its handler, and the serving ends when the client closes its
+  end. `portProtocol(open)` is the protocol alone, for a hand-made RPC
+  client (#167).
 - **Docs: [Editing server data through a
   journal](docs/editing-server-data.md).** When rows are too many to
   replicate but edits to them must survive offline: who owns what, the one

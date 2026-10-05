@@ -661,6 +661,26 @@ const served = RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined
 - It pushes no live changes and authorizes nothing: every field is readable.
   It is not a server to deploy.
 
+## Over a MessagePort
+
+`servePort(handlers, port)` from `foldkit-remote-server/port` answers
+`foldkit-remote/port`'s client over one `MessagePort`, for a server in a
+worker or in the page. It speaks Effect's RPC worker protocol, so reads,
+queries, mutations and live streams cross it with their typed errors, and an
+interrupted call interrupts its handler. It returns once the client closes its
+end; interrupt it to stop sooner:
+
+```ts
+import { servePort } from 'foldkit-remote-server/port'
+
+// In the host, for each port a page hands it; `handlers` as above.
+Effect.runFork(servePort(handlers, port))
+```
+
+It binds no principal: pass the `handlers` for the conversation's own, as
+everywhere else. It needs no browser package: the port is driven through
+`effect/workers` directly.
+
 ## Over plain JSON
 
 `RemoteServer.answer(handlers, body)` answers one request as `Remote.http`
