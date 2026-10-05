@@ -63,6 +63,24 @@ pnpm add foldkit-durable
 `effect` is a peer dependency, `@effect/sql-sqlite-node` comes with the
 package, and Node 22 is required for `node:sqlite`.
 
+**In a browser**, or any runtime without `node:sqlite`, import
+`foldkit-durable/core` instead: the same journal, opened by
+`makeJournalOn(options)` over the `SqlClient` in context, with no `file`.
+`@effect/sql-sqlite-wasm` gives SQLite compiled to WebAssembly:
+
+```ts
+import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
+import { Effect } from 'effect'
+import { makeJournalOn } from 'foldkit-durable/core'
+
+// `options` as for `Journal.make`, without `file`.
+const journal = makeJournalOn(options).pipe(Effect.provide(WasmClient.layerMemory({})))
+```
+
+`core` reaches neither Node's driver nor a `node:` module; payloads are hashed
+in plain JavaScript, as `node:crypto` hashed them, so a database written
+before still recognizes its retransmissions.
+
 ## Sixty seconds, with `foldkit-sync`
 
 If the journal backs a Sync contract, do not restate the shared schema or the
@@ -433,10 +451,11 @@ operation, snapshot, and effect payloads are not migrated.
 
 ## Limits
 
-- SQLite through `@effect/sql-sqlite-node` is the only adapter, and Node 22 is
-  required. The storage contract is `SqlClient`, so another SQL backend is an
-  adapter, not a change to journal semantics. The SQL module is `unstable` in
-  the pinned Effect release candidate.
+- SQLite is the only database: through `@effect/sql-sqlite-node` (Node 22)
+  for `Journal.make`, or any `effect/sql` SQLite client for `makeJournalOn`
+  (`foldkit-durable/core`), such as `@effect/sql-sqlite-wasm` in a browser.
+  `vacuum` reclaims a file's space and checkpoints its write-ahead log, which
+  an in-memory database has nothing of.
 - `reduce`, `validate`, and `authorize` hold the write lock. Keep them pure,
   fast, and service-free.
 - One Journal handle per file. Uniqueness of `[key, op_id]` and

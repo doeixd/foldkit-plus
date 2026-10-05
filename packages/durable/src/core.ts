@@ -1,10 +1,9 @@
 /**
- * `foldkit-durable` — a durable, ordered operation log with snapshots.
- *
- * Storage and ordering only; application semantics live in the `reduce` the
- * caller supplies. Append is atomic and idempotent by operation identity,
- * committed order is stable, and compaction never changes the logical state a
- * replay would produce.
+ * `foldkit-durable/core`: the journal over any `effect/sql` SQLite client,
+ * without Node's driver, for a browser (`@effect/sql-sqlite-wasm`) or any
+ * other runtime. `makeJournalOn(options)` opens it over the `SqlClient` in
+ * context; the package's main entry adds `Journal.make` over a `node:sqlite`
+ * file.
  */
 export { Codec, type CodecInput } from './codec.js'
 export {
@@ -31,13 +30,6 @@ export {
   UnsupportedJournalVersionError,
 } from './errors.js'
 export {
-  Journal,
-  JournalService,
-  makeJournal,
-  makeJournalLayer,
-  type JournalDefinition,
-} from './node.js'
-export {
   journalMetrics,
   makeJournalOn,
   type AppendError,
@@ -47,7 +39,7 @@ export {
   type Committed,
   type EffectRecord,
   type EffectStatus,
-  type JournalOptions,
+  type Journal,
   type JournalStoreOptions,
   type RecoveryIntent,
   type RecoveryOptions,

@@ -25,7 +25,7 @@ importers:
         version: 5.0.1(playwright@1.63.0)(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))(vitest@5.0.1)
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       effect:
         specifier: 4.0.0
         version: 4.0.0
@@ -89,7 +89,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -226,7 +226,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -963,7 +963,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-agent:
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1166,7 +1166,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -1701,7 +1701,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-cms:
         specifier: workspace:*
         version: link:../cms
@@ -1871,7 +1871,13 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
     devDependencies:
+      '@effect/sql-sqlite-wasm':
+        specifier: 4.0.0
+        version: 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0)
       effect:
         specifier: 4.0.0
         version: 4.0.0
@@ -2365,7 +2371,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -3217,11 +3223,20 @@ packages:
     peerDependencies:
       effect: ^4.0.0
 
+  '@effect/sql-sqlite-wasm@4.0.0':
+    resolution: {integrity: sha512-kYnf0wSDrm1BHnQJl9GGkJPtX1UGmZuvHPQPxvyvumTT7uwp3zV47CVdBR/YOPMVRdgsnIHFaPDtk3O32/QbAw==}
+    peerDependencies:
+      '@effect/wa-sqlite': '>=0.1.2 <0.2.0'
+      effect: ^4.0.0
+
   '@effect/vitest@4.0.0-rc.117':
     resolution: {integrity: sha512-jJg9M7T3OhTcvoD9Zi28S5+0H+axlSHAYjXM8TYeLJy/FVlPe0B/Vc3ZfaqUF0rwkfQ6ziyCdjiBS46+182H1Q==}
     peerDependencies:
       effect: ^4.0.0-rc.117
       vitest: '>=5.0.0 <6.0.0'
+
+  '@effect/wa-sqlite@0.1.2':
+    resolution: {integrity: sha512-2JvJ9BDkBOwfeY/gXsC0XwEKC0AwisP2W5ABJ6mx14QyXTK12MGDIybDlHieuZt1TEFSMiKfpg7yyqyRWRooJQ==}
 
   '@electric-sql/pglite@0.5.8':
     resolution: {integrity: sha512-n9tsbUOhwx2epK1V0ZG9Ar4SHWUju04dhmzZXiSBXwBoleOvIfals33NAaWgagQVAL4Rbvx/Ptsu3P+pA09f6Q==}
@@ -10155,10 +10170,17 @@ snapshots:
     dependencies:
       effect: 4.0.0
 
+  '@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0)':
+    dependencies:
+      '@effect/wa-sqlite': 0.1.2
+      effect: 4.0.0
+
   '@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.112)(vitest@5.0.1)':
     dependencies:
       effect: 4.0.0-rc.112
       vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/browser-playwright@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0)(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+
+  '@effect/wa-sqlite@0.1.2': {}
 
   '@electric-sql/pglite@0.5.8': {}
 
@@ -13029,10 +13051,11 @@ snapshots:
       postgres: 3.4.9
       sql.js: 1.13.0
 
-  drizzle-orm@1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1):
+  drizzle-orm@1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1):
     optionalDependencies:
       '@effect/sql-pg': 4.0.0(effect@4.0.0)
       '@effect/sql-sqlite-node': 4.0.0(effect@4.0.0)
+      '@effect/sql-sqlite-wasm': 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0)
       '@electric-sql/pglite': 0.5.8
       '@neondatabase/serverless': 1.1.0
       '@opentelemetry/api': 1.9.1

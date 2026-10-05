@@ -34,6 +34,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./core": {
+      "foldkit-plus:source": "./src/core.ts",
+      "types": "./dist/core.d.mts",
+      "import": "./dist/core.mjs"
     }
   },
   "files": [
@@ -49,10 +54,12 @@
     "effect": "^4.0.0"
   },
   "dependencies": {
-    "@effect/sql-sqlite-node": "4.0.0"
+    "@effect/sql-sqlite-node": "4.0.0",
+    "@noble/hashes": "^2.4.0"
   },
   "devDependencies": {
     "@effect/sql-sqlite-node": "4.0.0",
+    "@effect/sql-sqlite-wasm": "4.0.0",
     "effect": "4.0.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

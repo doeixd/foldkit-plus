@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-durable/core`: the journal without Node.** `makeJournalOn(options)`
+  opens the journal over the `SqlClient` in context, any `effect/sql`
+  SQLite client, such as `@effect/sql-sqlite-wasm` in a browser, where a
+  browser test runs append, retry, refusal, recovery, compaction and reset
+  over it. Payloads are hashed with `@noble/hashes` instead of
+  `node:crypto`, to the same digest, and epochs come from
+  `globalThis.crypto.randomUUID`. The main entry's `Journal.make` over a
+  `node:sqlite` file is unchanged (#162).
 - **`examples/registry` says where each edit is.** A cell's mark shows an
   edit not yet sent, one the journal has and the table does not yet, and one
   the server refused, edged until its line (naming the cells and the

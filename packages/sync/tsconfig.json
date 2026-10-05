@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-agent": ["../agent/src/index.ts"],
       "foldkit-durable": ["../durable/src/index.ts"],
+      "foldkit-durable/core": ["../durable/src/core.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
       "foldkit-sync": ["./src/index.ts"],

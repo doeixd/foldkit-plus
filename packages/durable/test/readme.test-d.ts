@@ -20,6 +20,8 @@ import {
   opId,
   type JournalOptions,
 } from '../src/index.js'
+import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
+import { makeJournalOn, type JournalStoreOptions } from '../src/core.js'
 
 const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
 const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
@@ -59,6 +61,11 @@ const served = Effect.gen(function* () {
 }).pipe(Effect.provide(TodoJournal.layer(options)))
 
 void served
+
+// In a browser: `foldkit-durable/core` over SQLite compiled to WebAssembly.
+declare const storeOptions: JournalStoreOptions<Operation, Snapshot, Principal>
+const inBrowser = makeJournalOn(storeOptions).pipe(Effect.provide(WasmClient.layerMemory({})))
+void inBrowser
 
 // Validation and policy.
 const hooks: Pick<JournalOptions<Operation, Snapshot, Principal>, 'validate' | 'authorize'> = {

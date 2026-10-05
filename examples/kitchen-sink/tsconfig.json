@@ -14,6 +14,7 @@
       "foldkit-agent-webmcp": ["../../packages/agent-webmcp/src/index.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
+      "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],

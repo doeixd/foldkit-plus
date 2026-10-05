@@ -9,6 +9,7 @@
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
       "foldkit-agent-mcp": ["../../packages/agent-mcp/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
+      "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
       "foldkit-sync": ["../../packages/sync/src/index.ts"],

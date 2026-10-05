@@ -290,8 +290,10 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 - Use one mount per replica, and one storage name + `ReplicaId` per tab. A
   second writer fails the storage compare-and-swap. Losing IndexedDB loses
   unsent edits.
-- `foldkit-durable` needs Node >= 22 (`node:sqlite`) and one Journal handle per
-  file. `reduce`/`validate`/`authorize` hold the write lock, so keep them pure,
+- `foldkit-durable`'s `Journal.make` needs Node >= 22 (`node:sqlite`);
+  `foldkit-durable/core`'s `makeJournalOn(options)` runs over any `effect/sql`
+  SQLite client, `@effect/sql-sqlite-wasm` in a browser. One Journal handle per
+  database. `reduce`/`validate`/`authorize` hold the write lock, so keep them pure,
   fast, and service-free. Ops must be JSON.
 - Sync and Durable ids are branded separately, so re-brand with
   `OpId.make(operation.opId)`. App schema migration is yours to handle.

@@ -10,6 +10,7 @@
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
+      "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
       "foldkit-richtext-dom": ["../../packages/richtext-dom/src/index.ts"],

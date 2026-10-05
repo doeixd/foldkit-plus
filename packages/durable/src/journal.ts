@@ -1,12 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto'
-import * as SqliteClient from '@effect/sql-sqlite-node/SqliteClient'
+import { sha256 } from '@noble/hashes/sha2.js'
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js'
 import {
   Config,
-  Context,
   Deferred,
   Effect,
   Exit,
-  Layer,
   Metric,
   Option,
   PubSub,
@@ -155,6 +153,15 @@ export interface JournalOptions<
    */
   readonly legacyReplicaId?: (opId: OpId) => string
 }
+
+/** `JournalOptions` without the file: the store is the `SqlClient` `makeJournalOn` runs over. */
+export type JournalStoreOptions<
+  Operation,
+  Snapshot,
+  Principal,
+  OperationEncoded = unknown,
+  SnapshotEncoded = unknown,
+> = Omit<JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>, 'file'>
 
 /**
  * What `authorize` answers. `true` allows and `false` refuses; the object form
@@ -324,7 +331,8 @@ const describe = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause)
 
 /** A compacted operation keeps this instead of its payload, so identity is provable. */
-const hashPayload = (encoded: string): string => createHash('sha256').update(encoded).digest('hex')
+// SHA-256 in plain JavaScript, so the journal runs where `node:crypto` does not.
+const hashPayload = (encoded: string): string => bytesToHex(sha256(utf8ToBytes(encoded)))
 
 /**
  * Canonical JSON with sorted object keys. `append` compares encoded bytes for
@@ -373,127 +381,31 @@ const retriesFailed = (
 const journalError = (message: string, cause: unknown): JournalError =>
   new JournalError({ message, cause })
 
-const resolveFile = (file: string | Config.Config<string>): Effect.Effect<string, JournalError> =>
-  typeof file === 'string'
-    ? Effect.succeed(file)
-    : file.pipe(
-        Effect.catchTag('ConfigError', cause =>
-          Effect.fail(journalError('Could not read the journal file', cause)),
-        ),
-      )
-
 const asJournalError =
   (message: string) =>
   (cause: unknown): Effect.Effect<never, JournalError> =>
     Effect.fail(journalError(message, cause))
 
 /**
- * Opens a durable, ordered operation log with a snapshot and cursor per key.
- *
- * Append is atomic and idempotent by `opId`; committed order is stable; the
- * snapshot and cursor are consistent; and compaction drops payloads without
- * changing what a replay of the compacted prefix would produce. The journal
- * understands storage and ordering, never application semantics: `reduce` is
- * the application's own transition function. The SQLite connection is released
- * when the effect's scope closes.
+ * Opens the journal over the `SqlClient` in context: SQLite through any
+ * `effect/sql` driver, `@effect/sql-sqlite-node` on a server or
+ * `@effect/sql-sqlite-wasm` in a browser. `Journal.make` (`foldkit-durable`)
+ * is this over a `node:sqlite` file. The connection is the caller's: it
+ * lives as long as the layer that provided it.
  */
-export const makeJournal = Effect.fn('Journal.make')(function* <
-  Operation,
-  Snapshot,
-  Principal,
-  OperationEncoded = unknown,
-  SnapshotEncoded = unknown,
->(options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>) {
-  const file = yield* resolveFile(options.file)
-  // Build the driver into the journal's own scope, not the transient scope of
-  // this effect, so the connection outlives `makeJournal`.
-  const context = yield* Layer.build(SqliteClient.layer({ filename: file }))
-  return yield* makeShapeEffect(options).pipe(Effect.provide(context))
-})
-
-/**
- * The journal as a service, so an application composes it with `Effect.provide`
- * instead of threading the shape through its own wiring. Pass the codec's
- * `Encoded` type as the fourth parameter when it is not `unknown`, and use a
- * distinct `key` if the application runs more than one journal.
- *
- * Prefer `Journal.define`. The type arguments here are supplied at each use
- * site and nothing checks them against the layer that satisfied the tag, so
- * `yield* JournalService<SomeOtherOperation, ...>('app/Journal')` compiles and
- * hands back a journal typed as something it is not — the key is the only real
- * identity. `Journal.define` fixes the parameters once and derives both the tag
- * and its layer from them.
- */
-export const JournalService = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
-  key = 'foldkit-durable/Journal',
-) =>
-  Context.Service<
-    Journal<Operation, Snapshot, Principal, OperationEncoded>,
-    Journal<Operation, Snapshot, Principal, OperationEncoded>
-  >()(key)
-
-/** Provides the journal as a scoped layer, releasing the database when the layer closes. */
-export const makeJournalLayer = <
+export const makeJournalOn = <
   Operation,
   Snapshot,
   Principal,
   OperationEncoded = unknown,
   SnapshotEncoded = unknown,
 >(
-  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
-  key = 'foldkit-durable/Journal',
-): Layer.Layer<
+  options: JournalStoreOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
+): Effect.Effect<
   Journal<Operation, Snapshot, Principal, OperationEncoded>,
-  JournalError | UnsupportedJournalVersionError
-> =>
-  Layer.effect(
-    JournalService<Operation, Snapshot, Principal, OperationEncoded>(key),
-    makeJournal(options),
-  )
-
-/**
- * One journal's service tag together with the layer that satisfies it, both
- * built from the same type parameters, so the tag cannot be read back as a
- * journal of some other shape.
- */
-export interface JournalDefinition<Operation, Snapshot, Principal, OperationEncoded = unknown> {
-  readonly key: string
-  readonly tag: ReturnType<typeof JournalService<Operation, Snapshot, Principal, OperationEncoded>>
-  readonly layer: <SnapshotEncoded = unknown>(
-    options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
-  ) => Layer.Layer<
-    Journal<Operation, Snapshot, Principal, OperationEncoded>,
-    JournalError | UnsupportedJournalVersionError
-  >
-}
-
-const defineJournal = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
-  key: string,
-): JournalDefinition<Operation, Snapshot, Principal, OperationEncoded> => ({
-  key,
-  tag: JournalService<Operation, Snapshot, Principal, OperationEncoded>(key),
-  layer: options => makeJournalLayer(options, key),
-})
-
-export const Journal = {
-  /** Opens a journal in the current scope. */
-  make: makeJournal,
-  /** Provides a journal as a scoped layer under the default service key. */
-  layer: makeJournalLayer,
-  /** Counters an application can scrape. */
-  metrics: journalMetrics,
-  /**
-   * Declares a journal's service key and its type parameters once, and returns
-   * the tag and the layer constructor that agree on them.
-   *
-   * ```ts
-   * const TodoJournal = Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')
-   * const layer = TodoJournal.layer(options)
-   * const journal = yield* TodoJournal.tag
-   * ```
-   */
-  define: defineJournal,
-}
+  JournalError | UnsupportedJournalVersionError,
+  SqlClient.SqlClient | Scope.Scope
+> => makeShapeEffect(options)
 
 const makeShapeEffect = <
   Operation,
@@ -502,7 +414,7 @@ const makeShapeEffect = <
   OperationEncoded = unknown,
   SnapshotEncoded = unknown,
 >(
-  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
+  options: JournalStoreOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
 ): Effect.Effect<
   Journal<Operation, Snapshot, Principal, OperationEncoded>,
   JournalError | UnsupportedJournalVersionError,
@@ -648,7 +560,7 @@ const migrate = (
           yield* Effect.forEach(
             documents,
             row =>
-              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${row.key}, ${randomUUID()})`,
+              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${row.key}, ${globalThis.crypto.randomUUID()})`,
             { discard: true },
           )
         }
@@ -682,7 +594,7 @@ const makeShape = <
   SnapshotEncoded = unknown,
 >(
   sql: SqlClient.SqlClient,
-  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
+  options: JournalStoreOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
   changes: PubSub.PubSub<string>,
   inFlight: SynchronizedRef.SynchronizedRef<Map<string, Deferred.Deferred<unknown, unknown>>>,
 ): Journal<Operation, Snapshot, Principal, OperationEncoded> => {
@@ -808,7 +720,7 @@ const makeShape = <
         found.length > 0
           ? Effect.succeed(found)
           : sql.withTransaction(
-              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`.pipe(
+              sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${globalThis.crypto.randomUUID()})`.pipe(
                 Effect.andThen(read),
               ),
             ),
@@ -1014,7 +926,7 @@ const makeShape = <
       const state = yield* materialize(key, working)
       let epoch = state.epoch
       if (epoch === null) {
-        yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${randomUUID()})`
+        yield* sql`INSERT OR IGNORE INTO epochs (key, epoch) VALUES (${key}, ${globalThis.crypto.randomUUID()})`
         const rows = yield* sql<{
           readonly epoch: string
         }>`SELECT epoch FROM epochs WHERE key = ${key}`
