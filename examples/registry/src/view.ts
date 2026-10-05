@@ -30,17 +30,25 @@ const Registry = DataGridView<Message>()
             backgroundImage: 'none',
             boxShadow: 'inset 0 0 0 2px #dc2626',
           }),
+          // Another device's later edit won: an amber edge until its line is dismissed.
+          Style.nest('&[data-mark="replaced"]', {
+            backgroundImage: 'none',
+            boxShadow: 'inset 0 0 0 2px #d97706',
+          }),
         ),
       }),
     ),
   )
+
+const columnName = (column: 'description' | 'cents') =>
+  column === 'cents' ? 'Price' : 'Description'
 
 /** The refused edits, one per operation, naming the cells each had changed. */
 const refusedEdits = (model: Model) => {
   const byOperation = new Map<string, { cells: Array<string>; reason: string }>()
   for (const refusal of model.refused) {
     const entry = byOperation.get(refusal.opId) ?? { cells: [], reason: refusal.reason }
-    entry.cells.push(`${refusal.column === 'cents' ? 'Price' : 'Description'} of ${refusal.id}`)
+    entry.cells.push(`${columnName(refusal.column)} of ${refusal.id}`)
     byOperation.set(refusal.opId, entry)
   }
   return [...byOperation].map(([opId, { cells, reason }]) => ({
@@ -90,6 +98,22 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               `${cells} not saved: ${reason}. `,
               h.button(
                 [h.Type('button'), h.OnClick(Message.RefusalDismissed({ opId }))],
+                ['Dismiss'],
+              ),
+            ],
+          ),
+        ),
+      ),
+      // What another device's later commit replaced: last writer wins, said here.
+      h.ul(
+        [h.Id('replaced'), h.AriaLabel('Edits replaced')],
+        model.replaced.map(({ id, column, by, was }) =>
+          h.li(
+            [],
+            [
+              `${columnName(column)} of ${id}: ${by}’s later edit replaced yours (${was}). `,
+              h.button(
+                [h.Type('button'), h.OnClick(Message.ReplacementDismissed({ id, column }))],
                 ['Dismiss'],
               ),
             ],

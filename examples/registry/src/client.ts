@@ -39,15 +39,18 @@ const replica = await Effect.runPromise(
 )
 
 // Vite proxies `/remote` and `/sync` to the server, so the browser talks to one origin.
+// The name this tab commits as, short enough to read in "replaced by …".
+const device = `tab-${replicaId.slice(0, 4)}`
 const { mounted } = mountRegistry(replica, {
   container,
   resources: Remote.clientLayer(Remote.http('/remote')),
+  device,
 })
 
 // One socket for the page, paused while the offline switch is on.
 const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
 const transport = pausable(
-  Sync.transport.socket({ url: `${protocol}://${location.host}/sync` }),
+  Sync.transport.socket({ url: `${protocol}://${location.host}/sync?device=${device}` }),
   () => mounted.model().offline,
 )
 // Built once, so the exchange loop and a wake-up share the socket.

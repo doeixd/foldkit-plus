@@ -26,6 +26,7 @@ import {
   type ProductEdit,
   type Refusal,
   placements,
+  replacedOf,
   retiredOf,
 } from './app.js'
 import { view } from './view.js'
@@ -52,10 +53,11 @@ const definition = Sync.forApplication(App)
     // someone else's edits before their rows were read.
     authorize: { AbsorbedEdits: ({ principal }) => principal.actorId === server.actorId },
     // The journal writes in the sequence each edit committed at, which the
-    // table's revision is compared with to know which edits a row holds.
+    // table's revision is compared with to know which edits a row holds, and
+    // who committed it, so a device can tell another's edit from its own.
     stamp: {
-      EditedProducts: ({ changes }, { sequence }) =>
-        Message.EditedProducts({ changes, at: sequence }),
+      EditedProducts: ({ changes }, { sequence, actorId }) =>
+        Message.EditedProducts({ changes, at: sequence, by: actorId }),
     },
   })
 
@@ -124,6 +126,8 @@ export const mountRegistry = (
   options: {
     readonly container: HTMLElement
     readonly resources: Layer.Layer<RemoteClient>
+    /** The name this device commits as, so its own edits are told from another's. */
+    readonly device: string
   },
 ): { readonly mounted: Mounted<Model, Message>; readonly dispose: () => Promise<void> } => {
   const mounted = Sync.mount(App, definition, {
@@ -134,13 +138,19 @@ export const mountRegistry = (
     resources: options.resources,
     // In the transition that replaces the edits, so no frame draws a cached
     // row without an edit the journal absorbed after that row was read.
+    // And in the same transition, an edit of this device's that another
+    // device's later commit replaced is said, not silently overwritten.
     onReinstall: (next, previous) => {
       const retired = retiredOf(previous, next)
+      const replaced = replacedOf(previous, next, options.device)
       return {
         model:
-          retired.length === 0 && next.retired.length === 0
+          retired.length === 0 && next.retired.length === 0 && replaced.length === 0
             ? next
-            : modifyFields(next, { retired: () => retired }),
+            : modifyFields(next, {
+                retired: () => retired,
+                replaced: kept => [...kept, ...replaced],
+              }),
       }
     },
   })

@@ -13,6 +13,7 @@ import { type WebSocket, WebSocketServer } from 'ws'
 import { memoryJournal } from './journalNode.js'
 import { openServer } from './server.js'
 import { memorySqlite } from './sqliteNode.js'
+import { everyone } from './sync.js'
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
 const socketLike = (socket: WebSocket): SocketLike => ({
@@ -65,8 +66,13 @@ export const startHttpServer = async (
 
   // Each socket exchanges with the journal, and is woken when another commits.
   const sockets = new WebSocketServer({ server, path: '/sync' })
-  sockets.on('connection', socket => {
-    const stop = journal.serve(socketLike(socket))
+  // A connection names its device (`?device=tab-1a2b`), and commits as it, so
+  // a page can tell another device's edit from its own. Nothing checks the
+  // name: a real deployment would authenticate here.
+  sockets.on('connection', (socket, request) => {
+    const named = new URL(request.url ?? '', 'ws://localhost').searchParams.get('device')
+    const principal = named !== null && /^[\w-]{1,40}$/.test(named) ? { actorId: named } : everyone
+    const stop = journal.serve(socketLike(socket), principal)
     socket.on('close', stop)
   })
 

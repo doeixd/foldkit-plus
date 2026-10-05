@@ -115,7 +115,13 @@ negative or fractional number of cents is refused whatever a client sent.
   operation by then, so the mount reads each pending operation's cells
   while it is still pending.
 - **Two devices edit the same field.** The journal's order decides: the edit
-  committed last wins, on every replica. There is no merge of text.
+  committed last wins, on every replica. There is no merge of text. The
+  journal stamps each edit with who committed it (`by`, beside `at`), so the
+  device whose edit lost is told: the cell is edged amber, and a line names the
+  other device and the value it had, until dismissed (`replacedOf`, in the
+  mount's `onReinstall`). A connection names its device (`?device=` on the
+  socket, the tab's short name); nothing checks it, which a real deployment
+  would.
 - **The table's write fails.** The edit is committed and stays shown, since the
   row's revision is older than it; recovery writes it on the next exchange.
 - **A client says when its edit committed.** That is the journal's to stamp, so
@@ -181,7 +187,11 @@ pre-bundles the workspace packages.
   - a cell's mark goes from not yet sent, to saved but not in the table, to
     none;
   - a refused edit marks its cell and says why until dismissed;
-  - working offline keeps an edit on the device until the switch is off.
+  - working offline keeps an edit on the device until the switch is off;
+  - another device's later commit of a field replaces this page's edit and is
+    said, while an edit this page committed later, another device's over a
+    third's, the same value again, or a refusal over this page's own commit is
+    not.
 - `test/journal.test.ts`: the journal refuses an operation a client
   tampered with, and one naming another document, and writes nothing for
   either; the table only moves forward, so recovery may write an edit again;

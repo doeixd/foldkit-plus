@@ -22,6 +22,13 @@ version changed; `pnpm` skips versions already in the registry.
   the server refused, edged until its line (naming the cells and the
   server's reason) is dismissed. A *Work offline* switch pauses the
   transport, and switching back exchanges at once (#161).
+- **`examples/registry` says when another device's edit won.** The journal
+  stamps who committed each edit (`by`); a field this device last wrote that
+  another device's later commit replaced is edged amber, with a line naming
+  the device and the value it had, until dismissed. A connection names its
+  device (`?device=` on the socket). The registry's server and journal no
+  longer import Node (an SQLite seam, and `foldkit-durable/core`), so a
+  sandbox can run them in the page (#162).
 - **`foldkit-sync`: why an edit was refused.** An exchange may carry
   `reasons: [{ opId, reason }]` beside `rejected` (each at most 500
   characters; a reason for an operation not rejected fails the exchange),

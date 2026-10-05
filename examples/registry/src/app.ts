@@ -86,16 +86,19 @@ export const Grid = DataGrid.make({
 })
 
 /**
- * An edited field: its value, and the journal sequence its edit committed at,
- * none while it is pending. Stored and sent, so `null` on the wire.
+ * An edited field: its value, the journal sequence its edit committed at, and
+ * who committed it, both none while it is pending. Stored and sent, so `null`
+ * on the wire.
  */
 const DescriptionEdit = Schema.Struct({
   value: Product.fields.description.schema,
   at: Schema.OptionFromNullOr(Schema.Number),
+  by: Schema.OptionFromNullOr(Schema.String),
 })
 const CentsEdit = Schema.Struct({
   value: Product.fields.cents.schema,
   at: Schema.OptionFromNullOr(Schema.Number),
+  by: Schema.OptionFromNullOr(Schema.String),
 })
 
 /** One product's edited fields, the latest per field. */
@@ -115,6 +118,17 @@ export const Refusal = Schema.Struct({
   reason: Schema.String,
 })
 export type Refusal = typeof Refusal.Type
+
+/** A cell this device last wrote that another's later commit overwrote, and what it was. */
+export const Replacement = Schema.Struct({
+  id: ProductId,
+  column: Schema.Literals(['description', 'cents']),
+  /** The device whose commit came later. */
+  by: Schema.String,
+  /** This device's value, as the cell showed it. */
+  was: Schema.String,
+})
+export type Replacement = typeof Replacement.Type
 
 /** Where this replica's edits stand with the server, as its status last said. */
 const Exchange = Schema.Struct({
@@ -143,6 +157,8 @@ const Base = Bundle.compose({
   exchange: Exchange,
   /** Edits the server refused, each cell it had changed, until dismissed. Local. */
   refused: Schema.Array(Refusal),
+  /** This device's edits another device's later commit replaced, until dismissed. Local. */
+  replaced: Schema.Array(Replacement),
   /** Whether the person chose to work offline: no exchange runs until they stop. */
   offline: Schema.Boolean,
 }).pipe(
@@ -154,13 +170,15 @@ const Base = Bundle.compose({
     RetriedProducts: {},
     /**
      * The durable fact: products' fields were edited. Replayed, so state only.
-     * `at` is the journal's: absent on what this device sends, and stamped
-     * with the sequence it committed at (`sync.ts`). Messages cross ports and
-     * the journal as they are, so it is a plain optional key, not an `Option`.
+     * `at` and `by` are the journal's: absent on what this device sends, and
+     * stamped with the sequence it committed at and who committed it
+     * (`sync.ts`). Messages cross ports and the journal as they are, so they
+     * are plain optional keys, not `Option`s.
      */
     EditedProducts: {
       changes: Schema.Array(ProductChange),
       at: Schema.optionalKey(Schema.Number),
+      by: Schema.optionalKey(Schema.String),
     },
     /**
      * Durable, and the server's alone: the table holds every edit committed
@@ -172,6 +190,8 @@ const Base = Bundle.compose({
     EditsRefused: { refusals: Schema.Array(Refusal) },
     /** The line about a refused edit was dismissed. */
     RefusalDismissed: { opId: Schema.String },
+    /** The line about a replaced edit was dismissed. */
+    ReplacementDismissed: { id: ProductId, column: Schema.Literals(['description', 'cents']) },
     /** The offline switch was pressed: the intent, flipped from the Model as it is. */
     OfflineToggled: {},
     /** The replica's status, for the status line; local, not replicated. */
@@ -215,11 +235,12 @@ const changeOf = (cell: Cell): ProductChange => {
   })
 }
 
-/** The edits with `changes` laid over them, each field it holds as committed `at`, or pending. */
+/** The edits with `changes` laid over them, each field it holds as committed `at` by `by`, or pending. */
 const merged = (
   edits: ReadonlyArray<ProductEdit>,
   changes: ReadonlyArray<ProductChange>,
   at: Option.Option<number>,
+  by: Option.Option<string>,
 ): ReadonlyArray<ProductEdit> => {
   const byId = new Map(edits.map(edit => [edit.id, edit]))
   for (const change of changes) {
@@ -227,11 +248,11 @@ const merged = (
     byId.set(change.id, {
       id: change.id,
       description: Option.orElse(
-        Option.map(change.description, value => ({ value, at })),
+        Option.map(change.description, value => ({ value, at, by })),
         () => Option.flatMap(Option.fromUndefinedOr(before), edit => edit.description),
       ),
       cents: Option.orElse(
-        Option.map(change.cents, value => ({ value, at })),
+        Option.map(change.cents, value => ({ value, at, by })),
         () => Option.flatMap(Option.fromUndefinedOr(before), edit => edit.cents),
       ),
     })
@@ -240,8 +261,8 @@ const merged = (
 }
 
 /** A field's edit, unless it committed at or before `through`. */
-const keepAfter = <A>(
-  field: Option.Option<{ readonly value: A; readonly at: Option.Option<number> }>,
+const keepAfter = <Field extends { readonly at: Option.Option<number> }>(
+  field: Option.Option<Field>,
   through: number,
 ) => Option.filter(field, edit => !Option.exists(edit.at, at => at <= through))
 
@@ -289,9 +310,10 @@ export const update = placements.update((model: Model, message: Message) =>
       }),
       // A failed read is not asked for again on its own; this is the asking.
       RetriedProducts: () => ({ model: Products.refresh(model) }),
-      EditedProducts: ({ changes, at }) => ({
+      EditedProducts: ({ changes, at, by }) => ({
         model: modifyFields(model, {
-          edits: edits => merged(edits, changes, Option.fromUndefinedOr(at)),
+          edits: edits =>
+            merged(edits, changes, Option.fromUndefinedOr(at), Option.fromUndefinedOr(by)),
         }),
       }),
       AbsorbedEdits: ({ through }) => ({
@@ -303,6 +325,12 @@ export const update = placements.update((model: Model, message: Message) =>
       RefusalDismissed: ({ opId }) => ({
         model: modifyFields(model, {
           refused: refused => refused.filter(refusal => refusal.opId !== opId),
+        }),
+      }),
+      ReplacementDismissed: ({ id, column }) => ({
+        model: modifyFields(model, {
+          replaced: replaced =>
+            replaced.filter(replacement => replacement.id !== id || replacement.column !== column),
         }),
       }),
       OfflineToggled: () => ({
@@ -324,6 +352,7 @@ export const initial = (): Model =>
     retired: [],
     exchange: { pending: 0, error: Option.none() },
     refused: [],
+    replaced: [],
     offline: false,
   }).model
 
@@ -392,8 +421,8 @@ export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEd
   const revisionOf = (id: string) =>
     Option.map(Option.flatMap(rows.indexOf(id), rows.rowAt), row => row.revision)
   const current = new Map(next.edits.map(edit => [edit.id, edit]))
-  const held = <A>(
-    field: Option.Option<{ readonly value: A; readonly at: Option.Option<number> }>,
+  const held = <Field extends { readonly at: Option.Option<number> }>(
+    field: Option.Option<Field>,
     now: Option.Option<unknown>,
     revision: number,
   ) =>
@@ -435,6 +464,71 @@ export const exchangeOf = (model: Model): string => {
   })
 }
 
+/** One field's edit as the edits keep it. */
+interface FieldEdit<A> {
+  readonly value: A
+  readonly at: Option.Option<number>
+  readonly by: Option.Option<string>
+}
+
+/**
+ * What the mount just replaced that `device` had written: each field whose
+ * last edit was this device's, pending or committed by it, and now holds
+ * another device's commit with another value. Last writer wins, by the
+ * journal's order; this is how the page says so.
+ */
+export const replacedOf = (
+  previous: Model,
+  next: Model,
+  device: string,
+): ReadonlyArray<Replacement> => {
+  const before = new Map(previous.edits.map(edit => [edit.id, edit]))
+  const mine = (field: FieldEdit<unknown>) =>
+    Option.isNone(field.at) || Option.contains(field.by, device)
+  const replaced = <A>(
+    id: ProductId,
+    column: Replacement['column'],
+    now: Option.Option<FieldEdit<A>>,
+    then: Option.Option<FieldEdit<A>>,
+    text: (value: A) => string,
+  ): ReadonlyArray<Replacement> =>
+    Option.match(
+      Option.zipWith(now, then, (current, prior) => ({ current, prior })),
+      {
+        onNone: () => [],
+        onSome: ({ current, prior }) =>
+          Option.match(current.by, {
+            onNone: () => [],
+            onSome: by =>
+              by !== device && mine(prior) && current.value !== prior.value
+                ? [{ id, column, by, was: text(prior.value) }]
+                : [],
+          }),
+      },
+    )
+  return next.edits.flatMap(edit => {
+    const was = Option.fromUndefinedOr(before.get(edit.id))
+    return [
+      ...replaced(
+        edit.id,
+        'description',
+        edit.description,
+        Option.flatMap(was, kept => kept.description),
+        value => value,
+      ),
+      ...replaced(
+        edit.id,
+        'cents',
+        edit.cents,
+        Option.flatMap(was, kept => kept.cents),
+        centsText,
+      ),
+    ]
+  })
+}
+
+const centsText = (cents: number) => (cents / 100).toFixed(2)
+
 /** A cell's state for the grid's `marks`: a name to style, and words to say. */
 interface CellMark {
   readonly name: string
@@ -454,31 +548,46 @@ export const marksOf = (
   const refused = new Map(
     model.refused.map(refusal => [`${refusal.id}:${refusal.column}`, refusal]),
   )
-  return ({ row, column }) =>
-    Option.match(Option.fromUndefinedOr(refused.get(`${row}:${column}`)), {
-      onSome: ({ reason }) => Option.some({ name: 'refused', description: `Not saved: ${reason}` }),
-      onNone: () => {
-        // When the cell's edit committed, if it has one: none while pending.
-        const field = Option.flatMap(Option.fromUndefinedOr(edits.get(ProductId.make(row))), edit =>
-          Match.value(column).pipe(
-            Match.when('description', () => Option.map(edit.description, ({ at }) => at)),
-            Match.when('cents', () => Option.map(edit.cents, ({ at }) => at)),
-            Match.orElse(() => Option.none()),
-          ),
-        )
-        const revision = Option.map(
-          Option.flatMap(rows.indexOf(row), rows.rowAt),
-          read => read.revision,
-        )
-        return Option.flatMap(field, at =>
-          Option.match(at, {
-            onNone: () => Option.some({ name: 'pending', description: 'Not yet sent' }),
-            onSome: committed =>
-              Option.exists(revision, read => committed > read)
-                ? Option.some({ name: 'saved', description: 'Saved, not yet in the table' })
-                : Option.none(),
-          }),
-        )
-      },
-    })
+  const replaced = new Map(
+    model.replaced.map(replacement => [`${replacement.id}:${replacement.column}`, replacement]),
+  )
+  /** The mark of the cell's own edit: not yet sent, or saved and not in the table. */
+  const editMark = (row: string, column: keyof typeof columns.byId): Option.Option<CellMark> => {
+    // When the cell's edit committed, if it has one: none while pending.
+    const field = Option.flatMap(Option.fromUndefinedOr(edits.get(ProductId.make(row))), edit =>
+      Match.value(column).pipe(
+        Match.when('description', () => Option.map(edit.description, ({ at }) => at)),
+        Match.when('cents', () => Option.map(edit.cents, ({ at }) => at)),
+        Match.orElse(() => Option.none()),
+      ),
+    )
+    const revision = Option.map(
+      Option.flatMap(rows.indexOf(row), rows.rowAt),
+      read => read.revision,
+    )
+    return Option.flatMap(field, at =>
+      Option.match(at, {
+        onNone: () => Option.some({ name: 'pending', description: 'Not yet sent' }),
+        onSome: committed =>
+          Option.exists(revision, read => committed > read)
+            ? Option.some({ name: 'saved', description: 'Saved, not yet in the table' })
+            : Option.none(),
+      }),
+    )
+  }
+  return ({ row, column }) => {
+    const key = `${row}:${column}`
+    return Option.map(Option.fromUndefinedOr(refused.get(key)), ({ reason }) => ({
+      name: 'refused',
+      description: `Not saved: ${reason}`,
+    })).pipe(
+      Option.orElse(() =>
+        Option.map(Option.fromUndefinedOr(replaced.get(key)), ({ by, was }) => ({
+          name: 'replaced',
+          description: `Replaced by ${by}’s edit (was ${was})`,
+        })),
+      ),
+      Option.orElse(() => editMark(row, column)),
+    )
+  }
 }

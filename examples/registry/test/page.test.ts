@@ -62,11 +62,16 @@ const serve = () => {
     ...operation,
     message: Object.assign({}, operation.message, { at: 1 }),
   })
-  const transport: TransportClient = {
-    exchange: (cursor, pending, epoch) =>
-      online
-        ? journal.transport.exchange(cursor, tampering ? pending.map(forged) : pending, epoch)
-        : Promise.reject(new Error('offline')),
+  /** The page's way to the server, as one device: it commits as `device`. */
+  const transportFor = (device: string) => {
+    const as = journal.transportAs({ actorId: device })
+    const client: TransportClient = {
+      exchange: (cursor, pending, epoch) =>
+        online
+          ? as.exchange(cursor, tampering ? pending.map(forged) : pending, epoch)
+          : Promise.reject(new Error('offline')),
+    }
+    return Sync.transport.fromPromise(client)
   }
   return {
     backend,
@@ -77,7 +82,9 @@ const serve = () => {
     resources: Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
       Layer.provide(backend.layer),
     ),
-    transport: Sync.transport.fromPromise(transport),
+    transportFor,
+    /** Another device's way to the server. */
+    transport: transportFor('elsewhere'),
   }
 }
 
@@ -98,10 +105,12 @@ const mount = async (server: ReturnType<typeof serve>, storage: Storage, name = 
   const { mounted, dispose } = mountRegistry(replica, {
     container,
     resources: server.resources,
+    device: name,
   })
+  const transport = server.transportFor(name)
   const exchange = () =>
-    Effect.runPromise(replica.synchronize.pipe(Effect.provide(server.transport), Effect.ignore))
-  return { replica, mounted, dispose, exchange, latest: (): Model => mounted.model() }
+    Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport), Effect.ignore))
+  return { replica, mounted, dispose, exchange, transport, latest: (): Model => mounted.model() }
 }
 
 const grid = () => document.getElementById('products')!
@@ -508,8 +517,8 @@ test('a refused edit marks its cell and says why, until it is dismissed', async 
 
 test('working offline keeps edits on the device, and going back online sends them', async () => {
   const server = serve()
-  const { dispose, replica, latest } = await mount(server, memoryStorage())
-  const paused = pausable(server.transport, () => latest().offline)
+  const { dispose, replica, latest, transport } = await mount(server, memoryStorage())
+  const paused = pausable(transport, () => latest().offline)
   const exchange = () =>
     Effect.runPromise(replica.synchronize.pipe(Effect.provide(paused), Effect.ignore))
   const offline = () => document.querySelector<HTMLInputElement>('main input[type="checkbox"]')!
@@ -531,6 +540,93 @@ test('working offline keeps edits on the device, and going back online sends the
     await vi.waitFor(() => expect(status()).toBe(''))
     await exchange()
     expect(server.backend.row(productId(4))).toMatchObject({ cents: 404 })
+  } finally {
+    await dispose()
+  }
+})
+
+test('an edit another device committed later replaces this one, and the page says so', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  /** Another device's price for product `index`, committed. */
+  const tab2 = async (index: number, cents: number, device = 'tab-2') => {
+    const other = await Effect.runPromise(
+      RegistrySync.openReplica(ReplicaId.make(`${device}:${index}:${cents}`), memoryStorage()),
+    )
+    await Effect.runPromise(
+      other.submit(
+        Message.EditedProducts({
+          changes: [
+            {
+              id: ProductId.make(productId(index)),
+              description: Option.none(),
+              cents: Option.some(cents),
+            },
+          ],
+        }),
+      ),
+    )
+    await Effect.runPromise(other.synchronize.pipe(Effect.provide(server.transportFor(device))))
+  }
+  const lines = () =>
+    Array.from(document.querySelectorAll('#replaced li'), line => line.firstChild?.textContent)
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+
+    // This page commits first; the other device's edit of the same price after.
+    await edit(productId(3), 'cents', '3.33')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await tab2(3, 444)
+    await exchange()
+    await vi.waitFor(() => expect(markOf(productId(3), 'cents')).toBe('replaced'))
+    expect(cell(productId(3), 'cents')?.textContent).toBe('4.44')
+    expect(cell(productId(3), 'cents')!.getAttribute('aria-description')).toBe(
+      'Replaced by tab-2’s edit (was 3.33)',
+    )
+    expect(lines()).toEqual([
+      `Price of ${productId(3)}: tab-2’s later edit replaced yours (3.33). `,
+    ])
+    click(document.querySelector('#replaced button')!)
+    await vi.waitFor(() => expect(lines()).toEqual([]))
+
+    // The other way round, this page's edit is the later one and nothing is replaced.
+    await tab2(2, 222)
+    await exchange()
+    await edit(productId(2), 'cents', '2.22')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await vi.waitFor(() => expect(markOf(productId(2), 'cents')).not.toBe('pending'))
+    expect(markOf(productId(2), 'cents')).not.toBe('replaced')
+
+    // Another device's edit over a third's is none of this page's business.
+    await tab2(5, 555, 'tab-3')
+    await exchange()
+    await tab2(5, 556)
+    await exchange()
+    await vi.waitFor(() => expect(cell(productId(5), 'cents')?.textContent).toBe('5.56'))
+
+    // A later commit of the very value this page wrote replaces nothing.
+    await edit(productId(6), 'cents', '6.06')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await tab2(6, 606)
+    await exchange()
+    await drawn()
+    expect(latest().replaced).toEqual([])
+
+    // A refused edit over this page's own commit goes back to that commit:
+    // refused, not replaced by itself.
+    await edit(productId(7), 'cents', '7.00')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    server.setTampering(true)
+    await edit(productId(7), 'cents', '7.77')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    server.setTampering(false)
+    await vi.waitFor(() => expect(markOf(productId(7), 'cents')).toBe('refused'))
+    expect(latest().replaced).toEqual([])
   } finally {
     await dispose()
   }

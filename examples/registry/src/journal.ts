@@ -42,6 +42,8 @@ import {
 export interface EditJournal {
   /** How a replica exchanges with the journal: in process, or behind a socket. */
   readonly transport: TransportClient
+  /** The same in process, as one device: what a test of two devices exchanges through. */
+  readonly transportAs: (principal: Principal) => TransportClient
   /**
    * Serves one socket: its exchanges, as `principal`, and a notice after each
    * commit. Returns the stop. A connection that says who it is (a sandbox's
@@ -85,7 +87,7 @@ export const journalOptions = (): JournalStoreOptions<Operation, Shared, Princip
     // itself claims a commit it did not get, and its sender would show it
     // as committed.
     const claimsCommit = Match.value(decodeMessage(operation.message)).pipe(
-      Match.tag('EditedProducts', ({ at }) => at !== undefined),
+      Match.tag('EditedProducts', ({ at, by }) => at !== undefined || by !== undefined),
       Match.orElse(() => false),
     )
     if (claimsCommit) throw new Error('An edit cannot say when it committed')
@@ -153,6 +155,7 @@ export const openJournal = (
   const options = { sync: RegistrySync, journal, principal: everyone, settle }
   return {
     transport: journalExchange(options),
+    transportAs: principal => journalExchange({ ...options, principal }),
     serve: (socket, principal = everyone) => serveJournal(socket, { ...options, principal }),
     absorb,
   }
