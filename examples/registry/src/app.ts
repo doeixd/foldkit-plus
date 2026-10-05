@@ -27,12 +27,17 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
-import { Product, ProductChange, ProductId, ProductRow, Registry } from './domain.js'
+import { EditedColumn, Product, ProductChange, ProductId, ProductRow, Registry } from './domain.js'
 import { ProductSort, ProductsQuery } from './operations.js'
 
 /** A description as typed: its spaces around dropped, and something left. */
 const Description = Schema.Trim.pipe(
   Schema.decodeTo(Schema.String.check(Schema.isMinLength(1, { message: 'Say what it is' }))),
+)
+
+/** A product line as typed: its spaces around dropped, and something left. */
+const LineName = Schema.Trim.pipe(
+  Schema.decodeTo(Schema.String.check(Schema.isMinLength(1, { message: 'Say which line' }))),
 )
 
 /**
@@ -70,8 +75,9 @@ export const columns = GridCrud.columns(ProductList, {
       minWidth: 120,
       edit: { schema: Description },
     },
-    line: { width: 110 },
-    status: { width: 110 },
+    line: { width: 110, edit: { schema: LineName } },
+    // One of the Product's own statuses: edited as a choice of them.
+    status: { width: 110, edit: { schema: Product.fields.status.schema } },
     cents: {
       width: 90,
       edit: { schema: Dollars, draft: row => Schema.encodeSync(Dollars)(row.cents) },
@@ -101,12 +107,24 @@ const CentsEdit = Schema.Struct({
   at: Schema.OptionFromNullOr(Schema.Number),
   by: Schema.OptionFromNullOr(Schema.String),
 })
+const LineEdit = Schema.Struct({
+  value: Product.fields.line.schema,
+  at: Schema.OptionFromNullOr(Schema.Number),
+  by: Schema.OptionFromNullOr(Schema.String),
+})
+const StatusEdit = Schema.Struct({
+  value: Product.fields.status.schema,
+  at: Schema.OptionFromNullOr(Schema.Number),
+  by: Schema.OptionFromNullOr(Schema.String),
+})
 
 /** One product's edited fields, the latest per field. */
 export const ProductEdit = Schema.Struct({
   id: ProductId,
   description: Schema.OptionFromNullOr(DescriptionEdit),
   cents: Schema.OptionFromNullOr(CentsEdit),
+  line: Schema.OptionFromNullOr(LineEdit),
+  status: Schema.OptionFromNullOr(StatusEdit),
 })
 export type ProductEdit = typeof ProductEdit.Type
 
@@ -115,7 +133,7 @@ export const Refusal = Schema.Struct({
   /** The refused operation, so the line about it can be dismissed. */
   opId: Schema.String,
   id: ProductId,
-  column: Schema.Literals(['description', 'cents']),
+  column: EditedColumn,
   reason: Schema.String,
 })
 export type Refusal = typeof Refusal.Type
@@ -123,7 +141,7 @@ export type Refusal = typeof Refusal.Type
 /** A cell this device last wrote that another's later commit overwrote, and what it was. */
 export const Replacement = Schema.Struct({
   id: ProductId,
-  column: Schema.Literals(['description', 'cents']),
+  column: EditedColumn,
   /** The device whose commit came later. */
   by: Schema.String,
   /** This device's value, as the cell showed it. */
@@ -192,7 +210,7 @@ const Base = Bundle.compose({
     /** The line about a refused edit was dismissed. */
     RefusalDismissed: { opId: Schema.String },
     /** The line about a replaced edit was dismissed. */
-    ReplacementDismissed: { id: ProductId, column: Schema.Literals(['description', 'cents']) },
+    ReplacementDismissed: { id: ProductId, column: EditedColumn },
     /** The offline switch was pressed: the intent, flipped from the Model as it is. */
     OfflineToggled: {},
     /** The replica's status, for the status line; local, not replicated. */
@@ -230,9 +248,18 @@ type Cell = {
 /** A cell as a change to its product, its value as its column's schema decodes it. */
 const changeOf = (cell: Cell): ProductChange => {
   const id = ProductId.make(cell.row)
+  const unchanged = {
+    id,
+    description: Option.none(),
+    cents: Option.none(),
+    line: Option.none(),
+    status: Option.none(),
+  }
   return Grid.matchEdit(cell, {
-    description: ({ value }) => ({ id, description: Option.some(value), cents: Option.none() }),
-    cents: ({ value }) => ({ id, description: Option.none(), cents: Option.some(value) }),
+    description: ({ value }) => ({ ...unchanged, description: Option.some(value) }),
+    cents: ({ value }) => ({ ...unchanged, cents: Option.some(value) }),
+    line: ({ value }) => ({ ...unchanged, line: Option.some(value) }),
+    status: ({ value }) => ({ ...unchanged, status: Option.some(value) }),
   })
 }
 
@@ -245,21 +272,33 @@ const merged = (
 ): ReadonlyArray<ProductEdit> => {
   const byId = new Map(edits.map(edit => [edit.id, edit]))
   for (const change of changes) {
-    const before = byId.get(change.id)
+    const before = Option.fromUndefinedOr(byId.get(change.id))
+    // A field the change holds, as edited now; otherwise what was there.
+    const over = <A, Kept>(
+      changed: Option.Option<A>,
+      kept: (edit: ProductEdit) => Option.Option<Kept>,
+    ) =>
+      Option.orElse(
+        Option.map(changed, value => ({ value, at, by })),
+        () => Option.flatMap(before, kept),
+      )
     byId.set(change.id, {
       id: change.id,
-      description: Option.orElse(
-        Option.map(change.description, value => ({ value, at, by })),
-        () => Option.flatMap(Option.fromUndefinedOr(before), edit => edit.description),
-      ),
-      cents: Option.orElse(
-        Option.map(change.cents, value => ({ value, at, by })),
-        () => Option.flatMap(Option.fromUndefinedOr(before), edit => edit.cents),
-      ),
+      description: over(change.description, edit => edit.description),
+      cents: over(change.cents, edit => edit.cents),
+      line: over(change.line, edit => edit.line),
+      status: over(change.status, edit => edit.status),
     })
   }
   return [...byId.values()]
 }
+
+/** Whether a product's edits hold no field. */
+const isEmpty = (edit: ProductEdit) =>
+  Option.isNone(edit.description) &&
+  Option.isNone(edit.cents) &&
+  Option.isNone(edit.line) &&
+  Option.isNone(edit.status)
 
 /** A field's edit, unless it committed at or before `through`. */
 const keepAfter = <Field extends { readonly at: Option.Option<number> }>(
@@ -270,11 +309,14 @@ const keepAfter = <Field extends { readonly at: Option.Option<number> }>(
 /** The edits without what committed through `through`; a product left with none goes. */
 const absorbed = (edits: ReadonlyArray<ProductEdit>, through: number) =>
   edits.flatMap(edit => {
-    const description = keepAfter(edit.description, through)
-    const cents = keepAfter(edit.cents, through)
-    return Option.isNone(description) && Option.isNone(cents)
-      ? []
-      : [{ id: edit.id, description, cents }]
+    const kept = {
+      id: edit.id,
+      description: keepAfter(edit.description, through),
+      cents: keepAfter(edit.cents, through),
+      line: keepAfter(edit.line, through),
+      status: keepAfter(edit.status, through),
+    }
+    return isEmpty(kept) ? [] : [kept]
   })
 
 // The grid reports text; the fact it becomes is durable. `Sync.fact` applies
@@ -406,6 +448,8 @@ const overlaid = (edits: ReadonlyArray<ProductEdit>) => {
           () => row.description,
         ),
         cents: Option.getOrElse(unabsorbed(edit.cents, row.revision), () => row.cents),
+        line: Option.getOrElse(unabsorbed(edit.line, row.revision), () => row.line),
+        status: Option.getOrElse(unabsorbed(edit.status, row.revision), () => row.status),
       }),
     })
 }
@@ -435,19 +479,30 @@ export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEd
       onNone: () => [],
       onSome: revision => {
         const now = Option.fromUndefinedOr(current.get(edit.id))
-        const description = held(
-          edit.description,
-          Option.flatMap(now, kept => kept.description),
-          revision,
-        )
-        const cents = held(
-          edit.cents,
-          Option.flatMap(now, kept => kept.cents),
-          revision,
-        )
-        return Option.isNone(description) && Option.isNone(cents)
-          ? []
-          : [{ id: edit.id, description, cents }]
+        const kept = {
+          id: edit.id,
+          description: held(
+            edit.description,
+            Option.flatMap(now, kept => kept.description),
+            revision,
+          ),
+          cents: held(
+            edit.cents,
+            Option.flatMap(now, kept => kept.cents),
+            revision,
+          ),
+          line: held(
+            edit.line,
+            Option.flatMap(now, kept => kept.line),
+            revision,
+          ),
+          status: held(
+            edit.status,
+            Option.flatMap(now, kept => kept.status),
+            revision,
+          ),
+        }
+        return isEmpty(kept) ? [] : [kept]
       },
     }),
   )
@@ -524,6 +579,20 @@ export const replacedOf = (
         Option.flatMap(was, kept => kept.cents),
         centsText,
       ),
+      ...replaced(
+        edit.id,
+        'line',
+        edit.line,
+        Option.flatMap(was, kept => kept.line),
+        value => value,
+      ),
+      ...replaced(
+        edit.id,
+        'status',
+        edit.status,
+        Option.flatMap(was, kept => kept.status),
+        value => value,
+      ),
     ]
   })
 }
@@ -559,6 +628,8 @@ export const marksOf = (
       Match.value(column).pipe(
         Match.when('description', () => Option.map(edit.description, ({ at }) => at)),
         Match.when('cents', () => Option.map(edit.cents, ({ at }) => at)),
+        Match.when('line', () => Option.map(edit.line, ({ at }) => at)),
+        Match.when('status', () => Option.map(edit.status, ({ at }) => at)),
         Match.orElse(() => Option.none()),
       ),
     )

@@ -55,6 +55,8 @@ test('an edit sent over the socket is committed and read back through Remote', a
             id: ProductId.make(productId(7)),
             description: Option.some('Over the socket'),
             cents: Option.none(),
+            line: Option.none(),
+            status: Option.none(),
           },
         ],
       }),
@@ -89,7 +91,13 @@ test('a commit wakes another replica’s exchange loop, which brings it the edit
     writing.submit(
       Message.EditedProducts({
         changes: [
-          { id: ProductId.make(productId(9)), description: Option.none(), cents: Option.some(42) },
+          {
+            id: ProductId.make(productId(9)),
+            description: Option.none(),
+            cents: Option.some(42),
+            line: Option.none(),
+            status: Option.none(),
+          },
         ],
       }),
     ),

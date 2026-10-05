@@ -68,6 +68,8 @@ const holdsThrough = (edits: Shared['edits'], through: number) =>
     [
       Option.flatMap(edit.description, field => field.at),
       Option.flatMap(edit.cents, field => field.at),
+      Option.flatMap(edit.line, field => field.at),
+      Option.flatMap(edit.status, field => field.at),
     ].some(at => Option.exists(at, committed => committed <= through)),
   )
 

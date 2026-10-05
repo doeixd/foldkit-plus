@@ -101,8 +101,19 @@ export const openServer = (
   const apply = (change: ProductChange, at: number) =>
     sqlite.runAll(
       `update products set description = coalesce(?, description), cents = coalesce(?, cents),
+        line = coalesce(?, line), status = coalesce(?, status),
         revision = ? where id = ? and revision <= ?`,
-      [[Option.getOrNull(change.description), Option.getOrNull(change.cents), at, change.id, at]],
+      [
+        [
+          Option.getOrNull(change.description),
+          Option.getOrNull(change.cents),
+          Option.getOrNull(change.line),
+          Option.getOrNull(change.status),
+          at,
+          change.id,
+          at,
+        ],
+      ],
     )
 
   return {

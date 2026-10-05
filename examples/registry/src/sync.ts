@@ -80,12 +80,14 @@ const changedCells = (operation: Operation): ReadonlyArray<Pick<Refusal, 'id' | 
     onSome: message =>
       Match.value(message).pipe(
         Match.tag('EditedProducts', ({ changes }) =>
-          changes.flatMap(change => [
-            ...(Option.isSome(change.description)
-              ? [{ id: change.id, column: 'description' as const }]
-              : []),
-            ...(Option.isSome(change.cents) ? [{ id: change.id, column: 'cents' as const }] : []),
-          ]),
+          changes.flatMap(change =>
+            [
+              { column: 'description' as const, changed: Option.isSome(change.description) },
+              { column: 'cents' as const, changed: Option.isSome(change.cents) },
+              { column: 'line' as const, changed: Option.isSome(change.line) },
+              { column: 'status' as const, changed: Option.isSome(change.status) },
+            ].flatMap(({ column, changed }) => (changed ? [{ id: change.id, column }] : [])),
+          ),
         ),
         Match.orElse(() => []),
       ),

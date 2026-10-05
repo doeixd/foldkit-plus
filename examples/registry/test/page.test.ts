@@ -230,12 +230,12 @@ test('an edit and a paste show at once, and the journal writes them to the table
     await vi.waitFor(() => expect(status()).toBe('Sending 1 edit…'))
     expect(server.backend.row(productId(2))).toMatchObject({ cents: seedOf(2).cents })
 
-    // Two rows of description, line and status pasted at row 0's description:
-    // line and status do not edit, so only the descriptions are one more edit.
+    // Two rows of description, price and line pasted at row 0's description:
+    // what each column decodes is one more edit, and a price it refuses is left.
     await pasteAt(
       productId(0),
       'description',
-      'Brass anchor\tGarden\tActive\nSteel bolt\tGarden\tActive\n',
+      'Brass anchor\tfree\tGarden\nSteel bolt\t4.00\tTools\n',
     )
     await vi.waitFor(() => expect(status()).toBe('Sending 2 edits…'))
 
@@ -244,9 +244,14 @@ test('an edit and a paste show at once, and the journal writes them to the table
     expect(server.backend.row(productId(2))).toMatchObject({ cents: 1250 })
     expect(server.backend.row(productId(0))).toMatchObject({
       description: 'Brass anchor',
-      line: seedOf(0).line,
+      cents: seedOf(0).cents,
+      line: 'Garden',
     })
-    expect(server.backend.row(productId(1))).toMatchObject({ description: 'Steel bolt' })
+    expect(server.backend.row(productId(1))).toMatchObject({
+      description: 'Steel bolt',
+      cents: 400,
+      line: 'Tools',
+    })
     expect(cell(productId(1), 'description')?.textContent).toBe('Steel bolt')
   } finally {
     await dispose()
@@ -298,6 +303,8 @@ test('an edit another device made shows here after an exchange', async () => {
               id: ProductId.make(productId(4)),
               description: Option.some('From the other tab'),
               cents: Option.none(),
+              line: Option.none(),
+              status: Option.none(),
             },
           ],
         }),
@@ -374,6 +381,8 @@ test('a committed edit shows until the table has it, then the table shows, whoev
               id: ProductId.make(productId(7)),
               description: Option.none(),
               cents: Option.some(999),
+              line: Option.none(),
+              status: Option.none(),
             },
           ],
         }),
@@ -398,7 +407,13 @@ test('an edit that says when it committed is refused, and the table keeps its pr
     forger.submit(
       Message.EditedProducts({
         changes: [
-          { id: ProductId.make(productId(8)), description: Option.none(), cents: Option.some(1) },
+          {
+            id: ProductId.make(productId(8)),
+            description: Option.none(),
+            cents: Option.some(1),
+            line: Option.none(),
+            status: Option.none(),
+          },
         ],
         at: 1_000_000,
       }),
@@ -425,6 +440,8 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
               id: ProductId.make(productId(index)),
               description: Option.none(),
               cents: Option.some(index),
+              line: Option.none(),
+              status: Option.none(),
             },
           ],
         }),
@@ -575,6 +592,8 @@ test('an edit another device committed later replaces this one, and the page say
               id: ProductId.make(productId(index)),
               description: Option.none(),
               cents: Option.some(cents),
+              line: Option.none(),
+              status: Option.none(),
             },
           ],
         }),
@@ -641,6 +660,41 @@ test('an edit another device committed later replaces this one, and the page say
     server.setTampering(false)
     await vi.waitFor(() => expect(markOf(productId(7), 'cents')).toBe('refused'))
     expect(latest().replaced).toEqual([])
+  } finally {
+    await dispose()
+  }
+})
+
+test('a line and a status are edited too, the status as a choice of the Product’s own', async () => {
+  const server = serve()
+  const { dispose, exchange } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(4), 'status')).not.toBeNull())
+    await edit(productId(4), 'line', 'Lighting')
+    await vi.waitFor(() => expect(cell(productId(4), 'line')?.textContent).toBe('Lighting'))
+
+    await focusOn(productId(4), 'status')
+    press(grid(), 'Enter')
+    const choice = () => document.querySelector<HTMLSelectElement>('#products select')
+    await vi.waitFor(() => expect(choice()).not.toBeNull())
+    expect(Array.from(choice()!.options, option => option.value)).toEqual([
+      'Active',
+      'Discontinued',
+      'Pending',
+    ])
+    choice()!.value = 'Discontinued'
+    choice()!.dispatchEvent(new Event('change', { bubbles: true }))
+    press(choice()!, 'Enter')
+    await vi.waitFor(() => expect(cell(productId(4), 'status')?.textContent).toBe('Discontinued'))
+    expect(markOf(productId(4), 'status')).toBe('pending')
+
+    await exchange()
+    await vi.waitFor(() =>
+      expect(server.backend.row(productId(4))).toMatchObject({
+        line: 'Lighting',
+        status: 'Discontinued',
+      }),
+    )
   } finally {
     await dispose()
   }

@@ -17,8 +17,9 @@ version changed; `pnpm` skips versions already in the registry.
   cell's padding; an editable cell carries `data-editable` and shows a text
   cursor. The pinned column next to the scrolling ones carries
   `data-pinned-edge`, drawn as a divider, so a pinned column is seen to be.
-  The registry sorts every column the server can order: UPC, line and
-  status too.
+  The registry sorts every column the server can order, UPC, line and
+  status too, and edits the line and the status as well (a choice of the
+  Product's statuses), so a double-click on any column but the UPC edits.
 - **`foldkit-durable/core`: the journal without Node.** `makeJournalOn(options)`
   opens the journal over the `SqlClient` in context, any `effect/sql`
   SQLite client, such as `@effect/sql-sqlite-wasm` in a browser, where a

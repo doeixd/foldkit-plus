@@ -10,6 +10,7 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
 import { Grid, Message, Products, exchangeOf, marksOf, rowsOf, type Model } from './app.js'
+import type { EditedColumn } from './domain.js'
 import { ProductSort } from './operations.js'
 
 const Registry = DataGridView<Message>()
@@ -47,8 +48,8 @@ const Registry = DataGridView<Message>()
     ),
   )
 
-const columnName = (column: 'description' | 'cents') =>
-  column === 'cents' ? 'Price' : 'Description'
+const columnNames = { description: 'Description', cents: 'Price', line: 'Line', status: 'Status' }
+const columnName = (column: EditedColumn) => columnNames[column]
 
 /** The refused edits, one per operation, naming the cells each had changed. */
 const refusedEdits = (model: Model) => {

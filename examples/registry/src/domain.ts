@@ -51,6 +51,10 @@ export const ProductRow = Entity.select(Product, {
   revision: true,
 })
 
+/** The columns an edit can change. */
+export const EditedColumn = Schema.Literals(['description', 'cents', 'line', 'status'])
+export type EditedColumn = typeof EditedColumn.Type
+
 /**
  * One product's edited fields: what a cell edit or a paste asks the server to
  * write. Each is the member's own schema, so the server refuses an empty
@@ -60,5 +64,7 @@ export const ProductChange = Schema.Struct({
   id: ProductId,
   description: Schema.OptionFromNullOr(Product.fields.description.schema),
   cents: Schema.OptionFromNullOr(Product.fields.cents.schema),
+  line: Schema.OptionFromNullOr(Product.fields.line.schema),
+  status: Schema.OptionFromNullOr(Product.fields.status.schema),
 })
 export type ProductChange = typeof ProductChange.Type

@@ -32,7 +32,13 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
     replica.submit(
       Message.EditedProducts({
         changes: [
-          { id: ProductId.make(productId(1)), description: Option.none(), cents: Option.some(5) },
+          {
+            id: ProductId.make(productId(1)),
+            description: Option.none(),
+            cents: Option.some(5),
+            line: Option.none(),
+            status: Option.none(),
+          },
         ],
       }),
     ),
@@ -83,6 +89,8 @@ test('the table only moves forward, so recovery may write an edit again', () => 
     id: ProductId.make(productId(1)),
     description: Option.none(),
     cents: Option.some(cents),
+    line: Option.none(),
+    status: Option.none(),
   })
   backend.apply(price(500), 5)
   // An older edit run again after a newer one, as recovery may: nothing changes.
@@ -90,7 +98,13 @@ test('the table only moves forward, so recovery may write an edit again', () => 
   expect(backend.row(productId(1))).toMatchObject({ cents: 500, revision: 5 })
   // A second change to the product in the same operation is written too.
   backend.apply(
-    { id: ProductId.make(productId(1)), description: Option.some('Renamed'), cents: Option.none() },
+    {
+      id: ProductId.make(productId(1)),
+      description: Option.some('Renamed'),
+      cents: Option.none(),
+      line: Option.none(),
+      status: Option.none(),
+    },
     5,
   )
   expect(backend.row(productId(1))).toMatchObject({
@@ -119,6 +133,8 @@ const editAndSend = async (
               id: ProductId.make(productId(index)),
               description: Option.none(),
               cents: Option.some(cents),
+              line: Option.none(),
+              status: Option.none(),
             },
           ],
         }),

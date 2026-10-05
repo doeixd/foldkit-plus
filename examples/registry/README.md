@@ -81,9 +81,11 @@ cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: edits m
   -> the server records that the table holds it; replicas drop it, the log is compacted
 ```
 
-Each editable column's `schema` decides what its text means: `Dollars` reads
-"4.99" as 499 cents through the Product's own `cents` schema, and
-`Description` trims and refuses an empty one. A draft is committed only when it
+Description, price, line and status edit; the UPC does not. Each editable
+column's `schema` decides what its text means: `Dollars` reads "4.99" as 499
+cents through the Product's own `cents` schema, `Description` and `LineName`
+trim and refuse an empty one, and the status is the Product's own literals, so
+its editor is a choice of them. A draft is committed only when it
 decodes, and the check's message ("A price, like 4.99") is the cell's error, so
 nothing the schema refuses becomes an operation. The journal decodes every operation against the Message's schema,
 which is the Product's own field schemas, so an empty description or a
