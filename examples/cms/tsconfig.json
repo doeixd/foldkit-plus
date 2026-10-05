@@ -72,7 +72,7 @@
     },
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
     {
       "path": "../../packages/mixins-ui/tsconfig.build.json"

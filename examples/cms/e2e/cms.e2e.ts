@@ -5,9 +5,13 @@
  */
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
-import { createServer, type ViteDevServer } from 'vite'
+import { createServer, mergeConfig, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { startHttpServer } from '../src/server/http.js'
+// Read through Vitest, which compiles it and resolves the workspace sources:
+// Vite 5 loading the file itself hands `foldkit-ssr/vite`'s source to Node,
+// which cannot follow its `.js` imports to `.ts` files without a build.
+import config from '../vite.config.js'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 let vite: ViteDevServer
@@ -16,16 +20,18 @@ let url: string
 
 beforeAll(async () => {
   server = await startHttpServer(0)
-  vite = await createServer({
-    root: fileURLToPath(new URL('..', import.meta.url)),
-    configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
-    logLevel: 'error',
-    server: {
-      port: 0,
-      // The proxy goes to this run's server, on the port it was given.
-      proxy: { '/remote': { target: new URL(server.url).origin } },
-    },
-  })
+  vite = await createServer(
+    mergeConfig(config, {
+      root: fileURLToPath(new URL('..', import.meta.url)),
+      configFile: false,
+      logLevel: 'error',
+      server: {
+        port: 0,
+        // The proxy goes to this run's server, on the port it was given.
+        proxy: { '/remote': { target: new URL(server.url).origin } },
+      },
+    }),
+  )
   await vite.listen()
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
   browser = await chromium.launch()
