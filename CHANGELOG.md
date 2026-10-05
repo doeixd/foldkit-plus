@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync/journal`: `editsJournal`, the table as the journal's read
+  model.** Its `settle` applies each committed change through the
+  application's `apply` as a recovery intent and its `absorb` records what
+  the table holds and compacts behind it. Recovery starts at the journal's
+  floor, so a server restarted over a compacted journal no longer fails
+  every exchange asking for history that is gone; intents are keyed by the
+  journal's epoch, so an operation sent again after a reset is applied
+  again. The registry's journal is built on it (#166).
 - **`foldkit-sync/entity`: edits to rows a server owns.** `EditableEntity.make(
   entity, { members })` keeps edits one per cell, each value typed by its
   member, committed `at` a sequence `by` an author (`{ actor, replica }`),

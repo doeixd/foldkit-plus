@@ -524,7 +524,12 @@ the schemas (`Change` on the wire, `Edit` in the slice, the Message fields
 `RowModel.map`), `held` and `settled` (an edit the journal absorbed, kept until
 a read of its row reaches it), `replaced` (a cell of this tab's that another's
 later commit took) and `cellsOf` (what a refusal undid). It owns no state and
-does no I/O. [`examples/registry`](../../examples/registry) is the whole of it.
+does no I/O. On the server, `editsJournal` from `foldkit-sync/journal` keeps
+the table: its `settle` (for `journalExchange`) applies each committed change
+through your `apply` as a recovery intent, from the journal's floor and keyed
+by its epoch, and its `absorb` (on a clock) records what the table holds and
+compacts behind it. [`examples/registry`](../../examples/registry) is the
+whole of it.
 
 ## Testing without a browser or a server
 

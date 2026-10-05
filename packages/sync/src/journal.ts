@@ -12,6 +12,7 @@ import { Effect, Fiber, Match, Option, Schema, Stream } from 'effect'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
+  Sequence,
   type Committed,
   type Journal,
 } from 'foldkit-durable/core'
@@ -208,4 +209,103 @@ export const serveJournal = <Message, Shared, Principal>(
     exchange: (cursor, pending, epoch) => client.exchange(sequence(cursor), pending, epoch),
     changes: journalChanges(options.journal, options.sync.documentId),
   })
+}
+
+export interface EditsJournalOptions<Shared, Principal, Change> {
+  /** The document whose edits the table reads. */
+  readonly documentId: string
+  /** The journal the edits commit to. */
+  readonly journal: Journal<Operation, Shared, Principal, Operation>
+  /**
+   * The cells an operation edits, with the sequence its stamp wrote in; none
+   * for an operation that edits nothing. An edit committed without a sequence
+   * is not this journal's: its intents fail rather than write revision 0.
+   */
+  readonly editsOf: (operation: Operation) => Option.Option<{
+    readonly changes: ReadonlyArray<Change>
+    readonly at: Option.Option<number>
+  }>
+  /**
+   * Writes one committed change to the table, with the sequence it committed
+   * at. It runs as a recovery intent, so it may run again after a crash: it
+   * must never move a row back (`revision <= at`). A failure stops recovery
+   * there, and the next settle tries it again.
+   */
+  readonly apply: (change: Change, at: number) => Effect.Effect<void, unknown>
+  /** Whether the snapshot still keeps an edit committed through `through`: whether to absorb. */
+  readonly holdsThrough: (snapshot: Shared, through: number) => boolean
+  /**
+   * The server's operation saying the table holds every edit through
+   * `through`, sequenced from `cursor`, the journal's: the replicas drop those
+   * edits on hearing it.
+   */
+  readonly absorbed: (through: number, cursor: number) => Operation
+  /** Who the server commits `absorbed` as; the contract's `authorize` should let only it. */
+  readonly server: Principal
+}
+
+/**
+ * The table as the journal's read model: `settle` applies each committed
+ * edit through `apply`, as a recovery intent, and `absorb` records in the
+ * journal what the table holds and compacts the log behind it. For
+ * `journalExchange`'s `settle`, and a clock that absorbs.
+ *
+ * Recovery starts at the journal's floor, where compaction left it, so a
+ * server restarted over a journal that outlived it does not ask for history
+ * that is gone. Intents are keyed by the journal's epoch as well as the
+ * operation, so after a reset an operation sent again is applied again, not
+ * taken as already run.
+ */
+export const editsJournal = <Shared, Principal, Change>(
+  options: EditsJournalOptions<Shared, Principal, Change>,
+): {
+  readonly settle: Effect.Effect<void, unknown>
+  readonly absorb: Effect.Effect<void, unknown>
+} => {
+  const { journal } = options
+  const key = JournalDocumentId.make(options.documentId)
+  // Operations at or before `applied.cursor` have every change in the table,
+  // in `applied.epoch`: none until a settle has run in this process.
+  let applied: Option.Option<{ readonly cursor: Cursor; readonly epoch: string }> = Option.none()
+  const intents = (epoch: string) => (operation: Operation) =>
+    Option.match(options.editsOf(operation), {
+      onNone: () => [],
+      onSome: ({ changes, at }) =>
+        changes.map((change, index) => ({
+          key: `${epoch}:${operation.opId}:${index}`,
+          run: Option.match(at, {
+            onNone: () =>
+              Effect.fail(new Error(`Edit ${operation.opId} committed without its sequence`)),
+            onSome: sequence => options.apply(change, sequence),
+          }),
+        })),
+    })
+  const settle = Effect.gen(function* () {
+    const epoch = yield* journal.epoch(key)
+    // A new epoch is a new history: recovery starts over at its floor.
+    const from = yield* Option.match(
+      Option.filter(applied, previous => previous.epoch === epoch),
+      {
+        onSome: ({ cursor }) => Effect.succeed(cursor),
+        onNone: () => Effect.map(journal.floor(key), floor => Cursor.make(floor)),
+      },
+    )
+    const cursor = yield* journal.recover({ key, from, intents: intents(epoch) })
+    applied = Option.some({ cursor, epoch })
+  })
+  // Two absorbs at once need no lock: both name the record by the journal's
+  // cursor, so the second is the first's retry, answered from history.
+  const absorb = Effect.gen(function* () {
+    const epoch = yield* journal.epoch(key)
+    const known = Option.filter(applied, previous => previous.epoch === epoch)
+    if (Option.isNone(known)) return
+    const through = known.value.cursor
+    const { snapshot, cursor } = yield* journal.load(key)
+    if (!options.holdsThrough(snapshot, through)) return
+    yield* journal.append(key, options.absorbed(through, cursor), options.server)
+    // What the log holds through `through` is in the table and gone from
+    // the snapshot; a replica behind it is sent the snapshot instead.
+    yield* journal.compact(key, Sequence.make(through))
+  })
+  return { settle, absorb }
 }

@@ -7,27 +7,30 @@
  * what committed since. What is this registry's own is applying an edit.
  *
  * The table is the journal's read model: the seed with every committed edit
- * applied. Applying is the journal's effect recovery: each change is an intent
- * keyed by its operation and position, run once and recorded, and `recover`
- * advances only past operations whose intents all ran. A write carries the
- * sequence it committed at and never moves a row back, so an intent run again
- * after a crash changes nothing a later one wrote.
+ * applied, by `editsJournal` from `foldkit-sync/journal`. Each change is a
+ * recovery intent, keyed by the journal's epoch, its operation and position,
+ * run once and recorded; recovery starts at the journal's floor and advances
+ * only past operations whose intents all ran. A write carries the sequence it
+ * committed at and never moves a row back, so an intent run again after a
+ * crash changes nothing a later one wrote. What is this registry's own is the
+ * write, and the Messages it reads and records.
  *
  * Once the table holds edits, `absorb` says so in the journal itself, as the
  * server: the replicas drop them, and the log behind them is compacted.
  */
-import { Effect, Match, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
+import { ActorId, OpId, type Journal, type JournalStoreOptions } from 'foldkit-durable/core'
 import {
-  ActorId,
-  Cursor,
-  DocumentId,
-  OpId,
-  Sequence,
-  type Journal,
-  type JournalStoreOptions,
-} from 'foldkit-durable/core'
-import { Sync, type Operation, type SocketLike, type TransportClient } from 'foldkit-sync'
-import { journalExchange, serveJournal } from 'foldkit-sync/journal'
+  Sync,
+  localSequence,
+  opId,
+  replicaId,
+  sequence,
+  type Operation,
+  type SocketLike,
+  type TransportClient,
+} from 'foldkit-sync'
+import { editsJournal, journalExchange, serveJournal } from 'foldkit-sync/journal'
 import { Message } from './app.js'
 import { type ProductChange, ProductEdits } from './domain.js'
 import {
@@ -90,57 +93,33 @@ export const openJournal = (
   apply: (change: ProductChange, at: number) => void,
   journal: Journal<Operation, Shared, Principal>,
 ): EditJournal => {
-  const key = DocumentId.make(RegistrySync.documentId)
-
-  // Operations at or before `applied` have every change in the table.
-  let applied = Cursor.make(0)
-  const intents = (operation: Operation) =>
-    Match.value(decodeMessage(operation.message)).pipe(
-      Match.tag('EditedProducts', ({ changes, at }) =>
-        changes.map((change, index) => ({
-          key: `${operation.opId}:${index}`,
-          // The stamp gave every committed edit its sequence; one without is
-          // not this journal's, and fails rather than writing revision 0.
-          run:
-            at === undefined
-              ? Effect.fail(new Error(`Edit ${operation.opId} committed without its sequence`))
-              : // A write that throws fails the intent rather than dying, so
-                // recovery stops there and the next exchange tries it again.
-                Effect.try(() => apply(change, at)),
-        })),
+  const { settle, absorb } = editsJournal({
+    documentId: RegistrySync.documentId,
+    journal,
+    editsOf: operation =>
+      Match.value(decodeMessage(operation.message)).pipe(
+        Match.tag('EditedProducts', ({ changes, at }) =>
+          Option.some({ changes, at: Option.fromUndefinedOr(at) }),
+        ),
+        Match.orElse(() => Option.none()),
       ),
-      Match.orElse(() => []),
-    )
-  // Suspended, so each exchange recovers from where the last one got to.
-  const settle = Effect.suspend(() =>
-    Effect.map(journal.recover({ key, from: applied, intents }), cursor => {
-      applied = cursor
+    // A write that throws fails the intent rather than dying, so recovery
+    // stops there and the next exchange tries it again.
+    apply: (change, at) => Effect.try(() => apply(change, at)),
+    holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
+    // The server writes as a producer of its own, sequenced from the
+    // authoritative cursor, which only advances and keeps each id unique.
+    absorbed: (through, cursor) => ({
+      protocolVersion: 1,
+      schemaVersion: 1,
+      documentId: RegistrySync.documentId,
+      replicaId: replicaId(server.actorId),
+      localSequence: localSequence(cursor + 1),
+      opId: opId(`${server.actorId}:${cursor + 1}`),
+      baseCursor: sequence(cursor),
+      message: encodeMessage(Message.AbsorbedEdits({ through })),
     }),
-  )
-
-  // The server writes as a producer of its own, sequenced from the
-  // authoritative cursor, which only advances and keeps each id unique.
-  const absorb = Effect.gen(function* () {
-    const through = applied
-    const { snapshot, cursor } = yield* journal.load(key)
-    if (!ProductEdits.holdsThrough(snapshot.edits, through)) return
-    yield* journal.append(
-      key,
-      {
-        protocolVersion: 1,
-        schemaVersion: 1,
-        documentId: RegistrySync.documentId,
-        replicaId: server.actorId,
-        localSequence: cursor + 1,
-        opId: `${server.actorId}:${cursor + 1}`,
-        baseCursor: cursor,
-        message: encodeMessage(Message.AbsorbedEdits({ through })),
-      },
-      server,
-    )
-    // What the log holds through `through` is in the table and gone from the
-    // snapshot; a replica behind it is sent the snapshot instead.
-    yield* journal.compact(key, Sequence.make(through))
+    server,
   })
 
   const options = { sync: RegistrySync, journal, principal: everyone, settle }
