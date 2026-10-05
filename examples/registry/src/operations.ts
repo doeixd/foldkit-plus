@@ -7,7 +7,7 @@ import { Query } from 'foldkit-remote'
 import { Registry } from './domain.js'
 
 /** The orders the registry offers, by name; the server says what each one means. */
-export const ProductSort = Sort.make(['description', 'cents'])
+export const ProductSort = Sort.make(['upc', 'description', 'line', 'status', 'cents'])
 
 export const ProductsQuery = Query.make('Products', {
   Input: { sort: ProductSort.Schema },

@@ -187,6 +187,20 @@ test('reads the first page, sorts on the server, and reads more', async () => {
     await vi.waitFor(() => expect(cell(dearest.id, 'upc')?.textContent).toBe(dearest.upc))
     expect(sorted()).toBe('descending')
 
+    // Every column the server can order sorts: Line, A to Z, puts Electrical first,
+    // ties by id, so product 3, the first of that line.
+    const sortBy = (header: string) =>
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>('#products [role="columnheader"] button'),
+      ).find(button => button.textContent === header)!
+    click(sortBy('Line'))
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('#products [role="row"][aria-rowindex="2"]')?.textContent,
+      ).toContain(seedOf(3).upc),
+    )
+    expect(seedOf(3).line).toBe('Electrical')
+
     // More reads the next page of the same order.
     click(
       Array.from(document.querySelectorAll('#products button')).find(

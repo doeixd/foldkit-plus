@@ -220,6 +220,15 @@ const view = <Message>() => ({
           if (endInsets.has(id)) return Option.some('end')
           return Option.none()
         }
+        // The pinned column next to the columns that scroll, where a style draws
+        // the edge the others pass under.
+        const startEdge = shown.start.at(-1)
+        const endEdge = shown.end[0]
+        const pinnedEdge = (id: Id) => {
+          if (id === startEdge) return [h.DataAttribute('pinned-edge', 'start')]
+          if (id === endEdge) return [h.DataAttribute('pinned-edge', 'end')]
+          return []
+        }
 
         const cellStyle = (id: Id): Record<string, string> => {
           const base = { boxSizing: 'border-box', width: px(Math.max(0, width(id))), flex: 'none' }
@@ -899,6 +908,7 @@ const view = <Message>() => ({
                 onNone: () => [],
                 onSome: edge => [h.DataAttribute('pinned', edge)],
               }),
+              ...pinnedEdge(id),
               ...Option.match(sortOf(id), {
                 onNone: () => [],
                 onSome: sorted => [h.AriaSort(ariaSort(sorted.direction))],
@@ -970,6 +980,10 @@ const view = <Message>() => ({
                       ({ box, ids }) =>
                         index >= box.rows.start && index < box.rows.end && ids.has(id),
                     )
+                    const edited = Option.filter(
+                      editing,
+                      edit => edit.address.row === key && edit.address.column === id,
+                    )
                     return h.div(
                       slots.cell.attrs([
                         h.Role('gridcell'),
@@ -982,6 +996,19 @@ const view = <Message>() => ({
                           onNone: () => [],
                           onSome: edge => [h.DataAttribute('pinned', edge)],
                         }),
+                        ...pinnedEdge(id),
+                        // Editable: double-clicking edits, as Enter does.
+                        ...(editable(id)
+                          ? [
+                              h.DataAttribute('editable', 'true'),
+                              h.OnDoubleClick(
+                                input.wrap(
+                                  grid.Message.EditStarted({ address, draft: draftOf(address) }),
+                                ),
+                              ),
+                            ]
+                          : []),
+                        ...(Option.isSome(edited) ? [h.DataAttribute('editing', 'true')] : []),
                         ...Option.match(markOf(address), {
                           onNone: () => [],
                           onSome: mark => [
@@ -990,18 +1017,12 @@ const view = <Message>() => ({
                           ],
                         }),
                       ]),
-                      Option.match(
-                        Option.filter(
-                          editing,
-                          edit => edit.address.row === key && edit.address.column === id,
-                        ),
-                        {
-                          onNone: () => [
-                            input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
-                          ],
-                          onSome: edit => [editorOf(address, edit)],
-                        },
-                      ),
+                      Option.match(edited, {
+                        onNone: () => [
+                          input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
+                        ],
+                        onSome: edit => [editorOf(address, edit)],
+                      }),
                     )
                   }),
                 ),

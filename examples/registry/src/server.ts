@@ -111,9 +111,15 @@ export const openServer = (
       queries: [
         query(ProductsQuery, {
           entity: Db.Product,
-          // A description is not unique, so the adapter breaks ties by id; no sort is id order.
+          // Only a UPC is unique, so the adapter breaks ties by id; no sort is id order.
           orderBy: ({ sort }) =>
-            sortTerms(sort, { description: products.description, cents: products.cents }),
+            sortTerms(sort, {
+              upc: products.upc,
+              description: products.description,
+              line: products.line,
+              status: products.status,
+              cents: products.cents,
+            }),
         }),
       ],
     }),

@@ -12,6 +12,27 @@ const ref = Theme.ref(
 )
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
+// Where the pinned columns end and the scrolling ones pass under them.
+const pinnedEdge = [
+  Style.nest('&[data-pinned-edge="start"]', {
+    borderInlineEnd: `${ref.border.thick} solid ${ref.outline.default}`,
+  }),
+  Style.nest('&[data-pinned-edge="end"]', {
+    borderInlineStart: `${ref.border.thick} solid ${ref.outline.default}`,
+  }),
+] as const
+// The field an edit is typed in fills its cell, the cell lifted off the grid
+// (below), so an edit does not look like a cell that only has focus.
+const field = Style.self({
+  background: ref.surface.base,
+  border: 'none',
+  caretColor: ref.outline.focus,
+  color: 'inherit',
+  font: 'inherit',
+  outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+  outlineOffset: `calc(-1 * ${ref.border.thick})`,
+  paddingInline: ref.space.sm,
+})
 
 /** Every piece is in the `components` layer, so an application's own layer wins. */
 export const GridStyle = Style.forSlots(GridSlots)(
@@ -39,6 +60,7 @@ export const GridStyle = Style.forSlots(GridSlots)(
         userSelect: 'none',
       }),
       Style.nest('&[data-pinned]', { zIndex: '1' }),
+      ...pinnedEdge,
       Style.nest('&[data-dragging]', {
         zIndex: '3',
         background: ref.surface.default,
@@ -64,6 +86,16 @@ export const GridStyle = Style.forSlots(GridSlots)(
       }),
       // A pinned cell is drawn over the cells scrolling under it, so it needs a ground.
       Style.nest('&[data-pinned]', { background: ref.surface.base, zIndex: '1' }),
+      ...pinnedEdge,
+      // A text cursor says a double-click edits; the edited cell gives its
+      // padding to the field.
+      Style.nest('&[data-editable]', { cursor: 'text' }),
+      // On the cell, which clips what is in it.
+      Style.nest('&[data-editing]', {
+        boxShadow: `0 2px 10px color-mix(in oklch, ${ref.text.default} 30%, transparent)`,
+        paddingInline: '0',
+        zIndex: '2',
+      }),
       Style.nest('&[data-focused="true"]', {
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: `calc(-1 * ${ref.border.thick})`,
@@ -75,6 +107,8 @@ export const GridStyle = Style.forSlots(GridSlots)(
         backgroundImage: `radial-gradient(circle at calc(100% - 6px) 6px, ${ref.outline.focus} 3px, transparent 3.5px)`,
       }),
     ),
+    editor: field,
+    choice: field,
     menuButton: Style.compose(
       Style.self({
         background: 'none',

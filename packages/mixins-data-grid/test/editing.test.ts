@@ -79,7 +79,8 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-test('cells are edited by keyboard, and the application hears the text', async () => {
+/** The grid on the real runtime, with the last Model it reached. */
+const mount = () => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -104,10 +105,15 @@ test('cells are edited by keyboard, and the application hears the text', async (
       view,
     }),
   )
-  const grid = () => document.getElementById('items')!
-  const editor = () => document.querySelector<HTMLInputElement>('#items input')
-  const cell = (row: string, column: 'id' | 'name' | 'qty') =>
-    GridFocus.cellId('items', { row, column })
+  return { handle, latest: () => latest }
+}
+const grid = () => document.getElementById('items')!
+const editor = () => document.querySelector<HTMLInputElement>('#items input')
+const cell = (row: string, column: 'id' | 'name' | 'qty') =>
+  GridFocus.cellId('items', { row, column })
+
+test('cells are edited by keyboard, and the application hears the text', async () => {
+  const { handle, latest } = mount()
   const press = (target: Element, key: string, modifiers: KeyboardEventInit = {}) => {
     const event = new KeyboardEvent('keydown', {
       key,
@@ -145,7 +151,7 @@ test('cells are edited by keyboard, and the application hears the text', async (
     // The editor's arrows are its own: the grid's focus does not move.
     expect(press(editor()!, 'ArrowLeft').defaultPrevented).toBe(false)
     expect(press(editor()!, 'Enter').defaultPrevented).toBe(true)
-    await vi.waitFor(() => expect(latest.edits).toEqual(['r0.name=Anchor']))
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r0.name=Anchor']))
     await vi.waitFor(() => expect(editor()).toBeNull())
     expect(grid().getAttribute('aria-activedescendant')).toBe(cell('r1', 'name'))
     expect(document.activeElement).toBe(grid())
@@ -157,7 +163,7 @@ test('cells are edited by keyboard, and the application hears the text', async (
     await vi.waitFor(() => expect(editor()?.value).toBe('Bo'))
     type('Bolt')
     press(editor()!, 'Tab')
-    await vi.waitFor(() => expect(latest.edits).toEqual(['r0.name=Anchor', 'r1.name=Bolt']))
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r0.name=Anchor', 'r1.name=Bolt']))
     await vi.waitFor(() =>
       expect(grid().getAttribute('aria-activedescendant')).toBe(cell('r1', 'qty')),
     )
@@ -169,20 +175,42 @@ test('cells are edited by keyboard, and the application hears the text', async (
     press(editor()!, 'Enter')
     await vi.waitFor(() => expect(editor()?.getAttribute('aria-invalid')).toBe('true'))
     expect(editor()?.getAttribute('aria-description')).toBe('Whole numbers only')
-    expect(latest.edits).toHaveLength(2)
+    expect(latest().edits).toHaveLength(2)
 
     // Escape cancels, reporting nothing, and hands focus back.
     press(editor()!, 'Escape')
     await vi.waitFor(() => expect(editor()).toBeNull())
-    expect(latest.edits).toHaveLength(2)
+    expect(latest().edits).toHaveLength(2)
 
     // Escape on the grid, before a typed edit's editor is drawn, cancels it too.
     press(grid(), '7')
     press(grid(), 'Escape')
     await new Promise(resolve => setTimeout(resolve, 30))
     expect(editor()).toBeNull()
-    expect(latest.edits).toHaveLength(2)
+    expect(latest().edits).toHaveLength(2)
     expect(document.activeElement).toBe(grid())
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a double-click edits a cell that can be edited, and no other', async () => {
+  const { handle } = mount()
+  const doubleClick = (id: string) =>
+    document.getElementById(id)!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+  try {
+    await vi.waitFor(() => expect(document.getElementById(cell('r2', 'name'))).not.toBeNull())
+    expect(document.getElementById(cell('r2', 'name'))!.getAttribute('data-editable')).toBe('true')
+    expect(document.getElementById(cell('r2', 'id'))!.hasAttribute('data-editable')).toBe(false)
+
+    doubleClick(cell('r2', 'id'))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(editor()).toBeNull()
+
+    doubleClick(cell('r2', 'name'))
+    await vi.waitFor(() => expect(editor()?.value).toBe('Item 2'))
+    expect(document.getElementById(cell('r2', 'name'))!.getAttribute('data-editing')).toBe('true')
+    expect(document.getElementById(cell('r1', 'name'))!.hasAttribute('data-editing')).toBe(false)
   } finally {
     handle.dispose()
   }

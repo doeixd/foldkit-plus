@@ -149,14 +149,18 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   them (the `choice` and `choiceOption` slots), opened on the cell's value
   even by a typed key; one that decodes to a number is a text field with a
   decimal keypad on touch; anything else is text (`editor`).
-- **Editing**, for a column with `edit`: Enter or F2 opens a text field in
-  the focused cell on its text, and a printable key opens it on that
+- **Editing**, for a column with `edit`: Enter, F2 or a double-click opens a
+  text field in the cell on its text, and a printable key opens it on that
   character (`EditTyped`); keys typed before the field is drawn add to it,
   and Escape before then cancels it. In the field, Enter commits and moves down (Shift+Enter up), Tab
   commits and moves across (Shift+Tab back), and Escape cancels; the arrows
   are the field's own. A draft the column's `schema` refuses stays open
   with `aria-invalid` and the error as `aria-description`. Focus comes back
-  to the grid when the field goes. Clicking another cell commits first.
+  to the grid when the field goes. Clicking another cell commits first. An
+  editable cell carries `data-editable` (`GridStyle` gives it a text cursor),
+  and the cell being edited `data-editing`, which `GridStyle` lifts with a
+  shadow and hands its padding to the field, outlined in the focus colour
+  with a caret of it, so an edit does not look like a cell that only has focus.
 - **The clipboard** works on the range, or the focused cell. Copy puts it on
   the clipboard as tab-separated text, as spreadsheets read it; paste lays
   text from the range's corner onto editable cells and the application
@@ -194,7 +198,9 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   with, marked `data-sort` (`asc` or `desc`) while sorted, which `GridStyle`
   draws as an arrow; Enter on the focused header sends it too.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
-  `data-pinned="start"` or `"end"`; the focused cell carries
+  `data-pinned="start"` or `"end"`; the pinned column next to the scrolling
+  ones also carries `data-pinned-edge`, header and cells, where `GridStyle`
+  draws the divider they pass under. The focused cell carries
   `data-focused="true"`.
 
 ## Styling

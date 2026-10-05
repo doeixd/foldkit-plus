@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-data-grid`: an edit looks like one, and a pin shows.**
+  A double-click opens an editable cell's editor, as Enter does. The cell
+  being edited carries `data-editing`, and `GridStyle` lifts it with a
+  shadow and gives the field the whole cell, outlined and with a caret in
+  the focus colour, where before it was the browser's bare input inside the
+  cell's padding; an editable cell carries `data-editable` and shows a text
+  cursor. The pinned column next to the scrolling ones carries
+  `data-pinned-edge`, drawn as a divider, so a pinned column is seen to be.
+  The registry sorts every column the server can order: UPC, line and
+  status too.
 - **`foldkit-durable/core`: the journal without Node.** `makeJournalOn(options)`
   opens the journal over the `SqlClient` in context, any `effect/sql`
   SQLite client, such as `@effect/sql-sqlite-wasm` in a browser, where a

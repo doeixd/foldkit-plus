@@ -442,4 +442,29 @@ describe('DataGridView', () => {
     expect(asked.length).toBe(cells.length)
     expect(asked.every(address => Number(address.row.slice(1)) < 10)).toBe(true)
   })
+
+  test('marks the pinned column next to the scrolling ones, header and cells, and only it', () => {
+    const twoPinned = Columns.define<Item>()({
+      id: { header: 'Id', value: item => item.id, pinned: 'start', width: 60 },
+      name: { header: 'Name', value: item => item.name, pinned: 'start', width: 100 },
+      qty: { header: 'Qty', value: item => item.qty, width: 80 },
+      notes: { header: 'Notes', value: () => '', pinned: 'end', width: 80 },
+    })
+    const Pinned = DataGrid.make({ id: 'pinned', columns: twoPinned })
+    const drawn = Inert.draw(DataGridView<typeof Pinned.Message.Type>().define(Pinned), {
+      state: {
+        ...Pinned.bundle.init(undefined).model,
+        viewport: { top: 0, left: 0, width: 400, height: 120 },
+      },
+      rows: allRows,
+      wrap: message => message,
+      label: 'Pinned',
+      rowHeight: 20,
+      headerHeight: 20,
+    })
+    const edges = (role: string) =>
+      Inert.byRole(drawn, role).map(node => Inert.value(node, 'data-pinned-edge') ?? '-')
+    expect(edges('columnheader')).toEqual(['-', 'start', '-', 'end'])
+    expect(edges('gridcell').slice(0, 4)).toEqual(['-', 'start', '-', 'end'])
+  })
 })

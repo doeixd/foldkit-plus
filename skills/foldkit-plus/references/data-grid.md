@@ -120,6 +120,9 @@ the whole wiring, compiled.
   header, where Shift+Arrow resizes and Ctrl/Meta+Shift+Arrow reorders. A
   header dragged with the pointer reorders too. `columnMenu: true` on the
   view adds a menu to each header to pin, unpin, hide and show columns.
+- Editing opens with Enter, F2, a typed key or a double-click. Cells carry
+  `data-editable` and `data-editing`, and the last pinned column
+  `data-pinned-edge`, for styles; `GridStyle` draws them.
 - `marks: address => Option.some({ name, description })` on the view gives a
   cell a state of the application's (an unsaved edit): `data-mark` on the
   cell Slot, styled by name, and the text as its `aria-description`.
