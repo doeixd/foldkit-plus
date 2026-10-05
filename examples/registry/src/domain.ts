@@ -6,6 +6,7 @@
 import { Schema } from 'effect'
 import { Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
+import { EditableEntity } from 'foldkit-sync/entity'
 
 export const ProductId = Schema.String.pipe(Schema.brand('ProductId'))
 export type ProductId = typeof ProductId.Type
@@ -51,20 +52,17 @@ export const ProductRow = Entity.select(Product, {
   revision: true,
 })
 
-/** The columns an edit can change. */
-export const EditedColumn = Schema.Literals(['description', 'cents', 'line', 'status'])
+/** The members an edit can change, in the grid's order. */
+export const editedColumns = ['description', 'cents', 'line', 'status'] as const
+export const EditedColumn = Schema.Literals(editedColumns)
 export type EditedColumn = typeof EditedColumn.Type
 
 /**
- * One product's edited fields: what a cell edit or a paste asks the server to
- * write. Each is the member's own schema, so the server refuses an empty
- * description or a negative price whatever the client checked.
+ * Edits to products, one per cell: a change is one member's new value, by
+ * that member's own schema, so the server refuses an empty description or a
+ * negative price whatever the client checked. The client keeps them and lays
+ * them over its rows; the server applies them to the table.
  */
-export const ProductChange = Schema.Struct({
-  id: ProductId,
-  description: Schema.OptionFromNullOr(Product.fields.description.schema),
-  cents: Schema.OptionFromNullOr(Product.fields.cents.schema),
-  line: Schema.OptionFromNullOr(Product.fields.line.schema),
-  status: Schema.OptionFromNullOr(Product.fields.status.schema),
-})
-export type ProductChange = typeof ProductChange.Type
+export const ProductEdits = EditableEntity.make(Product, { members: editedColumns })
+export type ProductChange = typeof ProductEdits.Change.Type
+export type ProductEdit = typeof ProductEdits.Edit.Type

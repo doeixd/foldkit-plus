@@ -1,7 +1,11 @@
 /**
- * The registry's retired edits and replacements, each broken in turn: `pnpm mutate examples/registry/test/registry.mutations.ts` checks that a
- * test fails for every one.
+ * The registry's own guards, each broken in turn: `pnpm mutate
+ * examples/registry/test/registry.mutations.ts` checks that a test fails for
+ * every one. The edit rules themselves are `foldkit-sync/entity`'s, and
+ * `packages/sync/test/entity.mutations.ts` breaks those.
  */
+const tests = ['examples/registry/test/page.test.ts']
+
 export default [
   {
     name: 'a newly retired edit asks for no read',
@@ -12,7 +16,7 @@ export default [
         replace: 'kept',
       },
     ],
-    tests: ['examples/registry/test/page.test.ts'],
+    tests,
   },
   {
     name: 'the replica is never named',
@@ -23,40 +27,12 @@ export default [
         replace: '',
       },
     ],
-    tests: ['examples/registry/test/page.test.ts'],
+    tests,
   },
   {
-    name: 'a read says nothing replaced',
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: '                mine(kept) && kept.value !== shown',
-        replace: '                false && mine(kept) && kept.value !== shown',
-      },
-    ],
-    tests: ['examples/registry/test/page.test.ts'],
-  },
-  {
-    name: "a read reports another device's edit as replaced",
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: '                mine(kept) && kept.value !== shown',
-        replace: '                kept.value !== shown',
-      },
-    ],
-    tests: ['examples/registry/test/page.test.ts'],
-  },
-  {
-    name: 'a read lets go of an edit it has not reached',
-    edits: [
-      {
-        file: '../src/app.ts',
-        find: 'Option.filter(field, kept => Option.exists(kept.at, at => reached(at, row.revision))),',
-        replace: 'Option.filter(field, kept => Option.isSome(kept.at)),',
-      },
-    ],
-    tests: ['examples/registry/test/page.test.ts'],
+    name: 'a reset reads no rows again',
+    edits: [{ file: '../src/sync.ts', find: '      if (reset) {', replace: '      if (false) {' }],
+    tests,
   },
   {
     name: 'no transition settles the retired edits',
@@ -67,33 +43,50 @@ export default [
         replace: '  const settled = next.model',
       },
     ],
-    tests: ['examples/registry/test/page.test.ts'],
+    tests,
   },
   {
     name: 'nothing is retired',
     edits: [
       {
         file: '../src/app.ts',
-        find: '  heldOf([...previous.retired, ...previous.edits], next)',
-        replace: '  heldOf([], next)',
+        find: 'ProductEdits.held([...previous.retired, ...previous.edits], next.edits,',
+        replace: 'ProductEdits.held([], next.edits,',
       },
     ],
-    tests: ['examples/registry/test/page.test.ts'],
+    tests,
   },
   {
-    name: 'an edit is told mine by its actor, not its replica',
+    name: 'a settled replacement is not said',
     edits: [
       {
         file: '../src/app.ts',
-        find: 'by.replica !== replica && mine(prior)',
-        replace: 'by.actor !== replica && mine(prior)',
+        find: 'replaced: before => [...before, ...replaced.map(replacementOf)],',
+        replace: 'replaced: before => before,',
       },
     ],
-    tests: ['examples/registry/test/page.test.ts'],
+    tests,
   },
   {
-    name: 'a reset reads no rows again',
-    edits: [{ file: '../src/sync.ts', find: '      if (reset) {', replace: '      if (false) {' }],
-    tests: ['examples/registry/test/page.test.ts'],
+    name: 'a replacement in the slice is not said',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'ProductEdits.replaced(previous.edits, next.edits, next.replica).map(replacementOf)',
+        replace: '[]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal names no cell',
+    edits: [
+      {
+        file: '../src/sync.ts',
+        find: 'ProductEdits.cellsOf(changes).map(({ id, member }) => ({ id, column: member })),',
+        replace: '[],',
+      },
+    ],
+    tests,
   },
 ]

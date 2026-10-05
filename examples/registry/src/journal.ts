@@ -16,7 +16,7 @@
  * Once the table holds edits, `absorb` says so in the journal itself, as the
  * server: the replicas drop them, and the log behind them is compacted.
  */
-import { Effect, Match, Option, Schema } from 'effect'
+import { Effect, Match, Schema } from 'effect'
 import {
   ActorId,
   Cursor,
@@ -29,7 +29,7 @@ import {
 import { Sync, type Operation, type SocketLike, type TransportClient } from 'foldkit-sync'
 import { journalExchange, serveJournal } from 'foldkit-sync/journal'
 import { Message } from './app.js'
-import type { ProductChange } from './domain.js'
+import { type ProductChange, ProductEdits } from './domain.js'
 import {
   RegistrySync,
   everyone,
@@ -61,17 +61,6 @@ export interface EditJournal {
 
 const decodeMessage = Schema.decodeUnknownSync(Message)
 const encodeMessage = Schema.encodeSync(Message)
-
-/** Whether any edit kept in `edits` committed at or before `through`. */
-const holdsThrough = (edits: Shared['edits'], through: number) =>
-  edits.some(edit =>
-    [
-      Option.flatMap(edit.description, field => field.at),
-      Option.flatMap(edit.cents, field => field.at),
-      Option.flatMap(edit.line, field => field.at),
-      Option.flatMap(edit.status, field => field.at),
-    ].some(at => Option.exists(at, committed => committed <= through)),
-  )
 
 /**
  * How the journal is opened, wherever it runs: over a `node:sqlite` file
@@ -134,7 +123,7 @@ export const openJournal = (
   const absorb = Effect.gen(function* () {
     const through = applied
     const { snapshot, cursor } = yield* journal.load(key)
-    if (!holdsThrough(snapshot.edits, through)) return
+    if (!ProductEdits.holdsThrough(snapshot.edits, through)) return
     yield* journal.append(
       key,
       {

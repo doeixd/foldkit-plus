@@ -15,7 +15,11 @@ version changed; `pnpm` skips versions already in the registry.
   and lays them over Remote's rows by each row's `revision`. Pure functions
   merge and absorb them, hold an absorbed edit while its cached row is
   behind it and settle it when a read reaches it, report a cell another
-  tab's later commit replaced, and name a refusal's cells (#166).
+  tab's later commit replaced, and name a refusal's cells. `examples/registry`
+  is built on it: a change is one cell and the server writes the one column
+  it names. Another editable column is an entry in `members`, its grid
+  column, its arm in `changeOf` and its table column; none of the edit rules
+  is written per field any more (#166).
 - **`foldkit-sync`: a reinstall says when the server was reset.**
   `ReplicaStatus.epoch` is the server history the cursor points into, and
   `Sync.mount`'s `onReinstall(next, previous, { reset })` is told when it

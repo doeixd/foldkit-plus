@@ -179,9 +179,9 @@ const make = <E extends EntityFields, const Ms extends ReadonlyArray<Member<E>>>
      * The rows as shown: each with the edits it has not absorbed laid over it.
      * Built once per `edits`, for `RowModel.map`, which caches by its identity.
      */
-    overlay: (edits: ReadonlyArray<Edit>) => {
+    overlay: <R extends Row>(edits: ReadonlyArray<Edit>): ((row: R) => R) => {
       const index = indexOf(edits)
-      return <R extends Row>(row: R): R => {
+      return (row: R): R => {
         const cells = index.get(row.id)
         if (cells === undefined) return row
         let shown = row

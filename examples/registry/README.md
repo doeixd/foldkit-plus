@@ -75,7 +75,7 @@ transition, since any of Remote's Messages may carry the read).
 ## An edit, end to end
 
 ```text
-cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: edits merged
+cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: ProductEdits.merge
   -> replica persists the operation (IndexedDB) -> the cell shows it
   -> exchange: the journal commits it, stamped with its sequence, writes it to
      the table with that revision, and wakes other replicas
@@ -191,15 +191,18 @@ committed one is back to the seed.
 
 ## Read it
 
-1. [domain.ts](src/domain.ts): the Product, how each member shows, and the
-   change an edit carries. It imports neither Remote nor Drizzle.
+1. [domain.ts](src/domain.ts): the Product, how each member shows, and
+   `ProductEdits`, its edits one per cell (`EditableEntity` from
+   `foldkit-sync/entity`), which the client keeps and the server applies. It
+   imports neither Remote nor Drizzle.
 2. [operations.ts](src/operations.ts): the products query, ordered by the
    list's sort.
 3. [app.ts](src/app.ts): Remote over the Product, the list, the grid's
    columns from it (`GridCrud.columns`, with pinning, widths and editing
-   added), `EditedProducts` and the `edits` it folds into, each field with when
+   added), `EditedProducts` and the `edits` it folds into, each cell with when
    it committed, and `rowsOf`, the rows with the edits they have not absorbed
-   over them.
+   over them. The rules are `ProductEdits`'; this file says them in the
+   page's words (marks, notices).
 4. [sync.ts](src/sync.ts): the Sync contract derived from the application,
    with the stamp that writes each edit's sequence in, and `mountRegistry`,
    which runs it over a replica.

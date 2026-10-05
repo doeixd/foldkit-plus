@@ -34,9 +34,18 @@ void [price, status, crossed, unknownStatus, notEdited]
 
 Edits.merge([], [price, status], Option.none(), Option.none())
 
-const overlay = Edits.overlay([])
-overlay({ id: 'a', name: 'a', price: 1, status: 'Active', revision: 0 })
+type ItemRow = {
+  readonly id: string
+  readonly name: string
+  readonly price: number
+  readonly status: 'Active' | 'Paused'
+  readonly revision: number
+}
+const overlay = Edits.overlay<ItemRow>([])
+// The row comes back as the type it went in: its other members kept.
+const shown: ItemRow = overlay({ id: 'a', name: 'a', price: 1, status: 'Active', revision: 0 })
+void shown
 // @ts-expect-error a row needs the revision the table read it at
-overlay({ id: 'a', name: 'a', price: 1, status: 'Active' })
+Edits.overlay<Omit<ItemRow, 'revision'>>([])
 // @ts-expect-error a row's member is its member's type
-overlay({ id: 'a', name: 'a', price: '1', status: 'Active', revision: 0 })
+Edits.overlay<Omit<ItemRow, 'price'> & { readonly price: string }>([])

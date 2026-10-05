@@ -23,7 +23,6 @@ import {
   App,
   Message,
   type Model,
-  type ProductEdit,
   type Refusal,
   placements,
   Products,
@@ -31,6 +30,7 @@ import {
   retiredOf,
   retiresAny,
 } from './app.js'
+import { type ProductEdit, ProductEdits } from './domain.js'
 import { view } from './view.js'
 
 export type Shared = { readonly edits: ReadonlyArray<ProductEdit> }
@@ -48,7 +48,7 @@ const definition = Sync.forApplication(App)
   .make({
     // Versioned with the shape of `edits`: a replica stored under the last one
     // does not decode as this one, so it is a document of its own.
-    documentId: DocumentId.make('registry-edits-3'),
+    documentId: DocumentId.make('registry-edits-4'),
     shared: Projection.pick(App.model.edits),
     durable: MessageSet.make(App, [Message.EditedProducts, Message.AbsorbedEdits]),
     // Dropping edits from every replica is the server's: a client's would drop
@@ -59,12 +59,8 @@ const definition = Sync.forApplication(App)
     // who committed it and from which replica, so a page can tell another's
     // edit from its own, though it be the same person's in another tab.
     stamp: {
-      EditedProducts: ({ changes }, { sequence, actorId, replicaId }) =>
-        Message.EditedProducts({
-          changes,
-          at: sequence,
-          by: { actor: actorId, replica: replicaId },
-        }),
+      EditedProducts: ({ changes }, commit) =>
+        Message.EditedProducts({ changes, ...ProductEdits.stamped(commit) }),
     },
   })
 
@@ -87,14 +83,7 @@ const changedCells = (operation: Operation): ReadonlyArray<Pick<Refusal, 'id' | 
     onSome: message =>
       Match.value(message).pipe(
         Match.tag('EditedProducts', ({ changes }) =>
-          changes.flatMap(change =>
-            [
-              { column: 'description' as const, changed: Option.isSome(change.description) },
-              { column: 'cents' as const, changed: Option.isSome(change.cents) },
-              { column: 'line' as const, changed: Option.isSome(change.line) },
-              { column: 'status' as const, changed: Option.isSome(change.status) },
-            ].flatMap(({ column, changed }) => (changed ? [{ id: change.id, column }] : [])),
-          ),
+          ProductEdits.cellsOf(changes).map(({ id, member }) => ({ id, column: member })),
         ),
         Match.orElse(() => []),
       ),

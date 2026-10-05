@@ -27,7 +27,16 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { Sync } from 'foldkit-sync'
-import { EditedColumn, Product, ProductChange, ProductId, ProductRow, Registry } from './domain.js'
+import {
+  EditedColumn,
+  Product,
+  type ProductChange,
+  type ProductEdit,
+  ProductEdits,
+  ProductId,
+  ProductRow,
+  Registry,
+} from './domain.js'
 import { ProductSort, ProductsQuery } from './operations.js'
 
 /** A description as typed: its spaces around dropped, and something left. */
@@ -93,50 +102,6 @@ export const Grid = DataGrid.make({
   cellSelection: true,
 })
 
-/**
- * An edited field: its value, the journal sequence its edit committed at, and
- * who committed it, both none while it is pending. Stored and sent, so `null`
- * on the wire.
- */
-/**
- * Who committed an edit: the actor (a person, or a device's name), shown in
- * words, and the replica (one tab), which tells a person's tabs apart and
- * says which edits are this page's own.
- */
-export const Author = Schema.Struct({ actor: Schema.String, replica: Schema.String })
-export type Author = typeof Author.Type
-
-const DescriptionEdit = Schema.Struct({
-  value: Product.fields.description.schema,
-  at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Author),
-})
-const CentsEdit = Schema.Struct({
-  value: Product.fields.cents.schema,
-  at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Author),
-})
-const LineEdit = Schema.Struct({
-  value: Product.fields.line.schema,
-  at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Author),
-})
-const StatusEdit = Schema.Struct({
-  value: Product.fields.status.schema,
-  at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Author),
-})
-
-/** One product's edited fields, the latest per field. */
-export const ProductEdit = Schema.Struct({
-  id: ProductId,
-  description: Schema.OptionFromNullOr(DescriptionEdit),
-  cents: Schema.OptionFromNullOr(CentsEdit),
-  line: Schema.OptionFromNullOr(LineEdit),
-  status: Schema.OptionFromNullOr(StatusEdit),
-})
-export type ProductEdit = typeof ProductEdit.Type
-
 /** A cell an edit the server refused had changed, and why. */
 export const Refusal = Schema.Struct({
   /** The refused operation, so the line about it can be dismissed. */
@@ -188,17 +153,16 @@ const Base = Bundle.compose({
   /** The order the list is read in: the query's input, so another order is another read. */
   sort: ProductSort.Schema,
   /**
-   * Every product edited, with the fields edited, last write winning per
-   * field, and when each committed. The replicated slice: the journal's, not
-   * this device's.
+   * Every cell edited, the latest per cell, and when each committed. The
+   * replicated slice: the journal's, not this device's.
    */
-  edits: Schema.Array(ProductEdit),
+  edits: Schema.Array(ProductEdits.Edit),
   /**
    * Committed edits the journal has absorbed that this device's cached rows
    * have not been read since: kept here, locally, so the row does not show the
    * stale read for a moment. Set by the mount's `onReinstall` (`retiredOf`).
    */
-  retired: Schema.Array(ProductEdit),
+  retired: Schema.Array(ProductEdits.Edit),
   exchange: Exchange,
   /** Edits the server refused, each cell it had changed, until dismissed. Local. */
   refused: Schema.Array(Refusal),
@@ -224,17 +188,13 @@ const Base = Bundle.compose({
      * (`sync.ts`). Messages cross ports and the journal as they are, so they
      * are plain optional keys, not `Option`s.
      */
-    EditedProducts: {
-      changes: Schema.Array(ProductChange),
-      at: Schema.optionalKey(Schema.Number),
-      by: Schema.optionalKey(Author),
-    },
+    EditedProducts: ProductEdits.edited,
     /**
      * Durable, and the server's alone: the table holds every edit committed
      * through `through`, so the edits drop them. Keeps the replicated slice to
      * what the table has not absorbed, usually nothing.
      */
-    AbsorbedEdits: { through: Schema.Number },
+    AbsorbedEdits: ProductEdits.absorbed,
     /** The server refused edits: their cells, as the mount read them before sending. */
     EditsRefused: { refusals: Schema.Array(Refusal) },
     /** The line about a refused edit was dismissed. */
@@ -282,76 +242,20 @@ type Cell = {
 /** A cell as a change to its product, its value as its column's schema decodes it. */
 const changeOf = (cell: Cell): ProductChange => {
   const id = ProductId.make(cell.row)
-  const unchanged = {
-    id,
-    description: Option.none(),
-    cents: Option.none(),
-    line: Option.none(),
-    status: Option.none(),
-  }
-  return Grid.matchEdit(cell, {
-    description: ({ value }) => ({ ...unchanged, description: Option.some(value) }),
-    cents: ({ value }) => ({ ...unchanged, cents: Option.some(value) }),
-    line: ({ value }) => ({ ...unchanged, line: Option.some(value) }),
-    status: ({ value }) => ({ ...unchanged, status: Option.some(value) }),
+  return Grid.matchEdit<{
+    readonly description: (edited: { readonly value: string }) => ProductChange
+    readonly cents: (edited: { readonly value: number }) => ProductChange
+    readonly line: (edited: { readonly value: string }) => ProductChange
+    readonly status: (edited: {
+      readonly value: typeof Product.fields.status.schema.Type
+    }) => ProductChange
+  }>(cell, {
+    description: ({ value }) => ({ id, member: 'description', value }),
+    cents: ({ value }) => ({ id, member: 'cents', value }),
+    line: ({ value }) => ({ id, member: 'line', value }),
+    status: ({ value }) => ({ id, member: 'status', value }),
   })
 }
-
-/** The edits with `changes` laid over them, each field it holds as committed `at` by `by`, or pending. */
-const merged = (
-  edits: ReadonlyArray<ProductEdit>,
-  changes: ReadonlyArray<ProductChange>,
-  at: Option.Option<number>,
-  by: Option.Option<Author>,
-): ReadonlyArray<ProductEdit> => {
-  const byId = new Map(edits.map(edit => [edit.id, edit]))
-  for (const change of changes) {
-    const before = Option.fromUndefinedOr(byId.get(change.id))
-    // A field the change holds, as edited now; otherwise what was there.
-    const over = <A, Kept>(
-      changed: Option.Option<A>,
-      kept: (edit: ProductEdit) => Option.Option<Kept>,
-    ) =>
-      Option.orElse(
-        Option.map(changed, value => ({ value, at, by })),
-        () => Option.flatMap(before, kept),
-      )
-    byId.set(change.id, {
-      id: change.id,
-      description: over(change.description, edit => edit.description),
-      cents: over(change.cents, edit => edit.cents),
-      line: over(change.line, edit => edit.line),
-      status: over(change.status, edit => edit.status),
-    })
-  }
-  return [...byId.values()]
-}
-
-/** Whether a product's edits hold no field. */
-const isEmpty = (edit: ProductEdit) =>
-  Option.isNone(edit.description) &&
-  Option.isNone(edit.cents) &&
-  Option.isNone(edit.line) &&
-  Option.isNone(edit.status)
-
-/** A field's edit, unless it committed at or before `through`. */
-const keepAfter = <Field extends { readonly at: Option.Option<number> }>(
-  field: Option.Option<Field>,
-  through: number,
-) => Option.filter(field, edit => !Option.exists(edit.at, at => at <= through))
-
-/** The edits without what committed through `through`; a product left with none goes. */
-const absorbed = (edits: ReadonlyArray<ProductEdit>, through: number) =>
-  edits.flatMap(edit => {
-    const kept = {
-      id: edit.id,
-      description: keepAfter(edit.description, through),
-      cents: keepAfter(edit.cents, through),
-      line: keepAfter(edit.line, through),
-      status: keepAfter(edit.status, through),
-    }
-    return isEmpty(kept) ? [] : [kept]
-  })
 
 // The grid reports text; the fact it becomes is durable. `Sync.fact` applies
 // it within this transition, so no later Message sees the Model without it.
@@ -394,12 +298,20 @@ const transition = placements.update((model: Model, message: Message) =>
       EditedProducts: ({ changes, at, by }) => ({
         model: modifyFields(model, {
           edits: edits =>
-            merged(edits, changes, Option.fromUndefinedOr(at), Option.fromUndefinedOr(by)),
+            ProductEdits.merge(
+              edits,
+              changes,
+              Option.fromUndefinedOr(at),
+              Option.fromUndefinedOr(by),
+            ),
         }),
       }),
-      AbsorbedEdits: ({ through }) => ({
-        model: modifyFields(model, { edits: edits => absorbed(edits, through) }),
-      }),
+      AbsorbedEdits: ({ through }) => {
+        const edits = ProductEdits.absorb(model.edits, through)
+        return {
+          model: edits === model.edits ? model : modifyFields(model, { edits: () => edits }),
+        }
+      },
       EditsRefused: ({ refusals }) => ({
         model: modifyFields(model, { refused: refused => [...refused, ...refusals] }),
       }),
@@ -456,26 +368,13 @@ export const initial = (): Model =>
 /** The application as Sync replays it: the same references, with its initial value and update. */
 export const App = Made.runnable({ initial: initial(), update })
 
-/**
- * Whether a row read at `revision` has the edit committed at `at`: the table
- * applies edits in the journal's order, so its revision covers every earlier one.
- */
-const reached = (at: number, revision: number) => at <= revision
-
-/**
- * A field's edit, if the row has not absorbed it: pending, or committed after
- * the revision the table had when Remote read the row.
- */
-const unabsorbed = <A>(
-  field: Option.Option<{ readonly value: A; readonly at: Option.Option<number> }>,
-  revision: number,
-): Option.Option<A> =>
-  Option.flatMap(field, edit =>
-    Option.match(edit.at, {
-      onNone: () => Option.some(edit.value),
-      onSome: at => (reached(at, revision) ? Option.none() : Option.some(edit.value)),
-    }),
-  )
+/** The row Remote read for a product, if the page has it. */
+const rowOf =
+  (model: Model) =>
+  (id: ProductId): Option.Option<Row> => {
+    const rows = GridCrud.rows(Products.page(model), row => row.id)
+    return Option.flatMap(rows.indexOf(id), rows.rowAt)
+  }
 
 /**
  * The rows Remote read, with the edits over them: each row as it is read, so
@@ -489,110 +388,25 @@ export const rowsOf = (model: Model): RowModel<Row> =>
     RowModel.map(
       GridCrud.rows(Products.page(model), row => row.id),
       model.retired,
-      overlaid,
+      ProductEdits.overlay<Row>,
     ),
     model.edits,
-    overlaid,
+    ProductEdits.overlay<Row>,
   )
-
-/** Rows with the edits they have not absorbed laid over them. */
-const overlaid = (edits: ReadonlyArray<ProductEdit>) => {
-  const byId = new Map(edits.map(edit => [edit.id, edit]))
-  return (row: Row): Row =>
-    Option.match(Option.fromUndefinedOr(byId.get(row.id)), {
-      onNone: () => row,
-      onSome: edit => ({
-        ...row,
-        description: Option.getOrElse(
-          unabsorbed(edit.description, row.revision),
-          () => row.description,
-        ),
-        cents: Option.getOrElse(unabsorbed(edit.cents, row.revision), () => row.cents),
-        line: Option.getOrElse(unabsorbed(edit.line, row.revision), () => row.line),
-        status: Option.getOrElse(unabsorbed(edit.status, row.revision), () => row.status),
-      }),
-    })
-}
 
 /**
  * The retired edits after the mount replaced the edits: what `previous`
  * showed, retired or not, that `next` no longer holds, while a cached row's
- * revision is still below it. Whatever a row has caught up with, or a row not
- * cached, is let go: its next read has the table's value.
+ * revision is still below it.
  */
 export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEdit> =>
-  heldOf([...previous.retired, ...previous.edits], next)
-
-/** Whether `retired` holds a committed field `previous` had not retired: one just taken from the slice. */
-export const retiresAny = (previous: Model, retired: ReadonlyArray<ProductEdit>): boolean => {
-  const before = new Set(previous.retired.flatMap(fieldsOf))
-  return retired.some(edit => fieldsOf(edit).some(field => !before.has(field)))
-}
-
-/** Each committed field of an edit, as `id:column:at`. */
-const fieldsOf = (edit: ProductEdit): ReadonlyArray<string> => {
-  const at = (column: string, field: Option.Option<{ readonly at: Option.Option<number> }>) =>
-    Option.toArray(Option.flatMap(field, kept => kept.at)).map(at => `${edit.id}:${column}:${at}`)
-  return [
-    ...at('description', edit.description),
-    ...at('cents', edit.cents),
-    ...at('line', edit.line),
-    ...at('status', edit.status),
-  ]
-}
-
-/**
- * Of `edits`, the committed fields `next`'s cached rows have not been read
- * at, and that its slice holds no edit of: what a row would otherwise show
- * stale. A row not cached keeps nothing; its next read has the table's value.
- */
-const heldOf = (edits: ReadonlyArray<ProductEdit>, next: Model): ReadonlyArray<ProductEdit> => {
-  // The rows as the grid has them; the key lookup is the row model's own index.
-  const rows = GridCrud.rows(Products.page(next), row => row.id)
-  const revisionOf = (id: string) =>
-    Option.map(Option.flatMap(rows.indexOf(id), rows.rowAt), row => row.revision)
-  const current = new Map(next.edits.map(edit => [edit.id, edit]))
-  const held = <Field extends { readonly at: Option.Option<number> }>(
-    field: Option.Option<Field>,
-    now: Option.Option<unknown>,
-    revision: number,
-  ) =>
-    Option.isSome(now)
-      ? Option.none()
-      : Option.filter(field, edit => Option.exists(edit.at, at => !reached(at, revision)))
-  return edits.flatMap(edit =>
-    Option.match(revisionOf(edit.id), {
-      onNone: () => [],
-      onSome: revision => {
-        const now = Option.fromUndefinedOr(current.get(edit.id))
-        const kept = {
-          id: edit.id,
-          description: held(
-            edit.description,
-            Option.flatMap(now, kept => kept.description),
-            revision,
-          ),
-          cents: held(
-            edit.cents,
-            Option.flatMap(now, kept => kept.cents),
-            revision,
-          ),
-          line: held(
-            edit.line,
-            Option.flatMap(now, kept => kept.line),
-            revision,
-          ),
-          status: held(
-            edit.status,
-            Option.flatMap(now, kept => kept.status),
-            revision,
-          ),
-        }
-        return isEmpty(kept) ? [] : [kept]
-      },
-    }),
+  ProductEdits.held([...previous.retired, ...previous.edits], next.edits, id =>
+    Option.map(rowOf(next)(id), row => row.revision),
   )
-}
+
+/** Whether `retired` holds a cell `previous` had not retired: one just taken from the slice. */
+export const retiresAny = (previous: Model, retired: ReadonlyArray<ProductEdit>): boolean =>
+  ProductEdits.newlyHeld(previous.retired, retired)
 
 /** Where the edits stand with the server, for the status line. */
 export const exchangeOf = (model: Model): string => {
@@ -606,134 +420,54 @@ export const exchangeOf = (model: Model): string => {
   })
 }
 
-/** One field's edit as the edits keep it. */
-interface FieldEdit<A> {
-  readonly value: A
-  readonly at: Option.Option<number>
-  readonly by: Option.Option<Author>
-}
+const centsText = (cents: number) => (cents / 100).toFixed(2)
+
+/** An edit's value as its cell shows it. */
+const textOf = (edit: ProductEdit): string =>
+  Match.value(edit).pipe(
+    Match.when({ member: 'cents' }, ({ value }) => centsText(value)),
+    Match.orElse(({ value }) => String(value)),
+  )
+
+/** A replaced edit, in the words the page says it with: whose later edit, and what it was. */
+const replacementOf = ({
+  edit,
+  by,
+}: {
+  readonly edit: ProductEdit
+  readonly by: Option.Option<{ readonly actor: string }>
+}): Replacement => ({
+  id: edit.id,
+  column: edit.member,
+  by: Option.map(by, author => author.actor),
+  was: textOf(edit),
+})
 
 /**
  * What the mount just replaced that this page's replica had written: each
- * field whose last edit was its own, pending or committed from it, and now
- * holds another replica's commit with another value, though it be the same
- * person's in another tab. Last writer wins, by the
- * journal's order; this is how the page says so.
+ * cell whose last edit was its own, and now holds another replica's commit
+ * with another value, though it be the same person's in another tab. Last
+ * writer wins, by the journal's order; this is how the page says so.
  */
-export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacement> => {
-  const { replica } = next
-  const before = new Map(previous.edits.map(edit => [edit.id, edit]))
-  const mine = mineFor(replica)
-  const replaced = <A>(
-    id: ProductId,
-    column: Replacement['column'],
-    now: Option.Option<FieldEdit<A>>,
-    then: Option.Option<FieldEdit<A>>,
-    text: (value: A) => string,
-  ): ReadonlyArray<Replacement> =>
-    Option.match(
-      Option.zipWith(now, then, (current, prior) => ({ current, prior })),
-      {
-        onNone: () => [],
-        onSome: ({ current, prior }) =>
-          Option.match(current.by, {
-            onNone: () => [],
-            onSome: by =>
-              by.replica !== replica && mine(prior) && current.value !== prior.value
-                ? [{ id, column, by: Option.some(by.actor), was: text(prior.value) }]
-                : [],
-          }),
-      },
-    )
-  return next.edits.flatMap(edit => {
-    const was = Option.fromUndefinedOr(before.get(edit.id))
-    return [
-      ...replaced(
-        edit.id,
-        'description',
-        edit.description,
-        Option.flatMap(was, kept => kept.description),
-        value => value,
-      ),
-      ...replaced(
-        edit.id,
-        'cents',
-        edit.cents,
-        Option.flatMap(was, kept => kept.cents),
-        centsText,
-      ),
-      ...replaced(
-        edit.id,
-        'line',
-        edit.line,
-        Option.flatMap(was, kept => kept.line),
-        value => value,
-      ),
-      ...replaced(
-        edit.id,
-        'status',
-        edit.status,
-        Option.flatMap(was, kept => kept.status),
-        value => value,
-      ),
-    ]
-  })
-}
-
-/** Whether a field's last edit was `replica`'s: pending here, or committed from it. */
-const mineFor = (replica: string) => (field: FieldEdit<unknown>) =>
-  Option.isNone(field.at) || Option.exists(field.by, by => by.replica === replica)
+export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacement> =>
+  ProductEdits.replaced(previous.edits, next.edits, next.replica).map(replacementOf)
 
 /**
- * The retired edits a read of their rows has caught up with, let go; of
- * those, each of this device's that the row shows another value for, said as
- * replaced. The table applies edits in order, so a row at or past an edit's
- * sequence that holds another value took a later edit, though the journal
- * absorbed it before this device heard whose. Nothing caught up, it returns
- * the Model it was given.
+ * The retired edits a read of their rows has reached, let go; of those, each
+ * of this page's that the row shows another value for, said as replaced: the
+ * table applies in order, so a row at or past an edit that holds another
+ * value took a later edit, though the journal absorbed it before this page
+ * heard whose. Nothing reached, it returns the Model it was given.
  */
 export const settledOf = (model: Model): Model => {
   if (model.retired.length === 0) return model
-  const rows = GridCrud.rows(Products.page(model), row => row.id)
-  const mine = mineFor(model.replica)
-  const caught = model.retired.flatMap(edit =>
-    Option.match(Option.flatMap(rows.indexOf(edit.id), rows.rowAt), {
-      onNone: () => [],
-      onSome: row => {
-        const settled = <A>(
-          column: Replacement['column'],
-          field: Option.Option<FieldEdit<A>>,
-          shown: A,
-          text: (value: A) => string,
-        ): ReadonlyArray<Option.Option<Replacement>> =>
-          Option.match(
-            Option.filter(field, kept => Option.exists(kept.at, at => reached(at, row.revision))),
-            {
-              onNone: () => [],
-              onSome: kept => [
-                mine(kept) && kept.value !== shown
-                  ? Option.some({ id: edit.id, column, by: Option.none(), was: text(kept.value) })
-                  : Option.none(),
-              ],
-            },
-          )
-        return [
-          ...settled('description', edit.description, row.description, value => value),
-          ...settled('cents', edit.cents, row.cents, centsText),
-          ...settled('line', edit.line, row.line, value => value),
-          ...settled('status', edit.status, row.status, value => value),
-        ]
-      },
-    }),
-  )
-  if (caught.length === 0) return model
+  const { held, replaced } = ProductEdits.settled(model.retired, rowOf(model), model.replica)
+  if (held === model.retired) return model
   return modifyFields(model, {
-    retired: retired => heldOf(retired, model),
-    replaced: replaced => [...replaced, ...caught.flatMap(Option.toArray)],
+    retired: () => held,
+    replaced: before => [...before, ...replaced.map(replacementOf)],
   })
 }
-
-const centsText = (cents: number) => (cents / 100).toFixed(2)
 
 /** A cell's state for the grid's `marks`: a name to style, and words to say. */
 interface CellMark {
@@ -749,8 +483,14 @@ interface CellMark {
 export const marksOf = (
   model: Model,
 ): ((address: CellAddress<keyof typeof columns.byId>) => Option.Option<CellMark>) => {
-  const rows = GridCrud.rows(Products.page(model), row => row.id)
-  const edits = new Map([...model.retired, ...model.edits].map(edit => [edit.id, edit]))
+  const rowAt = rowOf(model)
+  // The current edits after the retired ones, so a cell's latest is the one kept.
+  const edits = new Map<string, Map<string, ProductEdit>>()
+  for (const edit of [...model.retired, ...model.edits]) {
+    const cells = edits.get(edit.id) ?? new Map<string, ProductEdit>()
+    cells.set(edit.member, edit)
+    edits.set(edit.id, cells)
+  }
   const refused = new Map(
     model.refused.map(refusal => [`${refusal.id}:${refusal.column}`, refusal]),
   )
@@ -759,31 +499,16 @@ export const marksOf = (
   )
   const peers = new Map(model.peers.map(peer => [`${peer.row}:${peer.column}`, peer]))
   /** The mark of the cell's own edit: not yet sent, or saved and not in the table. */
-  const editMark = (row: string, column: keyof typeof columns.byId): Option.Option<CellMark> => {
-    // When the cell's edit committed, if it has one: none while pending.
-    const field = Option.flatMap(Option.fromUndefinedOr(edits.get(ProductId.make(row))), edit =>
-      Match.value(column).pipe(
-        Match.when('description', () => Option.map(edit.description, ({ at }) => at)),
-        Match.when('cents', () => Option.map(edit.cents, ({ at }) => at)),
-        Match.when('line', () => Option.map(edit.line, ({ at }) => at)),
-        Match.when('status', () => Option.map(edit.status, ({ at }) => at)),
-        Match.orElse(() => Option.none()),
-      ),
-    )
-    const revision = Option.map(
-      Option.flatMap(rows.indexOf(row), rows.rowAt),
-      read => read.revision,
-    )
-    return Option.flatMap(field, at =>
-      Option.match(at, {
+  const editMark = (row: string, column: string): Option.Option<CellMark> =>
+    Option.flatMap(Option.fromUndefinedOr(edits.get(row)?.get(column)), edit =>
+      Option.match(edit.at, {
         onNone: () => Option.some({ name: 'pending', description: 'Not yet sent' }),
-        onSome: committed =>
-          Option.exists(revision, read => committed > read)
+        onSome: () =>
+          Option.exists(rowAt(ProductId.make(row)), read => ProductEdits.shows(edit, read.revision))
             ? Option.some({ name: 'saved', description: 'Saved, not yet in the table' })
             : Option.none(),
       }),
     )
-  }
   return ({ row, column }) => {
     const key = `${row}:${column}`
     return Option.map(Option.fromUndefinedOr(refused.get(key)), ({ reason }) => ({

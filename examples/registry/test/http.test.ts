@@ -51,13 +51,7 @@ test('an edit sent over the socket is committed and read back through Remote', a
     replica.submit(
       Message.EditedProducts({
         changes: [
-          {
-            id: ProductId.make(productId(7)),
-            description: Option.some('Over the socket'),
-            cents: Option.none(),
-            line: Option.none(),
-            status: Option.none(),
-          },
+          { id: ProductId.make(productId(7)), member: 'description', value: 'Over the socket' },
         ],
       }),
     ),
@@ -90,15 +84,7 @@ test('a commit wakes another replica’s exchange loop, which brings it the edit
   await Effect.runPromise(
     writing.submit(
       Message.EditedProducts({
-        changes: [
-          {
-            id: ProductId.make(productId(9)),
-            description: Option.none(),
-            cents: Option.some(42),
-            line: Option.none(),
-            status: Option.none(),
-          },
-        ],
+        changes: [{ id: ProductId.make(productId(9)), member: 'cents', value: 42 }],
       }),
     ),
   )
@@ -110,13 +96,14 @@ test('a commit wakes another replica’s exchange loop, which brings it the edit
       () =>
         Effect.runSync(watching.shared).edits.map(edit => [
           edit.id,
-          Option.map(edit.cents, field => field.value),
+          edit.member,
+          edit.value,
           // It arrived committed: the journal stamped the sequence it committed at.
-          Option.isSome(Option.flatMap(edit.cents, field => field.at)),
+          Option.isSome(edit.at),
         ]),
       { timeout: 5_000 },
     )
-    .toContainEqual([productId(9), Option.some(42), true])
+    .toContainEqual([productId(9), 'cents', 42, true])
   await Effect.runPromise(Fiber.interrupt(loop))
   await Effect.runPromise(watching.close)
   await Effect.runPromise(writing.close)

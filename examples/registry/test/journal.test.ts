@@ -3,11 +3,11 @@
  * operation whose change breaks the Product's own rules is refused, and the
  * table keeps the value it had.
  */
-import { Effect, Option } from 'effect'
+import { Effect } from 'effect'
 import { DocumentId, ReplicaId, Sequence, Sync, type Operation, type Storage } from 'foldkit-sync'
 import { expect, test } from 'vitest'
 import { Message } from '../src/app.js'
-import { ProductId } from '../src/domain.js'
+import { type ProductChange, ProductId } from '../src/domain.js'
 import { memoryJournal } from '../src/journalNode.js'
 import { openServer, productId, seedOf } from '../src/server.js'
 import { memorySqlite } from '../src/sqliteNode.js'
@@ -31,15 +31,7 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
   await Effect.runPromise(
     replica.submit(
       Message.EditedProducts({
-        changes: [
-          {
-            id: ProductId.make(productId(1)),
-            description: Option.none(),
-            cents: Option.some(5),
-            line: Option.none(),
-            status: Option.none(),
-          },
-        ],
+        changes: [{ id: ProductId.make(productId(1)), member: 'cents', value: 5 }],
       }),
     ),
   )
@@ -85,28 +77,17 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
 
 test('the table only moves forward, so recovery may write an edit again', () => {
   const backend = openServer(memorySqlite(), { count: 10 })
-  const price = (cents: number) => ({
+  const price = (cents: number): ProductChange => ({
     id: ProductId.make(productId(1)),
-    description: Option.none(),
-    cents: Option.some(cents),
-    line: Option.none(),
-    status: Option.none(),
+    member: 'cents',
+    value: cents,
   })
   backend.apply(price(500), 5)
   // An older edit run again after a newer one, as recovery may: nothing changes.
   backend.apply(price(300), 3)
   expect(backend.row(productId(1))).toMatchObject({ cents: 500, revision: 5 })
   // A second change to the product in the same operation is written too.
-  backend.apply(
-    {
-      id: ProductId.make(productId(1)),
-      description: Option.some('Renamed'),
-      cents: Option.none(),
-      line: Option.none(),
-      status: Option.none(),
-    },
-    5,
-  )
+  backend.apply({ id: ProductId.make(productId(1)), member: 'description', value: 'Renamed' }, 5)
   expect(backend.row(productId(1))).toMatchObject({
     description: 'Renamed',
     cents: 500,
@@ -128,15 +109,7 @@ const editAndSend = async (
     await Effect.runPromise(
       replica.submit(
         Message.EditedProducts({
-          changes: [
-            {
-              id: ProductId.make(productId(index)),
-              description: Option.none(),
-              cents: Option.some(cents),
-              line: Option.none(),
-              status: Option.none(),
-            },
-          ],
+          changes: [{ id: ProductId.make(productId(index)), member: 'cents', value: cents }],
         }),
       ),
     )
@@ -195,11 +168,8 @@ test('an edit committed after the table was last written is kept by absorbing', 
   await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
   // The first is in the table and gone; the second is not written yet and stays.
   expect(
-    (await Effect.runPromise(replica.shared)).edits.map(edit => [
-      edit.id,
-      Option.map(edit.cents, field => field.value),
-    ]),
-  ).toEqual([[productId(2), Option.some(202)]])
+    (await Effect.runPromise(replica.shared)).edits.map(edit => [edit.id, edit.member, edit.value]),
+  ).toEqual([[productId(2), 'cents', 202]])
 })
 
 test('a client cannot record what the table holds', async () => {

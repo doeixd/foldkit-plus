@@ -249,15 +249,7 @@ const commitElsewhere = async (
   await Effect.runPromise(
     other.submit(
       Message.EditedProducts({
-        changes: [
-          {
-            id: ProductId.make(productId(index)),
-            description: Option.none(),
-            cents: Option.some(cents),
-            line: Option.none(),
-            status: Option.none(),
-          },
-        ],
+        changes: [{ id: ProductId.make(productId(index)), member: 'cents', value: cents }],
       }),
     ),
   )
@@ -415,10 +407,8 @@ test('an edit another device made shows here after an exchange', async () => {
           changes: [
             {
               id: ProductId.make(productId(4)),
-              description: Option.some('From the other tab'),
-              cents: Option.none(),
-              line: Option.none(),
-              status: Option.none(),
+              member: 'description',
+              value: 'From the other tab',
             },
           ],
         }),
@@ -492,15 +482,7 @@ test('a committed edit shows until the table has it, then the table shows, whoev
     await Effect.runPromise(
       importer.submit(
         Message.EditedProducts({
-          changes: [
-            {
-              id: ProductId.make(productId(7)),
-              description: Option.none(),
-              cents: Option.some(999),
-              line: Option.none(),
-              status: Option.none(),
-            },
-          ],
+          changes: [{ id: ProductId.make(productId(7)), member: 'cents', value: 999 }],
         }),
       ),
     )
@@ -522,15 +504,7 @@ test('an edit that says when it committed is refused, and the table keeps its pr
   await Effect.runPromise(
     forger.submit(
       Message.EditedProducts({
-        changes: [
-          {
-            id: ProductId.make(productId(8)),
-            description: Option.none(),
-            cents: Option.some(1),
-            line: Option.none(),
-            status: Option.none(),
-          },
-        ],
+        changes: [{ id: ProductId.make(productId(8)), member: 'cents', value: 1 }],
         at: 1_000_000,
       }),
     ),
@@ -551,15 +525,7 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     await Effect.runPromise(
       other.submit(
         Message.EditedProducts({
-          changes: [
-            {
-              id: ProductId.make(productId(index)),
-              description: Option.none(),
-              cents: Option.some(index),
-              line: Option.none(),
-              status: Option.none(),
-            },
-          ],
+          changes: [{ id: ProductId.make(productId(index)), member: 'cents', value: index }],
         }),
       ),
     )
