@@ -148,6 +148,8 @@ pre-bundles the workspace packages.
 
 ### Two devices, the server in the browser
 
+Published at <https://foldkit-registry-demo.pages.dev/>.
+
 ```bash
 pnpm --filter foldkit-example-registry build:sandbox   # to examples/registry/dist, static files
 ```
