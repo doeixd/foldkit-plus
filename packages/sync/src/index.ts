@@ -27,6 +27,7 @@ import {
   layerLoopback,
   layerSocket,
   nativeSocket,
+  portSocket,
   serveSocket,
   toPromise,
 } from './transport.js'
@@ -69,6 +70,8 @@ export const Sync = {
     serve: serveSocket,
     /** The default socket factory: the platform `WebSocket`. */
     nativeSocket,
+    /** A socket over a `MessagePort`, closed by `close()` or an abort signal. */
+    portSocket,
   },
 
   /** An ephemeral, TTL'd peer registry, deliberately outside the durable log. */
@@ -161,6 +164,7 @@ export {
   layerLoopback,
   layerSocket,
   nativeSocket,
+  portSocket,
   serveSocket,
   toPromise,
   Transport,

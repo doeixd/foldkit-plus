@@ -163,8 +163,7 @@ const startPane = async (
     key: `foldkit-registry/sandbox/${id}`,
     name: () => name,
     resources: Remote.clientLayer(connection.remote),
-    transport: device =>
-      Sync.transport.socket({ url: 'sandbox', makeSocket: () => connection.socket(device) }),
+    transport: device => Sync.transport.socket({ makeSocket: () => connection.socket(device) }),
   })
   // Where the edits stand, for the card around the frame, said when it changes.
   let told: string | undefined

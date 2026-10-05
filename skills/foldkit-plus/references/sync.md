@@ -110,7 +110,8 @@ const program = Effect.gen(function* () {
   no exchange has carried it (a burst of typing becomes one operation).
 - Also available: `changes` (a stream of status + shared), `snapshot`,
   `statusChanges`, `committed`, and `close`. Transports: `Sync.transport.socket`
-  (reconnecting), `.loopback`, `.fromPromise(client)`, and
+  (reconnecting; a `url`, or `makeSocket` for any other socket), `.portSocket(port,
+  { signal? })` over a `MessagePort`, `.loopback`, `.fromPromise(client)`, and
   `.serve(socket, { exchange, changes? })` for the server, where `changes`
   subscribes to commits and sends a notice that wakes the client's `start`. The
   socket transport's `transport.socket` shares its connection, across reconnects,

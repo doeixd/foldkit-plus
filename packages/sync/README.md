@@ -671,10 +671,18 @@ replica validates every field; see [when things go wrong](#when-things-go-wrong)
   `maxRetries` (5) consecutive failed connections fails queued work and fails
   new exchanges fast until a socket is healthy again. `maxQueue` (64) bounds
   the queue.
+  Instead of a `url`, pass `makeSocket: () => SocketLike` to connect over
+  something else; it is called again on each reconnect.
 - `Sync.transport.serve(socket, { exchange, changes? })`: the server side of one
   accepted socket. With `changes`, a subscription to the document's commits, it
   sends a notice after each; the client's loop exchanges on every notice, so a
   tab that is only reading still sees others' edits without polling.
+- `Sync.transport.portSocket(port, { signal? })`: a socket over a
+  `MessagePort`, for a server in a worker or in the page. A port tells
+  neither end when the other goes, so its `onClose` fires on `close()` or when
+  `signal` aborts: a host aborts it when the pane it serves is gone, and
+  `serve` stops. A client opens one per connection:
+  `Sync.transport.socket({ makeSocket: () => Sync.transport.portSocket(open()) })`.
 - `Sync.transport.loopback(handler)`, `fromPromise(client)`, `toPromise(shape)`,
   and `nativeSocket` for the platform `WebSocket`.
 

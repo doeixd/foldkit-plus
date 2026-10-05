@@ -69,7 +69,7 @@ describe('the transport service', () => {
 })
 
 const withSocket = (client: SocketLike) =>
-  exchange.pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client })))
+  exchange.pipe(Effect.provide(layerSocket({ makeSocket: () => client })))
 
 describe('the socket transport', () => {
   it('sends one frame and resolves the matching reply', async () => {
@@ -109,9 +109,7 @@ describe('the socket transport', () => {
       return { heard: yield* Fiber.join(heard), result }
     })
     const outcome = await Effect.runPromise(
-      Effect.scoped(
-        program.pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client }))),
-      ),
+      Effect.scoped(program.pipe(Effect.provide(layerSocket({ makeSocket: () => client })))),
     )
     expect(outcome).toEqual({ heard: [undefined], result: { operations: [], rejected: [] } })
     stop()
@@ -146,9 +144,7 @@ describe('the socket transport', () => {
     })
     const heard = await Effect.runPromise(
       Effect.scoped(
-        program.pipe(
-          Effect.provide(layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis' })),
-        ),
+        program.pipe(Effect.provide(layerSocket({ makeSocket, retryBase: '1 millis' }))),
       ),
     )
     expect(heard).toEqual([undefined])
@@ -194,9 +190,7 @@ describe('the socket transport', () => {
     })
     const result = await Effect.runPromise(
       Effect.scoped(
-        program.pipe(
-          Effect.provide(layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis' })),
-        ),
+        program.pipe(Effect.provide(layerSocket({ makeSocket, retryBase: '1 millis' }))),
       ),
     )
     expect(result).toEqual({
@@ -232,11 +226,7 @@ describe('the socket transport', () => {
       return sent
     })
     const result = await Effect.runPromise(
-      Effect.scoped(
-        program.pipe(
-          Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => connecting })),
-        ),
-      ),
+      Effect.scoped(program.pipe(Effect.provide(layerSocket({ makeSocket: () => connecting })))),
     )
     expect(result).toEqual(['late'])
   })
@@ -257,9 +247,7 @@ describe('the socket transport', () => {
       return yield* transport.exchange(0, []).pipe(Effect.timeout('1 second'))
     })
     const result = await Effect.runPromise(
-      Effect.scoped(
-        program.pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client }))),
-      ),
+      Effect.scoped(program.pipe(Effect.provide(layerSocket({ makeSocket: () => client })))),
     )
     expect(result).toBe('ok')
   })
@@ -299,7 +287,7 @@ describe('the socket transport', () => {
 
     expect(
       await Effect.runPromise(
-        program.pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client }))),
+        program.pipe(Effect.provide(layerSocket({ makeSocket: () => client }))),
       ),
     ).toEqual(['first', 'second'])
   })
@@ -320,7 +308,7 @@ describe('the socket transport', () => {
     const withEpoch = Effect.gen(function* () {
       const transport = yield* Transport
       return yield* transport.exchange(0, [], 'one')
-    }).pipe(Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client })))
+    }).pipe(Effect.provide(layerSocket({ makeSocket: () => client })))
     expect(await Effect.runPromise(withEpoch)).toMatchObject({ epoch: 'one' })
   })
 
@@ -432,11 +420,7 @@ describe('the socket transport', () => {
       return [first, second]
     })
     const result = await Effect.runPromise(
-      program.pipe(
-        Effect.provide(
-          layerSocket({ url: 'ws://test', makeSocket: makeClient, retryBase: '1 millis' }),
-        ),
-      ),
+      program.pipe(Effect.provide(layerSocket({ makeSocket: makeClient, retryBase: '1 millis' }))),
     )
 
     expect(result).toEqual([{ ok: true }, { ok: true }])
@@ -470,7 +454,6 @@ describe('the socket transport', () => {
       program.pipe(
         Effect.provide(
           layerSocket({
-            url: 'ws://test',
             makeSocket: makeClosing,
             retryBase: '1 millis',
             maxRetries: 2,
@@ -503,11 +486,7 @@ describe('the socket transport', () => {
     })
     const result = await Effect.runPromise(
       Effect.scoped(
-        program.pipe(
-          Effect.provide(
-            layerSocket({ url: 'ws://test', makeSocket: () => neverReplies, maxQueue: 1 }),
-          ),
-        ),
+        program.pipe(Effect.provide(layerSocket({ makeSocket: () => neverReplies, maxQueue: 1 }))),
       ),
     )
 
@@ -595,7 +574,6 @@ describe('the socket transport', () => {
           program.pipe(
             Effect.provide(
               layerSocket({
-                url: 'ws://test',
                 makeSocket,
                 retryBase: '1 millis',
                 maxRetryDelay: '2 millis',
@@ -670,9 +648,7 @@ describe('the socket transport', () => {
       const result = await Effect.runPromise(
         Effect.scoped(
           program.pipe(
-            Effect.provide(
-              layerSocket({ url: 'ws://test', makeSocket, retryBase: '1 millis', maxRetries: 1 }),
-            ),
+            Effect.provide(layerSocket({ makeSocket, retryBase: '1 millis', maxRetries: 1 })),
           ),
         ),
       )
@@ -714,7 +690,6 @@ describe('the socket transport', () => {
       for (let turn = 0; turn < 100; turn++) yield* Effect.yieldNow
     })
     const layer = layerSocket({
-      url: 'ws://test',
       makeSocket,
       retryBase: '10 millis',
       maxRetryDelay: '1 second',
@@ -806,9 +781,7 @@ describe('the socket transport', () => {
 
     await Effect.runPromise(
       Effect.scoped(
-        program.pipe(
-          Effect.provide(layerSocket({ url: 'ws://test', makeSocket: () => client, maxQueue: 1 })),
-        ),
+        program.pipe(Effect.provide(layerSocket({ makeSocket: () => client, maxQueue: 1 }))),
       ),
     )
   })

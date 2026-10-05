@@ -339,7 +339,7 @@ describe('serveJournal', () => {
       serveJournal(server, { sync: Todos, journal, principal: 'ada' }),
     )
     const over = (index: number) =>
-      Sync.transport.socket({ url: 'ws://test', makeSocket: () => pairs[index]!.client })
+      Sync.transport.socket({ makeSocket: () => pairs[index]!.client })
     const watching = await replica('watching')
     const loop = Effect.runFork(watching.start.pipe(Effect.provide(over(0))))
     await new Promise(resolve => setTimeout(resolve, 50))

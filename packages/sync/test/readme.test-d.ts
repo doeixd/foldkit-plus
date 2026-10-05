@@ -314,3 +314,13 @@ const Product = {
 }
 const ProductEdits = EditableEntity.make(Product, { members: ['description', 'cents'] })
 void ProductEdits.overlay([])({ id: 'p1', description: 'Bolt', cents: 49, revision: 0 })
+
+// A socket over a port, opened per connection.
+declare const open: () => MessagePort
+void Sync.transport.socket({ makeSocket: () => Sync.transport.portSocket(open()) })
+// A url and a makeSocket are two answers to one question.
+// @ts-expect-error -- url and makeSocket together
+void Sync.transport.socket({
+  url: 'wss://example.com/sync',
+  makeSocket: () => Sync.transport.portSocket(open()),
+})

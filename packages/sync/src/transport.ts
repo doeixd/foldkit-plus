@@ -190,10 +190,18 @@ export interface SocketLike {
   onOpen?(listener: () => void): () => void
 }
 
-export interface SocketOptions {
-  readonly url: string
-  /** Injectable for tests; defaults to the platform `WebSocket`. */
-  readonly makeSocket?: ((url: string) => SocketLike) | undefined
+/**
+ * Where `layerSocket` connects: a `url` for the platform `WebSocket`, or a
+ * `makeSocket` that opens any other `SocketLike` (a port, a test socket), called
+ * again on every reconnect.
+ */
+export type SocketOptions = SocketTuning &
+  (
+    | { readonly url: string; readonly makeSocket?: undefined }
+    | { readonly makeSocket: () => SocketLike; readonly url?: undefined }
+  )
+
+interface SocketTuning {
   /**
    * Consecutive failed connections after which queued work fails and new
    * exchanges fail fast until a connection is healthy again. Reconnecting goes
@@ -236,6 +244,55 @@ export const nativeSocket = (url: string): SocketLike => {
 }
 
 /**
+ * A socket over a `MessagePort`, for either end: its frames are the port's
+ * string messages, and anything else on the port is ignored. A port tells
+ * neither end when the other goes, so `onClose` fires once, on `close()` or
+ * when `signal` aborts; a host that serves a pane aborts it when the pane is
+ * gone, which stops `serveSocket` and anything else listening.
+ */
+export const portSocket = (
+  port: MessagePort,
+  options: { readonly signal?: AbortSignal | undefined } = {},
+): SocketLike => {
+  const closeListeners = new Set<() => void>()
+  let closed = false
+  const close = (): void => {
+    closed = true
+    port.close()
+    for (const listener of [...closeListeners]) listener()
+    closeListeners.clear()
+  }
+  options.signal?.addEventListener('abort', close, { once: true })
+  if (options.signal?.aborted === true) close()
+  port.start()
+  return {
+    send: data => port.postMessage(data),
+    close,
+    onMessage: listener => {
+      const handler = (event: MessageEvent): void => {
+        if (typeof event.data === 'string') listener(event.data)
+      }
+      port.addEventListener('message', handler)
+      return () => port.removeEventListener('message', handler)
+    },
+    onClose: listener => {
+      if (closed) {
+        listener()
+        return () => {}
+      }
+      closeListeners.add(listener)
+      return () => closeListeners.delete(listener)
+    },
+  }
+}
+
+const connector = (options: SocketOptions): (() => SocketLike) => {
+  if (options.makeSocket !== undefined) return options.makeSocket
+  const { url } = options
+  return () => nativeSocket(url)
+}
+
+/**
  * A WebSocket client transport.
  *
  * One connection is live at a time. While it is connecting, exchanges queue; if
@@ -255,7 +312,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
   Layer.effect(
     Transport,
     Effect.fn('Transport.layerSocket')(function* () {
-      const makeSocket = options.makeSocket ?? nativeSocket
+      const makeSocket = connector(options)
       const maxQueue = options.maxQueue ?? 64
       const maxRetries = options.maxRetries ?? 5
       const retryBase = Duration.toMillis(
@@ -327,7 +384,7 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
       const connect = Effect.tryPromise({
         try: () =>
           new Promise<void>((resolve, reject) => {
-            const next = makeSocket(options.url)
+            const next = makeSocket()
             socket = next
             ready = next.onOpen === undefined
             let openedAt = ready ? clock.currentTimeMillisUnsafe() : undefined

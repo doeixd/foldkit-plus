@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync`: `Sync.transport.portSocket(port, { signal? })`, a socket
+  over a `MessagePort`.** Its frames are the port's strings, anything else is
+  ignored, and `onClose` fires once, on `close()` or when `signal` aborts, so
+  a host that serves a pane stops serving it when the pane goes. The registry
+  sandbox's own copy, whose `onClose` never fired, is gone (#167).
 - **`foldkit-remote/port` and `foldkit-remote-server/port`: Remote over a
   `MessagePort`.** `port(open)` is Remote's client and `servePort(handlers,
   port)` its server, over Effect's own RPC worker protocol, driven through
@@ -517,6 +522,9 @@ client, `Remote.clientLayer` takes the stock `RpcClient` as it is.
 
 ### Changed
 
+- **`foldkit-sync`: `Sync.transport.socket` takes a `url` or a `makeSocket`,
+  not both.** `makeSocket` takes no argument now, and a socket opened by one
+  needs no placeholder `url`; passing both is a type error (#167).
 - **`foldkit-entity`, a field's dependency names its owner:**
   `dependenciesOf` and `Query.dependencies` report each field as
   `{ entity, key, owner }` and keep one entry per Entity identity, so two

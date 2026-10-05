@@ -65,10 +65,7 @@ it('converges a replica through the socket transport', async () => {
     )
 
     await Effect.runPromise(
-      Effect.provide(
-        replica.synchronize,
-        Sync.transport.socket({ url: 'ws://test', makeSocket: () => client }),
-      ),
+      Effect.provide(replica.synchronize, Sync.transport.socket({ makeSocket: () => client })),
     )
 
     expect(Effect.runSync(replica.cursor)).toBe(1)

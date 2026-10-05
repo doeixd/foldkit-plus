@@ -5,7 +5,6 @@
  * its id.
  */
 import { Schema } from 'effect'
-import type { SocketLike } from 'foldkit-sync'
 
 /** A device's Sync socket. */
 export const SyncOpening = Schema.TaggedStruct('SyncOpening', { device: Schema.String })
@@ -35,23 +34,4 @@ export interface RemoteRequest {
 export interface RemoteAnswer {
   readonly id: number
   readonly body: unknown
-}
-
-/**
- * A socket over a message port, either end: its frames are the port's
- * messages. A port has no close of its own, so `onClose` never fires; the
- * page or the worker ending is the end.
- */
-export const portSocket = (port: MessagePort): SocketLike => {
-  port.start()
-  return {
-    send: data => port.postMessage(data),
-    close: () => port.close(),
-    onMessage: listener => {
-      const handler = (event: MessageEvent) => listener(String(event.data))
-      port.addEventListener('message', handler)
-      return () => port.removeEventListener('message', handler)
-    },
-    onClose: () => () => {},
-  }
 }

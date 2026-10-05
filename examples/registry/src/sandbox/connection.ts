@@ -5,12 +5,11 @@
  */
 import { Schema } from 'effect'
 import { Remote, type RemoteRpcClient } from 'foldkit-remote'
-import type { SocketLike } from 'foldkit-sync'
+import { portSocket, type SocketLike } from 'foldkit-sync'
 import {
   Opening,
   RemoteOpening,
   SyncOpening,
-  portSocket,
   type RemoteAnswer,
   type RemoteRequest,
 } from './protocol.js'
