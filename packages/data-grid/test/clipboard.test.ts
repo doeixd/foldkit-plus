@@ -98,6 +98,11 @@ describe('Clipboard.copy', () => {
 
 describe('Clipboard.pasteAt', () => {
   const editable = (column: Id) => column !== 'sku'
+  // Each cell's own address, so a cell given another's `from` shows.
+  const from = ({ row, column }: { readonly row: string; readonly column: Id }) =>
+    `${row}/${column}`
+  const cells = { editable, from }
+  const any = { editable: () => true, from }
 
   test('lays the cells from the anchor, skipping a column that does not edit', () => {
     expect(
@@ -108,13 +113,13 @@ describe('Clipboard.pasteAt', () => {
           ['A', 'B', 'C'],
           ['D', 'E', 'F'],
         ],
-        editable,
+        cells,
       ),
     ).toEqual([
-      { row: 'p:10', column: 'price', text: 'B' },
-      { row: 'p:10', column: 'name', text: 'C' },
-      { row: 'p:1', column: 'price', text: 'E' },
-      { row: 'p:1', column: 'name', text: 'F' },
+      { row: 'p:10', column: 'price', text: 'B', from: 'p:10/price' },
+      { row: 'p:10', column: 'name', text: 'C', from: 'p:10/name' },
+      { row: 'p:1', column: 'price', text: 'E', from: 'p:1/price' },
+      { row: 'p:1', column: 'name', text: 'F', from: 'p:1/name' },
     ])
   })
 
@@ -127,13 +132,13 @@ describe('Clipboard.pasteAt', () => {
           ['A', 'B'],
           ['C', 'D'],
         ],
-        editable,
+        cells,
       ),
-    ).toEqual([{ row: 'p:100', column: 'name', text: 'A' }])
+    ).toEqual([{ row: 'p:100', column: 'name', text: 'A', from: 'p:100/name' }])
   })
 
   test('lands nothing from an anchor that is not shown', () => {
-    expect(Clipboard.pasteAt(moving, at('p:1', 'notes'), [['A']], () => true)).toEqual([])
+    expect(Clipboard.pasteAt(moving, at('p:1', 'notes'), [['A']], any)).toEqual([])
   })
 
   test('skips a row counted but not loaded', () => {
@@ -144,9 +149,9 @@ describe('Clipboard.pasteAt', () => {
       indexOf: key => rows.indexOf(key),
     }
     const grid = project(ColumnLayout.initial(columns), partly)
-    expect(Clipboard.pasteAt(grid, at('p:10', 'name'), [['A'], ['B'], ['C']], () => true)).toEqual([
-      { row: 'p:10', column: 'name', text: 'A' },
-      { row: 'p:100', column: 'name', text: 'C' },
+    expect(Clipboard.pasteAt(grid, at('p:10', 'name'), [['A'], ['B'], ['C']], any)).toEqual([
+      { row: 'p:10', column: 'name', text: 'A', from: 'p:10/name' },
+      { row: 'p:100', column: 'name', text: 'C', from: 'p:100/name' },
     ])
   })
 })

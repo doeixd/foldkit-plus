@@ -340,29 +340,15 @@ const absorbed = (edits: ReadonlyArray<ProductEdit>, through: number) =>
 
 // The grid reports text; the fact it becomes is durable. `Sync.fact` applies
 // it within this transition, so no later Message sees the Model without it.
-// A paste the columns refused all of writes nothing.
-// A cell committed with the value it already shows changes nothing, so it is
-// no edit: nothing is sent, and the cell is not marked.
-const edited = (model: Model, cells: ReadonlyArray<Cell>) => {
-  const rows = rowsOf(model)
-  const changes = cells.flatMap(cell =>
-    Option.exists(Option.flatMap(rows.indexOf(cell.row), rows.rowAt), row => holds(row, cell))
-      ? []
-      : [changeOf(cell)],
-  )
-  return changes.length === 0
+// A paste the columns refused all of writes nothing. The grid reports no
+// cell left as it began, so an unchanged one never reaches here.
+const edited = (model: Model, cells: ReadonlyArray<Cell>) =>
+  cells.length === 0
     ? { model }
-    : { model, commands: [Sync.fact(Message.EditedProducts({ changes }))] }
-}
-
-/** Whether a row shows the value a cell's text decodes to already. */
-const holds = (row: Row, cell: Cell) =>
-  Grid.matchEdit(cell, {
-    description: ({ value }) => value === row.description,
-    cents: ({ value }) => value === row.cents,
-    line: ({ value }) => value === row.line,
-    status: ({ value }) => value === row.status,
-  })
+    : {
+        model,
+        commands: [Sync.fact(Message.EditedProducts({ changes: cells.map(changeOf) }))],
+      }
 
 const Page = Base.pipe(
   Bundle.withServices<RemoteClient>(),

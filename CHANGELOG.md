@@ -15,6 +15,10 @@ version changed; `pnpm` skips versions already in the registry.
   focus with no `Out.Edited`. Leaving an editor as it opened, after another
   device changed the cell beneath it, no longer sends the old value over the
   new one (#174). `EditTyped` carries `from`, the text the cell showed.
+  A paste does the same per cell: `Clipboard.pasteAt` takes `{ editable,
+  from }` (was a positional `editable`), each `Pasted` cell carries `from`,
+  unchanged cells are dropped, and a paste or cut that changes nothing
+  reports nothing. `examples/registry` drops its own `holds` check.
 - **`foldkit-mixins-data-grid`: clicking away saves, and a refused draft
   says why.** Focus leaving the editor commits it, as Enter does without
   moving; a draft the column refuses stays open, its field in the error

@@ -8,6 +8,11 @@ export interface CellText<Id extends string> {
   readonly text: string
 }
 
+/** A pasted cell, with the text it showed before, so an unchanged one is no edit. */
+export interface PastedCell<Id extends string> extends CellText<Id> {
+  readonly from: string
+}
+
 // A cell holding a tab, a line break or a quote is quoted, its quotes doubled,
 // as spreadsheets write and read tab-separated text.
 const needsQuotes = /[\t\n\r"]/
@@ -91,27 +96,34 @@ const copy = <Row, Id extends string>(
  * Where pasted cells land: the matrix laid from `anchor` across rows in the
  * projection's order and columns in display order. Cells past the grid's
  * edges are dropped, as are those landing on a column that does not edit or
- * a row not loaded; the rest keep their place.
+ * a row not loaded; the rest keep their place, each with `from`, the text
+ * the cell showed (the text an edit of it would begin from).
  */
 const pasteAt = <Row, Id extends string>(
   projection: GridProjection<Row, Id>,
   anchor: CellAddress<Id>,
   matrix: ReadonlyArray<ReadonlyArray<string>>,
-  editable: (column: Id) => boolean,
-): ReadonlyArray<CellText<Id>> =>
+  cells: {
+    readonly editable: (column: Id) => boolean
+    readonly from: (address: CellAddress<Id>) => string
+  },
+): ReadonlyArray<PastedCell<Id>> =>
   Option.match(projection.positionOf(anchor), {
     onNone: () => [],
     onSome: start => {
-      const cells: Array<CellText<Id>> = []
+      const landed: Array<PastedCell<Id>> = []
       matrix.forEach((texts, down) => {
         const key = projection.rows.keyAt(start.row + down)
         if (Option.isNone(key)) return
+        const row = key.value
         texts.forEach((text, across) => {
           const column = projection.columns[start.column + across]
-          if (column !== undefined && editable(column)) cells.push({ row: key.value, column, text })
+          if (column !== undefined && cells.editable(column)) {
+            landed.push({ row, column, text, from: cells.from({ row, column }) })
+          }
         })
       })
-      return cells
+      return landed
     },
   })
 

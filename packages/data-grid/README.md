@@ -347,13 +347,16 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
 
 - **`Clipboard.copy(projection, box, textOf)`** is a box's cells as TSV,
   rows in the projection's order and columns in display order.
-- **`Clipboard.pasteAt(projection, anchor, matrix, editable)`** is where
-  pasted text lands: laid from the anchor, dropping cells past the edges, on
-  columns that do not edit, or on rows not loaded.
-- **`Pasted({ cells })`** hands those cells to the grid, which checks each
-  against its column's `schema` and reports one `Out.Pasted({ accepted,
-  refused })`: one change for the application to apply, and say what it
-  refused. A paste while a cell is edited is the field's.
+- **`Clipboard.pasteAt(projection, anchor, matrix, { editable, from })`** is
+  where pasted text lands: laid from the anchor, dropping cells past the
+  edges, on columns that do not edit, or on rows not loaded. Each cell keeps
+  `from(address)`, the text it showed, as an edit would begin from.
+- **`Pasted({ cells })`** hands those cells to the grid, which drops each one
+  its text leaves unchanged (as an edit judges it), checks the rest against
+  their columns' `schema`, and reports one `Out.Pasted({ accepted, refused
+  })`: one change for the application to apply, and say what it refused. A
+  paste or cut that changes no cell reports nothing. A paste while a cell is
+  edited is the field's.
 
 ## Over a `foldkit-crud` list
 

@@ -42,6 +42,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const columnState = ColumnState.make(options.columns)
   const Column = focus.Address.fields.column
   const CellText = Schema.Struct({ row: Schema.String, column: Column, text: Schema.String })
+  const PastedCell = Schema.Struct({ ...CellText.fields, from: Schema.String })
   const Model = Schema.Struct({
     focus: focus.Model,
     viewport: GridViewport.Model,
@@ -193,10 +194,11 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     EditCancelled: {},
     /**
      * Text pasted, or a cut's cleared cells, laid onto editable cells by the
-     * view (`Clipboard.pasteAt`). Each is checked against its column, and the
-     * whole is reported as one `Pasted`.
+     * view (`Clipboard.pasteAt`). A cell its text leaves unchanged (as an
+     * edit judges it, against `from`) is dropped; the rest are checked against
+     * their columns and reported as one `Pasted`, or nothing when none is left.
      */
-    Pasted: { cells: Schema.Array(CellText) },
+    Pasted: { cells: Schema.Array(PastedCell) },
   })
   type Message = typeof Message.Type
   /**
@@ -755,14 +757,17 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           if (Option.isSome(model.editing) || cells.length === 0) return { model }
           const accepted: Array<typeof CellText.Type> = []
           const refused: Array<typeof CellText.Type & { readonly error: string }> = []
-          for (const cell of cells) {
+          for (const { from, ...cell } of cells) {
             if (options.columns.byId[cell.column].edit === undefined) continue
+            if (unchanged(cell.column, from, cell.text)) continue
             Option.match(errorOf(cell.column, cell.text), {
               onNone: () => accepted.push(cell),
               onSome: error => refused.push({ ...cell, error }),
             })
           }
-          return { model, outMessage: Out.Pasted({ accepted, refused }) }
+          return accepted.length === 0 && refused.length === 0
+            ? { model }
+            : { model, outMessage: Out.Pasted({ accepted, refused }) }
         },
         EditCancelled: (): Return => ({
           model: Option.isNone(model.editing)

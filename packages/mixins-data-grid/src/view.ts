@@ -632,7 +632,7 @@ const view = <Message>() => ({
                 Array.from({ length: box.rows.end - box.rows.start }, () =>
                   box.columns.map(() => ''),
                 ),
-                editable,
+                { editable, from: draftOf },
               ),
           })
           return [
@@ -640,12 +640,10 @@ const view = <Message>() => ({
             h.OnCutText(text, input.wrap(grid.Message.Pasted({ cells: cleared }))),
             h.OnPastePreventDefault(pasted =>
               Option.flatMap(corner, anchor => {
-                const cells = Clipboard.pasteAt(
-                  projection,
-                  anchor,
-                  Clipboard.parseTsv(pasted),
+                const cells = Clipboard.pasteAt(projection, anchor, Clipboard.parseTsv(pasted), {
                   editable,
-                )
+                  from: draftOf,
+                })
                 return cells.length === 0
                   ? Option.none()
                   : Option.some(input.wrap(grid.Message.Pasted({ cells })))

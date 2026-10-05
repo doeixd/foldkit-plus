@@ -872,10 +872,13 @@ describe('DataGrid paste', () => {
       blank,
       Editing.Message.Pasted({
         cells: [
-          { row: 'p:1', column: 'price', text: '3.5' },
-          { row: 'p:10', column: 'price', text: 'lots' },
-          { row: 'p:1', column: 'name', text: 'Anchor' },
-          { row: 'p:1', column: 'sku', text: 'not editable' },
+          { row: 'p:1', column: 'price', text: '3.5', from: '9.00' },
+          { row: 'p:10', column: 'price', text: 'lots', from: '1.00' },
+          { row: 'p:1', column: 'name', text: 'Anchor', from: 'Bolt' },
+          { row: 'p:1', column: 'sku', text: 'not editable', from: 'A-1' },
+          // Unchanged: the text it showed, and text that means the same price.
+          { row: 'p:10', column: 'name', text: 'Nut', from: 'Nut' },
+          { row: 'p:100', column: 'price', text: '02.5', from: '2.50' },
         ],
       }),
     )
@@ -891,8 +894,20 @@ describe('DataGrid paste', () => {
     )
   })
 
+  test('a paste or cut that changes no cell reports nothing', () => {
+    const same = Editing.Message.Pasted({
+      cells: [
+        { row: 'p:1', column: 'name', text: 'Bolt', from: 'Bolt' },
+        { row: 'p:1', column: 'price', text: '9', from: '9.00' },
+        // A cut over a cell already empty.
+        { row: 'p:10', column: 'name', text: '', from: '' },
+      ],
+    })
+    expect(edit(blank, same).outMessage).toBeUndefined()
+  })
+
   test('a paste while a cell is edited is the field’s, and an empty one is nothing', () => {
-    const cell = { row: 'p:1', column: 'name' as const, text: 'x' }
+    const cell = { row: 'p:1', column: 'name' as const, text: 'x', from: 'y' }
     expect(edit(begun, Editing.Message.Pasted({ cells: [cell] })).outMessage).toBeUndefined()
     expect(edit(blank, Editing.Message.Pasted({ cells: [] })).outMessage).toBeUndefined()
   })

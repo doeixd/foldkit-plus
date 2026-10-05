@@ -107,8 +107,9 @@ test('the registry draws a window of 100,000 products, and edits and pastes reac
   expect(latest?.products[0]?.price).toBe(3.25)
   // Status is a choice of the Product's statuses, and takes one.
   expect(latest?.products[0]?.status).toBe('Pending')
+  // The second product is Active already, so pasting Active onto it is no edit.
   await vi.waitFor(() =>
-    expect(status()).toContain('Pasted 5 cells; refused 1: A price, like 4.99.'),
+    expect(status()).toContain('Pasted 4 cells; refused 1: A price, like 4.99.'),
   )
 
   // Ctrl+A selects every product, drawn or not.
