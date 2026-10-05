@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/registry` says where each edit is.** A cell's mark shows an
+  edit not yet sent, one the journal has and the table does not yet, and one
+  the server refused, edged until its line (naming the cells and the
+  server's reason) is dismissed. A *Work offline* switch pauses the
+  transport, and switching back exchanges at once (#161).
 - **`foldkit-sync`: why an edit was refused.** An exchange may carry
   `reasons: [{ opId, reason }]` beside `rejected` (each at most 500
   characters; a reason for an operation not rejected fails the exchange),

@@ -2,8 +2,8 @@
  * The registry end to end: its server (Remote over HTTP, the journal over a
  * WebSocket) and its Vite dev server started here, and a real Chromium
  * driving the page. Reading on as the end comes into view, a sort the server
- * does over all 100,000 products, an edit that survives a reload, and a
- * column hidden from its menu.
+ * does over all 100,000 products, an edit that survives a reload, a column
+ * hidden from its menu, and the offline switch sending at once when it is off.
  */
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
@@ -131,6 +131,42 @@ test('a column is hidden from its menu, and shown again from another’s', async
   await header('status').locator('[aria-haspopup="menu"]').click()
   await page.locator('#products [role="menuitem"]', { hasText: 'Show Line' }).click()
   await expect.poll(() => header('line').count()).toBe(1)
+  expect(errors).toEqual([])
+  await page.close()
+})
+
+test('working offline keeps an edit on the device, and switching back sends it', async () => {
+  const errors = await open()
+  const exchange = () => page.locator('#exchange').textContent()
+  await page.getByRole('checkbox', { name: 'Work offline' }).check()
+  await expect.poll(exchange).toBe('Working offline.')
+  const priceOf = cell(productId(11), 'cents')
+  await priceOf.click()
+  await page.waitForFunction(
+    id => document.getElementById('products')?.getAttribute('aria-activedescendant') === id,
+    `products:${productId(11)}:cents`,
+  )
+  await page.keyboard.press('Enter')
+  await page.waitForSelector('#products input')
+  await page.keyboard.press('Control+A')
+  await page.keyboard.type('11.10')
+  await page.keyboard.press('Enter')
+  await expect.poll(exchange).toBe('Working offline: 1 edit kept on this device.')
+  expect(await priceOf.getAttribute('data-mark')).toBe('pending')
+
+  // Offline long enough for the replica's backoff to have grown past a few
+  // seconds (0.5 s, doubling): switching back sends at once, not when the
+  // backoff ends.
+  await page.waitForTimeout(4_000)
+  await page.getByRole('checkbox', { name: 'Work offline' }).uncheck()
+  await expect.poll(exchange, { timeout: 1_500 }).toBe('')
+  const read = await Effect.runPromise(
+    Remote.http(server.url).FoldkitRemoteRead({
+      version: REMOTE_PROTOCOL_VERSION,
+      requests: [{ entity: 'Product', id: productId(11), fields: ['cents'] }],
+    }),
+  )
+  expect(read.entities).toEqual([{ entity: 'Product', id: productId(11), values: { cents: 1110 } }])
   expect(errors).toEqual([])
   await page.close()
 })

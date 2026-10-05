@@ -19,13 +19,13 @@ import { GridCrud } from 'foldkit-data-grid/crud'
 import { Frames } from 'foldkit-mixins/testing'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { ReplicaId, Sync, type Storage, type TransportClient } from 'foldkit-sync'
+import { ReplicaId, Sync, type Operation, type Storage, type TransportClient } from 'foldkit-sync'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Message, Products, type Model } from '../src/app.js'
 import { ProductId } from '../src/domain.js'
 import { openJournal } from '../src/journal.js'
 import { openServer, productId, seedOf } from '../src/server.js'
-import { RegistrySync, mountRegistry } from '../src/sync.js'
+import { RegistrySync, mountRegistry, pausable } from '../src/sync.js'
 
 const count = 1_000
 
@@ -54,10 +54,17 @@ const serve = () => {
     backend.apply(change, at)
   })
   let online = true
+  // A client between the page and the server that says its edits committed:
+  // what the journal refuses, as a page's own edit never is.
+  let tampering = false
+  const forged = (operation: Operation): Operation => ({
+    ...operation,
+    message: Object.assign({}, operation.message, { at: 1 }),
+  })
   const transport: TransportClient = {
     exchange: (cursor, pending, epoch) =>
       online
-        ? journal.transport.exchange(cursor, pending, epoch)
+        ? journal.transport.exchange(cursor, tampering ? pending.map(forged) : pending, epoch)
         : Promise.reject(new Error('offline')),
   }
   return {
@@ -65,6 +72,7 @@ const serve = () => {
     journal,
     setOnline: (value: boolean) => (online = value),
     setWritable: (value: boolean) => (writable = value),
+    setTampering: (value: boolean) => (tampering = value),
     resources: Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
       Layer.provide(backend.layer),
     ),
@@ -429,6 +437,93 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     // The next reinstall lets it go.
     await elsewhere('tab-3', 7)
     expect(latest().retired).toEqual([])
+  } finally {
+    await dispose()
+  }
+})
+
+const markOf = (row: string, column: string) => cell(row, column)?.getAttribute('data-mark') ?? null
+
+test('a cell says where its edit is: not yet sent, saved but not in the table, then nothing', async () => {
+  const server = serve()
+  const { dispose, exchange, mounted } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(5), 'cents')?.textContent).toBe(priceOf(5)))
+    expect(markOf(productId(5), 'cents')).toBeNull()
+    await edit(productId(5), 'cents', '5.55')
+    await vi.waitFor(() => expect(markOf(productId(5), 'cents')).toBe('pending'))
+    expect(cell(productId(5), 'cents')!.getAttribute('aria-description')).toBe('Not yet sent')
+    expect(markOf(productId(5), 'description')).toBeNull()
+
+    server.setWritable(false)
+    await exchange()
+    await vi.waitFor(() => expect(markOf(productId(5), 'cents')).toBe('saved'))
+    expect(cell(productId(5), 'cents')!.getAttribute('aria-description')).toBe(
+      'Saved, not yet in the table',
+    )
+
+    server.setWritable(true)
+    await exchange()
+    mounted.dispatch(Message.RetriedProducts())
+    await vi.waitFor(() => expect(markOf(productId(5), 'cents')).toBeNull())
+    expect(cell(productId(5), 'cents')?.textContent).toBe('5.55')
+  } finally {
+    await dispose()
+  }
+})
+
+test('a refused edit marks its cell and says why, until it is dismissed', async () => {
+  const server = serve()
+  const { dispose, exchange } = await mount(server, memoryStorage())
+  const lines = () =>
+    Array.from(document.querySelectorAll('#refused li'), line => line.firstChild?.textContent)
+  try {
+    await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe(priceOf(6)))
+    await edit(productId(6), 'cents', '6.66')
+    await vi.waitFor(() => expect(markOf(productId(6), 'cents')).toBe('pending'))
+    server.setTampering(true)
+    await exchange()
+    // Back to the server's price, edged as refused, with the reason the journal gave.
+    await vi.waitFor(() => expect(markOf(productId(6), 'cents')).toBe('refused'))
+    expect(cell(productId(6), 'cents')?.textContent).toBe(priceOf(6))
+    expect(cell(productId(6), 'cents')!.getAttribute('aria-description')).toBe(
+      'Not saved: Not a valid operation',
+    )
+    expect(lines()).toEqual([`Price of ${productId(6)} not saved: Not a valid operation. `])
+
+    click(document.querySelector('#refused button')!)
+    await vi.waitFor(() => expect(lines()).toEqual([]))
+    expect(markOf(productId(6), 'cents')).toBeNull()
+  } finally {
+    await dispose()
+  }
+})
+
+test('working offline keeps edits on the device, and going back online sends them', async () => {
+  const server = serve()
+  const { dispose, replica, latest } = await mount(server, memoryStorage())
+  const paused = pausable(server.transport, () => latest().offline)
+  const exchange = () =>
+    Effect.runPromise(replica.synchronize.pipe(Effect.provide(paused), Effect.ignore))
+  const offline = () => document.querySelector<HTMLInputElement>('main input[type="checkbox"]')!
+  try {
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
+    offline().click()
+    await vi.waitFor(() => expect(status()).toBe('Working offline.'))
+    await edit(productId(4), 'cents', '4.04')
+    // In the outbox first, so the exchange has it to send, and does not.
+    await vi.waitFor(() => expect(Effect.runSync(replica.pending)).toHaveLength(1))
+    await exchange()
+    expect(Effect.runSync(replica.pending)).toHaveLength(1)
+    expect(status()).toBe('Working offline: 1 edit kept on this device.')
+    expect(server.backend.row(productId(4))).toMatchObject({ cents: seedOf(4).cents })
+
+    offline().click()
+    await vi.waitFor(() => expect(latest().offline).toBe(false))
+    await exchange()
+    await vi.waitFor(() => expect(status()).toBe(''))
+    await exchange()
+    expect(server.backend.row(productId(4))).toMatchObject({ cents: 404 })
   } finally {
     await dispose()
   }

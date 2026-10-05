@@ -4,7 +4,7 @@
  * application's own `update`, so the server's journal and every replica fold
  * the same operations the same way.
  */
-import { Effect, Fiber, Layer, Option, Stream } from 'effect'
+import { Effect, Fiber, Layer, Match, Option, Schema, Stream } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import type { RemoteClient } from 'foldkit-remote'
 import { MessageSet, Projection } from 'foldkit-surface'
@@ -16,8 +16,18 @@ import {
   type PolicyJournalContract,
   type Replica,
   type Sync as SyncContract,
+  Transport,
+  TransportError,
 } from 'foldkit-sync'
-import { App, Message, type Model, type ProductEdit, placements, retiredOf } from './app.js'
+import {
+  App,
+  Message,
+  type Model,
+  type ProductEdit,
+  type Refusal,
+  placements,
+  retiredOf,
+} from './app.js'
 import { view } from './view.js'
 
 export type Shared = { readonly edits: ReadonlyArray<ProductEdit> }
@@ -59,6 +69,50 @@ export const RegistrySync: SyncContract<Message, Shared> = definition
 export const journalContract = (): PolicyJournalContract<Operation, Shared, Principal> =>
   definition.journalContract()
 
+const decodeMessage = Schema.decodeUnknownOption(Message)
+
+/** The cells an operation's edit changes: each product's fields it holds. */
+const changedCells = (operation: Operation): ReadonlyArray<Pick<Refusal, 'id' | 'column'>> =>
+  Option.match(decodeMessage(operation.message), {
+    onNone: () => [],
+    onSome: message =>
+      Match.value(message).pipe(
+        Match.tag('EditedProducts', ({ changes }) =>
+          changes.flatMap(change => [
+            ...(Option.isSome(change.description)
+              ? [{ id: change.id, column: 'description' as const }]
+              : []),
+            ...(Option.isSome(change.cents) ? [{ id: change.id, column: 'cents' as const }] : []),
+          ]),
+        ),
+        Match.orElse(() => []),
+      ),
+  })
+
+/**
+ * The transport, paused while `paused()` says so: an exchange fails as the
+ * server being unreachable would, so the replica keeps its edits on the
+ * device. A notice that arrives meanwhile only starts an exchange that fails
+ * the same way. The offline switch's.
+ */
+export const pausable = <E>(
+  transport: Layer.Layer<Transport, E>,
+  paused: () => boolean,
+): Layer.Layer<Transport, E> =>
+  Layer.effect(
+    Transport,
+    Effect.gen(function* () {
+      const shape = yield* Transport
+      return {
+        ...shape,
+        exchange: (cursor: number, pending: ReadonlyArray<Operation>, epoch?: string) =>
+          paused()
+            ? Effect.fail(new TransportError({ message: 'working offline' }))
+            : shape.exchange(cursor, pending, epoch),
+      }
+    }),
+  ).pipe(Layer.provide(transport))
+
 /**
  * The application over an open replica: an edit applies at once and is
  * persisted to the replica after, an exchange or a rejection reinstalls the
@@ -90,9 +144,25 @@ export const mountRegistry = (
       }
     },
   })
+  // The replica drops a refused operation, so the cells each pending one
+  // changed are read while it is still pending, to say which a refusal undid.
+  const cellsOf = new Map<string, ReadonlyArray<Pick<Refusal, 'id' | 'column'>>>()
+  const reported = new Set<string>()
   const status = Effect.runFork(
-    Stream.runForEach(replica.statusChanges, ({ pending, lastError }) =>
-      Effect.sync(() => {
+    Stream.runForEach(replica.statusChanges, ({ pending, lastError, rejected }) =>
+      Effect.gen(function* () {
+        for (const operation of yield* replica.pending)
+          if (!cellsOf.has(operation.opId)) cellsOf.set(operation.opId, changedCells(operation))
+        const refusals = rejected.flatMap(({ opId, reason }) => {
+          if (reported.has(opId)) return []
+          reported.add(opId)
+          return (cellsOf.get(opId) ?? []).map(cell => ({
+            opId,
+            ...cell,
+            reason: Option.getOrElse(reason, () => 'Refused by the server'),
+          }))
+        })
+        if (refusals.length > 0) mounted.dispatch(Message.EditsRefused({ refusals }))
         mounted.dispatch(
           Message.ExchangeChanged({ pending, error: Option.fromUndefinedOr(lastError) }),
         )

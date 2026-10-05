@@ -22,7 +22,7 @@ import { Match, Option, Schema, SchemaGetter } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Crud } from 'foldkit-crud'
-import { DataGrid, RowModel } from 'foldkit-data-grid'
+import { type CellAddress, DataGrid, RowModel } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
@@ -106,6 +106,16 @@ export const ProductEdit = Schema.Struct({
 })
 export type ProductEdit = typeof ProductEdit.Type
 
+/** A cell an edit the server refused had changed, and why. */
+export const Refusal = Schema.Struct({
+  /** The refused operation, so the line about it can be dismissed. */
+  opId: Schema.String,
+  id: ProductId,
+  column: Schema.Literals(['description', 'cents']),
+  reason: Schema.String,
+})
+export type Refusal = typeof Refusal.Type
+
 /** Where this replica's edits stand with the server, as its status last said. */
 const Exchange = Schema.Struct({
   /** Edits this device made that the server has not taken yet. */
@@ -131,6 +141,10 @@ const Base = Bundle.compose({
    */
   retired: Schema.Array(ProductEdit),
   exchange: Exchange,
+  /** Edits the server refused, each cell it had changed, until dismissed. Local. */
+  refused: Schema.Array(Refusal),
+  /** Whether the person chose to work offline: no exchange runs until they stop. */
+  offline: Schema.Boolean,
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
@@ -154,6 +168,12 @@ const Base = Bundle.compose({
      * what the table has not absorbed, usually nothing.
      */
     AbsorbedEdits: { through: Schema.Number },
+    /** The server refused edits: their cells, as the mount read them before sending. */
+    EditsRefused: { refusals: Schema.Array(Refusal) },
+    /** The line about a refused edit was dismissed. */
+    RefusalDismissed: { opId: Schema.String },
+    /** The offline switch was pressed: the intent, flipped from the Model as it is. */
+    OfflineToggled: {},
     /** The replica's status, for the status line; local, not replicated. */
     ExchangeChanged: Exchange.fields,
   }),
@@ -277,6 +297,17 @@ export const update = placements.update((model: Model, message: Message) =>
       AbsorbedEdits: ({ through }) => ({
         model: modifyFields(model, { edits: edits => absorbed(edits, through) }),
       }),
+      EditsRefused: ({ refusals }) => ({
+        model: modifyFields(model, { refused: refused => [...refused, ...refusals] }),
+      }),
+      RefusalDismissed: ({ opId }) => ({
+        model: modifyFields(model, {
+          refused: refused => refused.filter(refusal => refusal.opId !== opId),
+        }),
+      }),
+      OfflineToggled: () => ({
+        model: modifyFields(model, { offline: offline => !offline }),
+      }),
       ExchangeChanged: ({ pending, error }) => ({
         model: modifyFields(model, { exchange: () => ({ pending, error }) }),
       }),
@@ -292,6 +323,8 @@ export const initial = (): Model =>
     edits: [],
     retired: [],
     exchange: { pending: 0, error: Option.none() },
+    refused: [],
+    offline: false,
   }).model
 
 /** The application as Sync replays it: the same references, with its initial value and update. */
@@ -391,12 +424,61 @@ export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEd
 }
 
 /** Where the edits stand with the server, for the status line. */
-export const exchangeOf = (model: Model): string =>
-  Option.match(model.exchange.error, {
-    onSome: error =>
-      `${model.exchange.pending} ${model.exchange.pending === 1 ? 'edit' : 'edits'} kept on this device; the server cannot be reached (${error}).`,
-    onNone: () =>
-      model.exchange.pending === 0
-        ? ''
-        : `Sending ${model.exchange.pending} ${model.exchange.pending === 1 ? 'edit' : 'edits'}…`,
+export const exchangeOf = (model: Model): string => {
+  const { pending, error } = model.exchange
+  const edits = `${pending} ${pending === 1 ? 'edit' : 'edits'}`
+  if (model.offline)
+    return pending === 0 ? 'Working offline.' : `Working offline: ${edits} kept on this device.`
+  return Option.match(error, {
+    onSome: reason => `${edits} kept on this device; the server cannot be reached (${reason}).`,
+    onNone: () => (pending === 0 ? '' : `Sending ${edits}…`),
   })
+}
+
+/** A cell's state for the grid's `marks`: a name to style, and words to say. */
+interface CellMark {
+  readonly name: string
+  readonly description: string
+}
+
+/**
+ * Each cell's mark, for the grid: an edit the server refused, until it is
+ * dismissed; one not yet sent; one the journal has that the row, as Remote
+ * read it, does not.
+ */
+export const marksOf = (
+  model: Model,
+): ((address: CellAddress<keyof typeof columns.byId>) => Option.Option<CellMark>) => {
+  const rows = GridCrud.rows(Products.page(model), row => row.id)
+  const edits = new Map([...model.retired, ...model.edits].map(edit => [edit.id, edit]))
+  const refused = new Map(
+    model.refused.map(refusal => [`${refusal.id}:${refusal.column}`, refusal]),
+  )
+  return ({ row, column }) =>
+    Option.match(Option.fromUndefinedOr(refused.get(`${row}:${column}`)), {
+      onSome: ({ reason }) => Option.some({ name: 'refused', description: `Not saved: ${reason}` }),
+      onNone: () => {
+        // When the cell's edit committed, if it has one: none while pending.
+        const field = Option.flatMap(Option.fromUndefinedOr(edits.get(ProductId.make(row))), edit =>
+          Match.value(column).pipe(
+            Match.when('description', () => Option.map(edit.description, ({ at }) => at)),
+            Match.when('cents', () => Option.map(edit.cents, ({ at }) => at)),
+            Match.orElse(() => Option.none()),
+          ),
+        )
+        const revision = Option.map(
+          Option.flatMap(rows.indexOf(row), rows.rowAt),
+          read => read.revision,
+        )
+        return Option.flatMap(field, at =>
+          Option.match(at, {
+            onNone: () => Option.some({ name: 'pending', description: 'Not yet sent' }),
+            onSome: committed =>
+              Option.exists(revision, read => committed > read)
+                ? Option.some({ name: 'saved', description: 'Saved, not yet in the table' })
+                : Option.none(),
+          }),
+        )
+      },
+    })
+}

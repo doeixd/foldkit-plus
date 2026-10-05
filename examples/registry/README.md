@@ -52,7 +52,11 @@ another device's edit         shows when the exchange brings it, before Remote r
 ```
 
 The `revision` column is hidden; a column's menu shows it, to watch a row catch
-up with the journal.
+up with the journal. Each edited cell also says where its edit is (`marksOf`,
+the grid's `marks`): a dot while it is not yet sent, a hollow dot once the
+journal has it and the row as read does not, nothing once the row has it, and
+a red edge if the server refused it. Each mark is also the cell's
+`aria-description`.
 
 **The edits shrink to what the table lacks.** Every few seconds the server
 records, as an operation of its own, that the table holds every edit through
@@ -91,6 +95,10 @@ negative or fractional number of cents is refused whatever a client sent.
   pending, and the status line says how many edits are kept on this device.
   The replica retries on a backoff (0.5 s up to 30 s) and at once on the next
   edit.
+- **Working offline, on purpose.** The *Work offline* switch pauses the
+  transport (`pausable` in `sync.ts`): exchanges fail as an unreachable server
+  would, so edits wait on the device, through a reload. Switching back
+  exchanges at once, not at the end of the backoff.
 - **A reload.** The replica's id lives in the tab's `sessionStorage` and its
   storage is named after it, so a reload reopens the same replica, pending
   edits included. Two tabs are two replicas and never write one storage.
@@ -101,7 +109,11 @@ negative or fractional number of cents is refused whatever a client sent.
 - **The journal refuses an operation**, one whose change breaks the
   Product's rules or that names another document: it is rejected, and the
   replica drops it and the cell goes back. It is not left to be sent again,
-  which would hold every edit behind it.
+  which would hold every edit behind it. The page says so: the cells it had
+  changed are edged as refused, and a line under the status names them with
+  the server's reason until it is dismissed. The replica has dropped the
+  operation by then, so the mount reads each pending operation's cells
+  while it is still pending.
 - **Two devices edit the same field.** The journal's order decides: the edit
   committed last wins, on every replica. There is no merge of text.
 - **The table's write fails.** The edit is committed and stays shown, since the
@@ -165,7 +177,11 @@ pre-bundles the workspace packages.
     later revision, whoever wrote it;
   - an edit that says when it committed is refused;
   - an edit the journal absorbed keeps showing, through another reinstall,
-    until the row is read at its revision, and is let go after.
+    until the row is read at its revision, and is let go after;
+  - a cell's mark goes from not yet sent, to saved but not in the table, to
+    none;
+  - a refused edit marks its cell and says why until dismissed;
+  - working offline keeps an edit on the device until the switch is off.
 - `test/journal.test.ts`: the journal refuses an operation a client
   tampered with, and one naming another document, and writes nothing for
   either; the table only moves forward, so recovery may write an edit again;
