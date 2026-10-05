@@ -522,18 +522,25 @@ const view = <Message>() => ({
         const editorOf = (
           address: CellAddress<Id>,
           edit: { readonly draft: string; readonly error: Option.Option<string> },
-        ): Html => {
+        ): ReadonlyArray<Html> => {
+          const errorId = `${GridFocus.cellId(grid.id, address)}:error`
           const shared = [
             // A new edit is a new field, so it is focused afresh.
             h.Key(`edit:${address.row}:${address.column}`),
             h.AriaLabel(grid.columns.byId[address.column].header),
             h.AriaInvalid(Option.isSome(edit.error)),
-            ...Option.match(edit.error, {
-              onNone: () => [],
-              onSome: error => [h.AriaDescription(error)],
-            }),
+            ...(Option.isSome(edit.error) ? [h.AriaDescribedBy(errorId)] : []),
             h.OnKeyDownPreventDefault((pressed: string, modifiers: KeyboardModifiers) =>
               Option.map(editorKey(address, pressed, modifiers), input.wrap),
+            ),
+            // Clicking away saves, as Enter does without moving: a draft the
+            // column refuses stays open, with its error, to be fixed or
+            // dropped with Escape. The edit is often over by then (Enter,
+            // Escape, another cell), and committing no edit changes nothing.
+            h.OnBlur(
+              input.wrap(
+                grid.Message.EditCommitted({ next: Option.none(), reveal: Option.none() }),
+              ),
             ),
             h.OnMount(HoldFocus()),
             h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
@@ -552,7 +559,13 @@ const view = <Message>() => ({
                 h.OnInput(changed),
               ]),
             )
-          return Option.match(grid.editorFor(address.column), {
+          const message = Option.match(edit.error, {
+            onNone: () => [],
+            onSome: error => [
+              h.div(slots.editorError.attrs([h.Id(errorId), h.Role('alert')]), [error]),
+            ],
+          })
+          const editor = Option.match(grid.editorFor(address.column), {
             onNone: () => field(Option.none()),
             onSome: CellEditor.match({
               Text: () => field(Option.none()),
@@ -572,6 +585,7 @@ const view = <Message>() => ({
                 ),
             }),
           })
+          return [editor, ...message]
         }
 
         // The clipboard works on the range, or the focused cell when there is none.
@@ -989,7 +1003,13 @@ const view = <Message>() => ({
                         h.Role('gridcell'),
                         h.Id(GridFocus.cellId(grid.id, address)),
                         h.AriaColindex(indexOf.get(id)! + 1),
-                        h.Style(cellStyle(id)),
+                        // An edited cell holds its error below it; a pinned one is sticky already.
+                        h.Style({
+                          ...cellStyle(id),
+                          ...(Option.isSome(edited) && Option.isNone(pinned(id))
+                            ? { position: 'relative' }
+                            : {}),
+                        }),
                         ...(grid.cellSelection ? [h.AriaSelected(inRange)] : []),
                         ...(focused ? [h.DataAttribute('focused', 'true')] : []),
                         ...Option.match(pinned(id), {
@@ -1021,7 +1041,7 @@ const view = <Message>() => ({
                         onNone: () => [
                           input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
                         ],
-                        onSome: edit => [editorOf(address, edit)],
+                        onSome: edit => editorOf(address, edit),
                       }),
                     )
                   }),

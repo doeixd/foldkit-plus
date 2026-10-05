@@ -154,9 +154,13 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   character (`EditTyped`); keys typed before the field is drawn add to it,
   and Escape before then cancels it. In the field, Enter commits and moves down (Shift+Enter up), Tab
   commits and moves across (Shift+Tab back), and Escape cancels; the arrows
-  are the field's own. A draft the column's `schema` refuses stays open
-  with `aria-invalid` and the error as `aria-description`. Focus comes back
-  to the grid when the field goes. Clicking another cell commits first. An
+  are the field's own. Focus leaving the field (a click elsewhere) commits
+  it, as Enter does without moving. A draft the column's `schema` refuses
+  stays open with `aria-invalid`, and its error is shown below the field
+  (`editorError`, `role="alert"`, which the field names with
+  `aria-describedby`), until the draft is fixed or Escape drops it. Focus
+  comes back to the grid when the field goes. Clicking another cell commits
+  first. An
   editable cell carries `data-editable` (`GridStyle` gives it a text cursor),
   and the cell being edited `data-editing`, which `GridStyle` lifts with a
   shadow and hands its padding to the field, outlined in the focus colour
@@ -196,7 +200,10 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
   The header says `aria-sort`, and its label is a button the pointer sorts
   with, marked `data-sort` (`asc` or `desc`) while sorted, which `GridStyle`
-  draws as an arrow; Enter on the focused header sends it too.
+  draws as a small chevron after the label; its place is kept while
+  unsorted, so sorting moves nothing, and a header label never wraps. Enter
+  on the focused header sends it too. `GridStyle` parts columns with a faint
+  line, which on a header is the resize handle, darker under the pointer.
 - **Pinned columns** stick to their edge with `position: sticky` and carry
   `data-pinned="start"` or `"end"`; the pinned column next to the scrolling
   ones also carries `data-pinned-edge`, header and cells, where `GridStyle`

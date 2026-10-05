@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-data-grid`: clicking away saves, and a refused draft
+  says why.** Focus leaving the editor commits it, as Enter does without
+  moving; a draft the column refuses stays open, its field in the error
+  colour, with the column's message shown below it in a new `editorError`
+  Slot (`role="alert"`, named by the field's `aria-describedby`, which
+  replaces its `aria-description`). `GridStyle` draws the sort direction as
+  a small chevron whose place is kept while unsorted, so sorting no longer
+  wraps a narrow header or moves its label, keeps header labels on one
+  line, and parts columns with a faint line that is, on a header, the
+  resize handle. The registry's page is in neutral greys.
 - **`foldkit-mixins-data-grid`: an edit looks like one, and a pin shows.**
   A double-click opens an editable cell's editor, as Enter does. The cell
   being edited carries `data-editing`, and `GridStyle` lifts it with a

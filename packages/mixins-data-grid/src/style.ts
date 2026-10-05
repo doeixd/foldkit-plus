@@ -12,6 +12,8 @@ const ref = Theme.ref(
 )
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
+// Between columns: barely there, so rows read across and columns still part.
+const faint = `${ref.border.thin} solid color-mix(in oklch, ${ref.outline.subtle} 55%, transparent)`
 // Where the pinned columns end and the scrolling ones pass under them.
 const pinnedEdge = [
   Style.nest('&[data-pinned-edge="start"]', {
@@ -32,6 +34,11 @@ const field = Style.self({
   outline: `${ref.border.thick} solid ${ref.outline.focus}`,
   outlineOffset: `calc(-1 * ${ref.border.thick})`,
   paddingInline: ref.space.sm,
+})
+// A draft the column refuses: the field in the error colour.
+const refused = Style.nest('&[aria-invalid="true"]', {
+  outlineColor: ref.error.default,
+  caretColor: ref.error.default,
 })
 
 /** Every piece is in the `components` layer, so an application's own layer wins. */
@@ -56,6 +63,8 @@ export const GridStyle = Style.forSlots(GridSlots)(
         fontSize: ref.size.sm,
         fontWeight: ref.weight.semibold,
         paddingInline: ref.space.sm,
+        // A label stays on one line, however narrow the column: it is cut, not wrapped.
+        whiteSpace: 'nowrap',
         // A drag that began on a header's text would otherwise select it.
         userSelect: 'none',
       }),
@@ -78,6 +87,7 @@ export const GridStyle = Style.forSlots(GridSlots)(
       Style.self({
         alignItems: 'center',
         borderBlockEnd: line,
+        borderInlineEnd: faint,
         display: 'flex',
         overflow: 'hidden',
         paddingInline: ref.space.sm,
@@ -93,6 +103,8 @@ export const GridStyle = Style.forSlots(GridSlots)(
       // On the cell, which clips what is in it.
       Style.nest('&[data-editing]', {
         boxShadow: `0 2px 10px color-mix(in oklch, ${ref.text.default} 30%, transparent)`,
+        // Its error shows below it, past the cell.
+        overflow: 'visible',
         paddingInline: '0',
         zIndex: '2',
       }),
@@ -107,8 +119,35 @@ export const GridStyle = Style.forSlots(GridSlots)(
         backgroundImage: `radial-gradient(circle at calc(100% - 6px) 6px, ${ref.outline.focus} 3px, transparent 3.5px)`,
       }),
     ),
-    editor: field,
-    choice: field,
+    editor: Style.compose(field, refused),
+    choice: Style.compose(field, refused),
+    // Below the field, over the rows beneath: why the column refused the draft.
+    editorError: Style.self({
+      background: ref.error.default,
+      borderRadius: ref.radius.md,
+      boxShadow: `0 4px 12px color-mix(in oklch, ${ref.text.default} 25%, transparent)`,
+      color: ref.error['on-fill'],
+      fontSize: ref.size.xs,
+      fontWeight: ref.weight.medium,
+      insetInlineStart: '0',
+      paddingBlock: ref.space['3xs'],
+      paddingInline: ref.space.xs,
+      pointerEvents: 'none',
+      position: 'absolute',
+      top: `calc(100% + ${ref.space['3xs']})`,
+      whiteSpace: 'nowrap',
+      zIndex: '5',
+    }),
+    // The edge a column is resized by: the faint line between headers, which
+    // darkens and thickens under the pointer, or while dragged.
+    resizeHandle: Style.compose(
+      Style.self({
+        background: `linear-gradient(to right, transparent calc(100% - 1px), color-mix(in oklch, ${ref.outline.subtle} 70%, transparent) calc(100% - 1px))`,
+      }),
+      Style.pseudo(':hover', {
+        background: `linear-gradient(to right, transparent calc(100% - 2px), ${ref.outline.focus} calc(100% - 2px))`,
+      }),
+    ),
     menuButton: Style.compose(
       Style.self({
         background: 'none',
@@ -139,15 +178,40 @@ export const GridStyle = Style.forSlots(GridSlots)(
     // The header's label, as text: the direction is drawn after it.
     sort: Style.compose(
       Style.self({
+        alignItems: 'center',
         background: 'none',
         border: 'none',
         color: 'inherit',
         cursor: 'pointer',
+        display: 'inline-flex',
         font: 'inherit',
+        gap: ref.space.xs,
+        minWidth: '0',
+        overflow: 'hidden',
         padding: '0',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
       }),
-      Style.nest('&[data-sort="asc"]::after', { content: '" ▲"', fontSize: ref.size.xs }),
-      Style.nest('&[data-sort="desc"]::after', { content: '" ▼"', fontSize: ref.size.xs }),
+      // A small chevron, drawn from two borders, after the label. Its place is
+      // kept while unsorted, so sorting moves nothing; it shows faintly under
+      // the pointer, to say the label sorts.
+      Style.nest('&::after', {
+        borderBlockEnd: `1.5px solid currentColor`,
+        borderInlineEnd: `1.5px solid currentColor`,
+        content: '""',
+        flex: 'none',
+        height: '0.4em',
+        opacity: '0',
+        transform: 'translateY(-0.15em) rotate(45deg)',
+        transition: `opacity ${ref.motion.fast} ${ref.motion.ease}, transform ${ref.motion.fast} ${ref.motion.ease}`,
+        width: '0.4em',
+      }),
+      Style.nest('&:hover::after', { opacity: '0.35' }),
+      Style.nest('&[data-sort="desc"]::after', { opacity: '1' }),
+      Style.nest('&[data-sort="asc"]::after', {
+        opacity: '1',
+        transform: 'translateY(0.1em) rotate(-135deg)',
+      }),
     ),
     placeholder: Style.self({ background: ref.surface.subtle }),
     status: Style.self({ color: ref.text.muted, padding: ref.space.md }),

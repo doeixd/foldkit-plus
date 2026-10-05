@@ -104,9 +104,14 @@ export const GridSlots = Slots.define({
    */
   editor: Slot.make({
     capability: Capability.TextInput,
-    events: [Event.Input, Event.KeyDown],
-    protected: { events: [Event.Input, Event.KeyDown] },
+    events: [Event.Input, Event.KeyDown, Event.Blur],
+    protected: { events: [Event.Input, Event.KeyDown, Event.Blur] },
   }),
+  /**
+   * Why the column refused a draft, shown below the field while the edit
+   * lasts; the field names it with `aria-describedby`.
+   */
+  editorError: Slot.make({ capability: Capability.Base }),
   /**
    * The editor of a column whose schema's text is one of a few literals: a
    * `select` of them, drawn in place of the cell's content while the edit
@@ -114,8 +119,8 @@ export const GridSlots = Slots.define({
    */
   choice: Slot.make({
     capability: Capability.Focusable,
-    events: [Event.Change, Event.KeyDown],
-    protected: { events: [Event.Change, Event.KeyDown] },
+    events: [Event.Change, Event.KeyDown, Event.Blur],
+    protected: { events: [Event.Change, Event.KeyDown, Event.Blur] },
   }),
   /** One literal a `choice` offers. */
   choiceOption: Slot.make({ capability: Capability.Base }),

@@ -174,7 +174,9 @@ test('cells are edited by keyboard, and the application hears the text', async (
     type('one')
     press(editor()!, 'Enter')
     await vi.waitFor(() => expect(editor()?.getAttribute('aria-invalid')).toBe('true'))
-    expect(editor()?.getAttribute('aria-description')).toBe('Whole numbers only')
+    expect(document.getElementById(editor()!.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Whole numbers only',
+    )
     expect(latest().edits).toHaveLength(2)
 
     // Escape cancels, reporting nothing, and hands focus back.
@@ -211,6 +213,42 @@ test('a double-click edits a cell that can be edited, and no other', async () =>
     await vi.waitFor(() => expect(editor()?.value).toBe('Item 2'))
     expect(document.getElementById(cell('r2', 'name'))!.getAttribute('data-editing')).toBe('true')
     expect(document.getElementById(cell('r1', 'name'))!.hasAttribute('data-editing')).toBe(false)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('focus leaving the field saves the edit; a refused draft stays, its error below it', async () => {
+  const { handle, latest } = mount()
+  const elsewhere = document.createElement('button')
+  document.body.appendChild(elsewhere)
+  const doubleClick = (id: string) =>
+    document.getElementById(id)!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+  const type = (text: string) => {
+    editor()!.value = text
+    editor()!.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  try {
+    await vi.waitFor(() => expect(document.getElementById(cell('r3', 'name'))).not.toBeNull())
+    doubleClick(cell('r3', 'name'))
+    await vi.waitFor(() => expect(editor()).not.toBeNull())
+    type('Gasket')
+    elsewhere.focus()
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r3.name=Gasket']))
+    await vi.waitFor(() => expect(editor()).toBeNull())
+
+    // A draft the column refuses: still open after the blur, with its error,
+    // which the field names.
+    doubleClick(cell('r3', 'qty'))
+    await vi.waitFor(() => expect(editor()).not.toBeNull())
+    type('lots')
+    elsewhere.focus()
+    await vi.waitFor(() => expect(editor()?.getAttribute('aria-invalid')).toBe('true'))
+    const error = document.getElementById(editor()!.getAttribute('aria-describedby')!)
+    expect(error?.textContent).toBe('Whole numbers only')
+    expect(error?.getAttribute('role')).toBe('alert')
+    expect(latest().edits).toEqual(['r3.name=Gasket'])
+    expect(editor()?.value).toBe('lots')
   } finally {
     handle.dispose()
   }
