@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "tsx src/dev.ts",
     "server": "tsx src/serverMain.ts",
+    "build:sandbox": "vite build --mode sandbox",
     "demo": "tsx src/main.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@effect/sql-sqlite-wasm": "4.0.0",
+    "@effect/wa-sqlite": "0.1.2",
     "@foldkit/ui": "0.165.0",
     "effect": "4.0.0",
     "foldkit": "0.165.0",
@@ -21,6 +24,7 @@
     "foldkit-mixins-surface": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-mirror": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-surface": "workspace:*",
     "foldkit-sync": "workspace:*",
     "ws": "^8.18.0"

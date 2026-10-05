@@ -34,11 +34,23 @@ Then, from `examples/todo-app`:
 pnpm demo    # the whole contract as a transcript — no browser, no network
 pnpm dev     # the SQLite sync server plus Vite, on http://127.0.0.1:5173
 pnpm run server  # the sync server alone, on ws://127.0.0.1:8787
+pnpm build:sandbox  # static files, to dist/: the journal runs in the browser
 ```
+
+The sandbox is the same app with no server to run. Its journal is the one
+`pnpm dev` runs, on SQLite compiled to WebAssembly, in a SharedWorker that
+every tab of it shares (`SharedHost` from `foldkit-primitives/net`), and each
+tab's Sync socket reaches it over a `MessagePort` (`portSocket`). The token in
+the address still names who you are, so two tabs, one with `?token=bob`, are
+two people. The journal is in memory: it lives while a tab of the sandbox is
+open, and the next tab after the last closes starts a new history, which each
+replica rebuilds from, sending again what it had not sent. A browser without
+SharedWorker runs a journal in each tab, so its tabs do not meet.
 
 `pnpm vitest run examples/todo-app` from the root runs the tests; `pnpm e2e`
 runs `e2e/todo-app.e2e.ts` too, which starts the server and Vite and drives two
-Chromium browsers as two people.
+Chromium browsers as two people, and `e2e/sandbox.e2e.ts`, two tabs of the
+sandbox.
 
 Start with `pnpm demo`. It prints a labelled transcript — capabilities, the
 agent writing through `update`, both authorization boundaries, the ownership
@@ -85,7 +97,8 @@ value.
 | `agent.ts` | The agent contract: capabilities are existing Messages, the context is a Surface, `add_todo` exposes the intent and completes on its fact, `rename_list` completes on state with `Agent.when`, `authorize` mirrors the sync policy. |
 | `module.ts` | `Module.make` over every contract: validation and the ownership manifest. |
 | `runtime.ts`, `client.ts` | Mounting in a browser: the stylesheet injected once, the replica on IndexedDB, the exchange loop, WebMCP registration with the mount as the agent's host. |
-| `journal.ts`, `server.ts` | The server: `foldkit-durable` on SQLite, spreading the contract so codecs, reducer, and policy are never written twice; a WebSocket transport that authenticates per connection. |
+| `serving.ts`, `journal.ts`, `server.ts` | The server: `foldkit-durable` on SQLite, spreading the contract so codecs, reducer, and policy are never written twice; a WebSocket transport that authenticates per connection. |
+| `sandbox/` | The same journal in the browser: its options and exchange from `serving.ts`, on WebAssembly SQLite, served to each tab's conversation. |
 | `store.ts`, `demo.ts` | The transcript, and the few-line host seam it runs on in place of `Sync.mount`. Every section names the file it exercises; the test pins its lines. |
 
 ## The rules the code follows
