@@ -23,7 +23,7 @@ import {
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { idColumn, projectsAny } from './columns.js'
-import { checkFields, compileOrderBy, compileWhere } from './compile.js'
+import { checkFields, compileOrderBy, compileWhere, QueryCompileError } from './compile.js'
 import { cursorSelection, keysetWhere, orderByTerms, type OrderTerm } from './cursor.js'
 import { DrizzleDatabase, type DrizzleDatabaseService } from './database.js'
 import { toQueryPage } from './page.js'
@@ -652,15 +652,28 @@ export const query = <P = unknown, Input = unknown>(
         // The body's question, this server's own extra question, and the
         // binding's visibility rule are conjoined: a body can narrow what a
         // principal may see and never widen it.
+        // What the body reads is checked at registration, so a compile error
+        // here is the request's input (a search holding NUL): the client's to
+        // be told, as a query error, not a defect. Anything else is a bug.
         const compiled =
           body === undefined
             ? []
-            : compileWhere(
-                body,
-                binding,
-                input as Readonly<Record<string, unknown>>,
-                descriptor.name,
-              )
+            : yield* Effect.suspend(() => {
+                try {
+                  return Effect.succeed(
+                    compileWhere(
+                      body,
+                      binding,
+                      input as Readonly<Record<string, unknown>>,
+                      descriptor.name,
+                    ),
+                  )
+                } catch (error) {
+                  if (error instanceof QueryCompileError)
+                    return Effect.fail(new RemoteServerError({ message: error.message }))
+                  throw error
+                }
+              })
         const asked = options.where?.(input as Input, principal)
         const visible = binding.visible?.(principal)
         const baseWhere = and(...compiled, asked, visible)

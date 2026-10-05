@@ -9,6 +9,7 @@ import { pgTable, PgDialect, text, uuid } from 'drizzle-orm/pg-core'
 import { Effect, Schema } from 'effect'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
+import { RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import {
   DrizzleDatabase,
@@ -271,7 +272,7 @@ describe('A body the binding cannot answer is refused when it is registered', ()
 })
 
 describe('A search the compiled SQL cannot hold', () => {
-  it('is refused when it holds a NUL character, as the reference interpreter refuses it', async () => {
+  it('is refused as the query’s own error when it holds a NUL character, as the reference interpreter refuses it', async () => {
     const BySearch = Query.define('PostsBySearch', { slug: Schema.String }, ({ input }) =>
       Query.from(Post).pipe(
         Query.where(Expr.contains(Post.fields.slug, input.slug)),
@@ -280,11 +281,13 @@ describe('A search the compiled SQL cannot hold', () => {
     )
     const { database, calls } = fakeDatabase()
     const source = query(BySearch, { entity: PostBinding })
-    const outcome = await run(source, database, `a${String.fromCharCode(0)}b`).then(
-      result => (result._tag === 'Failure' ? String(result.failure) : 'answered'),
-      (error: unknown) => (error instanceof Error ? error.message : String(error)),
-    )
-    expect(outcome).toMatch(/NUL character/)
+    // The search is the client's: refused as a server error the client is told
+    // of (`RemoteQueryError`), not a defect that fails the request's transport.
+    const result = await run(source, database, `a${String.fromCharCode(0)}b`)
+    expect(result._tag).toBe('Failure')
+    const failure = result._tag === 'Failure' ? result.failure : undefined
+    expect(failure).toBeInstanceOf(RemoteServerError)
+    expect(failure?.message).toMatch(/NUL character/)
     expect(calls).toEqual([])
   })
 })

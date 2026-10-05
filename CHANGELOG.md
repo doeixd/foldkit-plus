@@ -440,6 +440,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-drizzle`: a search the SQL cannot hold is the query's own
+  error.** A query input holding NUL threw `QueryCompileError` from inside the
+  request, which the RPC server answered as a protocol-level defect, so any
+  client could turn a query into a server defect and the two backends told the
+  same input apart. It now fails with `RemoteServerError`, which the client
+  receives as `RemoteQueryError`, as the memory backend's does (#146).
 - **`foldkit-sync`: `Sync.presence.serve` stops when its socket closes,** as
   `Sync.transport.serve` does. A peer whose socket had closed stayed in the
   hub and was sent every other peer's presence for the life of the server.
