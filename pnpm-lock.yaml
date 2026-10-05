@@ -1072,6 +1072,12 @@ importers:
 
   examples/pages:
     dependencies:
+      '@effect/sql-sqlite-wasm':
+        specifier: 4.0.0
+        version: 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0)
+      '@effect/wa-sqlite':
+        specifier: 0.1.2
+        version: 0.1.2
       effect:
         specifier: 4.0.0
         version: 4.0.0
@@ -1081,6 +1087,9 @@ importers:
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
       foldkit-richtext:
         specifier: workspace:*
         version: link:../../packages/richtext

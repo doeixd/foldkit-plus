@@ -6,13 +6,17 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "server": "tsx src/serverMain.ts",
+    "build:sandbox": "vite build --mode sandbox",
     "demo": "tsx src/demo.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@effect/sql-sqlite-wasm": "4.0.0",
+    "@effect/wa-sqlite": "0.1.2",
     "effect": "4.0.0",
     "foldkit": "0.165.0",
     "foldkit-durable": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-dom": "workspace:*",
     "foldkit-richtext-markdown": "workspace:*",

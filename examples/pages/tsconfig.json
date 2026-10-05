@@ -5,13 +5,24 @@
     "outDir": ".tsbuild",
     "emitDeclarationOnly": true,
     "composite": true,
-    "types": ["node"],
-    "lib": ["ES2022", "DOM"],
+    "types": ["node", "vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
+      "foldkit-primitives/device": ["../../packages/primitives/src/device/index.ts"],
+      "foldkit-primitives/dom": ["../../packages/primitives/src/dom/index.ts"],
+      "foldkit-primitives/events": ["../../packages/primitives/src/events/index.ts"],
+      "foldkit-primitives/interaction": ["../../packages/primitives/src/interaction/index.ts"],
+      "foldkit-primitives/media": ["../../packages/primitives/src/media/index.ts"],
+      "foldkit-primitives/motion": ["../../packages/primitives/src/motion/index.ts"],
+      "foldkit-primitives/net": ["../../packages/primitives/src/net/index.ts"],
+      "foldkit-primitives/observers": ["../../packages/primitives/src/observers/index.ts"],
+      "foldkit-primitives/state": ["../../packages/primitives/src/state/index.ts"],
+      "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"],
       "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
       "foldkit-richtext-dom": ["../../packages/richtext-dom/src/index.ts"],
       "foldkit-richtext-dom/editor": ["../../packages/richtext-dom/src/editor.ts"],
@@ -36,6 +47,9 @@
     },
     {
       "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/primitives/tsconfig.build.json"
     },
     {
       "path": "../../packages/richtext/tsconfig.build.json"

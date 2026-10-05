@@ -83,19 +83,39 @@ Open the page in two windows (or one private) and edit one page from both. Stop 
 server and keep typing: the edits stay in the tab's IndexedDB outbox, through a reload,
 and reach the other window once the server is back.
 
+With no server to run, build the sandbox instead:
+
+```bash
+pnpm --filter foldkit-example-pages build:sandbox   # static files, to dist/
+```
+
+The sandbox is the same page and the same journal (`src/serving.ts`), on SQLite compiled
+to WebAssembly and held in memory, in a SharedWorker that every tab of it shares
+(`SharedHost` from `foldkit-primitives/net`), with presence beside it; each tab's socket
+reaches it over a `MessagePort` (`portSocket`). It lives while a tab is open, and the next
+tab after the last closes starts a new history, which each replica rebuilds from, sending
+again what it had not sent. A browser without SharedWorker runs a journal in each tab, so
+its tabs do not meet. The worker parses Markdown, so `vite.config.ts` adds the `worker`
+resolve condition: micromark's character-reference decoder otherwise takes its `browser`
+build, which makes a DOM element as it loads.
+
 ## Files
 
 - `src/app.ts`: the Model, the Messages (which are durable and which are local), and
   `update`, including the collaborative glue.
 - `src/contract.ts`: the Sync contract and the mount.
-- `src/journal.ts`: the server's Durable journal and the exchange a transport calls.
+- `src/serving.ts`: the journal's rules (only the server collects; a tab is `tab-…`), its
+  exchange (`journalExchange`), and the collection of deleted text, wherever it runs.
+- `src/journal.ts`: that journal on a SQLite file, for the Node server.
+- `src/sandbox/`: the same journal in the browser, served to each tab's conversation.
 - `src/view.ts`: the page list, title, toolbar, editor, and a Markdown preview.
 - `src/demo.ts`, `src/browser.ts`, `src/server.ts`, `src/serverMain.ts`: the trace, the
   browser entry, the sync server, and the script that runs it on the journal's file.
 - `test/pages.test.ts`: one tab mounted, another replica headless, meeting in the
   journal.
 - `e2e/pages.e2e.ts`: the server and Vite started, and two Chromium tabs editing one
-  page, read back by a third with nothing stored (`pnpm e2e`).
+  page, read back by a third with nothing stored (`pnpm e2e`); `e2e/sandbox.e2e.ts`, two
+  tabs of the sandbox.
 
 ## Limits
 
@@ -105,7 +125,7 @@ and reach the other window once the server is back.
   the deleted text it anchored on gone, and its typing there lands at the end of the block,
   or of the block that one was joined into. An undo from before then restores less.
 - A new replica replays the whole history, 500 edits per exchange; the server sends no
-  checkpoint, because it never compacts.
+  checkpoint, because it never compacts (`journalExchange` would, below a compacted floor).
 - Titles are last-writer-wins by the server's order. Renames the server has not seen yet
   are merged into one, as typing in the body is (`coalesce` in `src/contract.ts`).
 - The server takes a tab's name, from the socket URL, as its identity, and accepts only

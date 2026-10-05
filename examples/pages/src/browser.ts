@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Schema, Scope } from 'effect'
 import { ReplicaId, Sync, Transport } from 'foldkit-sync'
 import { Message, PeerPresence } from './app.js'
 import { mountPages, PagesSync } from './contract.js'
+import { sandboxSocket } from './sandbox/connection.js'
 import { view } from './view.js'
 
 /** Holds a tab's name for the page's lifetime; false when another tab holds it already. */
@@ -46,9 +47,13 @@ const mounted = mountPages(session, replica, {
 const transport = Context.get(
   await Effect.runPromise(
     Layer.buildWithScope(
-      Sync.transport.socket({
-        url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/sync?tab=${encodeURIComponent(tab)}`,
-      }),
+      // The sandbox build (`--mode sandbox`) runs the journal in the browser, one for
+      // every tab; `pnpm dev` reaches the Node server over a WebSocket.
+      import.meta.env.MODE === 'sandbox'
+        ? Sync.transport.socket({ makeSocket: sandboxSocket(tab) })
+        : Sync.transport.socket({
+            url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/sync?tab=${encodeURIComponent(tab)}`,
+          }),
       scope,
     ),
   ),

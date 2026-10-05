@@ -569,6 +569,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   page each drew a grid with the id `products`, and the grid finds its cells
   by id, so one pane's keys would reach the other's. Give each device a page of
   its own (a frame), or ids of its own.
+- **A worker's dependencies resolve with the page's conditions.** The pages
+  sandbox's SharedWorker loaded micromark's `decode-named-character-reference`
+  in its `browser` build, which makes a DOM element on load, and died with
+  "document is not defined" before answering anything; the tabs showed no
+  error, only edits that never arrived. Playwright shows no SharedWorker
+  console: construct the worker in a probe page and read its `error` event's
+  `filename`. A package with a `worker` export is fixed by adding `worker` to
+  `resolve.conditions`.
 - **An adapter's library is a peer, not a dependency.** `foldkit-remote-drizzle`
   depended on `drizzle-orm`, so an application whose Drizzle resolved with
   other optional peers (it had `@effect/sql-sqlite-wasm`) got a second copy,
