@@ -70,11 +70,18 @@ const definition = TodoApp.make({
     // Destructive, list-wide operations are the owner's. `principal` is typed
     // from `withPrincipal`, so a rule cannot read a field the transport does
     // not establish.
-    ClearedCompleted: ({ principal }) => isOwner(principal),
-    RenamedList: ({ principal }) => isOwner(principal),
+    // A refusal's reason is sent to the person whose edit it was.
+    ClearedCompleted: ({ principal }) =>
+      isOwner(principal) || { allowed: false, reason: 'Only the list’s owner can clear it' },
+    RenamedList: ({ principal }) =>
+      isOwner(principal) || { allowed: false, reason: 'Only the list’s owner can rename it' },
     // A delete must name a todo the authoritative snapshot still holds.
     // `message` is exactly `DeletedTodo` here; `message.title` would not compile.
-    DeletedTodo: ({ message, shared }) => shared.todos.some(todo => todo.id === message.id),
+    DeletedTodo: ({ message, shared }) =>
+      shared.todos.some(todo => todo.id === message.id) || {
+        allowed: false,
+        reason: 'That todo is already gone',
+      },
   },
 })
 

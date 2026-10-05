@@ -5,7 +5,7 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { documentId, forApplication } from '../src/index.js'
+import { documentId, forApplication, type AuthorizeDecision } from '../src/index.js'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.String),
@@ -151,6 +151,20 @@ WideSync.make({
 })
 
 // Declared rules make the journal contract's `authorize` present.
-const _guarded: (request: never) => boolean = Composed.journalContract().authorize
+const _guarded: (request: never) => AuthorizeDecision = Composed.journalContract().authorize
 // @ts-expect-error without rules, `authorize` may be absent
-const _open: (request: never) => boolean = TodoSync.journalContract().authorize
+const _open: (request: never) => AuthorizeDecision = TodoSync.journalContract().authorize
+
+WideSync.make({
+  documentId: documentId('wide'),
+  ...WideSync.compose(TodosFragment),
+  // A rule may refuse with a reason the server sends back.
+  authorize: { CreatedTodo: () => ({ allowed: false, reason: 'Not now' }) },
+})
+
+WideSync.make({
+  documentId: documentId('wide'),
+  ...WideSync.compose(TodosFragment),
+  // @ts-expect-error a refusal with a reason cannot say it is allowed
+  authorize: { CreatedTodo: () => ({ allowed: true, reason: 'Fine' }) },
+})

@@ -324,12 +324,13 @@ error names why: `ReplayError` for a Message that cannot be durable,
 
 ```ts
 const status = yield* replica.status
-// { pending: number, cursor: Sequence, lastError: string | undefined, rejected: ReadonlyArray<OpId> }
+// { pending: number, cursor: Sequence, lastError: string | undefined, rejected: ReadonlyArray<Rejection> }
 ```
 
 `pending` above zero means edits the server has not confirmed; `lastError` is
 the last failed exchange, cleared by the next success; `rejected` lists recent
-edits the server refused. `replica.statusChanges` is a Stream of the same,
+edits the server refused, most recent first, each `{ opId, reason }`, where
+`reason` is an `Option` of the server's words for the person. `replica.statusChanges` is a Stream of the same,
 emitted after every submit and exchange; `replica.changes` pairs it with the
 optimistic `shared` value so one subscription sees both.
 
@@ -337,7 +338,11 @@ optimistic `shared` value so one subscription sees both.
 error. The replica drops it and replays the rest; the mount re-installs the
 shared slice, and the field the user edited reverts. `onPersistenceFailure`
 does not run for this, since the local save succeeded. Watch `rejected` to
-explain the revert.
+explain the revert: `journalExchange` gives each rejection a reason, the
+`authorize` rule's own when it gave one, and otherwise a fixed sentence
+("Not a valid operation"). It never sends an error's message, which may carry
+internals, so a rule a person should read about belongs in `authorize` with a
+`reason`, not in `validate`.
 
 **Waiting for the server.** The Model shows an edit before the server has it.
 Something that must not report success until the edit is committed, an agent
@@ -402,6 +407,9 @@ const Board = Authorized.make({
   },
 })
 ```
+
+A rule returns `true`, `false`, or `{ allowed: false, reason }`; the reason
+is sent to the replica whose edit it was, as its rejection's `reason`.
 
 `message` is exactly that variant, `shared` is the authoritative snapshot, and
 `principal` is whatever the server's transport established for the connection;
@@ -603,6 +611,7 @@ request    cursor
 answer     operations     committed after the cursor, contiguous
            acknowledged   ids the server accepted without repeating them
            rejected       ids the server refused
+           reasons?       [{ opId, reason }]: why, for some of rejected; at most 500 characters each
            checkpoint?    { cursor, model } when the history is gone
            more?          true when another page follows
            epoch?         the server's history

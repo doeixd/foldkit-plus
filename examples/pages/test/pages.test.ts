@@ -4,7 +4,7 @@
  * replica runs the same `update` without a DOM. Their edits meet in the server's order, and
  * Alice's open editor is patched to show Bob's, not mounted afresh.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
@@ -230,7 +230,9 @@ describe('two people on one page', () => {
     await bobEdits(replica, model, Message.AddedPage({ title: 'B' }))
     const [waiting] = Effect.runSync(replica.pending)
     await synchronize(replica, 'mallory')
-    expect(Effect.runSync(replica.status).rejected).toEqual([waiting!.opId])
+    expect(Effect.runSync(replica.status).rejected).toEqual([
+      { opId: waiting!.opId, reason: Option.none() },
+    ])
     expect(titles(journal.snapshot())).toEqual(['A'])
   })
 
@@ -614,7 +616,9 @@ describe('two people on one page', () => {
     )
     const [sent] = Effect.runSync(replica.pending)
     await synchronize(replica, 'tab-bob')
-    expect(Effect.runSync(replica.status).rejected).toEqual([sent!.opId])
+    expect(Effect.runSync(replica.status).rejected).toEqual([
+      { opId: sent!.opId, reason: Option.none() },
+    ])
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(heard).toBe(0)
     unsubscribe()

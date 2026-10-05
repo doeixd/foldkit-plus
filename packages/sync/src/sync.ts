@@ -1,4 +1,15 @@
-import { Effect, Exit, Metric, PubSub, Queue, Ref, Schema, Stream, SynchronizedRef } from 'effect'
+import {
+  Effect,
+  Exit,
+  Metric,
+  Option,
+  PubSub,
+  Queue,
+  Ref,
+  Schema,
+  Stream,
+  SynchronizedRef,
+} from 'effect'
 import {
   CheckpointRegressionError,
   CommittedOrderError,
@@ -84,6 +95,11 @@ export interface Exchange<Shared> {
   /** Server-committed operations as they arrived; validated against `CommittedOperation` on adoption. */
   readonly operations: ReadonlyArray<unknown>
   readonly rejected: ReadonlyArray<OpId>
+  /**
+   * Why some of `rejected` were refused, in words the server chose for a person:
+   * a policy's reason, never an internal error. One without a reason is still rejected.
+   */
+  readonly reasons?: ReadonlyArray<{ readonly opId: OpId; readonly reason: string }> | undefined
   /** Sends from the request that are durably committed, so the replica can drop them. */
   readonly acknowledged?: ReadonlyArray<OpId> | undefined
   /** The snapshot a replica predating compaction adopts in place of the log. */
@@ -132,8 +148,14 @@ export interface ReplicaStatus {
   readonly cursor: Sequence
   /** The last exchange failure, cleared by a successful exchange. */
   readonly lastError: string | undefined
-  /** Operations the server refused, most recent first. */
-  readonly rejected: ReadonlyArray<OpId>
+  /** Operations the server refused, most recent first, with its reason when it gave one. */
+  readonly rejected: ReadonlyArray<Rejection>
+}
+
+/** An operation the server refused, and why, when it said. */
+export interface Rejection {
+  readonly opId: OpId
+  readonly reason: Option.Option<string>
 }
 
 /**
@@ -297,6 +319,12 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
   const ExchangeSchema = Schema.Struct({
     operations: Schema.Array(Schema.Unknown),
     rejected: Schema.Array(OpId),
+    // A server's words for a person, bounded: a reply is not a place for a document.
+    reasons: Schema.optional(
+      Schema.Array(
+        Schema.Struct({ opId: OpId, reason: Schema.String.check(Schema.isMaxLength(500)) }),
+      ),
+    ),
     acknowledged: Schema.optional(Schema.Array(OpId)),
     checkpoint: Schema.optional(CheckpointSchema),
     more: Schema.optional(Schema.Boolean),
@@ -476,7 +504,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       const stateRef = yield* SynchronizedRef.make(state)
       const closed = yield* Ref.make(false)
       const lastError = yield* Ref.make<string | undefined>(undefined)
-      const rejectedOps = yield* Ref.make<ReadonlyArray<OpId>>([])
+      const rejectedOps = yield* Ref.make<ReadonlyArray<Rejection>>([])
       // Operations submitted since opening that no exchange has carried yet. Only these may
       // be coalesced: one that was sent may already be committed as it was.
       const unsent = yield* Ref.make<ReadonlySet<string>>(new Set())
@@ -712,6 +740,12 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                   message: 'Server both acknowledged and rejected an operation',
                 })
             }
+            for (const { opId } of response.reasons ?? [])
+              if (!rejected.has(opId))
+                return yield* new ForeignRejectionError({
+                  opId,
+                  message: 'Server gave a reason for an operation it did not reject',
+                })
             let applied = 0
             for (const raw of response.operations) {
               const { committed: operation, message } = yield* Effect.try({
@@ -767,10 +801,16 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           }),
         )
         yield* Ref.set(lastError, undefined)
-        if (response.rejected.length > 0)
-          yield* Ref.update(rejectedOps, previous =>
-            [...response.rejected, ...previous].slice(0, 32),
+        if (response.rejected.length > 0) {
+          const reasonOf = new Map(
+            (response.reasons ?? []).map(({ opId, reason }) => [opId, reason] as const),
           )
+          const refused = response.rejected.map((opId): Rejection => ({
+            opId,
+            reason: Option.fromUndefinedOr(reasonOf.get(opId)),
+          }))
+          yield* Ref.update(rejectedOps, previous => [...refused, ...previous].slice(0, 32))
+        }
         yield* PubSub.publish(statusSignals, undefined)
         const reached = (yield* SynchronizedRef.get(stateRef)).cursor
         return response.more === true && reached > (restarted ? 0 : sent.cursor)

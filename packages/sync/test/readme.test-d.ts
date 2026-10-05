@@ -115,7 +115,7 @@ const status = Effect.runSync(replica.status)
 const _status: {
   pending: number
   lastError: string | undefined
-  rejected: ReadonlyArray<string>
+  rejected: ReadonlyArray<{ readonly opId: string; readonly reason: Option.Option<string> }>
 } = status
 void _status
 mounted.committed.get()

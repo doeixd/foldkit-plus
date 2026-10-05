@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { Sync } from 'foldkit-sync'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Message } from '../src/app.js'
@@ -126,7 +126,10 @@ describe('the sync server', () => {
       await sync(`${server.url}/?token=guest`, replica)
 
       const status = await Effect.runPromise(replica.status)
-      expect(status.rejected).toEqual(['guest:2', 'guest:3'])
+      expect(status.rejected).toEqual([
+        { opId: 'guest:2', reason: Option.some('Only the list’s owner can rename it') },
+        { opId: 'guest:3', reason: Option.some('That todo is already gone') },
+      ])
       expect(Effect.runSync(replica.shared)).toEqual({
         listTitle: 'Todos',
         todos: [

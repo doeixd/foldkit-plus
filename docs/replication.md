@@ -204,6 +204,7 @@ request    cursor, pending operations, the epoch the replica last saw
 answer     operations     committed after the cursor, in order
            acknowledged   ids accepted (also when their payload is not repeated)
            rejected       ids refused
+           reasons?       [{ opId, reason }]: why, in words for a person, for some of rejected
            checkpoint?    { cursor, model } when the tail was compacted away
            more?          another page follows
            epoch          this server's history
@@ -284,7 +285,9 @@ the point. Two things need more:
 
 - **A refused edit.** It comes back as a rejection on the next exchange, the
   replica drops it, the mount re-installs the slice, and the field reverts.
-  `replica.status.rejected` names the operation so the UI can say why.
+  `replica.status.rejected` names the operation, with the server's reason
+  when it gave one (an `authorize` rule's `{ allowed: false, reason }`), so
+  the UI can say why.
   `onPersistenceFailure` does not run for this; the local save succeeded.
 - **Something that must not claim success early.** An agent tool, a "shared
   with the team" confirmation. These wait on `mounted.committed`, the slice as

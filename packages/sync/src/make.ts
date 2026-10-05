@@ -71,8 +71,14 @@ export interface PolicyJournalContract<Operation, Shared, Principal> extends Jou
     readonly principal: Principal
     readonly operation: Operation
     readonly snapshot: Shared
-  }) => boolean
+  }) => AuthorizeDecision
 }
+
+/**
+ * What a rule decides: allowed, refused, or refused with a reason the server
+ * sends to the person whose edit it was. The shape of Durable's own decision.
+ */
+export type AuthorizeDecision = boolean | { readonly allowed: false; readonly reason: string }
 
 /** What a per-variant `authorize` rule sees before the journal commits. */
 export interface AuthorizeRequest<Principal, Message, Shared> {
@@ -97,7 +103,7 @@ export type AuthorizePolicy<
       Extract<MsgOf<Ms>, { readonly _tag: K }>,
       Schema.Struct.Type<Fields>
     >,
-  ) => boolean
+  ) => AuthorizeDecision
 }
 
 /**
@@ -439,7 +445,8 @@ const build = <
     })
 
     const rules = options.authorize as
-      Record<string, (request: AuthorizeRequest<Principal, Message, Shared>) => boolean> | undefined
+      | Record<string, (request: AuthorizeRequest<Principal, Message, Shared>) => AuthorizeDecision>
+      | undefined
     const journalContract = (): PolicyJournalContract<Operation, Shared, Principal> => {
       const base = sync.journalContract()
       if (rules === undefined) return base

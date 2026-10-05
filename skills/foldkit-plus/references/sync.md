@@ -210,8 +210,11 @@ const Board = Authorized.make({
 ```
 
 A variant with no rule is allowed, and a non-durable key is a type error. Rules
-compile into `journalContract()` and run only on the server. A refused edit
-comes back as an exchange rejection, and the replica drops it.
+compile into `journalContract()` and run only on the server. A rule returns
+`true`, `false`, or `{ allowed: false, reason }`. A refused edit comes back as
+an exchange rejection, and the replica drops it; `status.rejected` is
+`[{ opId, reason: Option<string> }]`, the reason the rule gave, or a fixed
+sentence from `journalExchange` (never an error's message).
 
 ## Server: foldkit-durable Journal
 

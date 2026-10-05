@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync`: why an edit was refused.** An exchange may carry
+  `reasons: [{ opId, reason }]` beside `rejected` (each at most 500
+  characters; a reason for an operation not rejected fails the exchange),
+  and `journalExchange` gives each rejection one: an `authorize` rule's own,
+  now that a rule may return `{ allowed: false, reason }` as Durable's does,
+  or a fixed sentence ("Not a valid operation", "This connection may not
+  make changes"), never an error's message. **Breaking:**
+  `ReplicaStatus.rejected` is `ReadonlyArray<Rejection>`, `{ opId, reason:
+  Option<string> }`, in place of the ids. The todo-app's rules give their
+  reasons (#161).
+
 - **`foldkit-mixins-data-grid`: cell marks.** `marks: address =>
   Option.some({ name, description })` gives a cell a state of the
   application's: `data-mark` on its Slot, which the default style shows as a

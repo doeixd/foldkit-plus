@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { Deferred, Effect, Fiber, PubSub, Schema, Stream } from 'effect'
+import { Deferred, Effect, Fiber, Option, PubSub, Schema, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   defineSync,
@@ -534,8 +534,40 @@ describe('the replica', () => {
       pending: 0,
       cursor: 0,
       lastError: undefined,
-      rejected: ['a:1'],
+      rejected: [{ opId: 'a:1', reason: Option.none() }],
     })
+  })
+
+  it('keeps the reason the server gave for a refusal', async () => {
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await submit(replica, created('u'))
+    await sync(replica, {
+      exchange: async () => ({
+        operations: [],
+        rejected: ['a:1', 'a:2'],
+        reasons: [{ opId: 'a:2', reason: 'Only the owner can do that' }],
+      }),
+    })
+    expect((await status(replica)).rejected).toEqual([
+      { opId: 'a:1', reason: Option.none() },
+      { opId: 'a:2', reason: Option.some('Only the owner can do that') },
+    ])
+  })
+
+  it('fails an exchange that gives a reason for an operation it did not reject', async () => {
+    const replica = await open('a')
+    await submit(replica, created('t'))
+    await expect(
+      sync(replica, {
+        exchange: async () => ({
+          operations: [],
+          rejected: [],
+          reasons: [{ opId: 'a:1', reason: 'Refused' }],
+        }),
+      }),
+    ).rejects.toThrow('did not reject')
+    expect((await status(replica)).pending).toBe(1)
   })
 
   it('records the last exchange failure and clears it after a success', async () => {
@@ -698,7 +730,10 @@ describe('the replica', () => {
     await submit(replica, created('t2'))
     await sync(replica, { exchange: async () => ({ operations: [], rejected: [opId('a:2')] }) })
 
-    expect((await status(replica)).rejected).toEqual([opId('a:2'), opId('a:1')])
+    expect((await status(replica)).rejected.map(rejection => rejection.opId)).toEqual([
+      opId('a:2'),
+      opId('a:1'),
+    ])
   })
 
   it('refuses an exchange that resolves after the replica closed', async () => {

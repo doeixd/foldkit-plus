@@ -102,6 +102,7 @@ export {
 export {
   forApplication,
   type ApplicationSync,
+  type AuthorizeDecision,
   type AuthorizePolicy,
   type AuthorizeRequest,
   type DefinedSync,
@@ -179,6 +180,7 @@ export {
   type Exchange,
   type JournalContract,
   type Operation,
+  type Rejection,
   type Replica,
   type ReplicaSnapshot,
   type ReplicaState,

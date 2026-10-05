@@ -130,6 +130,9 @@ describe('journalExchange', () => {
     const tampered = { ...first!, message: { _tag: 'CreatedTodo', id: 'a0', title: '' } }
     const reply = await send(exchange, 0, [tampered, second!])
     expect(reply.rejected).toEqual([first!.opId])
+    expect(reply.reasons).toEqual([
+      { opId: first!.opId, reason: 'Not an operation this server accepts' },
+    ])
     expect(reply.acknowledged).toEqual([second!.opId])
     expect(reply.committed).toEqual([second!.opId])
   })
@@ -139,14 +142,23 @@ describe('journalExchange', () => {
     const exchange = journalExchange({ sync: Todos, journal, principal: 'ada' })
     const [operation] = await pendingOf('a', ['Milk'])
     const reply = await send(exchange, 0, [{ ...operation!, documentId: documentId('another') }])
-    expect(reply).toMatchObject({ rejected: [operation!.opId], acknowledged: [] })
+    expect(reply).toMatchObject({
+      rejected: [operation!.opId],
+      reasons: [{ opId: operation!.opId, reason: 'Not an operation this server accepts' }],
+      acknowledged: [],
+    })
   })
 
   it('rejects an operation the journal’s own validation refuses', async () => {
     const exchange = journalExchange({ sync: Todos, journal: openJournal(), principal: 'ada' })
     const [operation] = await pendingOf('a', ['Milk'])
     const reply = await send(exchange, 0, [{ ...operation!, baseCursor: sequence(9) }])
-    expect(reply).toMatchObject({ rejected: [operation!.opId], acknowledged: [] })
+    // Said in a fixed sentence: the validation's own message is an internal one.
+    expect(reply).toMatchObject({
+      rejected: [operation!.opId],
+      reasons: [{ opId: operation!.opId, reason: 'Not a valid operation' }],
+      acknowledged: [],
+    })
   })
 
   it('rejects what `refuse` refuses, unread by the journal, and takes the rest', async () => {
@@ -159,7 +171,11 @@ describe('journalExchange', () => {
     })
     const [first, second] = await pendingOf('a', ['Milk', 'Eggs'])
     const reply = await send(exchange, 0, [first!, second!])
-    expect(reply).toMatchObject({ rejected: [first!.opId], acknowledged: [second!.opId] })
+    expect(reply).toMatchObject({
+      rejected: [first!.opId],
+      reasons: [{ opId: first!.opId, reason: 'This connection may not make changes' }],
+      acknowledged: [second!.opId],
+    })
     expect(reply.committed).toEqual([second!.opId])
   })
 
@@ -171,7 +187,44 @@ describe('journalExchange', () => {
     const reused = { ...operation!, message: { _tag: 'CreatedTodo', id: 'a0', title: 'Tea' } }
     expect(await send(exchange, 1, [reused])).toMatchObject({
       rejected: [operation!.opId],
+      reasons: [{ opId: operation!.opId, reason: 'Its id was already used for another' }],
       acknowledged: [],
+    })
+  })
+
+  it('sends the reason a contract rule gave, and a fixed one when it gave none', async () => {
+    const Ruled = Sync.forApplication(App)
+      .withPrincipal<string>()
+      .make({
+        documentId: documentId('todos'),
+        shared: Projection.pick(App.model.todos),
+        durable: MessageSet.make(App, [Message.CreatedTodo]),
+        authorize: {
+          CreatedTodo: ({ message }) =>
+            message.title === 'Tea'
+              ? { allowed: false, reason: 'No tea here' }
+              : message.title !== 'Gin',
+        },
+      })
+    const scope = Effect.runSync(Scope.make())
+    scopes.push(scope)
+    const journal = Effect.runSync(
+      Journal.make<Operation, typeof Ruled extends Sync<Message, infer S> ? S : never, string>({
+        ...Ruled.journalContract(),
+        file: ':memory:',
+        opId: operation => OpId.make(operation.opId),
+        actorId: principal => ActorId.make(principal),
+      }).pipe(Effect.provideService(Scope.Scope, scope)),
+    )
+    const exchange = journalExchange({ sync: Ruled, journal, principal: 'ada' })
+    const [tea, gin, milk] = await pendingOf('a', ['Tea', 'Gin', 'Milk'])
+    expect(await send(exchange, 0, [tea!, gin!, milk!])).toMatchObject({
+      rejected: [tea!.opId, gin!.opId],
+      reasons: [
+        { opId: tea!.opId, reason: 'No tea here' },
+        { opId: gin!.opId, reason: 'Refused by the server' },
+      ],
+      acknowledged: [milk!.opId],
     })
   })
 

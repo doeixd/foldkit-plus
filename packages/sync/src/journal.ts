@@ -97,6 +97,13 @@ export const journalExchange = <Message, Shared, Principal>(
         return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server's ${at}`))
       }
       const rejected: Array<string> = []
+      const reasons: Array<{ readonly opId: string; readonly reason: string }> = []
+      // Each reason is words for the person whose edit came back: a policy's own,
+      // or a fixed sentence, never an error's message, which may carry internals.
+      const reject = (opId: string, reason: string) => {
+        rejected.push(opId)
+        reasons.push({ opId, reason })
+      }
       const acknowledged: Array<string> = []
       for (const input of pending) {
         const decoded = operationOf(input)
@@ -104,12 +111,12 @@ export const journalExchange = <Message, Shared, Principal>(
           const id = idOf(input)
           if (Option.isNone(id))
             return yield* Effect.fail(new Error('A pending entry names no operation'))
-          rejected.push(id.value)
+          reject(id.value, 'Not an operation this server accepts')
           continue
         }
         const operation = decoded.value
         if (options.refuse?.(operation) === true) {
-          rejected.push(operation.opId)
+          reject(operation.opId, 'This connection may not make changes')
           continue
         }
         yield* journal.append(key, operation, principal).pipe(
@@ -125,9 +132,12 @@ export const journalExchange = <Message, Shared, Principal>(
           // other content fail the same way on every retry, so they are rejected; a
           // `JournalError` may not, so it still fails the exchange.
           Effect.catchTags({
-            OperationRejectedError: error => Effect.sync(() => rejected.push(error.opId)),
-            InvalidOperationError: () => Effect.sync(() => rejected.push(operation.opId)),
-            IdentityConflictError: () => Effect.sync(() => rejected.push(operation.opId)),
+            OperationRejectedError: error =>
+              Effect.sync(() => reject(error.opId, error.reason ?? 'Refused by the server')),
+            InvalidOperationError: () =>
+              Effect.sync(() => reject(operation.opId, 'Not a valid operation')),
+            IdentityConflictError: () =>
+              Effect.sync(() => reject(operation.opId, 'Its id was already used for another')),
           }),
         )
       }
@@ -143,6 +153,7 @@ export const journalExchange = <Message, Shared, Principal>(
           Effect.succeed({
             operations: rows.map(committedOf),
             rejected,
+            reasons,
             acknowledged,
             more: rows.length === limit,
             epoch,
@@ -151,6 +162,7 @@ export const journalExchange = <Message, Shared, Principal>(
           Effect.map(journal.load(key), loaded => ({
             operations: [],
             rejected,
+            reasons,
             acknowledged,
             checkpoint: { cursor: loaded.cursor, model: snapshot.encode(loaded.snapshot) },
             epoch,
