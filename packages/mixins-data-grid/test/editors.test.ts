@@ -70,7 +70,7 @@ const application = Bundle.assemble<Model, Message>()([
   }),
 ])
 const View = DataGridView<Message>().define(Grid)
-const view = (model: Model, h: HtmlBuilder<Message>) =>
+const viewWith = (choiceEditor: 'list' | 'native') => (model: Model, h: HtmlBuilder<Message>) =>
   View(
     {
       state: model.grid,
@@ -79,6 +79,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
       label: 'Items',
       rowHeight: 20,
       headerHeight: 20,
+      choiceEditor,
     },
     h,
   )
@@ -90,19 +91,14 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-test('a choice is a select of its literals, and a number a field with a decimal keypad', async () => {
+/** The grid on the real runtime, drawing choices as `choiceEditor` says, and what it reported. */
+const mount = (choiceEditor: 'list' | 'native') => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(120)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
-  // jsdom has no showPicker; the select's list opening is a call to it.
-  const showPicker = vi.fn()
-  Object.defineProperty(HTMLSelectElement.prototype, 'showPicker', {
-    configurable: true,
-    value: showPicker,
-  })
   const container = document.createElement('div')
   container.id = 'grid-editors'
   document.body.appendChild(container)
@@ -118,30 +114,89 @@ test('a choice is a select of its literals, and a number a field with a decimal 
         latest = next.model
         return next
       },
-      view,
+      view: viewWith(choiceEditor),
     }),
   )
-  const grid = () => document.getElementById('items')!
+  return { handle, edits: () => latest.edits }
+}
+const grid = () => document.getElementById('items')!
+const press = (target: Element, key: string) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+const focusOn = async (row: string, column: 'status' | 'qty') => {
+  document
+    .getElementById(GridFocus.cellId('items', { row, column }))!
+    .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  await vi.waitFor(() =>
+    expect(grid().getAttribute('aria-activedescendant')).toBe(
+      GridFocus.cellId('items', { row, column }),
+    ),
+  )
+}
+const ready = () =>
+  vi.waitFor(() => expect(document.querySelector('#items [role="gridcell"]')).not.toBeNull())
+
+test('a choice is a list of its literals, walked by key and chosen by pointer', async () => {
+  const { handle, edits } = mount('list')
+  const combobox = () => document.querySelector<HTMLElement>('#items [role="combobox"]')
+  const options = () => Array.from(document.querySelectorAll<HTMLElement>('#items [role="option"]'))
+  const active = () =>
+    document.getElementById(combobox()!.getAttribute('aria-activedescendant') ?? '')?.textContent
+  try {
+    await ready()
+    // The literals, on the cell's value, focused.
+    await focusOn('r0', 'status')
+    press(grid(), 'Enter')
+    await vi.waitFor(() => expect(combobox()).not.toBeNull())
+    expect(options().map(option => option.textContent)).toEqual([
+      'Active',
+      'Pending',
+      'Discontinued',
+    ])
+    expect(active()).toBe('Active')
+    expect(options().map(option => option.getAttribute('aria-selected'))).toEqual([
+      'true',
+      'false',
+      'false',
+    ])
+    expect(document.activeElement).toBe(combobox())
+    // An arrow steps; Enter keeps it.
+    press(combobox()!, 'ArrowDown')
+    await vi.waitFor(() => expect(active()).toBe('Pending'))
+    press(combobox()!, 'Enter')
+    await vi.waitFor(() => expect(edits()).toEqual(['r0 is Pending']))
+
+    // A letter typed on the grid opens the choice on the option it starts.
+    await focusOn('r1', 'status')
+    press(grid(), 'd')
+    await vi.waitFor(() => expect(active()).toBe('Discontinued'))
+    press(combobox()!, 'Escape')
+    await vi.waitFor(() => expect(combobox()).toBeNull())
+    expect(edits()).toEqual(['r0 is Pending'])
+
+    // A press on an option chooses it.
+    await focusOn('r3', 'status')
+    press(grid(), 'Enter')
+    await vi.waitFor(() => expect(combobox()).not.toBeNull())
+    options()[2]!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(edits()).toEqual(['r0 is Pending', 'r3 is Discontinued']))
+    await vi.waitFor(() => expect(combobox()).toBeNull())
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a choice drawn native is a select, and a number a field with a decimal keypad', async () => {
+  // jsdom has no showPicker; the select's list opening is a call to it.
+  const showPicker = vi.fn()
+  Object.defineProperty(HTMLSelectElement.prototype, 'showPicker', {
+    configurable: true,
+    value: showPicker,
+  })
+  const { handle, edits } = mount('native')
   const select = () => document.querySelector<HTMLSelectElement>('#items select')
   const field = () => document.querySelector<HTMLInputElement>('#items input')
-  const press = (target: Element, key: string) =>
-    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
-  const focusOn = async (row: string, column: 'status' | 'qty') => {
-    document
-      .getElementById(GridFocus.cellId('items', { row, column }))!
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await vi.waitFor(() =>
-      expect(grid().getAttribute('aria-activedescendant')).toBe(
-        GridFocus.cellId('items', { row, column }),
-      ),
-    )
-  }
   try {
-    await vi.waitFor(() =>
-      expect(document.querySelector('#items [role="gridcell"]')).not.toBeNull(),
-    )
-
-    // A select of the literals, on the cell's value, focused.
+    await ready()
     await focusOn('r0', 'status')
     press(grid(), 'Enter')
     await vi.waitFor(() => expect(select()).not.toBeNull())
@@ -157,14 +212,7 @@ test('a choice is a select of its literals, and a number a field with a decimal 
     select()!.value = 'Pending'
     select()!.dispatchEvent(new Event('change', { bubbles: true }))
     press(select()!, 'Enter')
-    await vi.waitFor(() => expect(latest.edits).toEqual(['r0 is Pending']))
-
-    // A typed key opens the select on the cell's value, not on the letter.
-    await focusOn('r2', 'status')
-    press(grid(), 'D')
-    await vi.waitFor(() => expect(select()?.value).toBe('Discontinued'))
-    press(select()!, 'Escape')
-    await vi.waitFor(() => expect(select()).toBeNull())
+    await vi.waitFor(() => expect(edits()).toEqual(['r0 is Pending']))
 
     // A number is typed in a text field with a decimal keypad, and read back a number.
     await focusOn('r1', 'qty')
@@ -174,7 +222,7 @@ test('a choice is a select of its literals, and a number a field with a decimal 
     field()!.value = '41'
     field()!.dispatchEvent(new Event('input', { bubbles: true }))
     press(field()!, 'Enter')
-    await vi.waitFor(() => expect(latest.edits).toEqual(['r0 is Pending', 'r1 has 42 less one']))
+    await vi.waitFor(() => expect(edits()).toEqual(['r0 is Pending', 'r1 has 42 less one']))
   } finally {
     handle.dispose()
   }

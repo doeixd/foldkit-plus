@@ -113,17 +113,33 @@ export const GridSlots = Slots.define({
    */
   editorError: Slot.make({ capability: Capability.Base }),
   /**
-   * The editor of a column whose schema's text is one of a few literals: a
-   * `select` of them, drawn in place of the cell's content while the edit
-   * lasts, like `editor`.
+   * The editor of a column whose schema's text is one of a few literals,
+   * drawn in place of the cell's content while the edit lasts, like
+   * `editor`: a `role="combobox"` showing the draft, its options in
+   * `choiceList` (or, with `choiceEditor: 'native'`, a `select`).
    */
   choice: Slot.make({
     capability: Capability.Focusable,
     events: [Event.Change, Event.KeyDown, Event.Blur],
-    protected: { events: [Event.Change, Event.KeyDown, Event.Blur] },
+    protected: {
+      events: [Event.Change, Event.KeyDown, Event.Blur],
+      attributes: [Attr.Role, Tabindex, AriaActiveDescendant],
+    },
   }),
-  /** One literal a `choice` offers. */
-  choiceOption: Slot.make({ capability: Capability.Base }),
+  /**
+   * A choice's options, `role="listbox"`, below the cell, or above it when
+   * the cell is low in the view (`data-place="above"`).
+   */
+  choiceList: Slot.make({
+    capability: Capability.Base,
+    protected: { attributes: [Attr.Role, Id], style: ['position'] },
+  }),
+  /** One literal a `choice` offers: `role="option"`, `aria-selected` on the draft. */
+  choiceOption: Slot.make({
+    capability: Capability.Base,
+    events: [Event.Click],
+    protected: { events: [Event.Click], attributes: [Attr.Role, Id] },
+  }),
   /** Said in place of rows when there are none: empty, loading, or failed. */
   status: Slot.make({ capability: Capability.Base }),
   /**

@@ -1,5 +1,5 @@
 import { Match, Option } from 'effect'
-import type { Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import {
   addressableRows,
@@ -25,6 +25,7 @@ import {
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
 import { HoldFocus } from './holdFocus.js'
+import { KeepFocus } from './keepFocus.js'
 import { HeaderDrag } from './headerDrag.js'
 import { Nearing } from './nearEnd.js'
 import { CellPress } from './press.js'
@@ -108,6 +109,13 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   readonly cell?: (column: Id, row: Row, h: HtmlBuilder<Message>) => Html | string
   /** A cell's mark, if it has one; asked only for the cells drawn. */
   readonly marks?: (address: CellAddress<Id>) => Option.Option<CellMark>
+  /**
+   * How a choice column is edited: a list the grid draws, styled with the
+   * page (`list`, the default), or the platform's own `select` (`native`),
+   * whose picker suits a touch screen better. Pass `native` from a media
+   * fact in the Model, such as a coarse pointer; the view reads no media.
+   */
+  readonly choiceEditor?: 'list' | 'native'
   readonly words?: GridWords
   /**
    * Where the rows' source stands (`GridCrud.status` for a Remote page).
@@ -482,16 +490,9 @@ const view = <Message>() => ({
               const typed =
                 key.length === 1 && !modifiers.ctrlKey && !modifiers.metaKey && !modifiers.altKey
               if (!typed) return Option.none()
-              // A choice opens on the cell's value: a letter is no option, and the
-              // select, once focused, finds one by what is typed.
-              const choice = Option.exists(
-                grid.editorFor(address.column),
-                CellEditor.match({ Text: () => false, Number: () => false, Choice: () => true }),
-              )
+              // On a choice the grid finds the option the key starts.
               return Option.some(
-                choice
-                  ? grid.Message.EditStarted({ address, draft: draftOf(address) })
-                  : grid.Message.EditTyped({ address, text: key, from: draftOf(address) }),
+                grid.Message.EditTyped({ address, text: key, from: draftOf(address) }),
               )
             },
           )
@@ -520,21 +521,121 @@ const view = <Message>() => ({
           )
         }
 
-        // The field an edit is typed in, as the column's schema says: a select
+        // A choice's own keys: the arrows, Home, End and the page keys step
+        // through its options, a letter finds one, Alt+ArrowUp keeps the draft
+        // where it is; Enter, Tab and Escape are any editor's.
+        const choiceSteps: Readonly<Record<string, typeof grid.Message.Type>> = {
+          ArrowDown: grid.Message.EditStepped({ by: 'next' }),
+          ArrowUp: grid.Message.EditStepped({ by: 'previous' }),
+          Home: grid.Message.EditStepped({ by: 'first' }),
+          End: grid.Message.EditStepped({ by: 'last' }),
+          PageDown: grid.Message.EditStepped({ by: 'pageNext' }),
+          PageUp: grid.Message.EditStepped({ by: 'pagePrevious' }),
+        }
+        const choiceKey = (
+          address: CellAddress<Id>,
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> => {
+          if (key === 'ArrowUp' && modifiers.altKey) {
+            return Option.some(
+              grid.Message.EditCommitted({ next: Option.none(), reveal: Option.none() }),
+            )
+          }
+          if (modifiers.ctrlKey || modifiers.metaKey || modifiers.altKey) {
+            return editorKey(address, key, modifiers)
+          }
+          if (Object.hasOwn(choiceSteps, key)) return Option.some(choiceSteps[key]!)
+          if (key.length === 1) {
+            return Option.some(
+              grid.Message.EditTyped({ address, text: key, from: draftOf(address) }),
+            )
+          }
+          return editorKey(address, key, modifiers)
+        }
+        // The rows a choice's list may cover before it opens upward instead.
+        const choiceRows = 8
+        // A choice as a select-only combobox: the draft shown, its options in a
+        // list beside it (inside it, the options would be its text), below the
+        // cell, or above it when there is no room below.
+        const choiceList = (
+          address: CellAddress<Id>,
+          options: ReadonlyArray<string>,
+          draft: string,
+          shared: ReadonlyArray<Attribute<Message>>,
+        ): ReadonlyArray<Html> => {
+          const cellId = GridFocus.cellId(grid.id, address)
+          const listId = `${cellId}:options`
+          const optionId = (index: number) => `${cellId}:option:${index}`
+          const active = options.indexOf(draft)
+          const top = Option.match(projection.positionOf(address), {
+            onNone: () => 0,
+            onSome: ({ row }) => headerHeight + row * rowHeight - viewport.top,
+          })
+          const listHeight = Math.min(options.length, choiceRows) * rowHeight
+          const above =
+            viewport.height - (top + rowHeight) < listHeight && top - headerHeight >= listHeight
+          return [
+            h.div(
+              slots.choice.attrs([
+                ...shared,
+                h.Role('combobox'),
+                h.Tabindex(0),
+                h.AriaExpanded(true),
+                h.AriaControls(listId),
+                ...(active === -1 ? [] : [h.AriaActiveDescendant(optionId(active))]),
+              ]),
+              [draft],
+            ),
+            h.ul(
+              slots.choiceList.attrs([
+                h.Id(listId),
+                h.Role('listbox'),
+                h.AriaLabel(grid.columns.byId[address.column].header),
+                h.DataAttribute('place', above ? 'above' : 'below'),
+                h.OnMount(KeepFocus()),
+                h.Style({
+                  position: 'absolute',
+                  insetInlineStart: '0',
+                  ...(above ? { bottom: '100%' } : { top: '100%' }),
+                }),
+              ]),
+              options.map((option, index) =>
+                h.li(
+                  slots.choiceOption.attrs([
+                    h.Id(optionId(index)),
+                    h.Role('option'),
+                    h.AriaSelected(index === active),
+                    h.OnClick(input.wrap(grid.Message.EditChosen({ draft: option }))),
+                  ]),
+                  [option],
+                ),
+              ),
+            ),
+          ]
+        }
+
+        // The field an edit is typed in, as the column's schema says: a choice
         // of its literals, a number with a decimal keypad, or text.
         const editorOf = (
           address: CellAddress<Id>,
           edit: { readonly draft: string; readonly error: Option.Option<string> },
         ): ReadonlyArray<Html> => {
           const errorId = `${GridFocus.cellId(grid.id, address)}:error`
-          const shared = [
+          // Every editor's attributes, with the keys it answers.
+          const sharedWith = (
+            keys: (
+              key: string,
+              modifiers: KeyboardModifiers,
+            ) => Option.Option<typeof grid.Message.Type>,
+          ) => [
             // A new edit is a new field, so it is focused afresh.
             h.Key(`edit:${address.row}:${address.column}`),
             h.AriaLabel(grid.columns.byId[address.column].header),
             h.AriaInvalid(Option.isSome(edit.error)),
             ...(Option.isSome(edit.error) ? [h.AriaDescribedBy(errorId)] : []),
             h.OnKeyDownPreventDefault((pressed: string, modifiers: KeyboardModifiers) =>
-              Option.map(editorKey(address, pressed, modifiers), input.wrap),
+              Option.map(keys(pressed, modifiers), input.wrap),
             ),
             // Clicking away saves, as Enter does without moving: a draft the
             // column refuses stays open, with its error, to be fixed or
@@ -548,6 +649,7 @@ const view = <Message>() => ({
             h.OnMount(HoldFocus()),
             h.Style({ boxSizing: 'border-box', width: '100%', height: '100%' }),
           ]
+          const shared = sharedWith((pressed, modifiers) => editorKey(address, pressed, modifiers))
           const changed = (draft: string) => input.wrap(grid.Message.EditChanged({ draft }))
           const field = (mode: Option.Option<'decimal'>) =>
             h.input(
@@ -569,26 +671,35 @@ const view = <Message>() => ({
             ],
           })
           const editor = Option.match(grid.editorFor(address.column), {
-            onNone: () => field(Option.none()),
+            onNone: () => [field(Option.none())],
             onSome: CellEditor.match({
-              Text: () => field(Option.none()),
-              Number: () => field(Option.some('decimal')),
-              Choice: ({ options }) =>
-                h.select(
-                  slots.choice.attrs([...shared, h.OnChange(changed)]),
-                  options.map(option =>
-                    h.option(
-                      slots.choiceOption.attrs([
-                        h.Value(option),
-                        ...(option === edit.draft ? [h.Selected(true)] : []),
-                      ]),
-                      [option],
+              Text: () => [field(Option.none())],
+              Number: () => [field(Option.some('decimal'))],
+              Choice: ({ options }): ReadonlyArray<Html> =>
+                input.choiceEditor === 'native'
+                  ? [
+                      h.select(
+                        slots.choice.attrs([...shared, h.OnChange(changed)]),
+                        options.map(option =>
+                          h.option(
+                            slots.choiceOption.attrs([
+                              h.Value(option),
+                              ...(option === edit.draft ? [h.Selected(true)] : []),
+                            ]),
+                            [option],
+                          ),
+                        ),
+                      ),
+                    ]
+                  : choiceList(
+                      address,
+                      options,
+                      edit.draft,
+                      sharedWith((pressed, modifiers) => choiceKey(address, pressed, modifiers)),
                     ),
-                  ),
-                ),
             }),
           })
-          return [editor, ...message]
+          return [...editor, ...message]
         }
 
         // The clipboard works on the range, or the focused cell when there is none.

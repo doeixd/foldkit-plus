@@ -757,16 +757,15 @@ test('a line and a status are edited too, the status as a choice of the Productâ
 
     await focusOn(productId(4), 'status')
     press(grid(), 'Enter')
-    const choice = () => document.querySelector<HTMLSelectElement>('#products select')
-    await vi.waitFor(() => expect(choice()).not.toBeNull())
-    expect(Array.from(choice()!.options, option => option.value)).toEqual([
+    const options = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('#products [role="option"]'))
+    await vi.waitFor(() => expect(options()).not.toEqual([]))
+    expect(options().map(option => option.textContent)).toEqual([
       'Active',
       'Discontinued',
       'Pending',
     ])
-    choice()!.value = 'Discontinued'
-    choice()!.dispatchEvent(new Event('change', { bubbles: true }))
-    press(choice()!, 'Enter')
+    click(options().find(option => option.textContent === 'Discontinued')!)
     await vi.waitFor(() => expect(cell(productId(4), 'status')?.textContent).toBe('Discontinued'))
     expect(markOf(productId(4), 'status')).toBe('pending')
 
@@ -819,9 +818,10 @@ test('a cell committed with the value it already shows is no edit', async () => 
     // The status it has, chosen again.
     await focusOn(productId(2), 'status')
     press(grid(), 'Enter')
-    await vi.waitFor(() => expect(document.querySelector('#products select')).not.toBeNull())
-    press(document.querySelector('#products select')!, 'Enter')
-    await vi.waitFor(() => expect(document.querySelector('#products select')).toBeNull())
+    const combobox = () => document.querySelector('#products [role="combobox"]')
+    await vi.waitFor(() => expect(combobox()).not.toBeNull())
+    press(combobox()!, 'Enter')
+    await vi.waitFor(() => expect(combobox()).toBeNull())
     await settle()
     expect(latest().edits).toEqual([])
     expect(latest().exchange.pending).toBe(0)

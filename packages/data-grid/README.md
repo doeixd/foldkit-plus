@@ -326,7 +326,11 @@ const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
   that does not edit, was not the grid's, and throws.
 - **A key typed on the grid is `EditTyped({ address, text, from })`:** it
   starts the edit from `from`, the text the cell showed, or adds to the one
-  open on that cell, so keys faster than the editor opens all count. The grid's Messages carry what the user did and
+  open on that cell, so keys faster than the editor opens all count. On a
+  choice column it finds the next option the key starts instead.
+  `EditStepped({ by })` moves a choice's draft through its options (`next`,
+  `previous`, `first`, `last`, `pageNext`, `pagePrevious`), and
+  `EditChosen({ draft })` keeps one a pointer chose. The grid's Messages carry what the user did and
   `update` works out what it means, for the reason in
   [Messages carry intent](../../docs/state-model.md#messages-carry-intent-not-results-worked-out-from-the-last-frame).
 - **Place the grid with `onOut`.** Every placement handles the OutMessage, as

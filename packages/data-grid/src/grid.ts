@@ -6,7 +6,7 @@ import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import { ColumnState } from './columnState.js'
 import {
-  type CellEditor,
+  CellEditor,
   type Columns,
   type ColumnSpec,
   type EditValue,
@@ -20,6 +20,10 @@ import { GridSelection, RowSelection } from './selection.js'
 import { GridViewport } from './viewport.js'
 
 const Offsets = Schema.Struct({ top: Schema.Number, left: Schema.Number })
+
+/** How a choice's draft moves through its options (`EditStepped`). */
+const choiceSteps = ['next', 'previous', 'first', 'last', 'pageNext', 'pagePrevious'] as const
+type ChoiceStep = (typeof choiceSteps)[number]
 
 /**
  * One grid's interaction state: focus, the viewport and the column state, as
@@ -176,10 +180,23 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * A key typed on the grid itself, over an editable cell: it starts an
      * edit with the text, or, when that cell's edit is already open (the
      * keys came faster than the editor took focus), adds to its draft.
-     * `from` is the text the cell showed, which a new edit began from.
+     * On a choice it picks the next option starting with the key instead,
+     * after the draft's, as a select finds one. `from` is the text the cell
+     * showed, which a new edit began from.
      */
     EditTyped: { address: focus.Address, text: Schema.String, from: Schema.String },
     EditChanged: { draft: Schema.String },
+    /**
+     * A choice's draft moved through its column's options: the next or
+     * previous, the first or last, or a page of ten either way, stopping at
+     * the ends. The view sends the step; `update` works out the option from
+     * the draft as it is. On a column that is no choice it changes nothing.
+     */
+    EditStepped: {
+      by: Schema.Literals(choiceSteps),
+    },
+    /** A pointer chose one of a choice's options: it is the draft, committed in place. */
+    EditChosen: { draft: Schema.String },
     /**
      * The draft is to be kept. When the column accepts it the edit ends, focus
      * goes to `next` (the cell below, or beside, worked out by the view), and
@@ -354,6 +371,43 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       }),
     )
 
+  /** A choice column's options, or none for a column that is no choice. */
+  const optionsOf = (column: Id): Option.Option<ReadonlyArray<string>> =>
+    Option.flatMap(
+      editorFor(column),
+      CellEditor.match({
+        Text: () => Option.none(),
+        Number: () => Option.none(),
+        Choice: ({ options }) => Option.some(options),
+      }),
+    )
+  /** The option after `current` that starts with `key`, ignoring case, wrapping round; else `current`. */
+  const typedOption = (options: ReadonlyArray<string>, current: string, key: string): string => {
+    const start = options.indexOf(current)
+    const wanted = key.toLowerCase()
+    for (let offset = 1; offset <= options.length; offset++) {
+      const option = options[(start + offset) % options.length]!
+      if (option.toLowerCase().startsWith(wanted)) return option
+    }
+    return current
+  }
+  const page = 10
+  const steppedIndex = (by: ChoiceStep, at: number, count: number) =>
+    Math.max(
+      0,
+      Math.min(
+        count - 1,
+        {
+          next: at + 1,
+          previous: at - 1,
+          first: 0,
+          last: count - 1,
+          pageNext: at + page,
+          pagePrevious: at - page,
+        }[by],
+      ),
+    )
+
   const sameCell = (a: Address, b: Address): boolean => a.row === b.row && a.column === b.column
   /**
    * Ends an edit with its draft: none to report when nothing was edited or
@@ -394,6 +448,35 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         })
       },
     })
+  /**
+   * Keeps a draft: the column refusing it leaves the edit open with the
+   * error; otherwise the edit ends, focus goes to `next`, and `Edited` is
+   * reported unless the draft is unchanged.
+   */
+  const committed = (
+    model: Model,
+    next: Option.Option<Address>,
+    reveal: Option.Option<typeof Offsets.Type>,
+  ): Return => {
+    const finished = finish(model)
+    if (finished.refused) return { model: finished.model }
+    const moved = Option.match(next, {
+      onNone: () => finished.model,
+      onSome: address => focusTo(finished.model, address),
+    })
+    return {
+      model: moved,
+      ...Option.match(finished.edited, {
+        onNone: () => ({}),
+        onSome: outMessage => ({ outMessage }),
+      }),
+      commands: Option.match(reveal, {
+        onNone: () => [],
+        onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
+      }),
+    }
+  }
+
   /**
    * The pointer leaving an edit commits it first, as a spreadsheet does; a
    * draft the column refuses keeps the edit, and the pointer's change waits.
@@ -709,13 +792,22 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
               },
         EditTyped: ({ address, text, from }): Return => {
           if (options.columns.byId[address.column].edit === undefined) return { model }
-          const editing = Option.match(
-            Option.filter(model.editing, editing => sameCell(editing.address, address)),
-            {
-              onNone: () => ({ address, from, draft: text, error: Option.none() }),
-              onSome: open => ({ ...open, draft: open.draft + text, error: Option.none() }),
-            },
-          )
+          const open = Option.filter(model.editing, editing => sameCell(editing.address, address))
+          // On a choice a key finds an option; elsewhere it is typed.
+          const typed = (draft: string) =>
+            Option.match(optionsOf(address.column), {
+              onNone: () => draft + text,
+              onSome: choices => typedOption(choices, draft, text),
+            })
+          const editing = Option.match(open, {
+            onNone: () => ({
+              address,
+              from,
+              draft: Option.isSome(optionsOf(address.column)) ? typed(from) : text,
+              error: Option.none(),
+            }),
+            onSome: edit => ({ ...edit, draft: typed(edit.draft), error: Option.none() }),
+          })
           return {
             model: modifyFields(clearCells(focusTo(model, address)), {
               editing: () => Option.some(editing),
@@ -733,25 +825,36 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
                   }),
           }),
         }),
-        EditCommitted: ({ next, reveal }): Return => {
-          const finished = finish(model)
-          if (finished.refused) return { model: finished.model }
-          const moved = Option.match(next, {
-            onNone: () => finished.model,
-            onSome: address => focusTo(finished.model, address),
-          })
-          return {
-            model: moved,
-            ...Option.match(finished.edited, {
-              onNone: () => ({}),
-              onSome: outMessage => ({ outMessage }),
-            }),
-            commands: Option.match(reveal, {
-              onNone: () => [],
-              onSome: offsets => [GridViewport.scrollTo(options.id, offsets)],
-            }),
-          }
-        },
+        EditStepped: ({ by }): Return =>
+          Option.match(model.editing, {
+            onNone: () => ({ model }),
+            onSome: editing =>
+              Option.match(optionsOf(editing.address.column), {
+                onNone: () => ({ model }),
+                onSome: choices => {
+                  const draft =
+                    choices[steppedIndex(by, choices.indexOf(editing.draft), choices.length)]
+                  return draft === undefined || draft === editing.draft
+                    ? { model }
+                    : {
+                        model: modifyFields(model, {
+                          editing: () => Option.some({ ...editing, draft, error: Option.none() }),
+                        }),
+                      }
+                },
+              }),
+          }),
+        EditChosen: ({ draft }): Return =>
+          Option.match(model.editing, {
+            onNone: () => ({ model }),
+            onSome: editing =>
+              committed(
+                modifyFields(model, { editing: () => Option.some({ ...editing, draft }) }),
+                Option.none(),
+                Option.none(),
+              ),
+          }),
+        EditCommitted: ({ next, reveal }): Return => committed(model, next, reveal),
         // An edit in progress has the keyboard and the clipboard: a paste then is the field's.
         Pasted: ({ cells }): Return => {
           if (Option.isSome(model.editing) || cells.length === 0) return { model }

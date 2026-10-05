@@ -912,3 +912,73 @@ describe('DataGrid paste', () => {
     expect(edit(blank, Editing.Message.Pasted({ cells: [] })).outMessage).toBeUndefined()
   })
 })
+
+describe('DataGrid choices', () => {
+  interface Task {
+    readonly id: string
+    readonly status: string
+  }
+  const Status = Schema.Literals(['Active', 'Pending', 'Paused', 'Discontinued'])
+  const Tasks = DataGrid.make({
+    id: 'tasks',
+    columns: Columns.define<Task>()({
+      status: { header: 'Status', value: task => task.status, edit: { schema: Status } },
+      note: { header: 'Note', value: () => '', edit: {} },
+    }),
+  })
+  const status = { row: 't:1', column: 'status' } as const
+  const note = { row: 't:1', column: 'note' } as const
+  const run = (model: typeof Tasks.Model.Type, message: typeof Tasks.Message.Type) =>
+    Tasks.bundle.update(model, message, undefined)
+  const empty = Tasks.bundle.init(undefined).model
+  const open = (draft: string) =>
+    run(empty, Tasks.Message.EditStarted({ address: status, draft })).model
+  const draftOf = (model: typeof Tasks.Model.Type) => Option.map(model.editing, edit => edit.draft)
+
+  test.each([
+    ['next', 'Pending', 'Paused'],
+    ['previous', 'Pending', 'Active'],
+    ['first', 'Paused', 'Active'],
+    ['last', 'Active', 'Discontinued'],
+    ['pageNext', 'Active', 'Discontinued'],
+    ['pagePrevious', 'Discontinued', 'Active'],
+  ] as const)('a step %s from %s goes to %s', (by, from, to) => {
+    expect(draftOf(run(open(from), Tasks.Message.EditStepped({ by })).model)).toEqual(
+      Option.some(to),
+    )
+  })
+
+  test('a step past an end, or on a column that is no choice, changes nothing', () => {
+    const last = open('Discontinued')
+    expect(run(last, Tasks.Message.EditStepped({ by: 'next' })).model).toBe(last)
+    const typing = run(empty, Tasks.Message.EditStarted({ address: note, draft: 'x' })).model
+    expect(run(typing, Tasks.Message.EditStepped({ by: 'next' })).model).toBe(typing)
+    expect(run(empty, Tasks.Message.EditStepped({ by: 'next' })).model).toBe(empty)
+  })
+
+  test('a key on a choice finds the next option it starts, wrapping round', () => {
+    const typed = (model: typeof Tasks.Model.Type, text: string) =>
+      run(model, Tasks.Message.EditTyped({ address: status, text, from: 'Active' })).model
+    const first = typed(empty, 'p')
+    expect(draftOf(first)).toEqual(Option.some('Pending'))
+    expect(draftOf(typed(first, 'P'))).toEqual(Option.some('Paused'))
+    expect(draftOf(typed(typed(first, 'p'), 'p'))).toEqual(Option.some('Pending'))
+    // No option starts with it: the draft stays.
+    expect(draftOf(typed(first, 'z'))).toEqual(Option.some('Pending'))
+    // On a column that is no choice, the key is typed.
+    const text = run(empty, Tasks.Message.EditTyped({ address: note, text: 'p', from: '' })).model
+    expect(draftOf(text)).toEqual(Option.some('p'))
+  })
+
+  test('a chosen option is committed in place, and reported unless it is the value it began from', () => {
+    const chosen = run(open('Active'), Tasks.Message.EditChosen({ draft: 'Paused' }))
+    expect(chosen.model.editing).toEqual(Option.none())
+    expect(chosen.outMessage).toEqual(
+      Tasks.Out.Edited({ row: 't:1', column: 'status', text: 'Paused' }),
+    )
+    const same = run(open('Active'), Tasks.Message.EditChosen({ draft: 'Active' }))
+    expect(same.model.editing).toEqual(Option.none())
+    expect(same.outMessage).toBeUndefined()
+    expect(run(empty, Tasks.Message.EditChosen({ draft: 'Paused' })).model).toBe(empty)
+  })
+})

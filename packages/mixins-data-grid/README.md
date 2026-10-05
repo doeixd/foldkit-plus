@@ -145,11 +145,18 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   Meta with Shift and an arrow moves it within its region; both are mirrored
   in right-to-left text.
 - **The editor follows the column's schema** (`Grid.editorFor`): a schema
-  whose text is one of a few literals (`Schema.Literals`) is a `select` of
-  them (the `choice` and `choiceOption` slots), opened on the cell's value
-  even by a typed key, its list open at once where the browser allows
-  (`showPicker`); one that decodes to a number is a text field with a
-  decimal keypad on touch; anything else is text (`editor`).
+  whose text is one of a few literals (`Schema.Literals`) is a choice of
+  them: a `role="combobox"` showing the draft (the `choice` slot) beside
+  its `role="listbox"` (`choiceList`, `choiceOption`), drawn by the grid and
+  styled with the page. It opens on the cell's value, below the cell or
+  above it when the cell is low in the view; the arrows, Home, End and the
+  page keys walk it, a letter finds the next option it starts, Enter and
+  Tab keep the draft and move on, Alt+ArrowUp keeps it in place, Escape
+  drops it, and a press on an option chooses it. With `choiceEditor:
+  'native'` it is the platform's `select`, whose picker suits a touch
+  screen, its list open at once where the browser allows (`showPicker`).
+  One that decodes to a number is a text field with a decimal keypad on
+  touch; anything else is text (`editor`).
 - **Editing**, for a column with `edit`: Enter, F2 or a double-click opens a
   text field in the cell on its text, and a printable key opens it on that
   character (`EditTyped`); keys typed before the field is drawn add to it,

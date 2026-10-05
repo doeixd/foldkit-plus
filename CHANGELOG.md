@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-data-grid`: a choice is a list the grid draws.** A
+  column of literals edits as a `role="combobox"` beside its `role="listbox"`
+  (new `choiceList` Slot), styled with the page, opening below the cell or
+  above it near the bottom of the view; arrows, Home, End and the page keys
+  walk it (`EditStepped` in `foldkit-data-grid`), a letter finds an option
+  (`EditTyped` on a choice), and a press chooses one (`EditChosen`) without
+  the blur committing the old draft first. `choiceEditor: 'native'` keeps
+  the platform's `select` (#168).
 - **`foldkit-mixins-data-grid`: shared cell marks and their legend.**
   `GridMarks` names five marks (`pending`, `saved`, `refused`, `replaced`,
   `peer`); `GridMarkStyle`, attached after `GridStyle`, draws each on the

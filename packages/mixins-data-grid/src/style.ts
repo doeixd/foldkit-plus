@@ -137,7 +137,48 @@ export const GridStyle = Style.forSlots(GridSlots)(
       }),
     ),
     editor: Style.compose(field, refused),
-    choice: Style.compose(field, refused),
+    // The combobox reads as the field it replaces: its draft on the line,
+    // and room for the list it opens.
+    choice: Style.compose(
+      field,
+      refused,
+      Style.self({ display: 'flex', alignItems: 'center', cursor: 'default' }),
+    ),
+    // Placed by the view (`position` is the Slot's), below the cell or above it.
+    choiceList: Style.compose(
+      Style.self({
+        zIndex: '3',
+        minWidth: '100%',
+        maxHeight: '16rem',
+        overflowY: 'auto',
+        margin: '0',
+        padding: ref.space['3xs'],
+        listStyle: 'none',
+        background: ref.surface.base,
+        border: `${ref.border.thin} solid ${ref.outline.default}`,
+        borderRadius: ref.radius.md,
+        boxShadow: ref.shadow.lg,
+      }),
+    ),
+    choiceOption: Style.compose(
+      Style.self({
+        padding: `${ref.space['2xs']} ${ref.space.sm}`,
+        borderRadius: ref.radius.sm,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }),
+      Style.nest('&:hover', { background: ref.surface.subtle }),
+      Style.nest('&[aria-selected="true"]', {
+        background: ref.accent.subtle,
+        color: ref.accent.ink,
+      }),
+      // A finger needs a target this tall.
+      Style.media('(pointer: coarse)', {
+        minHeight: '44px',
+        display: 'flex',
+        alignItems: 'center',
+      }),
+    ),
     // Below the field, over the rows beneath: why the column refused the draft.
     editorError: Style.self({
       background: ref.error.default,
