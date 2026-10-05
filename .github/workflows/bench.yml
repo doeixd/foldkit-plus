@@ -21,6 +21,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The workspace's Vitest config includes the browser project, which
+      # launches headless Chromium even when only benchmarks run.
+      - run: pnpm exec playwright install --with-deps chromium
+
       # Prints hz/mean/p99 and the durable bytes-per-operation reading to the
       # job log. Not a gate: shared runners are too noisy to fail a build on a
       # timing regression.
