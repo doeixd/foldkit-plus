@@ -256,7 +256,8 @@ const PageView = SlotView.define(
     slots,
     h: HtmlBuilder<Message>,
   ) =>
-    h.main(slots.root.attrs(), [
+    // The demo's intro above the app, not inside it: it explains the app, it is no part of it.
+    h.div(slots.frame.attrs(), [
       DemoIntro(
         {
           demo: todoDemo,
@@ -264,10 +265,12 @@ const PageView = SlotView.define(
         },
         h,
       ),
-      HeaderRoot(model, h),
-      ComposerRoot(model, h),
-      BoardRoot(model, h),
-      FooterRoot(model, h),
+      h.main(slots.root.attrs(), [
+        HeaderRoot(model, h),
+        ComposerRoot(model, h),
+        BoardRoot(model, h),
+        FooterRoot(model, h),
+      ]),
     ]),
 ).pipe(Style.attach(PageStyle))
 

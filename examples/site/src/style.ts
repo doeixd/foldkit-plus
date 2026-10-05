@@ -33,6 +33,10 @@ export const SiteStyle = slots(
         textDecoration: 'none',
       },
       Style.pseudo(':hover', { background: t.accent.hover }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
     ]),
     page: [
       L.in('layouts', Layout.stack({ gap: t.space['2xl'] })),
@@ -50,8 +54,9 @@ export const SiteStyle = slots(
       U.p('0'),
       { listStyle: 'none' },
     ],
+    // Three rows of the list's grid, shared with the row's other cards.
     card: [
-      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      { display: 'grid', gridRow: 'span 3', gridTemplateRows: 'subgrid', rowGap: t.space.md },
       U.p('lg'),
       U.bg('surface.base'),
       { border: `${t.border.thin} solid ${t.outline.subtle}`, borderRadius: t.radius.lg },
@@ -60,6 +65,10 @@ export const SiteStyle = slots(
     titleLink: Style.slot({ capability: Capability.Focusable }, [
       { color: 'inherit', textDecoration: 'none' },
       Style.pseudo(':hover', { textDecoration: 'underline' }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
     ]),
     proves: [U.m('0'), U.color('text.muted')],
     label: [
@@ -70,20 +79,65 @@ export const SiteStyle = slots(
       { textTransform: 'uppercase', letterSpacing: '0.04em' },
     ],
     steps: [
-      L.in('layouts', Layout.stack({ gap: t.space.xs })),
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
       U.m('0'),
-      { paddingInlineStart: '1.25rem' },
+      U.p('0'),
+      { listStyle: 'none', paddingBlockEnd: t.space.sm },
     ],
-    step: U.m('0'),
-    stepTitle: [U.font('semibold'), U.color('text.overt')],
-    meta: [U.m('0'), U.text('sm')],
+    step: [L.in('layouts', Layout.stack({ gap: '0.125rem' })), U.m('0')],
+    stepLabel: [
+      U.text('xs'),
+      U.font('semibold'),
+      U.color('accent.default'),
+      { letterSpacing: '0.02em' },
+    ],
+    body: [L.in('layouts', Layout.stack({ gap: t.space.sm })), { alignContent: 'start' }],
+    foot: [
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      {
+        paddingBlockStart: t.space.md,
+        borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
+    meta: [L.in('layouts', Layout.stack({ gap: '0.125rem' })), U.m('0')],
+    path: Style.slot({ capability: Capability.Focusable }, [
+      U.color('text.default'),
+      {
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        fontSize: '0.8125rem',
+        textDecoration: 'underline',
+        textDecorationColor: t.outline.default,
+        textUnderlineOffset: '0.2em',
+      },
+      Style.pseudo(':hover', { color: t.accent.default, textDecorationColor: 'currentColor' }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+    ]),
     packages: [
       L.in('layouts', Layout.cluster({ gap: t.space.xs })),
       U.m('0'),
       U.p('0'),
-      { listStyle: 'none' },
+      { listStyle: 'none', paddingBlockEnd: t.space.xs },
     ],
-    package: U.text('sm'),
+    package: Style.slot({ capability: Capability.Focusable }, [
+      U.text('xs'),
+      U.font('medium'),
+      U.color('text.default'),
+      U.bg('surface.muted'),
+      {
+        display: 'inline-block',
+        padding: '0.125rem 0.5rem',
+        borderRadius: '999px',
+        textDecoration: 'none',
+      },
+      Style.pseudo(':hover', { color: t.accent.default }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+    ]),
     link,
     footer: [U.m('0'), U.text('sm'), U.color('text.muted')],
   },

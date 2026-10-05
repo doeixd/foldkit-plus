@@ -77,6 +77,8 @@ export const AdminSlots = Slots.define({
   manageCards: part,
   introSummary: control,
   introSteps: part,
+  introStep: part,
+  introStepLabel: part,
   main: part,
   /** A section's screen: its heading, its filters, then what it lists. */
   screen: part,
@@ -301,18 +303,13 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         borderBlockEnd: `1px solid color-mix(in oklch, ${t.accent.default} 18%, ${t.surface.base})`,
       }),
       Style.nest('& > :not(summary)', { margin: '0', paddingInline: t.space.lg }),
-      // The steps' numbers sit in the indent, so the list is set in by their width too.
-      Style.nest('& > ol', { paddingInlineStart: `calc(${t.space.lg} + 1.25rem)` }),
       Style.nest('& > summary + *', { paddingBlockStart: t.space.md }),
       Style.nest('& > :not(summary) + :not(summary)', { marginBlockStart: t.space.sm }),
       Style.nest('& > :last-child:not(summary)', { paddingBlockEnd: t.space.md }),
       Style.nest('& a', { color: t.accent.ink, fontWeight: t.weight.medium }),
       Style.at(
         `@media ${phone}`,
-        Style.compose(
-          Style.nest('& > :not(summary)', { paddingInline: t.space.md }),
-          Style.nest('& > ol', { paddingInlineStart: `calc(${t.space.md} + 1.25rem)` }),
-        ),
+        Style.compose(Style.nest('& > :not(summary)', { paddingInline: t.space.md })),
       ),
     ),
     introSummary: Style.compose(
@@ -373,11 +370,21 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.media(phone, { paddingInline: t.space.md }),
     ),
-    // Numbered steps, the numbers in the accent; the intro sets the list in.
-    introSteps: Style.compose(
-      Style.self({ display: 'grid', gap: t.space['2xs'] }),
-      Style.nest('& > li::marker', { color: t.accent.ink, fontWeight: t.weight.semibold }),
-    ),
+    // Each step a numbered label over its sentence, side by side where there is
+    // room: the same steps, laid out as every demo's intro lays them out.
+    introSteps: Style.self({
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))',
+      gap: `${t.space.sm} ${t.space.lg}`,
+      listStyle: 'none',
+    }),
+    introStep: Style.self({ display: 'grid', alignContent: 'start', gap: '0.125rem' }),
+    introStepLabel: Style.self({
+      color: t.accent.ink,
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.02em',
+    }),
     screen: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({

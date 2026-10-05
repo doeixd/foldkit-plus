@@ -36,7 +36,12 @@ export const intro = <M>(slots: SlotView.SlotBuilders<typeof AdminSlots, M>, h: 
     // The steps every list of the demos shows (`foldkit-example-site/demos`).
     h.ol(
       slots.introSteps.attrs(),
-      cmsDemo.tryThis.map(step => h.li([], [h.strong([], [step.title]), ` ${step.text}`])),
+      cmsDemo.tryThis.map((step, index) =>
+        h.li(slots.introStep.attrs(), [
+          h.span(slots.introStepLabel.attrs(), [`${index + 1} · ${step.title}`]),
+          h.span([], [step.text]),
+        ]),
+      ),
     ),
     ...(sandboxed
       ? [

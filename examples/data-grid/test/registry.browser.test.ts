@@ -18,7 +18,7 @@ afterEach(() => {
 })
 
 test('100,000 products scroll to the last one, drawing a window, the UPC pinned', async () => {
-  // Narrower than the columns' 790px, so the grid scrolls sideways.
+  // Narrower than the columns' 830px, so the grid scrolls sideways.
   await page.viewport(640, 800)
   Style.install(
     AppStyle.make({ palette: Theme.oklch({ accent: { h: 250, c: 0.12, l: '55%' } }) }).stylesheet,
@@ -31,7 +31,7 @@ test('100,000 products scroll to the last one, drawing a window, the UPC pinned'
   const cell = (row: string, column: string) =>
     document.getElementById(GridFocus.cellId('products', { row, column }))
 
-  await vi.waitFor(() => expect(cell('p3', 'price')).not.toBeNull(), { timeout: 10_000 })
+  await vi.waitFor(() => expect(cell('p3', 'description')).not.toBeNull(), { timeout: 10_000 })
   await page.screenshot({ path: '../.vitest/registry-top.png' })
 
   const started = performance.now()

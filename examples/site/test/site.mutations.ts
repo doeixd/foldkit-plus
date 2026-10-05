@@ -42,8 +42,8 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: '      demo.tryThis.map(step =>',
-        replace: '      [].map((step: string) =>',
+        find: '      demo.tryThis.map((step, index) =>',
+        replace: '      [].map((step: Demo["tryThis"][number], index: number) =>',
       },
     ],
     tests,

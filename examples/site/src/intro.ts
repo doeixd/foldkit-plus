@@ -17,7 +17,8 @@ export const IntroSlots = Slots.define({
   lede: Slot.make({ capability: Capability.Container }),
   steps: Slot.make({ capability: Capability.Container }),
   step: Slot.make({ capability: Capability.Container }),
-  stepTitle: Slot.make({ capability: Capability.Container }),
+  stepLabel: Slot.make({ capability: Capability.Container }),
+  stepText: Slot.make({ capability: Capability.Container }),
   links: Slot.make({ capability: Capability.Container }),
   link: Slot.make({ capability: Capability.Focusable }),
 })
@@ -65,19 +66,25 @@ export const IntroStyle = Style.forSlots(IntroSlots)(
       Style.pseudo(':focus-visible', { outline: `2px solid ${accent}`, outlineOffset: '-2px' }),
     ),
     lede: Style.self({ margin: '0', padding: '0.875rem 1.25rem 0' }),
-    steps: Style.compose(
-      Style.self({
-        display: 'grid',
-        gap: '0.375rem',
-        margin: '0.625rem 0 0',
-        padding: '0 1.25rem 0 2.75rem',
-      }),
-      Style.nest('& > li::marker', { color: accent, fontWeight: '600' }),
-    ),
-    step: Style.self({ paddingInlineStart: '0.125rem' }),
-    stepTitle: Style.self({ fontWeight: '600', color: 'oklch(20% 0.02 270)' }),
+    // Side by side where the box is wide, as the registry's step cards are; stacked where not.
+    steps: Style.self({
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))',
+      gap: '0.75rem 1.5rem',
+      margin: '0.875rem 0 0',
+      padding: '0 1.25rem',
+      listStyle: 'none',
+    }),
+    step: Style.self({ display: 'grid', alignContent: 'start', gap: '0.125rem', margin: '0' }),
+    stepLabel: Style.self({
+      color: accent,
+      fontSize: '12px',
+      fontWeight: '600',
+      letterSpacing: '0.02em',
+    }),
+    stepText: Style.self({ color: 'oklch(28% 0.02 270)' }),
     links: Style.self({
-      margin: '0.75rem 0 0',
+      margin: '0.875rem 0 0',
       padding: '0 1.25rem 1rem',
       fontSize: '13px',
       color: 'oklch(45% 0.02 270)',
@@ -85,6 +92,7 @@ export const IntroStyle = Style.forSlots(IntroSlots)(
     link: Style.compose(
       Style.self({ color: accent, textDecoration: 'underline', textUnderlineOffset: '0.15em' }),
       Style.pseudo(':hover', { color: 'oklch(42% 0.17 270)' }),
+      Style.pseudo(':focus-visible', { outline: `2px solid ${accent}`, outlineOffset: '2px' }),
     ),
   },
   // The standard order's last layer, as an application's own styles are.
@@ -113,10 +121,10 @@ export const demoIntro = <Message>() =>
           h.p(slots.lede.attrs(), [[demo.proves, ...more].join(' ')]),
           h.ol(
             slots.steps.attrs(),
-            demo.tryThis.map(step =>
+            demo.tryThis.map((step, index) =>
               h.li(slots.step.attrs(), [
-                h.strong(slots.stepTitle.attrs(), [step.title]),
-                ` ${step.text}`,
+                h.span(slots.stepLabel.attrs(), [`${index + 1} · ${step.title}`]),
+                h.span(slots.stepText.attrs(), [step.text]),
               ]),
             ),
           ),

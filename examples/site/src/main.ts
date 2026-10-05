@@ -115,35 +115,47 @@ export const ORIGIN = 'https://foldkit-plus.pages.dev'
 
 type Slots = SlotBuilders<typeof SiteStyle.slots, Message>
 
+/**
+ * A demo's card, in three parts on its row's grid (`subgrid`), so each part
+ * starts where its neighbours' do: what it proves and what to try, the file to
+ * read and the packages, and the way in.
+ */
 const card = (demo: Demo, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.li(slots.card.attrs(), [
-    h.h2(slots.cardTitle.attrs(), [h.a(slots.titleLink.attrs([h.Href(demo.url)]), [demo.title])]),
-    h.p(slots.proves.attrs(), [demo.proves]),
-    h.a(slots.open.attrs([h.Href(demo.url)]), ['Open the demo']),
-    h.p(slots.label.attrs(), ['Try this']),
-    h.ol(
-      slots.steps.attrs(),
-      demo.tryThis.map(step =>
-        h.li(slots.step.attrs(), [
-          h.strong(slots.stepTitle.attrs(), [step.title]),
-          ` ${step.text}`,
-        ]),
-      ),
-    ),
-    h.p(slots.meta.attrs(), [
-      'Read first: ',
-      h.a(slots.link.attrs([h.Href(onGitHub(demo.readFirst))]), [demo.readFirst]),
-    ]),
-    h.ul(
-      slots.packages.attrs([h.AriaLabel('Packages')]),
-      demo.packages.map(name =>
-        h.li(slots.package.attrs(), [
-          h.a(slots.link.attrs([h.Href(onGitHub(`packages/${name}/README.md`))]), [
-            packageName(name),
+    h.div(slots.body.attrs(), [
+      h.h2(slots.cardTitle.attrs(), [h.a(slots.titleLink.attrs([h.Href(demo.url)]), [demo.title])]),
+      h.p(slots.proves.attrs(), [demo.proves]),
+      h.p(slots.label.attrs(), ['Try this']),
+      h.ol(
+        slots.steps.attrs(),
+        demo.tryThis.map((step, index) =>
+          h.li(slots.step.attrs(), [
+            h.span(slots.stepLabel.attrs(), [`${index + 1} · ${step.title}`]),
+            h.span([], [step.text]),
           ]),
-        ]),
+        ),
       ),
-    ),
+    ]),
+    h.div(slots.foot.attrs(), [
+      h.p(slots.meta.attrs(), [
+        h.span(slots.label.attrs(), ['Read first']),
+        h.a(slots.path.attrs([h.Href(onGitHub(demo.readFirst))]), [demo.readFirst]),
+      ]),
+      h.ul(
+        slots.packages.attrs([h.AriaLabel('Packages')]),
+        demo.packages.map(name =>
+          h.li(
+            [],
+            [
+              h.a(slots.package.attrs([h.Href(onGitHub(`packages/${name}/README.md`))]), [
+                packageName(name),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    ]),
+    h.a(slots.open.attrs([h.Href(demo.url)]), ['Open the demo']),
   ])
 
 const home = (slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
