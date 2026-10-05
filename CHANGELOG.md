@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync/entity`: edits to rows a server owns.** `EditableEntity.make(
+  entity, { members })` keeps edits one per cell, each value typed by its
+  member, committed `at` a sequence `by` an author (`{ actor, replica }`),
+  and lays them over Remote's rows by each row's `revision`. Pure functions
+  merge and absorb them, hold an absorbed edit while its cached row is
+  behind it and settle it when a read reaches it, report a cell another
+  tab's later commit replaced, and name a refusal's cells (#166).
 - **`foldkit-sync`: a reinstall says when the server was reset.**
   `ReplicaStatus.epoch` is the server history the cursor points into, and
   `Sync.mount`'s `onReinstall(next, previous, { reset })` is told when it

@@ -36,6 +36,11 @@
       "foldkit-plus:source": "./src/journal.ts",
       "types": "./dist/journal.d.mts",
       "import": "./dist/journal.mjs"
+    },
+    "./entity": {
+      "foldkit-plus:source": "./src/entity.ts",
+      "types": "./dist/entity.d.mts",
+      "import": "./dist/entity.mjs"
     }
   },
   "files": [

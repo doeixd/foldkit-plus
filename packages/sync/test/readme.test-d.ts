@@ -20,6 +20,7 @@ import {
 } from '../src/index.js'
 import { serveJournal } from '../src/journal.js'
 import { ActorId, Journal, OpId } from 'foldkit-durable'
+import { EditableEntity } from 'foldkit-sync/entity'
 
 // Sixty seconds: say what is shared
 const Model = Schema.Struct({
@@ -302,3 +303,14 @@ void lower
 // Joining an assembly
 const syncWiring: Wiring<Model, never> = TodoSync.wiring()
 void syncWiring
+
+// Edit rows a server owns: an Entity's fields, as `foldkit-entity` gives them.
+const Product = {
+  fields: {
+    id: { schema: Schema.String },
+    description: { schema: Schema.String },
+    cents: { schema: Schema.Number },
+  },
+}
+const ProductEdits = EditableEntity.make(Product, { members: ['description', 'cents'] })
+void ProductEdits.overlay([])({ id: 'p1', description: 'Bolt', cents: 49, revision: 0 })

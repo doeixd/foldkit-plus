@@ -505,6 +505,27 @@ shows. `reset` is true when the server's history is a new one (a new
 `status.epoch`: the server was reset), so whatever the application derived
 from the old one, such as reads keyed by commit sequence, is to be read again.
 
+### Edit rows a server owns
+
+When rows are too many to replicate but edits to them must survive offline,
+let the journal own the edits and the table be its read model, each row
+carrying the highest sequence it has applied (`revision`). `foldkit-sync/entity`
+keeps such edits one per cell and lays them over the rows Remote reads:
+
+```text
+cell shown = the row's value, unless an edit of that cell is pending,
+             or committed after the row's revision (at > row.revision)
+```
+
+`EditableEntity.make(Product, { members: ['description', 'cents'] })` gives
+the schemas (`Change` on the wire, `Edit` in the slice, the Message fields
+`edited` and `absorbed`) and pure functions for `update`, the stamp
+(`stamped`) and `onReinstall`: `merge`, `absorb`, `overlay` (for
+`RowModel.map`), `held` and `settled` (an edit the journal absorbed, kept until
+a read of its row reaches it), `replaced` (a cell of this tab's that another's
+later commit took) and `cellsOf` (what a refusal undid). It owns no state and
+does no I/O. [`examples/registry`](../../examples/registry) is the whole of it.
+
 ## Testing without a browser or a server
 
 A `Storage` needs three members, and the loopback transport takes a handler in

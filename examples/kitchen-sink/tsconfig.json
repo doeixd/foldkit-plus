@@ -35,6 +35,7 @@
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
       "foldkit-sync": ["../../packages/sync/src/index.ts"],
+      "foldkit-sync/entity": ["../../packages/sync/src/entity.ts"],
       "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"]
     }
   },

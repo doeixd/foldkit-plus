@@ -251,6 +251,11 @@ const server = Effect.gen(function* () {
 - Also: `appendAll`, `compact`/`floor`, `cursor` (no snapshot decode), `epoch`, `subscribe` (a wake-up signal; catch up
   with `read`), `Journal.define`/`Journal.layer`, and `runEffect`/`recover` (an
   effect ledger, **not** exactly-once at external providers).
+- `foldkit-sync/entity`'s `EditableEntity.make(entity, { members })` keeps
+  edits to server-owned rows one per cell (`{ id, member, value, at, by }`)
+  and lays them over Remote's rows by revision (`overlay`), with `merge`,
+  `absorb`, `held`/`settled`, `replaced` and `cellsOf` for `update` and
+  `onReinstall`; pure, no state of its own. The registry example uses it.
 - Durable does **not** speak the sync exchange; `foldkit-sync/journal` does
   (`foldkit-durable` an optional peer): `serveJournal(socket, { sync, journal,
   principal, refuse?, settle? })` answers one socket and notifies it of each

@@ -13,6 +13,7 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
       "foldkit-sync": ["./src/index.ts"],
+      "foldkit-sync/entity": ["./src/entity.ts"],
       "foldkit-sync/journal": ["./src/journal.ts"]
     }
   },
