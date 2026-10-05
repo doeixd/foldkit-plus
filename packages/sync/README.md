@@ -334,10 +334,13 @@ const status = yield* replica.status
 
 `pending` above zero means edits the server has not confirmed; `lastError` is
 the last failed exchange, cleared by the next success; `rejected` lists recent
-edits the server refused, most recent first, each `{ opId, reason }`, where
-`reason` is an `Option` of the server's words for the person. `replica.statusChanges` is a Stream of the same,
-emitted after every submit and exchange; `replica.changes` pairs it with the
-optimistic `shared` value so one subscription sees both.
+edits the server refused, most recent first, each `{ opId, reason, operation }`,
+where `reason` is an `Option` of the server's words for the person and
+`operation` is the refused operation itself, which the replica has dropped
+from the outbox, so a page reads what it changed from here. `replica.statusChanges` is a Stream of the same,
+emitted now and after every submit and exchange (subscribed before its first
+read, so a subscriber slow to take one misses no change); `replica.changes`
+pairs it with the optimistic `shared` value so one subscription sees both.
 
 **A refused edit** arrives as a rejection on the next exchange, not as an
 error. The replica drops it and replays the rest; the mount re-installs the

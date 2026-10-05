@@ -121,7 +121,9 @@ version changed; `pnpm` skips versions already in the registry.
   or a fixed sentence ("Not a valid operation", "This connection may not
   make changes"), never an error's message. **Breaking:**
   `ReplicaStatus.rejected` is `ReadonlyArray<Rejection>`, `{ opId, reason:
-  Option<string> }`, in place of the ids. The todo-app's rules give their
+  Option<string>, operation }`, in place of the ids: the refused operation
+  comes with its refusal, so what it changed is read from it rather than
+  looked up while it was pending, which a page that heard late could miss. The todo-app's rules give their
   reasons (#161).
 
 - **`foldkit-mixins-data-grid`: cell marks.** `marks: address =>
@@ -376,6 +378,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-sync`: `statusChanges` and `changes` miss no change.** Each
+  emitted the current value and subscribed to later changes only once that
+  value was taken, so a subscriber slow to take it, and any change between
+  the read and the subscription, went untold. They subscribe first now.
 - **`examples/registry`: an edit lost while offline is said.** When the
   journal absorbed another device's later edit of a cell before this device
   heard of it, the page kept showing its own value as saved until some read,

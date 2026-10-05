@@ -163,24 +163,23 @@ export const mountRegistry = (
   // Dispatched before any exchange can reinstall, so every reinstall knows
   // which edits are this device's.
   mounted.dispatch(Message.DeviceNamed({ device: options.device }))
-  // The replica drops a refused operation, so the cells each pending one
-  // changed are read while it is still pending, to say which a refusal undid.
-  const cellsOf = new Map<string, ReadonlyArray<Pick<Refusal, 'id' | 'column'>>>()
-  const reported = new Set<string>()
+  // Each refusal carries the operation it refused, so the cells it undid are
+  // read from it. The status lists the latest refusals, so the ones said
+  // already are kept only while it still lists them.
+  let reported = new Set<string>()
   const status = Effect.runFork(
     Stream.runForEach(replica.statusChanges, ({ pending, lastError, rejected }) =>
-      Effect.gen(function* () {
-        for (const operation of yield* replica.pending)
-          if (!cellsOf.has(operation.opId)) cellsOf.set(operation.opId, changedCells(operation))
-        const refusals = rejected.flatMap(({ opId, reason }) => {
-          if (reported.has(opId)) return []
-          reported.add(opId)
-          return (cellsOf.get(opId) ?? []).map(cell => ({
-            opId,
-            ...cell,
-            reason: Option.getOrElse(reason, () => 'Refused by the server'),
-          }))
-        })
+      Effect.sync(() => {
+        const refusals = rejected.flatMap(({ opId, reason, operation }) =>
+          reported.has(opId)
+            ? []
+            : changedCells(operation).map(cell => ({
+                opId,
+                ...cell,
+                reason: Option.getOrElse(reason, () => 'Refused by the server'),
+              })),
+        )
+        reported = new Set(rejected.map(({ opId }) => opId))
         if (refusals.length > 0) mounted.dispatch(Message.EditsRefused({ refusals }))
         mounted.dispatch(
           Message.ExchangeChanged({ pending, error: Option.fromUndefinedOr(lastError) }),

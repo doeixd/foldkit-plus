@@ -231,7 +231,7 @@ describe('two people on one page', () => {
     const [waiting] = Effect.runSync(replica.pending)
     await synchronize(replica, 'mallory')
     expect(Effect.runSync(replica.status).rejected).toEqual([
-      { opId: waiting!.opId, reason: Option.none() },
+      { opId: waiting!.opId, reason: Option.none(), operation: waiting },
     ])
     expect(titles(journal.snapshot())).toEqual(['A'])
   })
@@ -617,7 +617,7 @@ describe('two people on one page', () => {
     const [sent] = Effect.runSync(replica.pending)
     await synchronize(replica, 'tab-bob')
     expect(Effect.runSync(replica.status).rejected).toEqual([
-      { opId: sent!.opId, reason: Option.none() },
+      { opId: sent!.opId, reason: Option.none(), operation: sent },
     ])
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(heard).toBe(0)

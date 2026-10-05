@@ -534,7 +534,14 @@ describe('the replica', () => {
       pending: 0,
       cursor: 0,
       lastError: undefined,
-      rejected: [{ opId: 'a:1', reason: Option.none() }],
+      // The operation the replica sent and has now dropped, so what it changed can be read.
+      rejected: [
+        {
+          opId: 'a:1',
+          reason: Option.none(),
+          operation: expect.objectContaining({ opId: 'a:1', message: created('t') }),
+        },
+      ],
     })
   })
 
@@ -550,8 +557,16 @@ describe('the replica', () => {
       }),
     })
     expect((await status(replica)).rejected).toEqual([
-      { opId: 'a:1', reason: Option.none() },
-      { opId: 'a:2', reason: Option.some('Only the owner can do that') },
+      {
+        opId: 'a:1',
+        reason: Option.none(),
+        operation: expect.objectContaining({ message: created('t') }),
+      },
+      {
+        opId: 'a:2',
+        reason: Option.some('Only the owner can do that'),
+        operation: expect.objectContaining({ message: created('u') }),
+      },
     ])
   })
 
@@ -1148,6 +1163,30 @@ describe('Replica.start', () => {
 
     expect(applied).toBe(1)
     expect(shared(replica)).toEqual({ todos: [{ id: 'a', title: 'a' }] })
+    await close(replica)
+  })
+
+  it('tells a slow subscriber of a change made while it held its first status', async () => {
+    const replica = await open('a')
+    const seen = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const gate = yield* Deferred.make<void>()
+          // The subscriber takes the first status, then is busy until the gate opens.
+          const statuses = yield* replica.statusChanges.pipe(
+            Stream.mapEffect(status => Effect.as(Deferred.await(gate), status)),
+            Stream.take(2),
+            Stream.runCollect,
+            Effect.forkScoped,
+          )
+          yield* Effect.yieldNow
+          yield* replica.submit(created('a'))
+          yield* Deferred.succeed(gate, undefined)
+          return yield* Fiber.join(statuses).pipe(Effect.timeout('1 second'))
+        }),
+      ),
+    )
+    expect(seen.map(status => status.pending)).toEqual([0, 1])
     await close(replica)
   })
 

@@ -126,7 +126,7 @@ describe('the sync server', () => {
       await sync(`${server.url}/?token=guest`, replica)
 
       const status = await Effect.runPromise(replica.status)
-      expect(status.rejected).toEqual([
+      expect(status.rejected.map(({ opId, reason }) => ({ opId, reason }))).toEqual([
         { opId: 'guest:2', reason: Option.some('Only the list’s owner can rename it') },
         { opId: 'guest:3', reason: Option.some('That todo is already gone') },
       ])

@@ -13,13 +13,20 @@
  *   reads the row again;
  * - a committed edit shows until a read of the row has it, by its revision.
  */
-import { Effect, Layer, Option } from 'effect'
+import { Effect, Layer, Option, Stream } from 'effect'
 import { GridFocus } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Frames } from 'foldkit-mixins/testing'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { ReplicaId, Sync, type Operation, type Storage, type TransportClient } from 'foldkit-sync'
+import {
+  ReplicaId,
+  Sync,
+  type Operation,
+  type ReplicaStatus,
+  type Storage,
+  type TransportClient,
+} from 'foldkit-sync'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Message, Products, type Model } from '../src/app.js'
 import { ProductId } from '../src/domain.js'
@@ -110,7 +117,14 @@ const serve = () => {
 }
 
 /** The page over a replica on `storage`, on the runtime, with the last Model it drew. */
-const mount = async (server: ReturnType<typeof serve>, storage: Storage, name = 'tab-1') => {
+const mount = async (
+  server: ReturnType<typeof serve>,
+  storage: Storage,
+  name = 'tab-1',
+  // What the page hears of the replica's status: as it is, or later.
+  statuses: (changes: Stream.Stream<ReplicaStatus>) => Stream.Stream<ReplicaStatus> = changes =>
+    changes,
+) => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -124,11 +138,14 @@ const mount = async (server: ReturnType<typeof serve>, storage: Storage, name = 
   const container = document.createElement('div')
   container.id = 'registry-page'
   document.body.appendChild(container)
-  const { mounted, dispose } = mountRegistry(replica, {
-    container,
-    resources: server.resources,
-    device: name,
-  })
+  const { mounted, dispose } = mountRegistry(
+    { ...replica, statusChanges: statuses(replica.statusChanges) },
+    {
+      container,
+      resources: server.resources,
+      device: name,
+    },
+  )
   const transport = server.transportFor(name)
   const exchange = () =>
     Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport), Effect.ignore))
@@ -644,6 +661,37 @@ test('a refused edit marks its cell and says why, until it is dismissed', async 
     await vi.waitFor(() => expect(lines()).toEqual([]))
     expect(markOf(productId(6), 'cents')).toBeNull()
   } finally {
+    await dispose()
+  }
+})
+
+test('a refusal says which cells it undid, though the page heard of the edit only after', async () => {
+  const server = serve()
+  // The page hears nothing of the replica's status until the edit is sent
+  // and refused: it never sees the edit pending at all.
+  let open = () => {}
+  const opened = new Promise<void>(resolve => (open = resolve))
+  const { dispose, replica, exchange } = await mount(server, memoryStorage(), 'tab-1', changes =>
+    changes.pipe(
+      Stream.mapEffect(status =>
+        Effect.as(
+          Effect.promise(() => opened),
+          status,
+        ),
+      ),
+    ),
+  )
+  try {
+    await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe(priceOf(6)))
+    await edit(productId(6), 'cents', '6.66')
+    await vi.waitFor(() => expect(Effect.runSync(replica.pending)).toHaveLength(1))
+    server.setTampering(true)
+    await exchange()
+    expect(Effect.runSync(replica.pending)).toEqual([])
+    open()
+    await vi.waitFor(() => expect(markOf(productId(6), 'cents')).toBe('refused'))
+  } finally {
+    open()
     await dispose()
   }
 })

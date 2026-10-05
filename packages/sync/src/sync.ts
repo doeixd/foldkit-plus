@@ -152,10 +152,15 @@ export interface ReplicaStatus {
   readonly rejected: ReadonlyArray<Rejection>
 }
 
-/** An operation the server refused, and why, when it said. */
+/**
+ * An operation the server refused, and why, when it said. It carries the
+ * operation itself: the replica drops it from the outbox in the same step,
+ * so what it changed can be read from here rather than looked up in time.
+ */
 export interface Rejection {
   readonly opId: OpId
   readonly reason: Option.Option<string>
+  readonly operation: Operation
 }
 
 /**
@@ -511,6 +516,18 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       // One pending wake-up is enough: the loop exchanges the whole outbox.
       const wake = yield* Queue.sliding<void>(1)
       const statusSignals = yield* PubSub.sliding<void>(1)
+      // The current value, then again after every change. Subscribed before the
+      // first read, so a change made while a subscriber holds that value, or
+      // between the read and the subscription, is still told.
+      const following = <A>(read: Effect.Effect<A>): Stream.Stream<A> =>
+        Stream.unwrap(
+          Effect.map(PubSub.subscribe(statusSignals), signals =>
+            Stream.concat(
+              Stream.fromEffect(read),
+              Stream.fromSubscription(signals).pipe(Stream.mapEffect(() => read)),
+            ),
+          ),
+        )
       // The projection is pure over an immutable state, so a cached value is
       // reused until a write replaces the state object. A UI reads `shared` far
       // more often than it writes, and replaying a large outbox per read is
@@ -805,9 +822,14 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           const reasonOf = new Map(
             (response.reasons ?? []).map(({ opId, reason }) => [opId, reason] as const),
           )
+          // Every rejected id was sent: an unknown one failed the exchange above.
+          const sentOf = new Map(
+            sent.pending.map(operation => [operation.opId, operation] as const),
+          )
           const refused = response.rejected.map((opId): Rejection => ({
             opId,
             reason: Option.fromUndefinedOr(reasonOf.get(opId)),
+            operation: sentOf.get(opId)!,
           }))
           yield* Ref.update(rejectedOps, previous => [...refused, ...previous].slice(0, 32))
         }
@@ -874,14 +896,8 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         pending: Effect.map(SynchronizedRef.get(stateRef), state => state.pending),
         cursor: Effect.map(SynchronizedRef.get(stateRef), state => state.cursor),
         status,
-        statusChanges: Stream.concat(
-          Stream.fromEffect(status),
-          Stream.fromPubSub(statusSignals).pipe(Stream.mapEffect(() => status)),
-        ),
-        changes: Stream.concat(
-          Stream.fromEffect(snapshot),
-          Stream.fromPubSub(statusSignals).pipe(Stream.mapEffect(() => snapshot)),
-        ),
+        statusChanges: following(status),
+        changes: following(snapshot),
         submit,
         synchronize,
         start,
