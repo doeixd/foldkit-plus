@@ -75,9 +75,10 @@ export const columns = GridCrud.columns(ProductList, {
       minWidth: 120,
       edit: { schema: Description },
     },
-    line: { width: 110, edit: { schema: LineName } },
-    // One of the Product's own statuses: edited as a choice of them.
-    status: { width: 110, edit: { schema: Product.fields.status.schema } },
+    line: { width: 100, edit: { schema: LineName } },
+    // One of the Product's own statuses: edited as a choice of them, wide
+    // enough for the longest in its select.
+    status: { width: 130, edit: { schema: Product.fields.status.schema } },
     cents: {
       width: 90,
       edit: { schema: Dollars, draft: row => Schema.encodeSync(Dollars)(row.cents) },

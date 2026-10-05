@@ -19,6 +19,11 @@ version changed; `pnpm` skips versions already in the registry.
   wraps a narrow header or moves its label, keeps header labels on one
   line, and parts columns with a faint line that is, on a header, the
   resize handle. The registry's page is in neutral greys.
+- **`foldkit-mixins-data-grid`: a choice opens its list.** The `select` a
+  column of literals edits in opens its list as it opens (`showPicker`,
+  where the browser allows), so a double-click shows the choices without
+  another click. The registry's status column is wide enough for its
+  longest.
 - **`foldkit-mixins-data-grid`: an edit looks like one, and a pin shows.**
   A double-click opens an editable cell's editor, as Enter does. The cell
   being edited carries `data-editing`, and `GridStyle` lifts it with a

@@ -86,6 +86,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(HTMLSelectElement.prototype, 'showPicker')
   document.body.innerHTML = ''
 })
 
@@ -96,6 +97,12 @@ test('a choice is a select of its literals, and a number a field with a decimal 
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(120)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+  // jsdom has no showPicker; the select's list opening is a call to it.
+  const showPicker = vi.fn()
+  Object.defineProperty(HTMLSelectElement.prototype, 'showPicker', {
+    configurable: true,
+    value: showPicker,
+  })
   const container = document.createElement('div')
   container.id = 'grid-editors'
   document.body.appendChild(container)
@@ -145,6 +152,8 @@ test('a choice is a select of its literals, and a number a field with a decimal 
     ])
     expect(select()!.value).toBe('Active')
     expect(document.activeElement).toBe(select())
+    // Its list opens with it, so the choices show without another click.
+    expect(showPicker).toHaveBeenCalledTimes(1)
     select()!.value = 'Pending'
     select()!.dispatchEvent(new Event('change', { bubbles: true }))
     press(select()!, 'Enter')

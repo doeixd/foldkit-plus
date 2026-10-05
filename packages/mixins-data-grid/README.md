@@ -147,7 +147,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **The editor follows the column's schema** (`Grid.editorFor`): a schema
   whose text is one of a few literals (`Schema.Literals`) is a `select` of
   them (the `choice` and `choiceOption` slots), opened on the cell's value
-  even by a typed key; one that decodes to a number is a text field with a
+  even by a typed key, its list open at once where the browser allows
+  (`showPicker`); one that decodes to a number is a text field with a
   decimal keypad on touch; anything else is text (`editor`).
 - **Editing**, for a column with `edit`: Enter, F2 or a double-click opens a
   text field in the cell on its text, and a printable key opens it on that
