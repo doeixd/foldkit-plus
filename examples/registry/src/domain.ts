@@ -40,14 +40,14 @@ export const Product = Entity.define(
 
 export const Registry = { Product }
 
-/** A row of the registry: every member, as the grid shows it. */
+/** A row of the registry: every member, in the grid's order, the editable two first. */
 export const ProductRow = Entity.select(Product, {
   id: true,
   upc: true,
   description: true,
+  cents: true,
   line: true,
   status: true,
-  cents: true,
   revision: true,
 })
 

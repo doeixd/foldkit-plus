@@ -63,16 +63,17 @@ export const columns = GridCrud.columns(ProductList, {
   columns: {
     // Hidden, as its Display says; named, for the menu that shows it.
     id: { header: 'Product id', width: 110 },
-    upc: { pinned: 'start', width: 150, hideable: false },
+    // Widths that fit a device's pane in the sandbox, two side by side.
+    upc: { pinned: 'start', width: 130, hideable: false },
     description: {
-      width: 280,
+      width: 220,
       minWidth: 120,
       edit: { schema: Description },
     },
-    line: { width: 130 },
-    status: { width: 120 },
+    line: { width: 110 },
+    status: { width: 110 },
     cents: {
-      width: 110,
+      width: 90,
       edit: { schema: Dollars, draft: row => Schema.encodeSync(Dollars)(row.cents) },
     },
   },
