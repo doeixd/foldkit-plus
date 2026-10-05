@@ -19,6 +19,12 @@ version changed; `pnpm` skips versions already in the registry.
   wraps a narrow header or moves its label, keeps header labels on one
   line, and parts columns with a faint line that is, on a header, the
   resize handle. The registry's page is in neutral greys.
+- **A mark says what it means, and an unchanged edit is none.** A cell's
+  mark is also its `title`, shown on hover (the description a screen
+  reader hears was there already). The registry draws a legend of its marks
+  above the grid, presence in violet so it is not taken for a replacement,
+  and a cell committed with the value it already shows (the same text, or
+  `01.73` for 1.73) makes no edit: nothing is sent and nothing marked.
 - **`foldkit-mixins-data-grid`: a column that does not edit says so.** In a
   grid where some columns edit, the others' headers and cells carry
   `aria-readonly`, and `GridStyle` draws a padlock before the header's
@@ -70,7 +76,7 @@ version changed; `pnpm` skips versions already in the registry.
 - **`examples/registry`: presence, and each device's status on its card.**
   A device announces the cell it has focused over Sync's presence, on the
   same socket the journal is served on, and the other draws it outlined in
-  orange; a device working offline leaves. In the sandbox, each card's dot
+  violet; a device working offline leaves. In the sandbox, each card's dot
   and badge say where that device's edits stand, from a status its frame
   posts to the page.
 - **`foldkit-sync`: why an edit was refused.** An exchange may carry

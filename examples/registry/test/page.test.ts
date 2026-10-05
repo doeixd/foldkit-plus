@@ -626,7 +626,7 @@ test('an edit another device committed later replaces this one, and the page say
     // The other way round, this page's edit is the later one and nothing is replaced.
     await tab2(2, 222)
     await exchange()
-    await edit(productId(2), 'cents', '2.22')
+    await edit(productId(2), 'cents', '2.23')
     await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
     await exchange()
     await vi.waitFor(() => expect(markOf(productId(2), 'cents')).not.toBe('pending'))
@@ -695,6 +695,34 @@ test('a line and a status are edited too, the status as a choice of the Productâ
         status: 'Discontinued',
       }),
     )
+  } finally {
+    await dispose()
+  }
+})
+
+test('a cell committed with the value it already shows is no edit', async () => {
+  const server = serve()
+  const { dispose, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(2), 'cents')?.textContent).toBe(priceOf(2)))
+    // The same price, typed as it shows, and the same price written otherwise.
+    await edit(productId(2), 'cents', priceOf(2))
+    await edit(productId(2), 'cents', `0${priceOf(2)}`)
+    await edit(productId(2), 'description', seedOf(2).description)
+    await edit(productId(2), 'line', seedOf(2).line)
+    // The status it has, chosen again.
+    await focusOn(productId(2), 'status')
+    press(grid(), 'Enter')
+    await vi.waitFor(() => expect(document.querySelector('#products select')).not.toBeNull())
+    press(document.querySelector('#products select')!, 'Enter')
+    await vi.waitFor(() => expect(document.querySelector('#products select')).toBeNull())
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(latest().edits).toEqual([])
+    expect(latest().exchange.pending).toBe(0)
+    expect(markOf(productId(2), 'cents')).toBeNull()
+    // A different one is an edit, as ever.
+    await edit(productId(2), 'cents', '9.87')
+    await vi.waitFor(() => expect(markOf(productId(2), 'cents')).toBe('pending'))
   } finally {
     await dispose()
   }

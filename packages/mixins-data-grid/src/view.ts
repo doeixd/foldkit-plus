@@ -57,17 +57,18 @@ export interface ColumnSort<Message> {
   readonly message: Message
 }
 
-/** What the grid's view reads, and what the application gives it. */
 /**
  * A state the application gives one cell, such as an edit not yet saved. The
  * grid draws its `name` as `data-mark` on the cell's Slot, for a style, and
- * its `description` as the cell's `aria-description`, for a screen reader.
+ * its `description` as the cell's `aria-description`, for a screen reader,
+ * and its `title`, shown on hover.
  */
 export interface CellMark {
   readonly name: string
   readonly description: string
 }
 
+/** What the grid's view reads, and what the application gives it. */
 export interface GridInput<Row, Id extends string, GridMessage, Message> {
   /** The `DataGrid` Model as placed in the parent. */
   readonly state: {
@@ -1040,6 +1041,8 @@ const view = <Message>() => ({
                           onSome: mark => [
                             h.DataAttribute('mark', mark.name),
                             h.AriaDescription(mark.description),
+                            // Said on hover too: a dot alone does not say what it means.
+                            h.Title(mark.description),
                           ],
                         }),
                       ]),

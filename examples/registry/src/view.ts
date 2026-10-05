@@ -46,8 +46,8 @@ const Registry = DataGridView<Message>()
           // Where another device is: its focus, in its own colour.
           Style.nest('&[data-mark="peer"]', {
             backgroundImage: 'none',
-            boxShadow: 'inset 0 0 0 2px #f97316',
-            background: '#fff7ed',
+            boxShadow: 'inset 0 0 0 2px #7c3aed',
+            background: '#f5f3ff',
           }),
         ),
       }),
@@ -89,6 +89,40 @@ const notice = (tone: { readonly border: string; readonly background: string }) 
   }) as const
 const refusedTone = { border: '#fecaca', background: '#fef2f2' }
 const replacedTone = { border: '#fde68a', background: '#fffbeb' }
+/** What each mark on a cell means, each beside a swatch drawn as the mark is. */
+const legend = [
+  {
+    swatch: { width: '6px', height: '6px', borderRadius: '50%', background: ink },
+    text: 'Not sent yet',
+  },
+  {
+    swatch: {
+      width: '6px',
+      height: '6px',
+      borderRadius: '50%',
+      boxShadow: `inset 0 0 0 1.5px ${muted}`,
+    },
+    text: 'Saved, the table catching up',
+  },
+  {
+    swatch: { width: '12px', height: '10px', boxShadow: 'inset 0 0 0 2px #dc2626' },
+    text: 'Not saved',
+  },
+  {
+    swatch: { width: '12px', height: '10px', boxShadow: 'inset 0 0 0 2px #d97706' },
+    text: 'Replaced by another device',
+  },
+  {
+    swatch: {
+      width: '12px',
+      height: '10px',
+      boxShadow: 'inset 0 0 0 2px #7c3aed',
+      background: '#f5f3ff',
+    },
+    text: 'Another device is here',
+  },
+] as const
+
 /** A list of notices, not drawn at all while it has none, so it adds no gap. */
 const list = (count: number) =>
   ({
@@ -202,6 +236,30 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             ],
           ),
         ],
+      ),
+      h.ul(
+        [
+          h.AriaLabel('What the marks on a cell mean'),
+          h.Style({
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.25rem 1rem',
+            listStyle: 'none',
+            margin: '0',
+            padding: '0',
+            fontSize: '0.75rem',
+            color: muted,
+          }),
+        ],
+        legend.map(({ swatch, text }) =>
+          h.li(
+            [h.Style({ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' })],
+            [
+              h.span([h.AriaHidden(true), h.Style({ display: 'inline-block', ...swatch })], []),
+              text,
+            ],
+          ),
+        ),
       ),
       // What the server refused, said once per edit with its reason; the cells
       // it had changed show the server's value again, edged in red.

@@ -52,8 +52,10 @@ another device's edit         shows when the exchange brings it, before Remote r
 ```
 
 The `revision` column is hidden; a column's menu shows it, to watch a row catch
-up with the journal. Each edited cell also says where its edit is (`marksOf`,
-the grid's `marks`): a dot while it is not yet sent, a hollow dot once the
+up with the journal. A cell committed with the value it already shows is no
+edit: nothing is sent, and nothing is marked. Each edited cell also says where
+its edit is (`marksOf`, the grid's `marks`, explained in a legend above the grid
+and in each mark's tooltip): a dot while it is not yet sent, a hollow dot once the
 journal has it and the row as read does not, nothing once the row has it, and
 a red edge if the server refused it. Each mark is also the cell's
 `aria-description`.
@@ -169,7 +171,7 @@ switch, so a conflict takes three clicks: offline in B, the same price in
 both, online in B.
 
 Each device shows where the other is: the cell it has focused, outlined in
-orange, through Sync's presence on the same socket (`sharePresence` in
+violet, through Sync's presence on the same socket (`sharePresence` in
 `device.ts`, `Sync.presence.serve` beside `serveJournal`). It is passing, so
 nothing of it is journaled; a device working offline leaves it. Each card
 says where its device's edits stand, from a message its frame posts: green

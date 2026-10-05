@@ -438,6 +438,7 @@ describe('DataGridView', () => {
     ])
     expect(Inert.value(marked[0]!, 'data-mark')).toBe('pending')
     expect(Inert.value(marked[0]!, 'aria-description')).toBe('Not yet sent')
+    expect(Inert.value(marked[0]!, 'title')).toBe('Not yet sent')
     // Asked only for what is drawn: the window's rows, not the fifty behind it.
     expect(asked.length).toBe(cells.length)
     expect(asked.every(address => Number(address.row.slice(1)) < 10)).toBe(true)
