@@ -168,6 +168,13 @@ browser with no SharedWorker runs it in the page. Each device has the offline
 switch, so a conflict takes three clicks: offline in B, the same price in
 both, online in B.
 
+Each device shows where the other is: the cell it has focused, outlined in
+orange, through Sync's presence on the same socket (`sharePresence` in
+`device.ts`, `Sync.presence.serve` beside `serveJournal`). It is passing, so
+nothing of it is journaled; a device working offline leaves it. Each card
+says where its device's edits stand, from a message its frame posts: green
+and Synced, or amber while edits wait (Offline, Sending, No server).
+
 The server lives as long as a tab of the sandbox is open, and keeps nothing:
 when the last tab closes, the next one starts it again from the seed, with a
 new journal history. A replica that hears the new history rebuilds from it and

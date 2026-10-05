@@ -4,10 +4,12 @@
  * to one server that runs in the browser (`host.ts`, in a SharedWorker).
  * Every tab of the sandbox meets the same server.
  */
+import { Option, Schema } from 'effect'
 import { Remote } from 'foldkit-remote'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from '../device.js'
 import { connectSandbox } from './connection.js'
+import { DeviceStatus } from './protocol.js'
 
 const devices = [
   { id: 'device-a', name: 'Device A' },
@@ -75,8 +77,27 @@ const intro = (): HTMLElement => {
   )
 }
 
-/** A device's card: its name above its page, a frame of its own. */
+/** A device's card: its name and status above its page, a frame of its own. */
 const card = (id: string, name: string): HTMLElement => {
+  const dot = element(
+    'span',
+    'width: .5rem; height: .5rem; border-radius: 50%; background: #22c55e',
+  )
+  const badge = element(
+    'span',
+    'margin-inline-start: auto; padding: .125rem .625rem; border-radius: 999px; background: #f4f4f5; color: #52525b; font-size: .75rem; font-weight: 500',
+    ['Synced'],
+  )
+  badge.setAttribute('role', 'status')
+  window.addEventListener('message', event => {
+    if (event.origin !== location.origin) return
+    Option.match(decodeStatus(event.data), {
+      onNone: () => {},
+      onSome: status => {
+        if (status.device === id) showStatus(dot, badge, status)
+      },
+    })
+  })
   const frame = document.createElement('iframe')
   frame.src = `?pane=${id}`
   frame.title = name
@@ -88,10 +109,7 @@ const card = (id: string, name: string): HTMLElement => {
       element(
         'div',
         'display: flex; align-items: center; gap: .5rem; padding: .625rem 1rem; border-bottom: 1px solid #e4e4e7; background: #fafafa; font-size: .875rem; font-weight: 600',
-        [
-          element('span', 'width: .5rem; height: .5rem; border-radius: 50%; background: #22c55e'),
-          name,
-        ],
+        [dot, name, badge],
       ),
       frame,
     ],
@@ -140,7 +158,7 @@ const startPane = async (
   app.id = id
   container.append(app)
   const connection = connectSandbox()
-  await startDevice({
+  const mounted = await startDevice({
     container: app,
     key: `foldkit-registry/sandbox/${id}`,
     name: () => name,
@@ -148,4 +166,44 @@ const startPane = async (
     transport: device =>
       Sync.transport.socket({ url: 'sandbox', makeSocket: () => connection.socket(device) }),
   })
+  // Where the edits stand, for the card around the frame, said when it changes.
+  let told: string | undefined
+  const tell = () => {
+    const model = mounted.model()
+    const status = encodeStatus(
+      DeviceStatus.make({
+        device: id,
+        offline: model.offline,
+        waiting: model.exchange.pending,
+        unreachable: Option.isSome(model.exchange.error),
+      }),
+    )
+    const key = JSON.stringify(status)
+    if (key === told) return
+    told = key
+    window.parent.postMessage(status, location.origin)
+  }
+  mounted.subscribe(tell)
+  tell()
+}
+
+const encodeStatus = Schema.encodeSync(DeviceStatus)
+const decodeStatus = Schema.decodeUnknownOption(DeviceStatus)
+
+/** A card's dot and badge for a device's status: green when all is sent, amber while edits wait. */
+const showStatus = (dot: HTMLElement, badge: HTMLElement, status: DeviceStatus) => {
+  const { label, waiting } = statusOf(status)
+  dot.style.background = waiting ? '#f59e0b' : '#22c55e'
+  badge.textContent = label
+  badge.style.background = waiting ? '#fef3c7' : '#f4f4f5'
+  badge.style.color = waiting ? '#92400e' : '#52525b'
+}
+
+const statusOf = ({ offline, waiting, unreachable }: DeviceStatus) => {
+  const edits = `${waiting} ${waiting === 1 ? 'edit' : 'edits'}`
+  if (offline)
+    return { label: waiting === 0 ? 'Offline' : `Offline · ${edits} waiting`, waiting: true }
+  if (unreachable) return { label: `No server · ${edits} waiting`, waiting: true }
+  if (waiting > 0) return { label: `Sending ${edits}…`, waiting: true }
+  return { label: 'Synced', waiting: false }
 }

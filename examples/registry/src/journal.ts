@@ -26,7 +26,7 @@ import {
   type Journal,
   type JournalStoreOptions,
 } from 'foldkit-durable/core'
-import type { Operation, SocketLike, TransportClient } from 'foldkit-sync'
+import { Sync, type Operation, type SocketLike, type TransportClient } from 'foldkit-sync'
 import { journalExchange, serveJournal } from 'foldkit-sync/journal'
 import { Message } from './app.js'
 import type { ProductChange } from './domain.js'
@@ -45,8 +45,8 @@ export interface EditJournal {
   /** The same in process, as one device: what a test of two devices exchanges through. */
   readonly transportAs: (principal: Principal) => TransportClient
   /**
-   * Serves one socket: its exchanges, as `principal`, and a notice after each
-   * commit. Returns the stop. A connection that says who it is (a sandbox's
+   * Serves one socket: its exchanges, as `principal`, a notice after each
+   * commit, and presence, where each device is. Returns the stop. A connection that says who it is (a sandbox's
    * device) passes it; otherwise every client is one author.
    */
   readonly serve: (socket: SocketLike, principal?: Principal) => () => void
@@ -155,10 +155,21 @@ export const openJournal = (
   })
 
   const options = { sync: RegistrySync, journal, principal: everyone, settle }
+  // Presence fans out to every device; each validates what it receives.
+  const presence = Sync.presence.hub<unknown>()
   return {
     transport: journalExchange(options),
     transportAs: principal => journalExchange({ ...options, principal }),
-    serve: (socket, principal = everyone) => serveJournal(socket, { ...options, principal }),
+    serve: (socket, principal = everyone) => {
+      const stops = [
+        serveJournal(socket, { ...options, principal }),
+        // On the same socket: where each device is, under the name it connected as.
+        Sync.presence.serve(socket, presence, { peerId: principal.actorId }),
+      ]
+      return () => {
+        for (const stop of stops) stop()
+      }
+    },
     absorb,
   }
 }

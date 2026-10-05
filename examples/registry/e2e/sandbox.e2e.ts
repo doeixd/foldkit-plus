@@ -123,3 +123,37 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
   expect(errors).toEqual([])
   await page.close()
 })
+
+test('where a device is shows on the other, and its card says when it is offline', async () => {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.goto(url)
+  const row = 'p000007'
+  await cell(page, 'Device A', row, 'line').waitFor({ timeout: 60_000 })
+  await cell(page, 'Device B', row, 'line').waitFor({ timeout: 60_000 })
+
+  // A focuses a cell; B draws A there, in A's colour, and says who.
+  await cell(page, 'Device A', row, 'line').click()
+  await expect
+    .poll(() => cell(page, 'Device B', row, 'line').getAttribute('data-mark'), { timeout: 10_000 })
+    .toBe('peer')
+  expect(await cell(page, 'Device B', row, 'line').getAttribute('aria-description')).toBe(
+    'Device A is here',
+  )
+
+  // B's card: synced, then offline, then synced again; A offline leaves presence.
+  const badge = (device: Device) =>
+    page.locator('section', { has: page.locator(`iframe[title="${device}"]`) }).getByRole('status')
+  await expect.poll(() => badge('Device B').textContent()).toBe('Synced')
+  await pane(page, 'Device B').getByRole('checkbox', { name: 'Work offline' }).check()
+  await expect.poll(() => badge('Device B').textContent()).toBe('Offline')
+  await pane(page, 'Device B').getByRole('checkbox', { name: 'Work offline' }).uncheck()
+  await expect.poll(() => badge('Device B').textContent(), { timeout: 10_000 }).toBe('Synced')
+  await pane(page, 'Device A').getByRole('checkbox', { name: 'Work offline' }).check()
+  await expect
+    .poll(() => cell(page, 'Device B', row, 'line').getAttribute('data-mark'), { timeout: 10_000 })
+    .toBeNull()
+  expect(errors).toEqual([])
+  await page.close()
+})

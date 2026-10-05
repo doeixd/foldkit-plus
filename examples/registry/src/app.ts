@@ -149,6 +149,20 @@ export const Replacement = Schema.Struct({
 })
 export type Replacement = typeof Replacement.Type
 
+/**
+ * Where a device is, as it says over presence: its name and the cell it has
+ * focused. `null` on the wire, where a device has no cell.
+ */
+export const PeerPresence = Schema.Struct({
+  name: Schema.String,
+  row: Schema.NullOr(Schema.String),
+  column: Schema.NullOr(Schema.String),
+})
+export type PeerPresence = typeof PeerPresence.Type
+
+/** Another device at a cell, as this page draws it. */
+const Peer = Schema.Struct({ name: Schema.String, row: Schema.String, column: Schema.String })
+
 /** Where this replica's edits stand with the server, as its status last said. */
 const Exchange = Schema.Struct({
   /** Edits this device made that the server has not taken yet. */
@@ -180,6 +194,8 @@ const Base = Bundle.compose({
   replaced: Schema.Array(Replacement),
   /** Whether the person chose to work offline: no exchange runs until they stop. */
   offline: Schema.Boolean,
+  /** The other devices that have a cell focused, from presence. Local and passing. */
+  peers: Schema.Array(Peer),
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
@@ -213,6 +229,8 @@ const Base = Bundle.compose({
     ReplacementDismissed: { id: ProductId, column: EditedColumn },
     /** The offline switch was pressed: the intent, flipped from the Model as it is. */
     OfflineToggled: {},
+    /** Presence said where the other devices are now. */
+    PeersChanged: { peers: Schema.Array(Peer) },
     /** The replica's status, for the status line; local, not replicated. */
     ExchangeChanged: Exchange.fields,
   }),
@@ -376,6 +394,7 @@ export const update = placements.update((model: Model, message: Message) =>
             replaced.filter(replacement => replacement.id !== id || replacement.column !== column),
         }),
       }),
+      PeersChanged: ({ peers }) => ({ model: modifyFields(model, { peers: () => peers }) }),
       OfflineToggled: () => ({
         model: modifyFields(model, { offline: offline => !offline }),
       }),
@@ -397,6 +416,7 @@ export const initial = (): Model =>
     refused: [],
     replaced: [],
     offline: false,
+    peers: [],
   }).model
 
 /** The application as Sync replays it: the same references, with its initial value and update. */
@@ -621,6 +641,7 @@ export const marksOf = (
   const replaced = new Map(
     model.replaced.map(replacement => [`${replacement.id}:${replacement.column}`, replacement]),
   )
+  const peers = new Map(model.peers.map(peer => [`${peer.row}:${peer.column}`, peer]))
   /** The mark of the cell's own edit: not yet sent, or saved and not in the table. */
   const editMark = (row: string, column: keyof typeof columns.byId): Option.Option<CellMark> => {
     // When the cell's edit committed, if it has one: none while pending.
@@ -660,6 +681,13 @@ export const marksOf = (
         })),
       ),
       Option.orElse(() => editMark(row, column)),
+      // Below this device's own states: where another device is.
+      Option.orElse(() =>
+        Option.map(Option.fromUndefinedOr(peers.get(key)), ({ name }) => ({
+          name: 'peer',
+          description: `${name} is here`,
+        })),
+      ),
     )
   }
 }

@@ -43,6 +43,12 @@ const Registry = DataGridView<Message>()
             backgroundImage: 'none',
             boxShadow: 'inset 0 0 0 2px #d97706',
           }),
+          // Where another device is: its focus, in its own colour.
+          Style.nest('&[data-mark="peer"]', {
+            backgroundImage: 'none',
+            boxShadow: 'inset 0 0 0 2px #f97316',
+            background: '#fff7ed',
+          }),
         ),
       }),
     ),

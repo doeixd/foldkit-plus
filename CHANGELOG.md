@@ -57,6 +57,12 @@ version changed; `pnpm` skips versions already in the registry.
   over `MessagePort`s. An e2e test builds it, serves the files, and drives a
   shared edit, a conflict the losing device is told of, and an offline edit
   that survives a reload (#162).
+- **`examples/registry`: presence, and each device's status on its card.**
+  A device announces the cell it has focused over Sync's presence, on the
+  same socket the journal is served on, and the other draws it outlined in
+  orange; a device working offline leaves. In the sandbox, each card's dot
+  and badge say where that device's edits stand, from a status its frame
+  posts to the page.
 - **`foldkit-sync`: why an edit was refused.** An exchange may carry
   `reasons: [{ opId, reason }]` beside `rejected` (each at most 500
   characters; a reason for an operation not rejected fails the exchange),

@@ -15,6 +15,18 @@ export const RemoteOpening = Schema.TaggedStruct('RemoteOpening', {})
 export const Opening = Schema.Union([SyncOpening, RemoteOpening])
 export type Opening = typeof Opening.Type
 
+/**
+ * Where a device's edits stand, as its frame tells the page around it, for
+ * the card's dot and badge. Decoded on arrival, like any message.
+ */
+export const DeviceStatus = Schema.TaggedStruct('DeviceStatus', {
+  device: Schema.String,
+  offline: Schema.Boolean,
+  waiting: Schema.Number,
+  unreachable: Schema.Boolean,
+})
+export type DeviceStatus = typeof DeviceStatus.Type
+
 export interface RemoteRequest {
   readonly id: number
   readonly request: string

@@ -4,10 +4,17 @@
  * paused while the device works offline. `client.ts` starts one against
  * `pnpm dev`'s server; the sandbox starts two against its host.
  */
-import { Effect, Layer, Scope } from 'effect'
+import { Context, Effect, Layer, Option, Schema, Scope } from 'effect'
 import type { RemoteClient } from 'foldkit-remote'
-import { ReplicaId, Sync, type Mounted, type Transport, type TransportError } from 'foldkit-sync'
-import type { Message, Model } from './app.js'
+import {
+  ReplicaId,
+  Sync,
+  Transport,
+  type Mounted,
+  type SocketLike,
+  type TransportError,
+} from 'foldkit-sync'
+import { Message, PeerPresence, type Model } from './app.js'
 import { RegistrySync, mountRegistry, pausable } from './sync.js'
 
 export const startDevice = async (options: {
@@ -57,5 +64,74 @@ export const startDevice = async (options: {
     if (offline && !now) Effect.runFork(Effect.ignore(Effect.provide(replica.synchronize, built)))
     offline = now
   })
+
+  // Presence, on the same connection: the cell this device has focused, and
+  // where the others are. It is passing, so nothing of it is journaled, and a
+  // device that goes quiet drops out. A transport with no socket has none.
+  const socket = Context.get(built, Transport).socket
+  if (socket !== undefined) await sharePresence(mounted, socket, device, scope)
   return mounted
+}
+
+const decodePeer = Schema.decodeUnknownSync(PeerPresence)
+
+const sharePresence = async (
+  mounted: Mounted<Model, Message>,
+  socket: SocketLike,
+  device: string,
+  scope: Scope.Closeable,
+) => {
+  const presence = await Effect.runPromise(
+    Effect.gen(function* () {
+      const channel = yield* Sync.presence.socketChannel<PeerPresence>(socket)
+      return yield* Sync.presence.make({
+        id: device,
+        ttl: '30 seconds',
+        // A focus moves with every key; the others need only the latest, ten times a second.
+        throttle: '100 millis',
+        decodeValue: decodePeer,
+        channel,
+      })
+    }).pipe(Effect.provideService(Scope.Scope, scope)),
+  )
+  // Said only when it changed, and not at all offline: working offline is
+  // being away, so the device leaves, and shows no one.
+  let said: string | undefined
+  const announce = () => {
+    const model = mounted.model()
+    if (model.offline) {
+      if (said !== undefined) Effect.runFork(presence.leave)
+      said = undefined
+      if (model.peers.length > 0) mounted.dispatch(Message.PeersChanged({ peers: [] }))
+      return
+    }
+    const cell = model.grid.focus.current
+    const value: PeerPresence = {
+      name: device,
+      row: Option.match(cell, { onNone: () => null, onSome: ({ row }) => row }),
+      column: Option.match(cell, { onNone: () => null, onSome: ({ column }) => column }),
+    }
+    const key = JSON.stringify(value)
+    if (key === said) return
+    said = key
+    Effect.runFork(presence.set(value))
+  }
+  mounted.subscribe(announce)
+  announce()
+  // A refresh within the time to live, which also re-announces after a reconnect.
+  setInterval(() => {
+    said = undefined
+    announce()
+    Effect.runFork(presence.prune)
+  }, 10_000)
+  presence.subscribe(() => {
+    if (mounted.model().offline) return
+    const peers = Effect.runSync(presence.peers).flatMap(peer =>
+      peer.id === device || peer.value.row === null || peer.value.column === null
+        ? []
+        : [{ name: peer.value.name, row: peer.value.row, column: peer.value.column }],
+    )
+    mounted.dispatch(Message.PeersChanged({ peers }))
+  })
+  addEventListener('pagehide', () => Effect.runFork(presence.leave))
 }
