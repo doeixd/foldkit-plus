@@ -26,8 +26,10 @@ import {
   type ProductEdit,
   type Refusal,
   placements,
+  Products,
   replacedOf,
   retiredOf,
+  retiresAny,
 } from './app.js'
 import { view } from './view.js'
 
@@ -142,20 +144,25 @@ export const mountRegistry = (
     // row without an edit the journal absorbed after that row was read.
     // And in the same transition, an edit of this device's that another
     // device's later commit replaced is said, not silently overwritten.
+    // An edit newly retired is asked of the table again rather than shown
+    // as saved until some other read: a later edit may have replaced it, and
+    // only the row says so once the journal has absorbed both (`settledOf`).
     onReinstall: (next, previous) => {
       const retired = retiredOf(previous, next)
-      const replaced = replacedOf(previous, next, options.device)
-      return {
-        model:
-          retired.length === 0 && next.retired.length === 0 && replaced.length === 0
-            ? next
-            : modifyFields(next, {
-                retired: () => retired,
-                replaced: kept => [...kept, ...replaced],
-              }),
+      const replaced = replacedOf(previous, next)
+      if (retired.length === 0 && next.retired.length === 0 && replaced.length === 0) {
+        return { model: next }
       }
+      const kept = modifyFields(next, {
+        retired: () => retired,
+        replaced: before => [...before, ...replaced],
+      })
+      return { model: retiresAny(previous, retired) ? Products.refresh(kept) : kept }
     },
   })
+  // Dispatched before any exchange can reinstall, so every reinstall knows
+  // which edits are this device's.
+  mounted.dispatch(Message.DeviceNamed({ device: options.device }))
   // The replica drops a refused operation, so the cells each pending one
   // changed are read while it is still pending, to say which a refusal undid.
   const cellsOf = new Map<string, ReadonlyArray<Pick<Refusal, 'id' | 'column'>>>()

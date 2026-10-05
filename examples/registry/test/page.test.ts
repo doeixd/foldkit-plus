@@ -73,15 +73,31 @@ const serve = () => {
     }
     return Sync.transport.fromPromise(client)
   }
+  // Remote's reads, which a test can hold to see the page between a reinstall and its next read.
+  let gate: Promise<void> = Promise.resolve()
+  const waited = Effect.suspend(() => Effect.promise(() => gate))
+  const handlers = RemoteServer.handlers(backend.server, null)
+  const gated: typeof handlers = {
+    ...handlers,
+    FoldkitRemoteRead: payload => Effect.andThen(waited, handlers.FoldkitRemoteRead(payload)),
+    FoldkitRemoteQuery: payload => Effect.andThen(waited, handlers.FoldkitRemoteQuery(payload)),
+  }
   return {
     backend,
     journal,
     setOnline: (value: boolean) => (online = value),
     setWritable: (value: boolean) => (writable = value),
     setTampering: (value: boolean) => (tampering = value),
-    resources: Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
-      Layer.provide(backend.layer),
-    ),
+    /** Holds every read until the returned function is called. */
+    holdReads: () => {
+      let release = () => {}
+      gate = new Promise(resolve => (release = resolve))
+      return () => {
+        gate = Promise.resolve()
+        release()
+      }
+    },
+    resources: Remote.clientLayer(gated).pipe(Layer.provide(backend.layer)),
     transportFor,
     /** Another device's way to the server. */
     transport: transportFor('elsewhere'),
@@ -453,7 +469,7 @@ test('an edit that says when it committed is refused, and the table keeps its pr
 
 test('an edit the journal absorbed keeps showing until the row is read at its revision', async () => {
   const server = serve()
-  const { dispose, exchange, mounted, latest } = await mount(server, memoryStorage())
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
   /** Another device's price for product `index`, sent: a reinstall on this page's next exchange. */
   const elsewhere = async (name: string, index: number) => {
     const other = await Effect.runPromise(
@@ -488,6 +504,8 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
 
     // The journal records what the table holds; the exchange drops the edit,
     // and in the same transition this page keeps it, for its row is older.
+    // It asks for the row again at once; held here, to see the page meanwhile.
+    const release = server.holdReads()
     await Effect.runPromise(server.journal.absorb)
     await exchange()
     // The mount reinstalls on its own fiber; then a frame draws it.
@@ -503,14 +521,51 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     await drawn()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
-    // Read again, the row has it at its revision, and the price is the table's.
-    mounted.dispatch(Message.RetriedProducts())
+    // Read again, the row has it at its revision: the price is the table's,
+    // and the retired edit goes in the same transition.
+    release()
     await vi.waitFor(() => expect(revisionOf(latest(), productId(9))).toEqual(Option.some(1)))
+    expect(latest().retired).toEqual([])
+    expect(latest().replaced).toEqual([])
+    await drawn()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
+  } finally {
+    await dispose()
+  }
+})
 
-    // The next reinstall lets it go.
-    await elsewhere('tab-3', 7)
-    await vi.waitFor(() => expect(latest().retired).toEqual([]))
+test('an edit replaced while this device was away is said, though the journal absorbed the later one first', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    await edit(productId(3), 'cents', '3.33')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    // This page also hears of another device's price, which it did not write.
+    await commitElsewhere(server, 8, 888, 'tab-3')
+    await exchange()
+    await vi.waitFor(() => expect(cell(productId(8), 'cents')?.textContent).toBe('8.88'))
+    // This device is away now. Another commits the same price later, the
+    // table takes it, and the journal absorbs both edits before this device
+    // hears of the later one: its slice comes back without the price. The
+    // other device's price is overwritten meanwhile too.
+    await commitElsewhere(server, 3, 444)
+    await commitElsewhere(server, 8, 889, 'tab-4')
+    expect(server.backend.row(productId(3))).toMatchObject({ cents: 444 })
+    await Effect.runPromise(server.journal.absorb)
+    await exchange()
+    await vi.waitFor(() => expect(latest().edits).toEqual([]))
+    // The page reads the row again rather than go on showing its own price
+    // as saved, and says a later edit replaced it.
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('4.44'))
+    await vi.waitFor(() => expect(cell(productId(8), 'cents')?.textContent).toBe('8.89'))
+    // Only this device's price is said as replaced; the other's was not its own.
+    await vi.waitFor(() =>
+      expect(latest().replaced).toEqual([
+        { id: productId(3), column: 'cents', by: Option.none(), was: '3.33' },
+      ]),
+    )
+    expect(latest().retired).toEqual([])
   } finally {
     await dispose()
   }

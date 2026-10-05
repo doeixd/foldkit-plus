@@ -143,8 +143,11 @@ export type Refusal = typeof Refusal.Type
 export const Replacement = Schema.Struct({
   id: ProductId,
   column: EditedColumn,
-  /** The device whose commit came later. */
-  by: Schema.String,
+  /**
+   * The device whose commit came later; none when the journal had absorbed it
+   * before this device heard, so only the row read since says it came.
+   */
+  by: Schema.OptionFromNullOr(Schema.String),
   /** This device's value, as the cell showed it. */
   was: Schema.String,
 })
@@ -197,6 +200,8 @@ const Base = Bundle.compose({
   offline: Schema.Boolean,
   /** The other devices that have a cell focused, from presence. Local and passing. */
   peers: Schema.Array(Peer),
+  /** The name this device commits as, so its own edits are told from another's. Local. */
+  device: Schema.String,
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
@@ -232,6 +237,8 @@ const Base = Bundle.compose({
     OfflineToggled: {},
     /** Presence said where the other devices are now. */
     PeersChanged: { peers: Schema.Array(Peer) },
+    /** The page was mounted as this device: the name it commits as. */
+    DeviceNamed: { device: Schema.String },
     /** The replica's status, for the status line; local, not replicated. */
     ExchangeChanged: Exchange.fields,
   }),
@@ -365,7 +372,7 @@ const Page = Base.pipe(
 
 export const placements = Page.placements
 
-export const update = placements.update((model: Model, message: Message) =>
+const transition = placements.update((model: Model, message: Message) =>
   Match.value(message).pipe(
     Match.tags({
       SortedProducts: ({ column }) => ({
@@ -400,6 +407,9 @@ export const update = placements.update((model: Model, message: Message) =>
         }),
       }),
       PeersChanged: ({ peers }) => ({ model: modifyFields(model, { peers: () => peers }) }),
+      DeviceNamed: ({ device }) => ({
+        model: model.device === device ? model : modifyFields(model, { device: () => device }),
+      }),
       OfflineToggled: () => ({
         model: modifyFields(model, { offline: offline => !offline }),
       }),
@@ -410,6 +420,16 @@ export const update = placements.update((model: Model, message: Message) =>
     Match.orElse(() => ({ model })),
   ),
 )
+
+/**
+ * Every transition, then what a read since says of the retired edits: a read
+ * can arrive in any Message Remote sends, so the check follows them all.
+ */
+export const update: typeof transition = (model, message) => {
+  const next = transition(model, message)
+  const settled = settledOf(next.model)
+  return settled === next.model ? next : { ...next, model: settled }
+}
 
 export const initial = (): Model =>
   placements.initial({
@@ -422,10 +442,17 @@ export const initial = (): Model =>
     replaced: [],
     offline: false,
     peers: [],
+    device: '',
   }).model
 
 /** The application as Sync replays it: the same references, with its initial value and update. */
 export const App = Made.runnable({ initial: initial(), update })
+
+/**
+ * Whether a row read at `revision` has the edit committed at `at`: the table
+ * applies edits in the journal's order, so its revision covers every earlier one.
+ */
+const reached = (at: number, revision: number) => at <= revision
 
 /**
  * A field's edit, if the row has not absorbed it: pending, or committed after
@@ -438,7 +465,7 @@ const unabsorbed = <A>(
   Option.flatMap(field, edit =>
     Option.match(edit.at, {
       onNone: () => Option.some(edit.value),
-      onSome: at => (at > revision ? Option.some(edit.value) : Option.none()),
+      onSome: at => (reached(at, revision) ? Option.none() : Option.some(edit.value)),
     }),
   )
 
@@ -485,7 +512,33 @@ const overlaid = (edits: ReadonlyArray<ProductEdit>) => {
  * revision is still below it. Whatever a row has caught up with, or a row not
  * cached, is let go: its next read has the table's value.
  */
-export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEdit> => {
+export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEdit> =>
+  heldOf([...previous.retired, ...previous.edits], next)
+
+/** Whether `retired` holds a committed field `previous` had not retired: one just taken from the slice. */
+export const retiresAny = (previous: Model, retired: ReadonlyArray<ProductEdit>): boolean => {
+  const before = new Set(previous.retired.flatMap(fieldsOf))
+  return retired.some(edit => fieldsOf(edit).some(field => !before.has(field)))
+}
+
+/** Each committed field of an edit, as `id:column:at`. */
+const fieldsOf = (edit: ProductEdit): ReadonlyArray<string> => {
+  const at = (column: string, field: Option.Option<{ readonly at: Option.Option<number> }>) =>
+    Option.toArray(Option.flatMap(field, kept => kept.at)).map(at => `${edit.id}:${column}:${at}`)
+  return [
+    ...at('description', edit.description),
+    ...at('cents', edit.cents),
+    ...at('line', edit.line),
+    ...at('status', edit.status),
+  ]
+}
+
+/**
+ * Of `edits`, the committed fields `next`'s cached rows have not been read
+ * at, and that its slice holds no edit of: what a row would otherwise show
+ * stale. A row not cached keeps nothing; its next read has the table's value.
+ */
+const heldOf = (edits: ReadonlyArray<ProductEdit>, next: Model): ReadonlyArray<ProductEdit> => {
   // The rows as the grid has them; the key lookup is the row model's own index.
   const rows = GridCrud.rows(Products.page(next), row => row.id)
   const revisionOf = (id: string) =>
@@ -498,8 +551,8 @@ export const retiredOf = (previous: Model, next: Model): ReadonlyArray<ProductEd
   ) =>
     Option.isSome(now)
       ? Option.none()
-      : Option.filter(field, edit => Option.exists(edit.at, at => at > revision))
-  return [...previous.retired, ...previous.edits].flatMap(edit =>
+      : Option.filter(field, edit => Option.exists(edit.at, at => !reached(at, revision)))
+  return edits.flatMap(edit =>
     Option.match(revisionOf(edit.id), {
       onNone: () => [],
       onSome: revision => {
@@ -558,14 +611,10 @@ interface FieldEdit<A> {
  * another device's commit with another value. Last writer wins, by the
  * journal's order; this is how the page says so.
  */
-export const replacedOf = (
-  previous: Model,
-  next: Model,
-  device: string,
-): ReadonlyArray<Replacement> => {
+export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacement> => {
+  const { device } = next
   const before = new Map(previous.edits.map(edit => [edit.id, edit]))
-  const mine = (field: FieldEdit<unknown>) =>
-    Option.isNone(field.at) || Option.contains(field.by, device)
+  const mine = mineFor(device)
   const replaced = <A>(
     id: ProductId,
     column: Replacement['column'],
@@ -582,7 +631,7 @@ export const replacedOf = (
             onNone: () => [],
             onSome: by =>
               by !== device && mine(prior) && current.value !== prior.value
-                ? [{ id, column, by, was: text(prior.value) }]
+                ? [{ id, column, by: Option.some(by), was: text(prior.value) }]
                 : [],
           }),
       },
@@ -619,6 +668,59 @@ export const replacedOf = (
         value => value,
       ),
     ]
+  })
+}
+
+/** Whether a field's last edit was `device`'s: pending here, or committed by it. */
+const mineFor = (device: string) => (field: FieldEdit<unknown>) =>
+  Option.isNone(field.at) || Option.contains(field.by, device)
+
+/**
+ * The retired edits a read of their rows has caught up with, let go; of
+ * those, each of this device's that the row shows another value for, said as
+ * replaced. The table applies edits in order, so a row at or past an edit's
+ * sequence that holds another value took a later edit, though the journal
+ * absorbed it before this device heard whose. Nothing caught up, it returns
+ * the Model it was given.
+ */
+export const settledOf = (model: Model): Model => {
+  if (model.retired.length === 0) return model
+  const rows = GridCrud.rows(Products.page(model), row => row.id)
+  const mine = mineFor(model.device)
+  const caught = model.retired.flatMap(edit =>
+    Option.match(Option.flatMap(rows.indexOf(edit.id), rows.rowAt), {
+      onNone: () => [],
+      onSome: row => {
+        const settled = <A>(
+          column: Replacement['column'],
+          field: Option.Option<FieldEdit<A>>,
+          shown: A,
+          text: (value: A) => string,
+        ): ReadonlyArray<Option.Option<Replacement>> =>
+          Option.match(
+            Option.filter(field, kept => Option.exists(kept.at, at => reached(at, row.revision))),
+            {
+              onNone: () => [],
+              onSome: kept => [
+                mine(kept) && kept.value !== shown
+                  ? Option.some({ id: edit.id, column, by: Option.none(), was: text(kept.value) })
+                  : Option.none(),
+              ],
+            },
+          )
+        return [
+          ...settled('description', edit.description, row.description, value => value),
+          ...settled('cents', edit.cents, row.cents, centsText),
+          ...settled('line', edit.line, row.line, value => value),
+          ...settled('status', edit.status, row.status, value => value),
+        ]
+      },
+    }),
+  )
+  if (caught.length === 0) return model
+  return modifyFields(model, {
+    retired: retired => heldOf(retired, model),
+    replaced: replaced => [...replaced, ...caught.flatMap(Option.toArray)],
   })
 }
 
@@ -682,7 +784,10 @@ export const marksOf = (
       Option.orElse(() =>
         Option.map(Option.fromUndefinedOr(replaced.get(key)), ({ by, was }) => ({
           name: 'replaced',
-          description: `Replaced by ${by}’s edit (was ${was})`,
+          description: `Replaced by ${Option.match(by, {
+            onSome: name => `${name}’s edit`,
+            onNone: () => 'a later edit',
+          })} (was ${was})`,
         })),
       ),
       Option.orElse(() => editMark(row, column)),

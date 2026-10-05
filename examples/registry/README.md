@@ -68,8 +68,9 @@ absorbed, usually nothing, and the journal compacts the log behind them: a
 replica that has never synchronized is sent the small snapshot, not the history.
 A page whose cached row is older than an edit it just dropped keeps that edit in
 `retired`, set in the same transition by the mount's `onReinstall`, so the row
-never shows the stale read; it lets the edit go at the next reinstall once the
-row has been read at its revision.
+never shows the stale read, and asks for the rows again at once. When a read
+has the row at the edit's revision, the edit goes (`settledOf`, after every
+transition, since any of Remote's Messages may carry the read).
 
 ## An edit, end to end
 
@@ -123,9 +124,13 @@ negative or fractional number of cents is refused whatever a client sent.
   journal stamps each edit with who committed it (`by`, beside `at`), so the
   device whose edit lost is told: the cell is edged amber, and a line names the
   other device and the value it had, until dismissed (`replacedOf`, in the
-  mount's `onReinstall`). A connection names its device (`?device=` on the
-  socket, the tab's short name); nothing checks it, which a real deployment
-  would.
+  mount's `onReinstall`). When the journal absorbed the later edit before
+  this device heard of it, as it can while the device is offline, the slice
+  no longer says who wrote it; the row, read again, does say a later edit
+  came (it is at or past this device's edit and holds another value), and the
+  line reads "a later edit" (`settledOf`). A connection names its device
+  (`?device=` on the socket, the tab's short name); nothing checks it, which
+  a real deployment would.
 - **The table's write fails.** The edit is committed and stays shown, since the
   row's revision is older than it; recovery writes it on the next exchange.
 - **A client says when its edit committed.** That is the journal's to stamp, so

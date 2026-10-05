@@ -279,7 +279,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.li(
             [h.Style(notice(replacedTone))],
             [
-              `${columnName(column)} of ${id}: ${by}’s later edit replaced yours (${was}). `,
+              `${columnName(column)} of ${id}: ${Option.match(by, {
+                onSome: name => `${name}’s later edit`,
+                onNone: () => 'a later edit',
+              })} replaced yours (${was}). `,
               dismiss(Message.ReplacementDismissed({ id, column })),
             ],
           ),

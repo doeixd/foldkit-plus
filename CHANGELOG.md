@@ -349,6 +349,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/registry`: an edit lost while offline is said.** When the
+  journal absorbed another device's later edit of a cell before this device
+  heard of it, the page kept showing its own value as saved until some read,
+  then changed it silently. A newly retired edit now asks for its rows again,
+  and a read at or past an edit's revision holding another value says "a
+  later edit replaced yours" (`Replacement.by` is an `Option`). The page names
+  its device in the Model (`DeviceNamed`), so `replacedOf` reads it there (#173).
 - **`foldkit-sync/journal` no longer reaches Node.** It imported
   `foldkit-durable`'s main entry, which brings `node:sqlite`, so a browser
   bundle of it failed; it imports `foldkit-durable/core`.
