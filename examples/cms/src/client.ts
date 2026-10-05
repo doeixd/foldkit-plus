@@ -12,8 +12,9 @@ import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit-ssr/client'
 import * as Site from './apps/siteApp.js'
 import * as Studio from './apps/studioApp.js'
 import { siteConfig, takesOver } from './content/siteConfig.js'
-import { edited } from './server/sandboxKey.js'
-import { chairOf, httpClient, remoteClient, type Send } from './server/transport.js'
+import { sandboxRemote } from './server/connection.js'
+import { edited } from './server/store.js'
+import { chairOf, httpClient } from './server/transport.js'
 import { takeOver } from './ssr/sitePlan.js'
 
 /**
@@ -46,19 +47,13 @@ const path = window.location.pathname
 // The site is read as a visitor unless the address says otherwise; the studio as a writer.
 const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visitor' : 'wren')
 // Vite proxies `/remote` to the server, so the browser talks to one origin; the
-// published demo, built in the `sandbox` mode, runs the server in the page instead.
-// The page is drawn while that starts, and what it asks waits for it.
-const sandboxed = (): Send => {
-  const sandbox = import('./server/browser.js').then(({ openSandbox }) =>
-    openSandbox({ fresh: startsAfresh() }),
-  )
-  return async (asking, request) => (await sandbox)(asking, request)
-}
-const remote = Remote.clientLayer(
-  import.meta.env.MODE === 'sandbox'
-    ? remoteClient(sandboxed(), chair)
-    : httpClient('/remote', chair),
-)
+// published demo, built in the `sandbox` mode, runs the server in the browser
+// instead, one for every tab. The page is drawn while that starts, and what it
+// asks waits for it.
+const sandboxed = import.meta.env.MODE === 'sandbox'
+const remote = sandboxed
+  ? sandboxRemote(chair, startsAfresh())
+  : Remote.clientLayer(httpClient('/remote', chair))
 
 if (path.startsWith('/site')) {
   const config = siteConfig({
@@ -69,7 +64,9 @@ if (path.startsWith('/site')) {
   // The deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and
   // into the pages. A page for another reader draws afresh in its place
   // instead of taking stale facts over as live ones.
-  takeOver(config, import.meta.env.FOLDKIT_BUILD_ID, page => takesOver(page, chair, edited()))
+  // Only a sandbox can differ from the seed the pages were rendered from.
+  const changed = sandboxed && (await edited())
+  takeOver(config, import.meta.env.FOLDKIT_BUILD_ID, page => takesOver(page, chair, changed))
 } else {
   // The studio's two sections share one document and one runtime: moving
   // between them swaps no application, so nothing reloads and nothing refetches.

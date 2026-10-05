@@ -1,7 +1,7 @@
 /**
  * The browser's transport: Remote's JSON calls (`Remote.json`, `Remote.http`)
  * to one endpoint, each saying which chair it is asked from, over HTTP
- * (`pnpm dev`) or to a server running in the page (the published demo).
+ * (`pnpm dev`) or to the server in the build that prerenders the site.
  */
 import { Remote, type RemoteJsonAnswer, type RemoteRpcClient } from 'foldkit-remote'
 

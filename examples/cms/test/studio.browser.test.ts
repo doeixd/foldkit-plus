@@ -3,14 +3,13 @@
  * runtime, so moving between them swaps no application — the address, the
  * narrowing and each section's Model stay as they were.
  */
-import { Remote } from 'foldkit-remote'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { afterEach, expect, it } from 'vitest'
 import * as Studio from '../src/apps/studioApp.js'
-import { openSandbox } from '../src/server/browser.js'
-import { remoteClient, type Send } from '../src/server/transport.js'
+import { openHost } from '../src/server/host.js'
+import { hostedRemote } from './hosted.js'
 
 let dispose = () => {}
 afterEach(() => {
@@ -31,7 +30,7 @@ const text = (selector: string) => document.querySelector(selector)?.textContent
 /** Mounts the studio at `path`, answering Remote from a fresh seed. */
 const mount = async (path: string, search: string) => {
   window.history.replaceState(null, '', `${path}?${search}`)
-  const send: Send = await openSandbox({ fresh: true })
+  const host = await openHost()
   const handle = Runtime.embed(
     Runtime.makeApplication({
       Model: Studio.Model,
@@ -44,7 +43,7 @@ const mount = async (path: string, search: string) => {
         onUrlRequest: request => Studio.Message.UrlRequested({ request }),
       },
       subscriptions: Studio.subscriptions,
-      resources: Remote.clientLayer(remoteClient(send, 'edda')),
+      resources: hostedRemote(host, 'edda', { fresh: true }),
     }),
   )
   dispose = () => handle.dispose()

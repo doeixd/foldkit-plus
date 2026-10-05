@@ -75,14 +75,19 @@ FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-cms
 into the client bundle, and the prerender writes it into the pages, so the
 browser adopts them instead of refusing them.
 
-The same application with the same server, run in the page on SQLite compiled
-to WebAssembly (`sql.js`, in [browser.ts](src/server/browser.ts)), so it needs no
-backend and deploys as static files. Each visitor has a sandbox of their own,
-kept in the browser's storage, so a change of chair, which reloads the page,
-keeps what was written; `?reset` in the address starts afresh. Nothing is
-shared between visitors, so nothing a visitor writes is public. The server is
+The same application with the same server, run in the browser on SQLite
+compiled to WebAssembly (`sql.js`, in [host.ts](src/server/host.ts)), so it needs
+no backend and deploys as static files. The server runs in a SharedWorker that
+every tab of the demo shares (`SharedHost` from `foldkit-primitives/net`; a
+browser without SharedWorker runs one in each tab), and each page's Remote
+client reaches it over a `MessagePort` (`foldkit-remote/port`), asking as its
+chair. Each visitor has a sandbox of their own, kept in IndexedDB after each
+change, so a change of chair, which reloads the page, keeps what was written,
+and two tabs write to one database rather than overwrite each other's;
+`?reset` in the address starts afresh, for every tab. Nothing is shared
+between visitors, so nothing a visitor writes is public. The server is
 [server.ts](src/server/server.ts) given a different database; [endpoint.ts](src/server/endpoint.ts)
-answers a request for both hosts. The page is drawn while the sandbox starts,
+says who each chair is, and what the clock publishes, for both hosts. The page is drawn while the sandbox starts,
 the sandbox's code and its wasm are fetched with the page, and
 [public/_headers](public/_headers) has Cloudflare Pages keep what is under
 `/assets` for a year, since its names change with its content.

@@ -4,16 +4,15 @@
  * it has not read, and what stands for the wait is marked busy.
  */
 import { Option } from 'effect'
-import { Remote } from 'foldkit-remote'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { afterEach, expect, it } from 'vitest'
 import * as Posts from '../src/apps/app.js'
-import { openSandbox } from '../src/server/browser.js'
+import { openHost } from '../src/server/host.js'
 import * as Pages from '../src/apps/pageApp.js'
 import { view as pagesView } from '../src/views/pagesView.js'
-import { remoteClient, type Send } from '../src/server/transport.js'
+import { hostedRemote } from './hosted.js'
 import { view as postsView } from '../src/views/view.js'
 
 const urlOf = (search: string): Url => ({
@@ -27,16 +26,12 @@ const urlOf = (search: string): Url => ({
 
 /** The sandbox, answering only once `release` is called. */
 const held = async () => {
-  const send = await openSandbox({ fresh: true })
+  const host = await openHost()
   let release = () => {}
   const released = new Promise<void>(resolve => {
     release = resolve
   })
-  const heldSend: Send = async (chair, body) => {
-    await released
-    return send(chair, body)
-  }
-  return { remote: Remote.clientLayer(remoteClient(heldSend, 'edda')), release }
+  return { remote: hostedRemote(host, 'edda', { fresh: true, until: released }), release }
 }
 
 let dispose = () => {}

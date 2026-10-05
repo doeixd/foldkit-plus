@@ -1,7 +1,7 @@
 /**
  * The server's one endpoint, apart from how a request arrives: Node's HTTP
- * server (`http.ts`) and the published demo, which runs the server in the page
- * (`browser.ts`), both answer through it. **The chair stands in for
+ * server (`http.ts`) answers through it, and the published demo's host
+ * (`host.ts`) shares its chairs and its clock. **The chair stands in for
  * authentication.** It is the client saying who it is, which no real server
  * believes: a real one derives the principal from a session it verified.
  *
@@ -20,7 +20,7 @@ const principals: Readonly<Record<string, Principal>> = {
   edda: { name: 'edda', role: 'editor' },
 }
 /** A name the client chose: only the principals' own keys, never an Object member. */
-const principalOf = (name: string | null): Principal =>
+export const principalOf = (name: string | null): Principal =>
   name !== null && Object.hasOwn(principals, name) ? (principals[name] ?? null) : null
 
 /**
