@@ -146,6 +146,30 @@ This seeds the server with 100,000 products, starts it on one port (Remote at
 <http://127.0.0.1:5175>. The first load after an install is slow while Vite
 pre-bundles the workspace packages.
 
+### Two devices, the server in the browser
+
+```bash
+pnpm --filter foldkit-example-registry build:sandbox   # to examples/registry/dist, static files
+```
+
+The sandbox is the same application with no backend: Device A and Device B
+side by side, each a page of its own in a frame, with its own replica on
+IndexedDB, and both talking to one server that runs in a SharedWorker
+(`src/sandbox/`). The server is the same code as `pnpm dev`'s: the products
+table on sql.js, the journal on SQLite compiled to WebAssembly
+(`foldkit-durable/core`), `RemoteServer.answer` for reads and `serveJournal`
+for each device's socket, each over a `MessagePort`. It holds 10,000 products,
+so it starts quickly. Every tab of the sandbox meets the same server, and a
+browser with no SharedWorker runs it in the page. Each device has the offline
+switch, so a conflict takes three clicks: offline in B, the same price in
+both, online in B.
+
+The server lives as long as a tab of the sandbox is open, and keeps nothing:
+when the last tab closes, the next one starts it again from the seed, with a
+new journal history. A replica that hears the new history rebuilds from it and
+sends again what it had not sent, so an edit waiting offline survives, and a
+committed one is back to the seed.
+
 ## Read it
 
 1. [domain.ts](src/domain.ts): the Product, how each member shows, and the

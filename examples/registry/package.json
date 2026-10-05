@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/dev.ts",
+    "build:sandbox": "vite build --mode sandbox",
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@effect/sql-sqlite-wasm": "4.0.0",
+    "@effect/wa-sqlite": "0.1.2",
     "drizzle-orm": "1.0.0-rc.4",
     "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
@@ -21,10 +24,12 @@
     "foldkit-remote-server": "workspace:*",
     "foldkit-surface": "workspace:*",
     "foldkit-sync": "workspace:*",
+    "sql.js": "1.13.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0",
+    "@types/sql.js": "1.4.11",
     "@types/ws": "^8.5.12",
     "effect": "4.0.0",
     "fake-indexeddb": "6.2.4",

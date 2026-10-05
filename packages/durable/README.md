@@ -71,11 +71,20 @@ package, and Node 22 is required for `node:sqlite`.
 ```ts
 import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
 import { Effect } from 'effect'
-import { makeJournalOn } from 'foldkit-durable/core'
+import { DocumentId, makeJournalOn } from 'foldkit-durable/core'
 
 // `options` as for `Journal.make`, without `file`.
-const journal = makeJournalOn(options).pipe(Effect.provide(WasmClient.layerMemory({})))
+const program = Effect.gen(function* () {
+  const journal = yield* makeJournalOn(options)
+  return yield* journal.cursor(DocumentId.make('todos'))
+}).pipe(Effect.provide(WasmClient.layerMemory({})), Effect.scoped)
 ```
+
+The database is the caller's, so give it the life the journal needs: provide
+it to the whole program that uses the journal, as here, or build it into the
+journal's scope with `Layer.buildWithScope`. Provided to the `makeJournalOn`
+effect alone, it closes as soon as the journal is open, and every call after
+fails with a `JournalError`.
 
 `core` reaches neither Node's driver nor a `node:` module; payloads are hashed
 in plain JavaScript, as `node:crypto` hashed them, so a database written

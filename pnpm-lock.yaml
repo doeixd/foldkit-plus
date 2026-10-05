@@ -1164,6 +1164,12 @@ importers:
 
   examples/registry:
     dependencies:
+      '@effect/sql-sqlite-wasm':
+        specifier: 4.0.0
+        version: 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0)
+      '@effect/wa-sqlite':
+        specifier: 0.1.2
+        version: 0.1.2
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
@@ -1203,6 +1209,9 @@ importers:
       foldkit-sync:
         specifier: workspace:*
         version: link:../../packages/sync
+      sql.js:
+        specifier: 1.13.0
+        version: 1.13.0
       ws:
         specifier: ^8.18.0
         version: 8.22.0
@@ -1210,6 +1219,9 @@ importers:
       '@effect/platform-browser':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
+      '@types/sql.js':
+        specifier: 1.4.11
+        version: 1.4.11
       '@types/ws':
         specifier: ^8.5.12
         version: 8.18.1
@@ -1699,9 +1711,6 @@ importers:
 
   packages/cms-drizzle:
     dependencies:
-      drizzle-orm:
-        specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-cms:
         specifier: workspace:*
         version: link:../cms
@@ -1721,6 +1730,9 @@ importers:
       '@effect/platform-browser':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
+      drizzle-orm:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       effect:
         specifier: 4.0.0
         version: 4.0.0
@@ -2369,9 +2381,6 @@ importers:
 
   packages/remote-drizzle:
     dependencies:
-      drizzle-orm:
-        specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -2382,6 +2391,9 @@ importers:
         specifier: workspace:*
         version: link:../remote-server
     devDependencies:
+      drizzle-orm:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)
       effect:
         specifier: 4.0.0
         version: 4.0.0

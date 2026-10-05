@@ -43,7 +43,6 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
     "foldkit-cms": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",
@@ -51,9 +50,11 @@
     "foldkit-remote-server": "workspace:*"
   },
   "peerDependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
     "effect": "^4.0.0"
   },
   "devDependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
     "@effect/platform-browser": "4.0.0",
     "effect": "4.0.0",
     "foldkit": "0.165.0",

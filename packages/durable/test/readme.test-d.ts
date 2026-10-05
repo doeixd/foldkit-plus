@@ -64,7 +64,10 @@ void served
 
 // In a browser: `foldkit-durable/core` over SQLite compiled to WebAssembly.
 declare const storeOptions: JournalStoreOptions<Operation, Snapshot, Principal>
-const inBrowser = makeJournalOn(storeOptions).pipe(Effect.provide(WasmClient.layerMemory({})))
+const inBrowser = Effect.gen(function* () {
+  const journal = yield* makeJournalOn(storeOptions)
+  return yield* journal.cursor(DocumentId.make('todos'))
+}).pipe(Effect.provide(WasmClient.layerMemory({})), Effect.scoped)
 void inBrowser
 
 // Validation and policy.

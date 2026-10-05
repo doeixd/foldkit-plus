@@ -83,11 +83,12 @@ semantics instead of introducing a second data model.
 ## Install
 
 ```bash
-pnpm add foldkit-remote-drizzle
+pnpm add foldkit-remote-drizzle drizzle-orm
 ```
 
-`effect` is a peer dependency; `foldkit-remote`, `foldkit-remote-server`, and
-`drizzle-orm` (currently pinned to `1.0.0-rc.4`) come with the package.
+`effect` and `drizzle-orm` (currently `1.0.0-rc.4`) are peer dependencies, so
+the adapter reads the tables you define with your own Drizzle, not a copy of
+its own; `foldkit-remote` and `foldkit-remote-server` come with the package.
 
 For the ownership and requirement-planning model first, read
 [Server-derived state](../../docs/remote.md).

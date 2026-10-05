@@ -552,6 +552,22 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
   `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
 
+- **`Effect.provide(layer)` closes the layer when that effect ends.** The
+  sandbox opened its journal with `makeJournalOn(…).pipe(Effect.provide(
+  WasmClient.layerMemory({})))`, so the database closed as soon as the
+  journal was open, and every exchange failed with "Could not read the epoch".
+  A resource that must outlive the effect that opens it is built into a scope
+  that does (`Layer.buildWithScope`), as `Journal.make` builds its own.
+- **Two runtimes in one document share its ids.** Two registry panes on one
+  page each drew a grid with the id `products`, and the grid finds its cells
+  by id, so one pane's keys would reach the other's. Give each device a page of
+  its own (a frame), or ids of its own.
+- **An adapter's library is a peer, not a dependency.** `foldkit-remote-drizzle`
+  depended on `drizzle-orm`, so an application whose Drizzle resolved with
+  other optional peers (it had `@effect/sql-sqlite-wasm`) got a second copy,
+  and its tables did not type-check against the adapter. A library the
+  application also uses is a `peerDependency`.
+
 - **A replica id names a store, not a person.** Sync operation ids are
   `replicaId:localSequence`. todo-app named its replica by the sign-in token,
   so a second browser for one person counted from 0 again and the journal

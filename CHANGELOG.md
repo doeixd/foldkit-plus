@@ -29,6 +29,13 @@ version changed; `pnpm` skips versions already in the registry.
   device (`?device=` on the socket). The registry's server and journal no
   longer import Node (an SQLite seam, and `foldkit-durable/core`), so a
   sandbox can run them in the page (#162).
+- **`examples/registry` runs in the browser: two devices, one page.**
+  `build:sandbox` builds Device A and Device B side by side, each a page in a
+  frame with its own replica, against one server in a SharedWorker: the
+  products table on sql.js and the journal on SQLite compiled to WebAssembly,
+  over `MessagePort`s. An e2e test builds it, serves the files, and drives a
+  shared edit, a conflict the losing device is told of, and an offline edit
+  that survives a reload (#162).
 - **`foldkit-sync`: why an edit was refused.** An exchange may carry
   `reasons: [{ opId, reason }]` beside `rejected` (each at most 500
   characters; a reason for an operation not rejected fails the exchange),
@@ -289,6 +296,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-sync/journal` no longer reaches Node.** It imported
+  `foldkit-durable`'s main entry, which brings `node:sqlite`, so a browser
+  bundle of it failed; it imports `foldkit-durable/core`.
+- **`foldkit-remote-drizzle` and `foldkit-cms-drizzle` take `drizzle-orm` as
+  a peer.** As a dependency, an application whose Drizzle resolved with other
+  optional peers got a second copy, and its tables did not type-check against
+  the adapter's. Install `drizzle-orm` beside them.
 - **`examples/registry`: a committed edit no longer hides the table for good.**
   Every edit a device knew of was laid over every row Remote read, with
   nothing to say when the table had it, so a row changed afterwards by any

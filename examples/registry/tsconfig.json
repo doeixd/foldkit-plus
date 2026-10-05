@@ -6,7 +6,7 @@
     "emitDeclarationOnly": true,
     "composite": true,
     "noEmit": false,
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],

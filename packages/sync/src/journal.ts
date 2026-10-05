@@ -14,7 +14,7 @@ import {
   DocumentId as JournalDocumentId,
   type Committed,
   type Journal,
-} from 'foldkit-durable'
+} from 'foldkit-durable/core'
 import { sequence } from './ids.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { serveSocket, type SocketLike } from './transport.js'
