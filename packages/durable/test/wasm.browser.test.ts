@@ -7,7 +7,7 @@
 import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
 import { Effect, Layer, Schema } from 'effect'
 import { expect, test } from 'vitest'
-import { actorId, cursor, documentId, makeJournalOn, opId, sequence } from '../src/core.js'
+import { Journal, actorId, cursor, documentId, opId, sequence } from '../src/core.js'
 
 const Edit = Schema.Struct({
   opId: Schema.String,
@@ -17,22 +17,23 @@ const Edit = Schema.Struct({
 type Edit = typeof Edit.Type
 const key = documentId('d')
 const sent = (n: number): Edit => ({ opId: `e:${n}`, value: `v${n}` })
+const Edits = Journal.define<Edit, ReadonlyArray<Edit>, string>('test/Edits')
+const live = Edits.layer({
+  operation: Edit,
+  snapshot: Schema.Array(Edit),
+  empty: () => [],
+  reduce: (state, value) => [...state, value],
+  opId: value => opId(value.opId),
+  actorId: principal => actorId(principal),
+  stamp: (value, { sequence: at }) => ({ ...value, at }),
+  authorize: ({ operation }) => operation.value !== 'no' || { allowed: false, reason: 'Not that' },
+}).pipe(Layer.provide(Layer.orDie(WasmClient.layerMemory({}))))
 
 test('keeps the journal’s guarantees on SQLite compiled to WebAssembly', () =>
   Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
-        const journal = yield* makeJournalOn<Edit, ReadonlyArray<Edit>, string>({
-          operation: Edit,
-          snapshot: Schema.Array(Edit),
-          empty: () => [],
-          reduce: (state, value) => [...state, value],
-          opId: value => opId(value.opId),
-          actorId: principal => actorId(principal),
-          stamp: (value, { sequence: at }) => ({ ...value, at }),
-          authorize: ({ operation }) =>
-            operation.value !== 'no' || { allowed: false, reason: 'Not that' },
-        })
+        const journal = yield* Edits.tag
         yield* journal.append(key, sent(1), 'ada')
         yield* journal.append(key, sent(2), 'ada')
         // A retry by what was sent is answered from history.
@@ -68,6 +69,6 @@ test('keeps the journal’s guarantees on SQLite compiled to WebAssembly', () =>
         yield* journal.reset(key)
         expect(yield* journal.cursor(key)).toBe(0)
         expect(yield* journal.epoch(key)).not.toBe(before)
-      }).pipe(Effect.provide(Layer.orDie(WasmClient.layerMemory({})))),
+      }).pipe(Effect.provide(live)),
     ),
   ))

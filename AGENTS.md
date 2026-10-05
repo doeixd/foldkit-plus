@@ -556,8 +556,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   sandbox opened its journal with `makeJournalOn(…).pipe(Effect.provide(
   WasmClient.layerMemory({})))`, so the database closed as soon as the
   journal was open, and every exchange failed with "Could not read the epoch".
-  A resource that must outlive the effect that opens it is built into a scope
-  that does (`Layer.buildWithScope`), as `Journal.make` builds its own.
+  Offer a service that needs a connection as a Layer that requires it, and
+  wire the two with `Layer.provide`, so they live and close together (the
+  core `Journal.layer` now does); outside Effect, keep the layer in a
+  `ManagedRuntime`. `Layer.buildWithScope` is the escape hatch, not the API.
 - **Two runtimes in one document share its ids.** Two registry panes on one
   page each drew a grid with the id `products`, and the grid finds its cells
   by id, so one pane's keys would reach the other's. Give each device a page of

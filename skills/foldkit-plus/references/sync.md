@@ -291,8 +291,10 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
   second writer fails the storage compare-and-swap. Losing IndexedDB loses
   unsent edits.
 - `foldkit-durable`'s `Journal.make` needs Node >= 22 (`node:sqlite`);
-  `foldkit-durable/core`'s `makeJournalOn(options)` runs over any `effect/sql`
-  SQLite client, `@effect/sql-sqlite-wasm` in a browser. One Journal handle per
+  `foldkit-durable/core`'s `Journal.layer(options)` (or `Journal.define(key)
+  .layer`) is a layer that needs any `effect/sql` SQLite `SqlClient`,
+  `@effect/sql-sqlite-wasm` in a browser: `Layer.provide` the driver, and the
+  database lives as long as the journal. One Journal handle per
   database. `reduce`/`validate`/`authorize` hold the write lock, so keep them pure,
   fast, and service-free. Ops must be JSON.
 - Sync and Durable ids are branded separately, so re-brand with

@@ -64,27 +64,31 @@ pnpm add foldkit-durable
 package, and Node 22 is required for `node:sqlite`.
 
 **In a browser**, or any runtime without `node:sqlite`, import
-`foldkit-durable/core` instead: the same journal, opened by
-`makeJournalOn(options)` over the `SqlClient` in context, with no `file`.
-`@effect/sql-sqlite-wasm` gives SQLite compiled to WebAssembly:
+`foldkit-durable/core` instead: the same journal, as a layer that needs the
+`SqlClient` it runs over, with no `file`. `@effect/sql-sqlite-wasm` gives
+SQLite compiled to WebAssembly:
 
 ```ts
 import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
-import { Effect } from 'effect'
-import { DocumentId, makeJournalOn } from 'foldkit-durable/core'
+import { Effect, Layer } from 'effect'
+import { DocumentId, Journal } from 'foldkit-durable/core'
 
+const Todos = Journal.define<Operation, Snapshot, Principal>('app/Todos')
 // `options` as for `Journal.make`, without `file`.
+const live = Todos.layer(options).pipe(Layer.provide(WasmClient.layerMemory({})))
+
 const program = Effect.gen(function* () {
-  const journal = yield* makeJournalOn(options)
+  const journal = yield* Todos.tag
   return yield* journal.cursor(DocumentId.make('todos'))
-}).pipe(Effect.provide(WasmClient.layerMemory({})), Effect.scoped)
+}).pipe(Effect.provide(live))
 ```
 
-The database is the caller's, so give it the life the journal needs: provide
-it to the whole program that uses the journal, as here, or build it into the
-journal's scope with `Layer.buildWithScope`. Provided to the `makeJournalOn`
-effect alone, it closes as soon as the journal is open, and every call after
-fails with a `JournalError`.
+The database is provided to the layer, so it opens and closes with the
+journal: there is no moment the journal holds a closed connection. To share
+one connection with the application's own tables, provide the driver once
+to both (`Layer.mergeAll(Todos.layer(options), Tables).pipe(Layer.provide(
+driver))`). Outside Effect, keep the layer in a `ManagedRuntime` that lives
+as long as the code using it (`runtime.runPromise(Effect.service(Todos.tag))`).
 
 `core` reaches neither Node's driver nor a `node:` module; payloads are hashed
 in plain JavaScript, as `node:crypto` hashed them, so a database written
@@ -461,7 +465,7 @@ operation, snapshot, and effect payloads are not migrated.
 ## Limits
 
 - SQLite is the only database: through `@effect/sql-sqlite-node` (Node 22)
-  for `Journal.make`, or any `effect/sql` SQLite client for `makeJournalOn`
+  for `Journal.make`, or any `effect/sql` SQLite client for the core `Journal.layer`
   (`foldkit-durable/core`), such as `@effect/sql-sqlite-wasm` in a browser.
   `vacuum` reclaims a file's space and checkpoints its write-ahead log, which
   an in-memory database has nothing of.

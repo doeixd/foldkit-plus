@@ -3,7 +3,7 @@
  * cannot drift from the API. `provider` stands in for the application's own
  * external service, and the orders journal for one the application owns.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 import {
   ActorId,
   Cursor,
@@ -21,7 +21,7 @@ import {
   type JournalOptions,
 } from '../src/index.js'
 import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
-import { makeJournalOn, type JournalStoreOptions } from '../src/core.js'
+import { Journal as CoreJournal, type JournalStoreOptions } from '../src/core.js'
 
 const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
 const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
@@ -64,10 +64,12 @@ void served
 
 // In a browser: `foldkit-durable/core` over SQLite compiled to WebAssembly.
 declare const storeOptions: JournalStoreOptions<Operation, Snapshot, Principal>
+const Todos = CoreJournal.define<Operation, Snapshot, Principal>('app/Todos')
+const live = Todos.layer(storeOptions).pipe(Layer.provide(WasmClient.layerMemory({})))
 const inBrowser = Effect.gen(function* () {
-  const journal = yield* makeJournalOn(storeOptions)
+  const journal = yield* Todos.tag
   return yield* journal.cursor(DocumentId.make('todos'))
-}).pipe(Effect.provide(WasmClient.layerMemory({})), Effect.scoped)
+}).pipe(Effect.provide(live))
 void inBrowser
 
 // Validation and policy.

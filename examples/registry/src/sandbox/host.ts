@@ -6,13 +6,15 @@
  * device's socket, and the absorbing clock.
  */
 import * as WasmClient from '@effect/sql-sqlite-wasm/SqliteClient'
-import { Effect, Layer, Match, Scope } from 'effect'
-import { makeJournalOn } from 'foldkit-durable/core'
+import { Effect, Layer, ManagedRuntime, Match } from 'effect'
+import { Journal } from 'foldkit-durable/core'
 import { RemoteServer } from 'foldkit-remote-server'
+import type { Operation } from 'foldkit-sync'
 import initSqlJs from 'sql.js'
 import wasm from 'sql.js/dist/sql-wasm.wasm?url'
 import { journalOptions, openJournal } from '../journal.js'
 import { openServer } from '../server.js'
+import type { Principal, Shared } from '../sync.js'
 import { type Opening, type RemoteAnswer, type RemoteRequest, portSocket } from './protocol.js'
 import { sqlJsSqlite } from './sqliteSqlJs.js'
 
@@ -21,26 +23,18 @@ export interface Host {
   readonly connect: (opening: Opening, port: MessagePort) => void
 }
 
+const Edits = Journal.define<Operation, Shared, Principal>('registry/Edits')
+
 export const openHost = async (): Promise<Host> => {
   const SQL = await initSqlJs({ locateFile: () => wasm })
   const backend = openServer(sqlJsSqlite(new SQL.Database()), { count: 10_000 })
   const handlers = RemoteServer.handlers(backend.server, null)
-  // The journal's database lives as long as the host does: built into the
-  // host's scope, not provided to the effect that opens the journal, which
-  // would close it once the journal is open.
-  const scope = Effect.runSync(Scope.make())
-  const database = await Effect.runPromise(
-    Layer.buildWithScope(Layer.orDie(WasmClient.layerMemory({})), scope),
+  // The journal and its database live as long as the host: the runtime is
+  // never disposed, since the host lasts as long as its worker or page.
+  const runtime = ManagedRuntime.make(
+    Edits.layer(journalOptions()).pipe(Layer.provide(WasmClient.layerMemory({})), Layer.orDie),
   )
-  const journal = openJournal(
-    backend.apply,
-    await Effect.runPromise(
-      makeJournalOn(journalOptions()).pipe(
-        Effect.provide(database),
-        Effect.provideService(Scope.Scope, scope),
-      ),
-    ),
-  )
+  const journal = openJournal(backend.apply, await runtime.runPromise(Effect.service(Edits.tag)))
   setInterval(() => {
     void Effect.runPromise(journal.absorb).catch(error =>
       console.error('Could not record what the table holds', error),

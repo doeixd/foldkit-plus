@@ -56,11 +56,14 @@ version changed; `pnpm` skips versions already in the registry.
   The registry sorts every column the server can order, UPC, line and
   status too, and edits the line and the status as well (a choice of the
   Product's statuses), so a double-click on any column but the UPC edits.
-- **`foldkit-durable/core`: the journal without Node.** `makeJournalOn(options)`
-  opens the journal over the `SqlClient` in context, any `effect/sql`
-  SQLite client, such as `@effect/sql-sqlite-wasm` in a browser, where a
-  browser test runs append, retry, refusal, recovery, compaction and reset
-  over it. Payloads are hashed with `@noble/hashes` instead of
+- **`foldkit-durable/core`: the journal without Node.** `Journal.layer(options)`
+  and `Journal.define(key).layer(options)` give the journal as a layer that
+  needs a `SqlClient`, any `effect/sql` SQLite client, such as
+  `@effect/sql-sqlite-wasm` in a browser, where a browser test runs append,
+  retry, refusal, recovery, compaction and reset over it. Provide the driver
+  to the layer, and the database opens and closes with the journal; a
+  journal handed out as a value could keep a connection already closed
+  (#169). Payloads are hashed with `@noble/hashes` instead of
   `node:crypto`, to the same digest, and epochs come from
   `globalThis.crypto.randomUUID`. The main entry's `Journal.make` over a
   `node:sqlite` file is unchanged (#162).

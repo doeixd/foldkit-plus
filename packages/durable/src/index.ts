@@ -39,7 +39,6 @@ export {
 } from './node.js'
 export {
   journalMetrics,
-  makeJournalOn,
   type AppendError,
   type AppendResult,
   type AuthorizationDecision,

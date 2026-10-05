@@ -1,9 +1,9 @@
 /**
  * `foldkit-durable/core`: the journal over any `effect/sql` SQLite client,
  * without Node's driver, for a browser (`@effect/sql-sqlite-wasm`) or any
- * other runtime. `makeJournalOn(options)` opens it over the `SqlClient` in
- * context; the package's main entry adds `Journal.make` over a `node:sqlite`
- * file.
+ * other runtime. `Journal.layer(options)` is the journal as a layer that
+ * needs the `SqlClient`; the package's main entry adds `Journal.make` over a
+ * `node:sqlite` file.
  */
 export { Codec, type CodecInput } from './codec.js'
 export {
@@ -29,9 +29,9 @@ export {
   OperationRejectedError,
   UnsupportedJournalVersionError,
 } from './errors.js'
+export { Journal, JournalService, type JournalDefinition } from './service.js'
 export {
   journalMetrics,
-  makeJournalOn,
   type AppendError,
   type AppendResult,
   type AuthorizationDecision,
@@ -39,7 +39,6 @@ export {
   type Committed,
   type EffectRecord,
   type EffectStatus,
-  type Journal,
   type JournalStoreOptions,
   type RecoveryIntent,
   type RecoveryOptions,

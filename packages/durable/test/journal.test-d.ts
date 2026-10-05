@@ -2,7 +2,9 @@
  * Compile-time expectations for `Journal.define`. This file is type-checked,
  * not executed; every `@ts-expect-error` must stay an error.
  */
-import { Effect } from 'effect'
+import { Effect, type Layer } from 'effect'
+import type { SqlClient } from 'effect/sql'
+import { Journal as CoreJournal, type JournalStoreOptions } from '../src/core.js'
 import { Journal, JournalService, type JournalOptions } from '../src/index.js'
 
 type Equals<A, B> =
@@ -56,3 +58,15 @@ const unsound = Effect.gen(function* () {
   return yield* JournalService<OtherOperation, Snapshot, Principal>('app/TodoJournal')
 })
 void unsound
+
+// `foldkit-durable/core`: the journal is a layer that needs the SqlClient it runs over.
+const CoreTodos = CoreJournal.define<Operation, Snapshot, Principal>('app/CoreTodos')
+declare const storeOptions: JournalStoreOptions<Operation, Snapshot, Principal>
+const coreLayer = CoreTodos.layer(storeOptions)
+const needsSql: Equals<Layer.Services<typeof coreLayer>, SqlClient.SqlClient> = true
+void needsSql
+// @ts-expect-error the core layer needs a SqlClient: it is not a journal on its own
+const standsAlone: Equals<Layer.Services<typeof coreLayer>, never> = true
+void standsAlone
+// @ts-expect-error the core journal has no file: its store is the SqlClient
+CoreTodos.layer({ ...storeOptions, file: 'journal.sqlite' })

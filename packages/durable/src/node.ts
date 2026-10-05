@@ -5,7 +5,7 @@
  * bundle reaches `foldkit-durable/core` without it.
  */
 import * as SqliteClient from '@effect/sql-sqlite-node/SqliteClient'
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Effect, Layer } from 'effect'
 import { JournalError, UnsupportedJournalVersionError } from './errors.js'
 import {
   journalMetrics,
@@ -13,6 +13,7 @@ import {
   type Journal as JournalShape,
   type JournalOptions,
 } from './journal.js'
+import { JournalService } from './service.js'
 
 /**
  * A durable journal; see `journal.ts`. Declared here beside the `Journal`
@@ -58,26 +59,7 @@ export const makeJournal = Effect.fn('Journal.make')(function* <
   return yield* makeJournalOn(options).pipe(Effect.provide(context))
 })
 
-/**
- * The journal as a service, so an application composes it with `Effect.provide`
- * instead of threading the shape through its own wiring. Pass the codec's
- * `Encoded` type as the fourth parameter when it is not `unknown`, and use a
- * distinct `key` if the application runs more than one journal.
- *
- * Prefer `Journal.define`. The type arguments here are supplied at each use
- * site and nothing checks them against the layer that satisfied the tag, so
- * `yield* JournalService<SomeOtherOperation, ...>('app/Journal')` compiles and
- * hands back a journal typed as something it is not — the key is the only real
- * identity. `Journal.define` fixes the parameters once and derives both the tag
- * and its layer from them.
- */
-export const JournalService = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
-  key = 'foldkit-durable/Journal',
-) =>
-  Context.Service<
-    JournalShape<Operation, Snapshot, Principal, OperationEncoded>,
-    JournalShape<Operation, Snapshot, Principal, OperationEncoded>
-  >()(key)
+export { JournalService }
 
 /** Provides the journal as a scoped layer, releasing the database when the layer closes. */
 export const makeJournalLayer = <

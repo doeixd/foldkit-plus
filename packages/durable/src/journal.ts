@@ -154,7 +154,7 @@ export interface JournalOptions<
   readonly legacyReplicaId?: (opId: OpId) => string
 }
 
-/** `JournalOptions` without the file: the store is the `SqlClient` `makeJournalOn` runs over. */
+/** `JournalOptions` without the file: the store is the `SqlClient` the core `Journal.layer` is given. */
 export type JournalStoreOptions<
   Operation,
   Snapshot,
@@ -391,7 +391,9 @@ const asJournalError =
  * `effect/sql` driver, `@effect/sql-sqlite-node` on a server or
  * `@effect/sql-sqlite-wasm` in a browser. `Journal.make` (`foldkit-durable`)
  * is this over a `node:sqlite` file. The connection is the caller's: it
- * lives as long as the layer that provided it.
+ * lives as long as the layer that provided it. Not exported from either
+ * entry, for that reason: they give it as a layer (`service.ts`) or over a
+ * file it opens itself (`node.ts`), so the database cannot close under it.
  */
 export const makeJournalOn = <
   Operation,
