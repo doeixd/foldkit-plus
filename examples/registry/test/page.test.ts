@@ -23,8 +23,9 @@ import { ReplicaId, Sync, type Operation, type Storage, type TransportClient } f
 import { afterEach, expect, test, vi } from 'vitest'
 import { Message, Products, type Model } from '../src/app.js'
 import { ProductId } from '../src/domain.js'
-import { openJournal } from '../src/journal.js'
+import { memoryJournal } from '../src/journalNode.js'
 import { openServer, productId, seedOf } from '../src/server.js'
+import { memorySqlite } from '../src/sqliteNode.js'
 import { RegistrySync, mountRegistry, pausable } from '../src/sync.js'
 
 const count = 1_000
@@ -47,9 +48,9 @@ const memoryStorage = (): Storage => {
 
 /** The server, its journal, and a transport to it that can be cut, over a table that can fail. */
 const serve = () => {
-  const backend = openServer({ count })
+  const backend = openServer(memorySqlite(), { count })
   let writable = true
-  const journal = openJournal((change, at) => {
+  const journal = memoryJournal((change, at) => {
     if (!writable) throw new Error('the table cannot be written')
     backend.apply(change, at)
   })

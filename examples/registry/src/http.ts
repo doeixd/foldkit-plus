@@ -10,8 +10,9 @@ import { Effect } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
 import type { SocketLike } from 'foldkit-sync'
 import { type WebSocket, WebSocketServer } from 'ws'
-import { openJournal } from './journal.js'
+import { memoryJournal } from './journalNode.js'
 import { openServer } from './server.js'
+import { memorySqlite } from './sqliteNode.js'
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
 const socketLike = (socket: WebSocket): SocketLike => ({
@@ -35,8 +36,8 @@ export const startHttpServer = async (
   readonly syncUrl: string
   readonly close: () => Promise<void>
 }> => {
-  const backend = openServer()
-  const journal = openJournal(backend.apply)
+  const backend = openServer(memorySqlite())
+  const journal = memoryJournal(backend.apply)
   const handlers = RemoteServer.handlers(backend.server, null)
 
   const server: Server = createServer((request, response) => {

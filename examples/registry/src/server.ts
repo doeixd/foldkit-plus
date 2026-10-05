@@ -4,8 +4,6 @@
  * read it a page at a time. Edits reach the table through the journal
  * (`journal.ts`), which calls `apply` for each committed change.
  */
-import { DatabaseSync } from 'node:sqlite'
-import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Option } from 'effect'
 import { bind, databaseLayer, query, sortTerms, source } from 'foldkit-remote-drizzle'
@@ -24,6 +22,24 @@ const products = sqliteTable('products', {
 })
 
 export const Db = bind(Registry, { Product: { table: products } })
+
+/** A value a statement binds. */
+export type SqlValue = string | number | null
+
+/**
+ * The SQLite the server runs on: Node's own for `pnpm dev` and the tests
+ * (`sqliteNode.ts`), sql.js in a browser (`sqliteBrowser.ts`). Only what the
+ * server needs, and the Drizzle database over the same connection.
+ */
+export interface Sqlite {
+  readonly exec: (statements: string) => void
+  /** Runs one statement for each row of values, in one transaction. */
+  readonly runAll: (statement: string, rows: ReadonlyArray<ReadonlyArray<SqlValue>>) => void
+  readonly get: (query: string, values: ReadonlyArray<SqlValue>) => unknown
+  /** The Drizzle database over it, for `databaseLayer`. */
+  readonly drizzle: unknown
+  readonly close: () => void
+}
 
 const lines = ['Hardware', 'Garden', 'Plumbing', 'Electrical', 'Paint', 'Tools'] as const
 const nouns = ['Anchor', 'Bolt', 'Cable', 'Dowel', 'Elbow', 'Fuse', 'Gasket', 'Hinge'] as const
@@ -57,21 +73,22 @@ export const seedOf = (index: number) => ({
  * An in-memory database seeded with `count` products, the server over it, and
  * the layer its sources read it through.
  */
-export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}) => {
-  const sqlite = new DatabaseSync(':memory:')
+export const openServer = (
+  sqlite: Sqlite,
+  { count = 100_000 }: { readonly count?: number } = {},
+) => {
   sqlite.exec(`create table products (
     id text primary key, upc text not null, description text not null,
     line text not null, status text not null, cents integer not null,
     revision integer not null
   )`)
-  const insert = sqlite.prepare('insert into products values (?, ?, ?, ?, ?, ?, 0)')
-  sqlite.exec('begin')
-  for (let index = 0; index < count; index += 1) {
-    const { id, upc, description, line, status, cents } = seedOf(index)
-    insert.run(id, upc, description, line, status, cents)
-  }
-  sqlite.exec('commit')
-  const db = drizzle({ client: sqlite })
+  sqlite.runAll(
+    'insert into products values (?, ?, ?, ?, ?, ?, 0)',
+    Array.from({ length: count }, (_, index) => {
+      const { id, upc, description, line, status, cents } = seedOf(index)
+      return [id, upc, description, line, status, cents]
+    }),
+  )
 
   // A committed edit, applied, with the sequence it committed at: the journal
   // calls this once per change, in the order it committed them. Only the
@@ -81,19 +98,12 @@ export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}
   // newer one changes nothing. `<=`, not `<`, so a second change to the same
   // product in one operation is applied too. A field a change does not hold
   // is left.
-  const write = sqlite.prepare(
-    `update products set description = coalesce(?, description), cents = coalesce(?, cents),
-      revision = ? where id = ? and revision <= ?`,
-  )
-  const apply = (change: ProductChange, at: number) => {
-    write.run(
-      Option.getOrNull(change.description),
-      Option.getOrNull(change.cents),
-      at,
-      change.id,
-      at,
+  const apply = (change: ProductChange, at: number) =>
+    sqlite.runAll(
+      `update products set description = coalesce(?, description), cents = coalesce(?, cents),
+        revision = ? where id = ? and revision <= ?`,
+      [[Option.getOrNull(change.description), Option.getOrNull(change.cents), at, change.id, at]],
     )
-  }
 
   return {
     server: RemoteServer.make({
@@ -107,10 +117,10 @@ export const openServer = ({ count = 100_000 }: { readonly count?: number } = {}
         }),
       ],
     }),
-    layer: databaseLayer(db),
+    layer: databaseLayer(sqlite.drizzle),
     apply,
     /** The row as the database holds it, to check a write against. */
-    row: (id: string) => sqlite.prepare('select * from products where id = ?').get(id),
+    row: (id: string) => sqlite.get('select * from products where id = ?', [id]),
     close: () => sqlite.close(),
   }
 }

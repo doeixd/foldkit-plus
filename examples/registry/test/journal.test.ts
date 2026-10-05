@@ -8,8 +8,9 @@ import { DocumentId, ReplicaId, Sequence, Sync, type Operation, type Storage } f
 import { expect, test } from 'vitest'
 import { Message } from '../src/app.js'
 import { ProductId } from '../src/domain.js'
-import { openJournal } from '../src/journal.js'
+import { memoryJournal } from '../src/journalNode.js'
 import { openServer, productId, seedOf } from '../src/server.js'
+import { memorySqlite } from '../src/sqliteNode.js'
 import { RegistrySync } from '../src/sync.js'
 
 const memoryStorage = (): Storage => {
@@ -22,8 +23,8 @@ const memoryStorage = (): Storage => {
 }
 
 test('an operation whose price breaks the Product’s rules is refused, and nothing is written', async () => {
-  const backend = openServer({ count: 10 })
-  const journal = openJournal(backend.apply)
+  const backend = openServer(memorySqlite(), { count: 10 })
+  const journal = memoryJournal(backend.apply)
   const replica = await Effect.runPromise(
     RegistrySync.openReplica(ReplicaId.make('tampering'), memoryStorage()),
   )
@@ -77,7 +78,7 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
 })
 
 test('the table only moves forward, so recovery may write an edit again', () => {
-  const backend = openServer({ count: 10 })
+  const backend = openServer(memorySqlite(), { count: 10 })
   const price = (cents: number) => ({
     id: ProductId.make(productId(1)),
     description: Option.none(),
@@ -102,7 +103,7 @@ test('the table only moves forward, so recovery may write an edit again', () => 
 
 /** Edits `prices` (product index to cents) from a replica of its own, and exchanges. */
 const editAndSend = async (
-  journal: ReturnType<typeof openJournal>,
+  journal: ReturnType<typeof memoryJournal>,
   name: string,
   prices: ReadonlyArray<readonly [number, number]>,
 ) => {
@@ -129,8 +130,8 @@ const editAndSend = async (
 }
 
 test('absorbing records what the table holds, so replicas drop it and newcomers start small', async () => {
-  const backend = openServer({ count: 10 })
-  const journal = openJournal(backend.apply)
+  const backend = openServer(memorySqlite(), { count: 10 })
+  const journal = memoryJournal(backend.apply)
   const { replica, transport } = await editAndSend(journal, 'editing', [
     [1, 101],
     [2, 202],
@@ -164,9 +165,9 @@ test('absorbing records what the table holds, so replicas drop it and newcomers 
 })
 
 test('an edit committed after the table was last written is kept by absorbing', async () => {
-  const backend = openServer({ count: 10 })
+  const backend = openServer(memorySqlite(), { count: 10 })
   let writable = true
-  const journal = openJournal((change, at) => {
+  const journal = memoryJournal((change, at) => {
     if (!writable) throw new Error('the table cannot be written')
     backend.apply(change, at)
   })
@@ -186,8 +187,8 @@ test('an edit committed after the table was last written is kept by absorbing', 
 })
 
 test('a client cannot record what the table holds', async () => {
-  const backend = openServer({ count: 10 })
-  const journal = openJournal(backend.apply)
+  const backend = openServer(memorySqlite(), { count: 10 })
+  const journal = memoryJournal(backend.apply)
   const { transport } = await editAndSend(journal, 'editing', [[1, 101]])
   const forger = await Effect.runPromise(
     RegistrySync.openReplica(ReplicaId.make('forger'), memoryStorage()),

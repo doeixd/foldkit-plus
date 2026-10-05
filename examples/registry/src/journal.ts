@@ -16,8 +16,16 @@
  * Once the table holds edits, `absorb` says so in the journal itself, as the
  * server: the replicas drop them, and the log behind them is compacted.
  */
-import { Effect, Exit, Match, Option, Schema, Scope } from 'effect'
-import { ActorId, Cursor, DocumentId, Journal, OpId, Sequence } from 'foldkit-durable'
+import { Effect, Match, Option, Schema } from 'effect'
+import {
+  ActorId,
+  Cursor,
+  DocumentId,
+  OpId,
+  Sequence,
+  type Journal,
+  type JournalStoreOptions,
+} from 'foldkit-durable/core'
 import type { Operation, SocketLike, TransportClient } from 'foldkit-sync'
 import { journalExchange, serveJournal } from 'foldkit-sync/journal'
 import { Message } from './app.js'
@@ -34,8 +42,12 @@ import {
 export interface EditJournal {
   /** How a replica exchanges with the journal: in process, or behind a socket. */
   readonly transport: TransportClient
-  /** Serves one socket: its exchanges, and a notice after each commit. Returns the stop. */
-  readonly serve: (socket: SocketLike) => () => void
+  /**
+   * Serves one socket: its exchanges, as `principal`, and a notice after each
+   * commit. Returns the stop. A connection that says who it is (a sandbox's
+   * device) passes it; otherwise every client is one author.
+   */
+  readonly serve: (socket: SocketLike, principal?: Principal) => () => void
   /**
    * Records that the table holds every edit through the recovery cursor, if
    * the replicated edits still keep one, and compacts the log behind it.
@@ -43,7 +55,6 @@ export interface EditJournal {
    * is a commit every replica hears of.
    */
   readonly absorb: Effect.Effect<void, unknown>
-  readonly close: () => void
 }
 
 const decodeMessage = Schema.decodeUnknownSync(Message)
@@ -58,31 +69,34 @@ const holdsThrough = (edits: Shared['edits'], through: number) =>
     ].some(at => Option.exists(at, committed => committed <= through)),
   )
 
-/** The journal, applying each committed change through `apply`. */
-export const openJournal = (apply: (change: ProductChange, at: number) => void): EditJournal => {
-  const scope = Effect.runSync(Scope.make())
-  const journal = Effect.runSync(
-    Journal.make<Operation, Shared, Principal>({
-      // The contract gives the codecs, the empty snapshot and the reducer, so
-      // the journal folds operations with the application's own update.
-      ...journalContract(),
-      file: ':memory:',
-      opId: operation => OpId.make(operation.opId),
-      actorId: principal => ActorId.make(principal.actorId),
-      validate: ({ operation, cursor }) => {
-        if (operation.baseCursor > cursor)
-          throw new Error('Operation cursor is ahead of the server')
-        // When an edit committed is the journal's to say: one that says so
-        // itself claims a commit it did not get, and its sender would show it
-        // as committed.
-        const claimsCommit = Match.value(decodeMessage(operation.message)).pipe(
-          Match.tag('EditedProducts', ({ at }) => at !== undefined),
-          Match.orElse(() => false),
-        )
-        if (claimsCommit) throw new Error('An edit cannot say when it committed')
-      },
-    }).pipe(Effect.provideService(Scope.Scope, scope)),
-  )
+/**
+ * How the journal is opened, wherever it runs: over a `node:sqlite` file
+ * (`journalNode.ts`) or SQLite compiled to WebAssembly in a browser.
+ */
+export const journalOptions = (): JournalStoreOptions<Operation, Shared, Principal> => ({
+  // The contract gives the codecs, the empty snapshot and the reducer, so
+  // the journal folds operations with the application's own update.
+  ...journalContract(),
+  opId: operation => OpId.make(operation.opId),
+  actorId: principal => ActorId.make(principal.actorId),
+  validate: ({ operation, cursor }) => {
+    if (operation.baseCursor > cursor) throw new Error('Operation cursor is ahead of the server')
+    // When an edit committed is the journal's to say: one that says so
+    // itself claims a commit it did not get, and its sender would show it
+    // as committed.
+    const claimsCommit = Match.value(decodeMessage(operation.message)).pipe(
+      Match.tag('EditedProducts', ({ at }) => at !== undefined),
+      Match.orElse(() => false),
+    )
+    if (claimsCommit) throw new Error('An edit cannot say when it committed')
+  },
+})
+
+/** The journal's exchange, applying each committed change through `apply`. */
+export const openJournal = (
+  apply: (change: ProductChange, at: number) => void,
+  journal: Journal<Operation, Shared, Principal>,
+): EditJournal => {
   const key = DocumentId.make(RegistrySync.documentId)
 
   // Operations at or before `applied` have every change in the table.
@@ -139,8 +153,7 @@ export const openJournal = (apply: (change: ProductChange, at: number) => void):
   const options = { sync: RegistrySync, journal, principal: everyone, settle }
   return {
     transport: journalExchange(options),
-    serve: socket => serveJournal(socket, options),
+    serve: (socket, principal = everyone) => serveJournal(socket, { ...options, principal }),
     absorb,
-    close: () => Effect.runSync(Scope.close(scope, Exit.void)),
   }
 }
