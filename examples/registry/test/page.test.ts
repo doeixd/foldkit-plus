@@ -139,6 +139,8 @@ const loaded = (model: Model) => {
   return page._tag === 'Ready' ? page.value.items.length : 0
 }
 const priceOf = (index: number) => (seedOf(index).cents / 100).toFixed(2)
+/** A frame later: what the last transition drew is on the page (frames are timeouts here). */
+const drawn = () => new Promise(resolve => setTimeout(resolve, 20))
 /** The revision of a row as Remote last read it. */
 const revisionOf = (model: Model, id: string) => {
   const rows = GridCrud.rows(Products.page(model), row => row.id)
@@ -420,13 +422,17 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
     // and in the same transition this page keeps it, for its row is older.
     await Effect.runPromise(server.journal.absorb)
     await exchange()
-    expect(latest().edits).toEqual([])
+    // The mount reinstalls on its own fiber; then a frame draws it.
+    await vi.waitFor(() => expect(latest().edits).toEqual([]))
     expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
+    await drawn()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
     // Another reinstall before the row is read again keeps it still.
     await elsewhere('tab-2', 8)
+    await vi.waitFor(() => expect(latest().edits.map(kept => kept.id)).toEqual([productId(8)]))
     expect(latest().retired.map(kept => kept.id)).toEqual([productId(9)])
+    await drawn()
     expect(cell(productId(9), 'cents')?.textContent).toBe('4.40')
 
     // Read again, the row has it at its revision, and the price is the table's.
@@ -436,7 +442,7 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
 
     // The next reinstall lets it go.
     await elsewhere('tab-3', 7)
-    expect(latest().retired).toEqual([])
+    await vi.waitFor(() => expect(latest().retired).toEqual([]))
   } finally {
     await dispose()
   }
