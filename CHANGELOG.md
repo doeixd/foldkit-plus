@@ -434,6 +434,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-sync`: `Sync.presence.serve` stops when its socket closes,** as
+  `Sync.transport.serve` does. A peer whose socket had closed stayed in the
+  hub and was sent every other peer's presence for the life of the server.
 - **`foldkit-sync`: `statusChanges` and `changes` miss no change.** Each
   emitted the current value and subscribed to later changes only once that
   value was taken, so a subscriber slow to take it, and any change between

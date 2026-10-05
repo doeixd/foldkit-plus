@@ -8,6 +8,7 @@ import {
   servePresence,
   socketPresenceChannel,
   type PresenceOptions,
+  type SocketLike,
   type PresenceUpdate,
 } from '../src/index.js'
 import { socketPair } from './sockets.js'
@@ -362,6 +363,28 @@ describe('presence', () => {
       client.send(frame)
 
     expect(seen).toEqual([])
+  })
+
+  it('leaves the hub when its socket closes', () => {
+    const hub = createPresenceHub<Cursor>()
+    // A socket that goes on recording what it is sent, so only leaving the hub stops it.
+    const sent: Array<string> = []
+    const closes = new Set<() => void>()
+    const socket: SocketLike = {
+      send: data => sent.push(data),
+      close: () => {},
+      onMessage: () => () => {},
+      onClose: listener => {
+        closes.add(listener)
+        return () => closes.delete(listener)
+      },
+    }
+    servePresence(socket, hub, { peerId: 'a' })
+    hub.publish({ id: 'b', value: { cursor: 1 } })
+    expect(sent).toHaveLength(1)
+    for (const close of [...closes]) close()
+    hub.publish({ id: 'b', value: { cursor: 2 } })
+    expect(sent).toHaveLength(1)
   })
 
   it('stamps the connection identity, ignoring a client-supplied id', () => {

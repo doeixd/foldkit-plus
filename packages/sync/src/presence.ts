@@ -350,7 +350,10 @@ export const socketPresenceChannel = <Update>(
     }
   })
 
-/** Serves presence frames on an accepted socket, stamping the connection's identity. */
+/**
+ * Serves presence frames on an accepted socket, stamping the connection's
+ * identity, until the socket closes or the returned function is called.
+ */
 export const servePresence = <Update>(
   socket: SocketLike,
   hub: PresenceHub<Update>,
@@ -364,8 +367,13 @@ export const servePresence = <Update>(
     // The connection owns the identity; a client-supplied id is ignored.
     if (frame !== undefined) hub.publish({ id: options.peerId, value: frame.value })
   })
-  return () => {
+  const stop = (): void => {
     off()
     leave()
+  }
+  const stopClose = socket.onClose(stop)
+  return () => {
+    stop()
+    stopClose()
   }
 }
