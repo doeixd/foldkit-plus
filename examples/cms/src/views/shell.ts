@@ -28,7 +28,7 @@ export const intro = <M>(slots: SlotView.SlotBuilders<typeof AdminSlots, M>, h: 
       [
         'A blog’s studio and its public site, built with Foldkit Plus. ',
         sandboxed
-          ? 'Its server and database run in this page, so nothing you write leaves your browser.'
+          ? 'Its server and database run in your browser, shared by its tabs, so nothing you write leaves it.'
           : 'Its server is the one pnpm dev started, in memory.',
       ],
     ),

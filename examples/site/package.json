@@ -1,25 +1,28 @@
 {
-  "name": "foldkit-example-data-grid",
+  "name": "foldkit-example-site",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "preview": "vite preview",
+    "readme": "tsx scripts/readme.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@foldkit/ui": "0.165.0",
     "effect": "4.0.0",
     "foldkit": "0.165.0",
-    "foldkit-bundle": "workspace:*",
-    "foldkit-data-grid": "workspace:*",
     "foldkit-mixins": "workspace:*",
-    "foldkit-mixins-data-grid": "workspace:*"
+    "foldkit-ssr": "workspace:*",
+    "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0",
+    "@foldkit/vite-plugin": "0.26.0",
     "jsdom": "26.1.0",
     "typescript": "5.9.3",
-    "vite": "5.4.21"
+    "vite": "^8.3.0"
   }
 }

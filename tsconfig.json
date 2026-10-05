@@ -74,6 +74,7 @@
     { "path": "./examples/foldkit/pixel-art" },
     { "path": "./examples/foldkit/ui-showcase" },
     { "path": "./examples/foldkit/ssg" },
+    { "path": "./examples/site" },
     { "path": "./examples/foldkit/ssr" },
     { "path": "./examples/pages" }
   ]

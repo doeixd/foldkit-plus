@@ -20,18 +20,18 @@ reconciled by `update`. Replicas replay the same Messages through the same
 one. Views are styled from outside without forking. Each package answers one
 question, and they compose because they meet at explicit application boundaries.
 
-**See it running:** [foldkit-cms-demo.pages.dev](https://foldkit-cms-demo.pages.dev/)
-is a blog studio and its public site built with these packages: a CMS with
-drafts and revisions, a page builder, forms, lists, and pages rendered at build
-time. Its server runs in your browser, so nothing you write leaves it. The code
-is [`examples/cms`](./examples/cms). Three more run the same way, each with its
-server in your browser and shared by every tab you open:
-[two devices editing 10,000 products](https://foldkit-registry-demo.pages.dev/)
-offline and in conflict ([`examples/registry`](./examples/registry)),
-[pages two tabs edit at once](https://foldkit-pages-demo.pages.dev/), in rich
-text ([`examples/pages`](./examples/pages)), and
-[a todo list](https://foldkit-todo-demo.pages.dev/) that is also an agent's tool
-surface ([`examples/todo-app`](./examples/todo-app)).
+**See it running:** [foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/)
+lists the demos, each an example from this repository built as static files.
+Those with a server run it in your browser, shared by every tab, so nothing you
+do leaves it:
+
+<!-- demos -->
+- [A blog studio and its site](https://foldkit-cms-demo.pages.dev/) ([`examples/cms`](./examples/cms)): Drafts beside the row, revisions, scheduled publishing and a page builder, with the public site rendered at build time.
+- [Two devices, one registry](https://foldkit-registry-demo.pages.dev/) ([`examples/registry`](./examples/registry)): Two devices edit 10,000 products in a data grid, offline and in conflict, and agree once both are back.
+- [Pages two tabs edit at once](https://foldkit-pages-demo.pages.dev/) ([`examples/pages`](./examples/pages)): Rich text two people edit at the same time, online or not, converging through one journal.
+- [A todo list an agent can use](https://foldkit-todo-demo.pages.dev/) ([`examples/todo-app`](./examples/todo-app)): One application definition drives the view, the tools an agent calls, the document replicas share, and the policy the server enforces.
+- [A data grid over 100,000 rows](https://foldkit-grid-demo.pages.dev/) ([`examples/data-grid`](./examples/data-grid)): A grid that owns focus, selection, columns and the open editor, while the application owns every row.
+<!-- /demos -->
 
 ## Choose who owns the state
 

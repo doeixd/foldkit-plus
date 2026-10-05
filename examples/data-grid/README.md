@@ -18,11 +18,16 @@ grid's OutMessage (`Edited` or `Pasted`), carrying text that the column's
 into the products. A refused cell stays in the editor with its message, or is
 listed under `refused` in a paste.
 
+**Try it:** it is published at
+[foldkit-grid-demo.pages.dev](https://foldkit-grid-demo.pages.dev/), as static
+files; the rows are made in the page.
+
 ## Run it
 
 ```bash
 pnpm install                                   # from the repository root
 pnpm --filter foldkit-example-data-grid dev
+pnpm --filter foldkit-example-data-grid build   # static files, to dist/
 ```
 
 The workspace packages resolve to their source, so no build is needed first.
