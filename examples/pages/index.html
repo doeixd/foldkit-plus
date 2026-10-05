@@ -46,6 +46,16 @@
       }
       .markdown { margin-top: 32px; color: #59636e; }
       .markdown pre { background: #f6f7f8; padding: 12px; border-radius: 6px; }
+      .markdown pre { overflow-x: auto; }
+      /* A phone: the page list above the page, and the page given the width. */
+      @media (max-width: 40rem) {
+        #pages, .pages { height: auto; min-height: 100vh; }
+        .pages { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        .sidebar { border-right: 0; border-bottom: 1px solid #e3e5e8; padding: 8px; }
+        .page-list { margin-bottom: 4px; }
+        main { padding: 20px 16px; }
+        .title { font-size: 1.75rem; }
+      }
     </style>
   </head>
   <body>

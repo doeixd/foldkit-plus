@@ -14,6 +14,7 @@
  */
 import * as UiButton from '@foldkit/ui/button'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
+import { Option } from 'effect'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
@@ -244,16 +245,31 @@ const ComposerRoot = Surface.rootView(Composer, undefined, SurfaceView.toRendere
 const BoardRoot = Surface.rootView(Board, undefined, SurfaceView.toRenderer(BoardView))
 const FooterRoot = Surface.rootView(Footer, undefined, SurfaceView.toRenderer(FooterView))
 
-const PageView = SlotView.define(PageSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
-  h.main(slots.root.attrs(), [
-    HeaderRoot(model, h),
-    ComposerRoot(model, h),
-    BoardRoot(model, h),
-    FooterRoot(model, h),
-  ]),
+const PageView = SlotView.define(
+  PageSlots,
+  (
+    { model, note }: { readonly model: Model; readonly note: Option.Option<string> },
+    slots,
+    h: HtmlBuilder<Message>,
+  ) =>
+    h.main(slots.root.attrs(), [
+      ...Option.match(note, {
+        onNone: () => [],
+        onSome: text => [h.p(slots.note.attrs(), [text])],
+      }),
+      HeaderRoot(model, h),
+      ComposerRoot(model, h),
+      BoardRoot(model, h),
+      FooterRoot(model, h),
+    ]),
 ).pipe(Style.attach(PageStyle))
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: model.listTitle,
-  body: PageView(model, h),
-})
+/** The page, with `note` above it where there is one: what to try first. */
+export const viewWith =
+  (note: Option.Option<string>) =>
+  (model: Model, h: HtmlBuilder<Message>): Document => ({
+    title: model.listTitle,
+    body: PageView({ model, note }, h),
+  })
+
+export const view = viewWith(Option.none())

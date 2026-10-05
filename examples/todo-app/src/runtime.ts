@@ -13,24 +13,28 @@
  * (`url.init`) and on every navigation (`url.onUrlChange`); the store is read
  * once at start and its Message dispatched.
  */
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { KeyValueStore } from 'effect/persistence'
 import type { Mounted, Replica } from 'foldkit-sync'
 import { Message, initialModel, type Model, type Shared } from './app.js'
 import { wiring } from './surface.js'
 import { mountTodos } from './sync.js'
-import { view } from './view.js'
+import { viewWith } from './view.js'
 
 export const mountApp = (
   replica: Replica<Message, Shared>,
   container: HTMLElement,
+  options: {
+    /** What to try first, drawn above the app (the sandbox's). */
+    readonly note?: string
+  } = {},
 ): Mounted<Model, Message> => {
   const storage = KeyValueStore.layerStorage(() => window.localStorage)
   const start = wiring.initial(initialModel)
   const mounted = mountTodos(replica, {
     container,
-    view,
+    view: viewWith(Option.fromUndefinedOr(options.note)),
     subscriptions: wiring.subscriptions(),
     resources: storage,
     url: wiring.url(url => Message.UrlChanged({ url })),

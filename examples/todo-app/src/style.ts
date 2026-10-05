@@ -79,6 +79,8 @@ const app = Layers.standard.layer('app')
 
 export const PageSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  /** What to try first, where the page says (the sandbox does). */
+  note: Slot.make({ capability: Capability.Container }),
 })
 
 export const PageStyle = Style.forSlots(PageSlots)(
@@ -97,6 +99,15 @@ export const PageStyle = Style.forSlots(PageSlots)(
       }),
       Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0' }),
     ),
+    note: Style.inline({
+      margin: '0',
+      padding: '0.75rem 1rem',
+      background: t.surface.muted,
+      borderRadius: t.radius.card,
+      color: t.text.muted,
+      fontSize: '0.875rem',
+      lineHeight: '1.5',
+    }),
   },
   { name: 'PageStyle', layer: app },
 )

@@ -47,8 +47,17 @@ const replica = await Effect.runPromise(TodoSync.openReplica(ReplicaId.make(repl
 const container = document.querySelector<HTMLElement>('#app')
 if (container === null) throw new Error('#app is missing from the page')
 
-const mounted = mountApp(replica, container)
-if (sandboxed) container.before(tryThis(token))
+// The sandbox says what to try. The app draws it: its view is the whole body,
+// so an element placed beside the app's container would not survive the first draw.
+const mounted = mountApp(
+  replica,
+  container,
+  sandboxed
+    ? {
+        note: `The server runs in this browser; nothing is sent anywhere. You are ${token}. Open this page in a second tab, or add ?token=${token === 'bob' ? 'alice' : 'bob'} to the address to be someone else, and a todo added in one shows in the other. Only owner may clear or rename the list.`,
+      }
+    : {},
+)
 
 // The exchange loop: once, then after every submit, until the page unloads.
 // Committed operations from other replicas re-install the shared slice
@@ -75,22 +84,4 @@ if (modelContext !== undefined) {
   const registration = AgentWebMcp.register({ agent, modelContext })
   void registration.refresh()
   window.addEventListener('beforeunload', () => registration.unregister())
-}
-
-/** What to try in the sandbox, above the app: plain DOM, outside its runtime. */
-function tryThis(as: string): HTMLElement {
-  const note = document.createElement('aside')
-  note.style.cssText =
-    'max-width: 36rem; margin: 1.5rem auto 0; padding: .75rem 1rem; border: 1px solid #e4e4e7; border-radius: 10px; font: 14px/1.5 system-ui, sans-serif; color: #3f3f46'
-  const other = as === 'bob' ? 'alice' : 'bob'
-  const link = document.createElement('a')
-  link.href = `?token=${other}`
-  link.target = '_blank'
-  link.textContent = `open it as ${other}`
-  note.append(
-    `The server runs in this browser; nothing is sent anywhere. You are ${as}. Open this page in a second tab, or `,
-    link,
-    ', and a todo added in one shows in the other. Only owner may clear the list.',
-  )
-  return note
 }
