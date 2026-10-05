@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Docs: [Editing server data through a
+  journal](docs/editing-server-data.md).** When rows are too many to
+  replicate but edits to them must survive offline: who owns what, the one
+  rule (a cell shows its edit while pending or committed after the row's
+  revision), a one-column path through `foldkit-sync/entity` and
+  `editsJournal`, conflicts, refusals, absorbing, and each failure case,
+  with the registry as the worked example. Its snippets compile in
+  `examples/registry/test/guide.test-d.ts`; the registry README keeps what is
+  its own (#171).
 - **`foldkit-sync/journal`: `editsJournal`, the table as the journal's read
   model.** Its `settle` applies each committed change through the
   application's `apply` as a recovery intent and its `absorb` records what

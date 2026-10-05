@@ -37,6 +37,7 @@ fact and how it recovers:
 | A route, a selection, a transient error | the local Model | nothing to recover | plain Foldkit |
 | Data the server owns and the client may refetch | the server | refetch | [`foldkit-remote`](./remote.md) |
 | Edits the user authored that must survive offline and converge | the durable log | replay and reconciliation | `foldkit-sync` + `foldkit-durable` |
+| Edits to server-owned rows too many to replicate, offline and converging | the durable log, with the table its read model | replay; a reread of the rows | [Editing server data through a journal](./editing-server-data.md) |
 | A filter in the URL, a draft on this device | the local Model | restore | [`foldkit-mirror`](./mirror.md) |
 
 The Remote and Sync line is the one to memorize: a Remote cache is disposable

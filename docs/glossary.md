@@ -75,6 +75,10 @@ each of those.
 | **Epoch** | The identity of a document's history on the server (`journal.epoch(key)`). A replica that comes back with another holds a cursor into history the server lacks, and rebuilds. [Replicated state](./replication.md) |
 | **Replica** | `foldkit-sync`'s client side: your Messages as durable operations, pending ones replayed over the committed state. [Replicated state](./replication.md) |
 | **Journal** | `foldkit-durable`'s server side: the authoritative order of committed operations. |
+| **Read model** | A store derived from the journal, such as a table each committed edit is applied to; only the journal writes it, and it can be rebuilt from the log. [Editing server data](./editing-server-data.md) |
+| **Revision** | The highest journal sequence a row of a read model has applied: an edit committed after it is not in the row yet. |
+| **Absorbed** | An edit the read model holds, recorded so by the server; replicas drop it and the log compacts. |
+| **Held edit** | An absorbed edit a page keeps while the row it has cached is behind it, so the row never shows a stale read (`EditableEntity.held`). |
 | **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |
 | **Slot** | A named extension point in a view (`root`, `label`, …) that Style and Behavior attach to. [`foldkit-mixins`](../packages/mixins/README.md) |
 | **SlotView** | A pure view that renders its slots and resolves what is attached to them. |

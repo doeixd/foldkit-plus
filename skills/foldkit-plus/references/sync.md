@@ -321,6 +321,7 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/sync/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/durable/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/editing-server-data.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/sync
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app

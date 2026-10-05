@@ -20,57 +20,54 @@ the grid owns the interaction        focus, selection, columns, viewport, the op
 the application owns the order       the query's input
 ```
 
-The edits are a Sync document: its replicated slice is `edits`, every product
-edited with the fields edited, and its one durable Message is
-`EditedProducts`. The journal stamps each edit with the sequence it committed
-at (`stamp` in `sync.ts`), so every replica knows when each field's edit
-committed.
-
-The table is not a second owner. Only the journal writes it: through its effect
-recovery (`recover`, keyed by operation and change), each committed change is
-written with its sequence as the row's `revision`, in one statement that never
-moves a row back. Each exchange settles what is committed, so a change whose
-write failed is tried again on the next one, and the cursor only passes an
-operation once all its changes are written. Any other change to the products
-would be an operation the server appends, never a write to the table.
-
-So a row knows how far it has read the journal, and the page draws each row as
-Remote read it with the edits it has not absorbed over it (`rowsOf`):
+The pattern, why the table carries a `revision`, what an edit shows at each
+step, absorbing, held edits, conflicts and every failure case, is
+[Editing server data through a journal](../../docs/editing-server-data.md),
+with this example as its worked case. In short:
 
 ```text
-row on screen = the table's row + the edits it has not absorbed
-an edit shows ⇔ it is pending, or it committed after the row's revision
+cell shown = the row's value, unless an edit of that cell is pending,
+             or committed after the row's revision (at > row.revision)
 ```
 
-```text
-an edit                       shows at once, before any exchange
-an edit made offline          stays in the replica's storage, through a reload, and goes when the server is back
-committed, not yet written    shows: the journal has it, and the row's revision is older
-written, the row not re-read  shows: the cached row's revision is still older
-the row read again            the table shows, with the edit in it, or whatever the journal wrote since
-another device's edit         shows when the exchange brings it, before Remote reads the row again
-```
+The edits are `ProductEdits` (`domain.ts`), `EditableEntity` from
+`foldkit-sync/entity` over the Product's four editable members, and the table
+is kept by `editsJournal` from `foldkit-sync/journal` (`journal.ts`). What is
+this example's own is below.
 
-The `revision` column is hidden; a column's menu shows it, to watch a row catch
-up with the journal. A cell committed with the value it already shows is no
-edit: nothing is sent, and nothing is marked. Each edited cell also says where
-its edit is (`marksOf`, the grid's `marks`, explained in a legend above the grid
-and in each mark's tooltip): a dot while it is not yet sent, a hollow dot once the
-journal has it and the row as read does not, nothing once the row has it, and
-a red edge if the server refused it. Each mark is also the cell's
-`aria-description`.
+## In this example
 
-**The edits shrink to what the table lacks.** Every few seconds the server
-records, as an operation of its own, that the table holds every edit through
-its recovery cursor (`AbsorbedEdits`, which only the server may append). Each
-replica drops those edits, so the replicated slice holds what the table has not
-absorbed, usually nothing, and the journal compacts the log behind them: a
-replica that has never synchronized is sent the small snapshot, not the history.
-A page whose cached row is older than an edit it just dropped keeps that edit in
-`retired`, set in the same transition by the mount's `onReinstall`, so the row
-never shows the stale read, and asks for the rows again at once. When a read
-has the row at the edit's revision, the edit goes (`settledOf`, after every
-transition, since any of Remote's Messages may carry the read).
+- **What edits.** Description, price, line and status; the UPC does not. Each
+  editable column's `schema` decides what its text means: `Dollars` reads
+  "4.99" as 499 cents through the Product's own `cents` schema, `Description`
+  and `LineName` trim and refuse an empty one, and the status is the Product's
+  own literals, so its editor is a list of them. A draft is committed only when
+  it decodes, and the check's message ("A price, like 4.99") is the cell's
+  error. The journal decodes every operation against the Product's own field
+  schemas, so an empty description or a negative price is refused whatever a
+  client sent.
+- **Marks.** Each edited cell says where its edit is (`marksOf`, drawn by the
+  grid's `GridMarkStyle`, explained by the `GridLegend` above the grid and each
+  mark's tooltip): not yet sent, saved and not yet in the table, refused, or
+  replaced by a later edit; and where the other device is. The `revision`
+  column is hidden; a column's menu shows it, to watch a row catch up.
+- **Working offline, on purpose.** The *Work offline* switch pauses the
+  transport (`pausable` in `sync.ts`): exchanges fail as an unreachable server
+  would, so edits wait on the device, through a reload. Switching back
+  exchanges at once. An unreachable server is retried on a backoff (0.5 s up
+  to 30 s) and at once on the next edit.
+- **One replica per tab.** The replica's id lives in the tab's
+  `sessionStorage` and its storage is named after it, so a reload reopens the
+  same replica, pending edits included, and two tabs never write one storage.
+  A tab closed for good while offline leaves its unsent edits in IndexedDB,
+  under an id no tab opens again; they are not sent.
+- **Who a device is.** A connection names its device (`?device=` on the
+  socket, the tab's short name), and the journal stamps each edit with that
+  actor and the replica it came from. Nothing checks the name, which a real
+  deployment would.
+- **The data is in memory.** A restart of the server resets the table and the
+  journal together, which the revisions rely on; a page left open across one
+  reads its rows again.
 
 ## An edit, end to end
 
@@ -83,66 +80,6 @@ cell text -> Out.Edited -> onOut -> Sync.fact(EditedProducts) -> update: Product
   -> a read of the row at that revision shows the table's row, and the edit gives way
   -> the server records that the table holds it; replicas drop it, the log is compacted
 ```
-
-Description, price, line and status edit; the UPC does not. Each editable
-column's `schema` decides what its text means: `Dollars` reads "4.99" as 499
-cents through the Product's own `cents` schema, `Description` and `LineName`
-trim and refuse an empty one, and the status is the Product's own literals, so
-its editor is a choice of them. A draft is committed only when it
-decodes, and the check's message ("A price, like 4.99") is the cell's error, so
-nothing the schema refuses becomes an operation. The journal decodes every operation against the Message's schema,
-which is the Product's own field schemas, so an empty description or a
-negative or fractional number of cents is refused whatever a client sent.
-
-## Failure and recovery
-
-- **The server cannot be reached.** The exchange fails, the edit stays
-  pending, and the status line says how many edits are kept on this device.
-  The replica retries on a backoff (0.5 s up to 30 s) and at once on the next
-  edit.
-- **Working offline, on purpose.** The *Work offline* switch pauses the
-  transport (`pausable` in `sync.ts`): exchanges fail as an unreachable server
-  would, so edits wait on the device, through a reload. Switching back
-  exchanges at once, not at the end of the backoff.
-- **A reload.** The replica's id lives in the tab's `sessionStorage` and its
-  storage is named after it, so a reload reopens the same replica, pending
-  edits included. Two tabs are two replicas and never write one storage.
-- **A tab closed for good while offline** leaves its unsent edits in
-  IndexedDB, under an id no tab will open again. They are not sent. A
-  registry that must keep them would give a profile one replica and one
-  writer, which this example does not do.
-- **The journal refuses an operation**, one whose change breaks the
-  Product's rules or that names another document: it is rejected, and the
-  replica drops it and the cell goes back. It is not left to be sent again,
-  which would hold every edit behind it. The page says so: the cells it had
-  changed are edged as refused, and a line under the status names them with
-  the server's reason until it is dismissed. The replica has dropped the
-  operation by then, so the mount reads each pending operation's cells
-  while it is still pending.
-- **Two devices edit the same field.** The journal's order decides: the edit
-  committed last wins, on every replica. There is no merge of text. The
-  journal stamps each edit with who committed it and from which replica
-  (`by: { actor, replica }`, beside `at`), so the page whose edit lost is
-  told, though the later edit be the same person's in another tab: the cell is edged amber, and a line names the
-  other device and the value it had, until dismissed (`replacedOf`, in the
-  mount's `onReinstall`). When the journal absorbed the later edit before
-  this device heard of it, as it can while the device is offline, the slice
-  no longer says who wrote it; the row, read again, does say a later edit
-  came (it is at or past this device's edit and holds another value), and the
-  line reads "a later edit" (`settledOf`). A connection names its device
-  (`?device=` on the socket, the tab's short name); nothing checks it, which
-  a real deployment would.
-- **The table's write fails.** The edit is committed and stays shown, since the
-  row's revision is older than it; recovery writes it on the next exchange.
-- **A client says when its edit committed.** That is the journal's to stamp, so
-  an operation carrying `at` is refused.
-- **The data is in memory.** A restart of the server resets the table and the
-  journal together, which the revisions rely on: a table kept across a journal
-  reset would hold revisions from the old history, and would have to be rebuilt
-  from the seed and the new journal.
-- **An unabsorbed edit in a sorted list** shows its new value in a row the
-  server sorted by the old one, like a pending edit, until the page is read
-  again.
 
 ## Run it
 

@@ -218,7 +218,9 @@ resending the stamped form, or other data under the id, is an
 `IdentityConflictError`. A stamp must keep the operation's `opId`; one that
 changes it is an `InvalidOperationError` and commits nothing. Use it for a
 fact a reader needs and a client cannot supply, such as the position a read
-model compares with to know which commits it holds.
+model compares with to know which commits it holds; [Editing server data
+through a journal](../../docs/editing-server-data.md) is that case end to
+end.
 
 Read the results as three separate facts:
 
@@ -492,6 +494,8 @@ given as a function pair is accepted wherever a `Schema.Codec` is.
 
 - [Replicated state](../../docs/replication.md): both halves end to end,
   including the exchange handler over this journal.
+- [Editing server data through a journal](../../docs/editing-server-data.md):
+  a table as this journal's read model, edits laid over Remote's rows.
 - [`foldkit-sync`](../sync): the client half; `journalContract()` supplies the
   codecs, reducer, initial state, replica binding, and compiled authorization.
 - [`examples/sync`](../../examples/sync): a SQLite journal, several replicas,

@@ -528,7 +528,9 @@ does no I/O. On the server, `editsJournal` from `foldkit-sync/journal` keeps
 the table: its `settle` (for `journalExchange`) applies each committed change
 through your `apply` as a recovery intent, from the journal's floor and keyed
 by its epoch, and its `absorb` (on a clock) records what the table holds and
-compacts behind it. [`examples/registry`](../../examples/registry) is the
+compacts behind it. [Editing server data through a
+journal](../../docs/editing-server-data.md) explains the pattern, its failure
+cases and its limits; [`examples/registry`](../../examples/registry) is the
 whole of it.
 
 ## Testing without a browser or a server

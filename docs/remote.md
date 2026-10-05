@@ -274,7 +274,10 @@ there is nothing to lose.
 - **Local-only state.** Use the Model and `update`; there is no server truth to
   cache.
 - **Offline writes and convergence.** Use [`foldkit-sync`](./replication.md); it
-  owns client-authored operations and orders them through a durable log.
+  owns client-authored operations and orders them through a durable log. When
+  the rows edited are too many to replicate, Remote still reads them and the
+  edits are laid over them: [Editing server data through a
+  journal](./editing-server-data.md).
 - **Request-level caching of one expensive endpoint.** Effect's `PersistedCache`
   fits (`Request → Result`); Remote is `Entity + Field → Value` and normalizes
   across requests.

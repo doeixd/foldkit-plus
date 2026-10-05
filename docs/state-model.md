@@ -100,6 +100,12 @@ Neither package generalises the other. There is deliberately no shared overlay
 primitive: the algebra is shared, the mechanisms are not, and one implementation
 forced over both would hide which authority a reader is actually waiting on.
 
+Where the two meet, on rows a server holds and edits a journal owns, the
+overlay is still not shared: Remote's rows stay Remote's, and the edits not
+yet in them are laid over the rows by each row's revision, by the
+application, through `foldkit-sync/entity`. [Editing server data through a
+journal](./editing-server-data.md) is that case.
+
 ## Semantic state is not runtime work
 
 `RemoteData` says what the Model knows — `Initial`, `Loading`, `Ready`,
