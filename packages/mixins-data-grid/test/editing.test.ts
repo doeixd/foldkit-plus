@@ -13,6 +13,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, GridFocus, RowModel } from 'foldkit-data-grid'
 import { DataGridView } from 'foldkit-mixins-data-grid'
+import { Frames } from 'foldkit-mixins/testing'
 import { afterEach, expect, test, vi } from 'vitest'
 
 interface Item {
@@ -85,6 +86,7 @@ const mount = () => {
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const frames = Frames.track()
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(180)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
   const container = document.createElement('div')
@@ -105,7 +107,7 @@ const mount = () => {
       view,
     }),
   )
-  return { handle, latest: () => latest }
+  return { handle, frames, latest: () => latest }
 }
 const grid = () => document.getElementById('items')!
 const editor = () => document.querySelector<HTMLInputElement>('#items input')
@@ -113,7 +115,7 @@ const cell = (row: string, column: 'id' | 'name' | 'qty') =>
   GridFocus.cellId('items', { row, column })
 
 test('cells are edited by keyboard, and the application hears the text', async () => {
-  const { handle, latest } = mount()
+  const { handle, frames, latest } = mount()
   const press = (target: Element, key: string, modifiers: KeyboardEventInit = {}) => {
     const event = new KeyboardEvent('keydown', {
       key,
@@ -187,17 +189,18 @@ test('cells are edited by keyboard, and the application hears the text', async (
     // Escape on the grid, before a typed edit's editor is drawn, cancels it too.
     press(grid(), '7')
     press(grid(), 'Escape')
-    await new Promise(resolve => setTimeout(resolve, 30))
+    await frames.settle()
     expect(editor()).toBeNull()
     expect(latest().edits).toHaveLength(2)
     expect(document.activeElement).toBe(grid())
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })
 
 test('a double-click edits a cell that can be edited, and no other', async () => {
-  const { handle } = mount()
+  const { handle, frames } = mount()
   const doubleClick = (id: string) =>
     document.getElementById(id)!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
   try {
@@ -206,7 +209,7 @@ test('a double-click edits a cell that can be edited, and no other', async () =>
     expect(document.getElementById(cell('r2', 'id'))!.hasAttribute('data-editable')).toBe(false)
 
     doubleClick(cell('r2', 'id'))
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await frames.settle()
     expect(editor()).toBeNull()
 
     doubleClick(cell('r2', 'name'))
@@ -215,11 +218,12 @@ test('a double-click edits a cell that can be edited, and no other', async () =>
     expect(document.getElementById(cell('r1', 'name'))!.hasAttribute('data-editing')).toBe(false)
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })
 
 test('focus leaving the field saves the edit; a refused draft stays, its error below it', async () => {
-  const { handle, latest } = mount()
+  const { handle, frames, latest } = mount()
   const elsewhere = document.createElement('button')
   document.body.appendChild(elsewhere)
   const doubleClick = (id: string) =>
@@ -251,5 +255,6 @@ test('focus leaving the field saves the edit; a refused draft stays, its error b
     expect(editor()?.value).toBe('lots')
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })

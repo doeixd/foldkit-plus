@@ -310,6 +310,11 @@ mechanisms, not components: compose them into your own slots, resolving icon `ur
   to build real attributes, then read them with `Attributes.find(bundle, 'Class')?.value`.
 - `Inert` (`foldkit-mixins/testing`) reads a whole inert tree: `all`, `children`, `byTag`,
   `byRole`, `byLabel`, `text`, `value` (attribute or property), `classes`, `style`, `pressed`.
+- `Frames.track()` (`foldkit-mixins/testing`, created after any `requestAnimationFrame` stub)
+  is for tests on the real runtime: `await frames.settle(...barriers)` resolves once every frame
+  asked for has run (pass `Sync.mount`'s handle to wait for its replica first), instead of a
+  sleep; `hold()`/`release()` keep frames back so events meet the last drawn view. It sees no
+  frame not yet asked for (a runtime still starting) and no I/O: wait for those first.
 - `Inert.draw(view, input)` draws under a Scene frame, so a view using `h.submodel` draws whole
   (nothing dispatched, no Command or Mount checked). `Inert.css(nodes)` is the CSS behind the
   nodes' classes; `Inert.missingTokens(root, stylesheet)` lists `--fk-*` tokens read without a

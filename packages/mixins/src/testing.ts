@@ -257,26 +257,120 @@ export const Inert = {
   pressed,
 } as const
 
-/**
- * The page's animation frames, held: Foldkit draws on `requestAnimationFrame`,
- * so while they are held nothing is drawn, and every event a test sends meets
- * the view as it was last drawn, as keys and clicks faster than a frame do.
- * `release` lets the held frames run, and those after. Test what a burst of
- * input does here; a test that waits for each change to show cannot see it.
- */
-export const Frames = {
-  hold: (): { readonly release: () => void } => {
-    const run = globalThis.requestAnimationFrame
-    const held: Array<FrameRequestCallback> = []
-    globalThis.requestAnimationFrame = callback => {
-      held.push(callback)
-      return held.length
-    }
-    return {
-      release: () => {
-        globalThis.requestAnimationFrame = run
-        for (const callback of held.splice(0)) run(callback)
-      },
-    }
-  },
+/** Something with work of its own to finish before a page is settled, such as `Sync.mount`'s handle. */
+export interface Settles {
+  readonly settled: () => Promise<void>
 }
+
+/** The page's animation frames, tracked: held, released, and waited for. */
+export interface TrackedFrames {
+  /** Holds every frame asked for from now until `release`: nothing is drawn meanwhile. */
+  readonly hold: () => void
+  /** Runs the held frames, and lets those after run as they are asked for. */
+  readonly release: () => void
+  /**
+   * Resolves once nothing is left to draw: every frame asked for has run, and
+   * a turn of the event loop after the last asked for no other. Each of
+   * `barriers` settles first, and the two are waited for again until both
+   * are quiet in one round, since a frame can lead to a dispatch and a
+   * dispatch to a frame. Rejects while frames are held, and after 50 rounds
+   * of frames that keep coming. It knows only frames asked for: a runtime
+   * still starting has asked for none, so wait for its first drawing, and
+   * for I/O a Command started, before settling what follows.
+   */
+  readonly settle: (...barriers: ReadonlyArray<Settles>) => Promise<void>
+  /** Puts back the frame functions it replaced. */
+  readonly dispose: () => void
+}
+
+const rounds = 50
+const turn = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
+const track = (): TrackedFrames => {
+  const request = globalThis.requestAnimationFrame
+  const cancel = globalThis.cancelAnimationFrame
+  // Frames asked for and not yet run, by the id this hands out.
+  const waiting = new Map<number, number>()
+  const held: Array<{ readonly id: number; readonly callback: FrameRequestCallback }> = []
+  let holding = false
+  let next = 0
+  let ran: Array<() => void> = []
+  const ranOne = () => {
+    for (const resolve of ran.splice(0)) resolve()
+  }
+  const schedule = (id: number, callback: FrameRequestCallback) =>
+    waiting.set(
+      id,
+      request(time => {
+        waiting.delete(id)
+        try {
+          callback(time)
+        } finally {
+          ranOne()
+        }
+      }),
+    )
+  globalThis.requestAnimationFrame = callback => {
+    const id = ++next
+    if (holding) {
+      waiting.set(id, -1)
+      held.push({ id, callback })
+    } else schedule(id, callback)
+    return id
+  }
+  globalThis.cancelAnimationFrame = id => {
+    const underlying = waiting.get(id)
+    waiting.delete(id)
+    const index = held.findIndex(frame => frame.id === id)
+    if (index !== -1) held.splice(index, 1)
+    if (underlying !== undefined && underlying !== -1) cancel(underlying)
+  }
+  const aFrame = () => new Promise<void>(resolve => ran.push(resolve))
+  return {
+    hold: () => {
+      holding = true
+    },
+    release: () => {
+      holding = false
+      for (const { id, callback } of held.splice(0)) schedule(id, callback)
+    },
+    settle: async (...barriers) => {
+      for (let round = 0; round < rounds; round++) {
+        if (holding) {
+          throw new Error('Frames.settle: frames are held; release them first.')
+        }
+        for (const barrier of barriers) await barrier.settled()
+        if (waiting.size > 0) {
+          await aFrame()
+          continue
+        }
+        // A turn after the last frame: Foldkit may finish a transition on a
+        // task of its own and ask for another.
+        await turn()
+        if (waiting.size === 0) return
+      }
+      const hidden =
+        typeof document !== 'undefined' && document.visibilityState === 'hidden'
+          ? ' The document is hidden, and a hidden page runs no frames.'
+          : ''
+      throw new Error(
+        `Frames.settle: still drawing after ${rounds} rounds (a Mount or an animation keeps asking for frames).${hidden}`,
+      )
+    },
+    dispose: () => {
+      globalThis.requestAnimationFrame = request
+      globalThis.cancelAnimationFrame = cancel
+      ranOne()
+    },
+  }
+}
+
+/**
+ * The page's animation frames, tracked from the moment `track` is called.
+ * Foldkit draws on `requestAnimationFrame`, so `settle` waits for what a
+ * transition asked to draw, instead of a sleep that guesses how long that
+ * takes, and `hold` keeps every frame back so events meet the view as it
+ * was last drawn, as keys and clicks faster than a frame do. Call it after
+ * any stub of `requestAnimationFrame`, since it wraps whichever is installed.
+ */
+export const Frames = { track } as const

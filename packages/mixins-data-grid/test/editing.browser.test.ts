@@ -117,9 +117,11 @@ test('real keys edit a cell, and focus comes back to the grid', async () => {
     // Typing on the grid starts the next edit there, below. Typed inside one
     // frame, every key reaches the grid before the editor is drawn, and each
     // adds to the edit rather than starting it over.
-    const frames = Frames.hold()
+    const frames = Frames.track()
+    frames.hold()
     await userEvent.keyboard('Dowel')
     frames.release()
+    frames.dispose()
     await vi.waitFor(() => expect(editor()?.value).toBe('Dowel'))
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(editor()).toBeNull())

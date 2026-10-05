@@ -13,6 +13,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, RowCount, RowModel, RowStatus } from 'foldkit-data-grid'
 import { DataGridView } from 'foldkit-mixins-data-grid'
+import { Frames } from 'foldkit-mixins/testing'
 import { afterEach, expect, test, vi } from 'vitest'
 
 interface Line {
@@ -78,6 +79,7 @@ test('the end coming into view asks for more, once per load and not while loadin
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const frames = Frames.track()
   vi.stubGlobal('IntersectionObserver', FakeObserver)
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(200)
@@ -145,7 +147,7 @@ test('the end coming into view asks for more, once per load and not while loadin
 
     // Out of view asks nothing; coming in asks once, and loading stops watching.
     cross(false)
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await frames.settle()
     expect(latest.asked).toBe(0)
     cross(true)
     await vi.waitFor(() => expect(latest.asked).toBe(1))
@@ -159,5 +161,6 @@ test('the end coming into view asks for more, once per load and not while loadin
     await vi.waitFor(() => expect(latest.asked).toBe(2))
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })

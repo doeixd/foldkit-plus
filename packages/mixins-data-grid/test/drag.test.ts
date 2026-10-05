@@ -13,7 +13,7 @@ import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, GridFocus, RowModel } from 'foldkit-data-grid'
-import { Inert } from 'foldkit-mixins/testing'
+import { Frames, Inert } from 'foldkit-mixins/testing'
 import { DataGridView } from 'foldkit-mixins-data-grid'
 import { afterEach, expect, test, vi } from 'vitest'
 
@@ -80,6 +80,7 @@ const mount = (direction: 'ltr' | 'rtl') => {
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const frames = Frames.track()
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
   const update = application.update()
@@ -103,7 +104,7 @@ const mount = (direction: 'ltr' | 'rtl') => {
       view: (model: Model, h: HtmlBuilder<Message>) => View(inputOf(model.grid, direction), h),
     }),
   )
-  return { handle, latest: () => latest }
+  return { handle, frames, latest: () => latest }
 }
 
 const header = (column: Id) => document.getElementById(GridFocus.headerId('lines', column))!
@@ -115,10 +116,9 @@ const pointer = (target: Element, type: string, x: number) => {
   Object.defineProperty(event, 'pointerId', { value: 3 })
   target.dispatchEvent(event)
 }
-const settle = () => new Promise(resolve => setTimeout(resolve, 20))
 
 test('a header is dragged to a new place, cancelled with Escape, and leaves clicks alone', async () => {
-  const { handle, latest } = mount('ltr')
+  const { handle, frames, latest } = mount('ltr')
   const sortButton = () => header('b').querySelector('button')!
   try {
     await vi.waitFor(() => expect(order()).toEqual(['A', 'B', 'C', 'D', 'E']))
@@ -133,7 +133,7 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     // marked as where A would land: past B's middle, short of C's.
     pointer(header('a'), 'pointerdown', 10)
     pointer(header('a'), 'pointermove', 13)
-    await settle()
+    await frames.settle()
     expect(header('a').hasAttribute('data-dragging')).toBe(false)
     pointer(header('a'), 'pointermove', 170)
     await vi.waitFor(() => expect(header('a').dataset['dragging']).toBe('true'))
@@ -152,7 +152,7 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     sortButton().click()
     await vi.waitFor(() => expect(order()).toEqual(['A', 'C', 'B', 'D', 'E']))
     expect(latest().sorts).toBe(1)
-    await settle()
+    await frames.settle()
     sortButton().click()
     await vi.waitFor(() => expect(latest().sorts).toBe(2))
 
@@ -165,7 +165,7 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
       .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await vi.waitFor(() => expect(header('e').hasAttribute('data-dragging')).toBe(false))
     pointer(header('e'), 'pointerup', 100)
-    await settle()
+    await frames.settle()
     expect(order()).toEqual(['A', 'C', 'B', 'D', 'E'])
 
     // A press on a resize handle resizes; it does not drag the header.
@@ -175,15 +175,16 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     await vi.waitFor(() => expect(handleOf.getAttribute('aria-valuenow')).toBe('150'))
     expect(header('d').hasAttribute('data-dragging')).toBe(false)
     pointer(handleOf, 'pointerup', 450)
-    await settle()
+    await frames.settle()
     expect(order()).toEqual(['A', 'C', 'B', 'D', 'E'])
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })
 
 test('right to left, a header dragged toward the end goes left', async () => {
-  const { handle } = mount('rtl')
+  const { handle, frames } = mount('rtl')
   try {
     await vi.waitFor(() => expect(order()).toEqual(['A', 'B', 'C', 'D', 'E']))
     // 160px to the left is toward the end: past B's middle, short of C's.
@@ -194,5 +195,6 @@ test('right to left, a header dragged toward the end goes left', async () => {
     await vi.waitFor(() => expect(order()).toEqual(['B', 'A', 'C', 'D', 'E']))
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })

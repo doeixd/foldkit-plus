@@ -171,15 +171,17 @@ the button, the menu closed on losing focus, and the click, drawn a frame
 later, opened it again. Close a menu on focus leaving the element that holds
 both the menu and its button.
 
-**Test it with the frames held.** `Frames.hold()` (`foldkit-mixins/testing`)
-holds the page's animation frames, so every event a test sends meets the view
-as last drawn; `release` lets them run. A test that waits for each change to
+**Test it with the frames held.** `Frames.track()` (`foldkit-mixins/testing`)
+tracks the page's animation frames; its `hold()` keeps them back, so every
+event a test sends meets the view as last drawn, and `release()` lets them
+run. A test that waits for each change to
 show cannot see this class of bug at all. A sketch;
 [`examples/registry/test/page.test.ts`](../examples/registry/test/page.test.ts)
 has it in full:
 
 ```ts
-const frames = Frames.hold()
+const frames = Frames.track()
+frames.hold()
 click(sortButton())
 click(sortButton())
 frames.release()

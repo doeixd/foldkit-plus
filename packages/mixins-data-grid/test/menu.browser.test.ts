@@ -12,6 +12,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, GridFocus, RowModel } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
+import { Frames } from 'foldkit-mixins/testing'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 
@@ -74,6 +75,7 @@ test('a column menu is opened, walked and closed by keyboard and pointer, focus 
   const container = document.createElement('div')
   container.id = 'grid-menu'
   document.body.appendChild(container)
+  const frames = Frames.track()
   const handle = Runtime.embed(
     Runtime.makeElement({
       Model,
@@ -178,7 +180,7 @@ test('a column menu is opened, walked and closed by keyboard and pointer, focus 
         }),
       )
     }
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await frames.settle()
     expect(document.getElementById(header('a'))!.hasAttribute('data-dragging')).toBe(false)
     first.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, button: 0 }))
     const hide = Array.from(menu()!.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
@@ -189,5 +191,6 @@ test('a column menu is opened, walked and closed by keyboard and pointer, focus 
     expect(document.activeElement).toBe(grid())
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })
