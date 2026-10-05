@@ -23,6 +23,10 @@ const pinnedEdge = [
     borderInlineStart: `${ref.border.thick} solid ${ref.outline.default}`,
   }),
 ] as const
+// A small padlock, for a column that does not edit: a mask, so it takes the
+// colour it is painted with.
+const padlock = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5 7V5a3 3 0 0 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2z'/%3E%3C/svg%3E")`
+
 // The field an edit is typed in fills its cell, the cell lifted off the grid
 // (below), so an edit does not look like a cell that only has focus.
 const field = Style.self({
@@ -70,6 +74,16 @@ export const GridStyle = Style.forSlots(GridSlots)(
       }),
       Style.nest('&[data-pinned]', { zIndex: '1' }),
       ...pinnedEdge,
+      // A column that does not edit, in a grid where others do: a padlock before its label.
+      Style.nest('&[aria-readonly="true"]::before', {
+        background: ref.text.muted,
+        content: '""',
+        flex: 'none',
+        height: '0.75em',
+        marginInlineEnd: ref.space['2xs'],
+        mask: `${padlock} center / contain no-repeat`,
+        width: '0.75em',
+      }),
       Style.nest('&[data-dragging]', {
         zIndex: '3',
         background: ref.surface.default,
@@ -100,6 +114,8 @@ export const GridStyle = Style.forSlots(GridSlots)(
       // A text cursor says a double-click edits; the edited cell gives its
       // padding to the field.
       Style.nest('&[data-editable]', { cursor: 'text' }),
+      // Its cells, muted, with the ordinary pointer: there is nothing to type into.
+      Style.nest('&[aria-readonly="true"]', { color: ref.text.muted, cursor: 'default' }),
       // On the cell, which clips what is in it.
       Style.nest('&[data-editing]', {
         boxShadow: `0 2px 10px color-mix(in oklch, ${ref.text.default} 30%, transparent)`,

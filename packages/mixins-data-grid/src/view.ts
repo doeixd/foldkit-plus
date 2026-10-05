@@ -190,6 +190,8 @@ const view = <Message>() => ({
     Message
   > => {
     type Id = keyof Specs & string
+    // Whether any column edits: fixed with the grid, so worked out once.
+    const editsAny = Object.values(grid.columns.byId).some(column => column.edit !== undefined)
     return SlotView.forMessages<Message>().define(
       GridSlots,
       (input: GridInput<Row, Id, typeof grid.Message.Type, Message>, slots, h): Html => {
@@ -597,6 +599,8 @@ const view = <Message>() => ({
           () => Option.isNone(editing),
         )
         const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
+        // In a grid where some columns edit, the others say they do not.
+        const readOnly = (column: Id) => editsAny && !editable(column)
         const clipboard = (box: CellBox<Id>) => {
           const text = remembered(projection, JSON.stringify(box), () =>
             Clipboard.copy(projection, box, address =>
@@ -923,6 +927,7 @@ const view = <Message>() => ({
                 onSome: edge => [h.DataAttribute('pinned', edge)],
               }),
               ...pinnedEdge(id),
+              ...(readOnly(id) ? [h.AriaReadonly(true), h.Title('Read-only')] : []),
               ...Option.match(sortOf(id), {
                 onNone: () => [],
                 onSome: sorted => [h.AriaSort(ariaSort(sorted.direction))],
@@ -1029,6 +1034,7 @@ const view = <Message>() => ({
                             ]
                           : []),
                         ...(Option.isSome(edited) ? [h.DataAttribute('editing', 'true')] : []),
+                        ...(readOnly(id) ? [h.AriaReadonly(true)] : []),
                         ...Option.match(markOf(address), {
                           onNone: () => [],
                           onSome: mark => [

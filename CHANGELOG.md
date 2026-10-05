@@ -19,6 +19,11 @@ version changed; `pnpm` skips versions already in the registry.
   wraps a narrow header or moves its label, keeps header labels on one
   line, and parts columns with a faint line that is, on a header, the
   resize handle. The registry's page is in neutral greys.
+- **`foldkit-mixins-data-grid`: a column that does not edit says so.** In a
+  grid where some columns edit, the others' headers and cells carry
+  `aria-readonly`, and `GridStyle` draws a padlock before the header's
+  label (with a Read-only title) and the cells' text muted, with the
+  ordinary pointer. A grid where nothing edits marks nothing.
 - **`foldkit-mixins-data-grid`: a choice opens its list.** The `select` a
   column of literals edits in opens its list as it opens (`showPicker`,
   where the browser allows), so a double-click shows the choices without

@@ -467,4 +467,31 @@ describe('DataGridView', () => {
     expect(edges('columnheader')).toEqual(['-', 'start', '-', 'end'])
     expect(edges('gridcell').slice(0, 4)).toEqual(['-', 'start', '-', 'end'])
   })
+
+  test('says which columns do not edit, where some do, and says nothing where none do', () => {
+    const editing = Columns.define<Item>()({
+      id: { header: 'Id', value: item => item.id, width: 60 },
+      name: { header: 'Name', value: item => item.name, width: 100, edit: {} },
+      qty: { header: 'Qty', value: item => item.qty, width: 80 },
+    })
+    const Editing = DataGrid.make({ id: 'editing', columns: editing })
+    const drawn = Inert.draw(DataGridView<typeof Editing.Message.Type>().define(Editing), {
+      state: {
+        ...Editing.bundle.init(undefined).model,
+        viewport: { top: 0, left: 0, width: 400, height: 120 },
+      },
+      rows: allRows,
+      wrap: message => message,
+      label: 'Editing',
+      rowHeight: 20,
+      headerHeight: 20,
+    })
+    const readOnly = (root: ReturnType<typeof draw>, role: string) =>
+      Inert.byRole(root, role).map(node => Inert.value(node, 'aria-readonly') ?? '-')
+    expect(readOnly(drawn, 'columnheader')).toEqual(['true', '-', 'true'])
+    expect(readOnly(drawn, 'gridcell').slice(0, 3)).toEqual(['true', '-', 'true'])
+    // A grid where nothing edits is plainly read-only, and marks no column so.
+    expect(readOnly(draw(input()), 'columnheader').every(value => value === '-')).toBe(true)
+    expect(readOnly(draw(input()), 'gridcell').every(value => value === '-')).toBe(true)
+  })
 })

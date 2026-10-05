@@ -161,7 +161,10 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   (`editorError`, `role="alert"`, which the field names with
   `aria-describedby`), until the draft is fixed or Escape drops it. Focus
   comes back to the grid when the field goes. Clicking another cell commits
-  first. An
+  first. In a grid where some columns edit, the others' headers and cells
+  carry `aria-readonly`, which `GridStyle` draws as a padlock before the
+  header's label and muted text in the cells (a grid where nothing edits
+  marks nothing). An
   editable cell carries `data-editable` (`GridStyle` gives it a text cursor),
   and the cell being edited `data-editing`, which `GridStyle` lifts with a
   shadow and hands its padding to the field, outlined in the focus colour
