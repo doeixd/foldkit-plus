@@ -14,4 +14,9 @@ export default [
     ],
     tests: ['packages/sync/test/sync.test.ts'],
   },
+  {
+    name: 'a stamp is not told the replica',
+    edits: [{ file: '../src/sync.ts', find: 'replicaId: operation.replicaId,', replace: '' }],
+    tests: ['packages/sync/test/stamp.test.ts'],
+  },
 ]

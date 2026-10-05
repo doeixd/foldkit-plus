@@ -48,7 +48,7 @@ const definition = Sync.forApplication(App)
   .make({
     // Versioned with the shape of `edits`: a replica stored under the last one
     // does not decode as this one, so it is a document of its own.
-    documentId: DocumentId.make('registry-edits-2'),
+    documentId: DocumentId.make('registry-edits-3'),
     shared: Projection.pick(App.model.edits),
     durable: MessageSet.make(App, [Message.EditedProducts, Message.AbsorbedEdits]),
     // Dropping edits from every replica is the server's: a client's would drop
@@ -56,10 +56,15 @@ const definition = Sync.forApplication(App)
     authorize: { AbsorbedEdits: ({ principal }) => principal.actorId === server.actorId },
     // The journal writes in the sequence each edit committed at, which the
     // table's revision is compared with to know which edits a row holds, and
-    // who committed it, so a device can tell another's edit from its own.
+    // who committed it and from which replica, so a page can tell another's
+    // edit from its own, though it be the same person's in another tab.
     stamp: {
-      EditedProducts: ({ changes }, { sequence, actorId }) =>
-        Message.EditedProducts({ changes, at: sequence, by: actorId }),
+      EditedProducts: ({ changes }, { sequence, actorId, replicaId }) =>
+        Message.EditedProducts({
+          changes,
+          at: sequence,
+          by: { actor: actorId, replica: replicaId },
+        }),
     },
   })
 
@@ -162,7 +167,7 @@ export const mountRegistry = (
   })
   // Dispatched before any exchange can reinstall, so every reinstall knows
   // which edits are this device's.
-  mounted.dispatch(Message.DeviceNamed({ device: options.device }))
+  mounted.dispatch(Message.ReplicaNamed({ replica: replica.replicaId }))
   // Each refusal carries the operation it refused, so the cells it undid are
   // read from it. The status lists the latest refusals, so the ones said
   // already are kept only while it still lists them.

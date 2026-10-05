@@ -86,6 +86,22 @@ it('replaces what a replica sent with the stamped Message, the same on every rep
   expect(await Effect.runPromise(ben.shared)).toEqual(stamped)
 })
 
+it('tells a stamp the replica that sent it, apart from the actor who committed it', async () => {
+  const seen: Array<{ readonly actorId: string; readonly replicaId: string }> = []
+  const Recorded = notesWith({
+    Noted: ({ id, text }, { sequence, actorId, replicaId }) => {
+      seen.push({ actorId, replicaId })
+      return Message.Noted({ id, text, at: sequence })
+    },
+  })
+  const transport = serve(Recorded)
+  const ada = await open(Recorded, 'ada-tab-2')
+  await Effect.runPromise(ada.submit(Message.Noted({ id: 'n1', text: 'milk' })))
+  await Effect.runPromise(ada.synchronize.pipe(Effect.provide(transport)))
+  // The connection's principal is the actor; the tab is the replica.
+  expect(seen).toEqual([{ actorId: 'owner', replicaId: 'ada-tab-2' }])
+})
+
 it('commits a variant with no stamp as it was sent', async () => {
   const transport = serve(Notes)
   const ada = await open(Notes, 'ada')

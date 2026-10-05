@@ -121,8 +121,9 @@ negative or fractional number of cents is refused whatever a client sent.
   while it is still pending.
 - **Two devices edit the same field.** The journal's order decides: the edit
   committed last wins, on every replica. There is no merge of text. The
-  journal stamps each edit with who committed it (`by`, beside `at`), so the
-  device whose edit lost is told: the cell is edged amber, and a line names the
+  journal stamps each edit with who committed it and from which replica
+  (`by: { actor, replica }`, beside `at`), so the page whose edit lost is
+  told, though the later edit be the same person's in another tab: the cell is edged amber, and a line names the
   other device and the value it had, until dismissed (`replacedOf`, in the
   mount's `onReinstall`). When the journal absorbed the later edit before
   this device heard of it, as it can while the device is offline, the slice

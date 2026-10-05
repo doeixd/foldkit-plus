@@ -181,6 +181,8 @@ export interface ReplicaSnapshot<Shared> {
 }
 
 export interface Replica<Message, Shared> {
+  /** The id this replica's operations carry, one per tab: what its commits are stamped with. */
+  readonly replicaId: ReplicaId
   /** The optimistic projection: committed state with pending operations replayed. */
   readonly shared: Effect.Effect<Shared>
   /**
@@ -241,10 +243,15 @@ export interface SyncDefinition<Message, Shared, MessageEncoded, SharedEncoded> 
   readonly stamp?: ((message: Message, commit: CommitStamp) => Message) | undefined
 }
 
-/** What a commit decided, for `stamp`: the operation's place in the order, and who committed it. */
+/**
+ * What a commit decided, for `stamp`: the operation's place in the order, who
+ * committed it, and from which replica. `actorId` is the principal, shared by
+ * every tab a person has open; `replicaId` tells those tabs apart.
+ */
 export interface CommitStamp {
   readonly sequence: number
   readonly actorId: string
+  readonly replicaId: string
 }
 
 export interface Sync<Message, Shared> {
@@ -288,7 +295,10 @@ export interface JournalContract<Operation, Shared> {
   readonly empty: () => Shared
   readonly reduce: (snapshot: Shared, operation: Operation) => Shared
   /** Present when the definition stamps: Durable's `stamp`, over the operation's Message. */
-  readonly stamp?: (operation: Operation, commit: CommitStamp) => Operation
+  readonly stamp?: (
+    operation: Operation,
+    commit: { readonly sequence: number; readonly actorId: string },
+  ) => Operation
 }
 
 /**
@@ -422,9 +432,17 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     ...(definition.stamp === undefined
       ? {}
       : {
-          stamp: (operation: Operation, commit: CommitStamp): Operation => ({
+          stamp: (
+            operation: Operation,
+            commit: { readonly sequence: number; readonly actorId: string },
+          ): Operation => ({
             ...operation,
-            message: encodeMessage(definition.stamp!(decodeMessage(operation.message), commit)),
+            message: encodeMessage(
+              definition.stamp!(decodeMessage(operation.message), {
+                ...commit,
+                replicaId: operation.replicaId,
+              }),
+            ),
           }),
         }),
   })
@@ -890,6 +908,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
       })
 
       return {
+        replicaId,
         shared,
         snapshot,
         committed: Effect.map(SynchronizedRef.get(stateRef), state => state.committed),

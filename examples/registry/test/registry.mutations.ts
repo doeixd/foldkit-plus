@@ -15,11 +15,11 @@ export default [
     tests: ['examples/registry/test/page.test.ts'],
   },
   {
-    name: 'the device is never named',
+    name: 'the replica is never named',
     edits: [
       {
         file: '../src/sync.ts',
-        find: '  mounted.dispatch(Message.DeviceNamed({ device: options.device }))\n',
+        find: 'mounted.dispatch(Message.ReplicaNamed({ replica: replica.replicaId }))',
         replace: '',
       },
     ],
@@ -76,6 +76,17 @@ export default [
         file: '../src/app.ts',
         find: '  heldOf([...previous.retired, ...previous.edits], next)',
         replace: '  heldOf([], next)',
+      },
+    ],
+    tests: ['examples/registry/test/page.test.ts'],
+  },
+  {
+    name: 'an edit is told mine by its actor, not its replica',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'by.replica !== replica && mine(prior)',
+        replace: 'by.actor !== replica && mine(prior)',
       },
     ],
     tests: ['examples/registry/test/page.test.ts'],

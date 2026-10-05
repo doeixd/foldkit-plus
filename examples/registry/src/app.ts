@@ -98,25 +98,33 @@ export const Grid = DataGrid.make({
  * who committed it, both none while it is pending. Stored and sent, so `null`
  * on the wire.
  */
+/**
+ * Who committed an edit: the actor (a person, or a device's name), shown in
+ * words, and the replica (one tab), which tells a person's tabs apart and
+ * says which edits are this page's own.
+ */
+export const Author = Schema.Struct({ actor: Schema.String, replica: Schema.String })
+export type Author = typeof Author.Type
+
 const DescriptionEdit = Schema.Struct({
   value: Product.fields.description.schema,
   at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Schema.String),
+  by: Schema.OptionFromNullOr(Author),
 })
 const CentsEdit = Schema.Struct({
   value: Product.fields.cents.schema,
   at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Schema.String),
+  by: Schema.OptionFromNullOr(Author),
 })
 const LineEdit = Schema.Struct({
   value: Product.fields.line.schema,
   at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Schema.String),
+  by: Schema.OptionFromNullOr(Author),
 })
 const StatusEdit = Schema.Struct({
   value: Product.fields.status.schema,
   at: Schema.OptionFromNullOr(Schema.Number),
-  by: Schema.OptionFromNullOr(Schema.String),
+  by: Schema.OptionFromNullOr(Author),
 })
 
 /** One product's edited fields, the latest per field. */
@@ -200,8 +208,8 @@ const Base = Bundle.compose({
   offline: Schema.Boolean,
   /** The other devices that have a cell focused, from presence. Local and passing. */
   peers: Schema.Array(Peer),
-  /** The name this device commits as, so its own edits are told from another's. Local. */
-  device: Schema.String,
+  /** The replica this page commits from, so its own edits are told from another's. Local. */
+  replica: Schema.String,
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
@@ -219,7 +227,7 @@ const Base = Bundle.compose({
     EditedProducts: {
       changes: Schema.Array(ProductChange),
       at: Schema.optionalKey(Schema.Number),
-      by: Schema.optionalKey(Schema.String),
+      by: Schema.optionalKey(Author),
     },
     /**
      * Durable, and the server's alone: the table holds every edit committed
@@ -237,8 +245,8 @@ const Base = Bundle.compose({
     OfflineToggled: {},
     /** Presence said where the other devices are now. */
     PeersChanged: { peers: Schema.Array(Peer) },
-    /** The page was mounted as this device: the name it commits as. */
-    DeviceNamed: { device: Schema.String },
+    /** The page was mounted over this replica: the one it commits from. */
+    ReplicaNamed: { replica: Schema.String },
     /** The replica's status, for the status line; local, not replicated. */
     ExchangeChanged: Exchange.fields,
   }),
@@ -294,7 +302,7 @@ const merged = (
   edits: ReadonlyArray<ProductEdit>,
   changes: ReadonlyArray<ProductChange>,
   at: Option.Option<number>,
-  by: Option.Option<string>,
+  by: Option.Option<Author>,
 ): ReadonlyArray<ProductEdit> => {
   const byId = new Map(edits.map(edit => [edit.id, edit]))
   for (const change of changes) {
@@ -407,8 +415,8 @@ const transition = placements.update((model: Model, message: Message) =>
         }),
       }),
       PeersChanged: ({ peers }) => ({ model: modifyFields(model, { peers: () => peers }) }),
-      DeviceNamed: ({ device }) => ({
-        model: model.device === device ? model : modifyFields(model, { device: () => device }),
+      ReplicaNamed: ({ replica }) => ({
+        model: model.replica === replica ? model : modifyFields(model, { replica: () => replica }),
       }),
       OfflineToggled: () => ({
         model: modifyFields(model, { offline: offline => !offline }),
@@ -442,7 +450,7 @@ export const initial = (): Model =>
     replaced: [],
     offline: false,
     peers: [],
-    device: '',
+    replica: '',
   }).model
 
 /** The application as Sync replays it: the same references, with its initial value and update. */
@@ -602,19 +610,20 @@ export const exchangeOf = (model: Model): string => {
 interface FieldEdit<A> {
   readonly value: A
   readonly at: Option.Option<number>
-  readonly by: Option.Option<string>
+  readonly by: Option.Option<Author>
 }
 
 /**
- * What the mount just replaced that `device` had written: each field whose
- * last edit was this device's, pending or committed by it, and now holds
- * another device's commit with another value. Last writer wins, by the
+ * What the mount just replaced that this page's replica had written: each
+ * field whose last edit was its own, pending or committed from it, and now
+ * holds another replica's commit with another value, though it be the same
+ * person's in another tab. Last writer wins, by the
  * journal's order; this is how the page says so.
  */
 export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacement> => {
-  const { device } = next
+  const { replica } = next
   const before = new Map(previous.edits.map(edit => [edit.id, edit]))
-  const mine = mineFor(device)
+  const mine = mineFor(replica)
   const replaced = <A>(
     id: ProductId,
     column: Replacement['column'],
@@ -630,8 +639,8 @@ export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacem
           Option.match(current.by, {
             onNone: () => [],
             onSome: by =>
-              by !== device && mine(prior) && current.value !== prior.value
-                ? [{ id, column, by: Option.some(by), was: text(prior.value) }]
+              by.replica !== replica && mine(prior) && current.value !== prior.value
+                ? [{ id, column, by: Option.some(by.actor), was: text(prior.value) }]
                 : [],
           }),
       },
@@ -671,9 +680,9 @@ export const replacedOf = (previous: Model, next: Model): ReadonlyArray<Replacem
   })
 }
 
-/** Whether a field's last edit was `device`'s: pending here, or committed by it. */
-const mineFor = (device: string) => (field: FieldEdit<unknown>) =>
-  Option.isNone(field.at) || Option.contains(field.by, device)
+/** Whether a field's last edit was `replica`'s: pending here, or committed from it. */
+const mineFor = (replica: string) => (field: FieldEdit<unknown>) =>
+  Option.isNone(field.at) || Option.exists(field.by, by => by.replica === replica)
 
 /**
  * The retired edits a read of their rows has caught up with, let go; of
@@ -686,7 +695,7 @@ const mineFor = (device: string) => (field: FieldEdit<unknown>) =>
 export const settledOf = (model: Model): Model => {
   if (model.retired.length === 0) return model
   const rows = GridCrud.rows(Products.page(model), row => row.id)
-  const mine = mineFor(model.device)
+  const mine = mineFor(model.replica)
   const caught = model.retired.flatMap(edit =>
     Option.match(Option.flatMap(rows.indexOf(edit.id), rows.rowAt), {
       onNone: () => [],

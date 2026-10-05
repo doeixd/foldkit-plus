@@ -450,7 +450,8 @@ const Prices = Sync.forApplication(App).make({
 })
 ```
 
-The rule gets that variant and `{ sequence, actorId }`, and returns the same
+The rule gets that variant and `{ sequence, actorId, replicaId }` (the
+replica that sent it, which tells one person's tabs apart), and returns the same
 variant; a key that is not durable is a type error, and a rule that returns
 another variant has its operation rejected. It rides in `journalContract()` as
 Durable's `stamp`, so the journal stores, reduces and sends the stamped

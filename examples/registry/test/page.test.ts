@@ -762,6 +762,20 @@ test('an edit another device committed later replaces this one, and the page say
     await vi.waitFor(() => expect(markOf(productId(2), 'cents')).not.toBe('pending'))
     expect(markOf(productId(2), 'cents')).not.toBe('replaced')
 
+    // The same person in another tab is another replica: its later edit
+    // replaces this page's, and the page says so, by the person's name.
+    await edit(productId(8), 'cents', '8.08')
+    await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
+    await exchange()
+    await tab2(8, 818, 'tab-1')
+    await exchange()
+    await vi.waitFor(() => expect(markOf(productId(8), 'cents')).toBe('replaced'))
+    expect(lines()).toContain(
+      `Price of ${productId(8)}: tab-1’s later edit replaced yours (8.08). `,
+    )
+    click(document.querySelector('#replaced button')!)
+    await vi.waitFor(() => expect(lines()).toEqual([]))
+
     // Another device's edit over a third's is none of this page's business.
     await tab2(5, 555, 'tab-3')
     await exchange()
