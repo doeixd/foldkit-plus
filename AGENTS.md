@@ -569,6 +569,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   page each drew a grid with the id `products`, and the grid finds its cells
   by id, so one pane's keys would reach the other's. Give each device a page of
   its own (a frame), or ids of its own.
+- **A view that returns a `Document` owns the whole body.** The todo-app
+  sandbox put its note beside the app's container with `container.before`; the
+  first draw of the `Document` view removed it in the deployed build, while the
+  e2e test against the dev server found it. Draw such chrome in the view, in a
+  Slot, and check a deploy at a phone's width, where layout faults show.
 - **A worker's dependencies resolve with the page's conditions.** The pages
   sandbox's SharedWorker loaded micromark's `decode-named-character-reference`
   in its `browser` build, which makes a DOM element on load, and died with
