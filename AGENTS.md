@@ -979,6 +979,13 @@ of its own named a form field "fits the Catalog". Read words with
 - **Python's text mode writes CRLF on Windows.** Scripted edits with
   `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
   that failed `format:check`. Pass `newline=''` when reading and writing.
+- **Python's default encoding here is cp1252, and `open(p, 'w')` truncates
+  before it fails.** A scripted insert into `guard-DESIGN.md` hit a `→` in the
+  text, raised `UnicodeEncodeError` after the file was already emptied, and the
+  `git commit && git push` on the next line shipped a zero-byte document. Pass
+  `encoding='utf-8'` on both reads and writes, write to the file only after the
+  new content is fully built, and never chain a commit after a script in one
+  command: check `wc -c` or `git diff --stat` first.
 - **Format with `pnpm format`, never bare `prettier`.** The config matches the
   style already in the tree; without it prettier rewrites files to its own
   defaults. Markdown is deliberately ignored, because prettier pads table
