@@ -2467,6 +2467,9 @@ importers:
         specifier: workspace:*
         version: link:../remote-server
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.8
+        version: 0.5.8
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@effect/sql-pg@4.0.0(effect@4.0.0))(@effect/sql-sqlite-node@4.0.0(effect@4.0.0))(@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0))(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.0)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.13.0)(valibot@1.5.0(typescript@5.9.3))(zod@4.6.1)

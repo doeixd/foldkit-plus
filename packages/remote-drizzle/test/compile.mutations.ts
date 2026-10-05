@@ -17,4 +17,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'Postgres folds text by its collation',
+    edits: [
+      {
+        file: '../src/compile.ts',
+        find: 'return is(target.table, PgTable)',
+        replace: 'return false',
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/conformance.test.ts'],
+  },
 ]

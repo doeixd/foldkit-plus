@@ -12,7 +12,18 @@
  * a hand-written one is: a query body is the application's question, never its
  * authorization.
  */
-import { eq, isNotNull, isNull, not, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import {
+  eq,
+  is,
+  isNotNull,
+  isNull,
+  not,
+  sql,
+  type AnyColumn,
+  type SQL,
+  type Table,
+} from 'drizzle-orm'
+import { PgTable } from 'drizzle-orm/pg-core'
 import { Query, isPredicate } from 'foldkit-entity'
 import type {
   AnyExpr,
@@ -25,8 +36,12 @@ import type {
 } from 'foldkit-entity'
 import type { OrderTerm } from './cursor.js'
 
-/** What a binding has to offer to be compiled against: a column per field key. */
+/**
+ * What a binding has to offer to be compiled against: a column per field key,
+ * and the table, whose dialect decides how text folds.
+ */
 export interface CompileTarget {
+  readonly table: Table
   readonly columns: Record<string, AnyColumn>
 }
 
@@ -139,7 +154,7 @@ const predicate = (
       return node.present ? isNotNull(column) : isNull(column)
     }
     case 'Contains': {
-      const column = operand(node.value, target, input, query) as AnyColumn
+      const value = operand(node.value, target, input, query)
       const search = side(node.search, target, input, query)
       // Preserve unknown under a surrounding boolean comparison or negation.
       if (search === null) return sql`null`
@@ -157,9 +172,15 @@ const predicate = (
       // Folded on both sides rather than left to `like`, which is
       // case-insensitive in SQLite and case-sensitive in Postgres: a query body
       // that means two things by dialect is the thing this package exists to
-      // stop. `lower` is ASCII-only in SQLite without ICU, which is the limit
-      // `Expr.contains` documents.
-      return sql`lower(${column}) like lower(${`%${escapeLike(search)}%`}) escape '\\'`
+      // stop. The fold is ASCII only, as `Expr.contains` documents and
+      // `evaluate` does: SQLite's `lower` folds ASCII alone, but Postgres's
+      // follows the collation (`É` to `é` under a UTF-8 one), except the `C`
+      // collation, which folds ASCII alone too. Decided by the table, not the
+      // operand: the searched value may be an input rather than a column.
+      const pattern = `%${escapeLike(search)}%`
+      return is(target.table, PgTable)
+        ? sql`lower(${value} collate "C") like lower(${pattern} collate "C") escape '\\'`
+        : sql`lower(${value}) like lower(${pattern}) escape '\\'`
     }
   }
 }

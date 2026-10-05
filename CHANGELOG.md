@@ -440,6 +440,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-drizzle`: `contains` folds ASCII alone on Postgres too.**
+  Postgres's `lower` follows the database collation, so under a UTF-8 one a
+  search for `é` found `Élan`, which SQLite and the reference interpreter do
+  not. The fold now runs under the `C` collation on a Postgres table, and the
+  conformance suite runs against Postgres (PGlite) as well as SQLite (#145).
 - **`foldkit-remote-drizzle`: a search the SQL cannot hold is the query's own
   error.** A query input holding NUL threw `QueryCompileError` from inside the
   request, which the RPC server answered as a protocol-level defect, so any
