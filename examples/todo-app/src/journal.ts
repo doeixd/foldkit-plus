@@ -5,11 +5,9 @@
  */
 import { Effect, Exit, Fiber, Scope, Stream } from 'effect'
 import {
-  ActorId,
   Cursor,
   DocumentId,
   Journal,
-  OpId,
   Sequence,
   type AppendResult as DurableAppendResult,
   type Committed as DurableCommitted,
@@ -21,10 +19,11 @@ import {
   type SocketLike,
   type TransportClient,
 } from 'foldkit-sync'
-import { journalExchange, serveJournal } from 'foldkit-sync/journal'
+import { journalExchange } from 'foldkit-sync/journal'
 import { type Message, type Shared } from './app.js'
 import type { SyncPrincipal } from './principal.js'
-import { TodoSync, journalContract } from './sync.js'
+import { exchangeAs, journalOptions, serveAs } from './serving.js'
+import { TodoSync } from './sync.js'
 
 export type { SyncPrincipal } from './principal.js'
 
@@ -51,20 +50,9 @@ export const openJournal = (path: string): ServerJournal => {
   const durable: Journal<Operation, Shared, SyncPrincipal> = (() => {
     try {
       return Effect.runSync(
-        Journal.make<Operation, Shared, SyncPrincipal>({
-          // The contract produces the journal's codecs, initial snapshot, and
-          // reducer, and its `authorize` rules: none is written twice, and the
-          // policy declared in `sync.ts` is the policy this journal enforces.
-          ...journalContract(),
-          file: path,
-          opId: operation => OpId.make(operation.opId),
-          actorId: principal => ActorId.make(principal.actorId),
-          validate: ({ key, operation, cursor }) => {
-            if (String(operation.documentId) !== String(key)) throw new Error('Wrong document')
-            if (operation.baseCursor > cursor)
-              throw new Error('Operation cursor is ahead of the server')
-          },
-        }).pipe(Effect.provideService(Scope.Scope, scope)),
+        Journal.make<Operation, Shared, SyncPrincipal>({ ...journalOptions(), file: path }).pipe(
+          Effect.provideService(Scope.Scope, scope),
+        ),
       )
     } catch (error) {
       Effect.runSync(Scope.close(scope, Exit.void))
@@ -121,15 +109,6 @@ export const openJournal = (path: string): ServerJournal => {
     )
   }
 
-  // The shared exchange, as one principal: one that may only read has every
-  // operation refused, unread by the journal.
-  const exchangeAs = (principal: SyncPrincipal) => ({
-    sync: TodoSync,
-    journal: durable,
-    principal,
-    refuse: () => !principal.canWrite,
-  })
-
   const read = (documentId: string, after: number): ReadonlyArray<Committed> =>
     Effect.runSync(durable.read(DocumentId.make(documentId), Cursor.make(after))).map(committed =>
       toCommitted(committed, documentId),
@@ -154,7 +133,7 @@ export const openJournal = (path: string): ServerJournal => {
     // rejected by its id, so the edits behind it still go. A principal that may
     // only read has every operation refused.
     transport: (principal: SyncPrincipal): TransportClient => {
-      const exchange = journalExchange(exchangeAs(principal))
+      const exchange = journalExchange(exchangeAs(durable, principal))
       return {
         exchange: (cursor, pending, epoch) =>
           principal.actorId
@@ -162,7 +141,7 @@ export const openJournal = (path: string): ServerJournal => {
             : Promise.reject(new Error('Unauthenticated reader')),
       }
     },
-    serve: (socket, principal) => serveJournal(socket, exchangeAs(principal)),
+    serve: serveAs(durable),
     close: () => {
       Effect.runSync(Scope.close(scope, Exit.void))
     },

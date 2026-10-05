@@ -15,7 +15,7 @@
 import * as UiButton from '@foldkit/ui/button'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import type { Document, HtmlBuilder } from 'foldkit/html'
-import { Behavior, Layers, SlotView, Style } from 'foldkit-mixins'
+import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button as ButtonAdapter, Checkbox as CheckboxAdapter } from 'foldkit-mixins-ui'
