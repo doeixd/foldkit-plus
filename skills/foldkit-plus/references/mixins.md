@@ -363,7 +363,8 @@ mechanisms, not components: compose them into your own slots, resolving icon `ur
   tokens as `:root` custom properties and `Theme.scoped(theme, selector, overrides)` is overrides under a
   selector, typed by `theme`'s own groups and names so a misspelled knob is a type error, both unlayered global pieces (`L.in('theme', …)`). `Theme.tokens` is the shared
   scales (`knob` density/radius-factor, `space`, `radius`, `font`, `size`, `leading`, `weight`,
-  `motion`, `border`, `breakpoint`). `Theme.oklch({ accent: { h, c, l }, … })` derives the
+  `motion`, `border`, `shadow`, `breakpoint`; `shadow.xs`…`xl`/`inset` draw in `shadow.color`,
+  which `Theme.oklch` sets per scheme). `Theme.oklch({ accent: { h, c, l }, … })` derives the
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
   `error`, `info`; each family has a fill `default`, `on-fill` for text on it, and `ink` for
   colored text on the base surface: colored text is `ink`, never `default`); only `knob` holds literals, so overriding `knob.accent-h` under a

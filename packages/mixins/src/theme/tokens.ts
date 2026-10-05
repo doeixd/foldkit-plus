@@ -1,7 +1,9 @@
 /**
  * The non-color scales a design system shares across themes. Space and
  * radius multiply by the `density` and `radius-factor` knobs, so a compact
- * or a rounder theme is one override. `breakpoint` is the record
+ * or a rounder theme is one override. `shadow` is drawn in `shadow.color`,
+ * which a palette sets (`Theme.oklch` does, stronger in a dark scheme, where
+ * a shadow mixed from the text would glow); alone it falls back to black. `breakpoint` is the record
  * `Style.responsive` takes; `breakpointWidths` gives the same names as pixel
  * thresholds for `foldkit-primitives/media` Breakpoints.
  */
@@ -10,6 +12,9 @@ import { define } from './core.js'
 
 const space = (rem: number) => `calc(${rem}rem * var(--fk-knob-density))`
 const radius = (px: number) => `calc(${px}px * var(--fk-knob-radius-factor))`
+const shade = 'var(--fk-shadow-color, oklch(0% 0 0 / 0.12))'
+const shadow = (...layers: ReadonlyArray<string>) =>
+  layers.map(layer => `${layer} ${shade}`).join(', ')
 
 export const tokens = define({
   knob: { density: '1', 'radius-factor': '1' },
@@ -47,6 +52,15 @@ export const tokens = define({
   weight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
   motion: { fast: '150ms', normal: '250ms', ease: 'ease-out' },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
+  // Raised a little to a lot: a pressed control, a lifted cell, a menu, a dialog.
+  shadow: {
+    xs: shadow('0 1px 2px 0'),
+    sm: shadow('0 1px 3px 0', '0 1px 2px -1px'),
+    md: shadow('0 4px 6px -1px', '0 2px 4px -2px'),
+    lg: shadow('0 10px 15px -3px', '0 4px 6px -4px'),
+    xl: shadow('0 20px 25px -5px', '0 8px 10px -6px'),
+    inset: shadow('inset 0 2px 4px 0'),
+  },
   breakpoint: {
     sm: '(min-width: 40rem)',
     md: '(min-width: 48rem)',

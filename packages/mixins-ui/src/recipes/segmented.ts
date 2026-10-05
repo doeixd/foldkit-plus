@@ -17,7 +17,7 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       // One pressed rule for text and icon tiles alike.
       Style.nest(`> ${pressed}`, {
         background: ref.surface.base,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
+        boxShadow: ref.shadow.xs,
         color: ref.text.overt,
         cursor: 'default',
         fontWeight: ref.weight.semibold,

@@ -70,8 +70,19 @@ describe('Theme.tokens', () => {
       'weight',
       'motion',
       'border',
+      'shadow',
       'breakpoint',
     ])
+  })
+
+  it('draws every shadow in the one color a palette sets, with a fallback alone', () => {
+    const steps = Object.values(Theme.tokens.shadow)
+    expect(steps).toHaveLength(6)
+    for (const step of steps) {
+      expect(step).toContain('var(--fk-shadow-color, oklch(0% 0 0 / 0.12))')
+    }
+    // Each layer of a step is drawn in it, not only the first.
+    expect(Theme.tokens.shadow.md.split('var(--fk-shadow-color').length - 1).toBe(2)
   })
 
   it('breakpoint is the record Style.responsive takes', () => {
@@ -130,7 +141,7 @@ describe('Theme.oklch', () => {
       match[2] ?? '',
     ])
 
-  it('has the twelve groups', () => {
+  it('has the thirteen groups', () => {
     expect(Object.keys(brand)).toEqual([
       'knob',
       'hue',
@@ -140,11 +151,20 @@ describe('Theme.oklch', () => {
       'accent',
       'secondary',
       'tertiary',
+      'shadow',
       'success',
       'warning',
       'error',
       'info',
     ])
+  })
+
+  it('sets the shadow color per scheme, denser on a dark surface', () => {
+    const color = brand.shadow.color
+    const [light, dark] = color.slice('light-dark('.length, -1).split(/,\s*(?=oklch)/)
+    const alpha = (value = '') => Number(value.match(/\/\s*([\d.]+)\)\s*$/)?.[1])
+    expect(color.startsWith('light-dark(')).toBe(true)
+    expect(alpha(dark)).toBeGreaterThan(alpha(light))
   })
 
   it('draws each outline as text over the base, so it separates in either scheme', () => {

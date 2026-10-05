@@ -13,7 +13,13 @@ void ref.space.md
 void ref.surface.shiny
 
 // @ts-expect-error a group neither the scales nor the palette have.
-void ref.shadow
+void ref.elevation
+
+// The shadow scale, from the scales, and its color, from the palette.
+void ref.shadow.md
+void ref.shadow.color
+// @ts-expect-error a step the shadow scale does not have.
+void ref.shadow.huge
 
 Recipes.Button({ tone: 'danger', variant: 'ghost', size: 'sm' })
 

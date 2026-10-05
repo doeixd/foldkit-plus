@@ -118,7 +118,7 @@ export const GridStyle = Style.forSlots(GridSlots)(
       Style.nest('&[aria-readonly="true"]', { color: ref.text.muted, cursor: 'default' }),
       // On the cell, which clips what is in it.
       Style.nest('&[data-editing]', {
-        boxShadow: `0 2px 10px color-mix(in oklch, ${ref.text.default} 30%, transparent)`,
+        boxShadow: ref.shadow.md,
         // Its error shows below it, past the cell.
         overflow: 'visible',
         paddingInline: '0',
@@ -141,7 +141,7 @@ export const GridStyle = Style.forSlots(GridSlots)(
     editorError: Style.self({
       background: ref.error.default,
       borderRadius: ref.radius.md,
-      boxShadow: `0 4px 12px color-mix(in oklch, ${ref.text.default} 25%, transparent)`,
+      boxShadow: ref.shadow.lg,
       color: ref.error['on-fill'],
       fontSize: ref.size.xs,
       fontWeight: ref.weight.medium,

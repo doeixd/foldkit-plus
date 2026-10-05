@@ -174,6 +174,14 @@ export const oklch = (knobs: OklchKnobs) => {
     ),
     secondary: family('secondary', rehue(accent, v('hue', 'secondary'))),
     tertiary: family('tertiary', rehue(accent, v('hue', 'tertiary'))),
+    // A near-black of the neutral hue: faint on a light surface, and denser
+    // on a dark one, where a light shadow would read as a glow.
+    shadow: {
+      color: ld(
+        `oklch(25% calc(${surfaceC} * 2) ${neutral} / 0.14)`,
+        `oklch(5% calc(${surfaceCDark} * 2) ${neutral} / 0.6)`,
+      ),
+    },
     success: feedback('success', 55, 0.15),
     warning: feedback('warning', 70, 0.15),
     error: feedback('error', 60, 0.2),

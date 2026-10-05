@@ -224,7 +224,7 @@ describe('Recipes', () => {
     it('raises the pressed option from the group, for text and icon tiles alike', () => {
       expect(css({})).toContain('> [aria-pressed="true"]')
       expect(css({})).toContain('background:var(--fk-surface-base)')
-      expect(css({})).toContain('0 1px 2px rgb(0 0 0 / 10%)')
+      expect(css({})).toContain('box-shadow:var(--fk-shadow-xs)')
       expect(css({})).toContain('font-weight:var(--fk-weight-semibold)')
     })
 

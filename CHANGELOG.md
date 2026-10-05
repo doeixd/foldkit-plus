@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins/theme`: shadow tokens.** `Theme.tokens.shadow` is a
+  scale (`xs`, `sm`, `md`, `lg`, `xl`, `inset`) drawn in one color,
+  `--fk-shadow-color`, falling back to a faint black; `Theme.oklch` sets it,
+  a near-black of the neutral hue that is denser in a dark scheme, where a
+  shadow mixed from the text glowed. `GridStyle`'s editing lift and error
+  bubble and the dialog and segmented recipes use the scale (#168).
 - **`foldkit-data-grid`: an unchanged edit reports nothing.** The edit keeps
   the text it began from (`editing.from`); a commit of that text, or of text
   that decodes to the same value (`Equal.equals`), closes the edit and moves
