@@ -151,6 +151,33 @@ const loaded = (model: Model) => {
 const priceOf = (index: number) => (seedOf(index).cents / 100).toFixed(2)
 /** A frame later: what the last transition drew is on the page (frames are timeouts here). */
 const drawn = () => new Promise(resolve => setTimeout(resolve, 20))
+/** Another device's price for product `index`, committed. */
+const commitElsewhere = async (
+  server: ReturnType<typeof serve>,
+  index: number,
+  cents: number,
+  device = 'tab-2',
+) => {
+  const other = await Effect.runPromise(
+    RegistrySync.openReplica(ReplicaId.make(`${device}:${index}:${cents}`), memoryStorage()),
+  )
+  await Effect.runPromise(
+    other.submit(
+      Message.EditedProducts({
+        changes: [
+          {
+            id: ProductId.make(productId(index)),
+            description: Option.none(),
+            cents: Option.some(cents),
+            line: Option.none(),
+            status: Option.none(),
+          },
+        ],
+      }),
+    ),
+  )
+  await Effect.runPromise(other.synchronize.pipe(Effect.provide(server.transportFor(device))))
+}
 /** The revision of a row as Remote last read it. */
 const revisionOf = (model: Model, id: string) => {
   const rows = GridCrud.rows(Products.page(model), row => row.id)
@@ -579,28 +606,8 @@ test('working offline keeps edits on the device, and going back online sends the
 test('an edit another device committed later replaces this one, and the page says so', async () => {
   const server = serve()
   const { dispose, exchange, latest } = await mount(server, memoryStorage())
-  /** Another device's price for product `index`, committed. */
-  const tab2 = async (index: number, cents: number, device = 'tab-2') => {
-    const other = await Effect.runPromise(
-      RegistrySync.openReplica(ReplicaId.make(`${device}:${index}:${cents}`), memoryStorage()),
-    )
-    await Effect.runPromise(
-      other.submit(
-        Message.EditedProducts({
-          changes: [
-            {
-              id: ProductId.make(productId(index)),
-              description: Option.none(),
-              cents: Option.some(cents),
-              line: Option.none(),
-              status: Option.none(),
-            },
-          ],
-        }),
-      ),
-    )
-    await Effect.runPromise(other.synchronize.pipe(Effect.provide(server.transportFor(device))))
-  }
+  const tab2 = (index: number, cents: number, device = 'tab-2') =>
+    commitElsewhere(server, index, cents, device)
   const lines = () =>
     Array.from(document.querySelectorAll('#replaced li'), line => line.firstChild?.textContent)
   try {
@@ -695,6 +702,30 @@ test('a line and a status are edited too, the status as a choice of the Productâ
         status: 'Discontinued',
       }),
     )
+  } finally {
+    await dispose()
+  }
+})
+
+test('an editor left unchanged sends nothing, though another device changed the cell meanwhile', async () => {
+  const server = serve()
+  const { dispose, exchange, latest } = await mount(server, memoryStorage())
+  try {
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
+    await focusOn(productId(4), 'cents')
+    press(grid(), 'Enter')
+    await vi.waitFor(() => expect(editor()?.value).toBe(priceOf(4)))
+    // While the editor is open, another device's price arrives beneath it.
+    await commitElsewhere(server, 4, 444)
+    await exchange()
+    await vi.waitFor(() => expect(latest().edits).not.toEqual([]))
+    // Committed as it opened: this device changed nothing, so it sends nothing.
+    press(editor()!, 'Enter')
+    await vi.waitFor(() => expect(editor()).toBeNull())
+    await drawn()
+    expect(latest().exchange.pending).toBe(0)
+    await exchange()
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe('4.44'))
   } finally {
     await dispose()
   }

@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-data-grid`: an unchanged edit reports nothing.** The edit keeps
+  the text it began from (`editing.from`); a commit of that text, or of text
+  that decodes to the same value (`Equal.equals`), closes the edit and moves
+  focus with no `Out.Edited`. Leaving an editor as it opened, after another
+  device changed the cell beneath it, no longer sends the old value over the
+  new one (#174). `EditTyped` carries `from`, the text the cell showed.
 - **`foldkit-mixins-data-grid`: clicking away saves, and a refused draft
   says why.** Focus leaving the editor commits it, as Enter does without
   moving; a draft the column refuses stays open, its field in the error

@@ -491,7 +491,7 @@ const view = <Message>() => ({
               return Option.some(
                 choice
                   ? grid.Message.EditStarted({ address, draft: draftOf(address) })
-                  : grid.Message.EditTyped({ address, text: key }),
+                  : grid.Message.EditTyped({ address, text: key, from: draftOf(address) }),
               )
             },
           )

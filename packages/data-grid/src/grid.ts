@@ -1,4 +1,4 @@
-import { Option, Result, Schema } from 'effect'
+import { Equal, Option, Result, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
@@ -64,10 +64,14 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         Schema.Struct({ anchor: focus.Address, focus: focus.Address }),
       ),
     }),
-    /** The cell being edited, its draft, and the error that refused it, if one did. */
+    /**
+     * The cell being edited, the text it began from, its draft, and the error
+     * that refused it, if one did.
+     */
     editing: Schema.OptionFromNullOr(
       Schema.Struct({
         address: focus.Address,
+        from: Schema.String,
         draft: Schema.String,
         error: Schema.OptionFromNullOr(Schema.String),
       }),
@@ -171,14 +175,16 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * A key typed on the grid itself, over an editable cell: it starts an
      * edit with the text, or, when that cell's edit is already open (the
      * keys came faster than the editor took focus), adds to its draft.
+     * `from` is the text the cell showed, which a new edit began from.
      */
-    EditTyped: { address: focus.Address, text: Schema.String },
+    EditTyped: { address: focus.Address, text: Schema.String, from: Schema.String },
     EditChanged: { draft: Schema.String },
     /**
      * The draft is to be kept. When the column accepts it the edit ends, focus
      * goes to `next` (the cell below, or beside, worked out by the view), and
-     * the grid reports `Out.Edited`; when it refuses it, the edit stays with the
-     * error.
+     * the grid reports `Out.Edited`, unless the draft is the text the edit
+     * began from or decodes to the same value; when it refuses it, the edit
+     * stays with the error.
      */
     EditCommitted: {
       next: Schema.OptionFromNullOr(focus.Address),
@@ -331,11 +337,26 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     })
   }
 
+  /**
+   * Whether a column's new text says what its old text did: the same text,
+   * or two that decode to equal values (`01.73` and `1.73`). An edit is
+   * judged against the text it began from, not the cell as it is now, so
+   * one left as it opened never writes over a change made meanwhile.
+   */
+  const unchanged = (column: Id, from: string, text: string): boolean =>
+    text === from ||
+    Option.exists(Option.fromUndefinedOr(decoders.get(column)), decode =>
+      Result.match(Result.all([decode(from), decode(text)]), {
+        onSuccess: ([before, after]) => Equal.equals(before, after),
+        onFailure: () => false,
+      }),
+    )
+
   const sameCell = (a: Address, b: Address): boolean => a.row === b.row && a.column === b.column
   /**
-   * Ends an edit with its draft: none to report when nothing was edited,
-   * `refused` with the column's error when the draft does not pass, or the
-   * edit closed and `Edited` to report.
+   * Ends an edit with its draft: none to report when nothing was edited or
+   * the draft is unchanged, `refused` with the column's error when the draft
+   * does not pass, or the edit closed and `Edited` to report.
    */
   const finish = (
     model: Model,
@@ -343,7 +364,16 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     Option.match(model.editing, {
       onNone: () => ({ model, edited: Option.none(), refused: false }),
       onSome: editing => {
-        const { address, draft } = editing
+        const { address, from, draft } = editing
+        // Checked before the column's error, so a cell holding text its column
+        // now refuses can still be opened and left as it was.
+        if (unchanged(address.column, from, draft)) {
+          return {
+            model: modifyFields(model, { editing: () => Option.none() }),
+            edited: Option.none(),
+            refused: false,
+          }
+        }
         return Option.match(errorOf(address.column, draft), {
           onSome: message => ({
             model: modifyFields(model, {
@@ -672,18 +702,21 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
             ? { model }
             : {
                 model: modifyFields(clearCells(focusTo(model, address)), {
-                  editing: () => Option.some({ address, draft, error: Option.none() }),
+                  editing: () => Option.some({ address, from: draft, draft, error: Option.none() }),
                 }),
               },
-        EditTyped: ({ address, text }): Return => {
+        EditTyped: ({ address, text, from }): Return => {
           if (options.columns.byId[address.column].edit === undefined) return { model }
-          const draft = Option.match(
+          const editing = Option.match(
             Option.filter(model.editing, editing => sameCell(editing.address, address)),
-            { onNone: () => text, onSome: editing => editing.draft + text },
+            {
+              onNone: () => ({ address, from, draft: text, error: Option.none() }),
+              onSome: open => ({ ...open, draft: open.draft + text, error: Option.none() }),
+            },
           )
           return {
             model: modifyFields(clearCells(focusTo(model, address)), {
-              editing: () => Option.some({ address, draft, error: Option.none() }),
+              editing: () => Option.some(editing),
             }),
           }
         },

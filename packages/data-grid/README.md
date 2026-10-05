@@ -314,15 +314,19 @@ const repriced = (cell: Extract<Out, { _tag: 'Edited' }>) =>
   `schema` (any text, without one). A draft it refuses keeps the edit with
   the error, and nothing is reported. One it accepts ends the edit, moves
   focus to `next`, and the update returns the OutMessage `Out.Edited({ row,
-  column, text })`.
+  column, text })`, unless it is unchanged: the text the edit began from, or
+  text that decodes to the same value (`09.0` for `9.00`). An unchanged edit
+  closes as a changed one does and reports nothing. It is judged against the
+  text the edit began from, not the cell as it is now, so leaving an editor
+  as it opened never writes over a change another device made meanwhile.
 - **`Grid.matchEdit(cell, handlers)`** reads a reported cell's value back:
   one handler per editable column, each given its column's decoded type, so
   the application parses nothing itself. The OutMessage stays text, which a
   parent can store or send; a cell that does not decode, or names a column
   that does not edit, was not the grid's, and throws.
-- **A key typed on the grid is `EditTyped({ address, text })`:** it starts
-  the edit, or adds to the one open on that cell, so keys faster than the
-  editor opens all count. The grid's Messages carry what the user did and
+- **A key typed on the grid is `EditTyped({ address, text, from })`:** it
+  starts the edit from `from`, the text the cell showed, or adds to the one
+  open on that cell, so keys faster than the editor opens all count. The grid's Messages carry what the user did and
   `update` works out what it means, for the reason in
   [Messages carry intent](../../docs/state-model.md#messages-carry-intent-not-results-worked-out-from-the-last-frame).
 - **Place the grid with `onOut`.** Every placement handles the OutMessage, as

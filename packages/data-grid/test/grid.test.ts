@@ -677,18 +677,31 @@ describe('DataGrid editing', () => {
 
   test('a key typed on the grid starts an edit, or adds to the one open on that cell', () => {
     const price = { row: 'p:1', column: 'price' } as const
-    const started = edit(blank, Editing.Message.EditTyped({ address: price, text: '4' })).model
+    const started = edit(
+      blank,
+      Editing.Message.EditTyped({ address: price, text: '4', from: '4.20' }),
+    ).model
     expect(Option.map(started.editing, editing => editing.draft)).toEqual(Option.some('4'))
-    const more = edit(started, Editing.Message.EditTyped({ address: price, text: '2' })).model
+    const more = edit(
+      started,
+      Editing.Message.EditTyped({ address: price, text: '2', from: 'ignored' }),
+    ).model
     expect(Option.map(more.editing, editing => editing.draft)).toEqual(Option.some('42'))
     // On another cell it starts over there.
     const name = { row: 'p:10', column: 'name' } as const
-    const elsewhere = edit(more, Editing.Message.EditTyped({ address: name, text: 'x' })).model
+    const elsewhere = edit(
+      more,
+      Editing.Message.EditTyped({ address: name, text: 'x', from: 'Bolt' }),
+    ).model
     expect(elsewhere.editing).toEqual(
-      Option.some({ address: name, draft: 'x', error: Option.none() }),
+      Option.some({ address: name, from: 'Bolt', draft: 'x', error: Option.none() }),
     )
     // A column that does not edit takes nothing.
-    const sku = Editing.Message.EditTyped({ address: { row: 'p:1', column: 'sku' }, text: 'x' })
+    const sku = Editing.Message.EditTyped({
+      address: { row: 'p:1', column: 'sku' },
+      text: 'x',
+      from: '',
+    })
     expect(edit(blank, sku).model).toBe(blank)
   })
 
@@ -696,6 +709,7 @@ describe('DataGrid editing', () => {
     expect(begun.editing).toEqual(
       Option.some({
         address: { row: 'p:1', column: 'price' },
+        from: '9.00',
         draft: '9.00',
         error: Option.none(),
       }),
@@ -739,6 +753,7 @@ describe('DataGrid editing', () => {
     expect(refused.model.editing).toEqual(
       Option.some({
         address: { row: 'p:1', column: 'price' },
+        from: '9.00',
         draft: 'twelve',
         error: Option.some('Not a number'),
       }),
@@ -748,6 +763,48 @@ describe('DataGrid editing', () => {
     const retyped = edit(refused.model, Editing.Message.EditChanged({ draft: 'twelv' })).model
     expect(Option.map(retyped.editing, editing => editing.error)).toEqual(
       Option.some(Option.none()),
+    )
+  })
+
+  test.each([
+    ['the text it began from', '9.00'],
+    ['text that decodes to the same value', '09.0'],
+  ])('a commit of %s closes the edit, moves focus, and reports nothing', (_, draft) => {
+    const committed = edit(
+      typed(draft),
+      Editing.Message.EditCommitted({
+        next: Option.some({ row: 'p:100', column: 'price' }),
+        reveal: Option.none(),
+      }),
+    )
+    expect(committed.outMessage).toBeUndefined()
+    expect(committed.model.editing).toEqual(Option.none())
+    expect(committed.model.focus.current).toEqual(Option.some({ row: 'p:100', column: 'price' }))
+  })
+
+  test('a cell holding text its column refuses can be opened and left as it was', () => {
+    const start = Editing.Message.EditStarted({
+      address: { row: 'p:1', column: 'price' },
+      draft: 'n/a',
+    })
+    const left = edit(
+      edit(blank, start).model,
+      Editing.Message.EditCommitted({ next: Option.none(), reveal: Option.none() }),
+    )
+    expect(left.outMessage).toBeUndefined()
+    expect(left.model.editing).toEqual(Option.none())
+  })
+
+  test('an edit begun by a key is judged against the text the cell showed', () => {
+    const price = { row: 'p:1', column: 'price' } as const
+    const commit = Editing.Message.EditCommitted({ next: Option.none(), reveal: Option.none() })
+    const typedKey = (model: EditingModel, text: string, from: string) =>
+      edit(model, Editing.Message.EditTyped({ address: price, text, from })).model
+    expect(edit(typedKey(blank, '4', '4'), commit).outMessage).toBeUndefined()
+    // A second key, sent before the editor drew, keeps the first's `from`:
+    // '42' is a change from '4', though the cell it saw then read '42'.
+    expect(edit(typedKey(typedKey(blank, '4', '4'), '2', '42'), commit).outMessage).toEqual(
+      Editing.Out.Edited({ row: 'p:1', column: 'price', text: '42' }),
     )
   })
 
