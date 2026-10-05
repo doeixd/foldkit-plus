@@ -5,6 +5,11 @@ fit together, and why. One application definition drives everything: the view
 a human uses, the tools an agent calls, the document replicas share, and the
 policy the server enforces.
 
+**Try it:** the sandbox is at
+[foldkit-todo-demo.pages.dev](https://foldkit-todo-demo.pages.dev/). Its journal
+runs in your browser, shared by every tab of it: open a second tab, or add
+`?token=bob` to be someone else, and a todo added in one shows in the other.
+
 ## Follow one user action
 
 Start with adding a todo. The composer emits `DraftSubmitted`, which names no

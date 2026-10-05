@@ -24,7 +24,14 @@ question, and they compose because they meet at explicit application boundaries.
 is a blog studio and its public site built with these packages: a CMS with
 drafts and revisions, a page builder, forms, lists, and pages rendered at build
 time. Its server runs in your browser, so nothing you write leaves it. The code
-is [`examples/cms`](./examples/cms).
+is [`examples/cms`](./examples/cms). Three more run the same way, each with its
+server in your browser and shared by every tab you open:
+[two devices editing 10,000 products](https://foldkit-registry-demo.pages.dev/)
+offline and in conflict ([`examples/registry`](./examples/registry)),
+[pages two tabs edit at once](https://foldkit-pages-demo.pages.dev/), in rich
+text ([`examples/pages`](./examples/pages)), and
+[a todo list](https://foldkit-todo-demo.pages.dev/) that is also an agent's tool
+surface ([`examples/todo-app`](./examples/todo-app)).
 
 ## Choose who owns the state
 

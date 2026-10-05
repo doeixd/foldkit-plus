@@ -5,6 +5,11 @@ that two people can edit at the same time, online or not. It shows how
 `foldkit-richtext`'s `Replicated` state, the editor from `foldkit-richtext-dom`, and
 `foldkit-sync` with `foldkit-durable` fit together, and what each one owns.
 
+**Try it:** the sandbox is at
+[foldkit-pages-demo.pages.dev](https://foldkit-pages-demo.pages.dev/). Its journal
+runs in your browser, shared by every tab of it: open two tabs, edit one page from
+both, and each sees the other's typing.
+
 ## Who owns what
 
 ```text
