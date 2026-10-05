@@ -528,7 +528,10 @@ does no I/O. On the server, `editsJournal` from `foldkit-sync/journal` keeps
 the table: its `settle` (for `journalExchange`) applies each committed change
 through your `apply` as a recovery intent, from the journal's floor and keyed
 by its epoch, and its `absorb` (on a clock) records what the table holds and
-compacts behind it. [Editing server data through a
+compacts behind it. It refuses to settle a table whose `tableRevision` is past
+the journal's cursor (`TableAheadOfJournalError`: the table outlived a reset of
+the journal), and an edit to a row the table lacks is the journal's `validate`
+to refuse. [Editing server data through a
 journal](../../docs/editing-server-data.md) explains the pattern, its failure
 cases and its limits; [`examples/registry`](../../examples/registry) is the
 whole of it.

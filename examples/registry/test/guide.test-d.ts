@@ -46,7 +46,10 @@ const stamp = ({ changes }: Edited, commit: CommitStamp): Edited => ({
 void stamp
 
 // On the server.
-declare const sqlite: { readonly run: (sql: string, values: ReadonlyArray<unknown>) => void }
+declare const sqlite: {
+  readonly run: (sql: string, values: ReadonlyArray<unknown>) => void
+  readonly highestRevision: () => number
+}
 type Shared = { readonly edits: ReadonlyArray<typeof ProductEdits.Edit.Type> }
 declare const journal: Journal<Operation, Shared, string, Operation>
 declare const editsOf: (operation: Operation) => Option.Option<{
@@ -67,6 +70,7 @@ const { settle, absorb } = editsJournal({
         at,
       ]),
     ),
+  tableRevision: Effect.try(() => sqlite.highestRevision()),
   holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
   absorbed,
   server: 'server',

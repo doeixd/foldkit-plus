@@ -24,7 +24,7 @@ const memoryStorage = (): Storage => {
 
 test('an operation whose price breaks the Product’s rules is refused, and nothing is written', async () => {
   const backend = openServer(memorySqlite(), { count: 10 })
-  const journal = memoryJournal(backend.apply)
+  const journal = memoryJournal(backend)
   const replica = await Effect.runPromise(
     RegistrySync.openReplica(ReplicaId.make('tampering'), memoryStorage()),
   )
@@ -120,7 +120,7 @@ const editAndSend = async (
 
 test('absorbing records what the table holds, so replicas drop it and newcomers start small', async () => {
   const backend = openServer(memorySqlite(), { count: 10 })
-  const journal = memoryJournal(backend.apply)
+  const journal = memoryJournal(backend)
   const { replica, transport } = await editAndSend(journal, 'editing', [
     [1, 101],
     [2, 202],
@@ -156,9 +156,12 @@ test('absorbing records what the table holds, so replicas drop it and newcomers 
 test('an edit committed after the table was last written is kept by absorbing', async () => {
   const backend = openServer(memorySqlite(), { count: 10 })
   let writable = true
-  const journal = memoryJournal((change, at) => {
-    if (!writable) throw new Error('the table cannot be written')
-    backend.apply(change, at)
+  const journal = memoryJournal({
+    ...backend,
+    apply: (change, at) => {
+      if (!writable) throw new Error('the table cannot be written')
+      backend.apply(change, at)
+    },
   })
   const { replica, transport } = await editAndSend(journal, 'editing', [[1, 101]])
   await Effect.runPromise(replica.synchronize.pipe(Effect.provide(transport)))
@@ -174,7 +177,7 @@ test('an edit committed after the table was last written is kept by absorbing', 
 
 test('a client cannot record what the table holds', async () => {
   const backend = openServer(memorySqlite(), { count: 10 })
-  const journal = memoryJournal(backend.apply)
+  const journal = memoryJournal(backend)
   const { transport } = await editAndSend(journal, 'editing', [[1, 101]])
   const forger = await Effect.runPromise(
     RegistrySync.openReplica(ReplicaId.make('forger'), memoryStorage()),
@@ -183,4 +186,18 @@ test('a client cannot record what the table holds', async () => {
   await Effect.runPromise(forger.synchronize.pipe(Effect.provide(transport)))
   expect((await Effect.runPromise(forger.status)).rejected).toHaveLength(1)
   expect((await Effect.runPromise(forger.shared)).edits).toHaveLength(1)
+})
+
+test('an edit to a product the table has not got is refused, and the edits beside it go', async () => {
+  const backend = openServer(memorySqlite(), { count: 10 })
+  const journal = memoryJournal(backend)
+  // Product 50 is past the ten the table holds; product 3 is one of them.
+  const { replica } = await editAndSend(journal, 'editing', [
+    [50, 5_000],
+    [3, 303],
+  ])
+  const status = await Effect.runPromise(replica.status)
+  expect(status.rejected).toHaveLength(1)
+  expect(status.pending).toBe(0)
+  expect(backend.row(productId(3))).toMatchObject({ cents: 303 })
 })

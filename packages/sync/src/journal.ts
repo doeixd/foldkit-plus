@@ -211,6 +211,21 @@ export const serveJournal = <Message, Shared, Principal>(
   })
 }
 
+/**
+ * The table holds revisions past every sequence the journal has: it outlived
+ * a reset of the journal, or was built from another. New edits commit at
+ * sequences the table already passed, so `apply` would skip every one and
+ * the replicas count each absorbed: rebuild the table with the journal.
+ */
+export class TableAheadOfJournalError extends Schema.TaggedError<TableAheadOfJournalError>()(
+  'SyncTableAheadOfJournalError',
+  { table: Schema.Number, journal: Schema.Number },
+) {
+  override get message(): string {
+    return `The table holds revision ${this.table}, past the journal's ${this.journal}: rebuild the table with the journal`
+  }
+}
+
 export interface EditsJournalOptions<Shared, Principal, Change> {
   /** The document whose edits the table reads. */
   readonly documentId: string
@@ -230,8 +245,20 @@ export interface EditsJournalOptions<Shared, Principal, Change> {
    * at. It runs as a recovery intent, so it may run again after a crash: it
    * must never move a row back (`revision <= at`). A failure stops recovery
    * there, and the next settle tries it again.
+   *
+   * It cannot refuse an edit: the edit has committed. One naming a row the
+   * table lacks is refused at commit instead, by the journal's `validate`,
+   * so its sender is told; let through, it would change nothing and vanish
+   * once absorbed.
    */
   readonly apply: (change: Change, at: number) => Effect.Effect<void, unknown>
+  /**
+   * The highest revision the table holds. Settling refuses to start while it
+   * is past the journal's cursor (`TableAheadOfJournalError`), since every
+   * edit would then be skipped and counted absorbed; it asks again on each
+   * settle until the two agree.
+   */
+  readonly tableRevision: Effect.Effect<number, unknown>
   /** Whether the snapshot still keeps an edit committed through `through`: whether to absorb. */
   readonly holdsThrough: (snapshot: Shared, through: number) => boolean
   /**
@@ -280,6 +307,13 @@ export const editsJournal = <Shared, Principal, Change>(
           }),
         })),
     })
+  // Before the first recovery of an epoch: the table must not be past it.
+  const checked = Effect.gen(function* () {
+    const table = yield* options.tableRevision
+    const at = yield* journal.cursor(key)
+    if (table > at) return yield* new TableAheadOfJournalError({ table, journal: at })
+    return Cursor.make(yield* journal.floor(key))
+  })
   const settle = Effect.gen(function* () {
     const epoch = yield* journal.epoch(key)
     // A new epoch is a new history: recovery starts over at its floor.
@@ -287,7 +321,7 @@ export const editsJournal = <Shared, Principal, Change>(
       Option.filter(applied, previous => previous.epoch === epoch),
       {
         onSome: ({ cursor }) => Effect.succeed(cursor),
-        onNone: () => Effect.map(journal.floor(key), floor => Cursor.make(floor)),
+        onNone: () => checked,
       },
     )
     const cursor = yield* journal.recover({ key, from, intents: intents(epoch) })

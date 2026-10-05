@@ -89,4 +89,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an edit to a product the table has not got commits',
+    edits: [
+      {
+        file: '../src/journal.ts',
+        find: "    if (missing) throw new Error('An edit names a product the table has not got')",
+        replace: '',
+      },
+    ],
+    tests: ['examples/registry/test/journal.test.ts'],
+  },
 ]

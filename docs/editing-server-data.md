@@ -122,6 +122,8 @@ const { settle, absorb } = editsJournal({
         change.value, at, change.id, at,
       ]),
     ),
+  // The highest revision any row holds: settling refuses a table past the journal.
+  tableRevision: Effect.try(() => sqlite.highestRevision()),
   holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
   absorbed: (through, cursor) => /* the server's AbsorbedEdits operation */,
   server,
@@ -207,7 +209,15 @@ over a change another device made meanwhile.
 - **A server reset.** A new epoch: replicas rebuild and resend what they had
   not sent; committed edits of the old history are gone. `onReinstall` is told
   (`reset`), and the page reads its rows again, since their revisions counted
-  the old history. The table must be reset with the journal (see #176).
+  the old history. The table must be reset with the journal: a table that
+  outlived it holds revisions past every new sequence, so `apply` would skip
+  each new edit and the replicas would count it absorbed. `settle` refuses to
+  start while `tableRevision` is past the journal's cursor
+  (`TableAheadOfJournalError`), on every exchange, until the two agree.
+- **An edit to a row the table has not got.** Refuse it at commit, in the
+  journal's `validate`; its sender is told and its cell marked. Recovery
+  cannot refuse what has committed: let through, the edit would change no row
+  and vanish once absorbed. The registry's `validate` does this.
 - **A sorted page.** An unabsorbed edit shows its new value in its row's old
   position until the page is read again.
 - **The recovery cursor in a persistent deployment** lives in the process; a

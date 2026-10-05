@@ -5,6 +5,7 @@
  * (`journal.ts`), which calls `apply` for each committed change.
  */
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
 import { bind, databaseLayer, query, sortTerms, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { type ProductChange, Registry } from './domain.js'
@@ -76,6 +77,8 @@ const columnOf = {
   status: 'status',
 } as const satisfies Record<ProductChange['member'], string>
 
+const decodeRevision = Schema.decodeUnknownSync(Schema.Struct({ revision: Schema.Number }))
+
 /**
  * An in-memory database seeded with `count` products, the server over it, and
  * the layer its sources read it through.
@@ -133,6 +136,12 @@ export const openServer = (
     apply,
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.get('select * from products where id = ?', [id]),
+    /** The highest revision any row holds: how far the table has applied the journal. */
+    revision: () =>
+      decodeRevision(sqlite.get('select coalesce(max(revision), 0) as revision from products', []))
+        .revision,
+    /** Whether the table has the product, for refusing an edit to one it has not. */
+    holds: (id: string) => sqlite.get('select 1 from products where id = ?', [id]) !== undefined,
     close: () => sqlite.close(),
   }
 }

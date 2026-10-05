@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: 'onNone: () => Effect.map(journal.floor(key), floor => Cursor.make(floor)),',
-        replace: 'onNone: () => Effect.succeed(Cursor.make(0)),',
+        find: '    return Cursor.make(yield* journal.floor(key))',
+        replace: '    return Cursor.make(0)',
       },
     ],
     tests,
@@ -26,6 +26,22 @@ export default [
         replace: 'key: `${operation.opId}:${index}`,',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a table ahead of its journal is settled anyway',
+    edits: [
+      {
+        file,
+        find: '    if (table > at) return yield* new TableAheadOfJournalError({ table, journal: at })\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a table level with its journal is refused',
+    edits: [{ file, find: '    if (table > at) return', replace: '    if (table >= at) return' }],
     tests,
   },
 ]

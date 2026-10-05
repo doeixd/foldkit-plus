@@ -65,11 +65,23 @@ export interface EditJournal {
 const decodeMessage = Schema.decodeUnknownSync(Message)
 const encodeMessage = Schema.encodeSync(Message)
 
+/** The products table, as the journal writes and checks it (`openServer` gives one). */
+export interface ProductTable {
+  /** Writes a committed change, with the sequence it committed at. */
+  readonly apply: (change: ProductChange, at: number) => void
+  /** The highest revision any row holds. */
+  readonly revision: () => number
+  /** Whether the table has the product. */
+  readonly holds: (id: string) => boolean
+}
+
 /**
  * How the journal is opened, wherever it runs: over a `node:sqlite` file
  * (`journalNode.ts`) or SQLite compiled to WebAssembly in a browser.
  */
-export const journalOptions = (): JournalStoreOptions<Operation, Shared, Principal> => ({
+export const journalOptions = (
+  table: ProductTable,
+): JournalStoreOptions<Operation, Shared, Principal> => ({
   // The contract gives the codecs, the empty snapshot and the reducer, so
   // the journal folds operations with the application's own update.
   ...journalContract(),
@@ -80,17 +92,25 @@ export const journalOptions = (): JournalStoreOptions<Operation, Shared, Princip
     // When an edit committed is the journal's to say: one that says so
     // itself claims a commit it did not get, and its sender would show it
     // as committed.
-    const claimsCommit = Match.value(decodeMessage(operation.message)).pipe(
+    const message = decodeMessage(operation.message)
+    const claimsCommit = Match.value(message).pipe(
       Match.tag('EditedProducts', ({ at, by }) => at !== undefined || by !== undefined),
       Match.orElse(() => false),
     )
     if (claimsCommit) throw new Error('An edit cannot say when it committed')
+    // An edit to a product the table has not got would commit, change no row,
+    // and vanish once absorbed: refused here, so its sender is told.
+    const missing = Match.value(message).pipe(
+      Match.tag('EditedProducts', ({ changes }) => changes.some(change => !table.holds(change.id))),
+      Match.orElse(() => false),
+    )
+    if (missing) throw new Error('An edit names a product the table has not got')
   },
 })
 
-/** The journal's exchange, applying each committed change through `apply`. */
+/** The journal's exchange, applying each committed change to `table`. */
 export const openJournal = (
-  apply: (change: ProductChange, at: number) => void,
+  table: ProductTable,
   journal: Journal<Operation, Shared, Principal>,
 ): EditJournal => {
   const { settle, absorb } = editsJournal({
@@ -105,7 +125,8 @@ export const openJournal = (
       ),
     // A write that throws fails the intent rather than dying, so recovery
     // stops there and the next exchange tries it again.
-    apply: (change, at) => Effect.try(() => apply(change, at)),
+    apply: (change, at) => Effect.try(() => table.apply(change, at)),
+    tableRevision: Effect.try(() => table.revision()),
     holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
     // The server writes as a producer of its own, sequenced from the
     // authoritative cursor, which only advances and keeps each id unique.

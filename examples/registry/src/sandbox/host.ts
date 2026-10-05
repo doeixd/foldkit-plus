@@ -30,9 +30,12 @@ export const openHost = async (): Promise<ConversationHandler<Opening>> => {
   // The journal and its database live as long as the host: the runtime is
   // never disposed, since the host lasts as long as its worker or page.
   const runtime = ManagedRuntime.make(
-    Edits.layer(journalOptions()).pipe(Layer.provide(WasmClient.layerMemory({})), Layer.orDie),
+    Edits.layer(journalOptions(backend)).pipe(
+      Layer.provide(WasmClient.layerMemory({})),
+      Layer.orDie,
+    ),
   )
-  const journal = openJournal(backend.apply, await runtime.runPromise(Effect.service(Edits.tag)))
+  const journal = openJournal(backend, await runtime.runPromise(Effect.service(Edits.tag)))
   setInterval(() => {
     void Effect.runPromise(journal.absorb).catch(error =>
       console.error('Could not record what the table holds', error),

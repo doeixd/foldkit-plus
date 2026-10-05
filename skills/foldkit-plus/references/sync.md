@@ -257,11 +257,13 @@ const server = Effect.gen(function* () {
   and lays them over Remote's rows by revision (`overlay`), with `merge`,
   `absorb`, `held`/`settled`, `replaced` and `cellsOf` for `update` and
   `onReinstall`; pure, no state of its own. On the server,
-  `editsJournal({ documentId, journal, editsOf, apply, holdsThrough, absorbed,
-  server })` (`foldkit-sync/journal`) gives `settle`, which applies each
-  committed change to the table from the journal's floor, keyed by its epoch,
-  and `absorb`, which records what the table holds and compacts. The registry
-  example uses both.
+  `editsJournal({ documentId, journal, editsOf, apply, tableRevision,
+  holdsThrough, absorbed, server })` (`foldkit-sync/journal`) gives `settle`,
+  which applies each committed change to the table from the journal's floor,
+  keyed by its epoch, and refuses a table past the journal's cursor
+  (`TableAheadOfJournalError`), and `absorb`, which records what the table
+  holds and compacts. Refuse an edit to a row the table lacks in the journal's
+  `validate`. The registry example uses both.
 - Durable does **not** speak the sync exchange; `foldkit-sync/journal` does
   (`foldkit-durable` an optional peer): `serveJournal(socket, { sync, journal,
   principal, refuse?, settle? })` answers one socket and notifies it of each

@@ -20,7 +20,7 @@ import {
   sequence,
   type Operation,
 } from '../src/index.js'
-import { editsJournal, journalExchange } from '../src/journal.js'
+import { TableAheadOfJournalError, editsJournal, journalExchange } from '../src/journal.js'
 import { memoryStorage } from './memoryStorage.js'
 
 const Price = Schema.Struct({
@@ -71,9 +71,13 @@ const openJournal = () => {
   )
 }
 
-/** A table that records each write, and editsJournal over `journal` writing to it. */
-const tableOver = (journal: ReturnType<typeof openJournal>) => {
+/**
+ * A table that records each write, and editsJournal over `journal` writing to
+ * it; `revision` is where the table starts, as one kept from another history.
+ */
+const tableOver = (journal: ReturnType<typeof openJournal>, revision = 0) => {
   const writes: Array<string> = []
+  let highest = revision
   const edits = editsJournal<Shared, string, typeof Price.Type>({
     documentId: 'prices',
     journal,
@@ -83,7 +87,12 @@ const tableOver = (journal: ReturnType<typeof openJournal>) => {
         ? Option.some({ changes: [message], at: Option.fromUndefinedOr(message.at) })
         : Option.none()
     },
-    apply: (price, at) => Effect.sync(() => writes.push(`${price.id}=${price.cents}@${at}`)),
+    apply: (price, at) =>
+      Effect.sync(() => {
+        writes.push(`${price.id}=${price.cents}@${at}`)
+        highest = Math.max(highest, at)
+      }),
+    tableRevision: Effect.sync(() => highest),
     holdsThrough: (snapshot, through) =>
       snapshot.prices.some(price => price.at !== undefined && price.at <= through),
     absorbed: (through, cursor) => ({
@@ -162,4 +171,24 @@ it('records once when asked to absorb twice at once, and not before anything set
   // One price, then one record of the table holding it.
   expect(Effect.runSync(journal.cursor(key))).toBe(2)
   expect(Effect.runSync(journal.load(key)).snapshot.prices).toEqual([])
+})
+
+it('refuses to settle a table ahead of its journal, on every settle, and names both', async () => {
+  // A table kept from a history the journal no longer has: a reset journal.
+  const journal = openJournal()
+  const { edits, writes } = tableOver(journal, 5)
+  for (const _ of [1, 2]) {
+    const exit = await Effect.runPromise(Effect.exit(edits.settle))
+    expect(exit).toEqual(Exit.fail(new TableAheadOfJournalError({ table: 5, journal: 0 })))
+  }
+  expect(writes).toEqual([])
+})
+
+it('settles a table no further on than its journal', async () => {
+  const journal = openJournal()
+  const first = tableOver(journal)
+  await send(journal, first.edits.settle, 'a', [['p1', 100]])
+  // A second server over the same journal and the table the first wrote.
+  const second = tableOver(journal, 1)
+  await Effect.runPromise(second.edits.settle)
 })

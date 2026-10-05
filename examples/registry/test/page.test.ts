@@ -62,9 +62,12 @@ const serve = () => {
   let writable = true
   const start = () => {
     const backend = openServer(memorySqlite(), { count })
-    const journal = memoryJournal((change, at) => {
-      if (!writable) throw new Error('the table cannot be written')
-      backend.apply(change, at)
+    const journal = memoryJournal({
+      ...backend,
+      apply: (change, at) => {
+        if (!writable) throw new Error('the table cannot be written')
+        backend.apply(change, at)
+      },
     })
     return { backend, journal, handlers: RemoteServer.handlers(backend.server, null) }
   }

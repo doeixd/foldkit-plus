@@ -38,7 +38,7 @@ export const startHttpServer = async (
   readonly close: () => Promise<void>
 }> => {
   const backend = openServer(memorySqlite())
-  const journal = memoryJournal(backend.apply)
+  const journal = memoryJournal(backend)
   const handlers = RemoteServer.handlers(backend.server, null)
 
   const server: Server = createServer((request, response) => {

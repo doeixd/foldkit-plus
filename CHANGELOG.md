@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync/journal`: `TableAheadOfJournalError`.** `editsJournal`'s
+  `settle` refuses to start while the table holds a revision past the
+  journal's cursor, as a table that outlived a reset of its journal does:
+  every new edit would otherwise be skipped by `apply` and counted absorbed by
+  the replicas, and lost with nothing said. It refuses on every exchange until
+  the table is rebuilt with the journal (#176).
 - **`foldkit-primitives/net`: `SharedHost`, one in-browser server for every
   tab and frame.** `SharedHost.define({ name, opening })` gives `serve`, a
   SharedWorker's entry, and `connect({ worker, inPage })`, whose `open(opening)`
@@ -533,6 +539,10 @@ client, `Remote.clientLayer` takes the stock `RpcClient` as it is.
 
 ### Changed
 
+- **`foldkit-sync/journal`: `editsJournal` takes `tableRevision`,** the
+  highest revision the table holds, required, for the check above. An edit to
+  a row the table lacks is documented as the journal's `validate` to refuse,
+  since recovery cannot refuse what has committed; the registry does so (#176).
 - **`foldkit-sync`: `Sync.transport.socket` takes a `url` or a `makeSocket`,
   not both.** `makeSocket` takes no argument now, and a socket opened by one
   needs no placeholder `url`; passing both is a type error (#167).
