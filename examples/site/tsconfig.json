@@ -8,7 +8,7 @@
     "types": ["node", "vite/client"],
     "paths": {
       "foldkit-example-site/demos": ["./src/demos.ts"],
-      "foldkit-example-site/intro": ["./src/intro.ts"],
+      "foldkit-example-site/guide": ["./src/guide.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],

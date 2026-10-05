@@ -78,8 +78,6 @@ const app = Layers.standard.layer('app')
 // --- the page ------------------------------------------------------------------
 
 export const PageSlots = Slots.define({
-  /** The column the demo's intro and the app share. */
-  frame: Slot.make({ capability: Capability.Container }),
   root: Slot.make({ capability: Capability.Container }),
 })
 
@@ -90,6 +88,7 @@ export const PageStyle = Style.forSlots(PageSlots)(
       Layers.standard.in('layouts', Layout.stack({ gap: '1.25rem' })),
       Style.inline({
         boxSizing: 'border-box',
+        width: 'min(40rem, 100%)',
         background: t.surface.base,
         color: t.text.default,
         border: `1px solid ${t.outline.subtle}`,
@@ -98,10 +97,6 @@ export const PageStyle = Style.forSlots(PageSlots)(
         boxShadow: '0 12px 40px rgb(0 0 0 / 8%)',
       }),
       Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0' }),
-    ),
-    frame: Style.compose(
-      Layers.standard.in('layouts', Layout.stack({ gap: '1rem' })),
-      Style.inline({ width: 'min(40rem, 100%)' }),
     ),
   },
   { name: 'PageStyle', layer: app },

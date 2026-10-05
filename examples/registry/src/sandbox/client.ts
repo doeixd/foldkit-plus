@@ -5,7 +5,10 @@
  * Every tab of the sandbox meets the same server.
  */
 import { Option, Schema } from 'effect'
-import { onGitHub, registryDemo, SITE_URL } from 'foldkit-example-site/demos'
+import type { HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import { registryDemo } from 'foldkit-example-site/demos'
+import { demoGuide } from 'foldkit-example-site/guide'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from '../device.js'
 import { connectSandbox } from './connection.js'
@@ -28,55 +31,65 @@ const element = (
   return node
 }
 
-/** A link in the page's accent. */
-const link = (text: string, href: string): HTMLElement => {
-  const anchor = element('a', 'color: #4f46e5; text-underline-offset: .15em', [text])
-  anchor.setAttribute('href', href)
-  return anchor
+/**
+ * The outer page's colours, each for a light page and a dark one: it follows
+ * the reader's preference, as the devices' themes inside it do.
+ */
+const c = {
+  ink: 'light-dark(#18181b, #f4f4f5)',
+  muted: 'light-dark(#52525b, #a1a1aa)',
+  faint: 'light-dark(#71717a, #8e8e96)',
+  page: 'light-dark(#fafafa, #111113)',
+  card: 'light-dark(#fff, #18181b)',
+  bar: 'light-dark(#fafafa, #1f1f23)',
+  line: 'light-dark(#e4e4e7, #2e2e33)',
+  chip: 'light-dark(#f4f4f5, #27272a)',
+  warnChip: 'light-dark(#fef3c7, #3b2a0a)',
+  warnInk: 'light-dark(#92400e, #fcd34d)',
 }
 
-const font = 'font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #18181b'
+const font = `font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: ${c.ink}`
 
-const intro = (): HTMLElement => {
-  const steps = registryDemo.tryThis.map(({ title, text }, index) =>
-    element(
-      'li',
-      'display: grid; gap: .25rem; padding: .875rem 1rem; background: #fff; border: 1px solid #e4e4e7; border-radius: 10px',
-      [
-        element(
-          'span',
-          'font-size: .75rem; font-weight: 600; color: #71717a; letter-spacing: .02em',
-          [`${index + 1} · ${title}`],
-        ),
-        element('span', 'font-size: .875rem', [text]),
-      ],
-    ),
-  )
-  return element(
+const intro = (): HTMLElement =>
+  element(
     'header',
-    'display: grid; gap: .75rem; max-width: 96rem; margin: 0 auto; padding: 2rem 1.5rem 1.25rem',
+    'display: grid; gap: .375rem; max-width: 96rem; margin: 0 auto; padding: 2.25rem 1.5rem 1.5rem',
     [
-      element('p', 'margin: 0; font-size: .8125rem; font-weight: 600; color: #4f46e5', [
-        'Foldkit Plus · Remote, Sync and Durable',
-      ]),
-      element('h1', 'margin: 0; font-size: 1.75rem; line-height: 1.2; letter-spacing: -.01em', [
-        'Two devices, one registry',
-      ]),
-      element('p', 'margin: 0; max-width: 46rem; color: #52525b', [
-        '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait on the device while it is offline and reach the other when it is back.',
-      ]),
-      element('p', 'margin: 0; font-size: .8125rem; color: #71717a', [
-        link('All the demos', SITE_URL),
-        ' · ',
-        link('Read its code', onGitHub(registryDemo.readFirst)),
+      element('p', `margin: 0; font-size: .8125rem; font-weight: 500; color: ${c.faint}`, [
+        'Remote, Sync and Durable',
       ]),
       element(
-        'ol',
-        'list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr))',
-        steps,
+        'h1',
+        'margin: 0; font-size: 1.5rem; font-weight: 600; line-height: 1.25; letter-spacing: -.015em',
+        ['Two devices, one registry'],
       ),
+      element('p', `margin: 0; max-width: 44rem; color: ${c.muted}; font-size: .9375rem`, [
+        '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait while it is offline and reach the other when it is back.',
+      ]),
     ],
   )
+
+/**
+ * The guide every demo offers, in the corner: the same view the applications
+ * draw, run by a runtime of its own, since this page is plain DOM. It sends no
+ * Messages and keeps no state.
+ */
+const guide = (): HTMLElement => {
+  const container = element('div', '')
+  container.id = 'demo-guide'
+  const Guide = demoGuide<never>()
+  queueMicrotask(() =>
+    Runtime.run(
+      Runtime.makeElement({
+        Model: Schema.Struct({}),
+        container,
+        init: () => ({ model: {} }),
+        update: (model: {}) => ({ model }),
+        view: (_: {}, h: HtmlBuilder<never>) => Guide({ demo: registryDemo }, h),
+      }),
+    ),
+  )
+  return container
 }
 
 /** A device's card: its name and status above its page, a frame of its own. */
@@ -87,7 +100,7 @@ const card = (id: string, name: string): HTMLElement => {
   )
   const badge = element(
     'span',
-    'margin-inline-start: auto; padding: .125rem .625rem; border-radius: 999px; background: #f4f4f5; color: #52525b; font-size: .75rem; font-weight: 500',
+    `margin-inline-start: auto; padding: .125rem .625rem; border-radius: 999px; background: ${c.chip}; color: ${c.muted}; font-size: .75rem; font-weight: 500`,
     ['Synced'],
   )
   badge.setAttribute('role', 'status')
@@ -106,11 +119,11 @@ const card = (id: string, name: string): HTMLElement => {
   frame.style.cssText = 'display: block; width: 100%; height: 80vh; min-height: 34rem; border: 0'
   return element(
     'section',
-    'background: #fff; border: 1px solid #e4e4e7; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgb(0 0 0 / .05)',
+    `background: ${c.card}; border: 1px solid ${c.line}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgb(0 0 0 / .05)`,
     [
       element(
         'div',
-        'display: flex; align-items: center; gap: .5rem; padding: .625rem 1rem; border-bottom: 1px solid #e4e4e7; background: #fafafa; font-size: .875rem; font-weight: 600',
+        `display: flex; align-items: center; gap: .5rem; padding: .625rem 1rem; border-bottom: 1px solid ${c.line}; background: ${c.bar}; font-size: .875rem; font-weight: 600`,
         [dot, name, badge],
       ),
       frame,
@@ -130,25 +143,16 @@ export const startSandbox = async (container: HTMLElement): Promise<void> => {
   // Where a browser has no SharedWorker, this page runs the host, and both
   // device frames send their conversations here, so they meet one server.
   connectSandbox()
-  document.body.style.cssText = `margin: 0; background: #f4f4f5; ${font}`
-  const source = element('a', 'color: inherit', ['the source'])
-  source.setAttribute('href', 'https://github.com/doeixd/foldkit-plus/tree/main/examples/registry')
+  document.documentElement.style.colorScheme = 'light dark'
+  document.body.style.cssText = `margin: 0; background: ${c.page}; ${font}`
   container.append(
     intro(),
     element(
       'div',
-      'display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr)); max-width: 96rem; margin: 0 auto; padding: 0 1.5rem',
+      'display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr)); max-width: 96rem; margin: 0 auto; padding: 0 1.5rem 2.5rem',
       devices.map(({ id, name }) => card(id, name)),
     ),
-    element(
-      'footer',
-      'max-width: 96rem; margin: 0 auto; padding: 1.25rem 1.5rem 2rem; font-size: .8125rem; color: #71717a',
-      [
-        'The server, its SQLite and the journal all run in this tab; nothing is sent anywhere. Read ',
-        source,
-        '.',
-      ],
-    ),
+    guide(),
   )
 }
 
@@ -158,7 +162,8 @@ const startPane = async (
 ): Promise<void> => {
   // The card around the frame names the device. An application draws in
   // place of its container, which needs an id.
-  document.body.style.cssText = 'margin: 0; background: #fff'
+  document.documentElement.style.colorScheme = 'light dark'
+  document.body.style.cssText = `margin: 0; background: ${c.card}; ${font}`
   const app = document.createElement('div')
   app.id = id
   container.append(app)
@@ -199,8 +204,8 @@ const showStatus = (dot: HTMLElement, badge: HTMLElement, status: DeviceStatus) 
   const { label, waiting } = statusOf(status)
   dot.style.background = waiting ? '#f59e0b' : '#22c55e'
   badge.textContent = label
-  badge.style.background = waiting ? '#fef3c7' : '#f4f4f5'
-  badge.style.color = waiting ? '#92400e' : '#52525b'
+  badge.style.background = waiting ? c.warnChip : c.chip
+  badge.style.color = waiting ? c.warnInk : c.muted
 }
 
 const statusOf = ({ offline, waiting, unreachable }: DeviceStatus) => {

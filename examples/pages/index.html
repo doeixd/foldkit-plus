@@ -6,57 +6,77 @@
     <title>Pages</title>
     <link rel="icon" href="data:," />
     <style>
-      :root { font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1f2328; background: #fff; }
+      /* Every colour for a light page and a dark one: the page follows the reader's preference. */
+      :root { color-scheme: light dark;
+        --ink: light-dark(#18181b, #f4f4f5); --body: light-dark(#3f3f46, #d4d4d8);
+        --muted: light-dark(#71717a, #a1a1aa); --faint: light-dark(#a1a1aa, #71717a);
+        --page: light-dark(#fff, #141416); --side: light-dark(#fafafa, #1a1a1d);
+        --line: light-dark(#f0f0f1, #27272a); --hover: light-dark(#f4f4f5, #232326);
+        --selected: light-dark(#f0f0f1, #27272a); --well: light-dark(#f6f7f8, #1f1f22);
+        --danger: light-dark(#dc2626, #f87171); --danger-well: light-dark(#fef2f2, #2a1414);
+        --peer: light-dark(#e8590c, #fb923c); }
+      :root { font: 15px/1.6 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: var(--page);
+        -webkit-font-smoothing: antialiased; }
       body { margin: 0; }
       #pages, .pages { height: 100vh; }
       .pages { display: grid; grid-template-columns: 240px 1fr; }
-      .sidebar { background: #f6f7f8; border-right: 1px solid #e3e5e8; padding: 16px 8px; }
-      .brand { margin: 0 10px 14px; font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
+      .sidebar { background: var(--side); border-right: 1px solid var(--line); padding: 18px 10px; }
+      .brand { margin: 0 8px 16px; font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
       .page-list { list-style: none; margin: 0 0 12px; padding: 0; }
-      .page-link, #new-page { width: 100%; text-align: left; border: 0; background: none;
-        padding: 6px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
-      .page.open .page-link { background: #e3e5e8; font-weight: 600; }
-      .page-link:hover, #new-page:hover { background: #eceef0; }
-      #new-page { color: oklch(52% 0.17 270); font-weight: 600; }
+      .page-link, #new-page { width: 100%; text-align: left; border: 0; background: none; color: var(--body);
+        padding: 5px 8px; border-radius: 6px; font: inherit; font-size: 14px; cursor: pointer; }
+      .page.open .page-link { background: var(--selected); color: var(--ink); font-weight: 500; }
+      .page-link:hover, #new-page:hover { background: var(--hover); }
+      #new-page { color: var(--muted); }
+      :is(.page-link, #new-page, .tool, .primary):focus-visible { outline: 2px solid oklch(52% 0.17 270); outline-offset: 1px; }
       main { padding: 48px 72px; overflow: auto; }
-      .empty, .page-view { max-width: 46rem; }
-      .empty { display: grid; gap: 16px; align-content: start; }
-      .hint { margin: 0; color: #59636e; }
+      .page-view { max-width: 44rem; margin: 0 auto; }
+      /* Nothing open: a quiet prompt in the middle of the page. */
+      .empty { display: grid; place-items: center; }
+      .empty-state { display: grid; justify-items: center; gap: 6px; text-align: center; margin-bottom: 10vh; }
+      .empty-title { margin: 0; font-weight: 600; }
+      .hint { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+      .primary { border: 0; border-radius: 8px; padding: 7px 14px; background: var(--ink); color: var(--page);
+        font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+      .primary:hover { background: var(--body); }
       /* An input takes no font from the page, and pads its text off the left edge. */
       .title { font-family: inherit; font-size: 2.25rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em;
         color: inherit; background: none; border: 0; outline: 0; padding: 0; width: 100%;
         margin-bottom: 16px; }
-      .toolbar { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
-      .tool { border: 1px solid #e3e5e8; background: #fff; border-radius: 6px; padding: 4px 10px;
-        font: inherit; font-size: 0.875rem; cursor: pointer; }
-      .tool:hover { background: #f6f7f8; }
-      .danger { color: #cf222e; margin-left: auto; }
+      /* Quiet tools: no borders, a background only under the pointer. */
+      .toolbar { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 -8px 20px; padding-bottom: 10px;
+        border-bottom: 1px solid var(--line); }
+      .tool { border: 0; background: none; color: var(--muted); border-radius: 6px; padding: 4px 8px;
+        font: inherit; font-size: 13px; cursor: pointer; }
+      .tool:hover { background: var(--hover); color: var(--ink); }
+      .danger { color: var(--faint); margin-left: auto; }
+      .danger:hover { background: var(--danger-well); color: var(--danger); }
       foldkit-richtext [contenteditable] { outline: 0; min-height: 40vh; line-height: 1.6; }
       [data-task] { list-style: none; display: flex; gap: 8px; align-items: baseline; }
       [data-task] > p { margin: 0.25em 0; }
       [data-task]::before { content: '☐'; }
       [data-task='checked']::before { content: '☑'; }
-      [data-task='checked'] { color: #59636e; text-decoration: line-through; }
-      [data-placeholder]::before { content: attr(data-placeholder); color: #8c959f; }
+      [data-task='checked'] { color: var(--muted); text-decoration: line-through; }
+      [data-placeholder]::before { content: attr(data-placeholder); color: var(--faint); }
       /* Someone else's caret: after the character drawn, or before it at a run's start. */
-      [data-decoration='peer'] { box-shadow: 2px 0 0 #e8590c; }
-      [data-decoration='peer-before'] { box-shadow: -2px 0 0 #e8590c; }
+      [data-decoration='peer'] { box-shadow: 2px 0 0 var(--peer); }
+      [data-decoration='peer-before'] { box-shadow: -2px 0 0 var(--peer); }
       /* Their name, from the decoration's data, over the caret. */
       [data-decoration^='peer'] { position: relative; }
       [data-decoration^='peer']::after {
         content: attr(data-decoration-name);
         position: absolute; bottom: 100%; left: 0; pointer-events: none;
-        font: 11px/1.4 system-ui; color: #fff; background: #e8590c;
+        font: 11px/1.4 system-ui; color: #fff; background: var(--peer);
         padding: 0 4px; border-radius: 3px; white-space: nowrap;
       }
-      .markdown { margin-top: 32px; color: #59636e; }
-      .markdown pre { background: #f6f7f8; padding: 12px; border-radius: 6px; }
+      .markdown { margin-top: 32px; color: var(--muted); }
+      .markdown pre { background: var(--well); padding: 12px; border-radius: 6px; }
       .markdown pre { overflow-x: auto; }
       /* A phone: the page list above the page, and the page given the width. */
       @media (max-width: 40rem) {
         #pages, .pages { height: auto; min-height: 100vh; }
         .pages { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-        .sidebar { border-right: 0; border-bottom: 1px solid #e3e5e8; padding: 8px; }
+        .sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 8px; }
         .page-list { margin-bottom: 4px; }
         main { padding: 20px 16px; }
         .title { font-size: 1.75rem; }

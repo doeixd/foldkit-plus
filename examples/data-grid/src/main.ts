@@ -11,7 +11,7 @@
 import { Option, Schema, SchemaGetter } from 'effect'
 import { type Document, type HtmlBuilder } from 'foldkit/html'
 import { gridDemo } from 'foldkit-example-site/demos'
-import { demoIntro } from 'foldkit-example-site/intro'
+import { demoGuide } from 'foldkit-example-site/guide'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
@@ -150,12 +150,16 @@ const Registry = DataGridView<Message>()
     Style.attach(GridStyle),
     Style.attach(
       Style.forSlots(GridSlots)({
-        root: Style.inline({ height: '70vh', border: '1px solid #d4d4d8', borderRadius: '6px' }),
+        root: Style.inline({
+          height: '70vh',
+          border: '1px solid light-dark(#e4e4e7, #2e2e33)',
+          borderRadius: '10px',
+        }),
       }),
     ),
   )
 
-const DemoIntro = demoIntro<Message>()
+const DemoGuide = demoGuide<Message>()
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   // Counted from the selection, not by asking each of 100,000 rows every render.
@@ -170,23 +174,32 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.Style({
           boxSizing: 'border-box',
           display: 'grid',
-          gap: '1rem',
+          gap: '0.25rem',
           // The columns' 830px, the grid's border and this padding: no empty band beside the grid.
           maxWidth: '55rem',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
-          font: '15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
-          color: 'oklch(25% 0.02 270)',
+          padding: '2.5rem 1.5rem',
+          font: '14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
+          color: 'var(--fk-text-default)',
         }),
       ],
       [
         h.h1(
-          [h.Style({ margin: '0', fontSize: '1.75rem', letterSpacing: '-0.01em' })],
+          [
+            h.Style({
+              margin: '0',
+              fontSize: '1.375rem',
+              fontWeight: '600',
+              letterSpacing: '-0.015em',
+            }),
+          ],
           ['Product registry'],
         ),
-        DemoIntro({ demo: gridDemo }, h),
         h.p(
-          [h.Role('status'), h.Style({ margin: '0', color: 'oklch(45% 0.02 270)' })],
+          [
+            h.Role('status'),
+            h.Style({ margin: '0 0 1.25rem', color: 'var(--fk-text-muted)', fontSize: '13px' }),
+          ],
           [
             `${model.products.length.toLocaleString()} products, ${selectedCount.toLocaleString()} selected. `,
             model.notice,
@@ -205,6 +218,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           },
           h,
         ),
+        DemoGuide({ demo: gridDemo }, h),
       ],
     ),
   }

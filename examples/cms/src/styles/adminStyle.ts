@@ -67,18 +67,12 @@ export const AdminSlots = Slots.define({
   whoName: part,
   whoRole: part,
   avatar: part,
-  /** What the demo is and what to try, above the posts: a disclosure, open at first. */
-  intro: part,
   /** A page's History and More, folded under the editor's bar until asked for. */
   manage: part,
   manageSummary: control,
   /** What the fold holds, said beside its name while there is room. */
   manageHint: part,
   manageCards: part,
-  introSummary: control,
-  introSteps: part,
-  introStep: part,
-  introStepLabel: part,
   main: part,
   /** A section's screen: its heading, its filters, then what it lists. */
   screen: part,
@@ -286,52 +280,6 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
     ),
     main: Style.compose(Style.self({ minWidth: '0' }), Touch.targets),
-    // A card whose header is its summary: one even row closed, and open, the
-    // row over a divider and the words below it.
-    intro: Style.compose(
-      Style.self({
-        background: `color-mix(in oklch, ${t.accent.default} 6%, ${t.surface.base})`,
-        border: `1px solid color-mix(in oklch, ${t.accent.default} 22%, ${t.surface.base})`,
-        borderRadius: t.radius.lg,
-        color: t.text.default,
-        fontSize: t.size.sm,
-        lineHeight: '1.6',
-        overflow: 'hidden',
-      }),
-      chevronOpen,
-      Style.nest('&[open] > summary', {
-        borderBlockEnd: `1px solid color-mix(in oklch, ${t.accent.default} 18%, ${t.surface.base})`,
-      }),
-      Style.nest('& > :not(summary)', { margin: '0', paddingInline: t.space.lg }),
-      Style.nest('& > summary + *', { paddingBlockStart: t.space.md }),
-      Style.nest('& > :not(summary) + :not(summary)', { marginBlockStart: t.space.sm }),
-      Style.nest('& > :last-child:not(summary)', { paddingBlockEnd: t.space.md }),
-      Style.nest('& a', { color: t.accent.ink, fontWeight: t.weight.medium }),
-      Style.at(
-        `@media ${phone}`,
-        Style.compose(Style.nest('& > :not(summary)', { paddingInline: t.space.md })),
-      ),
-    ),
-    introSummary: Style.compose(
-      chevron,
-      Style.self({
-        color: t.text.overt,
-        fontSize: t.size.md,
-        fontWeight: t.weight.semibold,
-        gap: t.space.xs,
-        padding: `${t.space.sm} ${t.space.lg}`,
-      }),
-      Style.nest('&::before', { color: t.accent.ink }),
-      Style.pseudo(':hover', {
-        background: `color-mix(in oklch, ${t.accent.default} 10%, ${t.surface.base})`,
-      }),
-      Style.pseudo(':focus-visible', {
-        outline: `2px solid ${t.accent.default}`,
-        outlineOffset: '-2px',
-      }),
-      Style.media(phone, { paddingInline: t.space.md }),
-      Touch.target,
-    ),
     manage: Style.compose(
       Style.self({ borderBlockEnd: `1px solid ${t.outline.subtle}`, fontSize: t.size.sm }),
       chevronOpen,
@@ -370,21 +318,6 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       Style.media(phone, { paddingInline: t.space.md }),
     ),
-    // Each step a numbered label over its sentence, side by side where there is
-    // room: the same steps, laid out as every demo's intro lays them out.
-    introSteps: Style.self({
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))',
-      gap: `${t.space.sm} ${t.space.lg}`,
-      listStyle: 'none',
-    }),
-    introStep: Style.self({ display: 'grid', alignContent: 'start', gap: '0.125rem' }),
-    introStepLabel: Style.self({
-      color: t.accent.ink,
-      fontSize: t.size.xs,
-      fontWeight: t.weight.semibold,
-      letterSpacing: '0.02em',
-    }),
     screen: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({

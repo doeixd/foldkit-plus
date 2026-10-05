@@ -8,9 +8,9 @@
       "foldkit-plus:source": "./src/demos.ts",
       "default": "./src/demos.ts"
     },
-    "./intro": {
-      "foldkit-plus:source": "./src/intro.ts",
-      "default": "./src/intro.ts"
+    "./guide": {
+      "foldkit-plus:source": "./src/guide.ts",
+      "default": "./src/guide.ts"
     }
   },
   "scripts": {

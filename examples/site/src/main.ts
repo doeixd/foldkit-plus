@@ -116,64 +116,44 @@ export const ORIGIN = 'https://foldkit-plus.pages.dev'
 type Slots = SlotBuilders<typeof SiteStyle.slots, Message>
 
 /**
- * A demo's card, in three parts on its row's grid (`subgrid`), so each part
- * starts where its neighbours' do: what it proves and what to try, the file to
- * read and the packages, and the way in.
+ * A demo's row: what it is and what it shows on the left, the way in and to its
+ * code on the right. What to try is the demo's own to say, in its guide.
  */
-const card = (demo: Demo, slots: Slots, h: HtmlBuilder<Message>): Html =>
-  h.li(slots.card.attrs(), [
-    h.div(slots.body.attrs(), [
-      h.h2(slots.cardTitle.attrs(), [h.a(slots.titleLink.attrs([h.Href(demo.url)]), [demo.title])]),
+const row = (demo: Demo, slots: Slots, h: HtmlBuilder<Message>): Html =>
+  h.li(slots.row.attrs(), [
+    h.div(slots.about.attrs(), [
+      h.h2(slots.rowTitle.attrs(), [h.a(slots.titleLink.attrs([h.Href(demo.url)]), [demo.title])]),
       h.p(slots.proves.attrs(), [demo.proves]),
-      h.p(slots.label.attrs(), ['Try this']),
-      h.ol(
-        slots.steps.attrs(),
-        demo.tryThis.map((step, index) =>
-          h.li(slots.step.attrs(), [
-            h.span(slots.stepLabel.attrs(), [`${index + 1} · ${step.title}`]),
-            h.span([], [step.text]),
+      h.p(slots.packages.attrs([h.AriaLabel('Packages')]), [
+        ...demo.packages.flatMap((name, index) => [
+          ...(index === 0 ? [] : [' · ']),
+          h.a(slots.package.attrs([h.Href(onGitHub(`packages/${name}/README.md`))]), [
+            packageName(name),
           ]),
-        ),
-      ),
-    ]),
-    h.div(slots.foot.attrs(), [
-      h.p(slots.meta.attrs(), [
-        h.span(slots.label.attrs(), ['Read first']),
-        h.a(slots.path.attrs([h.Href(onGitHub(demo.readFirst))]), [demo.readFirst]),
+        ]),
       ]),
-      h.ul(
-        slots.packages.attrs([h.AriaLabel('Packages')]),
-        demo.packages.map(name =>
-          h.li(
-            [],
-            [
-              h.a(slots.package.attrs([h.Href(onGitHub(`packages/${name}/README.md`))]), [
-                packageName(name),
-              ]),
-            ],
-          ),
-        ),
-      ),
     ]),
-    h.a(slots.open.attrs([h.Href(demo.url)]), ['Open the demo']),
+    h.p(slots.actions.attrs(), [
+      h.a(slots.open.attrs([h.Href(demo.url)]), ['Open']),
+      h.a(slots.source.attrs([h.Href(onGitHub(demo.readFirst))]), ['Source']),
+    ]),
   ])
 
 const home = (slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
   h.header(slots.header.attrs(), [
     h.p(slots.eyebrow.attrs(), ['Foldkit Plus']),
-    h.h1(slots.heading.attrs([h.Id('page-title')]), ['The demos']),
+    h.h1(slots.heading.attrs([h.Id('page-title')]), ['Demos']),
     h.p(slots.lede.attrs(), [
-      'Each is an example from the repository, built as static files. Those with a server run it in your browser, shared by every tab, so nothing you do leaves it. Open one, follow its steps, then read the file it names.',
+      'Examples from the repository, built as static files. Those with a server run it in your browser, so nothing you do leaves it. Each says how to try it in its corner.',
     ]),
   ]),
   h.ul(
-    slots.cards.attrs(),
-    demos.map(demo => card(demo, slots, h)),
+    slots.rows.attrs(),
+    demos.map(demo => row(demo, slots, h)),
   ),
   h.p(slots.footer.attrs(), [
-    'This page is one too: rendered at build time with foldkit-ssr and styled with foldkit-mixins. ',
-    h.a(slots.link.attrs([h.Href(onGitHub('examples/site/src/main.ts'))]), ['Its source']),
-    '.',
+    'This page is a demo too, rendered at build time with foldkit-ssr. ',
+    h.a(slots.link.attrs([h.Href(onGitHub('examples/site/src/main.ts'))]), ['Source']),
   ]),
 ]
 

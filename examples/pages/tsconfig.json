@@ -12,7 +12,7 @@
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
-      "foldkit-example-site/intro": ["../site/src/intro.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
       "foldkit-primitives/device": ["../../packages/primitives/src/device/index.ts"],

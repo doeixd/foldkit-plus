@@ -7,7 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { SlotView } from 'foldkit-mixins'
 import { Option } from 'effect'
 import { Cms, type EditorStatus, type State } from 'foldkit-cms'
-import { cmsDemo, onGitHub, SITE_URL } from 'foldkit-example-site/demos'
+import { cmsDemo } from 'foldkit-example-site/demos'
 import type { AdminSlots } from '../styles/adminStyle.js'
 import { icon } from './icons.js'
 import { chairOf, chairs, type Chair } from '../server/transport.js'
@@ -18,52 +18,18 @@ export const chair: Chair = chairOf(window.location.search)
 const sandboxed = import.meta.env.MODE === 'sandbox'
 
 /**
- * What the demo is and what to try, first thing on the posts: a disclosure,
- * open until the author closes it for this visit.
+ * What the demo's guide says here beyond its card: that the server runs in the
+ * page, where it does, and the way to start the sandbox again.
  */
-export const intro = <M>(slots: SlotView.SlotBuilders<typeof AdminSlots, M>, h: HtmlBuilder<M>) =>
-  h.details(slots.intro.attrs([h.Open(true)]), [
-    h.summary(slots.introSummary.attrs(), ['What this is, and what to try']),
-    h.p(
-      [],
-      [
-        'A blog’s studio and its public site, built with Foldkit Plus. ',
-        sandboxed
-          ? 'Its server and database run in your browser, shared by its tabs, so nothing you write leaves it.'
-          : 'Its server is the one pnpm dev started, in memory.',
-      ],
-    ),
-    // The steps every list of the demos shows (`foldkit-example-site/demos`).
-    h.ol(
-      slots.introSteps.attrs(),
-      cmsDemo.tryThis.map((step, index) =>
-        h.li(slots.introStep.attrs(), [
-          h.span(slots.introStepLabel.attrs(), [`${index + 1} · ${step.title}`]),
-          h.span([], [step.text]),
-        ]),
-      ),
-    ),
-    ...(sandboxed
-      ? [
-          h.p(
-            [],
-            [
-              'Made a mess? ',
-              h.a([h.Href(`?as=${chair}&reset`)], ['Start the sandbox again']),
-              ', with the posts and pages it began with.',
-            ],
-          ),
-        ]
-      : []),
-    h.p(
-      [],
-      [
-        h.a([h.Href(SITE_URL)], ['All the demos']),
-        ' · ',
-        h.a([h.Href(onGitHub(cmsDemo.readFirst))], ['Read its code']),
-      ],
-    ),
-  ])
+export const guideInput = {
+  demo: cmsDemo,
+  more: sandboxed
+    ? [
+        'Its server and database run in your browser, shared by its tabs, so nothing you write leaves it.',
+      ]
+    : [],
+  links: sandboxed ? [{ label: 'Start again', href: `?as=${chair}&reset` }] : [],
+}
 
 /** Who each chair is, as the sidebar introduces them. */
 const people: Readonly<Record<Chair, { readonly name: string; readonly role: string }>> = {
@@ -179,6 +145,8 @@ export const shell = <M>(
   h: HtmlBuilder<M>,
   section: 'posts' | 'pages',
   body: ReadonlyArray<Html>,
+  /** The demo's guide, built by the application for its Messages. */
+  guide: Html,
 ): Html => {
   const link = (name: 'posts' | 'pages', label: string, href: string) =>
     h.a(slots.navLink.attrs([h.Href(href), ...(name === section ? [h.AriaCurrent('page')] : [])]), [
@@ -218,5 +186,6 @@ export const shell = <M>(
       ]),
     ]),
     h.main(slots.main.attrs([h.Id('studio-main'), h.Tabindex(-1)]), [...body]),
+    guide,
   ])
 }

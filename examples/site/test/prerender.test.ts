@@ -24,30 +24,25 @@ describe('the generated site', () => {
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/</loc>')
   })
 
-  test('draws a card for each demo, with its steps and its links', async () => {
+  test('draws a row for each demo, with the way in, its code and its packages', async () => {
     const { pages } = await generate()
     const page = new DOMParser().parseFromString(pages[0]?.html ?? '', 'text/html')
-    const cards = Array.from(page.querySelectorAll('main > ul > li'))
-    expect(cards.map(card => card.querySelector('h2')?.textContent)).toEqual(
+    const rows = Array.from(page.querySelectorAll('main > ul > li'))
+    expect(rows.map(row => row.querySelector('h2')?.textContent)).toEqual(
       demos.map(demo => demo.title),
     )
-    cards.forEach((card, index) => {
+    rows.forEach((row, index) => {
       const demo = demos[index]!
-      expect(card.querySelector('h2 a')?.getAttribute('href')).toBe(demo.url)
-      const open = Array.from(card.querySelectorAll('a')).find(
-        a => a.textContent === 'Open the demo',
-      )
-      expect(open?.getAttribute('href')).toBe(demo.url)
+      const href = (text: string) =>
+        Array.from(row.querySelectorAll('a'))
+          .find(a => a.textContent === text)
+          ?.getAttribute('href')
+      expect(row.querySelector('h2 a')?.getAttribute('href')).toBe(demo.url)
+      expect(href('Open')).toBe(demo.url)
+      expect(href('Source')).toBe(onGitHub(demo.readFirst))
       expect(
-        Array.from(card.querySelectorAll('ol li'), li =>
-          Array.from(li.children, part => part.textContent),
-        ),
-      ).toEqual(demo.tryThis.map((step, index) => [`${index + 1} · ${step.title}`, step.text]))
-      const links = Array.from(card.querySelectorAll('a'), a => a.getAttribute('href'))
-      expect(links).toContain(onGitHub(demo.readFirst))
-      expect(links).toEqual(
-        expect.arrayContaining(demo.packages.map(name => onGitHub(`packages/${name}/README.md`))),
-      )
+        Array.from(row.querySelectorAll('[aria-label="Packages"] a'), a => a.getAttribute('href')),
+      ).toEqual(demo.packages.map(name => onGitHub(`packages/${name}/README.md`)))
     })
   })
 })

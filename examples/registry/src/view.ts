@@ -31,7 +31,7 @@ const Registry = DataGridView<Message>()
         root: Style.inline({
           height: 'calc(100vh - 9rem)',
           minHeight: '20rem',
-          border: '1px solid #e4e4e7',
+          border: '1px solid light-dark(#e4e4e7, #2e2e33)',
           borderRadius: '10px',
           boxShadow: '0 1px 2px rgb(0 0 0 / 0.04)',
         }),
@@ -60,8 +60,9 @@ const refusedEdits = (model: Model) => {
   }))
 }
 
-const ink = '#18181b'
-const muted = '#71717a'
+// Each colour for a light page and a dark one, as the theme's are.
+const ink = 'light-dark(#18181b, #f4f4f5)'
+const muted = 'light-dark(#71717a, #a1a1aa)'
 
 /** A notice above the grid: what the server refused, or what another device replaced. */
 const notice = (tone: { readonly border: string; readonly background: string }) =>
@@ -75,8 +76,14 @@ const notice = (tone: { readonly border: string; readonly background: string }) 
     background: tone.background,
     fontSize: '0.875rem',
   }) as const
-const refusedTone = { border: '#fecaca', background: '#fef2f2' }
-const replacedTone = { border: '#fde68a', background: '#fffbeb' }
+const refusedTone = {
+  border: 'light-dark(#fecaca, #7f1d1d)',
+  background: 'light-dark(#fef2f2, #2a1414)',
+}
+const replacedTone = {
+  border: 'light-dark(#fde68a, #78350f)',
+  background: 'light-dark(#fffbeb, #2a1f0a)',
+}
 
 /** A list of notices, not drawn at all while it has none, so it adds no gap. */
 const list = (count: number) =>
@@ -160,8 +167,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                       margin: '0',
                       padding: '0.125rem 0.625rem',
                       borderRadius: '999px',
-                      background: waiting ? '#fef3c7' : '#f4f4f5',
-                      color: waiting ? '#92400e' : muted,
+                      background: waiting
+                        ? 'light-dark(#fef3c7, #3b2a0a)'
+                        : 'light-dark(#f4f4f5, #27272a)',
+                      color: waiting ? 'light-dark(#92400e, #fcd34d)' : muted,
                       fontSize: '0.8125rem',
                     },
               ),

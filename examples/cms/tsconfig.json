@@ -23,7 +23,7 @@
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
-      "foldkit-example-site/intro": ["../site/src/intro.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],

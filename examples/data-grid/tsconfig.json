@@ -12,7 +12,7 @@
       "foldkit-data-grid": ["../../packages/data-grid/src/index.ts"],
       "foldkit-data-grid/crud": ["../../packages/data-grid/src/crud.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
-      "foldkit-example-site/intro": ["../site/src/intro.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-data-grid": ["../../packages/mixins-data-grid/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],

@@ -16,7 +16,7 @@ import * as UiButton from '@foldkit/ui/button'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import { Option } from 'effect'
 import { todoDemo } from 'foldkit-example-site/demos'
-import { demoIntro } from 'foldkit-example-site/intro'
+import { demoGuide } from 'foldkit-example-site/guide'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
@@ -247,7 +247,7 @@ const ComposerRoot = Surface.rootView(Composer, undefined, SurfaceView.toRendere
 const BoardRoot = Surface.rootView(Board, undefined, SurfaceView.toRenderer(BoardView))
 const FooterRoot = Surface.rootView(Footer, undefined, SurfaceView.toRenderer(FooterView))
 
-const DemoIntro = demoIntro<Message>()
+const DemoGuide = demoGuide<Message>()
 
 const PageView = SlotView.define(
   PageSlots,
@@ -256,21 +256,19 @@ const PageView = SlotView.define(
     slots,
     h: HtmlBuilder<Message>,
   ) =>
-    // The demo's intro above the app, not inside it: it explains the app, it is no part of it.
-    h.div(slots.frame.attrs(), [
-      DemoIntro(
+    h.main(slots.root.attrs(), [
+      HeaderRoot(model, h),
+      ComposerRoot(model, h),
+      BoardRoot(model, h),
+      FooterRoot(model, h),
+      // Fixed in the corner, out of the list's way.
+      DemoGuide(
         {
           demo: todoDemo,
           more: Option.match(as, { onNone: () => [], onSome: who => [`You are ${who}.`] }),
         },
         h,
       ),
-      h.main(slots.root.attrs(), [
-        HeaderRoot(model, h),
-        ComposerRoot(model, h),
-        BoardRoot(model, h),
-        FooterRoot(model, h),
-      ]),
     ]),
 ).pipe(Style.attach(PageStyle))
 

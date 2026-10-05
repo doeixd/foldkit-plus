@@ -47,7 +47,7 @@ test('two tabs share the journal in the browser', async () => {
   }
   const owner = await open('owner')
   const bob = await open('bob')
-  expect(await owner.locator('details').first().textContent()).toContain('You are owner.')
+  expect(await owner.locator('details').last().textContent()).toContain('You are owner.')
 
   await owner.fill('input[aria-label="New todo"]', 'Water the plants')
   await owner.press('input[aria-label="New todo"]', 'Enter')

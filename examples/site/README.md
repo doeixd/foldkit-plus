@@ -1,9 +1,8 @@
 # The demos site
 
 The landing page for the published demos,
-[foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/): one card per demo,
-each saying what it proves, three things to try, the file to read first, and
-the packages it uses.
+[foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/): one row per demo,
+saying what it shows, the packages it uses, and the way in and to its code.
 
 It is a Foldkit Plus page itself: rendered at build time by `foldkit-ssr`'s
 `staticSite`, taken over in the browser, and styled with `foldkit-mixins`, with
@@ -13,8 +12,9 @@ smallest.
 ## One list of demos
 
 [`src/demos.ts`](src/demos.ts) holds every demo once. The site draws its cards
-from it, every demo draws its "What this is, and what to try" box from its own
-entry, and the root README's list of demos is written from it:
+from it, every demo draws its guide (the "How to try this demo" pill in its
+corner) from its own entry, and the root README's list of demos is written from
+it:
 
 ```bash
 pnpm --filter foldkit-example-site readme   # rewrites the list between <!-- demos --> markers
@@ -39,9 +39,11 @@ every `foldkit-ssr` build does.
 - `src/demos.ts`: the cards' data.
 - `src/main.ts`: the Model (only the route), the view, and the resume plan.
 - `src/style.ts`: the Slots and their Styles.
-- `src/intro.ts`: the box each demo draws at the top of its first screen,
-  exported as `foldkit-example-site/intro` (the data as `foldkit-example-site/demos`).
-  It carries its own values, so it looks the same in every demo whatever its
-  theme. An application calls `demoIntro<Message>()` once, for its Messages.
+- `src/guide.ts`: the guide each demo draws, a pill fixed in the corner that
+  opens a short panel with the demo's steps; exported as
+  `foldkit-example-site/guide` (the data as `foldkit-example-site/demos`). It
+  carries its own colours, each a `light-dark()` pair, so it looks the same in
+  every demo whatever its theme and follows the reader's colour scheme. An
+  application calls `demoGuide<Message>()` once, for its Messages.
 - `src/site.ts`: what `staticSite` renders.
 - `src/readme.ts`, `scripts/readme.ts`: the root README's list, and the script that writes it.

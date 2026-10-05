@@ -12,9 +12,9 @@
 import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Cms } from 'foldkit-cms'
-import { Display } from 'foldkit-crud'
 import type { Selected } from 'foldkit-entity'
 import { SlotView, Style } from 'foldkit-mixins'
+import { demoGuide } from 'foldkit-example-site/guide'
 import { Empty, Failure, ListView, Loading } from 'foldkit-mixins-crud'
 import {
   Editor,
@@ -33,7 +33,7 @@ import {
   chair,
   editorBar,
   failed,
-  intro,
+  guideInput,
   publisherOf,
   shell,
   stateIs,
@@ -45,6 +45,8 @@ import { ListStyle } from '../styles/formStyles.js'
 import { SiteSlots, SiteStyle } from '../styles/siteStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
+
+const DemoGuide = demoGuide<Message>()
 
 const ask = (message: typeof Editor.Message.Type) => Message.GotEditorMessage({ message })
 
@@ -79,7 +81,6 @@ const list = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         'New post',
       ]),
     ]),
-    intro(slots, h),
     h.div(slots.filters.attrs(), [
       h.div(slots.tabs.attrs([h.Role('group'), h.AriaLabel('Which posts')]), [
         tab('Active', false),
@@ -398,6 +399,7 @@ export const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlB
           ]),
         ]
       : [PostEditor.status(model) === 'Closed' ? list(model, slots, h) : editor(model, slots, h)],
+    DemoGuide(guideInput, h),
   ),
 ).pipe(Style.attach(AdminStyle))
 

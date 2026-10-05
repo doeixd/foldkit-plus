@@ -10,6 +10,7 @@ import { Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Cms } from 'foldkit-cms'
 import { SlotView, Style } from 'foldkit-mixins'
+import { demoGuide } from 'foldkit-example-site/guide'
 import { Empty, Failure, Loading, RowListView } from 'foldkit-mixins-crud'
 import {
   Editor,
@@ -23,12 +24,23 @@ import {
   type SitePageRow,
 } from '../apps/pageApp.js'
 import { icon } from './icons.js'
-import { chair, editorBar, failed, publisherOf, shell, stateIs, statusLine } from './shell.js'
+import {
+  chair,
+  editorBar,
+  failed,
+  guideInput,
+  publisherOf,
+  shell,
+  stateIs,
+  statusLine,
+} from './shell.js'
 import { pageHref } from '../content/site.js'
 import { PageForm } from '../content/pageDomain.js'
 import { AdminSlots, AdminStyle, PagesListStyle } from '../styles/adminStyle.js'
 
 type Slots = SlotView.SlotBuilders<typeof AdminSlots, Message>
+
+const DemoGuide = demoGuide<Message>()
 
 /** The pages as rows, not a table: the package's `ul`/`li` list over `RowListSlots`. */
 const PagesRows = RowListView.forMessages<Message>()
@@ -213,6 +225,7 @@ export const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBui
             ? pageList(model, slots, h)
             : editor(model, slots, h),
         ],
+    DemoGuide(guideInput, h),
   ),
 ).pipe(Style.attach(AdminStyle))
 

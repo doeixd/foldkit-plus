@@ -27,23 +27,23 @@ export default [
     tests,
   },
   {
-    name: 'a card that does not link its packages',
+    name: 'a row that does not link its packages',
     edits: [
       {
         file: '../src/main.ts',
-        find: '      demo.packages.map(name =>',
-        replace: '      [].map((name: string) =>',
+        find: '        ...demo.packages.flatMap((name, index) => [',
+        replace: '        ...[].flatMap((name: string, index: number) => [',
       },
     ],
     tests,
   },
   {
-    name: 'a card without its steps',
+    name: 'a row whose source is not its file',
     edits: [
       {
         file: '../src/main.ts',
-        find: '      demo.tryThis.map((step, index) =>',
-        replace: '      [].map((step: Demo["tryThis"][number], index: number) =>',
+        find: "h.a(slots.source.attrs([h.Href(onGitHub(demo.readFirst))]), ['Source'])",
+        replace: "h.a(slots.source.attrs([h.Href(onGitHub(demo.example))]), ['Source'])",
       },
     ],
     tests,
