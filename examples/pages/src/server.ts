@@ -2,9 +2,11 @@
  * The sync server: the journal behind a WebSocket. It runs apart from the page's server, so
  * stopping it shows what a replica does offline: edits go on, and are kept, until it is back.
  */
-import { Sequence, Sync, type SocketLike } from 'foldkit-sync'
+import { Option } from 'effect'
+import { Sync, type SocketLike } from 'foldkit-sync'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { type openJournal, SERVER } from './journal.js'
+import type { openJournal } from './journal.js'
+import { tabOf } from './serving.js'
 
 const socketLike = (socket: WebSocket): SocketLike => ({
   send: data => socket.send(data),
@@ -33,23 +35,17 @@ export const startPagesServer = async (options: {
     sockets.once('error', reject)
   })
   sockets.on('connection', (socket, request) => {
-    // A real deployment authenticates here; this one trusts the tab's name, which is always
-    // `tab-…`, so a connection cannot act as the server or take another's odd name.
-    const actor = new URL(request.url ?? '', 'ws://localhost').searchParams.get('tab') ?? ''
-    if (!actor.startsWith('tab-') || actor === SERVER) {
+    // A real deployment authenticates here; this one trusts the tab's name.
+    const tab = tabOf(new URL(request.url ?? '', 'ws://localhost').searchParams.get('tab'))
+    if (Option.isNone(tab)) {
       socket.close()
       return
     }
-    const transport = journal.transport(actor)
     // Each commit is announced to every tab, so a tab that is only reading sees others' typing.
     const stops = [
-      Sync.transport.serve(socketLike(socket), {
-        exchange: (cursor, pending, epoch) =>
-          transport.exchange(Sequence.make(cursor), pending, epoch),
-        changes: journal.subscribe,
-      }),
+      journal.serve(socketLike(socket), tab.value),
       // On the same socket: the connection's tab is the identity its presence goes out under.
-      Sync.presence.serve(socketLike(socket), presence, { peerId: actor }),
+      Sync.presence.serve(socketLike(socket), presence, { peerId: tab.value }),
     ]
     socket.on('close', () => {
       for (const stop of stops) stop()
