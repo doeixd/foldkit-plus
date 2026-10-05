@@ -378,6 +378,26 @@ The adapters already model the pieces by other names. `agent-mcp`'s HTTP handler
 - **Audit and manifest cross-reference.** A refusal is already an `AgentAuthorizationError`; the audit entry gains the failing guard's name, never shown to the caller unless the deny is `explain`. `Agent.toManifest` names the guards per capability, and the matrix names the capabilities per guard; both are committed data.
 - **The chain holds end to end.** A server-hosted agent dispatches into a host runtime whose `RemoteClient` is bound to the session's principal, so the Message's mutation is checked by the server under the same identity the agent authorized.
 
+## 8c. Sync, Durable, presence
+
+Sync authorizes writes per durable variant inside the journal's commit, against the authoritative snapshot, and refuses at connection level with `refuse`. `foldkit-sync/entity` makes guards unavoidable there: a cell edit `{ id, member, value }` is a **write to a member of a server-owned Entity row** through the journal instead of a Remote mutation. Ungoverned, it is a second write path around the guards, the "one rule on one path leaves three open" failure.
+
+**Writes, in two halves by where each check can run.**
+
+- Principal guards, `always`, and the changed members' `Write` guards run inside the journal's `authorize`: it holds the write lock and must stay local to the snapshot, and these need only the principal and the change. `Guards.journal(G, Policy, { EditedProducts: changes => ... })` derives that `authorize` from the edit Message.
+- Row guards need the row, which lives in the table, not the snapshot, so they cannot run under the lock. They run in the exchange before `append`, as a `refuse` that becomes an `Effect` returning the common decision type, reading the row under `visible`. A hidden row refuses `forbidden`. `journalExchange` and `serveJournal` stay the one hand-written exchange.
+
+**Reads: a Sync document is one audience.** Committed operations go to every replica that may open the document, and a cell edit carries the member's value. An edit to a member a visitor may not read, replicated in a document a visitor may open, leaks the value while Remote withholds the row. Guards on the Entity cannot help, because Sync never reads them. The rule that closes it compares guard identities and needs no evaluator:
+
+- A document declares who may open it: `Guards.document(G, { readers: [G.isAuthor] })`, enforced as a connection-level `refuse` for a principal that fails it, and governing the presence channel that accompanies it.
+- `EditableEntity.make` over a guarded Entity requires that every edited member has **no member `Read` guard**, and that each of the document's `readers` **appears in the Entity's row `Read` disjunction**. Then every reader may read every row, and nothing the edits carry is hidden from anyone who receives them. A document over a Read-guarded Entity without `readers` is refused at definition.
+
+Per-member or per-row secrecy *within* a document is not something a replicated log offers; the package says so at `make` rather than letting it be discovered.
+
+**Durable** keeps `authorize`, `validate` and `actorId(principal)` as they are; it is a document log and learns nothing about Entities. `journalExchange({ principal })` takes `G.Principal`. The commit stamp's `by.actor`, shown to other replicas, is a display name resolved as the CMS's `nameOf` is, never the principal's key.
+
+**Presence** is ephemeral broadcast, validated by `decodeValue`, scoped by the document's `readers`. Its values are application-chosen and must not carry guarded fields; that is the author's responsibility, as `decodeValue` already is. A peer's `id` on the channel should be stamped by the server from `G.Principal` and `key`, not declared by the peer, as the commit stamp already does for edits; whether the server side does this today was not traced for this note and is the first thing slice 9 checks.
+
 ---
 
 ## 9. Failure and denial, end to end
@@ -432,7 +452,8 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
 7. **`may`.** Served by `Guards.source`; Crud's `may` and `readonly`; `mixins-form` disabled fields; `Data.forget` dropping it.
 8. **Agent.** `Guards.variant`; `withPrincipal` inferred.
 9. **CMS.** §8; the casts removed; the example's `isAuthor`/`allow` rewritten; the e2e audience test unchanged and green.
-10. **Docs.** `packages/guard/README.md` in the onboarding order; a `SKILL.md` row and `references/guard.md`; `remote.md`'s authorization gotchas pointing here; `CHANGELOG.md` per slice.
+10. **Sync.** §8c: `Guards.document` as a connection-level refuse; `Guards.journal` deriving the journal's `authorize`; an Effect-returning `refuse` with a reason for row guards before `append`; `EditableEntity.make`'s audience check; the registry example's edits governed by `Product`'s guards. First, read the presence server to confirm whether a peer's id is stamped from the connection. Tests: a visitor's exchange refused by `readers`; an edit to a `Write`-guarded member rejected with its reason; a document declared over a member with a `Read` guard refused at `make`.
+11. **Docs.** `packages/guard/README.md` in the onboarding order; a `SKILL.md` row and `references/guard.md`; `remote.md`'s authorization gotchas pointing here; `CHANGELOG.md` per slice.
 
 ---
 
