@@ -199,7 +199,14 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   style gives a dot in the corner and an application styles by name
   (`&[data-mark="refused"]` in its own `Style.forSlots(GridSlots)`), and the
   description is the cell's `aria-description`, so a screen reader says what
-  the dot shows. It is asked only for the cells drawn.
+  the dot shows. It is asked only for the cells drawn. Five names are shared,
+  for a grid over a server (`GridMarks`: `pending`, `saved`, `refused`,
+  `replaced`, `peer`): `GridMarkStyle`, attached after `GridStyle`, draws
+  them on the theme's tokens, a shape for each, not only a colour (and an
+  outline where colours are forced), with a peer's colour from
+  `--fk-grid-peer` when the application sets one. `GridLegend<Message>()`
+  draws what they mean, each beside a swatch `GridLegendStyle` paints with
+  the cells' own rules, so the two cannot disagree.
 - **Sorting** is the application's: `sort` gives a column its direction and
   the Message that sorts it next (`foldkit-crud`'s `Sort` has this shape).
   The header says `aria-sort`, and its label is a button the pointer sorts

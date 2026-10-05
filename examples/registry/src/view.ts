@@ -8,7 +8,14 @@ import type { Document, HtmlBuilder } from 'foldkit/html'
 import { RowCount } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Style } from 'foldkit-mixins'
-import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
+import {
+  DataGridView,
+  GridLegend,
+  GridLegendStyle,
+  GridMarkStyle,
+  GridSlots,
+  GridStyle,
+} from 'foldkit-mixins-data-grid'
 import { Grid, Message, Products, exchangeOf, marksOf, rowsOf, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
 import { ProductSort } from './operations.js'
@@ -17,6 +24,8 @@ const Registry = DataGridView<Message>()
   .define(Grid)
   .pipe(
     Style.attach(GridStyle),
+    // The shared marks, after GridStyle, whose plain dot they replace by name.
+    Style.attach(GridMarkStyle),
     Style.attach(
       Style.forSlots(GridSlots)({
         root: Style.inline({
@@ -26,33 +35,12 @@ const Registry = DataGridView<Message>()
           borderRadius: '10px',
           boxShadow: '0 1px 2px rgb(0 0 0 / 0.04)',
         }),
-        // An edit's state on its cell: not yet sent is the grid's own dot; one
-        // the journal has and the table does not yet, a hollow dot; one the
-        // server refused, a red edge until its line is dismissed.
-        cell: Style.compose(
-          Style.nest('&[data-mark="saved"]', {
-            backgroundImage:
-              'radial-gradient(circle at calc(100% - 6px) 6px, transparent 2px, #71717a 2.5px, #71717a 3.5px, transparent 4px)',
-          }),
-          Style.nest('&[data-mark="refused"]', {
-            backgroundImage: 'none',
-            boxShadow: 'inset 0 0 0 2px #dc2626',
-          }),
-          // Another device's later edit won: an amber edge until its line is dismissed.
-          Style.nest('&[data-mark="replaced"]', {
-            backgroundImage: 'none',
-            boxShadow: 'inset 0 0 0 2px #d97706',
-          }),
-          // Where another device is: its focus, in its own colour.
-          Style.nest('&[data-mark="peer"]', {
-            backgroundImage: 'none',
-            boxShadow: 'inset 0 0 0 2px #7c3aed',
-            background: '#f5f3ff',
-          }),
-        ),
       }),
     ),
   )
+
+/** What each mark on a cell means, each beside a swatch drawn by the cells' own rules. */
+const Legend = GridLegend<Message>().pipe(Style.attach(GridLegendStyle))
 
 const columnNames = { description: 'Description', cents: 'Price', line: 'Line', status: 'Status' }
 const columnName = (column: EditedColumn) => columnNames[column]
@@ -89,39 +77,6 @@ const notice = (tone: { readonly border: string; readonly background: string }) 
   }) as const
 const refusedTone = { border: '#fecaca', background: '#fef2f2' }
 const replacedTone = { border: '#fde68a', background: '#fffbeb' }
-/** What each mark on a cell means, each beside a swatch drawn as the mark is. */
-const legend = [
-  {
-    swatch: { width: '6px', height: '6px', borderRadius: '50%', background: ink },
-    text: 'Not sent yet',
-  },
-  {
-    swatch: {
-      width: '6px',
-      height: '6px',
-      borderRadius: '50%',
-      boxShadow: `inset 0 0 0 1.5px ${muted}`,
-    },
-    text: 'Saved, the table catching up',
-  },
-  {
-    swatch: { width: '12px', height: '10px', boxShadow: 'inset 0 0 0 2px #dc2626' },
-    text: 'Not saved',
-  },
-  {
-    swatch: { width: '12px', height: '10px', boxShadow: 'inset 0 0 0 2px #d97706' },
-    text: 'Replaced by another device',
-  },
-  {
-    swatch: {
-      width: '12px',
-      height: '10px',
-      boxShadow: 'inset 0 0 0 2px #7c3aed',
-      background: '#f5f3ff',
-    },
-    text: 'Another device is here',
-  },
-] as const
 
 /** A list of notices, not drawn at all while it has none, so it adds no gap. */
 const list = (count: number) =>
@@ -237,30 +192,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ),
         ],
       ),
-      h.ul(
-        [
-          h.AriaLabel('What the marks on a cell mean'),
-          h.Style({
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.25rem 1rem',
-            listStyle: 'none',
-            margin: '0',
-            padding: '0',
-            fontSize: '0.75rem',
-            color: muted,
-          }),
-        ],
-        legend.map(({ swatch, text }) =>
-          h.li(
-            [h.Style({ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' })],
-            [
-              h.span([h.AriaHidden(true), h.Style({ display: 'inline-block', ...swatch })], []),
-              text,
-            ],
-          ),
-        ),
-      ),
+      Legend({}, h),
       // What the server refused, said once per edit with its reason; the cells
       // it had changed show the server's value again, edged in red.
       h.ul(

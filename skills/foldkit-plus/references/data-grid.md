@@ -129,7 +129,10 @@ the whole wiring, compiled.
   `data-pinned-edge`, for styles; `GridStyle` draws them.
 - `marks: address => Option.some({ name, description })` on the view gives a
   cell a state of the application's (an unsaved edit): `data-mark` on the
-  cell Slot, styled by name, and the text as its `aria-description`.
+  cell Slot, styled by name, and the text as its `aria-description`. The
+  shared names (`GridMarks`: `pending`, `saved`, `refused`, `replaced`,
+  `peer`) are drawn by `GridMarkStyle` (attach after `GridStyle`), and
+  explained by `GridLegend<Message>()` with `GridLegendStyle`.
 - ARIA is logical: `aria-rowindex` and `aria-colindex` count every row and
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 

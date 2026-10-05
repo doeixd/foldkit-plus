@@ -7,7 +7,8 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { GridSlots } from './slots.js'
 
-const ref = Theme.ref(
+/** The tokens the grid's styles draw with; the marks' too (`marks.ts`). */
+export const ref = Theme.ref(
   Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
 )
 

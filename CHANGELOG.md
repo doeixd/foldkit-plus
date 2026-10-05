@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-data-grid`: shared cell marks and their legend.**
+  `GridMarks` names five marks (`pending`, `saved`, `refused`, `replaced`,
+  `peer`); `GridMarkStyle`, attached after `GridStyle`, draws each on the
+  theme's tokens with a shape of its own and an outline under forced
+  colours; `GridLegend` draws what they mean beside swatches
+  `GridLegendStyle` paints with the cells' rules. `examples/registry` uses
+  them in place of its hex colours and hand-drawn legend (#168).
 - **`foldkit-mixins/theme`: shadow tokens.** `Theme.tokens.shadow` is a
   scale (`xs`, `sm`, `md`, `lg`, `xl`, `inset`) drawn in one color,
   `--fk-shadow-color`, falling back to a faint black; `Theme.oklch` sets it,

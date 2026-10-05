@@ -11,6 +11,16 @@
 export { GridSlots } from './slots.js'
 export { GridStyle } from './style.js'
 export {
+  GridLegend,
+  GridLegendSlots,
+  GridLegendStyle,
+  GridMarkStyle,
+  GridMarks,
+  type GridLegendInput,
+  type GridLegendWords,
+  type GridMark,
+} from './marks.js'
+export {
   DataGridView,
   type CellMark,
   type ColumnSort,
