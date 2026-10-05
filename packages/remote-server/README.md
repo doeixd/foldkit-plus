@@ -658,8 +658,32 @@ const served = RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined
   the reference interpreter, and paged with offset cursors. A query with no
   body has nothing to run and is refused when the backend is made, unless you
   pass a source for it in `queries`.
-- It pushes no live changes and authorizes nothing: every field is readable.
-  It is not a server to deploy.
+- Every field is readable unless `authorize` names the entity; see below. It
+  pushes no live changes, and it is not a server to deploy.
+
+To try authorization without a database, give `authorize` per entity name,
+the function `RemoteServer.entity` takes, and the `principal` the layer
+answers as. The principal's type is inferred from them, as `RemoteServer.make`
+infers it from its sources:
+
+```ts
+const guarded = RemoteServer.memory({
+  domain: Data,
+  rows: { Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }] },
+  principal: { isAdmin: false },
+  authorize: {
+    Project: (principal: Principal, fields) =>
+      fields.filter(field => field !== 'privateNotes' || principal.isAdmin),
+  },
+})
+
+// The layer reads as a non-admin; the server answers as anyone.
+const asAdmin = RemoteServer.handlers(guarded.server, { isAdmin: true })
+```
+
+A withheld field is settled, as from any server: the client stops asking for
+it, and a selection that needs it fails as `Unavailable`. A name in
+`authorize` the domain does not declare is refused when the backend is made.
 
 ## Over a MessagePort
 

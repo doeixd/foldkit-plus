@@ -65,3 +65,17 @@ void route
 declare const port: MessagePort
 const served: Effect.Effect<void, unknown> = servePort(handlers, port)
 void served
+
+// A backend held in memory, authorized per principal.
+const Data = Remote.define({ entities: [Project] })
+const guarded = RemoteServer.memory({
+  domain: Data,
+  rows: { Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }] },
+  principal: { isAdmin: false },
+  authorize: {
+    Project: (principal: Principal, fields) =>
+      fields.filter(field => field !== 'privateNotes' || principal.isAdmin),
+  },
+})
+const asAdmin = RemoteServer.handlers(guarded.server, { isAdmin: true })
+void asAdmin

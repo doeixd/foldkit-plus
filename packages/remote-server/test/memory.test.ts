@@ -6,7 +6,7 @@
  * would send. It runs a `Query.define` body with the reference interpreter, so
  * a query means here what the conformance suite says it means.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Mutation, Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
@@ -61,8 +61,8 @@ const summary = Entity.select(Project, {
 })
 
 /** What an active Surface would bring: the projection's queries, then its rows. */
-const load = (
-  backend: MemoryBackend,
+const load = <P>(
+  backend: MemoryBackend<P>,
   projection: Parameters<typeof Data.prefetch>[1],
   from: Model = initial,
 ): Promise<Model> =>
@@ -406,6 +406,80 @@ describe('RemoteServer.memory', () => {
       },
       { entity: 'Comment', id: 'c1', values: { body: 'first' } },
     ])
+  })
+
+  describe('authorize', () => {
+    // A guest may not read a project's status; anyone else may.
+    const guarded = (principal: string) =>
+      RemoteServer.memory({
+        domain: Data,
+        rows,
+        principal,
+        authorize: {
+          Project: (who: string, fields) =>
+            who === 'guest' ? fields.filter(field => field !== 'status') : fields,
+        },
+      })
+    const read = (layer: Layer.Layer<RemoteClient>) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const client = yield* RemoteClient
+          return yield* client.read({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [
+              { entity: 'Project', id: 'p1', fields: ['name', 'status'] },
+              { entity: 'User', id: 'u1', fields: ['name'] },
+            ],
+          })
+        }).pipe(Effect.provide(layer)),
+      )
+
+    it('reads as the principal it was given, and settles what is withheld', async () => {
+      const batch = await read(guarded('guest').layer)
+
+      expect(batch.entities).toEqual([
+        { entity: 'Project', id: 'p1', values: { name: 'Borealis' } },
+        { entity: 'User', id: 'u1', values: { name: 'Ada' } },
+      ])
+      expect(batch.settled).toEqual([{ entity: 'Project', id: 'p1', fields: ['status'] }])
+    })
+
+    it('decides per principal, and its server answers as any', async () => {
+      const backend = guarded('guest')
+      const asAdmin = Remote.clientLayer(RemoteServer.handlers(backend.server, 'admin'))
+      const batch = await read(asAdmin)
+
+      expect(batch.entities[0]).toEqual({
+        entity: 'Project',
+        id: 'p1',
+        values: { name: 'Borealis', status: 'active' },
+      })
+    })
+
+    it('withholds a field from the rows a query body answers with', async () => {
+      const backend = guarded('guest')
+      const first = Data.query(
+        ByStatus,
+        { status: 'active' },
+        { select: Entity.select(Project, { name: true, status: true }), first: 1 },
+      )
+      const page = first.read(await load(backend, first))
+
+      // A selection that needs a withheld field cannot be drawn: the client
+      // says so rather than waiting for it.
+      expect(page).toMatchObject({
+        _tag: 'Failed',
+        error: { _tag: 'Unavailable', message: expect.stringContaining('Project:p2.status') },
+      })
+    })
+
+    it('refuses, when made, an entity the domain does not declare', () => {
+      expect(() =>
+        RemoteServer.memory({ domain: Data, rows, authorize: { Projct: (_, fields) => fields } }),
+      ).toThrow(
+        'RemoteServer.memory: `authorize` names "Projct", which the domain does not declare',
+      )
+    })
   })
 
   it('refuses, when made, a query it has no body to run', () => {

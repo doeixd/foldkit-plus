@@ -495,7 +495,8 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // It decodes the request by the protocol's schemas first; a defect answers 'Internal error'.
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
-// mutations: store => [...] write through store.write. No live, no authorization.
+// mutations: store => [...] write through store.write. No live.
+// authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
 // across a process boundary: RemoteRpc.toLayer(handlers) + your Effect RPC transport
 ```
 

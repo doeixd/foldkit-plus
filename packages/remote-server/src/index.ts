@@ -609,15 +609,34 @@ export interface MemoryStore {
   readonly remove: (entity: string, id: string) => void
 }
 
-export interface MemoryBackend extends MemoryStore {
-  /** A `RemoteClient` answering from the rows. Provide it where the real one would go. */
+export interface MemoryBackend<P = undefined> extends MemoryStore {
+  /**
+   * A `RemoteClient` answering from the rows as the configured `principal`.
+   * Provide it where the real one would go.
+   */
   readonly layer: Layer.Layer<RemoteClient>
   /**
    * The server the layer answers through, for serving the rows over a real
-   * transport: `RemoteRpc.toLayer(RemoteServer.handlers(backend.server, undefined))`.
+   * transport, or as another principal:
+   * `RemoteRpc.toLayer(RemoteServer.handlers(backend.server, principal))`.
    */
-  readonly server: ServerDefinition<undefined>
+  readonly server: ServerDefinition<P>
 }
+
+/** What `RemoteServer.memory` is made from. See `memory`. */
+export type MemoryConfig<P> = {
+  readonly domain: Pick<RemoteDescriptor, 'registry'>
+  readonly rows: MemoryRows
+  readonly queries?: ReadonlyArray<QuerySource<P>>
+  readonly mutations?: (store: MemoryStore) => ReadonlyArray<MutationSource<P>>
+  /** Per entity name, the fields a principal may read, as `RemoteServer.entity` takes it. */
+  readonly authorize?: Readonly<Record<string, NonNullable<EntitySource<P>['authorize']>>>
+} & (undefined extends P
+  ? { readonly principal?: P }
+  : {
+      /** Who the `layer` answers as. */
+      readonly principal: P
+    })
 
 /** Where a cursor falls among ordered items: before `index`, or at it when `exact`. */
 interface Position {
@@ -703,15 +722,19 @@ const pageOf = <Item>(
  * supplies a source for it. Mutations are yours to give: each one writes
  * through the store it is handed, and the next read sees the change.
  *
- * It does not push live changes, and it authorizes nothing: every field of
- * every row is readable. It is not a server to deploy.
+ * Every field of every row is readable unless `authorize` names the entity:
+ * then its function decides, per principal, as `RemoteServer.entity`'s does.
+ * The `layer` answers as `principal`; `server` answers as any. It does not
+ * push live changes. It is not a server to deploy.
  */
-const memory = (config: {
-  readonly domain: Pick<RemoteDescriptor, 'registry'>
-  readonly rows: MemoryRows
-  readonly queries?: ReadonlyArray<QuerySource<undefined>>
-  readonly mutations?: (store: MemoryStore) => ReadonlyArray<MutationSource<undefined>>
-}): MemoryBackend => {
+const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
+  const authorize = config.authorize ?? {}
+  const unknown = Object.keys(authorize).filter(name => !config.domain.registry.entities.has(name))
+  if (unknown.length > 0) {
+    throw new Error(
+      `RemoteServer.memory: \`authorize\` names ${unknown.map(name => `"${name}"`).join(', ')}, which the domain does not declare`,
+    )
+  }
   const tables = new Map<string, Map<string, Record<string, unknown>>>()
   const table = (entity: string) => {
     const existing = tables.get(entity)
@@ -765,9 +788,10 @@ const memory = (config: {
   }
 
   const entities = [...config.domain.registry.entities.keys()].map(name =>
-    RemoteServer.entity<undefined>(
+    RemoteServer.entity<P>(
       { name },
       {
+        ...(Object.hasOwn(authorize, name) ? { authorize: authorize[name]! } : {}),
         read: ({ ids, fields, windows }) =>
           Effect.try({
             try: () =>
@@ -806,7 +830,7 @@ const memory = (config: {
     ...[...config.domain.registry.queries.values()]
       .filter(query => !given.has(query.name))
       .map(query =>
-        RemoteServer.query<undefined>(query, ({ input, window }) =>
+        RemoteServer.query<P>(query, ({ input, window }) =>
           Effect.try({
             try: () => {
               const body = query.body!
@@ -849,7 +873,7 @@ const memory = (config: {
       ),
   ]
 
-  const server = RemoteServer.make<undefined>({
+  const server = RemoteServer.make<P>({
     entities,
     queries,
     mutations: config.mutations?.(store) ?? [],
@@ -858,7 +882,8 @@ const memory = (config: {
     ...store,
     server,
     layer: Remote.clientLayer(
-      RemoteServer.handlers(server, undefined),
+      // `principal` is required by the config's type unless `P` admits undefined.
+      RemoteServer.handlers(server, config.principal as P),
     ) as Layer.Layer<RemoteClient>,
   }
 }

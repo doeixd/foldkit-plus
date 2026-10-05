@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server`: `RemoteServer.memory` authorizes per entity.**
+  It takes `authorize`, per entity name, the function `RemoteServer.entity`
+  takes, and the `principal` its `layer` answers as; `server` answers as any
+  principal through `handlers`. The principal's type is inferred from them, and
+  `principal` is required unless that type admits `undefined`. A name the
+  domain does not declare is refused when the backend is made. A memory-backed
+  test or demo no longer copies the read path to try authorization (#147).
 - **`foldkit-sync/journal`: `TableAheadOfJournalError`.** `editsJournal`'s
   `settle` refuses to start while the table holds a revision past the
   journal's cursor, as a table that outlived a reset of its journal does:
