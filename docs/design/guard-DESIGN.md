@@ -102,7 +102,7 @@ const isOwner = Guards.row('isOwner', Todo, principal => Expr.eq(Todo.fields.own
 
 `Guards.row` takes the Entity so the body is checked against it where it is written, as `Query.where` refuses a foreign field. The `principal` parameter is a **placeholder record**, not the value: each property read mints an `Expr.input` named by the path (`principal.id` is the input `principal.id`), typed from `P`. The body is built once at definition time, so `principal.role === 'admin' ? a : b` is impossible to write correctly and is a type error: a placeholder is an `InputExpr`, not a string. This is the existing `Expr.input` discipline, enforced by the type rather than remembered.
 
-A row guard over a nullable `P` reads its fields through `Option`-shaped placeholders: `principal.id` is `InputExpr<UserId | null>`, and `Expr.eq` of a non-nullable column with a nullable input follows SQL (`null = x` matches nothing), which is what "a visitor owns nothing" should mean. The reference `evaluate` already has these semantics.
+A row guard over a nullable `P` reads its fields through nullable placeholders: `principal.id` is `InputExpr<UserId | null>`. `Expr.eq` today refuses a nullable operand against a non-nullable field where it is written, so the guard package must either widen that one comparison for placeholders or require the author to say what a visitor gets (`Guards.row` over the non-null half of `P`, with `null` handled by a principal guard). Open question 5 decides; either way `evaluate` and SQL agree that `null = x` matches nothing, which is what "a visitor owns nothing" should mean.
 
 Composition:
 
@@ -274,7 +274,7 @@ const TodoRow = Entity.select(Todo, {
 })
 ```
 
-`Guards.may` is a Selection member the server answers like any derived field, under the principal, by running the same guards over the row it just read. It is exact for the principal and row at the moment of the read, and it is data in the Model, so it is `Refreshing` or stale exactly as the row is.
+A Selection can only name members the Entity has, so `Guards.attach` **adds two derived members** to the Entity it attaches to: `may`, a `Struct` of one boolean per interaction that has row guards, and `mayWrite`, one per member or relation with `Write`, `Link` or `Unlink` guards. `Guards.may(...)` and `Guards.may.members(...)` are typed narrowings of those two members for a Selection, so a Selection reads only the answers it draws. A Source built from `Guards.source` supplies them like any derived member, under the principal, by running the same guards over the row it just read; a hand-written Source that omits them settles them, which the client reads as `Unavailable` and Crud as "not yet known". The answer is exact for the principal and row at the moment of the read, and it is data in the Model, so it is `Refreshing` or stale exactly as the row is.
 
 Consumers:
 
@@ -353,7 +353,7 @@ The two new facts on the wire are the `Forbidden` tag and its optional `reason`.
 
 Small, and each is a gap already named in the current code walk.
 
-1. **`foldkit-remote-server`.** `EntitySource.authorize` may return `Effect<readonly string[], never, R>`; `EntitySource.filter?` is added and run by `readHelper`; `RemoteServerError` gains the `Forbidden` variant; `answer` maps it to 403; `validate` checks guarded Entities have placed Sources and guarded inputs have `guarded` mutations; `handlers` takes `P` from the Server definition, which takes it from its Sources.
+1. **`foldkit-remote-server`.** `EntitySource.authorize` may return `Effect<readonly string[], never, R>`; `EntitySource.filter?` is added and run by `readHelper`; `RemoteServerError` gains the `Forbidden` variant; `answer` maps it to 403; `validate` checks guarded Entities have placed Sources and guarded inputs have `guarded` mutations; `handlers` takes `P` from the Server definition, which takes it from its Sources. `RemoteServer.memory`, which authorizes nothing today, applies a guarded Entity's row `Read` guards with `evaluate` over its rows and runs `filter`, so the in-memory backend and the Drizzle one answer the audience tests alike.
 2. **`foldkit-remote-drizzle`.** `Visible` becomes `Visible<P>`; `bind` carries `P`; a binding records which guards it placed.
 3. **`foldkit-remote`.** `Mutation.make` accepts an `Entity.input` as `Input` and an `interaction`; `RemoteMutationError` gains the `Forbidden` tag and `reason`; `Remote.http` keeps the status; `Data.mutation`'s `Failed` exposes the tag.
 4. **`foldkit-entity`.** Nothing. `Guards` is metadata; `Expr.input` and `evaluate` are what they are. A `Guards.row` placeholder record is built from `P`'s type with `Expr.input`, in the guard package.
@@ -395,3 +395,4 @@ Each slice stands alone, is committed with its tests, and is reviewed before the
 2. **Does `redact` belong in the first version?** It is the only deny the client cannot distinguish from a real value. It is in because gen2 found it needed (a masked email in a list), and because without it an author reaches for a second Selection per role.
 3. **Where does a row guard on a derived member run?** A count the binding computes under `policies` is already principal-aware; a `supplied` derived member has no row to evaluate against until the application supplies it. Leaning: `Guards.attach` refuses a row guard on a `supplied` derived member.
 4. **Should `Guards.matrix` be a check?** A committed matrix that `validate` compares against the live one would catch an unreviewed access change at startup. Cheap once the matrix exists; not in slice 1.
+5. **How does a row guard speak about a nullable principal?** `Expr.eq` refuses a nullable operand against a non-nullable field. Options: the guard package widens that comparison for principal placeholders only, with SQL's `null = x` semantics; or `Guards.row` takes the non-null half of `P` and a principal guard (`signedIn`) stands in front of it in a `Guards.all`. Leaning: the second, because it adds no special case to `Expr` and reads as what it means.
