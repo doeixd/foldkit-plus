@@ -1,4 +1,5 @@
 export { Clipboard, type CellText, type PastedCell } from './clipboard.js'
+export { Fill, type FillPlan, type FillRequest } from './fill.js'
 export { ColumnState, type Region, type Restored } from './columnState.js'
 export {
   CellEditor,

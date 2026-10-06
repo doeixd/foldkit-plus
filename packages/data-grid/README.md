@@ -360,6 +360,15 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   where pasted text lands: laid from the anchor, dropping cells past the
   edges, on columns that do not edit, or on rows not loaded. Each cell keeps
   `from(address)`, the text it showed, as an edit would begin from.
+- **`Fill`** carries a range on, as a spreadsheet's fill does, and is pure.
+  `Fill.plan(projection, { source, to })` is the source's box and the box
+  beyond it toward `to`, along one axis (`toward`: down, up, right or left;
+  rows win a diagonal). `Fill.cells(projection, plan, { editable, from })`
+  is the cells it writes, each lane of the source carried on by
+  `Fill.series(texts, count, backward)`: two or more numbers a constant step
+  apart continue their step, keeping the finest decimals, and anything else
+  repeats in order. Like a paste, it drops columns that do not edit and rows
+  not loaded, and keeps each cell's `from`.
 - **`Pasted({ cells })`** hands those cells to the grid, which drops each one
   its text leaves unchanged (as an edit judges it), checks the rest against
   their columns' `schema`, and reports one `Out.Pasted({ accepted, refused
