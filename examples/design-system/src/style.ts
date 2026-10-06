@@ -17,14 +17,25 @@ import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import {
   ButtonSlots,
+  CalendarSlots,
   CheckboxSlots,
   DialogSlots,
+  DisclosureSlots,
+  FieldsetSlots,
+  HoverIntentSlots,
+  Icons,
   InputSlots,
+  PopoverSlots,
+  RadioGroupSlots,
   Recipes,
   SegmentedSlots,
+  SelectSlots,
+  SliderSlots,
   SwitchSlots,
   TabsSlots,
   TextareaSlots,
+  TooltipSlots,
+  Touch,
 } from 'foldkit-mixins-ui'
 
 const palette = Theme.compose(
@@ -220,6 +231,365 @@ export const CheckStyle = app.forSlots(CheckboxSlots)(Recipes.Checkbox({ tone: '
 export const ToggleStyle = app.forSlots(SwitchSlots)(Recipes.Switch({ tone: 'accent' }), {
   name: 'ToggleStyle',
 })
+
+/**
+ * Select has no shipped recipe, so it is styled here to match the text
+ * field: the same border, radius, and density, with room for a chevron.
+ */
+export const SelectStyle = app.forSlots(SelectSlots)(
+  {
+    select: [
+      L.in('layouts', Layout.stack({ gap: '0' })),
+      {
+        display: 'block',
+        inlineSize: '100%',
+        padding: `${t.space.xs} 2rem ${t.space.xs} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+        color: t.text.default,
+        font: 'inherit',
+        lineHeight: t.leading.normal,
+        appearance: 'none',
+      },
+      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: t.outline.overt }),
+      Style.pseudo(':focus-visible', {
+        outline: `${t.border.thick} solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+    ],
+    label: [
+      U.m('0'),
+      U.text('sm'),
+      U.font('medium'),
+      U.color('text.overt'),
+      { display: 'block', marginBlockEnd: t.space['2xs'] },
+    ],
+    description: [U.m('0'), U.text('sm'), U.color('text.muted')],
+  },
+  { name: 'SelectStyle' },
+)
+
+/** A collapsible section: a ghost-like trigger and an indented panel. */
+export const DisclosureStyle = app.forSlots(DisclosureSlots)(
+  {
+    button: [
+      U.text('sm'),
+      U.font('medium'),
+      {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: t.space.xs,
+        padding: `${t.space.xs} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+    ],
+    panel: [
+      {
+        marginBlockStart: t.space.xs,
+        padding: t.space.sm,
+        paddingInlineStart: t.space.md,
+        borderInlineStart: `${t.border.thick} solid ${t.outline.default}`,
+        color: t.text.muted,
+      },
+    ],
+  },
+  { name: 'DisclosureStyle' },
+)
+
+/** A grouped set of controls with a legend, drawn as a quiet card. */
+export const FieldsetStyle = app.forSlots(FieldsetSlots)(
+  {
+    fieldset: [
+      {
+        margin: '0',
+        padding: t.space.md,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        background: t.surface.subtle,
+      },
+    ],
+    legend: [U.m('0'), U.text('sm'), U.font('semibold'), U.color('text.overt')],
+    description: [U.m('0'), U.text('sm'), U.color('text.muted')],
+  },
+  { name: 'FieldsetStyle' },
+)
+
+/** Radio options as pills; the chosen one takes the accent tint and ink. */
+export const RadioStyle = app.forSlots(RadioGroupSlots)(
+  {
+    group: [L.in('layouts', Layout.cluster({ gap: t.space['2xs'], align: 'center' }))],
+    option: [
+      U.text('sm'),
+      U.font('medium'),
+      {
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.full,
+        background: 'transparent',
+        color: t.text.muted,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { color: t.text.overt }),
+      Style.pseudo('[aria-selected="true"]', {
+        background: t.accent.subtle,
+        borderColor: 'transparent',
+        color: t.accent.ink,
+      }),
+    ],
+    label: [U.m('0'), U.text('sm'), U.font('medium'), U.color('text.overt')],
+    description: [U.m('0'), U.text('sm'), U.color('text.muted')],
+  },
+  { name: 'RadioStyle' },
+)
+
+/**
+ * A volume-style slider preview. Geometry (fill width, thumb position) is
+ * left to the view's inline style; the style owns the track, fill, and
+ * thumb looks only.
+ */
+export const SliderStyle = app.forSlots(SliderSlots)(
+  {
+    root: [L.in('layouts', Layout.stack({ gap: t.space['2xs'] })), { maxWidth: '20rem' }],
+    track: [
+      {
+        position: 'relative',
+        blockSize: '0.375rem',
+        borderRadius: t.radius.full,
+        background: t.surface.muted,
+      },
+    ],
+    filledTrack: [
+      {
+        position: 'absolute',
+        insetBlock: '0',
+        insetInlineStart: '0',
+        borderRadius: t.radius.full,
+        background: t.accent.default,
+      },
+    ],
+    thumb: [
+      {
+        position: 'absolute',
+        insetBlockStart: '50%',
+        blockSize: '1rem',
+        inlineSize: '1rem',
+        borderRadius: t.radius.full,
+        background: t.surface.base,
+        border: `${t.border.thick} solid ${t.accent.default}`,
+        translate: '-50% -50%',
+      },
+    ],
+    label: [U.m('0'), U.text('sm'), U.font('medium'), U.color('text.overt')],
+  },
+  { name: 'SliderStyle' },
+)
+
+/** A static month preview: a bordered card with a seven-column day grid. */
+export const CalendarStyle = app.forSlots(CalendarSlots)(
+  {
+    root: [
+      {
+        display: 'inline-block',
+        padding: t.space.md,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        boxShadow: t.shadow.sm,
+      },
+    ],
+    grid: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 2rem)', gap: '2px' }],
+    headerRow: [{ display: 'contents' }],
+    columnHeader: [U.text('xs'), U.color('text.muted'), { textAlign: 'center' }],
+    weekRow: [{ display: 'contents' }],
+    dayCell: [{ display: 'grid', placeItems: 'center' }],
+    dayButton: [
+      U.text('sm'),
+      {
+        inlineSize: '2rem',
+        blockSize: '2rem',
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+      Style.nest('&[data-selected="true"]', {
+        background: t.accent.default,
+        color: t.accent['on-fill'],
+      }),
+    ],
+  },
+  { name: 'CalendarStyle' },
+)
+
+// --- overlay previews ------------------------------------------------------------------
+// Popover, Tooltip, and HoverIntent are Submodels; the demo draws their slots
+// statically (trigger plus panel in place), so the section shows the look
+// while the state stays two booleans in the Model.
+
+/** A floating card with a shadow, drawn in place for the preview. */
+export const PopoverStyle = app.forSlots(PopoverSlots)(
+  {
+    button: [
+      U.text('sm'),
+      U.font('medium'),
+      {
+        padding: `${t.space.xs} ${t.space.md}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+    ],
+    panel: [
+      {
+        marginBlockStart: t.space.xs,
+        padding: t.space.md,
+        maxWidth: '18rem',
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        boxShadow: t.shadow.lg,
+        color: t.text.muted,
+      },
+    ],
+  },
+  { name: 'PopoverStyle' },
+)
+
+/** A dark pill, as tooltips read on any ground. */
+export const TooltipStyle = app.forSlots(TooltipSlots)(
+  {
+    trigger: [
+      U.text('sm'),
+      U.font('medium'),
+      { color: t.text.default, textDecoration: 'underline dotted', textUnderlineOffset: '3px' },
+    ],
+    panel: [
+      U.text('xs'),
+      {
+        display: 'inline-block',
+        marginInlineStart: t.space.xs,
+        padding: `${t.space['3xs']} ${t.space.xs}`,
+        borderRadius: t.radius.md,
+        background: t.text.overt,
+        color: t.surface.base,
+      },
+    ],
+  },
+  { name: 'TooltipStyle' },
+)
+
+/** A hover card: a trigger with its panel beside it, both drawn in place. */
+export const HoverCardStyle = app.forSlots(HoverIntentSlots)(
+  {
+    trigger: [
+      U.text('sm'),
+      U.font('medium'),
+      {
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.full,
+        background: t.surface.subtle,
+        color: t.text.default,
+        font: 'inherit',
+        cursor: 'default',
+      },
+    ],
+    panel: [
+      U.text('sm'),
+      {
+        marginBlockStart: t.space.xs,
+        padding: t.space.md,
+        maxWidth: '18rem',
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        boxShadow: t.shadow.md,
+        color: t.text.muted,
+      },
+    ],
+  },
+  { name: 'HoverCardStyle' },
+)
+
+// --- input group, icons, touch -----------------------------------------------------------
+
+export const InputGroupSlots = Slots.define({
+  group: Slot.make({ capability: Capability.Container }),
+  affix: Slot.make({ capability: Capability.Container }),
+  control: Slot.make({ capability: Capability.TextInput, events: [] }),
+})
+
+/** A text field with a prefix, drawn as one box. */
+export const InputGroupStyle = app.slots(
+  {
+    group: [Recipes.InputGroup.group],
+    affix: [Recipes.InputGroup.affix],
+    control: [
+      Recipes.InputGroup.control,
+      {
+        paddingBlock: t.space.xs,
+        paddingInlineEnd: t.space.sm,
+        font: 'inherit',
+        color: t.text.default,
+      },
+    ],
+  },
+  { name: 'InputGroupStyle' },
+)
+
+export const IconSlots = Slots.define({
+  row: Slot.make({ capability: Capability.Container }),
+  chip: Slot.make({ capability: Capability.Container }),
+})
+
+const iconUrl = (shape: string): string =>
+  `url('data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27>${shape}</svg>')`
+
+/**
+ * `Icons` + `Touch` as mechanisms: each chip shows the icon its `data-icon`
+ * names, and every chip is a 44px target where the pointer is coarse.
+ */
+export const IconStyle = app.slots(
+  {
+    row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' }))],
+    chip: [
+      Touch.target,
+      Icons.glyph('1rem'),
+      Icons.byAttribute('data-icon', {
+        dot: iconUrl('<circle cx=%278%27 cy=%278%27 r=%276%27 fill=%27black%27/>'),
+        star: iconUrl(
+          '<path d=%27M8 1l2.2 4.8 5.3.6-3.9 3.6 1 5.2-4.6-2.6-4.6 2.6 1-5.2L.5 6.4l5.3-.6z%27 fill=%27black%27/>',
+        ),
+      }),
+      U.text('sm'),
+      {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: t.space['2xs'],
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.full,
+        color: t.text.muted,
+      },
+    ],
+  },
+  { name: 'IconStyle' },
+)
 
 // --- navigation recipes ---------------------------------------------------------------
 

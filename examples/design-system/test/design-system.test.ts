@@ -27,6 +27,25 @@ describe('design-system update', () => {
     expect(clicked.model.clicks).toBe(1)
   })
 
+  it('selects a country, contact, and disclosure, steps the slider, and toggles the popover', () => {
+    const country = update(initialModel, Message.CountrySelected({ value: 'ca' }))
+    expect(country.model.country).toBe('ca')
+    const details = update(country.model, Message.DetailsToggled({ value: true }))
+    expect(details.model.detailsOpen).toBe(true)
+    const contact = update(details.model, Message.ContactSelected({ contact: 'phone' }))
+    expect(contact.model.contact).toBe('phone')
+    const louder = update(contact.model, Message.VolumeStepped({ delta: 10 }))
+    expect(louder.model.volume).toBe(70)
+    const clamped = update(louder.model, Message.VolumeStepped({ delta: 1000 }))
+    expect(clamped.model.volume).toBe(100)
+    const quiet = update(clamped.model, Message.VolumeStepped({ delta: -1000 }))
+    expect(quiet.model.volume).toBe(0)
+    const popover = update(quiet.model, Message.PopoverToggled())
+    expect(popover.model.popoverOpen).toBe(true)
+    const address = update(popover.model, Message.AddressTyped({ value: 'pricing' }))
+    expect(address.model.address).toBe('pricing')
+  })
+
   it('renders every section without a resolver conflict', () => {
     const h = SlotView.inertBuilder<Message>()
     const document = view(initialModel, h)

@@ -12,29 +12,50 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
+import * as UiDisclosure from '@foldkit/ui/disclosure'
+import * as UiFieldset from '@foldkit/ui/fieldset'
+import * as UiSelect from '@foldkit/ui/select'
 import * as UiSwitch from '@foldkit/ui/switch'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   Button,
+  CalendarSlots,
   Checkbox,
   DialogSlots,
+  Disclosure,
+  Fieldset,
+  HoverIntentSlots,
   Input,
+  Patterns,
+  PopoverSlots,
+  RadioGroupSlots,
   SegmentedSlots,
+  Select,
+  SliderSlots,
   Switch,
   TabsSlots,
   Textarea,
+  TooltipSlots,
 } from 'foldkit-mixins-ui'
 import {
   AreaStyle,
   BadgeSlots,
+  CalendarStyle,
   CardSlots,
   CardStyle,
   CheckStyle,
   DestructiveButtonStyle,
   DialogPreviewStyle,
+  DisclosureStyle,
   FieldStyle,
+  FieldsetStyle,
   FilledFieldStyle,
   GhostButtonStyle,
+  HoverCardStyle,
+  IconSlots,
+  IconStyle,
+  InputGroupSlots,
+  InputGroupStyle,
   LargeButtonStyle,
   LineTabsStyle,
   OutlineButtonStyle,
@@ -42,11 +63,16 @@ import {
   PageStyle,
   PillTabsStyle,
   PlanStyle,
+  PopoverStyle,
   PrimaryButtonStyle,
+  RadioStyle,
   SecondaryButtonStyle,
+  SelectStyle,
+  SliderStyle,
   SmallButtonStyle,
   StatusStyle,
   ToggleStyle,
+  TooltipStyle,
 } from './style.js'
 
 // --- model -------------------------------------------------------------------
@@ -79,6 +105,13 @@ const Plan = Schema.Union([
 ])
 type Plan = typeof Plan.Type
 
+const Contact = Schema.Union([
+  Schema.Literal('email'),
+  Schema.Literal('phone'),
+  Schema.Literal('none'),
+])
+type Contact = typeof Contact.Type
+
 export const Model = Schema.Struct({
   hue: Schema.Number,
   scheme: Scheme,
@@ -90,6 +123,12 @@ export const Model = Schema.Struct({
   marketing: Schema.Boolean,
   notifications: Schema.Boolean,
   clicks: Schema.Number,
+  country: Schema.String,
+  detailsOpen: Schema.Boolean,
+  contact: Contact,
+  volume: Schema.Number,
+  popoverOpen: Schema.Boolean,
+  address: Schema.String,
 })
 export type Model = typeof Model.Type
 
@@ -104,6 +143,12 @@ export const Message = defineMessageUnion({
   MarketingToggled: { value: Schema.Boolean },
   NotificationsToggled: { value: Schema.Boolean },
   ButtonClicked: {},
+  CountrySelected: { value: Schema.String },
+  DetailsToggled: { value: Schema.Boolean },
+  ContactSelected: { contact: Contact },
+  VolumeStepped: { delta: Schema.Number },
+  PopoverToggled: {},
+  AddressTyped: { value: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -118,7 +163,15 @@ export const initialModel: Model = {
   marketing: true,
   notifications: false,
   clicks: 0,
+  country: 'us',
+  detailsOpen: false,
+  contact: 'email',
+  volume: 60,
+  popoverOpen: false,
+  address: 'about',
 }
+
+const clampVolume = (value: number): number => Math.min(100, Math.max(0, value))
 
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
@@ -136,6 +189,16 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { notifications: () => value }),
     }),
     ButtonClicked: () => ({ model: modifyFields(model, { clicks: clicks => clicks + 1 }) }),
+    CountrySelected: ({ value }) => ({ model: modifyFields(model, { country: () => value }) }),
+    DetailsToggled: ({ value }) => ({
+      model: modifyFields(model, { detailsOpen: () => value }),
+    }),
+    ContactSelected: ({ contact }) => ({ model: modifyFields(model, { contact: () => contact }) }),
+    VolumeStepped: ({ delta }) => ({
+      model: modifyFields(model, { volume: volume => clampVolume(volume + delta) }),
+    }),
+    PopoverToggled: () => ({ model: modifyFields(model, { popoverOpen: open => !open }) }),
+    AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
 
 // --- views -------------------------------------------------------------------
@@ -285,6 +348,170 @@ const CardView = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(CardStyle.style))
 
+const countries: ReadonlyArray<readonly [value: string, label: string]> = [
+  ['us', 'United States'],
+  ['ca', 'Canada'],
+  ['gb', 'United Kingdom'],
+  ['au', 'Australia'],
+]
+
+const contacts: ReadonlyArray<{ readonly value: Contact; readonly label: string }> = [
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'none', label: 'None' },
+]
+
+const RadioPreview = SlotView.forMessages<Message>()
+  .define(RadioGroupSlots, (active: Contact, slots, h) =>
+    h.div(slots.group.attrs([h.Role('radiogroup'), h.AriaLabel('Preferred contact')]), [
+      ...contacts.map(contact =>
+        h.button(
+          slots.option.attrs([
+            h.Type('button'),
+            h.Role('radio'),
+            h.AriaSelected(active === contact.value),
+            h.OnClick(Message.ContactSelected({ contact: contact.value })),
+          ]),
+          [contact.label],
+        ),
+      ),
+    ]),
+  )
+  .pipe(Style.attach(RadioStyle))
+
+const SliderPreview = SlotView.forMessages<Message>()
+  .define(SliderSlots, (volume: number, slots, h) =>
+    h.div(slots.root.attrs(), [
+      h.p(slots.label.attrs(), [`Volume: ${volume}`]),
+      h.div(slots.track.attrs(), [
+        h.div(slots.filledTrack.attrs([h.Style({ inlineSize: `${volume}%` })]), []),
+        h.div(slots.thumb.attrs([h.Style({ insetInlineStart: `${volume}%` })]), []),
+      ]),
+      h.div(
+        [],
+        [
+          Button.view(
+            { label: '−', style: GhostButtonStyle, onClick: Message.VolumeStepped({ delta: -10 }) },
+            h,
+          ),
+          Button.view(
+            { label: '+', style: GhostButtonStyle, onClick: Message.VolumeStepped({ delta: 10 }) },
+            h,
+          ),
+        ],
+      ),
+    ]),
+  )
+  .pipe(Style.attach(SliderStyle))
+
+const weekDays: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
+
+const CalendarPreview = SlotView.forMessages<Message>()
+  .define(CalendarSlots, (selected: number, slots, h) =>
+    h.div(slots.root.attrs(), [
+      h.div(slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026')]), [
+        h.div(slots.headerRow.attrs([h.Role('row')]), [
+          ...weekDays.map(day => h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day])),
+        ]),
+        h.div(slots.weekRow.attrs([h.Role('row')]), [
+          ...monthDays.map(day =>
+            h.span(slots.dayCell.attrs([h.Role('gridcell')]), [
+              h.button(
+                slots.dayButton.attrs([
+                  h.Type('button'),
+                  h.DataAttribute('selected', day === selected ? 'true' : 'false'),
+                  h.AriaLabel(`October ${day}`),
+                ]),
+                [String(day)],
+              ),
+            ]),
+          ),
+        ]),
+      ]),
+    ]),
+  )
+  .pipe(Style.attach(CalendarStyle))
+
+const PopoverPreview = SlotView.forMessages<Message>()
+  .define(PopoverSlots, (open: boolean, slots, h) =>
+    h.div(
+      [],
+      [
+        h.button(
+          slots.button.attrs([
+            h.Type('button'),
+            h.AriaExpanded(open),
+            h.OnClick(Message.PopoverToggled()),
+          ]),
+          [open ? 'Close details' : 'Show details'],
+        ),
+        open
+          ? h.div(slots.panel.attrs(), [
+              'A popover panel, drawn in place. The real component anchors this against its trigger and closes on escape or outside press.',
+            ])
+          : h.empty,
+      ],
+    ),
+  )
+  .pipe(Style.attach(PopoverStyle))
+
+const TooltipPreview = SlotView.forMessages<Message>()
+  .define(TooltipSlots, (_input: unknown, slots, h) =>
+    h.div(
+      [],
+      [
+        h.span(slots.trigger.attrs(), ['Hover or focus me']),
+        h.span(slots.panel.attrs([h.Role('tooltip')]), ['A helpful hint']),
+      ],
+    ),
+  )
+  .pipe(Style.attach(TooltipStyle))
+
+const HoverPreview = SlotView.forMessages<Message>()
+  .define(HoverIntentSlots, (_input: unknown, slots, h) =>
+    h.div(
+      [],
+      [
+        h.span(slots.trigger.attrs(), ['A team member']),
+        h.div(slots.panel.attrs(), [
+          'A hover card with open and close delays, so moving between trigger and panel does not flicker. Drawn in place here.',
+        ]),
+      ],
+    ),
+  )
+  .pipe(Style.attach(HoverCardStyle))
+
+const InputGroupDemo = SlotView.forMessages<Message>()
+  .define(InputGroupSlots, (value: string, slots, h) =>
+    h.div(
+      [],
+      [
+        h.div(slots.group.attrs(), [
+          h.span(slots.affix.attrs(), ['/']),
+          h.input(
+            slots.control.attrs([
+              h.Type('text'),
+              h.Value(value),
+              h.AriaLabel('Site path'),
+              h.OnInput((typed: string) => Message.AddressTyped({ value: typed })),
+            ]),
+          ),
+        ]),
+      ],
+    ),
+  )
+  .pipe(Style.attach(InputGroupStyle.style))
+
+const IconsDemo = SlotView.forMessages<Message>()
+  .define(IconSlots, (_input: unknown, slots, h) =>
+    h.div(slots.row.attrs(), [
+      h.span(slots.chip.attrs([h.DataAttribute('icon', 'dot')]), ['Status']),
+      h.span(slots.chip.attrs([h.DataAttribute('icon', 'star')]), ['Featured']),
+    ]),
+  )
+  .pipe(Style.attach(IconStyle.style))
+
 const fillSwatch = (
   slots: PageBuilders,
   h: HtmlBuilder<Message>,
@@ -384,9 +611,13 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               ['colors', 'Colors'],
               ['buttons', 'Buttons'],
               ['form', 'Form'],
+              ['choice', 'Choice'],
               ['feedback', 'Feedback'],
+              ['overlays', 'Overlays'],
               ['navigation', 'Navigation'],
+              ['calendar', 'Calendar'],
               ['card', 'Card'],
+              ['utilities', 'Utilities'],
               ['tokens', 'Tokens'],
             ] as const
           ).map(([id, label]) => h.a(slots.navLink.attrs([h.Href(`#${id}`)]), [label])),
@@ -552,6 +783,74 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             h,
           ),
         ]),
+        h.section(slots.section.attrs([h.Id('choice')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Choice']),
+          h.p(slots.sectionText.attrs(), [
+            'One value from many: a native Select, radio pills, a slider preview, and a Disclosure — each through its slot contract.',
+          ]),
+          UiSelect.view(
+            {
+              id: 'country',
+              value: model.country,
+              onChange: (value: string) => Message.CountrySelected({ value }),
+              hasDescription: true,
+              toView: Select.toView([SelectStyle.mixin], { h }, resolved =>
+                h.div(
+                  [],
+                  [
+                    h.label(resolved.label, ['Country']),
+                    h.select(
+                      resolved.select,
+                      countries.map(([value, label]) => h.option([h.Value(value)], [label])),
+                    ),
+                    h.span(resolved.description, ['Where you currently reside.']),
+                  ],
+                ),
+              ),
+            },
+            h,
+          ),
+          UiDisclosure.view(
+            {
+              id: 'details',
+              isOpen: model.detailsOpen,
+              onToggle: (value: boolean) => Message.DetailsToggled({ value }),
+              toView: Disclosure.toView([DisclosureStyle.mixin], { h }, resolved =>
+                h.div(
+                  [],
+                  [
+                    h.button(resolved.button, [
+                      model.detailsOpen ? 'Hide project details' : 'Show project details',
+                    ]),
+                    model.detailsOpen
+                      ? h.div(resolved.panel, [
+                          'Six people, three open milestones, and one demo that keeps growing.',
+                        ])
+                      : h.empty,
+                  ],
+                ),
+              ),
+            },
+            h,
+          ),
+          UiFieldset.view(
+            {
+              id: 'contact-prefs',
+              hasDescription: true,
+              toView: Fieldset.toView([FieldsetStyle.mixin], { h }, resolved =>
+                h.fieldset(resolved.fieldset, [
+                  h.legend(resolved.legend, ['Preferred contact']),
+                  RadioPreview(model.contact, h),
+                  h.span(resolved.description, [
+                    `Currently ${model.contact}. The group is a fieldset, the options radio pills.`,
+                  ]),
+                ]),
+              ),
+            },
+            h,
+          ),
+          SliderPreview(model.volume, h),
+        ]),
         h.section(slots.section.attrs([h.Id('feedback')]), [
           h.h2(slots.sectionTitle.attrs(), ['Feedback']),
           h.p(slots.sectionText.attrs(), [
@@ -559,6 +858,15 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ]),
           BadgesView(undefined, h),
           DialogPreview(undefined, h),
+        ]),
+        h.section(slots.section.attrs([h.Id('overlays')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Overlays']),
+          h.p(slots.sectionText.attrs(), [
+            'Floating UI drawn in place: a popover with real open state, a tooltip pill, and a hover card. The live components anchor against their triggers and dismiss on escape.',
+          ]),
+          PopoverPreview(model.popoverOpen, h),
+          TooltipPreview(undefined, h),
+          HoverPreview(undefined, h),
         ]),
         h.section(slots.section.attrs([h.Id('navigation')]), [
           h.h2(slots.sectionTitle.attrs(), ['Navigation']),
@@ -572,12 +880,36 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,
           ]),
         ]),
+        h.section(slots.section.attrs([h.Id('calendar')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Calendar']),
+          h.p(slots.sectionText.attrs(), [
+            'A month grid preview through the Calendar slots; the 15th is selected. The live component pages months and years as a Submodel.',
+          ]),
+          CalendarPreview(15, h),
+        ]),
         h.section(slots.section.attrs([h.Id('card')]), [
           h.h2(slots.sectionTitle.attrs(), ['Card']),
           h.p(slots.sectionText.attrs(), [
             'The shadcn card: base surface, hairline border, large radius, soft shadow.',
           ]),
           CardView(model.clicks, h),
+        ]),
+        h.section(slots.section.attrs([h.Id('utilities')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Utilities']),
+          h.p(slots.sectionText.attrs(), [
+            'Mechanisms, not components: an InputGroup address field, attribute-dispatched icons with coarse-pointer touch targets, and the accessibility pattern catalog every adapter is gated against.',
+          ]),
+          InputGroupDemo(model.address, h),
+          h.p(slots.sectionText.attrs(), [`Previewing “/${model.address}”.`]),
+          IconsDemo(undefined, h),
+          h.div(slots.code.attrs(), [
+            Patterns.catalog
+              .map(
+                entry =>
+                  `${entry.name} (${entry.tier}): roles [${entry.roles.join(', ')}] floor [${entry.floor.join(', ') || 'none'}]`,
+              )
+              .join('\n'),
+          ]),
         ]),
         h.section(slots.section.attrs([h.Id('tokens')]), [
           h.h2(slots.sectionTitle.attrs(), ['Tokens']),

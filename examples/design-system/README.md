@@ -19,9 +19,16 @@ What it shows:
   and disabled, all live `@foldkit/ui` buttons through `Button.view`.
 - **Form** — `Input`, `Textarea`, and `InputGroup` recipes, plus live
   `Checkbox` and `Switch`, wired to the Model.
+- **Choice** — a native `Select`, a `Disclosure`, a `Fieldset` of radio pills,
+  and a slider preview, each through its slot contract.
 - **Feedback** — `Badge` tones and a `Dialog` panel drawn in place.
+- **Overlays** — `Popover` (real open state), `Tooltip`, and `HoverIntent`
+  panels drawn in place.
 - **Navigation** — `Tabs` (`line` and `pill`) and `Segmented`, driven by the
   application's own tab state rather than a Submodel.
+- **Calendar** — a month grid preview with a selected day.
+- **Utilities** — the `InputGroup` recipe, `Icons` + `Touch` mechanisms, and
+  the `Patterns` accessibility catalog every adapter is gated against.
 - **Card** — a shadcn-style card composed from page slots and the Button
   recipe.
 
