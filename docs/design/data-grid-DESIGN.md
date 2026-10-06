@@ -276,7 +276,8 @@ and the copy, cut and paste handlers in the view. Where it departs from §14:
   to the application with what each column refused, the transaction §16
   asks for; turning text into values is still the application's.
 - **Cut is a paste of empty text** over the copied range's editable cells,
-  so a column that refuses empty text refuses the cut there.
+  so a column that refuses empty text refuses the cut there. Delete and
+  Backspace (§8's bulk delete) are the same without the copy.
 - **Fill (§15)** is `Fill` (pure: `plan`, `cells`, `series`) and, in the
   Bundle, Ctrl+D and Ctrl+R and a drag of the range's fill handle, each
   reported as `Out.Filled({ source, to })`. The grid holds no rows, so the

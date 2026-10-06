@@ -111,7 +111,8 @@ the whole wiring, compiled.
   with `onOut` (`Bundle.ignore` if no column has `edit`). A column's
   `edit: { schema }` decodes the text typed; `Grid.matchEdit(cell, { price:
   ({ value }) => ... })` reads it back typed per column, so the application
-  parses nothing. Copy, cut and paste are TSV. A cell committed or pasted
+  parses nothing. Copy, cut and paste are TSV; Delete or Backspace clears a
+  range as a cut does, reported as `Pasted`. A cell committed or pasted
   unchanged (the text it began from, or one decoding to the same value) is
   not reported, so the application needs no check of its own.
 - Over a `Crud.list`: `foldkit-data-grid/crud`'s `GridCrud.columns(list,

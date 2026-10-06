@@ -706,6 +706,25 @@ const view = <Message>() => ({
         const editable = (column: Id) => grid.columns.byId[column].edit !== undefined
         // In a grid where some columns edit, the others say they do not.
         const readOnly = (column: Id) => editsAny && !editable(column)
+        const cornerOf = (box: CellBox<Id>) =>
+          Option.map(projection.rows.keyAt(box.rows.start), row => ({
+            row,
+            column: box.columns[0]!,
+          }))
+        // A box's editable cells laid with empty text: what a cut or Delete clears.
+        const clearedOf = (box: CellBox<Id>) =>
+          Option.match(cornerOf(box), {
+            onNone: () => [],
+            onSome: anchor =>
+              Clipboard.pasteAt(
+                projection,
+                anchor,
+                Array.from({ length: box.rows.end - box.rows.start }, () =>
+                  box.columns.map(() => ''),
+                ),
+                { editable, from: draftOf },
+              ),
+          })
         const clipboard = (box: CellBox<Id>) => {
           const text = remembered(projection, JSON.stringify(box), () =>
             Clipboard.copy(projection, box, address =>
@@ -722,26 +741,11 @@ const view = <Message>() => ({
               ),
             ),
           )
-          const corner = Option.map(projection.rows.keyAt(box.rows.start), row => ({
-            row,
-            column: box.columns[0]!,
-          }))
-          // A cut clears the cells it copied that can be edited.
-          const cleared = Option.match(corner, {
-            onNone: () => [],
-            onSome: anchor =>
-              Clipboard.pasteAt(
-                projection,
-                anchor,
-                Array.from({ length: box.rows.end - box.rows.start }, () =>
-                  box.columns.map(() => ''),
-                ),
-                { editable, from: draftOf },
-              ),
-          })
+          const corner = cornerOf(box)
           return [
             h.OnCopyText(text),
-            h.OnCutText(text, input.wrap(grid.Message.Pasted({ cells: cleared }))),
+            // A cut clears the cells it copied that can be edited.
+            h.OnCutText(text, input.wrap(grid.Message.Pasted({ cells: clearedOf(box) }))),
             h.OnPastePreventDefault(pasted =>
               Option.flatMap(corner, anchor => {
                 const cells = Clipboard.pasteAt(projection, anchor, Clipboard.parseTsv(pasted), {
@@ -815,6 +819,22 @@ const view = <Message>() => ({
           })
         }
 
+        // Delete or Backspace clears the range's editable cells, or the focused
+        // cell's, as a cut does without copying; a column that refuses empty
+        // text refuses it there.
+        const clearKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> =>
+          (key === 'Delete' || key === 'Backspace') && plainKey(modifiers)
+            ? Option.flatMap(clipboardBox, box => {
+                const cells = clearedOf(box)
+                return cells.length === 0
+                  ? Option.none()
+                  : Option.some(grid.Message.Pasted({ cells }))
+              })
+            : Option.none()
+
         // Escape while a header or a fill is dragged lets it go back; the
         // pointer's own release after that finds no drag.
         const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> => {
@@ -842,6 +862,16 @@ const view = <Message>() => ({
             ? Option.some(grid.Message.RedoRequested())
             : Option.none()
         }
+        // A key on a cell, to the first of these that takes it, in this order.
+        const cellKeys = [
+          historyKey,
+          fillKey,
+          clearKey,
+          selectionKey,
+          editKey,
+          upToHeader,
+          focusKey,
+        ]
         const keyOf = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> =>
           Option.match(onHeader, {
             onSome: column =>
@@ -850,14 +880,9 @@ const view = <Message>() => ({
               ),
             onNone: () =>
               Option.map(
-                Option.orElse(
-                  Option.orElse(historyKey(key, modifiers), () => fillKey(key, modifiers)),
-                  () =>
-                    Option.orElse(selectionKey(key, modifiers), () =>
-                      Option.orElse(editKey(key, modifiers), () =>
-                        Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
-                      ),
-                    ),
+                cellKeys.reduce<Option.Option<typeof grid.Message.Type>>(
+                  (found, next) => Option.orElse(found, () => next(key, modifiers)),
+                  Option.none(),
                 ),
                 input.wrap,
               ),

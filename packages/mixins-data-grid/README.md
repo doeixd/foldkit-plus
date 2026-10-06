@@ -191,7 +191,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **The clipboard** works on the range, or the focused cell. Copy puts it on
   the clipboard as tab-separated text, as spreadsheets read it; paste lays
   text from the range's corner onto editable cells and the application
-  hears one `Out.Pasted`; cut copies and clears the editable cells. While a
+  hears one `Out.Pasted`; cut copies and clears the editable cells, and
+  Delete or Backspace clears them without copying. While a
   cell is edited, the field has the clipboard.
 - **Where the rows stand**, from `status` (`GridCrud.status` for a Remote
   page): the grid is `aria-busy` while loading or refreshing; with no rows

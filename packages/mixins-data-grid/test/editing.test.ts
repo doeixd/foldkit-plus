@@ -308,3 +308,32 @@ test('Ctrl+D fills a cell from the one above, and Ctrl+R from the one before', a
     frames.dispose()
   }
 })
+
+test('Delete clears the focused cell, and Backspace a range, as a column takes empty text', async () => {
+  const { handle, frames, latest } = mount()
+  const focusedOn = (address: string) =>
+    vi.waitFor(() => expect(grid().getAttribute('aria-activedescendant')).toBe(address))
+  try {
+    await focusedOn(cell('r0', 'id'))
+    press(grid(), 'ArrowRight')
+    await focusedOn(cell('r0', 'name'))
+    expect(press(grid(), 'Delete').defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r0.name=']))
+    // With a modifier it is no clear.
+    press(grid(), 'Delete', { ctrlKey: true })
+    // Over name and qty: a quantity refuses empty text, so only the name clears.
+    press(grid(), 'ArrowRight', { shiftKey: true })
+    await vi.waitFor(() =>
+      expect(document.getElementById(cell('r0', 'qty'))!.getAttribute('aria-selected')).toBe(
+        'true',
+      ),
+    )
+    press(grid(), 'Backspace')
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r0.name=', 'r0.name=']))
+    await frames.settle()
+    expect(latest().edits).toEqual(['r0.name=', 'r0.name='])
+  } finally {
+    handle.dispose()
+    frames.dispose()
+  }
+})

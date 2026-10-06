@@ -1,10 +1,11 @@
 /**
- * The grid's undo and redo keys, broken in turn: `pnpm mutate
+ * The grid's undo, redo and clear keys, broken in turn: `pnpm mutate
  * packages/mixins-data-grid/test/history.mutations.ts` checks that a test fails
  * for every one.
  */
 const tests = [
   'packages/data-grid/test/grid.test.ts',
+  'packages/mixins-data-grid/test/editing.test.ts',
   'packages/mixins-data-grid/test/editing.browser.test.ts',
 ]
 const view = '../src/view.ts'
@@ -13,13 +14,7 @@ const grid = '../../data-grid/src/grid.ts'
 export default [
   {
     name: 'the grid hears no history key',
-    edits: [
-      {
-        file: view,
-        find: 'Option.orElse(historyKey(key, modifiers), () =>',
-        replace: 'Option.orElse(Option.none(), () =>',
-      },
-    ],
+    edits: [{ file: view, find: '          historyKey,', replace: '' }],
     tests,
   },
   {
@@ -62,6 +57,35 @@ export default [
         file: grid,
         find: 'Option.isSome(model.editing) ? { model } : { model, outMessage: Out.RedoRequested() }',
         replace: '({ model, outMessage: Out.RedoRequested() })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Delete clears nothing',
+    edits: [
+      {
+        file: view,
+        find: "(key === 'Delete' || key === 'Backspace') && plainKey(modifiers)",
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Backspace clears nothing',
+    edits: [
+      { file: view, find: "key === 'Delete' || key === 'Backspace'", replace: "key === 'Delete'" },
+    ],
+    tests,
+  },
+  {
+    name: 'a modified Delete clears',
+    edits: [
+      {
+        file: view,
+        find: "(key === 'Delete' || key === 'Backspace') && plainKey(modifiers)",
+        replace: "key === 'Delete' || key === 'Backspace'",
       },
     ],
     tests,

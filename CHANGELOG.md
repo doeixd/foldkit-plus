@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-data-grid`: Delete and Backspace clear** the range's
+  editable cells, or the focused cell, as a cut does without copying, so they
+  report `Out.Pasted` with empty text and a column that refuses it says so
+  (#144).
 - **`examples/registry` searches on the server.** A search box sets the
   Products query's input; the query is now a `Query.define` whose body,
   `Expr.contains` on the description, the Drizzle binding compiles (#144).
