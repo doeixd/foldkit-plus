@@ -12,6 +12,11 @@
  * under SSR, as their own reads are. The Renderer hands each node its value as
  * `data`, and the Block's `value(data)` reads it typed.
  *
+ * `SurfaceBlock.families(catalog, { from, document })` is the same Blocks as
+ * one `Surface.each` family per Block for Remote and SSR, where per-node
+ * requirements, retention, and coverage matter rather than one combined read.
+ * Rendering still reads through `reads` and `data`.
+ *
  * The Block holds its Surface, whose type carries the application's Model. Where
  * the Catalog is itself part of that Model, as it is when a form places the
  * page Builder, that is circular: a Block there names what it reads, as a
@@ -19,7 +24,7 @@
  */
 import { Option, type Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
-import { Projection, Surface, type ActiveSurface } from 'foldkit-surface'
+import { Projection, Surface, type ActiveSurface, type SurfaceSource } from 'foldkit-surface'
 import { Block, type AnyBlock } from '../block.js'
 import { Catalog } from '../catalog.js'
 import type { Content } from '../content.js'
@@ -177,5 +182,58 @@ export const SurfaceBlock = {
       projectionOf,
       data: dataOf(projectionOf),
     }
+  },
+
+  /**
+   * Every Surface Block on the page as one `Surface.each` family per Block,
+   * keyed by Block name, each instance keyed by its node id. Where `reads`
+   * combines a page into one Projection for the Renderer, families keep each
+   * node's Surface, params, and requirements first-class, so `Data.wiring`,
+   * `Data.subscriptions`, `Data.satisfy`, and an SSR plan follow what the
+   * Document holds — including a draft preview overlay, which only changes
+   * what `document` returns.
+   *
+   * `from` is the Surface whose Model carries the page (a route's Surface,
+   * say); `document` reads the Document out of it. A node whose props do not
+   * decode, or whose Block the Catalog lacks, resolves to no instance, as
+   * with `reads`. Blocks without a Surface have no family.
+   */
+  families: <Root, ParentModel>(
+    catalog: Catalog,
+    config: {
+      readonly from: ActiveSurface<Root, ParentModel>
+      readonly document: (parent: ParentModel) => Document | undefined
+    },
+  ): Readonly<Record<string, SurfaceSource<Root>>> => {
+    const defined = catalog.blocks.flatMap(block =>
+      readKey.get(block.metadata).map(read => ({ block, read })),
+    )
+    const foreign = defined.find(({ read }) => read.surface.owner !== config.from.owner)
+    if (foreign !== undefined)
+      throw new Error(
+        `SurfaceBlock.families: "${foreign.read.surface.name}" belongs to another application than "${config.from.name}"`,
+      )
+    const families: Record<string, SurfaceSource<Root>> = {}
+    for (const { block, read } of defined) {
+      // Read back only by `instancesOf`, with this Block's decoded props.
+      const child = read.surface as Surface<Root, unknown, unknown, unknown>
+      families[block.name] = Surface.each(child, {
+        from: config.from,
+        instances: parent => {
+          const document = config.document(parent)
+          if (document === undefined) return []
+          const found: Array<{ readonly key: string; readonly params: unknown }> = []
+          for (const id of index(document).keys()) {
+            const node = document.nodes[id]
+            if (node === undefined || node.block !== block.name) continue
+            const props = Block.decode(block, node.props)
+            if (props._tag === 'Failure') continue
+            found.push({ key: id, params: read.params(props.success) })
+          }
+          return found
+        },
+      })
+    }
+    return families
   },
 }

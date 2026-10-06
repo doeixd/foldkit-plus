@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-composition`: `SurfaceBlock.families`, one family per
+  Surface Block.** `SurfaceBlock.families(catalog, { from, document })` is
+  every Surface Block on the page as one `Surface.each` family per Block,
+  keyed by Block name with each instance keyed by its node id — for
+  `Data.wiring`, `Data.subscriptions`, `Data.satisfy`, and SSR plans, wherever
+  per-node requirements, retention, and coverage matter rather than one
+  combined read. Fetching follows the Document, draft edits included.
 - **`foldkit-ssr`: plans take `SurfaceSource`s, and coverage inspects each
   instance.** A `Surface.each` family is one entry of a plan's `surfaces`;
   the envelope carries its parent's reads with its instances', and

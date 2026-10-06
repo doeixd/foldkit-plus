@@ -137,7 +137,11 @@ is refused, not dropped. See
 `SurfaceBlock.define(name, { Props, provides, surface, params: props => params })`;
 `SurfaceBlock.reads(Site, doc)` / `SurfaceBlock.active(name, App.owner, Site,
 m => Option.some(doc))`; values reach the Renderer through `data`
-(`features.data(model)`), read with `Cart.value(data)` (an `Option`). Not where the Catalog is in the Model (circular types):
+(`features.data(model)`), read with `Cart.value(data)` (an `Option`).
+`SurfaceBlock.families(Site, { from: Page, document: page => page.doc })` is
+one `Surface.each` family per Block (keyed by Block, instances by node id)
+for `Data.wiring` / `subscriptions` / `satisfy` / SSR `surfaces`, where
+per-node requirements and coverage matter. Not where the Catalog is in the Model (circular types):
 use a Query Block's shape there.
 
 ## Stateful Blocks

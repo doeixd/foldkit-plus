@@ -728,6 +728,23 @@ Surface, whose type carries the application's Model: where the Catalog is part
 of that Model, as it is when a form places the page Builder, a Block names what
 it reads instead, as a Query Block does.
 
+`SurfaceBlock.families(catalog, { from, document })` is the same Blocks as one
+`Surface.each` family per Block, keyed by Block name with each instance keyed
+by its node id, for `Data.wiring`, `Data.subscriptions`, `Data.satisfy`, or an
+SSR plan's `surfaces` — wherever per-node requirements, retention, and
+coverage matter rather than one combined read:
+
+```ts
+const Blocks = SurfaceBlock.families(Site, {
+  from: CmsPage,
+  document: ({ page }) => page.document,
+})
+const subscriptions = Data.subscriptions({ page: CmsPage, ...Blocks })
+```
+
+A node whose props do not decode, or whose Block the Catalog lacks, resolves
+to no instance. Rendering still reads through `reads` and `data`.
+
 ### Serving a published page
 
 Most of a composed page is content no Message changes, which is what
