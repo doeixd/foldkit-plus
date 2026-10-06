@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-data-grid` and `foldkit-mixins-data-grid` are published,** at
+  an experimental `0.1.0`: the grid's state, geometry and keyboard, and the
+  grid drawn as an accessible, virtualized WAI-ARIA grid through slots. Their
+  entries below are the first release's (#158).
 - **Fill in the data grid.** `foldkit-data-grid`'s `Fill` is a spreadsheet's
   fill as pure functions: `plan` (the source's box and the box beyond it
   toward a cell, along one axis), `cells` (what each lane writes there) and

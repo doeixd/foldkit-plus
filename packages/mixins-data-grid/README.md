@@ -5,7 +5,7 @@ virtualized WAI-ARIA `grid`. Only the rows and columns the viewport shows
 reach the DOM; every drawn cell still says its place among all of them, the
 keyboard moves focus, and every element is a Slot to style.
 
-> **Status:** private, `0.0.0`. Phases 3 to 8 of
+> **Status:** experimental, `0.1.0`, on npm from the 0.15.0 release. Phases 3 to 8 of
 > [the DataGrid design](../../docs/design/data-grid-DESIGN.md): the grid
 > drawn, its header, selection, editing, status and clipboard.
 > [`examples/data-grid`](../../examples/data-grid/README.md) draws 100,000

@@ -1,7 +1,6 @@
 {
   "name": "foldkit-data-grid",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "A Foldkit-native data grid: the grid owns interaction state and geometry, the application owns the records.",
   "keywords": [
     "foldkit",
@@ -23,6 +22,9 @@
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     "./crud": {
       "foldkit-plus:source": "./src/crud.ts",

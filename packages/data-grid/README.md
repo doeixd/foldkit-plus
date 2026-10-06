@@ -5,7 +5,7 @@ where a move or a range lands. It is pure geometry over rows the application
 supplies, so focus, selection, virtualization and the clipboard all ask one
 value instead of reading positions from the DOM.
 
-> **Status:** private, `0.0.0`. Phases 0 to 8 of
+> **Status:** experimental, `0.1.0`, on npm from the 0.15.0 release. Phases 0 to 8 of
 > [the DataGrid design](../../docs/design/data-grid-DESIGN.md), with the gaps
 > under [Limits](#limits). This package draws nothing;
 > [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md) draws it.
