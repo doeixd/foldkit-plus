@@ -18,6 +18,14 @@ version changed; `pnpm` skips versions already in the registry.
   focus ring, the affix sits inside, the control goes borderless.
 - **`foldkit-cms`: `Cms.stateAttribute`,** `data-cms-state`, the one attribute
   every state the CMS draws is written in.
+- **The page Builder fills any Region by drag.** In edit mode the Renderer
+  draws an empty Region as an element of its own, named and marked
+  `data-composition-region` (`REGION_ATTRIBUTE`); `PointerDrag` takes a
+  `part` attribute and reports such an element as `{ id, zone: 'inside', part }`;
+  the Builder's new `DraggedOverRegion({ id, region })` lands a drop in that
+  Region rather than the first that accepts the Block, and `drag.over` carries
+  `region`. A Columns' right column could not be reached before; the CMS draws
+  each empty Region as a dashed box to drop into.
 
 ### Changed
 

@@ -318,6 +318,12 @@ one page each drop onto their own page. Such a drag's `DraggedOver` and
 so `over: null` with `region: true` is its empty space (an empty page, the
 space below its last node), and with `false`, elsewhere.
 
+A place can be a named part of what it is over: with `part: 'data-composition-region'`,
+an element marked by both `attribute` (or `targets.attribute`) and `part` is
+reported as `{ id, zone: 'inside', part }`, whatever third of it the pointer
+is in. An editor draws a node's empty Region that way, so a drop can name the
+Region it goes into.
+
 ## Editing in place
 
 **`EditableText`** is text typed into a marked descendant of a container while

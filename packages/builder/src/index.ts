@@ -71,7 +71,14 @@ export const Drag = Schema.Struct({
    * The node it is over and the zone of it; none while it is over nothing, or
    * over the page's own space, which `at` then tells apart.
    */
-  over: Schema.OptionFromNullOr(Schema.Struct({ id: NodeId, zone: DropZone })),
+  over: Schema.OptionFromNullOr(
+    Schema.Struct({
+      id: NodeId,
+      zone: DropZone,
+      /** The empty Region of the node it is over, which a drop goes into. */
+      region: Schema.OptionFromNullOr(Schema.String),
+    }),
+  ),
   /**
    * Where a drop now puts it; none where a drop there would be refused.
    * `over.zone` is where it lands: `inside` a node that takes nothing is `after`.
@@ -234,6 +241,8 @@ export const Message = defineMessageUnion({
   DragStarted: { source: DragSource },
   /** The dragged node is over another, in a zone of it. */
   DraggedOver: { id: NodeId, zone: DropZone },
+  /** The dragged node is over a node's empty Region, by name: a drop goes into it. */
+  DraggedOverRegion: { id: NodeId, region: Schema.String },
   /** The dragged node is over nothing. */
   DraggedOff: {},
   /**
@@ -401,6 +410,8 @@ const landingBy = (
   dragged: Dragged,
   target: NodeId,
   zone: DropZone,
+  /** For `inside`, the Region it goes into, in place of the first that accepts it. */
+  region: Option.Option<string>,
 ): Option.Option<{ readonly at: Position; readonly zone: DropZone }> | 'stays' => {
   const place = Composition.index(document).get(target)
   if (Option.contains(dragged.id, target) || place === undefined) return Option.none()
@@ -421,7 +432,8 @@ const landingBy = (
   const inside = (): Option.Option<Position> => {
     const holder = document.nodes[target]
     if (holder === undefined) return Option.none()
-    return Option.map(regionTaking(catalog, holder.block, dragged.block), regionName =>
+    const named = Option.orElse(region, () => regionTaking(catalog, holder.block, dragged.block))
+    return Option.map(named, regionName =>
       Composition.region(target, regionName, without(holder.regions[regionName] ?? []).length),
     )
   }
@@ -622,17 +634,29 @@ const landing = (
   dragged: Dragged,
   target: NodeId,
   zone: DropZone,
-): Option.Option<{ readonly at: Position; readonly zone: DropZone; readonly by: NodeId }> => {
+  region: Option.Option<string> = Option.none(),
+): Option.Option<{
+  readonly at: Position
+  readonly zone: DropZone
+  readonly by: NodeId
+  readonly region: Option.Option<string>
+}> => {
   const places = Composition.index(document)
   for (
-    let by: NodeId | undefined = target, at: DropZone = zone;
+    let by: NodeId | undefined = target, at: DropZone = zone, into = region;
     by !== undefined && !Option.contains(dragged.id, by);
-    by = places.get(by)?.parent, at = zone === 'before' ? 'before' : 'after'
+    by = places.get(by)?.parent, at = zone === 'before' ? 'before' : 'after', into = Option.none()
   ) {
-    const landed = landingBy(catalog, document, dragged, by, at)
+    const landed = landingBy(catalog, document, dragged, by, at, into)
     // Its own place is no move, and no holder's place is meant instead.
     if (landed === 'stays') return Option.none()
-    if (Option.isSome(landed)) return Option.some({ ...landed.value, by })
+    if (Option.isSome(landed))
+      return Option.some({
+        ...landed.value,
+        by,
+        // Marked on the Region only where it went into the one it was over.
+        region: landed.value.zone === 'inside' ? into : Option.none(),
+      })
   }
   return Option.none()
 }
@@ -799,7 +823,6 @@ export const Builder = {
       return Result.getSuccess(Result.flatMap(Block.encode(block, starters[name]), storedProps))
     }
 
-    /** What a drag carries, as `landing` weighs it; none for a node gone or a Block not offered. */
     /**
      * Where a palette tile dropped on the page's own space goes: last where the
      * page takes its Block, as a press with nothing selected puts it. None for
@@ -810,6 +833,7 @@ export const Builder = {
         ? placeFor(catalog, document, Option.none(), source.block)
         : Option.none()
 
+    /** What a drag carries, as `landing` weighs it; none for a node gone or a Block not offered. */
     const draggedOf = (document: Document, source: DragSource): Option.Option<Dragged> => {
       if (source._tag === 'Existing') {
         const node = document.nodes[source.id]
@@ -830,6 +854,39 @@ export const Builder = {
         id: Option.none(),
         to: at => Composition.Op.insert({ id: trial, block: source.block, props, at }),
       }))
+    }
+
+    /**
+     * The drag, over `id` in `zone` (or its empty `region`), marked where it
+     * lands: a drop inside a node that takes nothing is after it, and one its
+     * holder takes instead is marked on the holder.
+     */
+    const draggedOver = (
+      model: Model,
+      id: NodeId,
+      zone: DropZone,
+      region: Option.Option<string>,
+    ): { readonly model: Model } => {
+      if (Option.isNone(model.drag)) return { model }
+      const drag = model.drag.value
+      const landed = Option.flatMap(draggedOf(documentOf(model), drag.source), dragged =>
+        landing(catalog, documentOf(model), dragged, id, zone, region),
+      )
+      return {
+        model: {
+          ...model,
+          drag: Option.some({
+            ...drag,
+            over: Option.some(
+              Option.match(landed, {
+                onNone: () => ({ id, zone, region }),
+                onSome: ({ by, zone, region }) => ({ id: by, zone, region }),
+              }),
+            ),
+            at: Option.map(landed, ({ at }) => at),
+          }),
+        },
+      }
     }
 
     /** Puts a node's tree on the system clipboard, then says `said`, whether it could or not. */
@@ -1397,31 +1454,10 @@ export const Builder = {
                       : model.selected,
                 },
               }
-        case 'DraggedOver': {
-          if (Option.isNone(model.drag)) return { model }
-          const drag = model.drag.value
-          const landed = Option.flatMap(draggedOf(documentOf(model), drag.source), dragged =>
-            landing(catalog, documentOf(model), dragged, message.id, message.zone),
-          )
-          return {
-            model: {
-              ...model,
-              drag: Option.some({
-                ...drag,
-                // Where it lands: a drop inside a node that takes nothing is after it, and
-                // one its holder takes instead is marked on the holder.
-                over: Option.some({
-                  id: Option.match(landed, { onNone: () => message.id, onSome: ({ by }) => by }),
-                  zone: Option.match(landed, {
-                    onNone: () => message.zone,
-                    onSome: ({ zone }) => zone,
-                  }),
-                }),
-                at: Option.map(landed, ({ at }) => at),
-              }),
-            },
-          }
-        }
+        case 'DraggedOver':
+          return draggedOver(model, message.id, message.zone, Option.none())
+        case 'DraggedOverRegion':
+          return draggedOver(model, message.id, 'inside', Option.some(message.region))
         case 'DraggedOverPage': {
           if (Option.isNone(model.drag)) return { model }
           const drag = model.drag.value
@@ -1462,7 +1498,7 @@ export const Builder = {
                 : Option.none(),
             onSome: target =>
               Option.flatMap(draggedOf(documentOf(model), source), dragged =>
-                landing(catalog, documentOf(model), dragged, target.id, target.zone),
+                landing(catalog, documentOf(model), dragged, target.id, target.zone, target.region),
               ),
           })
           return Option.match(landed, {

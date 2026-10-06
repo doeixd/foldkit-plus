@@ -443,7 +443,13 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   Model holds it: `data-composition-mark` is
   `selected` or `hovered` (a node that is both is `selected`), and
   `data-composition-drop` says where a drop lands. A node whose `when` fails is
-  drawn anyway, marked `data-composition-hidden`.
+  drawn anyway, marked `data-composition-hidden`. An empty Region is drawn as
+  one element holding its name spaced (`Right`), marked
+  `data-composition-region` with the Region's name and `data-composition-node`
+  with its node's id, so an author sees where a child can go and can drop into
+  it; a `drop` with `region: Option.some(name)` marks that element `inside`
+  instead of the node. A view that tests a Region's length sees one child
+  there in edit mode.
 - **Text edited in place.** A view draws a text prop with `field(key)`, which
   takes only a prop whose type is exactly `string`: one of a few names
   (`'plain' | 'accent'`), a branded string or one that may be absent is no

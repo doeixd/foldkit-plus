@@ -19,8 +19,16 @@ import { targetOf } from './targets.js'
 export const DragZone = Schema.Literals(['before', 'inside', 'after'])
 export type DragZone = typeof DragZone.Type
 
-/** A marked descendant under the pointer, and the zone of it the pointer is in. */
-export const DragPlace = Schema.Struct({ id: Schema.String, zone: DragZone })
+/**
+ * A marked descendant under the pointer, and the zone of it the pointer is in.
+ * `part` is the value of the `part` attribute on the element found, such as
+ * the empty Region of a node a drop goes into; a place with one is `inside`.
+ */
+export const DragPlace = Schema.Struct({
+  id: Schema.String,
+  zone: DragZone,
+  part: Schema.optionalKey(Schema.String),
+})
 export type DragPlace = typeof DragPlace.Type
 
 export const DragStarted = Schema.TaggedStruct('DragStarted', {
@@ -103,8 +111,13 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
      * a match, so two editors on one page each drop onto their own.
      */
     targets: Schema.optionalKey(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
+    /**
+     * An attribute that names a part of what a drop lands on, on an element
+     * also marked as one: a place over it carries the part and is `inside`.
+     */
+    part: Schema.optionalKey(Schema.String),
   },
-  execute: ({ element, attribute, targets }) =>
+  execute: ({ element, attribute, targets, part }) =>
     Stream.callback<DragFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -152,10 +165,13 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             const { marked, inRegion: region } = find(under ?? event.target)
             const id = marked?.getAttribute(landsOn) ?? null
             // Over itself is over nothing, where what is dragged is among what it lands on.
+            const named = part === undefined ? null : (marked?.getAttribute(part) ?? null)
             const place: DragPlace | null =
               marked === null || id === null || (targets === undefined && id === dragging)
                 ? null
-                : { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
+                : named === null
+                  ? { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
+                  : { id, zone: 'inside', part: named }
             return { place, region }
           }
           /** The region flag a fact carries: only for a drag onto `targets`. */
@@ -212,7 +228,12 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   Queue.offerUnsafe(queue, DragStarted.make({ id: dragging }))
                 }
                 const { place, region } = placeAt(positioned)
-                if (place?.id === over?.id && place?.zone === over?.zone && region === inRegion)
+                if (
+                  place?.id === over?.id &&
+                  place?.zone === over?.zone &&
+                  place?.part === over?.part &&
+                  region === inRegion
+                )
                   return
                 over = place
                 inRegion = region

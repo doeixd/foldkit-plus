@@ -527,7 +527,7 @@ describe('dragging a node', () => {
     expect(over.drag).toEqual(
       Option.some({
         source: { _tag: 'Existing', id: id('h1') },
-        over: Option.some({ id: id('g'), zone: 'inside' }),
+        over: Option.some({ id: id('g'), zone: 'inside', region: Option.none() }),
         at: Option.some(Composition.region(id('g'), 'items', 0)),
       }),
     )
@@ -552,7 +552,7 @@ describe('dragging a node', () => {
       Message.DraggedOver({ id: id('h2'), zone: 'inside' }),
     )
     expect(Option.flatMap(beside.drag, drag => drag.over)).toEqual(
-      Option.some({ id: id('h2'), zone: 'after' }),
+      Option.some({ id: id('h2'), zone: 'after', region: Option.none() }),
     )
     const dropped = send(refused, Message.DragDropped())
     expect(dropped.page).toBe(page.page)
@@ -596,6 +596,56 @@ describe('dragging a node', () => {
     })
     expect(PageBuilder.dropAt(withDragged, heading, id('h2'), 'before')).toEqual(
       Option.some(Composition.region(id('s1'), 'body', 2)),
+    )
+  })
+
+  it('drops into the empty Region it is over, not the first that takes it', () => {
+    const columns = PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [id('s')],
+        nodes: {
+          [id('s')]: { block: 'Section', props: {}, regions: { body: [id('c'), id('h')] } },
+          [id('c')]: { block: 'Columns', props: {}, regions: { left: [id('l')], right: [] } },
+          [id('l')]: { block: 'Heading', props: { text: 'Left' }, regions: {} },
+          [id('h')]: { block: 'Heading', props: { text: 'Moved' }, regions: {} },
+        },
+      }),
+    )
+    const started = send(
+      columns,
+      Message.DragStarted({ source: { _tag: 'Existing', id: id('h') } }),
+    )
+    // Inside the node alone is its first Region.
+    const inside = send(started, Message.DraggedOver({ id: id('c'), zone: 'inside' }))
+    expect(Option.flatMap(inside.drag, drag => drag.at)).toEqual(
+      Option.some(Composition.region(id('c'), 'left', 1)),
+    )
+    const over = send(started, Message.DraggedOverRegion({ id: id('c'), region: 'right' }))
+    expect(over.drag).toEqual(
+      Option.some({
+        source: { _tag: 'Existing', id: id('h') },
+        over: Option.some({ id: id('c'), zone: 'inside', region: Option.some('right') }),
+        at: Option.some(Composition.region(id('c'), 'right', 0)),
+      }),
+    )
+    const dropped = send(over, Message.DragDropped())
+    expect(dropped.page.present.nodes[id('c')]?.regions).toEqual({
+      left: [id('l')],
+      right: [id('h')],
+    })
+    // A Region with no room is not where it goes: beside the node is, and no Region is marked.
+    const full = send(
+      send(dropped, Message.DragStarted({ source: { _tag: 'Existing', id: id('l') } })),
+      Message.DraggedOverRegion({ id: id('c'), region: 'right' }),
+    )
+    expect(full.drag).toEqual(
+      Option.some({
+        source: { _tag: 'Existing', id: id('l') },
+        over: Option.some({ id: id('c'), zone: 'after', region: Option.none() }),
+        at: Option.some(Composition.region(id('s'), 'body', 1)),
+      }),
     )
   })
 
@@ -654,7 +704,10 @@ describe('dragging a node', () => {
       Message.DraggedOver({ id: id('h2'), zone: 'after' }),
     )
     expect(Option.map(over.drag, drag => [drag.over, drag.at])).toEqual(
-      Option.some([Option.some({ id: id('s1'), zone: 'after' }), Option.some(Composition.root(1))]),
+      Option.some([
+        Option.some({ id: id('s1'), zone: 'after', region: Option.none() }),
+        Option.some(Composition.root(1)),
+      ]),
     )
     // Groups in a Group: ga holds gb and x; gb holds gc, which holds h.
     const nested = Composition.Document.make({

@@ -80,7 +80,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
-| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
+| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
 | `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
 | `Inspected({ id, message })` | a Message of the selected node's settings form: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
@@ -393,6 +393,13 @@ dragged from the palette.
   make (a move for a node, an insert of the Block's starting props for a new
   one), and where the page would refuse it, such as a node into itself, `at`
   is none, so a mark never promises a drop the page refuses.
+- **`DraggedOverRegion({ id, region })`** says the pointer is over a node's
+  empty Region, which the canvas draws as a box of its own (see Composition's
+  edit mode): a drop goes last in that Region, not the first that accepts the
+  Block, so a Columns' right column can be filled while its left is not.
+  `drag.over` is `{ id, zone: 'inside', region }`; `region` is none on every
+  other place. A Region that refuses the Block, or has no room, is weighed as
+  `DraggedOver` inside the node would be.
 - **`DraggedOverPage()`** says a palette tile is over the page's own space,
   over none of its nodes: an empty page, or the space below the last node.
   It lands where a press with nothing selected would put it (`placeFor`):

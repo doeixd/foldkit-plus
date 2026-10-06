@@ -484,6 +484,24 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.nest('[data-composition-drop="inside"] > *', {
         outline: `2px dashed ${selection}`,
       }),
+      // An empty Region, such as a column with nothing in it yet: a box to drop into.
+      Style.nest('[data-composition-region]', {
+        alignItems: 'center',
+        border: `1px dashed ${t.outline.overt}`,
+        borderRadius: t.radius.md,
+        boxSizing: 'border-box',
+        color: t.text.muted,
+        display: 'flex',
+        fontSize: t.size.sm,
+        justifyContent: 'center',
+        minBlockSize: '4rem',
+        padding: t.space.sm,
+      }),
+      Style.nest('[data-composition-region][data-composition-drop]', {
+        background: t.accent.subtle,
+        borderColor: selection,
+        color: t.accent.ink,
+      }),
     ),
     // Drawn over the page by the Builder, where the selected and hovered nodes are.
     selectionBox: Style.self({

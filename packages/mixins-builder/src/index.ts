@@ -43,6 +43,7 @@ import {
   FIELD_ATTRIBUTE,
   MARK_ATTRIBUTE,
   NODE_ATTRIBUTE,
+  REGION_ATTRIBUTE,
   PAGE_CONTAINER,
   Renderer,
 } from 'foldkit-composition/foldkit'
@@ -303,9 +304,12 @@ const dragMessage =
         return Message.DragStarted({ source: source(fact.id) })
       case 'DraggedOver':
         // The DOM's fact says "over nothing" with `null`, over the page's own space
-        // with `region` too; the Builder has a Message for each.
+        // with `region` too, and over a node's empty Region with its `part`; the
+        // Builder has a Message for each.
         return fact.over !== null
-          ? Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
+          ? fact.over.part === undefined
+            ? Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
+            : Message.DraggedOverRegion({ id: NodeId.make(fact.over.id), region: fact.over.part })
           : fact.region === true
             ? Message.DraggedOverPage()
             : Message.DraggedOff()
@@ -1178,6 +1182,7 @@ export const BuilderView = {
             attribute: 'data-block',
             // Its own canvas, found from the palette, whatever the Builder's name holds.
             targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
+            part: `data-${REGION_ATTRIBUTE}`,
             toMessage: tileDrag,
           }),
         ],
@@ -1591,6 +1596,7 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
+            part: `data-${REGION_ATTRIBUTE}`,
             toMessage: nodeDrag,
           }),
           // Text on the page, edited where it is: the Builder checks which field each names.

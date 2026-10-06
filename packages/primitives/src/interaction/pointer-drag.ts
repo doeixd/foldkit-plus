@@ -32,6 +32,8 @@ export interface BehaviorOptions<Slots, ParentMessage> {
    * by `attribute` inside the one `within` selects, such as a page for a palette.
    */
   readonly targets?: { readonly attribute: string; readonly within: string }
+  /** An attribute naming a part of what a drop lands on, which the place then carries. */
+  readonly part?: string
   /** Turns each fact into the view's Message. */
   readonly toMessage: (fact: DragFact) => ParentMessage
 }
@@ -47,11 +49,11 @@ export const behavior =
           requires: { capability: Capability.Container },
           mount: () =>
             Mount.mapMessage(
-              PointerDragMount(
-                options.targets === undefined
-                  ? { attribute: options.attribute }
-                  : { attribute: options.attribute, targets: options.targets },
-              ),
+              PointerDragMount({
+                attribute: options.attribute,
+                ...(options.targets === undefined ? {} : { targets: options.targets }),
+                ...(options.part === undefined ? {} : { part: options.part }),
+              }),
               options.toMessage,
             ),
         }),

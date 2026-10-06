@@ -53,6 +53,37 @@ describe('drawing a Document', () => {
     expect(typeof inner === 'string' ? inner : Inert.classes(inner)).toEqual(['hero'])
   })
 
+  it('draws an empty Region in edit mode as a part of its node, named, which a drop can aim at', () => {
+    const columns = page(['c'], {
+      c: { block: 'Columns', props: {}, regions: { left: ['i'], right: [] } },
+      i: { block: 'Image', props: { src: 'https://example.com/a.png', alt: '' }, regions: {} },
+    })
+    const regionsOf = (html: Html | undefined) =>
+      Inert.all(html).filter(node => Inert.value(node, 'data-composition-region') !== undefined)
+    const [edited] = Renderer.render(SiteRenderer, columns, inertHtml, { mode: 'edit' })
+    const [empty, ...others] = regionsOf(edited)
+    expect(others).toEqual([])
+    expect(Inert.value(empty, 'data-composition-region')).toBe('right')
+    expect(Inert.value(empty, 'data-composition-node')).toBe('c')
+    expect(Inert.text(empty)).toBe('Right')
+    expect(Inert.value(empty, 'data-composition-drop')).toBeUndefined()
+
+    const [aimed] = Renderer.render(SiteRenderer, columns, inertHtml, {
+      mode: 'edit',
+      drop: Option.some({ id: id('c'), zone: 'inside', region: Option.some('right') }),
+    })
+    // The Region is marked, not the node that holds it.
+    expect(
+      Inert.all(aimed).flatMap(node => {
+        const drop = Inert.value(node, 'data-composition-drop')
+        return drop === undefined ? [] : [[Inert.value(node, 'data-composition-region'), drop]]
+      }),
+    ).toEqual([['right', 'inside']])
+
+    const [viewed] = Renderer.render(SiteRenderer, columns, inertHtml)
+    expect(regionsOf(viewed)).toEqual([])
+  })
+
   it('marks the selected, hovered and drop target nodes in edit mode, for a stylesheet', () => {
     const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, {
       mode: 'edit',

@@ -14,6 +14,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { Message as BuilderMessage, Model as BuilderModel } from 'foldkit-builder'
 import { Composition, NodeId } from 'foldkit-composition'
 import { BuilderView } from 'foldkit-mixins-builder'
+import { Frames } from 'foldkit-mixins/testing'
 import { PageBuilder, PageView } from './fixture.js'
 
 afterEach(() => {
@@ -353,6 +354,83 @@ it('says so when one Builder is drawn twice, rather than drawing a dead inspecto
 
 // A control of the application's own, backed by a Bundle, works in the inspector
 // with no Builder code: its view is drawn there, and what it sends is an edit.
+it('shows an empty Region on the page, and a node or a tile dragged onto it goes into it', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const frames = Frames.track()
+  const container = document.createElement('div')
+  container.id = 'regions'
+  document.body.appendChild(container)
+  const [first, second, heading] = [NodeId.make('s1'), NodeId.make('s2'), NodeId.make('h')]
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [first, second],
+      nodes: {
+        [first]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [heading] } },
+        [heading]: { block: 'Heading', props: { text: 'Moved' }, regions: {} },
+        [second]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [] } },
+      },
+    }),
+  )
+  let drawn = page
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: BuilderModel,
+      container,
+      init: () => ({ model: page }),
+      update: (model: BuilderModel, message: BuilderMessage) =>
+        PageBuilder.bundle.update(model, message, undefined),
+      view: (model: BuilderModel, h: HtmlBuilder<BuilderMessage>) => {
+        drawn = model
+        return PageView(model, h)
+      },
+    }),
+  )
+  const emptyOf = (section: NodeId) =>
+    document.querySelector(
+      `[aria-label="Page"] [data-composition-node="${section}"][data-composition-region="body"]`,
+    ) ?? undefined
+  // Pressed at the top, moved and let go lower: past the threshold that makes it a drag.
+  const pointer = (target: Element | undefined, type: string) => {
+    const event = new Event(type, { bubbles: true, cancelable: true })
+    Object.assign(event, { button: 0, clientX: 10, clientY: type === 'pointerdown' ? 0 : 20 })
+    target?.dispatchEvent(event)
+  }
+  const bodyOf = (section: NodeId) => PageBuilder.document(drawn).nodes[section]?.regions['body']
+  try {
+    await vi.waitFor(() => expect(emptyOf(second)?.textContent).toBe('Body'))
+    expect(emptyOf(first)).toBeUndefined()
+    // The page's drag listens once its first drawing has settled.
+    await frames.settle()
+
+    pointer(document.querySelector('[aria-label="Page"] h2') ?? undefined, 'pointerdown')
+    pointer(emptyOf(second), 'pointermove')
+    await vi.waitFor(() =>
+      expect(emptyOf(second)?.getAttribute('data-composition-drop')).toBe('inside'),
+    )
+    pointer(emptyOf(second), 'pointerup')
+    await vi.waitFor(() => expect(bodyOf(second)).toEqual([heading]))
+    expect(emptyOf(second)).toBeUndefined()
+
+    // The first is empty now: a tile from the palette goes into it.
+    await vi.waitFor(() => expect(emptyOf(first)).toBeDefined())
+    pointer(document.querySelector('[data-block="Heading"]') ?? undefined, 'pointerdown')
+    pointer(emptyOf(first), 'pointermove')
+    await vi.waitFor(() =>
+      expect(emptyOf(first)?.getAttribute('data-composition-drop')).toBe('inside'),
+    )
+    pointer(emptyOf(first), 'pointerup')
+    await vi.waitFor(() => expect(bodyOf(first)).toHaveLength(1))
+    expect(bodyOf(second)).toEqual([heading])
+  } finally {
+    handle.dispose()
+  }
+})
+
 it('draws a color picker a prop asks for, and takes what it chooses', async () => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),

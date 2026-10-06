@@ -212,6 +212,45 @@ describe('PointerDrag', () => {
     }))
 })
 
+describe('PointerDrag onto a part', () => {
+  it('reports a part of what it is over as inside it, and a move between parts of one id', () =>
+    withList(async ({ list, a, b, c }) => {
+      // c's empty Region, and below it c's own element again with no part.
+      c.setAttribute('data-part', 'right')
+      const whole = row('c', 90)
+      list.append(whole)
+      const facts = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({ attribute: 'data-row', part: 'data-part' }).f(
+                list,
+                Mount.liveViewStateChanges,
+              ),
+              5,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+          fire(b, 'pointermove', { clientX: 10, clientY: 31 })
+          // The top third of the part, which by thirds alone would be `before`.
+          fire(c, 'pointermove', { clientX: 10, clientY: 61 })
+          fire(c, 'pointermove', { clientX: 10, clientY: 85 })
+          fire(whole, 'pointermove', { clientX: 10, clientY: 105 })
+          fire(whole, 'pointerup')
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'a' }),
+        DraggedOver.make({ over: { id: 'b', zone: 'before' } }),
+        DraggedOver.make({ over: { id: 'c', zone: 'inside', part: 'right' } }),
+        DraggedOver.make({ over: { id: 'c', zone: 'inside' } }),
+        DragDropped.make({ id: 'a', over: { id: 'c', zone: 'inside' } }),
+      ])
+    }))
+})
+
 describe('PointerDrag and the keys of the element with focus', () => {
   it('keeps an Escape that ends a drag from the element it was pressed on', () =>
     withList(async ({ list, a, c }) => {

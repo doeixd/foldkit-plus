@@ -54,7 +54,11 @@ export interface Editing {
 export interface RenderContext<B extends AnyBlock, Message> {
   readonly id: NodeId
   readonly props: PropsOf<B>
-  /** Each Region's children, already drawn, in order. */
+  /**
+   * Each Region's children, already drawn, in order. In edit mode an empty
+   * Region holds one element marked `data-composition-region`, where an author
+   * can see the Region and drop into it.
+   */
   readonly regions: { readonly [R in keyof B['regions']]: ReadonlyArray<Html> }
   readonly h: HtmlBuilder<Message>
   readonly mode: Mode
@@ -113,8 +117,17 @@ export const PLACEHOLDER_ATTRIBUTE = 'composition-placeholder'
 export const MARK_ATTRIBUTE = 'composition-mark'
 /** In edit mode, on a node whose `when` does not hold in the context drawn for. */
 export const HIDDEN_ATTRIBUTE = 'composition-hidden'
-/** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */
+/**
+ * In edit mode, on the node a drop is aimed at, holding where: `before`,
+ * `inside` or `after`; or `inside` on the empty Region it is aimed at.
+ */
 export const DROP_ATTRIBUTE = 'composition-drop'
+/**
+ * In edit mode, on the element that stands for an empty Region, naming the
+ * Region. It is marked with its node's `NODE_ATTRIBUTE` too, so it is a part of
+ * that node: hovering or pressing it is hovering or pressing the node.
+ */
+export const REGION_ATTRIBUTE = 'composition-region'
 /**
  * The container a page is drawn in: an editor's frame, and a published page's
  * root, are `container: page / inline-size`, so a look's container queries
@@ -180,6 +193,8 @@ type DrawArgs = [
   data: unknown,
   mark: 'selected' | 'hovered' | undefined,
   drop: 'before' | 'inside' | 'after' | undefined,
+  /** The empty Region a drop is aimed at, which is marked in place of the node. */
+  dropRegion: string | undefined,
   editing: Editing | undefined,
   ...children: ReadonlyArray<Html>,
 ]
@@ -191,7 +206,20 @@ type DrawArgs = [
  * the nodes it touched and those holding them.
  */
 const drawNode = (
-  ...[renderer, h, mode, id, node, shown, data, mark, drop, editing, ...children]: DrawArgs
+  ...[
+    renderer,
+    h,
+    mode,
+    id,
+    node,
+    shown,
+    data,
+    mark,
+    drop,
+    dropRegion,
+    editing,
+    ...children
+  ]: DrawArgs
 ): Html => {
   const block = Catalog.block(renderer.catalog, node.block)
   if (block === undefined)
@@ -212,7 +240,20 @@ const drawNode = (
       const count = (node.regions[name] ?? []).length
       const drawn = children.slice(at, at + count)
       at += count
-      return [name, drawn]
+      if (mode === 'view' || count > 0) return [name, drawn]
+      return [
+        name,
+        [
+          h.div(
+            [
+              h.DataAttribute(NODE_ATTRIBUTE, id),
+              h.DataAttribute(REGION_ATTRIBUTE, name),
+              ...(dropRegion === name ? [h.DataAttribute(DROP_ATTRIBUTE, 'inside')] : []),
+            ],
+            [spaced(name)],
+          ),
+        ],
+      ]
     }),
   )
   const entries = renderer.entries as unknown as Readonly<
@@ -321,10 +362,14 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
      * `QueryBlock.reads(Data, catalog, document)`.
      */
     readonly data?: Readonly<Record<string, unknown>> | undefined
-    /** In edit mode, the node a drop is aimed at, and where. */
+    /**
+     * In edit mode, the node a drop is aimed at, and where; with `region`, the
+     * empty Region of it the drop goes into.
+     */
     readonly drop?: Option.Option<{
       readonly id: NodeId
       readonly zone: 'before' | 'inside' | 'after'
+      readonly region?: Option.Option<string>
     }>
     /** In edit mode, the text prop being edited in place: see `field`. */
     readonly editing?: Option.Option<Editing>
@@ -384,10 +429,17 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
         : Option.contains(hovered, id)
           ? 'hovered'
           : undefined,
-      Option.match(drop, {
-        onNone: () => undefined,
-        onSome: at => (at.id === id ? at.zone : undefined),
-      }),
+      ...Option.match(
+        Option.filter(drop, at => at.id === id),
+        {
+          onNone: () => [undefined, undefined] as const,
+          onSome: at =>
+            Option.match(at.region ?? Option.none(), {
+              onNone: () => [at.zone, undefined] as const,
+              onSome: region => [undefined, region] as const,
+            }),
+        },
+      ),
       // The one object the options hold, so a memoized node is drawn again only when it changes.
       Option.match(editing, {
         onNone: () => undefined,

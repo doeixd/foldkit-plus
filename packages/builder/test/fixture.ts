@@ -81,6 +81,15 @@ export const Group = Block.define('Group', {
   regions: { items: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Flow],
 })
+/** Two Regions that take the same Content, so "inside it" alone cannot say which; the right holds one. */
+export const Columns = Block.define('Columns', {
+  Props: Schema.Struct({}),
+  regions: {
+    left: Region.many({ accepts: [Content.Flow] }),
+    right: Region.many({ accepts: [Content.Flow], max: 1 }),
+  },
+  provides: [Content.Flow],
+})
 /** Flow that must hold one thing: its title cannot be cut away. Not offered. */
 export const Card = Block.define('Card', {
   Props: Schema.Struct({}),
@@ -93,7 +102,7 @@ export const Section = Block.define('Section', {
   provides: [Content.Section],
 })
 export const Site = Catalog.make({
-  blocks: [Heading, Button, Group, Card, Section, Stat, Swatch],
+  blocks: [Heading, Button, Group, Columns, Card, Section, Stat, Swatch],
   actions: [Subscribe],
   roots: [Content.Section],
   patterns: [
@@ -115,6 +124,8 @@ export const SiteRenderer = Renderer.make(Site, {
   Heading: ({ field, h }) => h.h2([], [field('text')]),
   Button: ({ props, h }) => h.span([h.Class('button')], [props.label]),
   Group: ({ regions, h }) => h.div([], [...regions.items]),
+  Columns: ({ regions, h }) =>
+    h.div([], [h.div([], [...regions.left]), h.div([], [...regions.right])]),
   Card: ({ regions, h }) => h.div([], [...regions.title]),
   Section: ({ regions, h }) => h.section([], [...regions.body]),
   Swatch: ({ props, h }) => h.span([], [props.tint]),

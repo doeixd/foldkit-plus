@@ -236,7 +236,8 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
   `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
   `DragStarted({ source })` (`{ _tag: 'Existing', id }`, or `{ _tag: 'New', block }` from the
-  palette), `DraggedOver({ id, zone })`, `DraggedOff()`, `DraggedOverPage()` (a tile over the
+  palette), `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })` (over a node's
+  empty Region, which a drop then goes into), `DraggedOff()`, `DraggedOverPage()` (a tile over the
   page's empty space, which lands where `placeFor` with nothing selected puts it),
   `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
   (`dropAt`; inside a node that takes nothing is after it, and `over`'s zone
@@ -355,7 +356,8 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Style the marks on the edit wrappers' child (a wrapper is
   `display: contents`): `[data-composition-mark='selected'|'hovered'] > *` (selected
   wins on a node that is both), `[data-composition-drop='before'|'inside'|'after'] > *`;
-  rows carry `data-builder-drop` and `data-builder-dragging`.
+  an empty Region is its own element, `[data-composition-region]` (with the node's id, and
+  `data-composition-drop` on it while a drop aims there): give it a box to drop into; rows carry `data-builder-drop` and `data-builder-dragging`.
 
 ## Gotchas
 
