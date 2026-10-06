@@ -18,6 +18,13 @@ version changed; `pnpm` skips versions already in the registry.
   focus ring, the affix sits inside, the control goes borderless.
 - **`foldkit-cms`: `Cms.stateAttribute`,** `data-cms-state`, the one attribute
   every state the CMS draws is written in.
+- **`foldkit-agent-webmcp`: forms as declarative tools.** `AgentWebMcp.formTool(definition,
+  name)` writes a form's `toolname` and `tooldescription`, and each field's `name` and
+  `toolparamdescription`, from the agent contract; `register({ forms })` answers an agent's
+  submission of such a form as the tool call (decoded, authorized, dispatched, through
+  `respondWith`), ahead of the application's own `OnSubmit`, and leaves the capability out of
+  the imperative registration in a browser that draws forms as tools
+  (`AgentWebMcp.declarativeTools()`). The todo example's composer is `add_todo`'s form.
 - **The page Builder fills any Region by drag.** In edit mode the Renderer
   draws an empty Region as an element of its own, named and marked
   `data-composition-region` (`REGION_ATTRIBUTE`); `PointerDrag` takes a

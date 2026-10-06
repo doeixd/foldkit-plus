@@ -22,6 +22,7 @@
  */
 import { Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
+import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import { Projection } from 'foldkit-surface'
 import { Message, Todo, counts } from './app.js'
 import { isOwner, type Principal } from './principal.js'
@@ -40,7 +41,9 @@ export const AppAgent = TodoAgent.make({
       // The external input is declared, decoded, and mapped onto the intent.
       // An agent supplies a title and nothing else; the id and the timestamp
       // are minted by the Command that `RequestedTodo` runs.
-      input: Schema.Struct({ title: Schema.String }),
+      input: Schema.Struct({
+        title: Schema.String.annotate({ description: 'What the todo says' }),
+      }),
       // The invocation goes with the intent, and the Command puts it on the fact.
       toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
       completion: {
@@ -92,3 +95,9 @@ export const AppAgent = TodoAgent.make({
 })
 
 export const bindAgent = TodoAgent.bind
+
+/**
+ * `add_todo` drawn as the composer, a WebMCP declarative tool: the browser can
+ * show an agent's todo in the form for the person to see, or send it.
+ */
+export const AddTodoForm = AgentWebMcp.formTool(AppAgent, 'add_todo', { autosubmit: true })

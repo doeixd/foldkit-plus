@@ -154,7 +154,10 @@ branches in the view.
 - Click a priority badge to cycle it; the list re-sorts, highest first.
 - With a browser that supports WebMCP, the same capabilities appear as tools
   named `add_todo`, `toggle_todo`, `rename_todo`, `set_priority`, `delete_todo`,
-  `clear_completed`, and `rename_list`.
+  `clear_completed`, and `rename_list`. The composer is `add_todo`'s form
+  (`AddTodoForm` in `agent.ts`), so a browser that reads forms as tools takes
+  it from the markup instead, and an agent's todo goes through the same
+  contract.
 
 ## What is deliberately not here
 

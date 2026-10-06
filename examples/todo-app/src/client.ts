@@ -6,7 +6,7 @@
 import { Effect, Scope } from 'effect'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import { ReplicaId, Sync } from 'foldkit-sync'
-import { AppAgent, bindAgent } from './agent.js'
+import { AddTodoForm, AppAgent, bindAgent } from './agent.js'
 import type { Message } from './app.js'
 import type { Principal } from './principal.js'
 import { mountApp } from './runtime.js'
@@ -71,7 +71,7 @@ const agent = bindAgent({
 })
 const modelContext = AgentWebMcp.pageModelContext()
 if (modelContext !== undefined) {
-  const registration = AgentWebMcp.register({ agent, modelContext })
+  const registration = AgentWebMcp.register({ agent, modelContext, forms: [AddTodoForm] })
   void registration.refresh()
   window.addEventListener('beforeunload', () => registration.unregister())
 }

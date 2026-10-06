@@ -1,11 +1,7 @@
 import { Agent } from 'foldkit-agent'
 import { Effect } from 'effect'
-import {
-  type ModelContext,
-  type ToolDescriptor,
-  type ToolResult,
-  pageModelContext,
-} from './webmcp.js'
+import { answerForms, declarativeTools, dispatchFor, type FormTool } from './forms.js'
+import { type ModelContext, type ToolDescriptor, pageModelContext } from './webmcp.js'
 
 /** A live WebMCP registration. */
 export interface Registration {
@@ -37,12 +33,13 @@ export interface RegisterOptions<Model, Context_, Principal, ByName, ByTag> {
    * initial registration, or one triggered by a Model change.
    */
   readonly onError?: ((error: unknown) => void) | undefined
+  /**
+   * Capabilities the page draws as forms (`formTool`). An agent's submission
+   * of one is answered as its tool call would be. In a browser that draws
+   * forms as tools these are not registered too, as the form is the tool.
+   */
+  readonly forms?: ReadonlyArray<FormTool<keyof ByName & string>> | undefined
 }
-
-const textResult = (text: string, isError = false): ToolResult => ({
-  content: [{ type: 'text', text }],
-  isError,
-})
 
 /**
  * Projects an agent contract into `document.modelContext.registerTool(...)`.
@@ -73,7 +70,14 @@ export const register = <Model, Context_, Principal, ByName, ByTag>(
   }
 
   const { agent } = options
-  const nextInvocationId = options.invocationId ?? Agent.newInvocationId
+  const dispatch = dispatchFor(agent, options.invocationId ?? Agent.newInvocationId)
+  const forms = options.forms ?? []
+  // Drawn as forms where the browser makes them tools, so registered only elsewhere.
+  const asForms = new Set<string>(declarativeTools() ? forms.map(form => form.name) : [])
+  const stopAnswering =
+    forms.length === 0 || typeof document === 'undefined'
+      ? () => {}
+      : answerForms(document, forms, dispatch)
 
   /** One AbortController per registered tool: aborting it unregisters that tool. */
   const controllers = new Map<string, AbortController>()
@@ -85,40 +89,8 @@ export const register = <Model, Context_, Principal, ByName, ByTag>(
     inputSchema: Record<string, unknown>,
   ): { readonly controller: AbortController; readonly tool: ToolDescriptor } => {
     const controller = new AbortController()
-
-    const execute = async (
-      input: unknown,
-      context: { readonly signal?: AbortSignal | undefined },
-    ): Promise<ToolResult> => {
-      try {
-        // WebMCP hands the page a promise-returning callback, so this is the
-        // edge where Effect meets the browser, not a run inside a service.
-        const result = await Effect.runPromise(
-          Effect.result(
-            // The tool name and payload both come off the wire.
-            agent.messages.dispatchUnknown(name, input, {
-              id: nextInvocationId(),
-              transport: 'webmcp',
-              signal: context.signal,
-            }),
-          ),
-        )
-
-        // Every agent failure carries a message written for this audience.
-        if (result._tag === 'Failure') return textResult(result.failure.message, true)
-
-        // A declared completion contract has already resolved by the time
-        // dispatch returns, so a failed completion is a failed tool call.
-        const summary = Agent.summarize(result.success)
-        return textResult(summary.text, !summary.ok)
-      } catch {
-        // `Effect.result` captures expected failures but not defects, and a
-        // rejected tool promise is not something a calling agent can act on.
-        // Report it as a tool error without leaking the application's internals.
-        return textResult(`Capability "${name}" failed unexpectedly`, true)
-      }
-    }
-
+    const execute = (input: unknown, context: { readonly signal?: AbortSignal | undefined }) =>
+      dispatch(name, input, context.signal)
     return { controller, tool: { name, description, inputSchema, execute } }
   }
 
@@ -126,7 +98,11 @@ export const register = <Model, Context_, Principal, ByName, ByTag>(
     if (disposed) return
 
     const available = await Effect.runPromise(agent.messages.available)
-    const wanted = new Map(available.map(descriptor => [descriptor.name, descriptor]))
+    const wanted = new Map(
+      available.flatMap(descriptor =>
+        asForms.has(descriptor.name) ? [] : [[descriptor.name, descriptor] as const],
+      ),
+    )
 
     // Unregister capabilities the Model no longer offers.
     for (const [name, controller] of [...controllers]) {
@@ -194,6 +170,7 @@ export const register = <Model, Context_, Principal, ByName, ByTag>(
     for (const controller of controllers.values()) controller.abort()
     controllers.clear()
     unsubscribe()
+    stopAnswering()
   }
 
   /**

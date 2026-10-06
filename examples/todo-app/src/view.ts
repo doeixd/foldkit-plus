@@ -23,6 +23,7 @@ import { Layout } from 'foldkit-mixins/layout'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button as ButtonAdapter, Checkbox as CheckboxAdapter } from 'foldkit-mixins-ui'
 import { Surface } from 'foldkit-surface'
+import { AddTodoForm } from './agent.js'
 import {
   Message,
   bumpPriority,
@@ -78,9 +79,10 @@ export const HeaderView = SurfaceView.define(Header, HeaderSlots, (model, slots,
 // --- composer: the only Surface that may cause `DraftSubmitted` -------------------
 
 export const ComposerView = SurfaceView.define(Composer, ComposerSlots, (model, slots, h) =>
-  h.form(slots.root.attrs([h.OnSubmit(Message.DraftSubmitted())]), [
+  h.form(slots.root.attrs([...AddTodoForm.form(h), h.OnSubmit(Message.DraftSubmitted())]), [
     h.input(
       slots.input.attrs([
+        ...AddTodoForm.field('title', h),
         h.Type('text'),
         h.Placeholder('What needs doing?'),
         h.AriaLabel('New todo'),

@@ -4,6 +4,7 @@
  */
 import { Agent } from 'foldkit-agent'
 import { Option, Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { AgentWebMcp } from '../src/index.js'
 import type { ModelContext, ToolDescriptor } from '../src/index.js'
@@ -11,6 +12,7 @@ import type { ModelContext, ToolDescriptor } from '../src/index.js'
 const Message = defineMessageUnion({
   RequestedCreateTodo: { title: Schema.String },
   RequestedDeleteTodo: { id: Schema.String },
+  DraftSubmitted: {},
 })
 
 type Message = typeof Message.Type
@@ -74,6 +76,16 @@ const registered: ReadonlyArray<string> = registration.registered() // capabilit
 registration.unregister() // abort every registration and stop following
 
 void registered
+
+// Forms as declarative tools.
+declare const h: HtmlBuilder<Message>
+declare const model: { readonly draft: string }
+const CreateTodoForm = AgentWebMcp.formTool(AppAgent, 'requested_create_todo')
+h.form(
+  [...CreateTodoForm.form(h), h.OnSubmit(Message.DraftSubmitted())],
+  [h.input([...CreateTodoForm.field('title', h), h.Value(model.draft)])],
+)
+AgentWebMcp.register({ agent, forms: [CreateTodoForm] })
 
 // The registration signal goes in `registerTool`'s options bag, not on the
 // descriptor.

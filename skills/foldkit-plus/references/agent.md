@@ -197,6 +197,13 @@ if (modelContext !== undefined) {
 ```
 WebMCP is experimental and no stable browser ships it, so always feature-detect it. `register` throws when there is no model context. Only **currently available** capabilities are registered. With `followModel: true` (the default) and `host.subscribe`, the tools are reconciled when the Model changes. For tests, pass a fake `{ registerTool }` as `modelContext`.
 
+A form can be the tool (WebMCP's declarative API): `const Form = AgentWebMcp.formTool(AppAgent, 'add_todo')`,
+then `h.form([...Form.form(h), …])` and `h.input([...Form.field('title', h), …])` write
+`toolname`/`tooldescription` and `name`/`toolparamdescription` from the contract. Pass it to
+`register({ agent, forms: [Form] })`: an `agentInvoked` submission is read from the form's fields
+(text), dispatched as the capability ahead of the app's `OnSubmit`, and answered with `respondWith`;
+where `AgentWebMcp.declarativeTools()` holds, the capability is not registered imperatively too.
+
 ```ts
 import { AgentMcp } from 'foldkit-agent-mcp'
 import * as HttpEffect from 'effect/http/HttpEffect'

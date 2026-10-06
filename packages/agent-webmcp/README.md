@@ -156,6 +156,52 @@ Reconciliation is serialized, so overlapping Model changes cannot register the
 same capability twice. A failed browser registration is not recorded as live and
 is retried on a later reconcile.
 
+## Forms as declarative tools
+
+WebMCP also proposes a declarative API: a form carrying `toolname` and
+`tooldescription`, with fields named by `name` and described by
+`toolparamdescription`, is a tool the browser derives from the markup. The
+browser fills the fields and submits; the person can see the form as it is
+filled. `formTool` draws a capability that way, from the same contract, so the
+form and the registered tool cannot name or describe it differently:
+
+```ts
+const CreateTodoForm = AgentWebMcp.formTool(AppAgent, 'requested_create_todo')
+
+// In the view: the form and each field the input names. `DraftSubmitted` and
+// `model.draft` are the application's own submit and draft, as before.
+h.form([...CreateTodoForm.form(h), h.OnSubmit(Message.DraftSubmitted())], [
+  h.input([...CreateTodoForm.field('title', h), h.Value(model.draft)]),
+])
+
+// Beside `register`, which then answers the form's agent submissions.
+AgentWebMcp.register({ agent, forms: [CreateTodoForm] })
+```
+
+`formTool` only writes attributes; it registers nothing and listens to nothing.
+`register({ forms })` listens for `submit` on the document in the capture phase,
+ahead of the application's own handler. A submission the browser marks
+`agentInvoked` is answered as the tool call would be: the fields the input names
+are read from the form as text, decoded, authorized and dispatched as the
+capability, and the result goes back through `respondWith`. The application's
+`OnSubmit` does not run for it, so an agent's submission never depends on the
+Model having seen the browser fill the fields. A person's submission is the
+application's as before.
+
+In a browser whose `SubmitEvent` has `agentInvoked`
+(`AgentWebMcp.declarativeTools()`), a form's capability is not also registered
+imperatively, since the form is the tool. Elsewhere it is registered as usual.
+A field's value arrives as text, as every form submits it: give such a
+capability text fields, or a transforming Schema (`Schema.NumberFromString`).
+The declarative API is an early proposal whose form-to-schema rules are still
+open, so treat it as a second way in, not the only one.
+
+`formTool(definition, name, { autosubmit: true })` adds `toolautosubmit`, which
+lets the agent submit without the person's review. It throws for a name the
+contract does not expose and for an input that is not an object of fields;
+`field` throws for a key the input lacks, and its type takes only the input's
+keys.
+
 ## Registration lifecycle
 
 `AgentWebMcp.register` returns:
@@ -176,6 +222,7 @@ The main options are:
 | `signal` | — | Unregister everything when aborted. |
 | `invocationId` | `crypto.randomUUID()` | Supplies protocol invocation ids. |
 | `onError` | — | Receives failures from background reconciliation. |
+| `forms` | — | Capabilities drawn as forms (`formTool`): agent submissions are answered, and declarative browsers get no second, imperative tool. |
 
 Each registered tool has its own registration `AbortController`. That signal is
 for the WebMCP registration itself. It is distinct from a tool invocation's
