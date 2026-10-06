@@ -16,10 +16,12 @@ version changed; `pnpm` skips versions already in the registry.
   `parentOf`/`ancestorsOf`/`depthOf` inspect it; `title`/`section` annotate
   once with `titleOf`/`sectionOf` readers; `Site.historyOf` declares
   push-vs-replace once; and `Site.sources` lowers surfaced nodes to
-  `Surface.when` values for Remote, SSR, and retention. Pure: no Model, no
-  Effects, no Messages, no fetching. Lifecycle wiring (link-click/URL-change
-  branches) and per-route Bundle placement stay per-application until the
-  next cut.
+  `Surface.when` values for Remote, SSR, and retention. `Site.routing` is the
+  link-click and URL-change lifecycle as one wiring: internal clicks navigate
+  per `Site.historyOf`, external links load, URL changes set the route field
+  (or touch nothing on an echo), and the application's own update guards with
+  `Routing.reduces`. Per-route Bundle placement stays per-application until
+  the next cut.
 - **`foldkit-composition`: `SurfaceBlock.families`, one family per
   Surface Block.** `SurfaceBlock.families(catalog, { from, document })` is
   every Surface Block on the page as one `Surface.each` family per Block,

@@ -133,6 +133,47 @@ layout surface active for several tags is not yet expressible — that is a
 `Surface.whenAny`-shaped extension, deliberately deferred until a real layout
 needs it.
 
+## The lifecycle wiring
+
+`Site.routing` is the application's link-click and URL-change lifecycle as
+one wiring, so `update` stops hand-writing those two branches:
+
+```ts
+import { modifyFields } from 'foldkit/struct'
+
+const Routing = Site.routing<Model, Message, AppRoute>({
+  site: AppSite,
+  owner: App.owner,
+  route: {
+    dependency: App.model.route.dependency,
+    get: (model) => model.route,
+    set: (model, route) => modifyFields(model, { route: () => route }),
+  },
+  parse: urlToAppRoute,
+  tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+  completed: Message.CompletedNavigation,
+})
+
+const assembly = Bundle.assemble([Routing, ...pages])
+const update = assembly.update((model, message) =>
+  Routing.reduces(message) ? { model } : updateOwn(model, message),
+)
+```
+
+A click on an internal link navigates — pushing or replacing per
+`Site.historyOf`, computed from the current route, so entries stay entries.
+An external link loads. A URL change sets the route field, or returns the
+same Model when the address parses to the route already shown, so an echo of
+our own write never re-renders or clears pending state. The application's own
+update answers nothing for either message; `reduces` names them for its
+guard, the way `Remote.reduces` does.
+
+The wiring claims the click tag and shares the change tag with URL mirrors,
+which read their slices first. `CompletedNavigation` is one completion for
+the navigation commands — declare the variant, pass the constructor. Route
+changes reach child pages through their own Messages only once routed
+placements land; until then informing them stays hand-written.
+
 ## Common workflows
 
 **Navigation rendering.** Derive the nav from the tree instead of keeping
@@ -141,9 +182,10 @@ titles from `Site.titleOf`, and the current section by comparing tags.
 
 **Route changes.** On a URL change, resolve the route value once, then
 `Site.chainOf` for the active chain and `Site.historyOf` for the history
-step. What each route *does* with the change is still the application's
-`update` — the coming lifecycle wiring will own the link-click/URL-change
-branches; this cut only answers the questions inside them.
+step — or hand both branches to `Site.routing` and keep only the guard in
+`update`. What each route *does* with the change is still the application's
+`update`; route changes reach child pages through their own Messages only
+once routed placements land.
 
 **Prefetch and SSR.** `Site.target` plus `Site.chainOf` say which Surfaces a
 destination will activate; `Data.satisfy` over `Site.sources` prepares the
@@ -153,9 +195,9 @@ is no `prepare` in any plan.
 ## Limits / when not to use it
 
 - A single-screen application has one node; the tree buys nothing.
-- Route-local model ownership, link-click handling, and keyboard shortcuts
-  are still hand-written per application. They are the next cut (lifecycle
-  wiring converging with Bundle placements), not this one.
+- Route-local model ownership, per-route Bundle placement, and keyboard
+  shortcuts are still hand-written per application. They are the placement
+  cut, not this one; `Site.routing` informs no child pages yet, either.
 - A node's `history` function sees only its own route values; cross-node
   rules more subtle than "another node is a step" do not exist yet.
 - Locales are route params like any other when they arrive; themes are

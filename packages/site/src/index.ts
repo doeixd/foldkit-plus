@@ -15,16 +15,25 @@
  * > require.
  *
  * Nothing here runs: nodes, mounts, trees, and targets are data. A `SiteTree`
- * is frozen at `Site.make`.
+ * is frozen at `Site.make`. `Site.routing` is the one runtime piece: the
+ * link-click and URL-change lifecycle as a wiring, so applications stop
+ * hand-writing those two update branches.
  */
-import type { Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import * as Navigation from 'foldkit/navigation'
+import { UrlRequest } from 'foldkit/navigation'
 import type { Router } from 'foldkit/route'
+import * as Url from 'foldkit/url'
+import type { Url as UrlValue } from 'foldkit/url'
 import {
   Surface,
   type ActiveSurface,
+  type Contract,
   type ModelPlace,
   type Surface as SurfaceType,
   type SurfaceSource,
+  type Wiring,
 } from 'foldkit-surface'
 
 /** Whether moving to a target adds a history step (`push`) or replaces the current one. */
@@ -53,6 +62,25 @@ export interface BoundSurface {
 }
 
 /**
+ * The route's place in the Model, read and written. A field holding a tagged
+ * union is a *union of* `FieldRef`s, one per case, which no single
+ * `ModelRef<Root, Route>` accepts — so this is structural:
+ *
+ * ```ts
+ * route: {
+ *   dependency: App.model.route.dependency,
+ *   get: (model) => model.route,
+ *   set: (model, route) => modifyFields(model, { route: () => route }),
+ * },
+ * ```
+ */
+export interface RouteField<Root, Route> {
+  readonly dependency: readonly string[]
+  readonly get: (root: Root) => Route
+  readonly set: (root: Root, route: Route) => Root
+}
+
+/**
  * One deployed location: its Router (which owns URL semantics), its route
  * case, and its metadata. A stable first-class value: mounting it in a tree
  * never mutates it, so the same node serves targets, hrefs, and inspection
@@ -70,7 +98,7 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
    * Which history step a move within this node is: a string, or a function
    * for nodes where some param changes are entries of their own (another
    * person) and others are views of one entry (another search). A move to
-   * another node is always a step; the first page replaces nothing.
+   * another node — or from an unknown location — is always a step.
    */
   readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
   /** The Surface this route activates, if the node declares one. */
@@ -99,14 +127,15 @@ export interface SiteTarget<Route extends { readonly _tag: string }> {
   readonly url: string
 }
 
-/** The tag a route-case constructor names, read the way `Surface.when` reads it. */
-const tagOfCase = (routeCase: unknown): string => {
-  const literal = (routeCase as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
+/**
+ * The tag a tagged constructor names, read the way `Surface.when` reads it
+ * off a route case. Anything else is a definition-time error, not a silent
+ * mismatch.
+ */
+const tagOfConstructor = (constructor: unknown, what: string): string => {
+  const literal = (constructor as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
     ?._tag?.ast?.literal
-  if (typeof literal !== 'string')
-    throw new Error(
-      'Site.route: expected a route case from defineRouteUnion, a tagged constructor with a literal _tag',
-    )
+  if (typeof literal !== 'string') throw new Error(`${what} must be a tagged constructor`)
   return literal
 }
 
@@ -183,7 +212,7 @@ export const Site = {
     },
   ): SiteNode<Route> =>
     Object.freeze({
-      tag: tagOfCase(routeCase),
+      tag: tagOfConstructor(routeCase, 'Site.route: expected a route case from defineRouteUnion'),
       router,
       case: routeCase,
       ...(options?.title === undefined ? {} : { title: options.title }),
@@ -307,13 +336,11 @@ export const Site = {
   /**
    * Which history step a move is: to another node, a step; within a node, its
    * declaration (a string, or a function for nodes where some param changes
-   * are entries of their own); with no previous target, there is nothing to
-   * replace past — also a replace.
+   * are entries of their own); with no previous target — the current location
+   * is unknown to the site — a step too, so Back can still return to it.
    */
   historyOf: (prev: SiteTarget<any> | undefined, next: SiteTarget<any>): HistoryIntent => {
-    // No previous page (a cold load is already its own entry): nothing to step from.
-    if (prev === undefined) return 'replace'
-    if (prev.node !== next.node) return 'push'
+    if (prev === undefined || prev.node !== next.node) return 'push'
     const rule = next.node.history ?? 'replace'
     return typeof rule === 'function' ? rule(prev.route, next.route) : rule
   },
@@ -340,5 +367,144 @@ export const Site = {
       out[node.tag] = Surface.when(bound.surface, place, node.case, bound.params)
     }
     return out
+  },
+
+  /**
+   * The application's link-click and URL-change lifecycle as one wiring, so
+   * `update` stops hand-writing those two branches. A click on an internal
+   * link navigates (pushing or replacing per `Site.historyOf`); on an
+   * external link it loads; a URL change sets the route field — or touches
+   * nothing when the address parses to the route already shown, so an echo
+   * of our own write never re-renders or clears pending state. The
+   * application's own update answers nothing for either message; `reduces`
+   * names them for its guard, the way `Remote.reduces` does.
+   *
+   * ```ts
+   * const Routing = Site.routing<Model, Message, AppRoute>({
+   *   site: AppSite,
+   *   owner: App.owner,
+   *   route: {
+   *     dependency: App.model.route.dependency,
+   *     get: (model) => model.route,
+   *     set: (model, route) => modifyFields(model, { route: () => route }),
+   *   },
+   *   parse: urlToAppRoute,
+   *   tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+   *   completed: Message.CompletedNavigation,
+   * })
+   * const assembly = Bundle.assemble([Routing, ...pages])
+   * const update = assembly.update((model, message) =>
+   *   Routing.reduces(message) ? { model } : updateOwn(model, message),
+   * )
+   * ```
+   *
+   * One routing per application: it claims the click tag and shares the
+   * change tag with URL mirrors, which read their slices first. Route changes
+   * reach child pages through their own Messages only once routed placements
+   * land; until then informing them stays hand-written.
+   */
+  routing: <
+    Root,
+    Message extends { readonly _tag: string },
+    Route extends { readonly _tag: string },
+  >(config: {
+    readonly site: SiteTree
+    readonly owner: object
+    /** The route field, read and written (a `RouteField`, struct). */
+    readonly route: RouteField<Root, Route>
+    /** The application's URL parser, with its NotFound fallback. */
+    readonly parse: (url: UrlValue) => Route
+    /** The application's own link-click and URL-change tags. */
+    readonly tags: { readonly clicked: string; readonly changed: string }
+    /** One completion for the navigation commands to dispatch. */
+    readonly completed: Schema.Schema<Message> & (() => Message)
+  }): Wiring<Root, Message> & {
+    /** Whether the routing owns a message: its click or its URL change. */
+    readonly reduces: (message: Message) => boolean
+  } => {
+    const completedTag = tagOfConstructor(
+      config.completed,
+      'Site.routing: completed must be a message constructor',
+    )
+    const Navigate = Command.define('Site.Navigate', {
+      args: { url: Schema.String, history: Schema.Literals(['push', 'replace']) },
+      messages: [config.completed],
+      execute: ({ url, history }) =>
+        (history === 'push' ? Navigation.pushUrl(url) : Navigation.replaceUrl(url)).pipe(
+          Effect.as(config.completed()),
+        ),
+    })
+    const Load = Command.define('Site.Load', {
+      args: { href: Schema.String },
+      messages: [config.completed],
+      execute: ({ href }) => Navigation.load(href).pipe(Effect.as(config.completed())),
+    })
+    // Route values are plain data from the same constructors, so equal
+    // addresses compare equal. Checked before every write, so an echo of our
+    // own navigation touches nothing: same Model back, no re-render.
+    const sameRoute = (a: Route, b: Route): boolean => JSON.stringify(a) === JSON.stringify(b)
+    const setRoute = (model: Root, next: Route): Root => {
+      const current = config.route.get(model)
+      return sameRoute(current, next) ? model : config.route.set(model, next)
+    }
+    const currentTarget = (model: Root): SiteTarget<Route> | undefined => {
+      const current = config.route.get(model)
+      const node = Site.nodeOf(config.site, current) as SiteNode<Route> | undefined
+      if (node === undefined) return undefined
+      // The tag rides along for matching only; params are everything else.
+      const { _tag, ...params } = current
+      return Site.target(node, params)
+    }
+    // tag-check: open — the tags are the application's own variants, named in config
+    const reduces = (message: Message): boolean =>
+      message._tag === config.tags.clicked || message._tag === config.tags.changed
+    const wiring: Wiring<Root, Message> = {
+      key: 'site',
+      handles: [config.tags.clicked, config.tags.changed],
+      shared: [config.tags.changed],
+      route: (model, message) => {
+        // tag-check: open — same ownership as reduces
+        if (message._tag === config.tags.clicked) {
+          const request = (message as unknown as { readonly request: UrlRequest }).request
+          return Option.some(
+            UrlRequest.match(request, {
+              Internal: ({ url }) => {
+                const next = config.parse(url)
+                const node = Site.nodeOf(config.site, next)
+                const intent =
+                  node === undefined
+                    ? ('push' as const)
+                    : Site.historyOf(currentTarget(model), {
+                        node,
+                        route: next,
+                        url: Url.toString(url),
+                      })
+                return {
+                  model,
+                  commands: [Navigate({ url: Url.toString(url), history: intent })],
+                }
+              },
+              External: ({ href }) => ({ model, commands: [Load({ href })] }),
+            }),
+          )
+        }
+        if (message._tag === config.tags.changed) {
+          const url = (message as unknown as { readonly url: UrlValue }).url
+          return Option.some({ model: setRoute(model, config.parse(url)) })
+        }
+        return Option.none()
+      },
+      onUrl: (model, url) => setRoute(model, config.parse(url)),
+      contract: {
+        kind: 'site',
+        name: 'site',
+        owner: config.owner,
+        owns: [],
+        observes: [config.route.dependency],
+        messages: [completedTag],
+        metadata: [],
+      } satisfies Contract,
+    }
+    return { ...wiring, reduces }
   },
 }

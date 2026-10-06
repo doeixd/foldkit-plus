@@ -155,8 +155,8 @@ describe('history', () => {
   const home = Site.target(Home, {})
   const people = (text: string) => Site.target(People, { searchText: Option.some(text) })
 
-  it('moves to another node, or onto the first page, as a step', () => {
-    expect(Site.historyOf(undefined, home)).toBe('replace')
+  it('moves to another node, or from an unknown location, as a step', () => {
+    expect(Site.historyOf(undefined, home)).toBe('push')
     expect(Site.historyOf(home, Site.target(Person, { personId: 3 }))).toBe('push')
   })
 

@@ -40,9 +40,17 @@ for an unknown tag); `Site.parentOf`, `Site.ancestorsOf`, `Site.depthOf`,
 `Site.titleOf` / `Site.sectionOf` (`undefined` when absent). Annotate once;
 derive nav, titles, and breadcrumbs from it.
 
-**History.** `Site.historyOf(prev, next)`: another node is a step; within a
-node its `history` rule (default replace; a function for nodes where some
-param changes are entries of their own); no previous target is a replace.
+**History.** `Site.historyOf(prev, next)`: another node, or an unknown
+location, is a step; within a node its `history` rule (default replace; a
+function for nodes where some param changes are entries of their own).
+
+**Lifecycle.** `Site.routing<Model, Message, Route>({ site, owner, route,
+parse, tags: { clicked, changed }, completed })` is the link-click and
+URL-change lifecycle as one wiring: internal clicks navigate per
+`historyOf`, external links load, URL changes set the route field (or touch
+nothing on an echo). The app's own update guards with `Routing.reduces`.
+Needs a completion variant and a structural route field (`{ dependency, get,
+set }` — a union field is a union of refs, no single `ModelRef` accepts it).
 
 **Attached Surfaces.** `surface: { surface, params: route => params }` on a
 node; `Site.sources(site, App.owner, App.model.route)` is each surfaced node
@@ -54,7 +62,8 @@ own tag only.
 
 - A layout surface active for several tags is not expressible yet (a future
   `whenAny`-shaped extension); each entry answers its own tag.
-- Route-local model ownership, link-click/URL-change branches, and shortcuts
-  are still per-application code — the lifecycle wiring cut, not this one.
+- Route-local model ownership, per-route Bundle placement, and shortcuts
+  are still per-application code — the placement cut, not this one.
+  `Site.routing` informs no child pages of route changes yet, either.
 - `Site.target(Node, {})` for param-less routes: params are always explicit.
 - Locales are route params when they arrive; themes are preferences, not routes.
