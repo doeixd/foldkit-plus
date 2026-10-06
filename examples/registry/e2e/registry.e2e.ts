@@ -56,17 +56,25 @@ const open = async () => {
   return errors
 }
 const cell = (row: string, column: string) => page.locator(`[id="products:${row}:${column}"]`)
-const readLine = () => page.locator('main p').first().textContent()
+const counts = () => page.locator('#counts').textContent()
+/** How many product rows the page holds now: the header row is not one. */
+const rowsInPage = () =>
+  page.locator('#products [role="row"][aria-rowindex]:not([aria-rowindex="1"])').count()
 
 test('reads on as the end comes into view, and sorts over every product', async () => {
   const errors = await open()
-  expect(await readLine()).toBe('100 products read, more to come.')
+  // The strip's count of rows drawn is the rows in the page, laid out for real.
+  const drawn = Number(/(\d+) rows drawn/.exec((await counts()) ?? '')?.[1])
+  expect(await counts()).toBe(`100 read, more to come · ${drawn} rows drawn`)
+  expect(await rowsInPage()).toBe(drawn)
   // Scrolled to the end, the More button comes into view and the next page is read.
   await page.evaluate(() => {
     const grid = document.getElementById('products')!
     grid.scrollTop = grid.scrollHeight
   })
-  await expect.poll(readLine, { timeout: 10_000 }).toBe('200 products read, more to come.')
+  await expect
+    .poll(counts, { timeout: 10_000 })
+    .toMatch(/^200 read, more to come · \d+ rows drawn$/)
 
   // Price, twice: the dearest of all 100,000 first, which no page held before.
   const dearest = Array.from({ length: 100_000 }, (_, index) => seedOf(index)).reduce((a, b) =>

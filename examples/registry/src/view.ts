@@ -1,10 +1,12 @@
 /**
- * The page: a status line and the grid over the list's page. The rows, their
+ * The page: a status line, a strip of what is read and drawn, the panel that
+ * says who owns what, and the grid over the list's page. The rows, their
  * status and the order are read from Remote and the Model on every render;
  * the grid draws only what is in view.
  */
 import { Option } from 'effect'
 import type { Document, HtmlBuilder } from 'foldkit/html'
+import type { ModuleManifest } from 'foldkit-surface'
 import { RowCount } from 'foldkit-data-grid'
 import { GridCrud } from 'foldkit-data-grid/crud'
 import { Style } from 'foldkit-mixins'
@@ -19,6 +21,8 @@ import {
 import { Grid, Message, Products, exchangeOf, marksOf, rowsOf, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
 import { ProductSort } from './operations.js'
+import { ownershipPanel } from './ownership.js'
+import { hairline, ink, muted } from './palette.js'
 
 const Registry = DataGridView<Message>()
   .define(Grid)
@@ -31,7 +35,7 @@ const Registry = DataGridView<Message>()
         root: Style.inline({
           height: 'calc(100vh - 9rem)',
           minHeight: '20rem',
-          border: '1px solid light-dark(#e4e4e7, #2e2e33)',
+          border: `1px solid ${hairline}`,
           borderRadius: '10px',
           boxShadow: '0 1px 2px rgb(0 0 0 / 0.04)',
         }),
@@ -42,8 +46,7 @@ const Registry = DataGridView<Message>()
 /** What each mark on a cell means, each beside a swatch drawn by the cells' own rules. */
 const Legend = GridLegend<Message>().pipe(Style.attach(GridLegendStyle))
 
-const columnNames = { description: 'Description', cents: 'Price', line: 'Line', status: 'Status' }
-const columnName = (column: EditedColumn) => columnNames[column]
+const columnName = (column: EditedColumn) => Grid.columns.byId[column].header
 
 /** The refused edits, one per operation, naming the cells each had changed. */
 const refusedEdits = (model: Model) => {
@@ -59,10 +62,6 @@ const refusedEdits = (model: Model) => {
     reason,
   }))
 }
-
-// Each colour for a light page and a dark one, as the theme's are.
-const ink = 'light-dark(#18181b, #f4f4f5)'
-const muted = 'light-dark(#71717a, #a1a1aa)'
 
 /** A notice above the grid: what the server refused, or what another device replaced. */
 const notice = (tone: { readonly border: string; readonly background: string }) =>
@@ -95,10 +94,20 @@ const list = (count: number) =>
     gap: '0.5rem',
   }) as const
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+/** The page, with the panel listing `manifest`'s owners. */
+export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleManifest): Document => {
   const page = Products.page(model)
   const rows = rowsOf(model)
   const status = exchangeOf(model)
+  // What the grid is drawn from, given to the grid and to the count of what it draws.
+  const geometry = {
+    state: model.grid,
+    rows,
+    rowHeight: 32,
+    headerHeight: 36,
+    overscan: { rows: 6, columns: 1 },
+  }
+  const shown = Grid.window(geometry)
   // Kept on the device, by choice or because the server cannot be reached.
   const waiting = model.offline || Option.isSome(model.exchange.error)
   const dismiss = (message: Message) =>
@@ -143,14 +152,17 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                 ['Products'],
               ),
               h.p(
-                [h.Style({ margin: '0', fontSize: '0.8125rem', color: muted })],
+                [h.Id('counts'), h.Style({ margin: '0', fontSize: '0.8125rem', color: muted })],
                 [
                   // Read, not counted: the server has more until a page says it has none.
-                  RowCount.match(rows.count, {
-                    Known: ({ total }) => `${total.toLocaleString()} products.`,
-                    Unknown: ({ atLeast }) =>
-                      `${atLeast.toLocaleString()} products read, more to come.`,
-                  }),
+                  // Drawn is the grid's own window, not an estimate.
+                  [
+                    RowCount.match(rows.count, {
+                      Known: ({ total }) => `${total.toLocaleString()} products`,
+                      Unknown: ({ atLeast }) => `${atLeast.toLocaleString()} read, more to come`,
+                    }),
+                    `${(shown.rows.end - shown.rows.start).toLocaleString()} rows drawn`,
+                  ].join(' · '),
                 ],
               ),
             ],
@@ -202,6 +214,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         ],
       ),
       Legend({}, h),
+      ownershipPanel(manifest, model, shown, h),
       // What the server refused, said once per edit with its reason; the cells
       // it had changed show the server's value again, edged in red.
       h.ul(
@@ -251,13 +264,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       ),
       Registry(
         {
-          state: model.grid,
-          rows,
+          ...geometry,
           wrap: message => Message.GotGridMessage({ message }),
           label: 'Products',
-          rowHeight: 32,
-          headerHeight: 36,
-          overscan: { rows: 6, columns: 1 },
           status: GridCrud.status(page),
           onRetry: Message.RetriedProducts(),
           onMore: Message.RequestedMoreProducts(),

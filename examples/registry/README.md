@@ -20,6 +20,14 @@ the grid owns the interaction        focus, selection, columns, viewport, the op
 the application owns the order       the query's input
 ```
 
+The page shows this too. *How this page works*, under the legend, lists the
+owners `Module.manifest` reads from the contracts (the grid's placement,
+Remote's wiring and the Sync document; `manifest` in `sync.ts`), each field
+under its owner and what it holds now, so a field no contract claims shows as
+the page's own (`ownership.ts`). The strip under the title counts what is
+read and what the grid draws, from the window the view itself draws
+(`Grid.window`). It gives no read durations: Remote's Model holds no clock.
+
 The pattern, why the table carries a `revision`, what an edit shows at each
 step, absorbing, held edits, conflicts and every failure case, is
 [Editing server data through a journal](../../docs/editing-server-data.md),

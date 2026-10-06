@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-data-grid`: `Grid.window(input)`,** the rows and columns a
+  placed grid's view draws, worked out as the view does (the view now calls
+  it), so an application can count what is drawn without estimating. The
+  registry shows it in a strip under its title, beside a *How this page
+  works* panel that lists the owners `Module.manifest` reads from its
+  contracts and what each field holds now (#163).
 - **Undo and redo in the data grid, and in the registry as new edits.** Ctrl
   or Meta with Z on a `foldkit-data-grid` grid sends `UndoRequested`, with
   Shift (or Ctrl+Y) `RedoRequested`, each reported as the OutMessage of the

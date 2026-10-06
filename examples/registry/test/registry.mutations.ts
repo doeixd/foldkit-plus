@@ -178,4 +178,60 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the panel has one section for every owner',
+    edits: [
+      {
+        file: '../src/ownership.ts',
+        find: 'const name = ownerName(owner)',
+        replace: "const name = 'This page'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a field no contract claims is left out',
+    edits: [
+      {
+        file: '../src/ownership.ts',
+        find: "? 'This page'",
+        replace: "? ''",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'committed edits are counted as not yet sent',
+    edits: [
+      {
+        file: '../src/ownership.ts',
+        find: 'model.edits.filter(edit => Option.isNone(edit.at))',
+        replace: 'model.edits',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'rows drawn counts from the first row',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: '(shown.rows.end - shown.rows.start)',
+        replace: '(shown.rows.end)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'rows drawn is the view’s own guess',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: '  const shown = Grid.window(geometry)\n',
+        replace:
+          '  const shown = Grid.window({ ...geometry, overscan: { rows: 0, columns: 0 } })\n',
+      },
+    ],
+    tests,
+  },
 ]

@@ -7,7 +7,8 @@
 import { Effect, Fiber, Layer, Match, Option, Schema, Stream } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import type { RemoteClient } from 'foldkit-remote'
-import { MessageSet, Projection } from 'foldkit-surface'
+import { BundleSurface } from 'foldkit-bundle-surface'
+import { type Contract, MessageSet, Module, Projection } from 'foldkit-surface'
 import {
   DocumentId,
   Sync,
@@ -70,6 +71,15 @@ const definition = Sync.forApplication(App)
  */
 export const RegistrySync: SyncContract<Message, Shared> = definition
 
+/** For `Module`: this contract owns `edits` and records the durable tags. */
+export const contract: Contract = definition.contract
+
+/**
+ * Who owns each Model field, from the contracts that claim them: the grid's
+ * placement, Remote's wiring and this document. The page's panel lists it.
+ */
+export const manifest = Module.manifest(BundleSurface.module(App, placements, [contract]))
+
 /** The journal's codecs, initial snapshot and reducer, for `Journal.make`. */
 export const journalContract = (): PolicyJournalContract<Operation, Shared, Principal> =>
   definition.journalContract()
@@ -131,7 +141,7 @@ export const mountRegistry = (
   const mounted = Sync.mount(App, definition, {
     replica,
     container: options.container,
-    view,
+    view: (model, h) => view(model, h, manifest),
     subscriptions: placements.subscriptions(),
     resources: options.resources,
     // In the transition that replaces the edits, so no frame draws a cached

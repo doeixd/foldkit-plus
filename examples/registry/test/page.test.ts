@@ -33,7 +33,7 @@ import { ProductId } from '../src/domain.js'
 import { memoryJournal } from '../src/journalNode.js'
 import { openServer, productId, seedOf } from '../src/server.js'
 import { memorySqlite } from '../src/sqliteNode.js'
-import { RegistrySync, mountRegistry, pausable } from '../src/sync.js'
+import { RegistrySync, manifest, mountRegistry, pausable } from '../src/sync.js'
 
 const count = 1_000
 
@@ -272,7 +272,10 @@ test('reads the first page, sorts on the server, and reads more', async () => {
     expect(loaded(latest())).toBe(100)
     // A thousand rows behind a page of a hundred: the count is not known yet.
     expect(grid().getAttribute('aria-rowcount')).toBe('-1')
-    expect(document.querySelector('main p')!.textContent).toBe('100 products read, more to come.')
+    // Ten 32px rows in view and six more below; none above the first.
+    expect(document.getElementById('counts')!.textContent).toBe(
+      '100 read, more to come · 16 rows drawn',
+    )
     expect(cell(productId(0), 'cents')?.textContent).toBe(priceOf(0))
 
     // Two clicks on Price ask for the dearest first; the server orders, and the
@@ -1085,6 +1088,59 @@ test('two undos inside one frame take back two steps, not one twice', async () =
     await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
     expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4))
     expect(latest().redo).toHaveLength(2)
+  } finally {
+    await dispose()
+  }
+})
+
+test('the panel names each owner the manifest lists, and what each holds now', async () => {
+  const server = serve()
+  const { dispose, exchange } = await mount(server, memoryStorage())
+  const sections = () =>
+    Array.from(document.querySelectorAll('#ownership section'), section =>
+      section.getAttribute('aria-label'),
+    )
+  const fact = (field: string) =>
+    Array.from(document.querySelectorAll('#ownership dt')).find(term => term.textContent === field)
+      ?.nextElementSibling?.textContent
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    // The contracts own three fields between them; every other field is the page's.
+    expect(sections()).toEqual([
+      'Remote · remote',
+      'This page',
+      'Sync · registry-edits-4',
+      'Bundle · DataGrid@grid',
+    ])
+    // Every field once, grouped by its owner.
+    expect(
+      Array.from(document.querySelectorAll('#ownership dt'), term => term.textContent).sort(),
+    ).toEqual([...manifest.fields].sort())
+    expect(fact('remote')).toBe('100 products cached · 1 page list cached · 0 reads in flight')
+    expect(fact('edits')).toBe('No edits the table has not written')
+
+    // Committed: in the journal, and still here until the table says it has it.
+    await edit(productId(2), 'cents', '2.00')
+    await vi.waitFor(() => expect(fact('edits')).toContain('1 edit not yet sent'))
+    await exchange()
+    await vi.waitFor(() =>
+      expect(fact('edits')).toBe('0 edits not yet sent · 1 committed edit not yet in the table'),
+    )
+    server.setOnline(false)
+    await edit(productId(3), 'cents', '7.00')
+    await vi.waitFor(() =>
+      expect(fact('edits')).toBe(
+        `1 edit not yet sent (Price of ${productId(3)}) · 1 committed edit not yet in the table`,
+      ),
+    )
+
+    // Scrolled to row 50: ten rows in view and six either side are drawn.
+    grid().scrollTop = 1600
+    grid().dispatchEvent(new Event('scroll'))
+    await vi.waitFor(() => expect(fact('grid')).toContain('rows 45 to 66 drawn'))
+    expect(document.getElementById('counts')!.textContent).toBe(
+      '100 read, more to come · 22 rows drawn',
+    )
   } finally {
     await dispose()
   }

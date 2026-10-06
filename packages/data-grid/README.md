@@ -191,6 +191,10 @@ const shown = VirtualGrid.window({
   `after` are the space the undrawn rows and columns take, for spacers.
   `headerHeight` leaves header rows inside the container out of the body.
   It throws for a row height that is not a positive number.
+- **`Grid.window({ rows, state, rowHeight, headerHeight, overscan })`** is
+  that window for a placed grid, as `foldkit-mixins-data-grid`'s view works
+  it out from the same input: to say how many rows are drawn, read it here
+  rather than estimating.
 - **`VirtualGrid.reveal(options)`** is the least scroll that shows a cell,
   as `{ top, left }`, or none when it is already in view. A pinned column
   never scrolls, so only its row is brought in.

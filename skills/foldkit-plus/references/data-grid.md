@@ -79,7 +79,9 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   `aria-activedescendant` and `GridFocus.cellId(gridId, address)`.
 - Draw only `VirtualGrid.window({ projection, rowHeight, width, viewport })`:
   rows `[rows.start, rows.end)`, then `start`, `centerColumns` and `end`, with
-  `before`/`after` as spacers. Every row is one height.
+  `before`/`after` as spacers. Every row is one height. For a placed grid,
+  `Grid.window({ rows, state, rowHeight, headerHeight, overscan })` is the
+  window its view draws from the same input.
 - The viewport is `GridViewport`: place its Bundle and attach
   `GridViewport.Measure` to the scroll container. To bring a cell into view,
   emit `GridViewport.scrollTo(viewportId, offsets)` with the offsets from

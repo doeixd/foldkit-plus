@@ -159,3 +159,50 @@ test('focus stays on the grid, pins stay at their edges, and a move scrolls its 
     handle.dispose()
   }
 })
+
+test('grid.window is the window drawn: its rows are the rows in the page, as it scrolls', async () => {
+  const container = document.createElement('div')
+  container.id = 'grid-window-browser'
+  document.body.append(container)
+  const update = application.update()
+  let latest: Model = { grid: Grid.bundle.init(undefined).model }
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => application.initial(latest),
+      update: (model: Model, message: Message) => {
+        const next = update(model, message)
+        latest = next.model
+        return next
+      },
+      view,
+    }),
+  )
+  // The body rows drawn, by their aria-rowindex: the header row is 1.
+  const drawn = () =>
+    Array.from(document.querySelectorAll('#lines [role="row"]'), row =>
+      Number(row.getAttribute('aria-rowindex')),
+    ).filter(index => index > 1)
+  const windowed = () => {
+    const { rows: shown } = Grid.window({
+      state: latest.grid,
+      rows,
+      rowHeight: 20,
+      headerHeight: 20,
+    })
+    return Array.from({ length: shown.end - shown.start }, (_, offset) => shown.start + offset + 2)
+  }
+  try {
+    await vi.waitFor(() => expect(latest.grid.viewport.height).toBe(160))
+    await vi.waitFor(() => expect(drawn()).toEqual(windowed()))
+    expect(drawn()).toHaveLength(7)
+
+    document.getElementById('lines')!.scrollTop = 1010
+    await vi.waitFor(() => expect(latest.grid.viewport.top).toBe(1010))
+    await vi.waitFor(() => expect(drawn()).toEqual(windowed()))
+    expect(drawn()[0]).toBe(52)
+  } finally {
+    handle.dispose()
+  }
+})

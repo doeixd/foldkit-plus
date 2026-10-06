@@ -18,6 +18,7 @@ import { GridProjection } from './projection.js'
 import type { RowModel } from './rows.js'
 import { GridSelection, RowSelection } from './selection.js'
 import { GridViewport } from './viewport.js'
+import { type GridWindow, type Viewport, VirtualGrid } from './virtual.js'
 
 const Offsets = Schema.Struct({ top: Schema.Number, left: Schema.Number })
 
@@ -928,6 +929,26 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     return projection
   }
 
+  /**
+   * The rows and columns the view draws for this input, as the view itself
+   * works them out: a count of what is drawn, read from here, is what is drawn.
+   */
+  const window = (input: {
+    readonly rows: RowModel<Row>
+    readonly state: { readonly viewport: Viewport; readonly columns: Model['columns'] }
+    readonly rowHeight: number
+    readonly headerHeight: number
+    readonly overscan?: { readonly rows?: number; readonly columns?: number }
+  }): GridWindow<keyof Specs & string> =>
+    VirtualGrid.window({
+      projection: project(input.rows, input.state.columns),
+      rowHeight: input.rowHeight,
+      width: columnState.widthOf(input.state.columns),
+      headerHeight: input.headerHeight,
+      viewport: input.state.viewport,
+      ...(input.overscan === undefined ? {} : { overscan: input.overscan }),
+    })
+
   return {
     id: options.id,
     matchEdit,
@@ -940,6 +961,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     focus,
     columnState,
     project,
+    window,
     Out,
     Model,
     Message,

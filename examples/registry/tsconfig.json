@@ -10,6 +10,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
+      "foldkit-bundle-surface": ["../../packages/bundle-surface/src/index.ts"],
       "foldkit-crud": ["../../packages/crud/src/index.ts"],
       "foldkit-data-grid": ["../../packages/data-grid/src/index.ts"],
       "foldkit-data-grid/crud": ["../../packages/data-grid/src/crud.ts"],
@@ -66,6 +67,9 @@
     },
     {
       "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/bundle-surface/tsconfig.build.json"
     },
     {
       "path": "../../packages/remote/tsconfig.build.json"

@@ -208,14 +208,7 @@ const view = <Message>() => ({
         const projection = grid.project(input.rows, state.columns)
         const width = grid.columnState.widthOf(state.columns)
         const viewport = state.viewport
-        const shown = VirtualGrid.window({
-          projection,
-          rowHeight,
-          width,
-          headerHeight,
-          viewport,
-          ...(input.overscan === undefined ? {} : { overscan: input.overscan }),
-        })
+        const shown = grid.window(input)
         const stop = GridFocus.tabStop(projection, state.focus.current)
         const pageRows = Math.max(1, Math.floor((viewport.height - headerHeight) / rowHeight))
 

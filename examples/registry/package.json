@@ -13,6 +13,7 @@
     "@effect/wa-sqlite": "0.1.2",
     "drizzle-orm": "1.0.0-rc.4",
     "foldkit-bundle": "workspace:*",
+    "foldkit-bundle-surface": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-data-grid": "workspace:*",
     "foldkit-durable": "workspace:*",

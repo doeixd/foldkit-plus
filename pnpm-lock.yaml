@@ -1194,6 +1194,9 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
+      foldkit-bundle-surface:
+        specifier: workspace:*
+        version: link:../../packages/bundle-surface
       foldkit-crud:
         specifier: workspace:*
         version: link:../../packages/crud
