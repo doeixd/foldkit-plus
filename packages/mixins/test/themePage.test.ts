@@ -214,7 +214,7 @@ describe('Theme.oklch', () => {
 
   it('derives surfaces by mixing the base toward a target by surface-contrast', () => {
     expect(brand.surface.default).toBe(
-      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.055) calc(c * 2.2) h), oklch(from var(--fk-surface-base) calc(l + 0.045) calc(c * 1.9) h)) var(--fk-knob-surface-contrast))',
+      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.055) calc(c * 1.25) h), oklch(from var(--fk-surface-base) calc(l + 0.045) calc(c * 1.1) h)) var(--fk-knob-surface-contrast))',
     )
   })
 

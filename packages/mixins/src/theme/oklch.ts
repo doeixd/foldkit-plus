@@ -140,11 +140,12 @@ export const oklch = (knobs: OklchKnobs) => {
         `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
         `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
       ),
-      // Each step keeps clearly more of the base's tint than the base, so a
-      // panel, a hover or a well reads as the page's color, not grey on it.
-      muted: surfaceStep([-0.04, 2], [-0.03, 1.8]),
-      subtle: surfaceStep([-0.025, 1.8], [-0.015, 1.7]),
-      default: surfaceStep([-0.055, 2.2], [0.045, 1.9]),
+      // Each step keeps about the base's chroma, so a sidebar, a panel and
+      // the page read as one color at a few lightnesses: one with less reads
+      // grey on the page, one with more reads as another, bluer color.
+      muted: surfaceStep([-0.04, 1.2], [-0.03, 1.05]),
+      subtle: surfaceStep([-0.025, 1.15], [-0.015, 1.05]),
+      default: surfaceStep([-0.055, 1.25], [0.045, 1.1]),
       overt: surfaceStep([-0.31, 2.25], [0.125, 1.2]),
       bedrock: ld(
         `oklch(8% calc(${surfaceC} * 1.2) ${neutral})`,
@@ -161,12 +162,12 @@ export const oklch = (knobs: OklchKnobs) => {
     },
     // Steps from the base, as the surfaces are: darker in a light scheme,
     // lighter in a dark one, and in the base's own hue with a little more of
-    // its chroma. Text mixed into the base, as they were, came out grey on a
+    // its chroma, which a thin line needs to read as the page's color. Text mixed into the base, as they were, came out grey on a
     // tinted page: the text is near-neutral, so the mix lost the tint.
     outline: {
-      subtle: ld(scale(base, -0.07, 1.8), scale(base, 0.065, 1.8)),
-      default: ld(scale(base, -0.13, 2.1), scale(base, 0.12, 2)),
-      overt: ld(scale(base, -0.27, 2.4), scale(base, 0.23, 2.2)),
+      subtle: ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)),
+      default: ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)),
+      overt: ld(scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)),
       focus: shift(accent, -0.1, 0.1),
     },
     accent: family(

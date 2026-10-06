@@ -65,8 +65,10 @@ test.each(['light', 'dark'] as const)(
     const base = computed('surface-base')
     for (const step of ['surface-muted', 'surface-subtle', 'surface-default'].map(computed)) {
       expect(distance(hueOf(step), hueOf(base)), step).toBeLessThan(10)
-      // A step with no more of the tint than the base, being darker, reads grey on it.
-      expect(chromaOf(step) / chromaOf(base), step).toBeGreaterThan(1.4)
+      // About the base's chroma: less reads grey on the page, more reads as
+      // another, bluer color beside it (a sidebar against the page).
+      expect(chromaOf(step) / chromaOf(base), step).toBeGreaterThan(0.9)
+      expect(chromaOf(step) / chromaOf(base), step).toBeLessThan(1.35)
     }
   },
 )
@@ -79,9 +81,10 @@ test.each(['light', 'dark'] as const)(
     const lines = ['outline-subtle', 'outline-default', 'outline-overt'].map(computed)
     for (const line of lines) {
       expect(distance(hueOf(line), hueOf(base)), line).toBeLessThan(10)
-      // Clearly more of the tint than the base: text mixed in kept about as
-      // little as the base, which a darker line reads as grey.
-      expect(chromaOf(line) / chromaOf(base), line).toBeGreaterThan(1.4)
+      // A little more of the tint than the base, which a thin line needs to
+      // read as the page's color; not so much it reads as another one.
+      expect(chromaOf(line) / chromaOf(base), line).toBeGreaterThan(1.1)
+      expect(chromaOf(line) / chromaOf(base), line).toBeLessThan(1.7)
     }
     const steps = lines.map(line => Math.abs(lightnessOf(line) - lightnessOf(base)))
     expect(steps[0]).toBeGreaterThan(0.04)

@@ -36,6 +36,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-mixins`: `Theme.oklch`'s surfaces keep the base's chroma.** A
+  surface step carried 1.7 to 2.2 times the base's chroma, so in a dark scheme
+  a sidebar or panel read as a bluer color beside a greyer page. Steps now keep
+  about the base's chroma and outlines a little more, so the page's tint is set
+  by `surfaceSaturation` alone; raise it for a more tinted page (the CMS uses
+  `0.012`).
 - **`foldkit-cms`: `stateBadge` writes `data-cms-state`,** as a list's state
   cell does, and takes no attribute: the badge wrote `data-state` and the cell
   `data-cms-state`, so one of them was always untoned. Style both with

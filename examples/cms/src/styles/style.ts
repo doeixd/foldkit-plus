@@ -17,7 +17,7 @@ export const theme = Theme.compose(
   Theme.tokens,
   Theme.oklch({
     accent: { h: 265, c: 0.16, l: '52%', dark: { l: '72%', c: 0.13 } },
-    surfaceSaturation: 0.008,
+    surfaceSaturation: 0.012,
   }),
 )
 /** Every token as a typed `var(--fk-…)` reference: the admin's and the site's styles read these. */
