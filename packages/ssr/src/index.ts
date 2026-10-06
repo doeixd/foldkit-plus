@@ -26,6 +26,13 @@ import {
   type RenderedApplication,
 } from 'foldkit/experimental/server'
 import { Metadata, type MetadataSummary } from 'foldkit-surface'
+import type {
+  Activation,
+  ActiveSurface,
+  Projection,
+  SurfaceFamily,
+  SurfaceSource,
+} from 'foldkit-surface'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { type EncodedBinding } from './listen.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD } from './resumable.js'
@@ -39,6 +46,7 @@ import {
   metaMarkup,
   pathKey,
   plan,
+  projectionsOf,
   resume,
   routeOf,
   serializeJsonScript,
@@ -47,16 +55,17 @@ import {
   staticRegion,
   tagOf,
   type Loadable,
+  type PlanSurface,
   type ResumableConfig,
   type ResumePlan,
   type RouteMatch,
 } from './shared.js'
 
-/** The projections of the plan's Surfaces that are active for `model`. */
+/** The projections of the plan's entries that are active for `model`. */
 const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
-) => plan.surfaces.flatMap(surface => Option.toArray(surface.projectionOf(model)))
+) => plan.surfaces.flatMap(source => projectionsOf(source, model))
 
 /** What the envelope carries of a Model: the encoded slice, and each part's capture. */
 interface Payload {
@@ -218,6 +227,18 @@ export interface SurfaceCoverage {
   readonly name: string
   /** Whether the Surface is active for the server's Model. */
   readonly active: boolean
+  /** The instance key, for one instance of a `Surface.each` family. */
+  readonly key?: string | undefined
+  /**
+   * The parent a family instance resolves through: the Surface whose Model
+   * reveals it, and the place that activates the parent, when readable.
+   */
+  readonly via?:
+    | {
+        readonly surface: string
+        readonly activation?: { readonly path: string; readonly cover: Cover } | undefined
+      }
+    | undefined
   /** The place a `Surface.when` activation reads; absent for `Surface.at`. */
   readonly activation?: { readonly path: string; readonly cover: Cover } | undefined
   /** The Model paths the active Surface reads. */
@@ -303,56 +324,141 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
     state: plan.state.dependencies.map(pathOf),
     local: plan.local.map(pathOf),
     parts: plan.parts.map(part => part.id),
-    surfaces: plan.surfaces.map(surface => {
-      const served = Option.getOrUndefined(surface.projectionOf(model))
-      return {
-        name: surface.name,
-        active: served !== undefined,
-        ...(surface.activation === undefined
-          ? {}
-          : {
-              activation: {
-                path: pathOf(surface.activation.path),
-                cover: coverOf(surface.activation.path, plan),
-              },
-            }),
-        reads: (served?.dependencies ?? []).map(path => ({
-          path: pathOf(path),
-          cover: coverOf(path, plan),
-        })),
-        unresumed:
-          served === undefined
-            ? []
-            : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
-        sameInBrowser:
-          readsKey(served) === readsKey(Option.getOrUndefined(surface.projectionOf(browser))),
-      }
-    }),
+    surfaces: plan.surfaces.flatMap(source => coverSource(plan, covered, source, model, browser)),
   }
 }
+
+/** One coverage row: a lone Surface, a family's parent, or one family instance. */
+const coverRow = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  covered: ReadonlySet<string>,
+  entry: {
+    readonly name: string
+    readonly key?: string | undefined
+    readonly via?: SurfaceCoverage['via']
+    readonly activation?: Activation | undefined
+  },
+  served: Projection<Model, unknown> | undefined,
+  browserServed: Projection<Model, unknown> | undefined,
+): SurfaceCoverage => ({
+  name: entry.name,
+  active: served !== undefined,
+  ...(entry.key === undefined ? {} : { key: entry.key }),
+  ...(entry.via === undefined ? {} : { via: entry.via }),
+  ...(entry.activation === undefined
+    ? {}
+    : {
+        activation: {
+          path: pathOf(entry.activation.path),
+          cover: coverOf(entry.activation.path, plan),
+        },
+      }),
+  reads: (served?.dependencies ?? []).map(path => ({
+    path: pathOf(path),
+    cover: coverOf(path, plan),
+  })),
+  unresumed:
+    served === undefined
+      ? []
+      : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
+  sameInBrowser: readsKey(served) === readsKey(browserServed),
+})
+
+/**
+ * A plan entry's coverage rows: one for a lone Surface, or a family's parent
+ * followed by one row per instance. The parent row keeps the parent's reads
+ * covered; each instance row says which key it is and which parent reveals
+ * it, so a gap names the instance (`Member[u1]`), not just the Surface.
+ */
+const coverSource = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  covered: ReadonlySet<string>,
+  source: PlanSurface<Model>,
+  model: Model,
+  browser: Model,
+): ReadonlyArray<SurfaceCoverage> => {
+  const from = (source as { readonly from?: ActiveSurface<Model> }).from
+  if (
+    from === undefined ||
+    typeof (source as Partial<SurfaceSource<Model>>).instancesOf !== 'function'
+  ) {
+    const lone = source as ActiveSurface<Model>
+    return [
+      coverRow(
+        plan,
+        covered,
+        lone,
+        Option.getOrUndefined(lone.projectionOf(model)),
+        Option.getOrUndefined(lone.projectionOf(browser)),
+      ),
+    ]
+  }
+  const family = source as SurfaceFamily<Model, unknown, unknown, unknown, unknown>
+  const rows = [
+    coverRow(
+      plan,
+      covered,
+      from,
+      Option.getOrUndefined(from.projectionOf(model)),
+      Option.getOrUndefined(from.projectionOf(browser)),
+    ),
+  ]
+  if (rows[0]?.active !== true) return rows
+  const browserInstances = family.instancesOf(browser)
+  for (const instance of family.instancesOf(model)) {
+    rows.push(
+      coverRow(
+        plan,
+        covered,
+        {
+          name: family.name,
+          key: instance.key,
+          via: {
+            surface: from.name,
+            ...(from.activation === undefined
+              ? {}
+              : {
+                  activation: {
+                    path: pathOf(from.activation.path),
+                    cover: coverOf(from.activation.path, plan),
+                  },
+                }),
+          },
+        },
+        instance.projection,
+        browserInstances.find(other => other.key === instance.key)?.projection,
+      ),
+    )
+  }
+  return rows
+}
+
+/** A coverage row as a shortfall names it: `Member[u1]` for an instance, the name alone otherwise. */
+const displayOf = (surface: SurfaceCoverage): string =>
+  surface.key === undefined ? surface.name : `${surface.name}[${surface.key}]`
 
 /** Each way an inspection shows the plan falls short, one line each. */
 const shortfalls = (inspection: PlanInspection): ReadonlyArray<string> =>
   inspection.surfaces.flatMap(surface => [
     ...(surface.activation?.cover === 'missing'
       ? [
-          `Surface "${surface.name}" is activated by ${surface.activation.path}, which is neither in the plan's state nor local`,
+          `Surface "${displayOf(surface)}" is activated by ${surface.activation.path}, which is neither in the plan's state nor local`,
         ]
       : []),
     ...surface.reads
       .filter(read => read.cover === 'missing')
       .map(
         read =>
-          `Surface "${surface.name}" reads ${read.path}, which is neither in the plan's state nor local`,
+          `Surface "${displayOf(surface)}" reads ${read.path}, which is neither in the plan's state nor local`,
       ),
     ...surface.unresumed.map(
       summary =>
-        `Surface "${surface.name}" reads ${summary.name} data (${summary.entries.join(', ')}), which no part of the plan resumes`,
+        `Surface "${displayOf(surface)}" reads ${summary.name} data (${summary.entries.join(', ')}), which no part of the plan resumes`,
     ),
     ...(surface.sameInBrowser
       ? []
       : [
-          `Surface "${surface.name}" is ${surface.active ? 'active' : 'inactive'} on the server and activates differently from the Model the browser starts from`,
+          `Surface "${displayOf(surface)}" is ${surface.active ? 'active' : 'inactive'} on the server and activates differently from the Model the browser starts from`,
         ]),
   ])
 

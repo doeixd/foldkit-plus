@@ -719,6 +719,8 @@ export interface SurfaceSource<Root> {
   readonly name: string
   /** Identity token of the application the Surfaces belong to. */
   readonly owner: object
+  /** The tags of the Messages the Surface lists: what an instance may send. */
+  readonly messages: ReadonlyArray<string>
   readonly instancesOf: (model: Root) => ReadonlyArray<SurfaceInstance<Root, any, any>>
 }
 

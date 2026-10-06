@@ -85,7 +85,10 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   Model changes. `Meta` is typed (`import type { Meta } from 'foldkit-ssr'`).
 - A Surface in `surfaces` that reads or is activated by a field in neither
   `state` nor `local`, reads Remote data no part resumes, or activates
-  differently from the browser's Model fails with `Uncovered`.
+  differently from the browser's Model fails with `Uncovered`. A
+  `Surface.each` family is one entry: the envelope carries its parent's reads
+  with its instances', and coverage inspects each instance (`Child[key]`,
+  with which parent reveals it).
 - `parts: [Remote.resume(Data)]` sends what the active Surfaces read from
   Remote's store (fields through relations, connection boundaries, live
   cursors) and nothing else; the browser refetches none of it. A part that

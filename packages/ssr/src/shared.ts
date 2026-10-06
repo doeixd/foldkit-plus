@@ -7,7 +7,7 @@ import { Effect, Option, Result, Schema, Stream, type Layer } from 'effect'
 import type { Runtime } from 'foldkit'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
-import type { ActiveSurface, Metadata, WritableProjection } from 'foldkit-surface'
+import type { ActiveSurface, Metadata, SurfaceSource, WritableProjection } from 'foldkit-surface'
 import { current, type Region } from './context.js'
 import { decodeBindings, readBindings, type DecodedBinding } from './listen.js'
 
@@ -152,6 +152,28 @@ export const metaEntry = <Model>(meta: (model: Model) => Meta) => ({
     ),
 })
 
+/** One entry of a resume plan's `surfaces`: a lone Surface, or a `Surface.each` family. */
+export type PlanSurface<Model> = ActiveSurface<Model> | SurfaceSource<Model>
+
+/**
+ * What a plan entry resolves to for a Model: the lone projection of a
+ * `Surface.at`/`Surface.when` value, or a family's parent first and then each
+ * instance. The parent joins so the envelope carries what the instances were
+ * discovered through, not just what they read.
+ */
+export const projectionsOf = <Model>(
+  source: PlanSurface<Model>,
+  model: Model,
+): ReadonlyArray<{ readonly metadata: Metadata }> => {
+  if (typeof (source as Partial<SurfaceSource<Model>>).instancesOf === 'function') {
+    const origin = source as SurfaceSource<Model>
+    const from = (source as { readonly from?: ActiveSurface<Model> }).from
+    const parent = from === undefined ? [] : Option.toArray(from.projectionOf(model))
+    return [...parent, ...origin.instancesOf(model).map(instance => instance.projection)]
+  }
+  return Option.toArray((source as ActiveSurface<Model>).projectionOf(model))
+}
+
 /**
  * Which part of the Model the browser owns, and what it starts from.
  *
@@ -168,7 +190,7 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   /** Model paths allowed to start from the baseline, as `ModelRef.dependency` gives them. */
   readonly local: ReadonlyArray<ReadonlyArray<string>>
   /** The Surfaces the browser may activate, which the plan must cover. */
-  readonly surfaces: ReadonlyArray<ActiveSurface<Model>>
+  readonly surfaces: ReadonlyArray<PlanSurface<Model>>
   /** State another package owns, each captured and restored by that package. */
   readonly parts: ReadonlyArray<ResumePart<Model>>
   /** The application's Message Schema, which encodes the page's bindings. */
@@ -275,7 +297,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     readonly baseline?: Model | undefined
     readonly boot?: ((model: Model) => Commands) | undefined
     readonly local?: ReadonlyArray<{ readonly dependency: ReadonlyArray<string> }> | undefined
-    readonly surfaces?: ReadonlyArray<ActiveSurface<Model>> | undefined
+    readonly surfaces?: ReadonlyArray<PlanSurface<Model>> | undefined
     readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
     readonly start?: Start | undefined
     readonly deferrable?: ReadonlyArray<string> | undefined
@@ -292,7 +314,14 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
       `SSR.plan: two parts of plan "${config.id}" share the id "${repeated.id}"; give one an id of its own`,
     )
   }
-  const foreign = surfaces.find(
+  // A family joins its parent's requirements with its instances', so the
+  // parent's application is checked too: a family smuggling another
+  // application's Surface is refused here, not at its reads.
+  const entered = surfaces.flatMap(surface => {
+    const from = (surface as { readonly from?: PlanSurface<Model> }).from
+    return from === undefined ? [surface] : [surface, from]
+  })
+  const foreign = entered.find(
     surface => application.owner !== undefined && surface.owner !== application.owner,
   )
   if (foreign !== undefined) {
@@ -447,8 +476,8 @@ export const allowedTags = <Model, Fields extends Schema.Struct.Fields>(
   model: Model,
 ): ReadonlySet<string> =>
   new Set(
-    plan.surfaces.flatMap(surface =>
-      Option.isSome(surface.projectionOf(model)) ? surface.messages : [],
+    plan.surfaces.flatMap(source =>
+      projectionsOf(source, model).length > 0 ? source.messages : [],
     ),
   )
 

@@ -444,6 +444,10 @@ server's Model, because a Surface's reads follow its params.
 debugging session: for each Surface, whether it is active, and where each read
 comes from, `state`, `local` or `missing`.
 
+A `Surface.each` family is one entry of `surfaces`: the envelope carries its
+parent's reads with its instances', and coverage inspects each instance by key
+(`Member[u1]`), saying which parent reveals it, so a gap names the instance.
+
 ## State the slice cannot carry
 
 ### Parts: another package's state

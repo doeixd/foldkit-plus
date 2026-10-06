@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-ssr`: plans take `SurfaceSource`s, and coverage inspects each
+  instance.** A `Surface.each` family is one entry of a plan's `surfaces`;
+  the envelope carries its parent's reads with its instances', and
+  `SSR.inspect` covers the parent once and each instance by key (`Member[u1]`
+  with its `via` parent), so a gap names the instance. Preparation stays
+  caller-composed: `Data.satisfy` the Model, then render it.
 - **`foldkit-remote`: subscriptions, satisfy, and diagnostics follow
   `SurfaceSource`s.** The active record `Data.subscriptions`, `Data.wiring`,
   and `Data.satisfy` take accepts `Surface.each` families beside
