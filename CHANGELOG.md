@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-site` (new, 0.1.0): the deployed route topology as data.**
+  `Site.route(router, case, options?)` declares one location from its Foldkit
+  Router; `Site.mount`/`Site.make` freeze the hierarchy; `Site.target` builds
+  the route value and URL from one declaration; `Site.chainOf`/`nodeOf` and
+  `parentOf`/`ancestorsOf`/`depthOf` inspect it; `title`/`section` annotate
+  once with `titleOf`/`sectionOf` readers; `Site.historyOf` declares
+  push-vs-replace once; and `Site.sources` lowers surfaced nodes to
+  `Surface.when` values for Remote, SSR, and retention. Pure: no Model, no
+  Effects, no Messages, no fetching. Lifecycle wiring (link-click/URL-change
+  branches) and per-route Bundle placement stay per-application until the
+  next cut.
 - **`foldkit-composition`: `SurfaceBlock.families`, one family per
   Surface Block.** `SurfaceBlock.families(catalog, { from, document })` is
   every Surface Block on the page as one `Surface.each` family per Block,

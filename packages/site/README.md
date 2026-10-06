@@ -1,0 +1,162 @@
+# `foldkit-site`
+
+The deployed route topology of a Foldkit application: which locations exist,
+how they nest, what each is called, and what it activates — as data that
+compiles down to the primitives the runtime already runs.
+
+## What this package is
+
+Every application with more than one screen answers the same questions: what
+places exist, which place are we on, how do places link to each other, and
+what does each place show. Foldkit's Router already answers the URL half with
+bidirectional parsers. `foldkit-site` answers the structural half: a tree of
+stable route nodes over those parsers, with one annotated place for the
+metadata (titles, sections, history intent) that applications otherwise
+recompute in four parallel tables.
+
+## When it owns the problem
+
+`foldkit-site` owns **where the application is**, and nothing else:
+
+```text
+Site        "What location are we at, and what is around it?"
+Surface     "What may this location observe, and which Messages may it cause?"
+Remote      "What server facts do those observations require?"
+```
+
+It owns no Model, runs no Effects, dispatches no Messages, and fetches
+nothing. A node lowers to an ordinary Foldkit Router (which it is built
+from), an ordinary `Surface.when` (through `Site.sources`), and — in a later
+cut — an ordinary Bundle placement. If a feature would need the Site to
+become another store, async runtime, or cache, it does not belong here.
+
+## The mental model
+
+```text
+Foldkit Router (per node)     URL <-> typed route value
+        +
+Site tree                       route value -> chain, metadata, Surfaces
+        +
+Surface / Remote / SSR          the existing consumers of those answers
+```
+
+A node is a stable first-class value: mounting it in a tree never mutates
+it, so the same node builds targets, hrefs, and inspection wherever it is
+mounted. A target is one typed destination — node, route value, and URL from
+one declaration — so a link can never point where the parser would not go.
+
+## Install
+
+```sh
+pnpm add foldkit-site
+```
+
+Peers: `effect`, `foldkit`. `foldkit-surface` is a dependency (for
+`Site.sources`).
+
+## 60-second example
+
+```ts
+import { Site } from 'foldkit-site'
+
+const Home = Site.route(homeRouter, AppRoute.Home, { title: () => 'Routing' })
+const Person = Site.route(personRouter, AppRoute.Person, {
+  title: ({ personId }) => `Person ${personId} | Routing`,
+  section: 'People',
+})
+
+const AppSite = Site.make(Home, Site.mount(People, []))
+
+// One declaration builds the value and the address together.
+const target = Site.target(Person, { personId: 3 })
+target.route // AppRoute.Person({ personId: 3 })
+target.url // '/people/3'
+
+// And the tree answers structural questions off route values.
+Site.chainOf(AppSite, target.route) // [People, Person]
+Site.titleOf(AppSite, target.route) // 'Person 3 | Routing'
+Site.sectionOf(AppSite, target.route) // 'People'
+```
+
+`Site.route` takes an existing full Foldkit Router — `literal`, `slash`,
+`query`, `mapTo`, all of it — and the route case it builds. The router stays
+the whole URL story; the Site adds hierarchy, metadata, and inspection
+without re-parsing anything.
+
+## Core concepts
+
+**Nodes.** `Site.route(router, case, options?)` declares one location. Options
+are `title` (a function of the route value), `section`, `history`, and
+`surface` (below). The node is frozen; keep the exported value and use it for
+targets and hrefs.
+
+**Trees.** `Site.mount(node, children?)` mounts a node under children without
+mutating it — children may be bare nodes or mounts. `Site.make(...roots)`
+freezes the topology. Two nodes sharing a tag, or one node mounted twice,
+throw at `make`: both would make chain inspection ambiguous.
+
+**Targets.** `Site.target(node, params)` is `{ node, route, url }`.
+`Site.href(target)` — or `Site.href(node, params)` — is its URL. Because the
+URL is built by the node's own router, a round trip holds by construction: a
+built URL parses back to the target's route (there is a test proving it).
+
+**Inspection.** `Site.nodeOf(site, route)` and `Site.chainOf(site, route)`
+resolve a route value to its node and its root-first chain (`[]` for a tag
+the tree does not hold, as an inactive Surface resolves to nothing).
+`Site.parentOf`, `Site.ancestorsOf`, `Site.depthOf`, and `Site.nodesOf`
+(depth-first, parents before children) cover the rest.
+
+**History.** `Site.historyOf(prev, next)` declares push-vs-replace once: to
+another node, a step; within a node, its `history` rule (a string, or a
+function for nodes where some param changes are entries of their own, such as
+another person, and others are views of one entry, such as another search);
+with no previous target, a replace. This unifies the mirror's per-key
+spelling with the routed code that used to spell the same rule by hand.
+
+**Attached Surfaces.** A node may name the Surface its route activates:
+
+```ts
+const People = Site.route(peopleRouter, AppRoute.People, {
+  surface: {
+    surface: PeoplePage,
+    params: route => ({ searchText: route.searchText }),
+  },
+})
+```
+
+`Site.sources(site, App.owner, App.model.route)` is each surfaced node as its
+`Surface.when`, keyed by tag, for `Data.wiring`, `Data.subscriptions`,
+`Data.satisfy`, or an SSR plan's `surfaces`. A surface from another
+application is refused here. Each entry answers its own tag only: on a
+person page the person surface is active and the people surface is not. A
+layout surface active for several tags is not yet expressible — that is a
+`Surface.whenAny`-shaped extension, deliberately deferred until a real layout
+needs it.
+
+## Common workflows
+
+**Navigation rendering.** Derive the nav from the tree instead of keeping
+parallel tables: sections from `Site.sectionOf`, hrefs from `Site.href`,
+titles from `Site.titleOf`, and the current section by comparing tags.
+
+**Route changes.** On a URL change, resolve the route value once, then
+`Site.chainOf` for the active chain and `Site.historyOf` for the history
+step. What each route *does* with the change is still the application's
+`update` — the coming lifecycle wiring will own the link-click/URL-change
+branches; this cut only answers the questions inside them.
+
+**Prefetch and SSR.** `Site.target` plus `Site.chainOf` say which Surfaces a
+destination will activate; `Data.satisfy` over `Site.sources` prepares the
+Model before a synchronous render. Preparation stays caller-composed — there
+is no `prepare` in any plan.
+
+## Limits / when not to use it
+
+- A single-screen application has one node; the tree buys nothing.
+- Route-local model ownership, link-click handling, and keyboard shortcuts
+  are still hand-written per application. They are the next cut (lifecycle
+  wiring converging with Bundle placements), not this one.
+- A node's `history` function sees only its own route values; cross-node
+  rules more subtle than "another node is a step" do not exist yet.
+- Locales are route params like any other when they arrive; themes are
+  preferences, not routes.

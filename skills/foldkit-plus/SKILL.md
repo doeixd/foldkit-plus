@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react with -codegen, foldkit-bundle with -surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-crud, foldkit-cms with -drizzle, foldkit-data-grid with -mixins-data-grid), which one owns which kind of state and basic use of each. Use when writing or reviewing a Foldkit app that uses a foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, admin screens, a data grid, or a CMS with drafts and publishing, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.select, Form.make, Crud.editor, DataGrid.make, or Cms.content.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react with -codegen, foldkit-bundle with -surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-crud, foldkit-cms with -drizzle, foldkit-data-grid with -mixins-data-grid), which one owns which kind of state and basic use of each. Use when writing or reviewing a Foldkit app that uses a foldkit-* package, choosing a package for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, admin screens, a data grid, or a CMS with drafts and publishing, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.select, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
   version: '0.16.0'
@@ -33,6 +33,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Facts owned by a server: entities, queries, mutations, live updates | the server | `foldkit-remote` (+ `-server`, `-drizzle`) | [remote.md](references/remote.md) |
 | Client-authored edits that must survive offline and converge across devices | the durable log | `foldkit-sync` + `foldkit-durable` | [sync.md](references/sync.md) |
 | A filter in the URL, a draft or preference remembered on a device | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
+| Where the application is: route nodes in a hierarchy, typed targets, titles, history intent | the tree, as data; the route value stays in the local Model | `foldkit-site` (early, 0.1.0) | [site.md](references/site.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
 | Restyling or adding behaviour to views, including `@foldkit/ui` | the view contract | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
@@ -46,7 +47,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (editor state and server) | [cms.md](references/cms.md) |
 | What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (early) | [ssr.md](references/ssr.md) |
 | What a page is: Blocks in Regions, stored as a Document and checked against a Catalog; editing it | the Document, as a stored field; the Builder, as one form key | `foldkit-composition` + `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; experimental, 0.1.0) | [composition.md](references/composition.md) |
-| The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
+| The route, a selection, a transient error | the local Model (topology in `foldkit-site`) | none: plain Foldkit | — |
 | A semantic rich-text document, the commands that edit it, and what each kind may hold | the local Model | `foldkit-richtext` (early) | [richtext.md](references/richtext.md) |
 | An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (early) | [richtext.md](references/richtext.md) |
 | Rich-text editor chrome (toolbars, slash menu, link editor, block handle, command palette, status line, Markdown source mode) drawn through slots | the view contract | `foldkit-mixins-richtext` (early) | [richtext.md](references/richtext.md) |
@@ -69,6 +70,7 @@ Foldkit app (Model · Message · update)
        ├─ foldkit-remote ─ foldkit-remote-server ─ foldkit-remote-drizzle
        ├─ foldkit-sync ─ foldkit-durable (server journal)
        ├─ foldkit-mirror
+       ├─ foldkit-site
        └─ foldkit-mixins-surface
 foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui, foldkit-mixins-form (with foldkit-form), foldkit-mixins-crud (with foldkit-crud)
 foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives, foldkit-form

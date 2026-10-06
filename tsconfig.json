@@ -27,6 +27,7 @@
     { "path": "./packages/remote-server" },
     { "path": "./packages/remote-drizzle" },
     { "path": "./packages/mirror" },
+    { "path": "./packages/site" },
     { "path": "./packages/bundle" },
     { "path": "./packages/bundle-surface" },
     { "path": "./packages/primitives" },

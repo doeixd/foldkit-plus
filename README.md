@@ -280,6 +280,7 @@ in a line.
 | Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
 | Edit rows a server owns offline, with the table kept as the journal's read model | `foldkit-sync/entity` and `foldkit-sync/journal`, over `foldkit-remote` | [Editing server data](./docs/editing-server-data.md) |
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
+| Declare where the application is: route nodes, typed targets, titles, history intent | `foldkit-site` (experimental, 0.1.0) | [package README](./packages/site) |
 | Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
 | Reach for everyday browser primitives instead of hand-wiring them: media queries, timers, sockets, device state, observers, clipboard, one in-browser server for every tab | `foldkit-primitives` | [package README](./packages/primitives) |
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |

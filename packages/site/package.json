@@ -1,0 +1,58 @@
+{
+  "name": "foldkit-site",
+  "version": "0.1.0",
+  "description": "The deployed route topology of a Foldkit application: stable route nodes, their hierarchy, typed targets, and per-node metadata, compiled to the Foldkit Router, Surface, and Bundle primitives the runtime already runs.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "routing",
+    "site",
+    "navigation"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/site"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/site#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-surface": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0",
+    "foldkit": "^0.165.0"
+  },
+  "devDependencies": {
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-surface": "workspace:*",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}
