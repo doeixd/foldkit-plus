@@ -10,11 +10,11 @@ import { Remote } from 'foldkit-remote'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from './device.js'
 
-// The theme's tokens, which the grid's default style reads: neutral greys,
-// surfaces with no tint, and an accent of near-black for focus and the caret.
+// The theme's tokens, which the grid's default style and the page's chrome
+// read: the demos' shared accent and the faint tint of its hue in the greys.
 Style.install(
   AppStyle.make({
-    palette: Theme.oklch({ accent: { h: 250, c: 0, l: '25%' }, surfaceSaturation: 0 }),
+    palette: Theme.oklch({ accent: { h: 270, c: 0.15, l: '54%' }, surfaceSaturation: 0.004 }),
   }).stylesheet,
 )
 

@@ -31,6 +31,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Examples: the pages and registry demos keep one hue in both schemes.** The
+  pages demo drew its New page button as white ink in the dark and marked the open
+  page in grey; both now use an accent at hue 270. The registry grid used a
+  greyscale theme under tinted chrome; its palette now takes hue 270 and its
+  text, lines and chips read the theme's tokens.
+
 - **`foldkit-mixins-ui`: an unfilled button's hover reads on any ground.** An
   outline, ghost or icon button hovered onto the tone's solid wash, near-white
   under the white text a colored band gives it, so the words vanished. The

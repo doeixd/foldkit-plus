@@ -1,4 +1,7 @@
-/** The page's text colours, each for a light page and a dark one, as the theme's are. */
-export const ink = 'light-dark(#18181b, #f4f4f5)'
-export const muted = 'light-dark(#71717a, #a1a1aa)'
-export const hairline = 'light-dark(#e4e4e7, #2e2e33)'
+/**
+ * The page's text and line colors: the theme's, so they share its hue in
+ * either scheme rather than being greys of their own.
+ */
+export const ink = 'var(--fk-text-overt)'
+export const muted = 'var(--fk-text-muted)'
+export const hairline = 'var(--fk-outline-subtle)'

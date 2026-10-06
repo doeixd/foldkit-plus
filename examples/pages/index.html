@@ -12,9 +12,15 @@
         --muted: light-dark(#71717a, #a1a1aa); --faint: light-dark(#a1a1aa, #71717a);
         --page: light-dark(#fff, #141416); --side: light-dark(#fafafa, #1a1a1d);
         --line: light-dark(#f0f0f1, #27272a); --hover: light-dark(#f4f4f5, #232326);
-        --selected: light-dark(#f0f0f1, #27272a); --well: light-dark(#f6f7f8, #1f1f22);
+        --well: light-dark(#f6f7f8, #1f1f22);
         --danger: light-dark(#dc2626, #f87171); --danger-well: light-dark(#fef2f2, #2a1414);
-        --peer: light-dark(#e8590c, #fb923c); }
+        --peer: light-dark(#e8590c, #fb923c);
+        /* The accent, at the focus ring's hue: the main action and the open page. */
+        --accent: light-dark(oklch(52% 0.17 270), oklch(72% 0.14 270));
+        --accent-hover: light-dark(oklch(46% 0.17 270), oklch(78% 0.12 270));
+        --on-accent: light-dark(#fff, oklch(18% 0.03 270));
+        --accent-ink: light-dark(oklch(45% 0.17 270), oklch(80% 0.11 270));
+        --accent-wash: color-mix(in oklab, var(--accent) 14%, var(--page)); }
       :root { font: 15px/1.6 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: var(--page);
         -webkit-font-smoothing: antialiased; }
       body { margin: 0; }
@@ -25,8 +31,8 @@
       .page-list { list-style: none; margin: 0 0 12px; padding: 0; }
       .page-link, #new-page { width: 100%; text-align: left; border: 0; background: none; color: var(--body);
         padding: 5px 8px; border-radius: 6px; font: inherit; font-size: 14px; cursor: pointer; }
-      .page.open .page-link { background: var(--selected); color: var(--ink); font-weight: 500; }
-      .page-link:hover, #new-page:hover { background: var(--hover); }
+      .page.open .page-link { background: var(--accent-wash); color: var(--accent-ink); font-weight: 500; }
+      .page-link:hover, #new-page:hover { background: color-mix(in oklab, var(--accent-wash) 50%, transparent); }
       #new-page { color: var(--muted); }
       :is(.page-link, #new-page, .tool, .primary):focus-visible { outline: 2px solid oklch(52% 0.17 270); outline-offset: 1px; }
       main { padding: 48px 72px; overflow: auto; }
@@ -36,9 +42,9 @@
       .empty-state { display: grid; justify-items: center; gap: 6px; text-align: center; margin-bottom: 10vh; }
       .empty-title { margin: 0; font-weight: 600; }
       .hint { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
-      .primary { border: 0; border-radius: 8px; padding: 7px 14px; background: var(--ink); color: var(--page);
+      .primary { border: 0; border-radius: 8px; padding: 7px 14px; background: var(--accent); color: var(--on-accent);
         font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
-      .primary:hover { background: var(--body); }
+      .primary:hover { background: var(--accent-hover); }
       /* An input takes no font from the page, and pads its text off the left edge. */
       .title { font-family: inherit; font-size: 2.25rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em;
         color: inherit; background: none; border: 0; outline: 0; padding: 0; width: 100%;

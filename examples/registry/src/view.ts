@@ -184,7 +184,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
                       borderRadius: '999px',
                       background: waiting
                         ? 'light-dark(#fef3c7, #3b2a0a)'
-                        : 'light-dark(#f4f4f5, #27272a)',
+                        : 'var(--fk-surface-muted)',
                       color: waiting ? 'light-dark(#92400e, #fcd34d)' : muted,
                       fontSize: '0.8125rem',
                     },
