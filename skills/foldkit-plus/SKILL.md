@@ -1,9 +1,9 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react with -codegen, foldkit-bundle with -surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-crud, foldkit-cms with -drizzle), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, admin screens, or a CMS with drafts and publishing, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.relate, Entity.select, Form.make, Crud.editor, or Cms.content.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react with -codegen, foldkit-bundle with -surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-crud, foldkit-cms with -drizzle, foldkit-data-grid with -mixins-data-grid), which one owns which kind of state and basic use of each. Use when writing or reviewing a Foldkit app that uses a foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, admin screens, a data grid, or a CMS with drafts and publishing, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.select, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
-  version: '0.14.0'
+  version: '0.15.0'
   repository: https://github.com/doeixd/foldkit-plus
 ---
 

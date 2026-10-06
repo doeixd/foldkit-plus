@@ -5,7 +5,49 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.15.0
+
+`foldkit-sync` 0.9.0; `foldkit-durable` 0.7.0; `foldkit-remote` 0.12.0;
+`foldkit-remote-server` 0.12.0; `foldkit-remote-drizzle` 0.10.0;
+`foldkit-cms-drizzle` 0.5.0; `foldkit-crud` 0.6.0; `foldkit-mixins` 0.7.0;
+`foldkit-primitives` 0.6.0; `foldkit-surface` 0.7.0; `foldkit-mixins-ui`
+0.6.1. New: `foldkit-data-grid` 0.1.0 and `foldkit-mixins-data-grid` 0.1.0,
+experimental. Republished to re-pin: `foldkit-agent` 0.6.1,
+`foldkit-agent-a2a`, `foldkit-agent-mcp`, `foldkit-agent-native` and
+`foldkit-agent-webmcp` 0.5.1, `foldkit-bundle-surface` 0.3.1, `foldkit-cms`
+0.4.2, `foldkit-mirror` 0.5.1, `foldkit-mixins-crud` 0.6.2,
+`foldkit-mixins-form` 0.4.2, `foldkit-mixins-richtext` 0.2.1,
+`foldkit-mixins-surface` 0.5.1 and `foldkit-ssr` 0.3.1, each of which pins a
+bumped package exactly. Every other package is unchanged.
+
+**Editing server data, and a data grid to do it in.** A table a server owns
+can now be edited offline as durable operations: `foldkit-sync/entity` keeps
+the edits per cell and lays them over Remote's rows, and
+`foldkit-sync/journal`'s `editsJournal` applies each committed edit to the
+table as the journal's read model, recovering from crashes and refusing a
+table ahead of its journal. The data grid that edits it is new: an
+accessible, virtualized grid over 100,000 rows with focus, selection, column
+state, typed editors, the clipboard, fill, and undo as the application's.
+Servers also run in the browser now: `SharedHost` in `foldkit-primitives/net`
+hosts one for every tab, reached over `MessagePort`s by Remote and Sync, which
+is how the demos at [foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/)
+run.
+
+### Upgrading from 0.14
+
+- **`ReplicaStatus.rejected` is a list of rejections** (`foldkit-sync`):
+  `ReadonlyArray<Rejection>`, each `{ opId, reason: Option<string> }`, where it
+  was a list of operation ids.
+- **`Sync.transport.socket` takes a `url` or a `makeSocket`, not both**
+  (`foldkit-sync`), and `makeSocket` takes no argument.
+- **`editsJournal` requires `tableRevision`** (`foldkit-sync/journal`), and
+  fails with `TableAheadOfJournalError` while the table holds a revision past
+  the journal's.
+- **Install `drizzle-orm` yourself** beside `foldkit-remote-drizzle` and
+  `foldkit-cms-drizzle`: it is a peer dependency now, so the application's
+  copy is the one they use.
+- **`contains` on Postgres folds ASCII only** (`foldkit-remote-drizzle`), as it
+  already did in SQLite and in memory: `é` no longer finds `É` there.
 
 ### Added
 
@@ -258,7 +300,7 @@ version changed; `pnpm` skips versions already in the registry.
   `StampPolicy`. A replica exposes its `replicaId`, the one its commits
   are stamped with.
 
-- **`foldkit-data-grid`, the grid's pure model (private, `0.0.0`).** Phase 0
+- **`foldkit-data-grid`, the grid's pure model.** Phase 0
   of [the DataGrid design](docs/design/data-grid-DESIGN.md): typed `Columns`
   by stable id, a `RowModel` with a `Known` or `Unknown` `RowCount`, a
   saveable `ColumnLayout` of start, center and end regions with hidden
@@ -283,7 +325,7 @@ version changed; `pnpm` skips versions already in the registry.
   viewport as the one Bundle a grid places. A key's `Moved` carries the
   reveal the view worked out, and the update issues the scroll for the
   container named `id`.
-- **`foldkit-mixins-data-grid` (private, `0.0.0`), the grid drawn (Phase 3).**
+- **`foldkit-mixins-data-grid`, the grid drawn (Phase 3).**
   `DataGridView<Message>().define(Grid)` draws a `DataGrid` as a WAI-ARIA
   grid of the viewport's window of cells: `aria-rowcount` (or `-1` when the
   count is unknown), each cell's logical `aria-rowindex` and `aria-colindex`,

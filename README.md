@@ -529,8 +529,7 @@ references, design notes, and historical material. The
 
 ## Status
 
-Foldkit Plus is `0.x`, built against a `0.x` Foldkit and an Effect 4 release
-candidate. APIs are still settling and minor releases may break. The
+Foldkit Plus is `0.x`, built against a `0.x` Foldkit and Effect 4. APIs are still settling and minor releases may break. The
 [CHANGELOG](./CHANGELOG.md) records what changed and why.
 
 The repository is exercised as a system: package tests run in CI, README-facing

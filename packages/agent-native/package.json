@@ -1,6 +1,6 @@
 {
   "name": "foldkit-agent-native",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Agent Native adapter for foldkit-agent. Compiles an exposed Foldkit contract into Agent Native actions.",
   "keywords": [
     "foldkit",
