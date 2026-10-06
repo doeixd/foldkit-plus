@@ -48,6 +48,7 @@ const application = Bundle.assemble<Model, Message>()([
         Pasted: () => ({ model }),
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),
+        Filled: () => ({ model }),
       }),
   }),
 ])

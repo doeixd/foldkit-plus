@@ -102,9 +102,11 @@ the whole wiring, compiled.
   sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
   row's `height`, throws `slot "cell" protects style property`.
 - A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })`,
-  `Pasted({ accepted, refused })`, or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z,
-  with Shift or Ctrl+Y; the application keeps the history and builds the
-  inverse from its Model; match it with `Grid.Out.match`). Place it
+  `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
+  R, or the fill handle; write `Grid.fill(rows, model.grid, request).accepted`),
+  or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z, with Shift or Ctrl+Y; the
+  application keeps the history and builds the inverse from its Model; match
+  it with `Grid.Out.match`). Place it
   with `onOut` (`Bundle.ignore` if no column has `edit`). A column's
   `edit: { schema }` decodes the text typed; `Grid.matchEdit(cell, { price:
   ({ value }) => ... })` reads it back typed per column, so the application

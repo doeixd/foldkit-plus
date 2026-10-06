@@ -8,6 +8,7 @@ import {
   type CellBox,
   Clipboard,
   Columns,
+  Fill,
   type ColumnSpec,
   type ColumnState,
   type DataGridOf,
@@ -24,6 +25,7 @@ import {
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
+import { FillDrag } from './fillDrag.js'
 import { HoldFocus } from './holdFocus.js'
 import { KeepFocus } from './keepFocus.js'
 import { HeaderDrag } from './headerDrag.js'
@@ -93,6 +95,10 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
     }>
     readonly dragging: Option.Option<{ readonly column: Id; readonly delta: number }>
     readonly menu: Option.Option<{ readonly column: Id; readonly active: number }>
+    readonly filling: Option.Option<{
+      readonly source: { readonly anchor: CellAddress<Id>; readonly focus: CellAddress<Id> }
+      readonly to: CellAddress<Id>
+    }>
   }
   /** The application's rows, in its order; the view draws them through `state.columns`. */
   readonly rows: RowModel<Row>
@@ -158,8 +164,7 @@ const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descend
 /** How far one press of an arrow key on a resize handle moves the edge, in pixels. */
 const resizeStep = 16
 
-const textOf = (value: unknown): string =>
-  value === null || value === undefined ? '' : String(value)
+const { textOf } = Columns
 
 // The copied text of a box, once per projection and box: a copy handler is
 // drawn with its text, and redrawing for a scroll should not rebuild it.
@@ -459,17 +464,7 @@ const view = <Message>() => ({
 
         // An edit is only where its cell is drawn; one scrolled away waits.
         const editing = Option.filter(state.editing, edit => isDrawn(edit.address))
-        const draftOf = (address: CellAddress<Id>): string =>
-          Option.match(
-            Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
-            {
-              onNone: () => '',
-              onSome: row => {
-                const column = grid.columns.byId[address.column]
-                return column.edit?.draft?.(row) ?? textOf(column.value(row))
-              },
-            },
-          )
+        const draftOf = (address: CellAddress<Id>): string => grid.draftOf(projection, address)
         // Enter or F2 edits the focused cell from its text; a printable key
         // starts it over with that character.
         const editKey = (
@@ -770,12 +765,67 @@ const view = <Message>() => ({
             ? Option.map(sortOf(column), sorted => sorted.message)
             : Option.none()
 
-        // Escape while a header is dragged lets it go back; the pointer's own
-        // release after that finds no drag.
-        const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> =>
-          key === 'Escape' && Option.isSome(state.dragging)
-            ? Option.some(input.wrap(grid.Message.ColumnDragEnded({ completed: false })))
-            : keyOf(key, modifiers)
+        // Ctrl or Meta with D fills the range down from its first row, with R
+        // right from its first column; a range one row tall (or one column
+        // wide), or a lone cell, fills from the row above (or the column before).
+        const fillKey = (
+          key: string,
+          modifiers: KeyboardModifiers,
+        ): Option.Option<typeof grid.Message.Type> => {
+          const pressed = key.toLowerCase()
+          const toggle = modifiers.ctrlKey || modifiers.metaKey
+          if (!editsAny || !toggle || modifiers.shiftKey || modifiers.altKey) return Option.none()
+          if (pressed !== 'd' && pressed !== 'r') return Option.none()
+          const box = Option.orElse(range, () =>
+            Option.flatMap(stop, address => projection.box(address, address)),
+          )
+          return Option.flatMap(box, ({ rows, columns }) => {
+            const first = columns[0]!
+            const last = columns[columns.length - 1]!
+            if (pressed === 'd') {
+              const from = rows.end - rows.start > 1 ? rows.start : rows.start - 1
+              return Option.zipWith(
+                projection.rows.keyAt(from),
+                projection.rows.keyAt(rows.end - 1),
+                (sourceRow, toRow) =>
+                  grid.Message.FillRequested({
+                    source: {
+                      anchor: { row: sourceRow, column: first },
+                      focus: { row: sourceRow, column: last },
+                    },
+                    to: { row: toRow, column: first },
+                  }),
+              )
+            }
+            const at = projection.columns.indexOf(first)
+            const from = columns.length > 1 ? first : projection.columns[at - 1]
+            return Option.zipWith(
+              Option.fromUndefinedOr(from),
+              Option.zipWith(
+                projection.rows.keyAt(rows.start),
+                projection.rows.keyAt(rows.end - 1),
+                (top, bottom) => ({ top, bottom }),
+              ),
+              (column, { top, bottom }) =>
+                grid.Message.FillRequested({
+                  source: { anchor: { row: top, column }, focus: { row: bottom, column } },
+                  to: { row: top, column: last },
+                }),
+            )
+          })
+        }
+
+        // Escape while a header or a fill is dragged lets it go back; the
+        // pointer's own release after that finds no drag.
+        const onKey = (key: string, modifiers: KeyboardModifiers): Option.Option<Message> => {
+          if (key === 'Escape' && Option.isSome(state.dragging)) {
+            return Option.some(input.wrap(grid.Message.ColumnDragEnded({ completed: false })))
+          }
+          if (key === 'Escape' && Option.isSome(state.filling)) {
+            return Option.some(input.wrap(grid.Message.FillEnded({ completed: false })))
+          }
+          return keyOf(key, modifiers)
+        }
         // Ctrl or Meta with Z asks to undo, with Shift, or Ctrl+Y, to redo.
         const historyKey = (
           key: string,
@@ -800,12 +850,14 @@ const view = <Message>() => ({
               ),
             onNone: () =>
               Option.map(
-                Option.orElse(historyKey(key, modifiers), () =>
-                  Option.orElse(selectionKey(key, modifiers), () =>
-                    Option.orElse(editKey(key, modifiers), () =>
-                      Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                Option.orElse(
+                  Option.orElse(historyKey(key, modifiers), () => fillKey(key, modifiers)),
+                  () =>
+                    Option.orElse(selectionKey(key, modifiers), () =>
+                      Option.orElse(editKey(key, modifiers), () =>
+                        Option.orElse(upToHeader(key, modifiers), () => focusKey(key, modifiers)),
+                      ),
                     ),
-                  ),
                 ),
                 input.wrap,
               ),
@@ -843,6 +895,44 @@ const view = <Message>() => ({
         const toward = input.direction === 'rtl' ? -1 : 1
 
         // A header drag is measured toward the region's end, as a resize is.
+        // A fill being dragged, where it would write if let go now: the same
+        // `Fill.plan` the application's `fill` works it out by on release.
+        const fillTarget = Option.map(
+          Option.flatMap(state.filling, filling => Fill.plan(projection, filling)),
+          ({ target }) => ({ rows: target.rows, columns: new Set<string>(target.columns) }),
+        )
+        // The fill handle: at the range's end corner, or on the focused cell,
+        // in a grid that edits. An edit clears the range, and its cell draws
+        // the editor in place of the handle.
+        const handleAt = Option.filter(
+          Option.orElse(
+            Option.flatMap(range, box =>
+              Option.map(projection.rows.keyAt(box.rows.end - 1), row => ({
+                row,
+                column: box.columns[box.columns.length - 1]!,
+              })),
+            ),
+            () => stop,
+          ),
+          () => editsAny,
+        )
+        const fillDragged = Mount.mapMessage(FillDrag(), fact =>
+          input.wrap(
+            Match.valueTags(fact, {
+              FillDragStarted: () => grid.Message.FillStarted(),
+              FillDraggedOver: ({ cell }) => grid.Message.FillDragged({ cell }),
+              FillDragEnded: ({ completed }) => grid.Message.FillEnded({ completed }),
+            }),
+          ),
+        )
+        const fillHandle = h.span(
+          slots.fillHandle.attrs([
+            h.AriaHidden(true),
+            h.OnMount(fillDragged),
+            h.Style({ position: 'absolute', insetInlineEnd: '0', insetBlockEnd: '0' }),
+          ]),
+          [],
+        )
         const headerDragged = Mount.mapMessage(HeaderDrag(), fact =>
           input.wrap(
             Match.valueTags(fact, {
@@ -1129,18 +1219,28 @@ const view = <Message>() => ({
                       editing,
                       edit => edit.address.row === key && edit.address.column === id,
                     )
+                    const handled = Option.exists(
+                      handleAt,
+                      at => at.row === key && at.column === id,
+                    )
+                    const filled = Option.exists(
+                      fillTarget,
+                      box => index >= box.rows.start && index < box.rows.end && box.columns.has(id),
+                    )
                     return h.div(
                       slots.cell.attrs([
                         h.Role('gridcell'),
                         h.Id(GridFocus.cellId(grid.id, address)),
                         h.AriaColindex(indexOf.get(id)! + 1),
-                        // An edited cell holds its error below it; a pinned one is sticky already.
+                        // An edited cell holds its error below it, and the corner cell
+                        // the fill handle; a pinned cell is sticky, which places both.
                         h.Style({
                           ...cellStyle(id),
-                          ...(Option.isSome(edited) && Option.isNone(pinned(id))
+                          ...((Option.isSome(edited) || handled) && Option.isNone(pinned(id))
                             ? { position: 'relative' }
                             : {}),
                         }),
+                        ...(filled ? [h.DataAttribute('fill', 'target')] : []),
                         ...(grid.cellSelection ? [h.AriaSelected(inRange)] : []),
                         ...(focused ? [h.DataAttribute('focused', 'true')] : []),
                         ...Option.match(pinned(id), {
@@ -1174,6 +1274,7 @@ const view = <Message>() => ({
                       Option.match(edited, {
                         onNone: () => [
                           input.cell?.(id, row, h) ?? textOf(grid.columns.byId[id].value(row)),
+                          ...(handled ? [fillHandle] : []),
                         ],
                         onSome: edit => editorOf(address, edit),
                       }),

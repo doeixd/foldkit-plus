@@ -129,6 +129,11 @@ export const GridStyle = Style.forSlots(GridSlots)(
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: `calc(-1 * ${ref.border.thick})`,
       }),
+      // The cells a fill being dragged will write.
+      Style.nest('&[data-fill="target"]', {
+        outline: `${ref.border.thin} dashed ${ref.outline.focus}`,
+        outlineOffset: `calc(-1 * ${ref.border.thin})`,
+      }),
       // A marked cell gets a dot in its top end corner. A background image,
       // after the pinned ground in the source, so a pinned cell keeps it, and
       // no geometry; an application styles its own marks by name.
@@ -206,6 +211,14 @@ export const GridStyle = Style.forSlots(GridSlots)(
         background: `linear-gradient(to right, transparent calc(100% - 2px), ${ref.outline.focus} calc(100% - 2px))`,
       }),
     ),
+    fillHandle: Style.self({
+      width: '7px',
+      height: '7px',
+      background: ref.outline.focus,
+      border: `1px solid ${ref.surface.base}`,
+      cursor: 'crosshair',
+      zIndex: '3',
+    }),
     menuButton: Style.compose(
       Style.self({
         background: 'none',

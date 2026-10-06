@@ -359,6 +359,8 @@ const Page = Base.pipe(
         Edited: cell => edited(model, [cell]),
         // What a column refused is the grid's to say; what it accepted is written.
         Pasted: ({ accepted }) => edited(model, accepted),
+        // What a fill writes is worked out from the rows as the page shows them now.
+        Filled: request => edited(model, Grid.fill(rowsOf(model), model.grid, request).accepted),
         UndoRequested: () => replay(model, 'undo'),
         RedoRequested: () => replay(model, 'redo'),
       }),

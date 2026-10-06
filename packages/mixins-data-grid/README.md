@@ -141,6 +141,14 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
 - **Undo and redo keys.** Ctrl or Meta with Z sends `UndoRequested`, with
   Shift (or Ctrl+Y) `RedoRequested`; the application keeps the history. Keys
   in an open editor stay the input's.
+- **Fill**, in a grid that edits. Ctrl or Meta with D carries the range's
+  first row down it (a lone cell or one row, the row above), with R its
+  first column across it. The `fillHandle` Slot, a square at the end corner
+  of the range or the focused cell, is dragged to fill along one axis; the
+  cells it would write say `data-fill="target"` until it is let go, and
+  Escape lets it go back. The handle is pointer-only and hidden from
+  assistive technology, since the keys do the same. A drag past the grid's
+  edge does not scroll it yet.
 - **The header row is part of the grid.** ArrowUp from the first row goes up
   to the header (`aria-activedescendant` names the header cell), the arrows
   and Home and End walk it, ArrowDown or Escape go back to the row focus came

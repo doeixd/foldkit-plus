@@ -305,7 +305,8 @@ const priced = Columns.define<Product>()({
   },
 })
 const Prices = DataGrid.make({ id: 'prices', columns: priced })
-// Edited({ row, column, text }) | Pasted({ accepted, refused }) | UndoRequested | RedoRequested
+// Edited({ row, column, text }) | Pasted({ accepted, refused }) | Filled({ source, to })
+// | UndoRequested | RedoRequested
 type Out = typeof Prices.Out.Type
 
 // In `onOut`: the committed text read back as its column's value, a number here.
@@ -380,6 +381,15 @@ Clipboard.parseTsv('a\t"b\tc"\r\n') // [['a', 'b\tc']]
   carry nothing: the grid keeps no history, since what an edit meant and how
   to take it back are the application's, read from its Model when the
   request arrives. While a cell is edited they are the field's.
+- **A fill** comes from Ctrl or Meta with D (down) or R (right) over a range,
+  `FillRequested`, or from dragging the range's fill handle (`FillStarted`,
+  `FillDragged`, `FillEnded`, the drag held in the Model's `filling`), and
+  reports `Out.Filled({ source, to })`: the range, and the cell it was
+  carried to. The grid holds no rows, so the application works out what it
+  writes when it arrives, `Grid.fill(rows, model.grid, request)`, with the
+  rows it draws: `{ accepted, refused }`, judged as a paste's cells are
+  (`Fill.plan` and `Fill.cells`, above). A fill from a lone cell, or by key
+  from a range one row tall, carries on the cell above (or before) it.
 
 ## Over a `foldkit-crud` list
 

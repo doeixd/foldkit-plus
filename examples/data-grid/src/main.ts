@@ -117,6 +117,22 @@ const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Produc
   return next
 }
 
+/** A paste's or a fill's cells written, and what the columns refused said. */
+const laid = (
+  model: Model,
+  verb: 'Pasted' | 'Filled',
+  accepted: ReadonlyArray<Cell>,
+  refused: ReadonlyArray<Cell & { readonly error: string }>,
+) => ({
+  model: modifyFields(model, {
+    products: () => written(model, accepted),
+    notice: () =>
+      refused.length === 0
+        ? `${verb} ${accepted.length} cells.`
+        : `${verb} ${accepted.length} cells; refused ${refused.length}: ${refused[0]!.error}.`,
+  }),
+})
+
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, {
     onOut: out => model =>
@@ -127,15 +143,14 @@ const application = Bundle.assemble<Model, Message>()([
             notice: () => `Saved ${edited.column} of ${edited.row}.`,
           }),
         }),
-        Pasted: ({ accepted, refused }) => ({
-          model: modifyFields(model, {
-            products: () => written(model, accepted),
-            notice: () =>
-              refused.length === 0
-                ? `Pasted ${accepted.length} cells.`
-                : `Pasted ${accepted.length} cells; refused ${refused.length}: ${refused[0]!.error}.`,
-          }),
-        }),
+        Pasted: ({ accepted, refused }) => laid(model, 'Pasted', accepted, refused),
+        // What a fill writes is worked out from the products as they are now.
+        Filled: request => {
+          const { accepted, refused } = Grid.fill(rowsOf(model), model.grid, request)
+          return accepted.length === 0 && refused.length === 0
+            ? { model }
+            : laid(model, 'Filled', accepted, refused)
+        },
         // These rows keep no history; the registry demo shows undo as new edits.
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),

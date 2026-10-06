@@ -5,7 +5,7 @@
  * draft the column refuses stays with `aria-invalid`; the application hears
  * `Edited` through its `onOut`, and focus comes back to the grid.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -38,7 +38,7 @@ const columns = Columns.define<Item>()({
   },
 })
 
-const Grid = DataGrid.make({ id: 'items', columns })
+const Grid = DataGrid.make({ id: 'items', columns, cellSelection: true })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
 const Model = Schema.Struct({ ...Placement.fields, edits: Schema.Array(Schema.String) })
 type Model = typeof Model.Type
@@ -56,6 +56,7 @@ const application = Bundle.assemble<Model, Message>()([
         Pasted: pasted => pasted.accepted.map(cell),
         UndoRequested: () => ['undo'],
         RedoRequested: () => ['redo'],
+        Filled: request => Grid.fill(rows, model.grid, request).accepted.map(cell),
       })
       return { model: modifyFields(model, { edits: () => [...model.edits, ...reported] }) }
     },
@@ -114,19 +115,14 @@ const grid = () => document.getElementById('items')!
 const editor = () => document.querySelector<HTMLInputElement>('#items input')
 const cell = (row: string, column: 'id' | 'name' | 'qty') =>
   GridFocus.cellId('items', { row, column })
+const press = (target: Element, key: string, modifiers: KeyboardEventInit = {}) => {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+  target.dispatchEvent(event)
+  return event
+}
 
 test('cells are edited by keyboard, and the application hears the text', async () => {
   const { handle, frames, latest } = mount()
-  const press = (target: Element, key: string, modifiers: KeyboardEventInit = {}) => {
-    const event = new KeyboardEvent('keydown', {
-      key,
-      bubbles: true,
-      cancelable: true,
-      ...modifiers,
-    })
-    target.dispatchEvent(event)
-    return event
-  }
   const type = (text: string) => {
     const input = editor()!
     input.value = text
@@ -254,6 +250,59 @@ test('focus leaving the field saves the edit; a refused draft stays, its error b
     expect(error?.getAttribute('role')).toBe('alert')
     expect(latest().edits).toEqual(['r3.name=Gasket'])
     expect(editor()?.value).toBe('lots')
+  } finally {
+    handle.dispose()
+    frames.dispose()
+  }
+})
+
+test('Ctrl+D fills a cell from the one above, and Ctrl+R from the one before', async () => {
+  const { handle, frames, latest } = mount()
+  const focusedOn = (address: string) =>
+    vi.waitFor(() => expect(grid().getAttribute('aria-activedescendant')).toBe(address))
+  try {
+    await focusedOn(cell('r0', 'id'))
+    press(grid(), 'ArrowDown')
+    await focusedOn(cell('r1', 'id'))
+    press(grid(), 'ArrowRight')
+    await focusedOn(cell('r1', 'name'))
+    // The browser's own Ctrl+D (a bookmark) does not happen.
+    expect(press(grid(), 'd', { ctrlKey: true }).defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r1.name=Item 0']))
+    press(grid(), 'r', { metaKey: true })
+    await vi.waitFor(() => expect(latest().edits).toEqual(['r1.name=Item 0', 'r1.name=r1']))
+    // With Shift it is no fill, and on the first row there is nothing above.
+    press(grid(), 'd', { ctrlKey: true, shiftKey: true })
+    press(grid(), 'ArrowUp')
+    await focusedOn(cell('r0', 'name'))
+    press(grid(), 'd', { ctrlKey: true })
+    await frames.settle()
+    expect(latest().edits).toEqual(['r1.name=Item 0', 'r1.name=r1'])
+
+    // Over a range, Ctrl+D carries its first row down it, and Ctrl+R its
+    // first column across it; the ids do not edit.
+    press(grid(), 'ArrowDown', { shiftKey: true })
+    // Drawn, so the next key extends the range the view shows.
+    await vi.waitFor(() =>
+      expect(document.getElementById(cell('r1', 'name'))!.getAttribute('aria-selected')).toBe(
+        'true',
+      ),
+    )
+    press(grid(), 'ArrowLeft', { shiftKey: true })
+    await vi.waitFor(() =>
+      expect(latest().grid.selection.cells).toEqual(
+        Option.some({ anchor: { row: 'r0', column: 'name' }, focus: { row: 'r1', column: 'id' } }),
+      ),
+    )
+    // Drawn too: a fill key reads the range the view shows, and a name-only
+    // range filled from the column before it would write the same cells.
+    await vi.waitFor(() =>
+      expect(document.getElementById(cell('r0', 'id'))!.getAttribute('aria-selected')).toBe('true'),
+    )
+    press(grid(), 'd', { ctrlKey: true })
+    await vi.waitFor(() => expect(latest().edits.slice(2)).toEqual(['r1.name=Item 0']))
+    press(grid(), 'r', { ctrlKey: true })
+    await vi.waitFor(() => expect(latest().edits.slice(3)).toEqual(['r0.name=r0', 'r1.name=r1']))
   } finally {
     handle.dispose()
     frames.dispose()

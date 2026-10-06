@@ -139,6 +139,13 @@ expectTypeOf<typeof Grid.Model.Type>().toEqualTypeOf<{
   readonly resizing: Option.Option<{ readonly column: 'sku' | 'price'; readonly from: number }>
   readonly dragging: Option.Option<{ readonly column: 'sku' | 'price'; readonly delta: number }>
   readonly menu: Option.Option<{ readonly column: 'sku' | 'price'; readonly active: number }>
+  readonly filling: Option.Option<{
+    readonly source: {
+      readonly anchor: { readonly row: string; readonly column: 'sku' | 'price' }
+      readonly focus: { readonly row: string; readonly column: 'sku' | 'price' }
+    }
+    readonly to: { readonly row: string; readonly column: 'sku' | 'price' }
+  }>
   readonly selection: {
     readonly rows: RowSelection
     readonly anchor: Option.Option<string>

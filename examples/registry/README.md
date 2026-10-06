@@ -74,7 +74,7 @@ this example's own is below.
   actor and the replica it came from. Nothing checks the name, which a real
   deployment would.
 - **Undo is a new edit.** Ctrl+Z on the grid (Ctrl+Shift+Z or Ctrl+Y to redo)
-  takes back this tab's last edit or paste as one step. An edit may already
+  takes back this tab's last edit, paste or fill as one step. An edit may already
   be committed and seen elsewhere, so nothing is rewound: the undo is an
   `EditedProducts` of the values each cell held, and waits in the outbox
   offline like any edit. A cell another device, or a later edit here, has

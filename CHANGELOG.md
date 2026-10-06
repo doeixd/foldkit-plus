@@ -9,10 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
-- **`foldkit-data-grid`: `Fill`,** a spreadsheet's fill as pure functions:
-  `plan` (the source's box and the box beyond it toward a cell, along one
-  axis), `cells` (what each lane writes there) and `series` (numbers a
-  constant step apart continue it; anything else repeats) (#144).
+- **Fill in the data grid.** `foldkit-data-grid`'s `Fill` is a spreadsheet's
+  fill as pure functions: `plan` (the source's box and the box beyond it
+  toward a cell, along one axis), `cells` (what each lane writes there) and
+  `series` (numbers a constant step apart continue it; anything else
+  repeats). In the grid, Ctrl or Meta with D or R, or a drag of the range's
+  fill handle (the `fillHandle` Slot, its target drawn `data-fill`), reports
+  `Out.Filled({ source, to })`, so `Grid.Out.match` needs that arm; the
+  application writes `Grid.fill(rows, model.grid, request)`, judged as a
+  paste is. The registry undoes a fill as one step. `Columns.textOf` is a
+  value as a cell shows it (#144).
 - **`foldkit-data-grid`: `Grid.window(input)`,** the rows and columns a
   placed grid's view draws, worked out as the view does (the view now calls
   it), so an application can count what is drawn without estimating. The

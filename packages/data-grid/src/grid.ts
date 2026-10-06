@@ -5,9 +5,10 @@ import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import { ColumnState } from './columnState.js'
+import { Fill } from './fill.js'
 import {
   CellEditor,
-  type Columns,
+  Columns,
   type ColumnSpec,
   type EditValue,
   type EditableId,
@@ -48,6 +49,9 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const Column = focus.Address.fields.column
   const CellText = Schema.Struct({ row: Schema.String, column: Column, text: Schema.String })
   const PastedCell = Schema.Struct({ ...CellText.fields, from: Schema.String })
+  const Range = Schema.Struct({ anchor: focus.Address, focus: focus.Address })
+  /** A fill: the range carried on, and the cell it is carried to. */
+  const FillRequest = Schema.Struct({ source: Range, to: focus.Address })
   const Model = Schema.Struct({
     focus: focus.Model,
     viewport: GridViewport.Model,
@@ -61,14 +65,17 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     dragging: Schema.OptionFromNullOr(Schema.Struct({ column: Column, delta: Schema.Number })),
     /** The column whose menu is open, and the item the keyboard is on (`menuItems`). */
     menu: Schema.OptionFromNullOr(Schema.Struct({ column: Column, active: Schema.Number })),
+    /**
+     * A fill being dragged from the range's handle: the range, and the cell
+     * the pointer is over. What it writes is worked out when it is let go.
+     */
+    filling: Schema.OptionFromNullOr(FillRequest),
     selection: Schema.Struct({
       rows: RowSelection,
       /** Where the last plain row selection happened; a Shift range extends from it. */
       anchor: Schema.OptionFromNullOr(Schema.String),
       /** A rectangle of cells, by its corners; a single focused cell is none. */
-      cells: Schema.OptionFromNullOr(
-        Schema.Struct({ anchor: focus.Address, focus: focus.Address }),
-      ),
+      cells: Schema.OptionFromNullOr(Range),
     }),
     /**
      * The cell being edited, the text it began from, its draft, and the error
@@ -223,6 +230,14 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      */
     UndoRequested: {},
     RedoRequested: {},
+    /** Ctrl+D or Ctrl+R over a range, worked out by the view: carry `source` on to `to`. */
+    FillRequested: FillRequest.fields,
+    /** The range's fill handle was pressed and moved: a fill begins from the range. */
+    FillStarted: {},
+    /** The pointer, filling, is over the cell whose DOM id is `cell`. */
+    FillDragged: { cell: Schema.String },
+    /** The fill handle was let go, or the drag cancelled (`completed` false). */
+    FillEnded: { completed: Schema.Boolean },
   })
   type Message = typeof Message.Type
   /**
@@ -241,6 +256,11 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     },
     UndoRequested: {},
     RedoRequested: {},
+    /**
+     * A fill: carry `source` on to `to`. What it writes is worked out from the
+     * rows by `fill`, which the application holds.
+     */
+    Filled: FillRequest.fields,
   })
   type Out = typeof Out.Type
   type Return = Update.ReturnWithOutMessage<Model, Message, Out, never>
@@ -421,6 +441,24 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
 
   const sameCell = (a: Address, b: Address): boolean => a.row === b.row && a.column === b.column
   /**
+   * Cells laid by a paste or a fill, as their columns judge them: those that
+   * pass and those refused, with why. A cell on a column that does not edit,
+   * or one its text leaves unchanged, is dropped.
+   */
+  const judged = (cells: ReadonlyArray<typeof PastedCell.Type>) => {
+    const accepted: Array<typeof CellText.Type> = []
+    const refused: Array<typeof CellText.Type & { readonly error: string }> = []
+    for (const { from, ...cell } of cells) {
+      if (options.columns.byId[cell.column].edit === undefined) continue
+      if (unchanged(cell.column, from, cell.text)) continue
+      Option.match(errorOf(cell.column, cell.text), {
+        onNone: () => accepted.push(cell),
+        onSome: error => refused.push({ ...cell, error }),
+      })
+    }
+    return { accepted, refused }
+  }
+  /**
    * Ends an edit with its draft: none to report when nothing was edited or
    * the draft is unchanged, `refused` with the column's error when the draft
    * does not pass, or the edit closed and `Edited` to report.
@@ -564,6 +602,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         resizing: Option.none(),
         dragging: Option.none(),
         menu: Option.none(),
+        filling: Option.none(),
         selection: { rows: GridSelection.none, anchor: Option.none(), cells: Option.none() },
         editing: Option.none(),
       },
@@ -869,20 +908,55 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         // An edit in progress has the keyboard and the clipboard: a paste then is the field's.
         Pasted: ({ cells }): Return => {
           if (Option.isSome(model.editing) || cells.length === 0) return { model }
-          const accepted: Array<typeof CellText.Type> = []
-          const refused: Array<typeof CellText.Type & { readonly error: string }> = []
-          for (const { from, ...cell } of cells) {
-            if (options.columns.byId[cell.column].edit === undefined) continue
-            if (unchanged(cell.column, from, cell.text)) continue
-            Option.match(errorOf(cell.column, cell.text), {
-              onNone: () => accepted.push(cell),
-              onSome: error => refused.push({ ...cell, error }),
-            })
-          }
+          const { accepted, refused } = judged(cells)
           return accepted.length === 0 && refused.length === 0
             ? { model }
             : { model, outMessage: Out.Pasted({ accepted, refused }) }
         },
+        FillRequested: (request): Return =>
+          Option.isSome(model.editing)
+            ? { model }
+            : { model, outMessage: Out.Filled({ source: request.source, to: request.to }) },
+        FillStarted: (): Return => {
+          if (Option.isSome(model.editing)) return { model }
+          // The range, or the focused cell as a range of one.
+          const source = Option.orElse(model.selection.cells, () =>
+            Option.map(model.focus.current, address => ({ anchor: address, focus: address })),
+          )
+          return {
+            model: Option.match(source, {
+              onNone: () => model,
+              onSome: range =>
+                modifyFields(model, {
+                  filling: () => Option.some({ source: range, to: range.focus }),
+                }),
+            }),
+          }
+        },
+        FillDragged: ({ cell }): Return => ({
+          model: Option.match(
+            Option.zipWith(model.filling, addressOf(cell), (filling, to) => ({ filling, to })),
+            {
+              onNone: () => model,
+              onSome: ({ filling, to }) =>
+                sameCell(filling.to, to)
+                  ? model
+                  : modifyFields(model, { filling: () => Option.some({ ...filling, to }) }),
+            },
+          ),
+        }),
+        // Where the fill lands is worked out by `fill` from the rows as they
+        // are when it arrives, not from the frame the pointer was let go over.
+        FillEnded: ({ completed }): Return =>
+          Option.match(model.filling, {
+            onNone: () => ({ model }),
+            onSome: ({ source, to }) => {
+              const ended = modifyFields(model, { filling: () => Option.none() })
+              return completed
+                ? { model: ended, outMessage: Out.Filled({ source, to }) }
+                : { model: ended }
+            },
+          }),
         UndoRequested: (): Return =>
           Option.isSome(model.editing) ? { model } : { model, outMessage: Out.UndoRequested() },
         RedoRequested: (): Return =>
@@ -917,6 +991,42 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       readonly projection: GridProjection<Row, keyof Specs & string>
     }
   >()
+  /** The text an edit of a cell begins from: its column's `draft`, or the text it shows. */
+  const draftOf = (projection: GridProjection<Row, Id>, address: Address): string =>
+    Option.match(
+      Option.flatMap(projection.rowIndex(address.row), index => projection.rows.rowAt(index)),
+      {
+        onNone: () => '',
+        onSome: row => {
+          const column = options.columns.byId[address.column]
+          return column.edit?.draft?.(row) ?? Columns.textOf(column.value(row))
+        },
+      },
+    )
+
+  /**
+   * What an `Out.Filled` writes, judged as a paste's cells are: those their
+   * columns accept and those they refuse, over `rows` as they are now and the
+   * grid's column state. Nothing when `to` is inside the source.
+   */
+  const fill = (
+    rows: RowModel<Row>,
+    state: { readonly columns: Model['columns'] },
+    request: typeof FillRequest.Type,
+  ) => {
+    const projection = project(rows, state.columns)
+    return Option.match(Fill.plan(projection, request), {
+      onNone: () => judged([]),
+      onSome: plan =>
+        judged(
+          Fill.cells(projection, plan, {
+            editable: column => options.columns.byId[column].edit !== undefined,
+            from: address => draftOf(projection, address),
+          }),
+        ),
+    })
+  }
+
   /** The grid as presented: the rows through the column state in the Model. */
   const project = (
     rows: RowModel<Row>,
@@ -962,6 +1072,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     columnState,
     project,
     window,
+    fill,
+    draftOf,
     Out,
     Model,
     Message,

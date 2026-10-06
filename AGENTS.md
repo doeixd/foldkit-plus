@@ -1134,6 +1134,10 @@ of its own named a form field "fits the Catalog". Read words with
   only Vite transforms, and read `process.env` in scripts tsx runs; a server
   entry shared by both is a factory taking the id, with one thin Vite-only
   module applying the define.
+- **`git checkout -- <file>` drops every uncommitted change in it.** Used to
+  take a debug line back out of a test, it also took the session's new tests
+  in that file, which had to be written again. Copy the file aside (`cp`)
+  before a temporary edit, and copy it back.
 - **Flags go before `--`, and new files need `git add`.** `git commit --
   <paths> -m` parses `-m` as a pathspec and fails, and a pathspec commit skips
   untracked files, so a new module rode an `--amend` into the wrong commit.

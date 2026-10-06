@@ -37,7 +37,7 @@ const columns = Columns.define<Item>()({
   },
 })
 
-const Grid = DataGrid.make({ id: 'items', columns })
+const Grid = DataGrid.make({ id: 'items', columns, cellSelection: true })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
 const Model = Schema.Struct({ ...Placement.fields, edits: Schema.Array(Schema.String) })
 type Model = typeof Model.Type
@@ -55,6 +55,7 @@ const application = Bundle.assemble<Model, Message>()([
         Pasted: pasted => pasted.accepted.map(cell),
         UndoRequested: () => ['undo'],
         RedoRequested: () => ['redo'],
+        Filled: request => Grid.fill(rows, model.grid, request).accepted.map(cell),
       })
       return { model: modifyFields(model, { edits: () => [...model.edits, ...reported] }) }
     },
@@ -163,5 +164,65 @@ test('Ctrl+Z on a cell asks the application to undo; inside an editor it is the 
     expect(mounted.latest().edits).toEqual(['undo', 'redo', 'redo'])
   } finally {
     mounted.dispose()
+  }
+})
+
+test('the fill handle, dragged down, carries the range on over the cells it is let go on', async () => {
+  const mounted = mount()
+  const frames = Frames.track()
+  const grid = () => document.getElementById('items')!
+  const handle = () => cellOf('r1', 'name')?.querySelector('span[aria-hidden="true"]') ?? null
+  const centre = (element: Element) => {
+    const box = element.getBoundingClientRect()
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+  }
+  const pointer = (type: string, at: { readonly x: number; readonly y: number }) =>
+    handle()!.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        button: 0,
+        clientX: at.x,
+        clientY: at.y,
+      }),
+    )
+  const previewed = () =>
+    Array.from(document.querySelectorAll('#items [data-fill="target"]'), element => element.id)
+  try {
+    await vi.waitFor(() => expect(cellOf('r1', 'name')).not.toBeNull())
+    await userEvent.click(cellOf('r0', 'name')!)
+    await userEvent.click(cellOf('r1', 'name')!, { modifiers: ['Shift'] })
+    await vi.waitFor(() => expect(handle()).not.toBeNull())
+    const from = centre(handle()!)
+    pointer('pointerdown', from)
+    pointer('pointermove', centre(cellOf('r3', 'name')!))
+    await vi.waitFor(() =>
+      expect(previewed()).toEqual([
+        GridFocus.cellId('items', { row: 'r2', column: 'name' }),
+        GridFocus.cellId('items', { row: 'r3', column: 'name' }),
+      ]),
+    )
+    pointer('pointerup', centre(cellOf('r3', 'name')!))
+    // The click a captured pointer ends with is the handle's: the range stays.
+    handle()!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() =>
+      expect(mounted.latest().edits).toEqual(['r2.name=Item 0', 'r3.name=Item 1']),
+    )
+    expect(previewed()).toEqual([])
+    expect(cellOf('r0', 'name')!.getAttribute('aria-selected')).toBe('true')
+
+    // Escape lets a fill go, and its release writes nothing.
+    pointer('pointerdown', centre(handle()!))
+    pointer('pointermove', centre(cellOf('r4', 'name')!))
+    await vi.waitFor(() => expect(previewed()).toHaveLength(3))
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(previewed()).toEqual([]))
+    pointer('pointerup', centre(cellOf('r4', 'name')!))
+    await frames.settle()
+    expect(mounted.latest().edits).toEqual(['r2.name=Item 0', 'r3.name=Item 1'])
+  } finally {
+    mounted.dispose()
+    frames.dispose()
   }
 })

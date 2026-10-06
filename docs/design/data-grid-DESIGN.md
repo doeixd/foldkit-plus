@@ -269,7 +269,15 @@ and the copy, cut and paste handlers in the view. Where it departs from §14:
   asks for; turning text into values is still the application's.
 - **Cut is a paste of empty text** over the copied range's editable cells,
   so a column that refuses empty text refuses the cut there.
-- **Not built:** fill (§15), HTML clipboard data, multi-range copy.
+- **Fill (§15)** is `Fill` (pure: `plan`, `cells`, `series`) and, in the
+  Bundle, Ctrl+D and Ctrl+R and a drag of the range's fill handle, each
+  reported as `Out.Filled({ source, to })`. The grid holds no rows, so the
+  application turns that into cells with `Grid.fill` when it arrives: a drag
+  is let go over a frame, and what it writes is read from the rows as they
+  are then, as a column drop is. Series are numbers a constant step apart;
+  dates and custom strategies are not built, nor scrolling while a fill is
+  dragged past the edge.
+- **Not built:** HTML clipboard data, multi-range copy.
 
 ## Phase 6 as built (2026-10-03)
 

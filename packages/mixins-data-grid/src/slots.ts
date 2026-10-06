@@ -178,6 +178,15 @@ export const GridSlots = Slots.define({
    * `data-sort` is `asc` or `desc` while the column is sorted.
    */
   sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /**
+   * The square at the end corner of the range, or of the focused cell, in a
+   * grid that edits: dragged, it fills the cells it is drawn over. Pointer
+   * only and hidden from assistive technology; Ctrl+D and Ctrl+R fill by key.
+   */
+  fillHandle: Slot.make({
+    capability: Capability.Base,
+    protected: { style: ['position', 'insetInlineEnd', 'insetBlockEnd'] },
+  }),
   /** Below the rows: a failure that left them on screen, and the More button. */
   footer: Slot.make({ capability: Capability.Container }),
   retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),

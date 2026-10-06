@@ -114,6 +114,8 @@ export const Columns = {
   defaultWidth: 120,
   /** The narrowest a column with no `minWidth` resizes to. */
   minWidth: 40,
+  /** A value as a cell shows it: nothing for `null` or `undefined`. */
+  textOf: (value: unknown): string => (value === null || value === undefined ? '' : String(value)),
   /**
    * Declares a grid's columns over `Row`. Call it twice, once with the row
    * type and once with the specs, so the ids and values are inferred:

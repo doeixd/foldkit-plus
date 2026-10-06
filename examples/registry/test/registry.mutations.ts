@@ -234,4 +234,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a fill writes nothing',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Filled: request => edited(model, Grid.fill(rowsOf(model), model.grid, request).accepted),',
+        replace: 'Filled: () => edited(model, []),',
+      },
+    ],
+    tests,
+  },
 ]

@@ -60,6 +60,7 @@ const application = Bundle.assemble<Model, Message>()([
         }),
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),
+        Filled: () => ({ model }),
       }),
   }),
 ])

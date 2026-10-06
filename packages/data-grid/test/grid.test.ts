@@ -28,6 +28,7 @@ const start = placed.init({
     resizing: Option.some({ column: 'sku', from: 1 }),
     dragging: Option.some({ column: 'sku', delta: 1 }),
     menu: Option.some({ column: 'sku', active: 1 }),
+    filling: Option.none(),
     selection: {
       rows: RowSelection.Keys({ keys: ['p:1'] }),
       anchor: Option.some('p:1'),
@@ -54,6 +55,7 @@ describe('DataGrid', () => {
       resizing: Option.none(),
       dragging: Option.none(),
       menu: Option.none(),
+      filling: Option.none(),
       selection: {
         rows: RowSelection.Keys({ keys: [] }),
         anchor: Option.none(),
@@ -402,6 +404,7 @@ describe('DataGrid', () => {
       resizing: null,
       dragging: null,
       menu: null,
+      filling: null,
       selection: { rows: { _tag: 'Keys', keys: [] }, anchor: null, cells: null },
       editing: null,
     })
@@ -877,6 +880,84 @@ describe('DataGrid undo and redo', () => {
     const editing = edit(begun, message)
     expect(editing.model).toBe(begun)
     expect(editing.outMessage).toBeUndefined()
+  })
+})
+
+describe('DataGrid fill', () => {
+  type Address = CellAddress<keyof typeof editable.byId>
+  const cell = (row: string, column: keyof typeof editable.byId): Address => ({ row, column })
+  const one = (address: Address) => ({ anchor: address, focus: address })
+  const focused = edit(blank, Editing.Message.Focused({ address: cell('p:10', 'price') })).model
+  const over = (address: Address) =>
+    Editing.Message.FillDragged({ cell: GridFocus.cellId('editing', address) })
+
+  test('a fill by key is the application’s to write, and an open edit keeps the key', () => {
+    const request = { source: one(cell('p:10', 'price')), to: cell('p:100', 'price') }
+    const asked = edit(blank, Editing.Message.FillRequested(request))
+    expect(asked.model).toBe(blank)
+    expect(asked.outMessage).toEqual(Editing.Out.Filled(request))
+    expect(edit(begun, Editing.Message.FillRequested(request)).outMessage).toBeUndefined()
+  })
+
+  test('a drag fills from the range, over the cell it is let go on', () => {
+    const started = edit(focused, Editing.Message.FillStarted()).model
+    expect(started.filling).toEqual(
+      Option.some({ source: one(cell('p:10', 'price')), to: cell('p:10', 'price') }),
+    )
+    const dragged = edit(started, over(cell('p:100', 'price'))).model
+    // The same cell again, or another grid's, changes nothing.
+    expect(edit(dragged, over(cell('p:100', 'price'))).model).toBe(dragged)
+    expect(edit(dragged, Editing.Message.FillDragged({ cell: 'elsewhere:p:1:price' })).model).toBe(
+      dragged,
+    )
+    const ended = edit(dragged, Editing.Message.FillEnded({ completed: true }))
+    expect(ended.model.filling).toEqual(Option.none())
+    expect(ended.outMessage).toEqual(
+      Editing.Out.Filled({ source: one(cell('p:10', 'price')), to: cell('p:100', 'price') }),
+    )
+    const cancelled = edit(dragged, Editing.Message.FillEnded({ completed: false }))
+    expect(cancelled.model.filling).toEqual(Option.none())
+    expect(cancelled.outMessage).toBeUndefined()
+  })
+
+  test('a drag fills from the selected range when there is one, and not while editing', () => {
+    const Ranged = DataGrid.make({ id: 'editing', columns: editable, cellSelection: true })
+    const send = (model: typeof Ranged.Model.Type, message: typeof Ranged.Message.Type) =>
+      Ranged.bundle.update(model, message, undefined).model
+    const range = { anchor: cell('p:10', 'name'), focus: cell('p:1', 'price') }
+    const selected = send(
+      Ranged.bundle.init(undefined).model,
+      Ranged.Message.CellsSelected({ ...range, reveal: Option.none() }),
+    )
+    expect(send(selected, Ranged.Message.FillStarted()).filling).toEqual(
+      Option.some({ source: range, to: range.focus }),
+    )
+    expect(edit(begun, Editing.Message.FillStarted()).model).toBe(begun)
+    // Nothing is filling: a drag over a cell, or a release, changes nothing.
+    expect(edit(focused, over(cell('p:1', 'price'))).model).toBe(focused)
+    expect(edit(focused, Editing.Message.FillEnded({ completed: true })).outMessage).toBeUndefined()
+  })
+
+  test('fill is what a fill writes over the rows, judged as a paste is', () => {
+    const rows = RowModel.fromArray(products, productKey)
+    // 2.00 then 9.00, a step of 7: Cable's price follows at 16.00.
+    expect(
+      Editing.fill(rows, blank, {
+        source: { anchor: cell('p:10', 'price'), focus: cell('p:1', 'price') },
+        to: cell('p:100', 'price'),
+      }),
+    ).toEqual({ accepted: [{ row: 'p:100', column: 'price', text: '16.00' }], refused: [] })
+    // A name carried right into a price is no number; the SKU does not edit.
+    expect(
+      Editing.fill(rows, blank, { source: one(cell('p:10', 'sku')), to: cell('p:10', 'price') }),
+    ).toEqual({
+      accepted: [{ row: 'p:10', column: 'name', text: 'B-2' }],
+      refused: [{ row: 'p:10', column: 'price', text: 'B-2', error: 'Not a number' }],
+    })
+    // A cell inside the source fills nothing.
+    expect(
+      Editing.fill(rows, blank, { source: one(cell('p:10', 'price')), to: cell('p:10', 'price') }),
+    ).toEqual({ accepted: [], refused: [] })
   })
 })
 

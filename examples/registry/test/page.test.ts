@@ -1145,3 +1145,23 @@ test('the panel names each owner the manifest lists, and what each holds now', a
     await dispose()
   }
 })
+
+test('a fill is one edit of the cells it writes, and one step to undo', async () => {
+  const { dispose, latest } = await mount(serve(), memoryStorage())
+  const fill = () =>
+    grid().dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, bubbles: true, cancelable: true }),
+    )
+  try {
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
+    // Product 3's price, carried down to product 4 from the cell above.
+    await focusOn(productId(4), 'cents')
+    fill()
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(3)))
+    expect(latest().undo).toHaveLength(1)
+    undo()
+    await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
+  } finally {
+    await dispose()
+  }
+})
