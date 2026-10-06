@@ -48,8 +48,11 @@ const Editor = Cms.editor('PostEditor', { content: Posts, rest: 0 })
 
 type Root = { readonly editor: ReturnType<typeof Editor.bundle.init>['model'] }
 
-/** The entry, its draft and its row as the editor reads them, and one failed publish. */
-const world = (failure: string | undefined) => {
+/**
+ * The entry, its draft and its row as the editor reads them, and one failed
+ * publish; the entry's state read waiting when `stateLoading`.
+ */
+const world = (failure: string | undefined, { stateLoading = false } = {}) => {
   const ready = (value: unknown) => ({ _tag: 'Ready' as const, value })
   const held: Readonly<Record<string, unknown>> = {
     CmsEntry: { id: 'e1', type: 'posts', targetId: 'p1', revision: 1, archivedAt: null },
@@ -57,11 +60,18 @@ const world = (failure: string | undefined) => {
     Post: { id: 'p1', title: 'Live', slug: 'live' },
   }
   const data = {
-    get: (selection: { readonly entity: { readonly name: string } }) => ({
+    get: (selection: {
+      readonly entity: { readonly name: string }
+      readonly members: Readonly<Record<string, unknown>>
+    }) => ({
       read: () =>
-        held[selection.entity.name] === undefined
-          ? { _tag: 'NotFound' as const }
-          : ready(held[selection.entity.name]),
+        'state' in selection.members
+          ? stateLoading
+            ? { _tag: 'Loading' as const }
+            : ready({ state: 'Published', may: [] })
+          : held[selection.entity.name] === undefined
+            ? { _tag: 'NotFound' as const }
+            : ready(held[selection.entity.name]),
     }),
     mutation: (): MutationStatus =>
       failure === undefined
@@ -91,8 +101,34 @@ const world = (failure: string | undefined) => {
   }).model
   // Then a publish, which has been asked and has settled.
   const published = { ...opened, editor: { ...opened.editor, publishId: 'r1' } }
-  return { placed, root: placed.sync(published).model }
+  return { placed, opened, root: placed.sync(published).model }
 }
+
+describe('opening an entry', () => {
+  it('is loading until the entry’s state is read too, so its badge and history arrive with the form', () => {
+    const waiting = world(undefined, { stateLoading: true })
+    // The form is filled from the entry, draft and row already.
+    expect(waiting.opened.editor.filled).toBe(true)
+    expect(waiting.placed.status(waiting.opened)).toBe('Loading')
+    const read = world(undefined)
+    expect(read.placed.status(read.opened)).toBe('Opened')
+  })
+
+  it('waits for no state for something new, which the server does not hold yet', () => {
+    const { placed } = world(undefined, { stateLoading: true })
+    // As the `create` helper opens it: filled, blank, with no save yet.
+    const fresh = placed.sync({
+      editor: {
+        ...Editor.bundle.init(undefined).model,
+        mode: 'new' as const,
+        entry: 'e2',
+        filled: true,
+        resumed: 'Blank' as const,
+      },
+    }).model
+    expect(placed.status(fresh)).not.toBe('Loading')
+  })
+})
 
 describe('a server’s word about one key', () => {
   it('lands a taken address on the address, keeping what was typed', () => {

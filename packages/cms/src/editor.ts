@@ -15,13 +15,13 @@ import { Duration, Effect, Option, Predicate, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
-import type {
-  MutationStatus,
-  OptimisticOperation,
-  RemoteClient,
+import {
   RemoteData,
-  RemoteError,
-  RemoteMessage,
+  type MutationStatus,
+  type OptimisticOperation,
+  type RemoteClient,
+  type RemoteError,
+  type RemoteMessage,
 } from 'foldkit-remote'
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
@@ -1031,7 +1031,16 @@ export const makeEditor =
           status: (root: Root): EditorStatus => {
             const editor = slice.get(root)
             if (editor.mode === 'closed') return 'Closed'
-            if (!editor.filled) {
+            // An entry opened from the server is loading until its state is read
+            // too, so what the state draws (the badge, the history, Publish)
+            // arrives with the form instead of a moment after it.
+            const stateUnread =
+              editor.mode === 'edit' &&
+              !Option.match(Option.fromUndefinedOr(read(root, 'state')), {
+                onNone: () => false,
+                onSome: RemoteData.answered,
+              })
+            if (!editor.filled || stateUnread) {
               const entry = read(root, 'entry')
               if (entry?._tag === 'NotFound') return 'NotFound'
               return [entry, read(root, 'draft'), read(root, 'row')].some(

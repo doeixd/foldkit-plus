@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-cms`: an entry opened from the server is `Loading` until its state
+  is read too.** The editor counted as open once its entry, draft and row were
+  read; the lifecycle state, a read of its own, could answer a moment later,
+  and what it draws (the state badge, the history, Publish) dropped in after
+  the form and pushed the screen down. Something new waits for no state.
 - **`examples/cms`: the studio opens an entry whole.** Opening a page or a post
   from its list kept the list's place empty but for the editor's bar while the
   entry loaded, then drew the rest at once; the list now stays until the
