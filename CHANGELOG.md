@@ -31,6 +31,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Examples: the todo list lines up.** Rows draw a rule between them only, the
+  delete and Clear completed buttons end at the list's edge, and the empty list
+  says so centred with room around it.
+
 - **Examples: the pages and registry demos keep one hue in both schemes.** The
   pages demo drew its New page button as white ink in the dark and marked the open
   page in grey; both now use an accent at hue 270. The registry grid used a

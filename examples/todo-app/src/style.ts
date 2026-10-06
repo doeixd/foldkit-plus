@@ -316,8 +316,9 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.inline({
         flexWrap: 'nowrap',
         padding: '0.6rem 0',
-        borderTop: `1px solid ${t.outline.subtle}`,
       }),
+      // A rule between rows only: the footer draws the line below the last.
+      Style.pseudo(':not(:first-child)', { borderTop: `1px solid ${t.outline.subtle}` }),
       // `nest` styles a descendant from the row's own class, so hovering the
       // row reveals its delete button without the view knowing.
       Style.nest(' .item-remove', { opacity: '0' }),
@@ -344,6 +345,9 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
         color: t.text.muted,
         fontSize: '1.2rem',
         lineHeight: '1',
+        // Flush with the row's edge, where the footer's Clear completed ends.
+        padding: '0',
+        inlineSize: '1.25rem',
         cursor: 'pointer',
       }),
       Style.pseudo(':hover', { color: t.error.ink }),
@@ -444,6 +448,7 @@ export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
         background: 'transparent',
         color: t.text.muted,
         font: 'inherit',
+        padding: '0',
         cursor: 'pointer',
       }),
       Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),

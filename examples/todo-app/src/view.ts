@@ -116,10 +116,15 @@ const BoardStyle = Style.forSlots(BoardSlots)(
   {
     filters: Style.compose(
       Layers.standard.in('layouts', Layout.cluster({ gap: '0.35rem' })),
-      Style.inline({ marginBottom: '0.5rem' }),
+      Style.inline({ marginBottom: '0.75rem' }),
     ),
     list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }),
-    empty: Style.inline({ margin: '0.5rem 0', color: t.text.muted }),
+    empty: Style.inline({
+      margin: '0',
+      padding: '1.5rem 0',
+      textAlign: 'center',
+      color: t.text.muted,
+    }),
   },
   { name: 'BoardStyle' },
 )
