@@ -40,6 +40,8 @@ do leaves it:
 | Local UI state or a reusable widget | Parent Model and its update/child update | Bundle, Primitives |
 | Facts loaded from a server | Server; the client cache is disposable | Remote |
 | Offline edits that must converge | Client-authored operations in an authoritative journal order | Sync + Durable |
+| Offline edits to rows a server owns | The journal; the table is its read model | Sync (`/entity`, `/journal`) + Remote |
+| An interactive grid over the application's rows | The grid's Bundle for focus, selection and columns; the rows stay the application's | Data grid |
 | A URL or remembered preference | Local Model; the external value is a representation | Mirror |
 | Agent access or a customizable view | Existing state and transitions | Agent, Surface, Mixins |
 
@@ -276,9 +278,10 @@ in a line.
 | Let an LLM or another agent use the app, safely, over MCP, WebMCP, A2A, or Agent Native | `foldkit-agent` + one adapter | [Agents](./docs/agents.md) |
 | Cache server entities once, know what is missing, mutate optimistically, get live updates | `foldkit-remote` (+ `-server`, `-drizzle` on the server) | [Server-derived state](./docs/remote.md) |
 | Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
+| Edit rows a server owns offline, with the table kept as the journal's read model | `foldkit-sync/entity` and `foldkit-sync/journal`, over `foldkit-remote` | [Editing server data](./docs/editing-server-data.md) |
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
 | Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
-| Reach for everyday browser primitives instead of hand-wiring them: media queries, timers, sockets, device state, observers, clipboard | `foldkit-primitives` | [package README](./packages/primitives) |
+| Reach for everyday browser primitives instead of hand-wiring them: media queries, timers, sockets, device state, observers, clipboard, one in-browser server for every tab | `foldkit-primitives` | [package README](./packages/primitives) |
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
 | Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
 | Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
@@ -286,9 +289,10 @@ in a line.
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
-| Move between cells and span ranges in an interactive grid over rows the application owns | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental, 0.1.0) | [package README](./packages/data-grid) |
+| Edit an interactive grid over rows the application owns: keyboard focus, ranges, typed editors, copy and paste, fill, 100,000 rows virtualized | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental, 0.1.0) | [package README](./packages/data-grid) |
+| Render on the server and hand the Model over, rather than rerunning `init`: resumable pages, forms without scripts | `foldkit-ssr` | [package README](./packages/ssr) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
-| Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
+| Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, `-code` or `-code-shiki` for highlighted code, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
 | Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |
 | Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; in development, not published) | [package README](./packages/builder) |
 
@@ -331,6 +335,7 @@ flowchart TB
   richtextDom["foldkit-richtext-dom<br/>contenteditable adapter · editor Bundle"]
   mixinsRichtext["foldkit-mixins-richtext<br/>toolbars · menus · handle · source mode"]
   richtextMarkdown["foldkit-richtext-markdown<br/>Markdown in and out · source sessions"]
+  richtextCode["foldkit-richtext-code · -code-shiki<br/>code tokenizers · syntax decorations"]
   react["foldkit-react<br/>React islands · Foldkit in React"]
   reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
   composition["foldkit-composition<br/>a page as Blocks in Regions · in development"]
@@ -346,6 +351,8 @@ flowchart TB
   app --> dataGrid
   bundle --> dataGrid
   dataGrid --> mixinsDataGrid
+  crud -- "rows from a list" --> dataGrid
+  sync -- "edits to server rows" --> remote
   mixins --> mixinsDataGrid
   bundle --> primitives
   surface --> bundleSurface
@@ -385,6 +392,7 @@ flowchart TB
   remote -- "resume part" --> ssr
   app --> richtext --> richtextDom
   richtext --> richtextMarkdown
+  richtext --> richtextCode
   richtextMarkdown --> mixinsRichtext
   bundle --> richtextDom
   richtextDom --> mixinsRichtext
@@ -414,6 +422,8 @@ The rule that makes the whole graph composable is **one owner per datum**:
 | A filter the URL shows, a draft a device remembers | the local Model | `foldkit-mirror` observes |
 | Facts owned by another system | the server | `foldkit-remote` caches |
 | Client-authored state that must survive offline and converge | the durable log | `foldkit-sync` + `foldkit-durable` |
+| An edit to a row the server owns, until the table has it | the journal; the table is its read model | `foldkit-sync/entity` lays it over Remote's row |
+| Which cell has focus, what is selected, how the columns stand | the grid's Bundle in the parent Model | `foldkit-data-grid` places |
 | What an agent may see and do | the application | `foldkit-agent` observes and exposes |
 
 That ownership rule is more important than the package boundaries. A single
@@ -454,7 +464,7 @@ pnpm add foldkit-agent foldkit-agent-webmcp
 
 # normalized server-owned state
 pnpm add foldkit-surface foldkit-remote
-pnpm add foldkit-remote-server foldkit-remote-drizzle # optional server compilation
+pnpm add foldkit-remote-server foldkit-remote-drizzle drizzle-orm # optional server compilation
 
 # local-first replicated state
 pnpm add foldkit-surface foldkit-sync foldkit-durable
@@ -470,7 +480,17 @@ pnpm add foldkit-entity foldkit-form foldkit-mixins-form
 pnpm add foldkit-crud foldkit-remote # an editor, list, detail, and remover over Remote
 pnpm add foldkit-mixins-crud # draws a list as a table and a detail as a description list
 pnpm add foldkit-cms # content types, drafts beside the row, and a derived lifecycle
-pnpm add foldkit-cms-drizzle # its server: the audience boundary, drafts, and a publish that is whole
+pnpm add foldkit-cms-drizzle drizzle-orm # its server: the audience boundary, drafts, and a publish that is whole
+
+# an interactive data grid, and the accessible view that draws it
+pnpm add foldkit-data-grid foldkit-mixins-data-grid
+
+# rich text: the document, the editor on the page, Markdown and code
+pnpm add foldkit-richtext foldkit-richtext-dom foldkit-mixins-richtext
+pnpm add foldkit-richtext-markdown foldkit-richtext-code
+
+# server rendering that hands the Model over
+pnpm add foldkit-ssr
 
 # ready-made primitives: media, timers, sockets, observers, clipboard
 pnpm add foldkit-primitives
@@ -489,8 +509,10 @@ components.
 
 `foldkit` and `effect` are peer dependencies. Foldkit `0.165.0` peer-depends on
 `effect@4.0.0` and `@effect/platform-browser@4.0.0`, the first stable release
-of Effect 4, so these packages target it. `foldkit-durable`
-requires Node 22 for `node:sqlite`. The [release matrix](./docs/releases.md)
+of Effect 4, so these packages target it. `foldkit-durable`'s Node entry
+requires Node 22 for `node:sqlite`; `foldkit-durable/core` runs on any SQLite
+client, a browser's included. `drizzle-orm` is a peer of the Drizzle
+packages, so the application's copy is the one they use. The [release matrix](./docs/releases.md)
 lists every package's current version.
 
 ### Agent skill
