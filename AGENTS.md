@@ -1054,6 +1054,11 @@ of its own named a form field "fits the Catalog". Read words with
   `examples/remote`, Vitest resolved `foldkit-remote` to a stale local build,
   and a demo line that passed under `tsx` failed its test for no reason in the
   change. `npx vitest run examples/remote` from the root tests the source.
+- **Read `Test Files`, not only `Tests`.** A file that fails to load, from a
+  module-level `window` read in a node test or the machine running out of
+  memory under a wide run ("22 failed" with every test passing), counts no
+  failed test. A grep for `Tests` showed all green twice here. Grep both lines,
+  and run wide sets with `--maxWorkers=2` on this machine.
 - **Vitest does not typecheck.** A demo line mapped over the dependencies of a
   `Data.subscriptions` entry (typed `any`) passed its test and failed
   `pnpm typecheck` with an implicit `any`, after it was pushed. After editing an
