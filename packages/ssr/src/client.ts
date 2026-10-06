@@ -77,6 +77,14 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      */
     readonly otherwise?: 'render' | undefined
     /**
+     * With `otherwise: 'render'`, when the fresh application is ready to be
+     * seen: until a Model it has drawn satisfies this, it draws out of view
+     * and the served page stays, so a page is not swapped for its loading
+     * state and back. Omitted, the fresh application replaces the page at
+     * once. The served page stays no longer than `UNTIL_LIMIT_MS`.
+     */
+    readonly until?: ((model: Model) => boolean) | undefined
+    /**
      * Whether the plan's data version is still current: asked once, with
      * `plan.version`, before anything is adopted. Omitted never asks. A plan
      * with no version still asks, with `undefined` (a check shaped like
@@ -109,9 +117,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   // with an empty build id, with nothing copied here.
   const contain = () => adopt(program({ model: plan.baseline }), { buildId: '' })
   if (declined || stale) {
-    if (options.otherwise === 'render')
+    if (options.otherwise !== 'render') contain()
+    else if (options.until === undefined)
       run(makeApplication({ ...config, container: root } as never))
-    else contain()
+    else renderBeside(config, root, options.until)
     return
   }
   if (root.getAttribute(BUILD_ATTRIBUTE) !== options.buildId) {
@@ -175,6 +184,50 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     return
   }
   deferBoot(root, decoded.success, plan.start, { boot, answered }, pending)
+}
+
+/** The longest a served page stays in view while a fresh application waits for `until`. */
+export const UNTIL_LIMIT_MS = 3000
+
+/**
+ * Runs the application afresh out of view, beside the served page, and puts
+ * it in the page's place once a Model it drew satisfies `until`, or after
+ * `UNTIL_LIMIT_MS`. It draws in a hidden element, not a detached one, so its
+ * Mounts start in the document as they would in place.
+ */
+const renderBeside = <Model, Message>(
+  config: ResumableConfig<Model, Message>,
+  served: HTMLElement,
+  until: (model: Model) => boolean,
+): void => {
+  const holder = document.createElement('div')
+  holder.hidden = true
+  const container = document.createElement('div')
+  // The runtime refuses a container without an id; the served page gives its own up.
+  container.id = served.id === '' ? 'foldkit-ssr-app' : served.id
+  served.removeAttribute('id')
+  // Nor does it boot beside a page stamped as a server render, which this one,
+  // never adopted, no longer is.
+  served.removeAttribute(FOLDKIT_APP_ATTRIBUTE)
+  holder.append(container)
+  served.after(holder)
+  let shown = false
+  const show = () => {
+    if (shown) return
+    shown = true
+    clearTimeout(limit)
+    holder.replaceWith(...holder.childNodes)
+    served.remove()
+  }
+  const limit = setTimeout(show, UNTIL_LIMIT_MS)
+  const view: ResumableConfig<Model, Message>['view'] = (model, h) => {
+    const drawn = config.view(model, h)
+    // Shown once the drawing this view returns is patched in, which the
+    // runtime does in the same task.
+    if (!shown && until(model)) queueMicrotask(show)
+    return drawn
+  }
+  run(makeApplication({ ...config, view, container } as never))
 }
 
 /**

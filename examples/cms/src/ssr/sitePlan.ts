@@ -42,6 +42,6 @@ export const takeOver = (
   when: (page: Document) => boolean,
 ) =>
   // A page for another reader draws afresh in its place instead of taking
-  // stale facts over as live ones; the served markup stays until the fresh
-  // draw replaces it.
-  SSR.hydrate(config, plan, { buildId, when, otherwise: 'render' })
+  // stale facts over as live ones; the served markup stays in view until the
+  // fresh draw has its reads, so the page never blinks to its loading state.
+  SSR.hydrate(config, plan, { buildId, when, otherwise: 'render', until: Site.answered })

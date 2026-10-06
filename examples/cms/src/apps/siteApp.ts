@@ -15,7 +15,7 @@ import { Cms } from 'foldkit-cms'
 import type { Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity } from 'foldkit-entity'
-import { Remote, type Page as RemotePage, type RemoteClient, type RemoteData } from 'foldkit-remote'
+import { Remote, RemoteData, type Page as RemotePage, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
@@ -123,6 +123,24 @@ export const actives = {
   post: Data.active('SitePost', postRead),
   blog: Data.active('SiteBlog', blogRead),
   blocks: QueryBlock.active('SiteBlocks', App.owner, Data, Site, pageDocument),
+}
+
+/**
+ * Whether the route's read, and each read of the page's Blocks, has an
+ * answer: what the site draws then is the page, not a loading state.
+ */
+export const answered = (model: Model): boolean => {
+  const route = (read: Option.Option<{ readonly read: (model: Model) => RemoteData<unknown> }>) =>
+    Option.match(read, {
+      onNone: () => true,
+      onSome: each => RemoteData.answered(each.read(model)),
+    })
+  return (
+    route(pageRead(model)) &&
+    route(postRead(model)) &&
+    route(blogRead(model)) &&
+    actives.blocks.answered(model)
+  )
 }
 
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()

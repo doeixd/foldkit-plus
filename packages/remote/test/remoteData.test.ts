@@ -28,6 +28,17 @@ describe('RemoteData', () => {
     expect(label({ _tag: 'NotFound' })).toBe('notfound')
   })
 
+  it.each<[RemoteData<number>, boolean]>([
+    [{ _tag: 'Initial' }, false],
+    [{ _tag: 'Loading' }, false],
+    [{ _tag: 'Ready', value: 1 }, true],
+    [{ _tag: 'Refreshing', value: 1 }, true],
+    [{ _tag: 'Failed', error: { _tag: 'Boom', message: 'x' } }, true],
+    [{ _tag: 'NotFound' }, true],
+  ])('says whether %o has an answer', (data, answered) => {
+    expect(RemoteData.answered(data)).toBe(answered)
+  })
+
   it('maps values and preserves failures', () => {
     expect(RemoteData.map({ _tag: 'Ready', value: 2 }, n => n + 1)).toEqual({
       _tag: 'Ready',

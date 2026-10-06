@@ -534,7 +534,8 @@ When a read sits at `Initial` and you expected data, ask the Model why with
 `Data.why`; see [Why is it still `Initial`?](#why-is-it-still-initial).
 
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
-compile time.
+compile time. `RemoteData.answered(data)` is whether a read has an answer yet:
+`Ready`, `Refreshing`, `Failed` or `NotFound`, not `Initial` or `Loading`.
 
 ### Drawing one: `RemoteData.render`
 

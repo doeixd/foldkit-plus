@@ -719,6 +719,31 @@ than one, a root with no envelope (`Missing`, also for a second root as
 parts or bindings that are `Invalid`, or a `Route` other than the one the page
 was rendered for. A page is resumed whole or not at all.
 
+### A page the browser does not take over
+
+A page can be declined before anything is adopted: `when(document)` says
+whether to take it over (a page rendered for a visitor, opened by an author),
+and `fresh(plan.version)` whether its data is still current. A declined or
+stale page is contained, as a refused one is, unless `otherwise: 'render'`
+runs the application afresh in its place.
+
+Drawn afresh at once, the page would show the fresh application's first draw,
+usually its loading state, until its reads answer: the page blinks to "Loading"
+and back. `until(model)` keeps the served page in view meanwhile. The fresh
+application draws in a hidden element beside it, and when a Model it has drawn
+satisfies `until`, it takes the page's place in one step, with the served
+page's id. It never waits longer than `UNTIL_LIMIT_MS` (3 s). The CMS site
+(`examples/cms/src/ssr/sitePlan.ts`) declines a page opened by an author, and
+waits for the route's read and its Blocks' reads, which its `Site.answered`
+checks with `RemoteData.answered` and `QueryBlock.active(...).answered`:
+
+```ts
+SSR.hydrate(config, plan, { buildId, when, otherwise: 'render', until: Site.answered })
+```
+
+The served page stays as it was served while it waits: its links are plain
+links, and nothing it shows becomes live.
+
 ## Costs and limits
 
 - **`SSR.render` renders the view twice.** That is the view check. A static

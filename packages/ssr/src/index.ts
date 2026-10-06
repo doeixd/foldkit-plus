@@ -1294,6 +1294,7 @@ export {
   BINDING_ATTRIBUTE,
   FALLBACK_FIELD,
   SLOT_ATTRIBUTE,
+  UNTIL_LIMIT_MS,
   metaMarkup,
   type DecodedBinding,
   type Loadable,

@@ -8,7 +8,15 @@ import { RemoteClient, RemotePolicy, type RemoteRpcClient } from 'foldkit-remote
 import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import type { Url } from 'foldkit/url'
-import { Data, blogRead, initial, pageRead, postRead, type Model } from '../src/apps/siteApp.js'
+import {
+  Data,
+  actives,
+  blogRead,
+  initial,
+  pageRead,
+  postRead,
+  type Model,
+} from '../src/apps/siteApp.js'
 import { openBackend } from '../src/demo/harness.js'
 import { view } from '../src/views/siteView.js'
 
@@ -21,9 +29,19 @@ const urlOf = (pathname: string, search = ''): Url => ({
   hash: Option.none(),
 })
 
-/** The site's document for `pathname`, read as a visitor reads it. */
-export const visit = async (pathname: string) => {
+/**
+ * The site's Model for `pathname`, read as a visitor reads it: before any read
+ * (`stage: 'none'`), with the route's read answered (`'route'`), or with the
+ * page's Blocks' reads answered too (`'blocks'`); from the demo's seed when
+ * `seeded`, else from an empty site.
+ */
+export const readSite = async (
+  pathname: string,
+  stage: 'none' | 'route' | 'blocks',
+  seeded = false,
+) => {
   const { backend } = openBackend()
+  if (seeded) await backend.seed()
   const handlers: RemoteRpcClient<DrizzleDatabase> = RemoteServer.handlers(backend.server, null)
   const served = <A, E>(effect: Effect.Effect<A, E, DrizzleDatabase>) =>
     effect.pipe(Effect.provide(backend.database))
@@ -37,6 +55,7 @@ export const visit = async (pathname: string) => {
     live: () => Stream.empty,
   })
   let model: Model = initial(urlOf(pathname, 'as=visitor')).model
+  if (stage === 'none') return model
   // The reads answer different shapes, so each is prefetched under its own
   // projection: a union of them is not one projection.
   const fetch = <A, E>(effect: Effect.Effect<A, E, RemoteClient>) =>
@@ -54,5 +73,12 @@ export const visit = async (pathname: string) => {
         model = await fetch(Data.prefetch(model, post.value, { policy: RemotePolicy.networkOnly }))
     }
   }
-  return view(model, SlotView.inertBuilder())
+  const blocks = actives.blocks.projectionOf(model)
+  if (stage === 'blocks' && Option.isSome(blocks))
+    model = await fetch(Data.prefetch(model, blocks.value, { policy: RemotePolicy.networkOnly }))
+  return model
 }
+
+/** The site's document for `pathname`, read as a visitor reads it. */
+export const visit = async (pathname: string) =>
+  view(await readSite(pathname, 'route'), SlotView.inertBuilder())

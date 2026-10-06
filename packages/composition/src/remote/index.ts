@@ -13,14 +13,14 @@
  * value as `data`, and the Block's `rows(data)` reads it typed.
  */
 import { Option, Schema } from 'effect'
-import type {
-  EntitySelection,
-  Page,
-  QueryDescriptor,
-  QueryEntity,
-  QueryInput,
+import {
   RemoteData,
-  SelectsEntity,
+  type EntitySelection,
+  type Page,
+  type QueryDescriptor,
+  type QueryEntity,
+  type QueryInput,
+  type SelectsEntity,
 } from 'foldkit-remote'
 import { Metadata } from 'foldkit-metadata'
 import { Projection } from 'foldkit-surface'
@@ -61,7 +61,17 @@ const initial: RemoteData<Page<never>> = { _tag: 'Initial' }
 export interface QueryReader<AppModel> {
   // Method syntax: a domain's registered-query constraint still fits. `any` for the
   // query itself, whose descriptor type the domain narrows by what it registered.
-  query(query: any, input: unknown, options: unknown): Projection<AppModel, unknown>
+  query(query: any, input: unknown, options: unknown): Projection<AppModel, RemoteData<unknown>>
+}
+
+/** A page's Query Block reads, and whether each has an answer yet. */
+export interface QueryReads<AppModel> extends PageReads<AppModel> {
+  /**
+   * Whether every read the page's Query Blocks make has an answer (`Ready`,
+   * `Refreshing`, `Failed` or `NotFound`), so the page draws no Block waiting.
+   * True while no page is shown, or the page has no Query Block.
+   */
+  readonly answered: (model: AppModel) => boolean
 }
 
 export const QueryBlock = {
@@ -124,7 +134,7 @@ export const QueryBlock = {
     data: QueryReader<AppModel>,
     catalog: Catalog,
     documentOf: (model: AppModel) => Option.Option<Document>,
-  ): PageReads<AppModel> => {
+  ): QueryReads<AppModel> => {
     // The reads change only with the page, not with every Model the page is in.
     const byDocument = new WeakMap<Document, ReturnType<typeof QueryBlock.reads<AppModel>>>()
     const projectionOf = (model: AppModel) =>
@@ -135,7 +145,18 @@ export const QueryBlock = {
         byDocument.set(document, reads)
         return reads
       })
-    return { name, owner, messages: [], projectionOf, data: dataOf(projectionOf) }
+    return {
+      name,
+      owner,
+      messages: [],
+      projectionOf,
+      data: dataOf(projectionOf),
+      answered: model =>
+        Option.match(projectionOf(model), {
+          onNone: () => true,
+          onSome: reads => Object.values(reads.read(model)).every(RemoteData.answered),
+        }),
+    }
   },
 
   /**
@@ -147,8 +168,8 @@ export const QueryBlock = {
     data: QueryReader<AppModel>,
     catalog: Catalog,
     document: Document,
-  ): Option.Option<Projection<AppModel, Readonly<Record<string, unknown>>>> => {
-    const entries: Record<string, Projection<AppModel, unknown>> = {}
+  ): Option.Option<Projection<AppModel, Readonly<Record<string, RemoteData<unknown>>>>> => {
+    const entries: Record<string, Projection<AppModel, RemoteData<unknown>>> = {}
     for (const id of index(document).keys()) {
       const node = document.nodes[id]
       const block: AnyBlock | undefined =
@@ -167,7 +188,10 @@ export const QueryBlock = {
     return Object.keys(entries).length === 0
       ? Option.none()
       : Option.some(
-          Projection.struct(entries) as Projection<AppModel, Readonly<Record<string, unknown>>>,
+          Projection.struct(entries) as Projection<
+            AppModel,
+            Readonly<Record<string, RemoteData<unknown>>>
+          >,
         )
   },
 }

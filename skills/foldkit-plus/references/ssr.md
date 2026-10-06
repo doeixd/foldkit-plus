@@ -47,6 +47,12 @@ const html = SSR.page(template, result) // the envelope rides the stamped root; 
 SSR.hydrate(config, Editor, { buildId })
 ```
 
+A page the browser declines (`when: page => …`) or finds stale (`fresh: version => …`) is
+contained, or with `otherwise: 'render'` drawn afresh in its place. Give `until: model => …`
+(the page's reads answered: `RemoteData.answered`, `QueryBlock.active(...).answered`) so the
+served page stays in view while the fresh one draws hidden, and is swapped once it is ready
+(at most `UNTIL_LIMIT_MS`, 3 s): otherwise the page blinks to its loading state and back.
+
 ## Gotchas
 
 - **Render from Remote data by preparing it first.** `SSR.render` and

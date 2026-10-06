@@ -159,7 +159,7 @@ one Projection (node id → RemoteData<Page<Row>>), an `Option` (none: no Query 
 `QueryBlock.active(name, App.owner, Data, Site, model => Option.some(document))` is it
 as an active Surface for `Data.wiring` / `subscriptions` / an SSR plan's `surfaces` (with
 `Remote.resume(Data)`); `Renderer.render(r, doc, h, { data: reads.data(model) })`
-(`{}` while inactive); in the
+(`{}` while inactive), and `reads.answered(model)` once every read has an answer; in the
 view, `LatestPages.rows(data)` (typed; `Initial` without data). Don't close
 over `Data` in a Block: the Catalog is in the Model through the Builder. The
 drawn Builder's canvas has no app data, so it shows the Initial state.

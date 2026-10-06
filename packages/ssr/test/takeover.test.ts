@@ -7,7 +7,7 @@
 import { Effect } from 'effect'
 import { Projection } from 'foldkit-surface'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { SSR } from 'foldkit-ssr/client'
+import { SSR, UNTIL_LIMIT_MS } from 'foldkit-ssr/client'
 import { SSR as Server } from 'foldkit-ssr'
 import { App, calls, config, load, plan, template } from './handoverFixture.js'
 
@@ -111,4 +111,52 @@ it('adopts a page the checks pass', async () => {
   expect(calls.init).toBe(1)
   button?.click()
   await vi.waitFor(() => expect(button?.textContent).toBe('42'))
+})
+
+it('keeps a declined page in view until the fresh one is ready, then swaps them at once', async () => {
+  await serve()
+  const served = document.getElementById('count')
+  const servedRoot = document.querySelector<HTMLElement>('[data-foldkit-app]')
+  const id = servedRoot?.id
+  // What the fresh page shows at the moment the served one goes.
+  const atSwap: Array<string | null> = []
+  new MutationObserver(() => {
+    if (served?.isConnected === false && atSwap.length === 0)
+      atSwap.push(document.querySelector('#count')?.textContent ?? null)
+  }).observe(document.body, { childList: true, subtree: true })
+  SSR.hydrate(config, plan, {
+    buildId: 'b',
+    when: () => false,
+    otherwise: 'render',
+    until: model => model.count >= 42,
+  })
+  await vi.waitFor(() => expect(calls.init).toBe(2))
+  const fresh = () => document.querySelector<HTMLElement>('[hidden] #count')
+  await vi.waitFor(() => expect(fresh()?.textContent).toBe('41'))
+  // Not ready: the served page is what shows, and the fresh one is out of view.
+  expect(served?.isConnected).toBe(true)
+  fresh()?.click()
+  await vi.waitFor(() => expect(served?.isConnected).toBe(false))
+  // Swapped with the drawing that was ready, never the one before it.
+  expect(atSwap).toEqual(['42'])
+  expect(document.querySelector('[hidden]')).toBeNull()
+  expect(document.querySelectorAll('#count')).toHaveLength(1)
+  expect(document.querySelector('#count')?.closest(`#${id}`)).not.toBeNull()
+})
+
+it('swaps a declined page for the fresh one after the limit, ready or not', async () => {
+  await serve()
+  const served = document.getElementById('count')
+  SSR.hydrate(config, plan, {
+    buildId: 'b',
+    when: () => false,
+    otherwise: 'render',
+    until: () => false,
+  })
+  await vi.waitFor(() => expect(document.querySelector('[hidden] #count')).not.toBeNull())
+  expect(served?.isConnected).toBe(true)
+  await vi.waitFor(() => expect(served?.isConnected).toBe(false), {
+    timeout: UNTIL_LIMIT_MS + 1000,
+  })
+  expect(document.querySelector('#count')?.textContent).toBe('41')
 })

@@ -187,6 +187,39 @@ describe('a Query Block', () => {
     expect(idle.data(initial)).toEqual({})
   })
 
+  it('says when every read on the page has an answer, not when one does', async () => {
+    const two = Schema.decodeUnknownSync(Composition.Document)({
+      format: 1,
+      roots: ['s'],
+      nodes: {
+        s: { block: 'Section', props: {}, regions: { body: ['mine', 'theirs'] } },
+        mine: { block: 'Projects', props: { owner: 'u1', count: 2 }, regions: {} },
+        theirs: { block: 'Projects', props: { owner: 'u2', count: 3 }, regions: {} },
+      },
+    })
+    const active = QueryBlock.active('PageReads', App.owner, Data, Site, () => Option.some(two))
+    expect(active.answered(initial)).toBe(false)
+    const { layer } = server()
+    // Only the first node's read, as the page asks for it.
+    const mine = Data.query(
+      ProjectsByOwner,
+      { ownerId: 'u1' },
+      { select: Project.select({ name: true }), first: 2 },
+    )
+    const half = await Effect.runPromise(Data.prefetch(initial, mine).pipe(Effect.provide(layer)))
+    expect(active.data(half)).toMatchObject({
+      mine: { _tag: 'Ready' },
+      theirs: { _tag: 'Initial' },
+    })
+    expect(active.answered(half)).toBe(false)
+    const reads = Option.getOrThrow(active.projectionOf(half))
+    const both = await Effect.runPromise(Data.prefetch(half, reads).pipe(Effect.provide(layer)))
+    expect(active.answered(both)).toBe(true)
+    // With no page there is nothing to wait for.
+    const idle = QueryBlock.active('PageReads', App.owner, Data, Site, () => Option.none())
+    expect(idle.answered(initial)).toBe(true)
+  })
+
   it('reads nothing on a page with no Query Block', () => {
     const empty = Schema.decodeUnknownSync(Composition.Document)({
       format: 1,

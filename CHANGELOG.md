@@ -18,6 +18,16 @@ version changed; `pnpm` skips versions already in the registry.
   focus ring, the affix sits inside, the control goes borderless.
 - **`foldkit-cms`: `Cms.stateAttribute`,** `data-cms-state`, the one attribute
   every state the CMS draws is written in.
+- **`foldkit-ssr`: `SSR.hydrate`'s `until`.** With `otherwise: 'render'`, the
+  fresh application draws hidden beside a declined page, which stays in view
+  until a Model it drew satisfies `until`, then takes its place in one step (at
+  most `UNTIL_LIMIT_MS`). The CMS site opened from the studio blinked to
+  "Loading…" and back; it now waits for its reads.
+- **`foldkit-remote`: `RemoteData.answered`,** whether a read has an answer
+  (`Ready`, `Refreshing`, `Failed`, `NotFound`).
+- **`foldkit-composition`: `QueryBlock.active(...).answered(model)`,** whether
+  every Query Block read on the page has an answer. `QueryReader.query` now
+  returns a `RemoteData` Projection, as Remote's does.
 - **`foldkit-agent-webmcp`: forms as declarative tools.** `AgentWebMcp.formTool(definition,
   name)` writes a form's `toolname` and `tooldescription`, and each field's `name` and
   `toolparamdescription`, from the agent contract; `register({ forms })` answers an agent's

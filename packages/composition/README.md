@@ -689,7 +689,9 @@ const SiteRenderer = Renderer.make(Site, {
   read, and `Remote.resume(Data)` carries exactly what it selected into a
   server-rendered page. `documentOf` returns none while there is no page.
   **`reads.data(model)`** is each node's value, as a Renderer's `data` takes
-  it, and `{}` while there is nothing to read.
+  it, and `{}` while there is nothing to read. **`reads.answered(model)`** is
+  whether every one of those reads has an answer, true while there is nothing
+  to read: what a page waits for before it is shown (`SSR.hydrate`'s `until`).
 - **`Renderer.render(..., { data: reads.read(model) })`** hands each node its
   value as `data`, and **`LatestPages.rows(data)`** reads it typed by what the
   Block selects, `Initial` while there is nothing.

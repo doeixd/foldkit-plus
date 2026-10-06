@@ -65,6 +65,20 @@ export const RemoteData = {
    */
   schema: <A>(value: Schema.Schema<A>): Schema.Schema<RemoteData<A>> => remoteDataSchema(value),
 
+  /**
+   * Whether the read has an answer: `Ready`, `Refreshing`, `Failed` or
+   * `NotFound`. `Initial` and `Loading` are still waiting for one.
+   */
+  answered: <A>(data: RemoteData<A>): boolean =>
+    RemoteData.match(data, {
+      Initial: () => false,
+      Loading: () => false,
+      Ready: () => true,
+      Refreshing: () => true,
+      Failed: () => true,
+      NotFound: () => true,
+    }),
+
   /** Exhaustive: omitting a state is a compile error. */
   match: <A, R>(
     data: RemoteData<A>,
