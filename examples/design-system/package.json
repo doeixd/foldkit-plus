@@ -1,0 +1,22 @@
+{
+  "name": "foldkit-example-design-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@foldkit/ui": "0.165.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}
