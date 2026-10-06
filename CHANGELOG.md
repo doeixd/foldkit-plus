@@ -16,9 +16,10 @@ version changed; `pnpm` skips versions already in the registry.
   Badge grounds a toned pill on the tone's `subtle`, so it follows.
 - **`examples/cms`:** the current section and the signed-in person are marked
   in the accent's tint rather than a surface step that barely differed from
-  the sidebar; the post list's tabs sit in a tray, so the chosen one shows;
-  New post is the accent's solid button, as the forms' submit is; the search
-  box is as tall as the controls beside it; and the editor bar's state badge
+  the sidebar, and so is the post list's chosen tab, flat, with no raised
+  pill; New post is the accent's solid button, as the forms' submit is; New
+  post, the search box and the tabs share one height; and the editor bar's
+  state badge
   matches the attribute `Cms.stateBadge` writes, so it is toned.
 
 ## 0.15.0

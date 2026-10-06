@@ -24,6 +24,9 @@ import {
 
 // --- the authoring shell --------------------------------------------------------
 
+/** One height for a row's controls, so New post, the search box and the tabs line up. */
+const controlHeight = '2.25rem'
+
 /**
  * A disclosure's summary: a drawn chevron in place of the browser's marker,
  * pointing along the line while closed and turned down while open (the turn
@@ -351,14 +354,22 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         paddingBlockEnd: t.space.sm,
       }),
     ),
-    // In a tray, so the chosen tab rises out of it; plain, it was white on white.
-    tabs: Recipes.Segmented({ tray: 'tray', size: 'sm' }).group ?? Style.empty,
+    // The chosen tab is tinted with the accent, flat: no tray, no raised pill.
+    tabs: Style.compose(
+      Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
+      Style.nest('> [aria-pressed="true"]', {
+        background: t.accent.subtle,
+        boxShadow: 'none',
+        color: t.accent.ink,
+      }),
+    ),
     // A tab and a toolbar button are whole controls a finger aims at, so they
     // take the floor both ways round; `Touch.targets` gives the controls in a
     // region height only, which leaves a short one as narrow as its words.
     tab: Style.compose(
-      Recipes.Segmented({ tray: 'tray', size: 'sm' }).option ?? Style.empty,
+      Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
       Touch.target,
+      Style.self({ minBlockSize: controlHeight }),
     ),
     searchBox: Style.compose(
       Style.self({
@@ -548,7 +559,11 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Touch.target,
     ),
     // The accent's solid button, as the forms' submit is: one primary look.
-    primary: Style.compose(button({ tone: 'accent', variant: 'solid', size: 'sm' }), Touch.target),
+    primary: Style.compose(
+      button({ tone: 'accent', variant: 'solid', size: 'sm' }),
+      Touch.target,
+      Style.self({ minBlockSize: controlHeight }),
+    ),
     danger: Style.compose(button({ tone: 'danger', variant: 'outline', size: 'sm' }), Touch.target),
     status: Style.compose(
       Style.self({
@@ -569,7 +584,11 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     // As tall as the tabs and buttons beside it, not a form's full field.
     search: Style.compose(
       field,
-      Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.7rem 0.4rem 2.1rem' }),
+      Style.self({
+        blockSize: controlHeight,
+        fontSize: t.size.sm,
+        padding: '0 0.7rem 0 2.1rem',
+      }),
     ),
     // A label over a control this package did not draw: no `Loading.shown` here.
     fieldLabel: Style.self({ color: t.text.muted, margin: '0' }),
