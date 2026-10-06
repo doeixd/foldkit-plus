@@ -523,6 +523,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   anything imported from `foldkit-ssr`; import `foldkit-ssr/client` in the
   browser. Check the bundle's size after adding an import from a package that
   also runs on a server.
+- **Some Foldkit attribute builders are client-only properties.** `h.Name`
+  writes the `name` property and marks it client-only, so a server-rendered
+  form has no `name` until it hydrates; a WebMCP form tool's fields, read from
+  the markup, would be nameless. Write an attribute that must be in the markup
+  with `h.Attribute('name', …)`, and check a builder's vnode (`data.props`
+  versus `data.attrs`) before relying on it in server output.
 - **Foldkit fills head tags into the template; it adds none.** A view's
   `canonical` reached no generated page until the template had an empty
   `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.
