@@ -7,6 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { SlotView } from 'foldkit-mixins'
 import { Option } from 'effect'
 import { Cms, type EditorStatus, type State } from 'foldkit-cms'
+import { RemoteData } from 'foldkit-remote'
 import { cmsDemo } from 'foldkit-example-site/demos'
 import type { AdminSlots } from '../styles/adminStyle.js'
 import { icon } from './icons.js'
@@ -39,6 +40,23 @@ const people: Readonly<Record<Chair, { readonly name: string; readonly role: str
 }
 
 /** The editor's status, in words: the posts' editor and the pages' say the same. */
+/**
+ * Whether a screen opening an entry from its list keeps drawing the list:
+ * while the entry loads and the list has rows to show. The editor then
+ * arrives whole, not as its bar first and the rest a moment later. Opened
+ * from an address, with no list read, the editor shows it is loading.
+ */
+export const keepsList = (status: EditorStatus, list: RemoteData<unknown>): boolean =>
+  status === 'Loading' &&
+  RemoteData.match(list, {
+    Initial: () => false,
+    Loading: () => false,
+    Ready: () => true,
+    Refreshing: () => true,
+    Failed: () => false,
+    NotFound: () => false,
+  })
+
 export const statusLine: Readonly<Record<EditorStatus, string>> = {
   Closed: '',
   Loading: 'Loading…',

@@ -7,6 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **`examples/cms`: the studio opens an entry whole.** Opening a page or a post
+  from its list kept the list's place empty but for the editor's bar while the
+  entry loaded, then drew the rest at once; the list now stays until the
+  editor can draw. An image on a page keeps its room (4:3 until it loads) so
+  the text around it does not move when it arrives. The studio's editor bar
+  and the site's header are solid in the page's color: translucent over a
+  blurred backdrop, they drew darker and more saturated than the page.
+
 ## 0.16.0
 
 `foldkit-mixins` 0.8.0; `foldkit-mixins-ui` 0.7.0; `foldkit-primitives` 0.7.0;

@@ -77,8 +77,9 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         Layout.cluster({ gap: t.space.md, justify: 'space-between', align: 'center' }),
       ),
       Style.self({
-        backdropFilter: 'saturate(180%) blur(12px)',
-        background: `color-mix(in oklch, ${t.surface.base} 82%, transparent)`,
+        // Solid, the page's own color, as the studio's bar: a translucent one
+        // over a blurred, saturated backdrop stood out from the page.
+        background: t.surface.base,
         borderBottom: `1px solid ${t.outline.subtle}`,
         boxSizing: 'border-box',
         // As wide as the page's content, without a wrapper around the header's parts.

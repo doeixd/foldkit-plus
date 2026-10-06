@@ -435,7 +435,16 @@ const ImageLook = Appearance.make(ImageSlots, {
   recipe: Style.recipeFor(ImageSlots)({
     base: {
       root: Style.self({ display: 'grid', gap: t.space.xs, margin: '0' }),
-      image: Style.self({ display: 'block', height: 'auto', objectFit: 'cover', width: '100%' }),
+      image: Style.self({
+        // Its room is kept before it loads, so the text around it does not move
+        // when it arrives: 4:3 until then, the image's own shape after.
+        aspectRatio: 'auto 4 / 3',
+        background: t.surface.muted,
+        display: 'block',
+        height: 'auto',
+        objectFit: 'cover',
+        width: '100%',
+      }),
       caption: Style.self({ color: t.text.muted, fontSize: t.size.sm }),
     },
     variants: {

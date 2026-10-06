@@ -34,6 +34,7 @@ import {
   editorBar,
   failed,
   guideInput,
+  keepsList,
   publisherOf,
   shell,
   stateIs,
@@ -398,7 +399,12 @@ export const Studio = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlB
             ]),
           ]),
         ]
-      : [PostEditor.status(model) === 'Closed' ? list(model, slots, h) : editor(model, slots, h)],
+      : [
+          PostEditor.status(model) === 'Closed' ||
+          keepsList(PostEditor.status(model), Worklist.page(model))
+            ? list(model, slots, h)
+            : editor(model, slots, h),
+        ],
     DemoGuide(guideInput, h),
   ),
 ).pipe(Style.attach(AdminStyle))

@@ -29,6 +29,7 @@ import {
   editorBar,
   failed,
   guideInput,
+  keepsList,
   publisherOf,
   shell,
   stateIs,
@@ -221,7 +222,8 @@ export const Page = SlotView.define(AdminSlots, (model: Model, slots, h: HtmlBui
           ]),
         ]
       : [
-          PageEditor.status(model) === 'Closed'
+          PageEditor.status(model) === 'Closed' ||
+          keepsList(PageEditor.status(model), sitePages.read(model))
             ? pageList(model, slots, h)
             : editor(model, slots, h),
         ],

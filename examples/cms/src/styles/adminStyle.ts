@@ -377,8 +377,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     editorBar: Style.compose(
       Style.self({
         alignItems: 'center',
-        background: `color-mix(in oklch, ${t.surface.base} 88%, transparent)`,
-        backdropFilter: 'blur(8px)',
+        // Solid, the page's own color: a translucent bar over a blurred
+        // backdrop drew darker and greyer than the page in a GPU-composited Chrome.
+        background: t.surface.base,
         borderBlockEnd: `1px solid ${t.outline.subtle}`,
         display: 'flex',
         gap: t.space.sm,
