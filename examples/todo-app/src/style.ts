@@ -231,13 +231,11 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
       // per filter without a class per state in the view.
       Style.whenInput<FilterInput>(
         input => input.active,
-        Style.self({
-          borderColor: t.outline.subtle,
-          background: t.accent.subtle,
-          color: t.text.link,
-        }),
+        // The accent's tint and ink, with no line: the pill is one color.
+        Style.self({ background: t.accent.subtle, color: t.accent.ink }),
       ),
-      Style.pseudo(':hover', { color: t.text.default }),
+      // Only an unchosen filter darkens on hover: the chosen one keeps its ink.
+      Style.pseudo(':not([aria-selected="true"]):hover', { color: t.text.default }),
     ),
   },
   { name: 'FilterStyle', layer: app },

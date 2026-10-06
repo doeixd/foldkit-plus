@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Examples: the todo app's chosen filter is one color.** Its pill drew a grey
+  line around the accent's tint, and its text went to the default color on
+  hover; it is the tint and the accent's ink, hovered or not.
 - **`foldkit-cms`: an entry opened from the server is `Loading` until its state
   is read too.** The editor counted as open once its entry, draft and row were
   read; the lifecycle state, a read of its own, could answer a moment later,
