@@ -1,5 +1,7 @@
 # foldkit-mixins-builder
 
+> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release.
+
 Draws a [`foldkit-builder`](../builder/README.md) page Builder as accessible
 HTML, with every element published as a [`foldkit-mixins`](../mixins/README.md)
 Slot. The Builder owns the page being edited and the editor's state; this

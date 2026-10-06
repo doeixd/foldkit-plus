@@ -6,7 +6,7 @@ The Document is stored like any other field, checked against a Catalog, and
 changed by the application's own transitions. This package performs no I/O,
 holds no state and draws nothing.
 
-> **Status: in development, not published.** From the
+> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release. From the
 > [page builder design](../../docs/design/pagebuilder-DESIGN.md): the
 > vocabulary, the stored Document, its validation, editing Operations,
 > migrations, drawing a page with Foldkit, on the server too, and appearance.
@@ -47,7 +47,9 @@ accepts a Block written next year.
 
 ## Install
 
-In this workspace, while it is in development:
+```bash
+pnpm add foldkit-composition
+```
 
 ```ts
 import { Block, Catalog, Composition, Content, Region } from 'foldkit-composition'

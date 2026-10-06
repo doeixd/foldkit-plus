@@ -207,6 +207,18 @@ describe('Recipes', () => {
     expect(css).toContain('color-mix(in oklch, var(--fk-text-overt) 85%, var(--fk-surface-base))')
   })
 
+  it.each(['outline', 'ghost', 'icon'] as const)(
+    'grounds a %s button’s hover on a tint of its own text, which reads on a colored band',
+    variant => {
+      const css = Style.forSlots(ButtonSlots)(
+        Recipes.Button({ tone: 'neutral', variant, size: null }),
+      ).css
+      expect(css).toMatch(
+        /:hover:not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:color-mix\(in oklab, currentColor 12%, transparent\)/,
+      )
+    },
+  )
+
   it('draws an icon button square with only its glyph showing', () => {
     const css = Style.forSlots(ButtonSlots)(
       Recipes.Button({ tone: 'neutral', variant: 'icon', size: null }),

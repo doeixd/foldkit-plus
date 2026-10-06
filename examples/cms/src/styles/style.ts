@@ -128,7 +128,11 @@ export const navLink = Style.compose(
   // In a phone's row of sections: whole, side by side.
   Style.media(phone, { flexShrink: '0', whiteSpace: 'nowrap' }),
   Touch.target,
-  Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+  // A lighter tint than the current one: the same mark, not yet chosen.
+  Style.pseudo(':hover', {
+    background: `color-mix(in oklab, ${t.accent.subtle} 45%, transparent)`,
+    color: t.text.overt,
+  }),
   // The accent's own tint, so the place you are reads at a glance and in the
   // page's hue; a surface step barely differs from the sidebar it sits on.
   Style.nest('&[aria-current="page"]', {

@@ -1,6 +1,6 @@
 # foldkit-composition, foldkit-builder and foldkit-mixins-builder
 
-**In development, not published.** Phases 1 to 7 of the page builder design are
+**Experimental, `0.1.0`, on npm from the 0.16.0 release.** Phases 1 to 7 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
 editing Operations, migrations, a Foldkit renderer, the headless Builder, the
 CMS example's pages, and the drawn editor with pointer drag and drop. Rich

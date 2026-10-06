@@ -293,8 +293,8 @@ in a line.
 | Render on the server and hand the Model over, rather than rerunning `init`: resumable pages, forms without scripts | `foldkit-ssr` | [package README](./packages/ssr) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
 | Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, `-code` or `-code-shiki` for highlighted code, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
-| Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |
-| Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; in development, not published) | [package README](./packages/builder) |
+| Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (experimental, 0.1.0) | [package README](./packages/composition) |
+| Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; experimental, 0.1.0) | [package README](./packages/builder) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole
@@ -338,9 +338,9 @@ flowchart TB
   richtextCode["foldkit-richtext-code · -code-shiki<br/>code tokenizers · syntax decorations"]
   react["foldkit-react<br/>React islands · Foldkit in React"]
   reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
-  composition["foldkit-composition<br/>a page as Blocks in Regions · in development"]
-  builder["foldkit-builder<br/>the page editor, as a form key · in development"]
-  mixinsBuilder["foldkit-mixins-builder<br/>the page editor, drawn · in development"]
+  composition["foldkit-composition<br/>a page as Blocks in Regions · experimental"]
+  builder["foldkit-builder<br/>the page editor, as a form key · experimental"]
+  mixinsBuilder["foldkit-mixins-builder<br/>the page editor, drawn · experimental"]
   dataGrid["foldkit-data-grid<br/>grid geometry · experimental"]
   mixinsDataGrid["foldkit-mixins-data-grid<br/>the grid, drawn · experimental"]
 

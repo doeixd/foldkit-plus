@@ -32,6 +32,9 @@ const keyIs =
   (...keys: ReadonlyArray<string>) =>
   (input: FieldInput) =>
     keys.includes(input.control.key)
+/** One height for the page form's boxes, so the title and the address beside it line up. */
+const fieldHeight = '3rem'
+
 const onKey = (keys: ReadonlyArray<string>, piece: StyleValue) =>
   Style.whenInput(keyIs(...keys), piece)
 
@@ -75,8 +78,9 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
       ),
       onKey(['cover'], Style.self({ order: '5' })),
     ),
-    // An address's `/` inside the field, as one box: the recipe's pieces.
-    group: Recipes.InputGroup.group,
+    // An address's `/` inside the field, as one box: the recipe's pieces, as
+    // tall as a text field beside it.
+    group: Style.compose(Recipes.InputGroup.group, Style.self({ minBlockSize: fieldHeight })),
     affix: Recipes.InputGroup.affix,
     label: Style.compose(
       Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
@@ -146,8 +150,9 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
       L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
       onKey(['document'], Style.self({ gridColumn: '1 / -1', marginBlockStart: t.space.sm })),
     ),
-    // An address's `/` inside the field, as one box: the recipe's pieces.
-    group: Recipes.InputGroup.group,
+    // An address's `/` inside the field, as one box: the recipe's pieces, as
+    // tall as a text field beside it.
+    group: Style.compose(Recipes.InputGroup.group, Style.self({ minBlockSize: fieldHeight })),
     affix: Recipes.InputGroup.affix,
     label: Style.compose(
       Style.self({ color: t.text.muted, fontSize: t.size.xs, fontWeight: t.weight.semibold }),
@@ -158,7 +163,14 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
     text: Style.compose(
       field,
       onKey(['slug'], inGroup),
-      onKey(['title'], Style.self({ fontSize: t.size.lg, fontWeight: t.weight.semibold })),
+      onKey(
+        ['title'],
+        Style.self({
+          fontSize: t.size.lg,
+          fontWeight: t.weight.semibold,
+          minBlockSize: fieldHeight,
+        }),
+      ),
     ),
   },
   { name: 'PageFieldStyle', layer: app },

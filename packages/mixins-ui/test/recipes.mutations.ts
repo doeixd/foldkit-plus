@@ -21,4 +21,15 @@ export default [
     edits: [{ file: '../src/recipes/button.ts', find: "            gap: '0',\n", replace: '' }],
     tests,
   },
+  {
+    name: 'an unfilled hover is a solid ground',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: "export const unfilledHover = 'color-mix(in oklab, currentColor 12%, transparent)'",
+        replace: 'export const unfilledHover = ref.surface.muted',
+      },
+    ],
+    tests,
+  },
 ]

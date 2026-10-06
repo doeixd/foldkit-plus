@@ -27,7 +27,10 @@ export const reset: StyleValue = global(
 
 /** The page's font, color, background, and color scheme. */
 export const body: StyleValue = global(
-  `:where(body){font-family:${v('font-body', 'system-ui, sans-serif')};font-size:${v('size-md', '1rem')};line-height:${v('leading-normal', '1.5')};font-weight:${v('weight-normal', '400')};color:${v('text-default', 'CanvasText')};background:${v('surface-base', 'Canvas')};-webkit-font-smoothing:antialiased}`,
+  // Scrollbars in the theme's line color, which keeps the page's hue, not the
+  // browser's grey; inherited, so one rule reaches every scrolling panel.
+  `:where(:root){scrollbar-color:${v('outline-overt', 'auto')} transparent}` +
+    `:where(body){font-family:${v('font-body', 'system-ui, sans-serif')};font-size:${v('size-md', '1rem')};line-height:${v('leading-normal', '1.5')};font-weight:${v('weight-normal', '400')};color:${v('text-default', 'CanvasText')};background:${v('surface-base', 'Canvas')};-webkit-font-smoothing:antialiased}`,
 )
 
 /**

@@ -73,8 +73,8 @@ const iconButton = Style.compose(
   Icons.glyph('1rem'),
 )
 
-/** Where the selection is marked on the page: a blue that shows on the site's colors. */
-const selection = 'oklch(62% 0.19 255)'
+/** Where the selection is marked on the page: the accent, a blue that shows on the site's colors. */
+const selection = t.accent.default
 
 /**
  * The Builder, as a page builder's three columns filling the screen: the
@@ -457,7 +457,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         fontSize: t.size.sm,
         // Over the top of the page, as a notice: it comes and goes without moving the page.
         alignSelf: 'start',
-        boxShadow: '0 4px 12px rgb(0 0 0 / 12%)',
+        boxShadow: t.shadow.md,
         gridArea: '1 / 1',
         margin: `${t.space.md} ${t.space.lg} 0`,
         padding: `${t.space.xs} ${t.space.sm}`,
@@ -510,7 +510,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.self({
         background: t.surface.base,
         borderRadius: t.radius.md,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 6%), 0 12px 32px rgb(0 0 0 / 8%)',
+        boxShadow: t.shadow.lg,
         margin: '0 auto',
         minHeight: '100%',
         padding: t.space.md,

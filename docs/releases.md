@@ -5,7 +5,7 @@ to npm. Versions are read from each `packages/*/package.json`.
 
 ## Package matrix
 
-The tree declares the versions the `v0.15.0` tag publishes. The version column is the tree's
+The tree declares the versions the next tag publishes (`v0.15.0` is the last). The version column is the tree's
 declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
@@ -46,13 +46,12 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-richtext-code`](../packages/richtext-code) | 0.2.0 | Published | Total grammars as tokenizers over the shared `syntax-*` kinds, for code decorations. |
 | [`foldkit-richtext-code-shiki`](../packages/richtext-code-shiki) | 0.2.0 | Published | Shiki grammars as tokenizers over the same kinds; the application owns the highlighter. |
 | [`foldkit-richtext-markdown`](../packages/richtext-markdown) | 0.2.0 | Published | Markdown round-trips for the editor document: task items, tight lists. |
-| [`foldkit-builder`](../packages/builder) | 0.0.0 | Private | The page builder's state: a Bundle that edits a composition Document by Operations, with selection and undo, as one form key's control. In development: [the page builder design](./design/pagebuilder-DESIGN.md). |
-| [`foldkit-mixins-builder`](../packages/mixins-builder) | 0.0.0 | Private | The page Builder drawn as accessible HTML through Mixins slots: palette, layers tree, inspector, and the page in edit mode. In development: [the page builder design](./design/pagebuilder-DESIGN.md). |
-| [`foldkit-composition`](../packages/composition) | 0.0.0 | Private | What a page is, as data: Blocks in Regions, a stored Document checked against a Catalog. In development: [the page builder design](./design/pagebuilder-DESIGN.md). |
+| [`foldkit-builder`](../packages/builder) | 0.1.0 | Published | The page builder's state: a Bundle that edits a composition Document by Operations, with selection and undo, as one form key's control. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
+| [`foldkit-mixins-builder`](../packages/mixins-builder) | 0.1.0 | Published | The page Builder drawn as accessible HTML through Mixins slots: palette, layers tree, inspector, and the page in edit mode. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
+| [`foldkit-composition`](../packages/composition) | 0.1.0 | Published | What a page is, as data: Blocks in Regions, a stored Document checked against a Catalog. Experimental: [the page builder design](./design/pagebuilder-DESIGN.md). |
 | [`foldkit-mixins-ui`](../packages/mixins-ui) | 0.6.1 | Published | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
 
-Three packages are `private` while they are built: `foldkit-composition`,
-`foldkit-builder` and `foldkit-mixins-builder`. A package that needs to stay off npm sets `"private": true`
+No package is `private` now. A package that needs to stay off npm sets `"private": true`
 in its manifest, and `pnpm publish` skips it.
 
 ## Publish process

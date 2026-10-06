@@ -45,17 +45,17 @@ export const transition = (properties: string): Declarations => ({
 })
 
 /**
- * A tone is five private custom properties that the variants read: the fill,
- * its hover, the text on it, the ink where nothing is filled, and the wash
- * behind an unfilled control on hover. Tone and variant are then independent
- * axes with no compound per pair.
+ * A tone is four private custom properties that the variants read: the fill,
+ * its hover, the text on it, and the ink where nothing is filled. Tone and
+ * variant are then independent axes with no compound per pair. An unfilled
+ * control's hover is a tint of its own text (`unfilledHover`), so it reads on
+ * any ground, a colored band included.
  */
 interface Tone {
   readonly fill: string
   readonly fillHover: string
   readonly onFill: string
   readonly ink: string
-  readonly wash: string
 }
 
 const tone = (value: Tone): StyleValue =>
@@ -65,11 +65,16 @@ const tone = (value: Tone): StyleValue =>
       '--_fk-tone-fill-hover': value.fillHover,
       '--_fk-tone-on-fill': value.onFill,
       '--_fk-tone-ink': value.ink,
-      '--_fk-tone-wash': value.wash,
     }),
   )
 
-export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink' | 'wash'): string =>
+/**
+ * The ground under an unfilled control on hover: its own text color, faint.
+ * A solid wash was near-white under the white text a colored band sets.
+ */
+export const unfilledHover = 'color-mix(in oklab, currentColor 12%, transparent)'
+
+export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink'): string =>
   `var(--_fk-tone-${name})`
 
 export const tones = {
@@ -78,20 +83,17 @@ export const tones = {
     fillHover: ref.accent.hover,
     onFill: ref.accent['on-fill'],
     ink: ref.accent.ink,
-    wash: ref.accent.subtle,
   }),
   neutral: tone({
     fill: ref.surface.default,
     fillHover: ref.surface.overt,
     onFill: ref.text.overt,
     ink: ref.text.default,
-    wash: ref.surface.muted,
   }),
   danger: tone({
     fill: ref.error.default,
     fillHover: ref.error.outline,
     onFill: ref.error['on-fill'],
     ink: ref.error.ink,
-    wash: ref.error.subtle,
   }),
 } as const

@@ -15,6 +15,7 @@ import {
   tones,
   toneVar,
   transition,
+  unfilledHover,
   variant,
   hover,
 } from './design.js'
@@ -71,13 +72,13 @@ export const Button = Style.recipeFor(ButtonSlots)({
             color: unfilledInk,
             borderColor: toneVar('fill'),
           }),
-          hover({ background: toneVar('wash') }),
+          hover({ background: unfilledHover }),
         ),
       },
       ghost: {
         button: variant(
           Style.self({ background: 'transparent', color: unfilledInk }),
-          hover({ background: toneVar('wash') }),
+          hover({ background: unfilledHover }),
         ),
       },
       /**
@@ -109,7 +110,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
             // The words are hidden, not gone: a gap beside them pushed the icon off center.
             gap: '0',
           }),
-          hover({ background: toneVar('wash'), color: ref.text.overt }),
+          hover({ background: unfilledHover, color: ref.text.overt }),
         ),
       },
     },

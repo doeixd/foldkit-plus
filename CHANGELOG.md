@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-composition`, `foldkit-builder` and `foldkit-mixins-builder` are
+  published,** at an experimental `0.1.0`: a page as Blocks in Regions, stored
+  and checked against a Catalog, and the page Builder that edits it, headless
+  and drawn.
 - **`foldkit-mixins-ui`: `Recipes.InputGroup`,** pieces for a text field with
   a prefix or suffix drawn as one box: the group carries the border and the
   focus ring, the affix sits inside, the control goes borderless.
@@ -27,6 +31,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui`: an unfilled button's hover reads on any ground.** An
+  outline, ghost or icon button hovered onto the tone's solid wash, near-white
+  under the white text a colored band gives it, so the words vanished. The
+  hover is now a faint tint of the button's own text color.
+- **`foldkit-mixins`: scrollbars take the theme's line color,** from the body
+  defaults, rather than the browser's grey.
 - **`foldkit-agent-webmcp` registers where an older browser looks.**
   `pageModelContext()`, which replaces `documentModelContext()`, reads
   `document.modelContext`, where the spec and Chromium 150 put it, or else
