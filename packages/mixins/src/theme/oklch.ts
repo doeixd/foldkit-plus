@@ -83,6 +83,12 @@ const text = (light: Step, dark: Step) =>
     `oklch(${dark[0]}% calc(${surfaceCDark} * ${dark[1]} * ${contrastFactor}) ${neutral})`,
   )
 
+/**
+ * A color family, every one the same shape: its fill, the fill hovered and
+ * pressed, a tint of it on the base, a line in it that stands off the base
+ * (darker in a light scheme, lighter in a dark one), and text on the fill
+ * and in the family's color.
+ */
 const family = (name: string, defaultValue: string) => {
   const color = v(name, 'default')
   return {
@@ -90,21 +96,21 @@ const family = (name: string, defaultValue: string) => {
     hover: shift(color, -0.06, 0),
     active: shift(color, -0.1, 0.05),
     subtle: tint(color, 85),
+    outline: ld(shift(color, -0.05, 0), shift(color, 0.05, 0)),
     'on-fill': contrast(color),
     ink: ink(color),
   }
 }
 
-const feedback = (name: string, l: number, c: number) => {
-  const color = v(name, 'default')
-  return {
-    default: `oklch(${l}% ${c} ${v('knob', `${name}-h`)})`,
-    subtle: tint(color, 85),
-    'on-fill': contrast(color),
-    ink: ink(color),
-    outline: shift(color, -0.05, 0),
-  }
-}
+/** A feedback family, lighter in a dark scheme so its fill reads on a dark page. */
+const feedback = (name: string, l: number, c: number, dark: number) =>
+  family(
+    name,
+    ld(
+      `oklch(${l}% ${c} ${v('knob', `${name}-h`)})`,
+      `oklch(${dark}% ${c} ${v('knob', `${name}-h`)})`,
+    ),
+  )
 
 export const oklch = (knobs: OklchKnobs) => {
   const accent = v('accent', 'default')
@@ -147,9 +153,11 @@ export const oklch = (knobs: OklchKnobs) => {
       subtle: surfaceStep([-0.025, 1.15], [-0.015, 1.05]),
       default: surfaceStep([-0.055, 1.25], [0.045, 1.1]),
       overt: surfaceStep([-0.31, 2.25], [0.125, 1.2]),
+      // The deepest of the page's color in both schemes: under a dialog's
+      // backdrop, a veil of it darkens the page; it was near-white in a dark one.
       bedrock: ld(
         `oklch(8% calc(${surfaceC} * 1.2) ${neutral})`,
-        `oklch(98% calc(${surfaceCDark} * 0.7) ${neutral})`,
+        `oklch(6% calc(${surfaceCDark} * 1.2) ${neutral})`,
       ),
     },
     text: {
@@ -168,7 +176,9 @@ export const oklch = (knobs: OklchKnobs) => {
       subtle: ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)),
       default: ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)),
       overt: ld(scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)),
-      focus: shift(accent, -0.1, 0.1),
+      // The accent as it is: darker and more saturated, the ring was the
+      // harshest color on the page.
+      focus: accent,
     },
     accent: family(
       'accent',
@@ -187,10 +197,11 @@ export const oklch = (knobs: OklchKnobs) => {
         `oklch(5% calc(${surfaceCDark} * 2) ${neutral} / 0.6)`,
       ),
     },
-    success: feedback('success', 55, 0.15),
-    warning: feedback('warning', 70, 0.15),
-    error: feedback('error', 60, 0.2),
-    info: feedback('info', 65, 0.15),
+    success: feedback('success', 55, 0.15, 64),
+    warning: feedback('warning', 70, 0.15, 76),
+    // Under 65% in the dark, where the text on a fill turns dark: on red that reads muddy.
+    error: feedback('error', 60, 0.2, 64),
+    info: feedback('info', 65, 0.15, 70),
   })
 }
 

@@ -70,7 +70,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
           Style.self({
             background: 'transparent',
             color: unfilledInk,
-            borderColor: toneVar('fill'),
+            borderColor: toneVar('line'),
           }),
           hover({ background: unfilledHover }),
         ),

@@ -58,4 +58,59 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'a family’s line darkens in a dark scheme too',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: 'outline: ld(shift(color, -0.05, 0), shift(color, 0.05, 0)),',
+        replace: 'outline: shift(color, -0.05, 0),',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a feedback fill is as dark in a dark scheme',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: '`oklch(${dark}%',
+        replace: '`oklch(${l}%',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'bedrock is near-white in a dark scheme',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: '`oklch(6% calc(${surfaceCDark} * 1.2) ${neutral})`',
+        replace: '`oklch(98% calc(${surfaceCDark} * 0.7) ${neutral})`',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'the focus ring is the accent darkened and saturated',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: '      focus: accent,',
+        replace: '      focus: shift(accent, -0.1, 0.1),',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'the error fill takes dark text in a dark scheme',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: "error: feedback('error', 60, 0.2, 64),",
+        replace: "error: feedback('error', 60, 0.2, 66),",
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]

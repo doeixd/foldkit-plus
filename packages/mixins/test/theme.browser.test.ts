@@ -111,3 +111,48 @@ test.each([
   const color = getComputedStyle(swatch).backgroundColor
   expect(distance(hueOf(color), hue), color).toBeLessThan(20)
 })
+
+const families = ['accent', 'secondary', 'tertiary', 'success', 'warning', 'error', 'info']
+
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, every family is one shape, with a line that stands off the base',
+  scheme => {
+    install(scheme)
+    const base = lightnessOf(computed('surface-base'))
+    for (const family of families) {
+      for (const member of ['default', 'hover', 'active', 'subtle', 'outline', 'on-fill', 'ink'])
+        expect(computed(`${family}-${member}`), `${family}-${member}`).not.toBe('rgba(0, 0, 0, 0)')
+      // Toward the side away from the page: darker on a light page, lighter on a dark one.
+      const fill = lightnessOf(computed(`${family}-default`))
+      const line = lightnessOf(computed(`${family}-outline`))
+      expect(Math.abs(line - base), family).toBeGreaterThan(Math.abs(fill - base))
+    }
+  },
+)
+
+test('a feedback fill is lighter in a dark scheme, so it reads on a dark page', () => {
+  install('light')
+  const light = families.slice(3).map(family => lightnessOf(computed(`${family}-default`)))
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  install('dark')
+  const dark = families.slice(3).map(family => lightnessOf(computed(`${family}-default`)))
+  dark.forEach((value, index) => expect(value).toBeGreaterThan(light[index] ?? 1))
+})
+
+test.each(['light', 'dark'] as const)(
+  'in a %s scheme, bedrock is darker than the base, and the focus ring is the accent',
+  scheme => {
+    install(scheme)
+    expect(lightnessOf(computed('surface-bedrock'))).toBeLessThan(
+      lightnessOf(computed('surface-base')),
+    )
+    expect(computed('outline-focus')).toBe(computed('accent-default'))
+  },
+)
+
+test('the error fill keeps light text in a dark scheme', () => {
+  install('dark')
+  expect(lightnessOf(computed('error-on-fill'))).toBeGreaterThan(
+    lightnessOf(computed('error-default')),
+  )
+})

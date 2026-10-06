@@ -20,7 +20,7 @@
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "specimen/**/*.ts", "tsdown.config.ts"],
   "references": [
     {
       "path": "../mixins/tsconfig.build.json"

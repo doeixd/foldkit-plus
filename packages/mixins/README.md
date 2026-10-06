@@ -339,10 +339,14 @@ feedback hues) and returns typed tokens for surfaces, text, outlines, and the ac
 tertiary and feedback families. Only the `knob` group holds literals; every other value is a CSS
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
 the derivation and one knob override recolors everything below it. Each family (`accent`,
-`secondary`, `tertiary`, `success`, `warning`, `error`, `info`) has a fill, `default`, and two
-text colors named for where they go: `on-fill` is text on that fill (near white on a mid accent),
-and `ink` is text in the family's color on the base surface, dark enough to read in a light scheme
-and light enough in a dark one. Colored text is `ink`, never `default`. `Theme.tokens` is the
+`secondary`, `tertiary`, `success`, `warning`, `error`, `info`) is one shape: a fill, `default`,
+lighter in a dark scheme; `hover` and `active`; `subtle`, a tint of it on the base; `outline`, a
+line in it that stands off the base; and two text colors named for where they go: `on-fill` is
+text on that fill (near white on a mid accent), and `ink` is text in the family's color on the
+base surface, dark enough to read in a light scheme and light enough in a dark one. Colored text
+is `ink`, never `default`. The surfaces are the base at a few lightnesses with its chroma, so a
+panel and a sidebar read as the page's own color; `bedrock` is the deepest of them in both
+schemes, and the focus ring, `outline.focus`, is the accent. `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 
 A theme reaches the page as pieces, and the page chooses the layers:
@@ -424,7 +428,9 @@ distinct value is its own class. `sidebar` and `switcher` are flex math and need
 
 `foldkit-mixins/defaults` is the baseline plain HTML gets before any slot is styled: `Defaults.reset`
 (box model, media, form-control fonts, reduced motion) and `body`, `headings`, `links`, `code`,
-`controls`, composed as `Defaults.all` (everything except `reset`). Each is element-selector CSS
+`controls`, composed as `Defaults.all` (everything except `reset`). Native checkboxes, radios and
+sliders take the accent (`accent-color`), selected text is the accent's tint, `kbd` is a raised
+key and `hr` one quiet line. Each is element-selector CSS
 under `:where()` over `--fk-*` tokens with a fallback, so a class rule always beats it and it reads
 with or without a theme. Headings are `text-overt` unless a container sets `--fk-heading`: a band
 drawn in its own color writes `Style.vars({ '--fk-heading': 'currentColor' })` and the headings

@@ -57,7 +57,9 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         ),
         tab: variant(
           Style.self({ borderRadius: ref.radius.md }),
-          Style.pseudo(selected, { background: ref.surface.base }),
+          // The accent's tint and ink, as a pressed Segmented option: the base
+          // surface on the tray barely differed from it in a dark scheme.
+          Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),
         ),
       },
     },

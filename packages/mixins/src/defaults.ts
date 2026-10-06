@@ -29,7 +29,9 @@ export const reset: StyleValue = global(
 export const body: StyleValue = global(
   // Scrollbars in the theme's line color, which keeps the page's hue, not the
   // browser's grey; inherited, so one rule reaches every scrolling panel.
-  `:where(:root){scrollbar-color:${v('outline-overt', 'auto')} transparent}` +
+  `:where(:root){scrollbar-color:${v('outline-overt', 'auto')} transparent;accent-color:${v('accent-default', 'auto')}}` +
+    // Selected text in the accent's tint rather than the browser's own blue.
+    `:where(::selection){background:color-mix(in oklab, ${v('accent-default', 'Highlight')} 28%, transparent)}` +
     `:where(body){font-family:${v('font-body', 'system-ui, sans-serif')};font-size:${v('size-md', '1rem')};line-height:${v('leading-normal', '1.5')};font-weight:${v('weight-normal', '400')};color:${v('text-default', 'CanvasText')};background:${v('surface-base', 'Canvas')};-webkit-font-smoothing:antialiased}`,
 )
 
@@ -63,7 +65,9 @@ export const links: StyleValue = global(
 export const code: StyleValue = global(
   [
     `:where(:is(code,kbd,samp,pre)){font-family:${v('font-mono', 'ui-monospace, monospace')};font-size:${v('size-sm', '0.875rem')}}`,
-    `:where(:not(pre)>code){padding:0.1em 0.35em;border-radius:${v('radius-sm', '3px')};background:${v('surface-subtle', 'transparent')};overflow-wrap:anywhere}`,
+    `:where(:not(pre)>code){padding:0.1em 0.35em;border-radius:${v('radius-sm', '3px')};background:${v('surface-muted', 'transparent')};overflow-wrap:anywhere}`,
+    `:where(kbd){padding:0.1em 0.4em;border:${v('border-thin', '1px')} solid ${v('outline-default', 'currentColor')};border-block-end-width:2px;border-radius:${v('radius-sm', '3px')};font-size:0.85em}`,
+    `:where(hr){border:0;border-block-start:${v('border-thin', '1px')} solid ${v('outline-subtle', 'currentColor')}}`,
     `:where(pre){padding:${v('space-md', '1rem')};border:${v('border-thin', '1px')} solid ${v('outline-subtle', 'transparent')};border-radius:${v('radius-md', '6px')};background:${v('surface-subtle', 'transparent')};overflow-x:auto;line-height:${v('leading-snug', '1.375')}}`,
   ].join(''),
 )

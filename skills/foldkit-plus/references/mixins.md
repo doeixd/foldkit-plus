@@ -371,8 +371,8 @@ mechanisms, not components: compose them into your own slots, resolving icon `ur
   `motion`, `border`, `shadow`, `breakpoint`; `shadow.xs`…`xl`/`inset` draw in `shadow.color`,
   which `Theme.oklch` sets per scheme). `Theme.oklch({ accent: { h, c, l }, … })` derives the
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
-  `error`, `info`; each family has a fill `default`, `on-fill` for text on it, and `ink` for
-  colored text on the base surface: colored text is `ink`, never `default`); only `knob` holds literals, so overriding `knob.accent-h` under a
+  `error`, `info`; each family has a fill `default` with `hover`/`active`, a tint `subtle`, a line `outline`,
+  `on-fill` for text on it, and `ink` for colored text on the base surface: colored text is `ink`, never `default`); only `knob` holds literals, so overriding `knob.accent-h` under a
   `Theme.scoped` selector recolors everything. Emit `Theme.root(theme, { omit: Theme.tokens })`
   after `Theme.root(Theme.tokens)` to avoid duplicates. The active theme is a Model field written
   as `data-theme` on the root. `Theme.breakpointWidths(Theme.tokens)` feeds the `Breakpoints`

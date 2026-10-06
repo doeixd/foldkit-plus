@@ -56,6 +56,8 @@ interface Tone {
   readonly fillHover: string
   readonly onFill: string
   readonly ink: string
+  /** The line an outlined control draws: the fill, unless the fill is too pale for a line. */
+  readonly line: string
 }
 
 const tone = (value: Tone): StyleValue =>
@@ -65,6 +67,7 @@ const tone = (value: Tone): StyleValue =>
       '--_fk-tone-fill-hover': value.fillHover,
       '--_fk-tone-on-fill': value.onFill,
       '--_fk-tone-ink': value.ink,
+      '--_fk-tone-line': value.line,
     }),
   )
 
@@ -74,7 +77,7 @@ const tone = (value: Tone): StyleValue =>
  */
 export const unfilledHover = 'color-mix(in oklab, currentColor 12%, transparent)'
 
-export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink'): string =>
+export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink' | 'line'): string =>
   `var(--_fk-tone-${name})`
 
 export const tones = {
@@ -83,17 +86,33 @@ export const tones = {
     fillHover: ref.accent.hover,
     onFill: ref.accent['on-fill'],
     ink: ref.accent.ink,
+    line: ref.accent.default,
   }),
+  // A quiet grey that still reads as a control: the neutral surface step was
+  // barely off the page, and as an outline's line it all but vanished.
   neutral: tone({
-    fill: ref.surface.default,
-    fillHover: ref.surface.overt,
+    fill: ref.outline.subtle,
+    fillHover: ref.outline.default,
     onFill: ref.text.overt,
     ink: ref.text.default,
+    line: ref.outline.default,
+  }),
+  /**
+   * Neutral as dark as the page's text: a checked control that stands out
+   * with no color, where the neutral surface would be a pale fill.
+   */
+  ink: tone({
+    fill: ref.text.default,
+    fillHover: ref.text.overt,
+    onFill: ref.surface.base,
+    ink: ref.text.default,
+    line: ref.text.default,
   }),
   danger: tone({
     fill: ref.error.default,
-    fillHover: ref.error.outline,
+    fillHover: ref.error.hover,
     onFill: ref.error['on-fill'],
     ink: ref.error.ink,
+    line: ref.error.outline,
   }),
 } as const

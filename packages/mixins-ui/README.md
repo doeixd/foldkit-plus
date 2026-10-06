@@ -440,7 +440,11 @@ What a recipe assumes and does:
 - **Tone and variant are independent.** A tone sets a few private custom
   properties that `solid`, `outline`, and `ghost` read — except `primary`,
   which is ink by definition, and `icon`, which fixes its own square geometry
-  (combine it with `size: null`, since a density would un-square it).
+  (combine it with `size: null`, since a density would un-square it). A tone
+  also carries the line an `outline` draws: the fill, or for `neutral`, whose
+  fill is a quiet grey, the page's default line. A neutral Checkbox or Switch
+  that is on is in the page's ink, not the neutral grey, so it stands out
+  without a color.
 - **On a colored band, unfilled buttons take the band's color.** `outline` and
   `ghost` draw their text in the tone's ink, which reads on the page's surface
   and not on a band of the accent. A band sets
@@ -494,6 +498,11 @@ const AddressStyle = Style.forSlots(FieldSlots)({
 
 `control` is in `variants`, so it wins over a `components` look on the same
 slot; over a look of your own in a later layer, say the same in that layer.
+
+`Recipes.Tabs({ variant: 'pill' })`'s chosen tab is the accent's tint and ink,
+as a pressed Segmented option is. To look at every recipe in every variant and
+state at once, in both schemes, write the specimen page:
+`pnpm --filter foldkit-mixins-ui specimen <out.html> [hue]`.
 
 `Recipes.Segmented` is a tray of toggle buttons where pressing selects — plain
 buttons, not `Tabs` (the group is `role="group"`, each option `aria-pressed`).

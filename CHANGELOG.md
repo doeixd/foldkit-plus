@@ -7,6 +7,26 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- **`foldkit-mixins`: `Theme.oklch`'s families are one shape, and hold up in a
+  dark scheme.** Every family has `default`, `hover`, `active`, `subtle`,
+  `outline`, `on-fill` and `ink`; `outline` steps away from the page in each
+  scheme, and the feedback fills are lighter in a dark one (the error fill
+  keeps light text). `surface.bedrock`, a dialog's backdrop, is the deepest
+  surface in a dark scheme too, where it was near-white, and `outline.focus`
+  is the accent itself rather than a darker, more saturated shift of it.
+- **`foldkit-mixins/defaults`:** native checkboxes, radios and sliders take
+  the accent, selected text is the accent's tint, `kbd` is a raised key, `hr`
+  one quiet line, and inline code sits on `surface.muted`.
+- **`foldkit-mixins-ui`: recipes over the palette.** A neutral Checkbox or
+  Switch that is on is in the page's ink (`tones.ink`), where the neutral
+  surface drew it paler on than off; the neutral tone's fill is a quiet grey
+  and an outlined control draws its tone's `line`, so a neutral outline can be
+  seen; a chosen pill tab is the accent's tint and ink; the danger tone hovers
+  to `error.hover`. `pnpm --filter foldkit-mixins-ui specimen` writes a page
+  of every recipe in every variant and state.
+
 ### Fixed
 
 - **Examples: the todo app's chosen filter is one color.** Its pill drew a grey

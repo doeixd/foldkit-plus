@@ -84,7 +84,8 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
   variants: {
     tone: {
       accent: { checkbox: tones.accent },
-      neutral: { checkbox: tones.neutral },
+      // Checked in the page's ink: the neutral surface was a pale fill under a dark mark.
+      neutral: { checkbox: tones.ink },
     },
     size: { sm: { checkbox: sizes.sm }, md: { checkbox: sizes.md }, lg: { checkbox: sizes.lg } },
   },
@@ -131,7 +132,8 @@ export const Switch = Style.recipeFor(SwitchSlots)({
   variants: {
     tone: {
       accent: { button: tones.accent },
-      neutral: { button: tones.neutral },
+      // On in the page's ink: the neutral surface was paler on than off.
+      neutral: { button: tones.ink },
     },
     size: { sm: { button: sizes.sm }, md: { button: sizes.md }, lg: { button: sizes.lg } },
   },
