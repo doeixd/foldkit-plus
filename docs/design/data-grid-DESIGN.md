@@ -207,8 +207,11 @@ Where it departs from §18:
   still in view; it watches nothing while `status` is busy. A view cannot send a Message as
   it draws, so the window's own end is no trigger: an element coming into
   view is.
-- **Not built:** the reference application over Remote with local-first
-  writes; the in-memory registry is below.
+- **What is a Behavior, and what an input (#157).** A feature that only
+  listens or decorates (attributes, a Mount) is a Behavior attached to the
+  view, as `MoreOnScroll` is; one that draws markup is an input of the view
+  that draws it, as `columnMenu` is, since a Behavior owns no markup.
+- **The reference application over Remote** is `examples/registry`, below.
 
 ## The reference application as built so far (2026-10-03)
 
