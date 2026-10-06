@@ -27,7 +27,6 @@ import { Move } from 'foldkit-primitives/dom'
 import { HoldFocus } from './holdFocus.js'
 import { KeepFocus } from './keepFocus.js'
 import { HeaderDrag } from './headerDrag.js'
-import { Nearing } from './nearEnd.js'
 import { CellPress } from './press.js'
 import { GridSlots } from './slots.js'
 
@@ -124,14 +123,11 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
   readonly status?: RowStatus
   /** Asks again after a failure; given, a failed grid shows a button that sends it. */
   readonly onRetry?: Message
-  /** Loads more rows; given, a grid whose count is not known yet shows a button that sends it. */
-  readonly onMore?: Message
   /**
-   * Also sends `onMore` when the More button comes within 200px of the grid's
-   * visible box, and again after each load while it stays there; the button
-   * stays for the keyboard. Nothing is asked while the grid is busy.
+   * Loads more rows; given, a grid whose count is not known yet shows a button
+   * that sends it. Attach `MoreOnScroll` to send it as the end comes into view.
    */
-  readonly moreOnScroll?: boolean
+  readonly onMore?: Message
   /**
    * A menu button on each header, opening the column's menu: pin it to the
    * start or the end or unpin it, hide it, or show a hidden column. On a
@@ -143,6 +139,15 @@ export interface GridInput<Row, Id extends string, GridMessage, Message> {
 }
 
 const px = (value: number): string => `${value}px`
+
+/** Whether the rows' source is reading: the grid says so, and asks for nothing more. */
+export const isBusy = (status: RowStatus | undefined): boolean =>
+  RowStatus.match(status ?? RowStatus.Ready(), {
+    Ready: () => false,
+    Loading: () => true,
+    Refreshing: () => true,
+    Failed: () => false,
+  })
 
 const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descending' | 'none' => {
   if (direction === 'asc') return 'ascending'
@@ -1184,12 +1189,7 @@ const view = <Message>() => ({
         const empty = addressableRows(projection.rowCount) === 0
 
         const status = input.status ?? RowStatus.Ready()
-        const busy = RowStatus.match(status, {
-          Ready: () => false,
-          Loading: () => true,
-          Refreshing: () => true,
-          Failed: () => false,
-        })
+        const busy = isBusy(status)
         const words = input.words ?? {}
         const failure = (message: string): ReadonlyArray<Html> => [
           h.p(slots.status.attrs([h.Role('alert')]), [
@@ -1238,14 +1238,9 @@ const view = <Message>() => ({
                   h.Type('button'),
                   h.Disabled(busy),
                   h.OnClick(message),
-                  // Keyed by the rows loaded, so each load observes afresh and a
-                  // button still in view asks again.
-                  ...(input.moreOnScroll === true && !busy
-                    ? [
-                        h.Key(`more:${addressableRows(projection.rowCount)}`),
-                        h.OnMount(Mount.mapMessage(Nearing(), () => message)),
-                      ]
-                    : []),
+                  // Keyed by the rows loaded and whether a load is in flight, so a
+                  // Mount attached to it (`MoreOnScroll`) starts afresh after each.
+                  h.Key(`more:${addressableRows(projection.rowCount)}:${busy}`),
                 ]),
                 [words.more ?? 'More'],
               ),

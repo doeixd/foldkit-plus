@@ -11,7 +11,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, RowCount, RowModel } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
-import { DataGridView, GridSlots } from 'foldkit-mixins-data-grid'
+import { DataGridView, GridSlots, MoreOnScroll } from 'foldkit-mixins-data-grid'
 import { afterEach, expect, test, vi } from 'vitest'
 
 interface Line {
@@ -35,6 +35,7 @@ const Sized = DataGridView<Message>()
     Style.attach(
       Style.forSlots(GridSlots)({ root: Style.inline({ height: '100px', width: '200px' }) }),
     ),
+    MoreOnScroll,
   )
 
 afterEach(() => {
@@ -74,7 +75,6 @@ test('the grid scrolled near its end asks for more; the page showing it does not
             headerHeight: 20,
             overscan: { rows: 40 },
             onMore: Message.AskedForMore(),
-            moreOnScroll: true,
           },
           h,
         ),

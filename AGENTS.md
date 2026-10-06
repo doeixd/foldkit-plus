@@ -951,7 +951,9 @@ of its own named a form field "fits the Catalog". Read words with
   but not `CHANGELOG.md`, which the plan requires in every change, and its
   unreleased entries went on naming APIs since removed. Before committing a
   public change, add its entry under Unreleased, and fix an unreleased entry
-  the change makes wrong rather than logging a removal of it.
+  the change makes wrong rather than logging a removal of it. When Unreleased
+  has no heading for the kind of change (`### Changed`), add it: two entries
+  were appended to the last release's `Changed` that way, and read as shipped.
 
 - **A declared option nothing reads is worse evidence of demand than no
   option.** `LivePolicy` was typed, documented, carried on the descriptor and

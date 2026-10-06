@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * More rows asked for as the end comes into view, on the real runtime: the
- * More button, given `moreOnScroll`, sends `onMore` when it comes within
+ * More button, with `MoreOnScroll` attached, sends `onMore` when it comes within
  * 200px of the grid's box, measured against the grid; nothing while it is
  * out of view or the grid is busy; and again once a load has added rows.
  */
@@ -12,7 +12,7 @@ import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, RowCount, RowModel, RowStatus } from 'foldkit-data-grid'
-import { DataGridView } from 'foldkit-mixins-data-grid'
+import { DataGridView, MoreOnScroll } from 'foldkit-mixins-data-grid'
 import { Frames } from 'foldkit-mixins/testing'
 import { afterEach, expect, test, vi } from 'vitest'
 
@@ -31,7 +31,7 @@ const Model = Schema.Struct({
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Placement.cases, AskedForMore: {}, Loaded: {} })
 type Message = typeof Message.Type
-const View = DataGridView<Message>().define(Grid)
+const View = DataGridView<Message>().define(Grid).pipe(MoreOnScroll)
 
 /** The loaded lines, with more to come. */
 const linesOf = (count: number): RowModel<Line> => {
@@ -74,7 +74,8 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-test('the end coming into view asks for more, once per load and not while loading', async () => {
+/** The grid on the real runtime over a source that says when it loads, or never does. */
+const mount = ({ reportsLoading }: { readonly reportsLoading: boolean }) => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -127,9 +128,10 @@ test('the end coming into view asks for more, once per load and not while loadin
                 label: 'Lines',
                 rowHeight: 20,
                 headerHeight: 20,
-                status: model.loading ? RowStatus.Loading() : RowStatus.Ready(),
+                ...(reportsLoading
+                  ? { status: model.loading ? RowStatus.Loading() : RowStatus.Ready() }
+                  : {}),
                 onMore: Message.AskedForMore(),
-                moreOnScroll: true,
               },
               h,
             ),
@@ -137,6 +139,18 @@ test('the end coming into view asks for more, once per load and not while loadin
         ),
     }),
   )
+  return {
+    latest: () => latest,
+    dispose: () => {
+      handle.dispose()
+      frames.dispose()
+    },
+    settle: () => frames.settle(),
+  }
+}
+
+test('the end coming into view asks for more, once per load and not while loading', async () => {
+  const { latest, dispose, settle } = mount({ reportsLoading: true })
   try {
     await vi.waitFor(() => expect(live()).toHaveLength(1))
     const [first] = live()
@@ -147,10 +161,10 @@ test('the end coming into view asks for more, once per load and not while loadin
 
     // Out of view asks nothing; coming in asks once, and loading stops watching.
     cross(false)
-    await frames.settle()
-    expect(latest.asked).toBe(0)
+    await settle()
+    expect(latest().asked).toBe(0)
     cross(true)
-    await vi.waitFor(() => expect(latest.asked).toBe(1))
+    await vi.waitFor(() => expect(latest().asked).toBe(1))
     await vi.waitFor(() => expect(live()).toHaveLength(0))
 
     // The load lands: more rows, and a fresh watch that asks again.
@@ -158,9 +172,23 @@ test('the end coming into view asks for more, once per load and not while loadin
     await vi.waitFor(() => expect(live()).toHaveLength(1))
     expect(live()[0]).not.toBe(first)
     cross(true)
-    await vi.waitFor(() => expect(latest.asked).toBe(2))
+    await vi.waitFor(() => expect(latest().asked).toBe(2))
   } finally {
-    handle.dispose()
-    frames.dispose()
+    dispose()
+  }
+})
+
+test('a source that never says it loads is watched afresh as its rows grow', async () => {
+  const { latest, dispose } = mount({ reportsLoading: false })
+  try {
+    await vi.waitFor(() => expect(live()).toHaveLength(1))
+    const [first] = live()
+    cross(true)
+    await vi.waitFor(() => expect(latest().asked).toBe(1))
+    document.getElementById('loaded')!.click()
+    await vi.waitFor(() => expect(live()[0]).not.toBe(first))
+    expect(live()).toHaveLength(1)
+  } finally {
+    dispose()
   }
 })

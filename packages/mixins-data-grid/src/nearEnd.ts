@@ -14,16 +14,18 @@ const ahead = '200px'
 /**
  * The element coming within 200px of the grid's visible box: one report each
  * time it comes in, measured against the scroll container it sits in, not
- * the page. No observer (SSR, an old browser) reports nothing.
+ * the page. Not `watching` (a load in flight), or no observer (SSR, an old
+ * browser), it reports nothing.
  */
 export const Nearing = Mount.defineStream('DataGridNearEnd', {
+  args: { watching: Schema.Boolean },
   messages: [NearEnd],
-  execute: ({ element }) =>
+  execute: ({ element, watching }) =>
     Stream.callback<typeof NearEnd.Type>(queue =>
       Effect.gen(function* () {
         const Observer = (globalThis as { IntersectionObserver?: ObserverCtor })
           .IntersectionObserver
-        if (Observer === undefined) return
+        if (!watching || Observer === undefined) return
         yield* Effect.acquireRelease(
           Effect.sync(() => {
             const observer = new Observer(

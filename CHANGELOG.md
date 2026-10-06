@@ -460,6 +460,21 @@ version changed; `pnpm` skips versions already in the registry.
   scroll** still reports `Revealed`: a DOM with no layout has no `scrollTo`,
   and the Command threw there.
 
+### Changed
+
+- **`foldkit-mixins-data-grid`: more on scroll is the `MoreOnScroll`
+  Behavior, not a `GridInput` flag.** `moreOnScroll: true` is gone: attach it
+  to the view, `DataGridView<Message>().define(Grid).pipe(MoreOnScroll)`. The
+  More button is now keyed by the rows loaded and whether a load is in
+  flight, whatever is attached (#157).
+- **`foldkit-sync/journal`: `editsJournal` takes `tableRevision`,** the
+  highest revision the table holds, required, for the check under Added. An edit to
+  a row the table lacks is documented as the journal's `validate` to refuse,
+  since recovery cannot refuse what has committed; the registry does so (#176).
+- **`foldkit-sync`: `Sync.transport.socket` takes a `url` or a `makeSocket`,
+  not both.** `makeSocket` takes no argument now, and a socket opened by one
+  needs no placeholder `url`; passing both is a type error (#167).
+
 ### Fixed
 
 - **`foldkit-remote-drizzle`: `contains` folds ASCII alone on Postgres too.**
@@ -572,13 +587,6 @@ client, `Remote.clientLayer` takes the stock `RpcClient` as it is.
 
 ### Changed
 
-- **`foldkit-sync/journal`: `editsJournal` takes `tableRevision`,** the
-  highest revision the table holds, required, for the check above. An edit to
-  a row the table lacks is documented as the journal's `validate` to refuse,
-  since recovery cannot refuse what has committed; the registry does so (#176).
-- **`foldkit-sync`: `Sync.transport.socket` takes a `url` or a `makeSocket`,
-  not both.** `makeSocket` takes no argument now, and a socket opened by one
-  needs no placeholder `url`; passing both is a type error (#167).
 - **`foldkit-entity`, a field's dependency names its owner:**
   `dependenciesOf` and `Query.dependencies` report each field as
   `{ entity, key, owner }` and keep one entry per Entity identity, so two

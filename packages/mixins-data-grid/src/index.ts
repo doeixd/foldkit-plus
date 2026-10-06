@@ -10,6 +10,7 @@
  */
 export { GridSlots } from './slots.js'
 export { GridStyle } from './style.js'
+export { MoreOnScroll } from './moreOnScroll.js'
 export {
   GridLegend,
   GridLegendSlots,

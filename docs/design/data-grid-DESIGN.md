@@ -200,10 +200,11 @@ Where it departs from §18:
 - **Loading and failure are a `RowStatus` the source's owner gives.** The
   grid holds none: Remote's `RemoteData` maps to it, and so can a store.
 - **Load-more is a button**, offered while the count is unknown, and with
-  `moreOnScroll` an IntersectionObserver on it, rooted at the grid, sends
-  `onMore` within 200px of view. The button is keyed by the rows loaded,
-  so after a load it observes afresh and asks again while still in view; it
-  watches nothing while `status` is busy. A view cannot send a Message as
+  the `MoreOnScroll` Behavior attached an IntersectionObserver on it, rooted
+  at the grid, sends `onMore` within 200px of view. The view keys the button
+  by the rows loaded and whether a load is in flight (a Mixin may not
+  contribute a Key), so after a load it observes afresh and asks again while
+  still in view; it watches nothing while `status` is busy. A view cannot send a Message as
   it draws, so the window's own end is no trigger: an element coming into
   view is.
 - **Not built:** the reference application over Remote with local-first
@@ -221,7 +222,7 @@ scrolls to the last product and checks the pinned column at full size.
 `examples/registry` is the same registry over Remote and Sync: a Drizzle
 server on SQLite seeded with 100,000 products, read a page at a time through
 a `Crud.list` (`GridCrud.rows` and `status`), sorted by the server through
-the query input, loaded more on scroll (`moreOnScroll`), with the column
+the query input, loaded more on scroll (`MoreOnScroll`), with the column
 menu. The edits are a Sync document: its slice is every product edited and
 the fields edited, its durable Message `EditedProducts`, and the server's
 journal applies each committed edit to the table through `recover`. A row is

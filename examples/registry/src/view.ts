@@ -17,6 +17,7 @@ import {
   GridMarkStyle,
   GridSlots,
   GridStyle,
+  MoreOnScroll,
 } from 'foldkit-mixins-data-grid'
 import { Grid, Message, Products, exchangeOf, marksOf, rowsOf, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
@@ -41,6 +42,8 @@ const Registry = DataGridView<Message>()
         }),
       }),
     ),
+    // The next page is read as the end comes into view.
+    MoreOnScroll,
   )
 
 /** What each mark on a cell means, each beside a swatch drawn by the cells' own rules. */
@@ -270,7 +273,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
           status: GridCrud.status(page),
           onRetry: Message.RetriedProducts(),
           onMore: Message.RequestedMoreProducts(),
-          moreOnScroll: true,
           // The orders the query offers; a header asks for one, and the Model reads it.
           // The column clicked, not the order it leads to: two clicks in one frame
           // toggle twice, from the Model as it is, not the order last drawn.

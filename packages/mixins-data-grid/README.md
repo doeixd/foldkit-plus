@@ -188,11 +188,12 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   page): the grid is `aria-busy` while loading or refreshing; with no rows
   it says loading, or the failure with a retry when `onRetry` is given; with
   rows, a failure is said in the `footer`, below them. `onMore` puts a More
-  button in the footer while the count is not known; with `moreOnScroll`
-  the button also sends it when it comes within 200px of the grid's
-  visible box, and again after each load while it stays there. Nothing is
-  asked while the grid is busy, so give `status` too: without it, the button
-  asks again each time it comes back into view before the page lands.
+  button in the footer while the count is not known. Attach `MoreOnScroll`
+  (`DataGridView<Message>().define(Grid).pipe(MoreOnScroll)`) and the button
+  also sends it when it comes within 200px of the grid's visible box, and
+  again after each load while it stays there. Nothing is asked while the
+  grid is busy, so give `status` too: without it, the button asks again each
+  time it comes back into view before the page lands.
 - **The column menu**, with `columnMenu: true`: each header has a button
   (`menuButton`, `aria-haspopup="menu"`) that opens a `role="menu"` below
   it, listing `Grid.menuItems`: pin to the start or the end or unpin, hide,
