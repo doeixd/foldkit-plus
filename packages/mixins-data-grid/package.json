@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-data-grid",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A foldkit-data-grid grid drawn as an accessible, virtualized WAI-ARIA grid through slots.",
   "keywords": [
     "foldkit",

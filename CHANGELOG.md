@@ -7,6 +7,42 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.16.0
+
+`foldkit-mixins` 0.8.0; `foldkit-mixins-ui` 0.7.0; `foldkit-primitives` 0.7.0;
+`foldkit-remote` 0.13.0; `foldkit-ssr` 0.4.0; `foldkit-cms` 0.5.0;
+`foldkit-agent-webmcp` 0.6.0. New: `foldkit-composition`, `foldkit-builder` and
+`foldkit-mixins-builder` 0.1.0, experimental. Republished to re-pin:
+`foldkit-cms-drizzle` 0.5.1, `foldkit-crud` 0.6.1, `foldkit-data-grid` 0.1.1,
+`foldkit-mixins-crud` 0.6.3, `foldkit-mixins-data-grid` 0.1.1,
+`foldkit-mixins-form` 0.4.3, `foldkit-mixins-richtext` 0.2.2,
+`foldkit-mixins-surface` 0.5.2, `foldkit-remote-drizzle` 0.10.1 and
+`foldkit-remote-server` 0.12.1, each of which pins a bumped package. Every
+other package is unchanged.
+
+**The page builder ships, and the themes hold together.** A page as Blocks in
+Regions, stored and checked against a Catalog, and the Builder that edits it,
+are published: drag a Block into any Region, an empty column included. The
+OKLCH theme derives every surface and line from the page's own color, so a
+dark scheme no longer pairs a grey page with a blue sidebar, and tints keep
+their tone's hue. A page the browser draws afresh stays in view until its
+reads answer, and WebMCP reaches older browsers and forms as declarative
+tools.
+
+### Upgrading from 0.15
+
+- **`AgentWebMcp.documentModelContext()` is `pageModelContext()`**
+  (`foldkit-agent-webmcp`), which also reads `navigator.modelContext`.
+- **`Cms.stateBadge(badge, h, state)` takes no attribute** (`foldkit-cms`): it
+  writes `Cms.stateAttribute` (`data-cms-state`), as the list does; style it
+  with `Recipes.Badge({ attribute: Cms.stateAttribute, tones })`.
+- **An inline shorthand beside a conditional inline longhand of it is refused**
+  (`foldkit-mixins`, `mixins:inline-shorthand-conflict`): write the state as a
+  rule (`Style.self`), or the whole shorthand in each state.
+- **`Theme.oklch`'s surfaces carry the base's chroma, no more**
+  (`foldkit-mixins`): a page that relied on panels more tinted than the page
+  raises `surfaceSaturation` instead.
+
 ### Added
 
 - **`foldkit-composition`, `foldkit-builder` and `foldkit-mixins-builder` are
@@ -46,11 +82,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- **`foldkit-mixins`: `Theme.oklch`'s surfaces keep the base's chroma.** A
-  surface step carried 1.7 to 2.2 times the base's chroma, so in a dark scheme
-  a sidebar or panel read as a bluer color beside a greyer page. Steps now keep
-  about the base's chroma and outlines a little more, so the page's tint is set
-  by `surfaceSaturation` alone; raise it for a more tinted page (the CMS uses
+- **`foldkit-mixins`: `Theme.oklch`'s surfaces and outlines step from the
+  base.** Each surface step and outline is the base at another lightness, in
+  its hue and with about its chroma (an outline a little more), so a sidebar, a
+  panel, a hover and a border read as the page's one color at a few
+  lightnesses, in both schemes. The outlines mixed near-neutral text into the
+  base, and read grey on a tinted page. The page's tint is set by
+  `surfaceSaturation` alone; raise it for a more tinted page (the CMS uses
   `0.012`).
 - **`foldkit-cms`: `stateBadge` writes `data-cms-state`,** as a list's state
   cell does, and takes no attribute: the badge wrote `data-state` and the cell
@@ -88,11 +126,6 @@ version changed; `pnpm` skips versions already in the registry.
   the condition stopped holding cleared the shorthand's part too: the todo
   demo's filter pills and checkboxes kept a black border after a state ended.
   Its filters and checkboxes now write their states as rules.
-- **`foldkit-mixins/theme`: surfaces and outlines keep the page's tint.** The
-  surface steps carried barely more of the base's chroma than the base, and
-  the outlines mixed near-neutral text into it, so on a tinted page a panel, a
-  hover and a border read grey. Each now steps from the base with clearly more
-  of its chroma, in both schemes.
 - **`foldkit-mixins-ui`: an icon button's glyph is centered.** The hidden words
   beside it kept the button's gap, which pushed the icon aside.
 
