@@ -167,22 +167,6 @@ describe('Theme.oklch', () => {
     expect(alpha(dark)).toBeGreaterThan(alpha(light))
   })
 
-  it('draws each outline as text over the base, so it separates in either scheme', () => {
-    const lines = [brand.outline.subtle, brand.outline.default, brand.outline.overt]
-    const percents = lines.map(value => {
-      const match =
-        /^color-mix\(in oklch, var\(--fk-text-default\) (\d+)%, var\(--fk-surface-base\)\)$/.exec(
-          value,
-        )
-      expect(match).not.toBeNull()
-      return Number(match?.[1])
-    })
-    expect(percents).toEqual([...percents].sort((a, b) => a - b))
-    expect(new Set(percents).size).toBe(3)
-    expect(brand.text.default).toContain('light-dark(')
-    expect(brand.surface.base).toContain('light-dark(')
-  })
-
   it('records the knobs as literals, with defaults filled', () => {
     expect(brand.knob['accent-h']).toBe('280')
     expect(brand.knob['accent-l']).toBe('60%')
@@ -230,7 +214,7 @@ describe('Theme.oklch', () => {
 
   it('derives surfaces by mixing the base toward a target by surface-contrast', () => {
     expect(brand.surface.default).toBe(
-      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.055) calc(c * 1.2) h), oklch(from var(--fk-surface-base) calc(l + 0.045) calc(c * 1) h)) var(--fk-knob-surface-contrast))',
+      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.055) calc(c * 2.2) h), oklch(from var(--fk-surface-base) calc(l + 0.045) calc(c * 1.9) h)) var(--fk-knob-surface-contrast))',
     )
   })
 

@@ -67,25 +67,15 @@ describe('stateBadge', () => {
 
   it('says New for no state, and a state in its words', () => {
     const fresh = draw((slots, h) => Cms.stateBadge(slots.badge, h, Option.none()))
-    expect(attrsOf(fresh)).toEqual({ 'data-state': 'New' })
+    expect(attrsOf(fresh)).toEqual({ [Cms.stateAttribute]: 'New' })
     expect(Inert.text(fresh)).toBe('New')
     const published = draw((slots, h) =>
       Cms.stateBadge(slots.badge, h, Option.some({ _tag: 'Published', schedule: null })),
     )
-    expect(attrsOf(published)).toEqual({ 'data-state': 'Published' })
+    expect(attrsOf(published)).toEqual({ [Cms.stateAttribute]: 'Published' })
     expect(Inert.text(published)).toBe('Published')
-  })
-
-  it('writes the attribute it is given', () => {
-    const badge = draw((slots, h) =>
-      Cms.stateBadge(slots.badge, h, Option.some({ _tag: 'Changed', schedule: null }), 'x'),
-    )
-    expect(attrsOf(badge)).toEqual({ 'data-x': 'Changed' })
-  })
-
-  it('writes the given attribute for no state too', () => {
-    const badge = draw((slots, h) => Cms.stateBadge(slots.badge, h, Option.none(), 'x'))
-    expect(attrsOf(badge)).toEqual({ 'data-x': 'New' })
+    // The name a list's state cell writes too, so one tone rule styles both.
+    expect(Cms.stateAttribute).toBe('data-cms-state')
   })
 })
 

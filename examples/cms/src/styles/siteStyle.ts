@@ -7,7 +7,19 @@ import { Loading } from 'foldkit-mixins-crud'
 import { Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
-import { app, button, control, L, navLink, part, phone, serif, skipLink, t } from './style.js'
+import {
+  app,
+  button,
+  control,
+  controlHeight,
+  L,
+  navLink,
+  part,
+  phone,
+  serif,
+  skipLink,
+  t,
+} from './style.js'
 
 // --- the public site --------------------------------------------------------------
 
@@ -104,10 +116,11 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     }),
     nav: L.in('layouts', Layout.cluster({ gap: '2px', align: 'center' })),
     navLink,
+    // The accent's solid button, as the studio's primary actions are, at a row's height.
     studio: Style.compose(
-      button({ variant: 'primary', size: 'sm' }),
+      button({ tone: 'accent', variant: 'solid', size: 'sm' }),
       Touch.target,
-      Style.self({ marginInlineStart: t.space.xs }),
+      Style.self({ marginInlineStart: t.space.xs, minBlockSize: controlHeight }),
     ),
     // A fourth link wrapped the studio's button under the others on a phone.
     source: Style.compose(navLink, Style.media(phone, { display: 'none' })),

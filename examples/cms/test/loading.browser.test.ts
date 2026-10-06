@@ -67,9 +67,9 @@ it('shows an entry being read with no state, not as New, until its state is read
   )
   dispose = () => handle.dispose()
   await expect.poll(() => document.querySelector('#status')?.getAttribute('aria-busy')).toBe('true')
-  expect(document.querySelector('#editor [data-state]')).toBeNull()
+  expect(document.querySelector('#editor [data-cms-state]')).toBeNull()
   release()
-  await expect.poll(() => text('#editor [data-state]')).toBe('Published')
+  await expect.poll(() => text('#editor [data-cms-state]')).toBe('Published')
   expect(document.querySelector('#status')?.hasAttribute('aria-busy')).toBe(false)
 })
 
@@ -119,7 +119,7 @@ it('opens a post previewed when its address says so, once the post has loaded', 
   )
   dispose = () => handle.dispose()
   release()
-  await expect.poll(() => text('#editor [data-state]')).toBe('Published')
+  await expect.poll(() => text('#editor [data-cms-state]')).toBe('Published')
   await expect
     .poll(() => document.querySelector('#preview')?.getAttribute('aria-pressed'))
     .toBe('true')
@@ -153,7 +153,7 @@ const postsAt = async (search: string) => {
 
 it('comes back to something new on a reload, under the id its address names', async () => {
   const model = await postsAt('as=edda&new=entry-never-saved')
-  await expect.poll(() => text('#editor [data-state]')).toBe('New')
+  await expect.poll(() => text('#editor [data-cms-state]')).toBe('New')
   expect(Posts.PostEditor.entry(model())).toEqual(Option.some('entry-never-saved'))
   // Still new: the address goes on naming it `new` until its first save.
   expect(Posts.PostEditor.storedEntry(model())).toEqual(Option.none())
@@ -161,7 +161,7 @@ it('comes back to something new on a reload, under the id its address names', as
 
 it('opens what a first save already made, rather than beginning it again', async () => {
   await postsAt('as=edda&new=entry-post-drafts')
-  await expect.poll(() => text('#editor [data-state]')).toBe('Published')
+  await expect.poll(() => text('#editor [data-cms-state]')).toBe('Published')
   expect(document.querySelector<HTMLTextAreaElement>('#editor textarea')?.value).toBe(
     'Saving is not publishing',
   )

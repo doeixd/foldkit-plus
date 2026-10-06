@@ -10,7 +10,7 @@
  */
 import { Capability, Layers, Slot, Style } from 'foldkit-mixins'
 import { Recipes, Touch } from 'foldkit-mixins-ui'
-import type { StateTag } from 'foldkit-cms'
+import { Cms, type StateTag } from 'foldkit-cms'
 import { Theme } from 'foldkit-mixins/theme'
 
 export const theme = Theme.compose(
@@ -32,6 +32,12 @@ export const app = L.layer('app')
 
 export const part = Slot.make({ capability: Capability.Container })
 export const control = Slot.make({ capability: Capability.Interactive })
+
+/**
+ * One height for the controls in a row (a button, a search box, tabs), so they
+ * line up, in the studio and on the site.
+ */
+export const controlHeight = '2.25rem'
 
 /** Where the studio lays itself out for a phone rather than beside a sidebar. */
 export const phone = '(max-width: 52rem)'
@@ -141,6 +147,5 @@ export const stateTones: Record<StateTag, Recipes.BadgeTone> = {
   Archived: 'error',
 }
 
-/** An entry's state as a pill: the recipe with the entry's tones. */
-export const stateBadge = (attribute: string) =>
-  Recipes.Badge({ attribute, tones: stateTones }).badge
+/** An entry's state as a pill: the recipe with the entry's tones, on the attribute the CMS writes. */
+export const stateBadge = Recipes.Badge({ attribute: Cms.stateAttribute, tones: stateTones }).badge

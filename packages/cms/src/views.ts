@@ -10,27 +10,27 @@ import { Display } from 'foldkit-crud'
 import type { SlotView } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { RemoteData } from 'foldkit-remote'
-import { Kinds } from './kinds.js'
+import { Kinds, stateAttribute } from './kinds.js'
 import type { State, Transition } from './lifecycle.js'
 
 /** Whether the entry's state is one of `tags`; an entry with no state yet is none of them. */
 export const stateIs = (state: Option.Option<State>, ...tags: ReadonlyArray<State['_tag']>) =>
   Option.exists(state, known => tags.includes(known._tag))
 
-/** An entry's state as a badge: its tag is its color, its words the CMS's. */
+/**
+ * An entry's state as a badge: its tag is its color, its words the CMS's. The
+ * tag is in `stateAttribute`, as a list's state cell writes it.
+ */
 export const stateBadge = <M>(
   badge: SlotView.SlotBuilder<M>,
   h: HtmlBuilder<M>,
   state: Option.Option<State>,
-  attribute = 'state',
 ): Html =>
   Option.match(state, {
     // Something new has no entry yet, so no state: it is new all the same.
-    // `attribute` is the raw name: the view writes `data-<attribute>`, which
-    // the badge's tone selectors hook.
-    onNone: () => h.span(badge.attrs([h.DataAttribute(attribute, 'New')]), ['New']),
+    onNone: () => h.span(badge.attrs([h.Attribute(stateAttribute, 'New')]), ['New']),
     onSome: known =>
-      h.span(badge.attrs([h.DataAttribute(attribute, known._tag)]), [
+      h.span(badge.attrs([h.Attribute(stateAttribute, known._tag)]), [
         Display.show(Kinds.Display.State.of({}), known),
       ]),
   })

@@ -11,6 +11,7 @@ import {
   app,
   button,
   control,
+  controlHeight,
   field,
   hiddenDeclarations,
   L,
@@ -23,9 +24,6 @@ import {
 } from './style.js'
 
 // --- the authoring shell --------------------------------------------------------
-
-/** One height for a row's controls, so New post, the search box and the tabs line up. */
-const controlHeight = '2.25rem'
 
 /**
  * A disclosure's summary: a drawn chevron in place of the browser's marker,
@@ -354,15 +352,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         paddingBlockEnd: t.space.sm,
       }),
     ),
-    // The chosen tab is tinted with the accent, flat: no tray, no raised pill.
-    tabs: Style.compose(
-      Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
-      Style.nest('> [aria-pressed="true"]', {
-        background: t.accent.subtle,
-        boxShadow: 'none',
-        color: t.accent.ink,
-      }),
-    ),
+    tabs: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
     // A tab and a toolbar button are whole controls a finger aims at, so they
     // take the floor both ways round; `Touch.targets` gives the controls in a
     // region height only, which leaves a short one as narrow as its words.
@@ -580,7 +570,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     ),
     muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
     // The attribute `Cms.stateBadge` writes.
-    badge: stateBadge('data-cms-state'),
+    badge: stateBadge,
     // As tall as the tabs and buttons beside it, not a form's full field.
     search: Style.compose(
       field,

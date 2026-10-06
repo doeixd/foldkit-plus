@@ -106,6 +106,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
             height: '2rem',
             padding: '0',
             fontSize: '0',
+            // The words are hidden, not gone: a gap beside them pushed the icon off center.
+            gap: '0',
           }),
           hover({ background: toneVar('wash'), color: ref.text.overt }),
         ),

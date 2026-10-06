@@ -27,7 +27,7 @@ import { editorView, makeEditor } from './editor.js'
 import { historyCard, moreCard, revisionsOf, stateBadge, stateIs } from './views.js'
 import { addressFree, slugTaken } from './slug.js'
 import { Display } from 'foldkit-crud'
-import { Kinds } from './kinds.js'
+import { Kinds, stateAttribute } from './kinds.js'
 
 export type { Facts, Schedule, State, StateTag, Transition } from './lifecycle.js'
 
@@ -423,6 +423,11 @@ export const Cms = {
    * studio and its lists say them one way.
    */
   stateBadge,
+  /**
+   * The attribute every state the CMS draws is written in, `data-cms-state`:
+   * a badge's tone rules select on it, `[${Cms.stateAttribute}="Published"]`.
+   */
+  stateAttribute,
   /** Whether the entry's state is one of the given tags; no state yet is none of them. */
   stateIs,
   revisionsOf,

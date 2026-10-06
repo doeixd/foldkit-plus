@@ -215,17 +215,21 @@ describe('Recipes', () => {
     expect(css).toContain('height:2rem')
     expect(css).toContain('padding:0')
     expect(css).toContain('font-size:0')
+    // No gap beside the hidden words, which pushed the glyph off center.
+    expect(css).toContain('gap:0')
   })
 
   describe('Segmented', () => {
     const css = (selection: Parameters<typeof Recipes.Segmented>[0]): string =>
       Style.forSlots(SegmentedSlots)(Recipes.Segmented(selection)).css
 
-    it('raises the pressed option from the group, for text and icon tiles alike', () => {
-      expect(css({})).toContain('> [aria-pressed="true"]')
-      expect(css({})).toContain('background:var(--fk-surface-base)')
-      expect(css({})).toContain('box-shadow:var(--fk-shadow-xs)')
-      expect(css({})).toContain('font-weight:var(--fk-weight-semibold)')
+    it('tints the pressed option, flat, for text and icon tiles alike', () => {
+      // In the variants layer, so an icon button's own background (a variant) does not hide it.
+      const pressed = /@layer variants\{[^@]*> \[aria-pressed="true"\]\{([^}]*)\}/.exec(css({}))
+      expect(pressed?.[1]).toContain('background:var(--fk-accent-subtle)')
+      expect(pressed?.[1]).toContain('color:var(--fk-accent-ink)')
+      expect(pressed?.[1]).toContain('box-shadow:none')
+      expect(pressed?.[1]).toContain('font-weight:var(--fk-weight-semibold)')
     })
 
     it('lays a tray or a plain row', () => {

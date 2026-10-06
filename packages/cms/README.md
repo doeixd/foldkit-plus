@@ -251,7 +251,9 @@ EntryTable({ page, renderers: Cms.displayRenderers() }, h)
 and its times are `Moment`s, so a `Crud.list` over `Cms.Entries` needs only the
 renderers.
 
-Entry-level views live beside the kinds: `Cms.stateBadge` for the state,
+Entry-level views live beside the kinds: `Cms.stateBadge` for the state
+(written in `Cms.stateAttribute`, `data-cms-state`, as a list's state cell
+is, so one tone rule styles both),
 `Cms.revisionsOf` for the open entry's published revisions, `Cms.historyCard`
 for the timeline, `Cms.moreCard` for the rest of what can happen to it. They
 draw on your own slot builders, so you keep your slots and styles; who

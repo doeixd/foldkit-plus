@@ -61,10 +61,6 @@ const ink = (color: string) => ld(from(color, '0.5', 'c'), from(color, '0.8', 'c
 const tint = (color: string, percent: number) =>
   `color-mix(in oklab, ${v('surface', 'base')} ${percent}%, ${color})`
 
-/** The default text color at `percent` over the base surface. */
-const line = (percent: number) =>
-  `color-mix(in oklch, ${v('text', 'default')} ${percent}%, ${v('surface', 'base')})`
-
 const neutral = v('hue', 'neutral')
 const base = v('surface', 'base')
 const surfaceC = v('knob', 'surface-c')
@@ -144,9 +140,11 @@ export const oklch = (knobs: OklchKnobs) => {
         `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
         `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
       ),
-      muted: surfaceStep([-0.04, 0.8], [-0.03, 0.5]),
-      subtle: surfaceStep([-0.025, 1.05], [-0.015, 0.7]),
-      default: surfaceStep([-0.055, 1.2], [0.045, 1]),
+      // Each step keeps clearly more of the base's tint than the base, so a
+      // panel, a hover or a well reads as the page's color, not grey on it.
+      muted: surfaceStep([-0.04, 2], [-0.03, 1.8]),
+      subtle: surfaceStep([-0.025, 1.8], [-0.015, 1.7]),
+      default: surfaceStep([-0.055, 2.2], [0.045, 1.9]),
       overt: surfaceStep([-0.31, 2.25], [0.125, 1.2]),
       bedrock: ld(
         `oklch(8% calc(${surfaceC} * 1.2) ${neutral})`,
@@ -161,12 +159,14 @@ export const oklch = (knobs: OklchKnobs) => {
       link: shift(accent, 0.1, 0.05),
       'link-hover': shift(v('text', 'link'), -0.1, 0),
     },
-    // Text mixed into the base: darker than the surface in a light scheme,
-    // lighter in a dark one, so a line separates in both from one expression.
+    // Steps from the base, as the surfaces are: darker in a light scheme,
+    // lighter in a dark one, and in the base's own hue with a little more of
+    // its chroma. Text mixed into the base, as they were, came out grey on a
+    // tinted page: the text is near-neutral, so the mix lost the tint.
     outline: {
-      subtle: line(10),
-      default: line(18),
-      overt: line(35),
+      subtle: ld(scale(base, -0.07, 1.8), scale(base, 0.065, 1.8)),
+      default: ld(scale(base, -0.13, 2.1), scale(base, 0.12, 2)),
+      overt: ld(scale(base, -0.27, 2.4), scale(base, 0.23, 2.2)),
       focus: shift(accent, -0.1, 0.1),
     },
     accent: family(

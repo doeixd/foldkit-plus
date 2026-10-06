@@ -5,6 +5,7 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { ListSlots, Loading } from 'foldkit-mixins-crud'
 import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
+import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { app, button, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
 
@@ -35,6 +36,22 @@ const onKey = (keys: ReadonlyArray<string>, piece: StyleValue) =>
   Style.whenInput(keyIs(...keys), piece)
 
 /**
+ * The address's input inside its group, borderless, the group drawing the
+ * box. `Recipes.InputGroup.control` says the same in the variants layer; the
+ * text slot's `field` is in `app`, which would win over it, so here it is.
+ */
+const inGroup = Style.compose(
+  Style.self({
+    background: 'transparent',
+    border: '0',
+    flex: '1',
+    minInlineSize: '0',
+    paddingInlineStart: t.space['3xs'],
+  }),
+  Style.pseudo(':focus-visible', { outline: 'none' }),
+)
+
+/**
  * A post's form as a page to write on: the title large, the excerpt beneath it
  * as a standfirst, the body in a serif with room to think, and the address and
  * cover set apart at the end. Each is placed by its key with `order`, since the
@@ -58,8 +75,9 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
       ),
       onKey(['cover'], Style.self({ order: '5' })),
     ),
-    group: Style.self({ alignItems: 'center', display: 'flex' }),
-    affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
+    // An address's `/` inside the field, as one box: the recipe's pieces.
+    group: Recipes.InputGroup.group,
+    affix: Recipes.InputGroup.affix,
     label: Style.compose(
       Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
       onKey(['title', 'excerpt', 'body'], visuallyHidden),
@@ -69,7 +87,7 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
       onKey(['title', 'excerpt', 'body'], visuallyHidden),
     ),
     error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
-    text: field,
+    text: Style.compose(field, onKey(['slug'], inGroup)),
     multiline: Style.compose(
       field,
       Style.self({ minHeight: '5rem', resize: 'vertical' }),
@@ -128,8 +146,9 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
       L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
       onKey(['document'], Style.self({ gridColumn: '1 / -1', marginBlockStart: t.space.sm })),
     ),
-    group: Style.self({ alignItems: 'center', display: 'flex' }),
-    affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
+    // An address's `/` inside the field, as one box: the recipe's pieces.
+    group: Recipes.InputGroup.group,
+    affix: Recipes.InputGroup.affix,
     label: Style.compose(
       Style.self({ color: t.text.muted, fontSize: t.size.xs, fontWeight: t.weight.semibold }),
       onKey(['document'], visuallyHidden),
@@ -138,6 +157,7 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
     error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
     text: Style.compose(
       field,
+      onKey(['slug'], inGroup),
       onKey(['title'], Style.self({ fontSize: t.size.lg, fontWeight: t.weight.semibold })),
     ),
   },
@@ -176,7 +196,7 @@ export const FormStyle = Style.forSlots(FormSlots)(
 export const ListStyle = Style.forSlots(ListSlots)(
   {
     table: Style.self({ borderCollapse: 'collapse', fontSize: t.size.sm, width: '100%' }),
-    badge: stateBadge('data-cms-state'),
+    badge: stateBadge,
     headCell: Style.self({
       borderBottom: `1px solid ${t.outline.subtle}`,
       color: t.text.muted,

@@ -79,3 +79,47 @@ export const Textarea = Style.recipeFor(TextareaSlots)({
   },
   defaults: { size: 'md', variant: 'outline' },
 })
+
+/**
+ * A text field with a prefix or suffix, such as an address's `/`: pieces for
+ * the application's own group, affix and control slots, drawn as one field.
+ * The group carries the border, its hover and the focus ring (while the
+ * control inside has focus); the affix sits inside it, muted; the control
+ * inside goes borderless and transparent, so the two read as one box.
+ */
+export const InputGroup: {
+  readonly group: StyleValue
+  readonly affix: StyleValue
+  readonly control: StyleValue
+} = {
+  group: component(
+    Style.self({
+      display: 'flex',
+      alignItems: 'center',
+      border: `${ref.border.thin} solid ${ref.outline.default}`,
+      borderRadius: ref.radius.md,
+      background: ref.surface.base,
+      ...transition('border-color'),
+    }),
+    Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
+    Style.pseudo(':focus-within', {
+      outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+      outlineOffset: '2px',
+    }),
+    Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
+  ),
+  affix: component(
+    Style.self({ color: ref.text.muted, paddingInlineStart: ref.space.sm, whiteSpace: 'nowrap' }),
+  ),
+  // In the variants layer, so it wins over a field's own look composed on the same slot.
+  control: variant(
+    Style.self({
+      flex: '1',
+      minInlineSize: '0',
+      border: '0',
+      background: 'transparent',
+      paddingInlineStart: ref.space['3xs'],
+    }),
+    Style.pseudo(':focus-visible', { outline: 'none' }),
+  ),
+}

@@ -300,7 +300,9 @@ component's own `aria-checked` / `aria-selected` / `aria-disabled`. No recipe de
 style, so `Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }, { layer: L.layer('app') })` overrides any of
 them by layer order alone. `Recipes.Badge` differs: it is a function taking the attribute and a
 value-to-tone map (`Badge({ attribute: 'data-state', tones: { Published: 'success' } }).badge`),
-because one style serves badges in every state and every tone is present at once. `Touch`
+because one style serves badges in every state and every tone is present at once.
+`Recipes.InputGroup` (`group`, `affix`, `control`) draws a prefixed or suffixed field as one
+box; a `Segmented` pressed option is the accent's flat tint. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style
 mechanisms, not components: compose them into your own slots, resolving icon `url(…)`s yourself.
 

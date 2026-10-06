@@ -1,9 +1,11 @@
 /**
  * A segmented control: a tray of toggle buttons where pressing selects. The
- * pressed option rises from the tray: that rule lives on the group
+ * pressed option takes the accent's tint, flat: that rule lives on the group
  * (`> [aria-pressed="true"]`), so icon tiles take the group piece alone and
- * share it with text options. The tray sets no `display`: the Builder owns
- * its narrow tabs' visibility, and every other tray lays itself out.
+ * share it with text options. It is in the variants layer, so an option drawn
+ * by another recipe (an icon button, whose own background is a variant) still
+ * shows it. The tray sets no `display`: the Builder owns its narrow tabs'
+ * visibility, and every other tray lays itself out.
  */
 import { Style } from 'foldkit-mixins'
 import { SegmentedSlots } from '../segmented.js'
@@ -13,12 +15,12 @@ const pressed = '[aria-pressed="true"]'
 
 export const Segmented = Style.recipeFor(SegmentedSlots)({
   base: {
-    group: component(
+    group: variant(
       // One pressed rule for text and icon tiles alike.
       Style.nest(`> ${pressed}`, {
-        background: ref.surface.base,
-        boxShadow: ref.shadow.xs,
-        color: ref.text.overt,
+        background: ref.accent.subtle,
+        boxShadow: 'none',
+        color: ref.accent.ink,
         cursor: 'default',
         fontWeight: ref.weight.semibold,
       }),

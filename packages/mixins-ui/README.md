@@ -474,12 +474,32 @@ const EntryStyle = Style.forSlots(EntrySlots)(
 ```
 
 Like the variant recipes it reads `Theme.tokens` and `Theme.oklch` tokens and
-keeps the base in `components` with each tone in `variants`.
+keeps the base in `components` with each tone in `variants`. A toned pill is
+grounded on its tone's `subtle`, which keeps the tone's hue over a tinted page.
+
+`Recipes.InputGroup` draws a text field with a prefix or suffix, such as an
+address's `/`, as one box: `group` carries the border, its hover and the
+focus ring (while the control inside has focus), `affix` sits inside it,
+muted, and `control` makes the input inside borderless. They are pieces for
+your own group, affix and control slots, as `foldkit-mixins-form`'s field
+publishes them:
+
+```ts
+const AddressStyle = Style.forSlots(FieldSlots)({
+  group: Recipes.InputGroup.group,
+  affix: Recipes.InputGroup.affix,
+  text: Style.compose(Recipes.Input({}).input ?? Style.empty, Recipes.InputGroup.control),
+})
+```
+
+`control` is in `variants`, so it wins over a `components` look on the same
+slot; over a look of your own in a later layer, say the same in that layer.
 
 `Recipes.Segmented` is a tray of toggle buttons where pressing selects — plain
 buttons, not `Tabs` (the group is `role="group"`, each option `aria-pressed`).
-The pressed option rises from the tray: that rule lives on the group, so icon
-tiles take the group piece alone. `tray` is a muted tray or a plain row (which
+The pressed option takes the accent's tint, flat: that rule lives on the
+group, in `variants`, so icon tiles take the group piece alone, and an icon
+button's own background, a variant too, does not hide it. `tray` is a muted tray or a plain row (which
 sets no `display`: the Builder owns its narrow tabs' visibility); `size` is
 text density:
 

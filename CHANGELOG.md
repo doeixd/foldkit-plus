@@ -7,7 +7,33 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-mixins-ui`: `Recipes.InputGroup`,** pieces for a text field with
+  a prefix or suffix drawn as one box: the group carries the border and the
+  focus ring, the affix sits inside, the control goes borderless.
+- **`foldkit-cms`: `Cms.stateAttribute`,** `data-cms-state`, the one attribute
+  every state the CMS draws is written in.
+
+### Changed
+
+- **`foldkit-cms`: `stateBadge` writes `data-cms-state`,** as a list's state
+  cell does, and takes no attribute: the badge wrote `data-state` and the cell
+  `data-cms-state`, so one of them was always untoned. Style both with
+  `Recipes.Badge({ attribute: Cms.stateAttribute, tones })`.
+- **`foldkit-mixins-ui`: a `Segmented` pressed option is the accent's tint,**
+  flat, in the `variants` layer, where an icon button's own background no
+  longer hides it.
+
 ### Fixed
+
+- **`foldkit-mixins/theme`: surfaces and outlines keep the page's tint.** The
+  surface steps carried barely more of the base's chroma than the base, and
+  the outlines mixed near-neutral text into it, so on a tinted page a panel, a
+  hover and a border read grey. Each now steps from the base with clearly more
+  of its chroma, in both schemes.
+- **`foldkit-mixins-ui`: an icon button's glyph is centered.** The hidden words
+  beside it kept the button's gap, which pushed the icon aside.
 
 - **`foldkit-mixins/theme`: a tone's `subtle` keeps the tone's hue.** The
   tint was mixed in OKLCH, which interpolates hue, so a mix mostly of a

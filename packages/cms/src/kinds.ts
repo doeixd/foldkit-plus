@@ -11,6 +11,12 @@ import { Input, fillWords, type Control, type ControlChange, type Draft } from '
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import type { State } from './lifecycle.js'
 
+/**
+ * The attribute an entry's state is written in, wherever the CMS draws one (a
+ * list's state cell, `stateBadge`): one name, so one tone rule styles both.
+ */
+export const stateAttribute = 'data-cms-state'
+
 /** Text as an address: lower case, unaccented, words joined by `-`. */
 export const slugify = (text: string): string =>
   text
@@ -209,7 +215,7 @@ export const Kinds = {
         badge.attrs(
           isState(value)
             ? [
-                h.DataAttribute('cms-state', value._tag),
+                h.Attribute(stateAttribute, value._tag),
                 ...(scheduleOf(value) === undefined
                   ? []
                   : [h.DataAttribute('cms-schedule', scheduleOf(value)!)]),

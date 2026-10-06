@@ -14,4 +14,26 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'a surface step keeps as little of the tint as the base',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: 'muted: surfaceStep([-0.04, 2], [-0.03, 1.8]),',
+        replace: 'muted: surfaceStep([-0.04, 0.8], [-0.03, 0.5]),',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'an outline keeps as little of the tint as the base',
+    edits: [
+      {
+        file: '../src/theme/oklch.ts',
+        find: 'default: ld(scale(base, -0.13, 2.1), scale(base, 0.12, 2)),',
+        replace: 'default: ld(scale(base, -0.13, 1.1), scale(base, 0.12, 1)),',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
 ]
