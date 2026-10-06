@@ -22,6 +22,7 @@ import {
   type ModelRef,
   type Projection,
   type Surface,
+  type SurfaceSource,
   type Wiring,
 } from 'foldkit-surface'
 import {
@@ -278,6 +279,17 @@ export interface DomainMutateOptions {
   readonly now?: (() => number) | undefined
 }
 
+/**
+ * One entry of the active record `subscriptions`, `wiring` and `satisfy`
+ * take: a Surface as the Model activates it (`Surface.at`/`Surface.when`),
+ * a source of keyed instances (`Surface.each`, or any `SurfaceSource`), or a
+ * Surface without params read whole. A family joins its parent's
+ * requirements with its instances', so passing the family alone fetches both
+ * the page and what the page reveals.
+ */
+export type ActiveEntry<AppModel> =
+  ActiveSurface<AppModel> | Surface<AppModel, any, any, void> | SurfaceSource<AppModel>
+
 /** A Foldkit Subscription entry of the Remote domain, emitting its Messages through `RemoteClient`. */
 export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
   AppModel,
@@ -410,7 +422,8 @@ export interface RemoteDomain<
     model: AppModel,
     projection: QueryProjection<AppModel, any, Name, Input>,
     options?: {
-      readonly surfaces?: Readonly<Record<string, ActiveSurface<AppModel>>> | undefined
+      readonly surfaces?:
+        Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>> | undefined
     },
   ): QueryExplanation
   /**
@@ -426,7 +439,8 @@ export interface RemoteDomain<
     model: AppModel,
     projection: Projection<AppModel, RemoteData<unknown>>,
     options?: {
-      readonly surfaces?: Readonly<Record<string, ActiveSurface<AppModel>>> | undefined
+      readonly surfaces?:
+        Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>> | undefined
     },
   ): ReadDiagnosis
   /**
@@ -484,20 +498,18 @@ export interface RemoteDomain<
     projectionOf: (model: AppModel) => Option.Option<Projection<AppModel, Value>>,
   ): ActiveSurface<AppModel>
   /**
-   * The Foldkit Subscription entries for the active Surfaces, keyed for
-   * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
-   * entry per Surface that reads through `live` (`Remote.live`), and one
-   * retain entry (`Remote.retain`). Retention is the domain's: the retain
-   * entry of every call roots the active Surfaces of every call, so reads
-   * split over calls (one per policy) do not collect each other's data. A
-   * Surface's params are a function of the Model (`Surface.at`), so what is
-   * fetched, subscribed, and retained follows the Model.
+   * The Foldkit Subscription entries for the active record, keyed for
+   * `Subscription.make`: a read entry per record entry (`Remote.observe`), a
+   * live entry per record entry that reads through `live` (`Remote.live`), and
+   * one retain entry (`Remote.retain`). A `Surface.each` family is one record
+   * entry whose read unions its parent's requirements with its instances'.
+   * Retention is the domain's: the retain entry of every call roots the active
+   * Surfaces of every call, so reads split over calls (one per policy) do not
+   * collect each other's data. A Surface's params are a function of the Model
+   * (`Surface.at`), so what is fetched, subscribed, and retained follows the
+   * Model.
    */
-  subscriptions<
-    const Active extends Readonly<
-      Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
-    >,
-  >(
+  subscriptions<const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
     active: Active,
     options?: SubscriptionsOptions,
   ): SubscriptionEntries<AppModel, Active>
@@ -557,7 +569,7 @@ export interface RemoteDomain<
    */
   satisfy(
     model: AppModel,
-    active: Readonly<Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>>,
+    active: Readonly<Record<string, ActiveEntry<AppModel>>>,
     options?: SatisfyOptions,
   ): Effect.Effect<
     AppModel,
@@ -590,11 +602,7 @@ export interface RemoteDomain<
    * most one Remote wiring: every domain claims the same tags, and routing
    * takes the first claimant.
    */
-  wiring: <
-    const Active extends Readonly<
-      Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
-    >,
-  >(
+  wiring: <const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
     active: Active,
     options?: SubscriptionsOptions,
   ) => RemoteWiring<AppModel>
@@ -633,11 +641,7 @@ export interface RemoteFold<
     ...args: Parameters<Domain['mutate']>
   ) => FoldedMutationStarted<AppModel, ParentMessage>
   /** `Data.subscriptions`, every entry lifted to the wrapper Message. */
-  readonly subscriptions: <
-    const Active extends Readonly<
-      Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
-    >,
-  >(
+  readonly subscriptions: <const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
     active: Active,
     options?: SubscriptionsOptions,
   ) => SubscriptionEntries<AppModel, Active, ParentMessage>
@@ -1082,16 +1086,10 @@ interface Asked {
   readonly connections: ReadonlyArray<ConnectionRequirement>
 }
 
-const nothingAsked: Asked = { requirements: [], connections: [] }
-
 const askedOf = (projection: Projection<any, unknown>): Asked => ({
   requirements: requirementsOf(projection),
   connections: connectionsOf(projection),
 })
-
-/** What an active Surface asks for: nothing while it is inactive. */
-const askedWhile = (projection: Option.Option<Projection<any, unknown>>): Asked =>
-  Option.match(projection, { onNone: () => nothingAsked, onSome: askedOf })
 
 /**
  * Whether `outer` asks for everything `inner` does of one entity: each field,
@@ -1675,31 +1673,85 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
         ),
 })
 
-/** The projection an active Surface has for this Model; none while it is inactive. */
+/** The projection an active entry has for this Model; none while it is inactive. */
 const projectionOf = <AppModel>(
-  entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
+  entry: ActiveEntry<AppModel>,
   model: AppModel,
-): Option.Option<Projection<AppModel, unknown>> =>
-  'projectionOf' in entry ? entry.projectionOf(model) : Option.some(entry.projection())
+): Option.Option<Projection<AppModel, unknown>> => {
+  if ('projectionOf' in entry) return entry.projectionOf(model)
+  // A bare Surface without params reads whole; a source without `instancesOf`
+  // cannot happen, and resolves to nothing if it does.
+  if ('projection' in entry) return Option.some(entry.projection())
+  return Option.none()
+}
+
+/** One of an entry's reads, named for diagnostics: a lone Surface keeps its name, a family instance takes `Child[key]`. */
+export interface NamedProjection<AppModel> {
+  readonly name: string
+  readonly projection: Projection<AppModel, unknown>
+}
 
 /**
- * `projectionOf` computed once per Model: the read, live, and retain entries
- * all derive their dependencies from the same projection on the same Model
+ * Every projection an entry resolves to for a Model: the lone one of a
+ * `Surface.at`/`Surface.when` value or a bare Surface, or a family's parent
+ * first and then each instance. The parent joins so an unloaded parent is
+ * fetched before what it reveals; `Data.satisfy` reaches the instances in a
+ * later pass. A caller that also passes the parent separately double-covers
+ * its requirements, as overlapping Surfaces already do.
+ */
+const resolvedOf = <AppModel>(
+  entry: ActiveEntry<AppModel>,
+  model: AppModel,
+): ReadonlyArray<NamedProjection<AppModel>> => {
+  const source = entry as Partial<SurfaceSource<AppModel>>
+  if (typeof source.instancesOf === 'function') {
+    const instances = source.instancesOf(model)
+    const from = (entry as { readonly from?: ActiveSurface<AppModel> }).from
+    // A lone `Surface.at`/`Surface.when` keeps its name; a family names each
+    // instance after its key, with the parent first.
+    if (from === undefined)
+      return instances.map(instance => ({ name: entry.name, projection: instance.projection }))
+    return [
+      ...Option.toArray(from.projectionOf(model)).map(projection => ({
+        name: from.name,
+        projection,
+      })),
+      ...instances.map(instance => ({
+        name: `${entry.name}[${instance.key}]`,
+        projection: instance.projection,
+      })),
+    ]
+  }
+  return Option.toArray(projectionOf(entry, model)).map(projection => ({
+    name: entry.name,
+    projection,
+  }))
+}
+
+/** What some projections ask for together: their requirements and connections unioned. */
+const askedUnion = (projections: ReadonlyArray<Projection<any, unknown>>): Asked => ({
+  requirements: projections.flatMap(requirementsOf),
+  connections: projections.flatMap(connectionsOf),
+})
+
+/**
+ * `resolvedOf` computed once per Model: the read, live, and retain entries
+ * all derive their dependencies from the same projections on the same Model
  * change, and a Surface's `model` callback (which lifts and builds schemas)
  * need not run three times for it. Models are objects, so the memo is weak.
  */
-const memoizedProjectionOf = <AppModel>(
-  entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
-): ((model: AppModel) => Option.Option<Projection<AppModel, unknown>>) => {
-  const cache = new WeakMap<object, Option.Option<Projection<AppModel, unknown>>>()
+const memoizedResolved = <AppModel>(
+  entry: ActiveEntry<AppModel>,
+): ((model: AppModel) => ReadonlyArray<NamedProjection<AppModel>>) => {
+  const cache = new WeakMap<object, ReadonlyArray<NamedProjection<AppModel>>>()
   return model => {
     const key: unknown = model
-    if (typeof key !== 'object' || key === null) return projectionOf(entry, model)
+    if (typeof key !== 'object' || key === null) return resolvedOf(entry, model)
     const known = cache.get(key)
     if (known !== undefined) return known
-    const projection = projectionOf(entry, model)
-    cache.set(key, projection)
-    return projection
+    const resolved = resolvedOf(entry, model)
+    cache.set(key, resolved)
+    return resolved
   }
 }
 
@@ -1761,9 +1813,7 @@ export const Remote = {
         return { ...started, command: mapMessage(started.command, toParentMessage) }
       },
       subscriptions: (
-        active: Readonly<
-          Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
-        >,
+        active: Readonly<Record<string, ActiveEntry<AppModel>>>,
         options?: SubscriptionsOptions,
       ) =>
         markAll(
@@ -2404,8 +2454,8 @@ const bindDomain = <
   // retention is the domain's, so each call's retain entry roots them all, and
   // one call with its own policy does not collect what another call reads.
   const readers = new Map<
-    ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
-    (model: AppModel) => Option.Option<Projection<AppModel, unknown>>
+    ActiveEntry<AppModel>,
+    (model: AppModel) => ReadonlyArray<NamedProjection<AppModel>>
   >()
   const keptConnections = new Set<string>()
   /**
@@ -2470,10 +2520,20 @@ const bindDomain = <
     return next === remote ? model : store.set(model, next as Store)
   }
   // Two applications can have the same Model type; the owner token tells them apart.
-  const assertOwned = (entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>) => {
+  const assertOwned = (entry: ActiveEntry<AppModel>) => {
     if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
       throw new Error(
         `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
+      )
+    }
+    const from = (entry as { readonly from?: ActiveSurface<AppModel> }).from
+    if (
+      from !== undefined &&
+      bound.contract.owner !== undefined &&
+      from.owner !== bound.contract.owner
+    ) {
+      throw new Error(
+        `Remote: Surface "${from.name}" belongs to another application than domain "${bound.contract.name}"`,
       )
     }
   }
@@ -2504,9 +2564,10 @@ const bindDomain = <
       // Checked before any reader joins the domain, so a refused call adds none.
       for (const entry of Object.values(active)) assertOwned(entry)
       for (const [key, entry] of Object.entries(active)) {
-        const projectionAt = readers.get(entry) ?? memoizedProjectionOf(entry)
-        readers.set(entry, projectionAt)
-        const asked = (model: AppModel) => askedWhile(projectionAt(model))
+        const resolvedAt = readers.get(entry) ?? memoizedResolved(entry)
+        readers.set(entry, resolvedAt)
+        const asked = (model: AppModel) =>
+          askedUnion(resolvedAt(model).map(({ projection }) => projection))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
           bound,
@@ -2521,7 +2582,9 @@ const bindDomain = <
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model =>
           rootsOf(
-            [...readers.values()].flatMap(projectionAt => Option.toArray(projectionAt(model))),
+            [...readers.values()].flatMap(resolvedAt =>
+              resolvedAt(model).map(({ projection }) => projection),
+            ),
             { connections: [...keptConnections] },
           ),
         dependenciesToStream: (current: RetentionRoots) =>
@@ -2577,28 +2640,38 @@ const bindDomain = <
         const entries = Object.values(active)
         entries.forEach(assertOwned)
         const planOptions = RemotePolicy.toPlan(RemotePolicy.cacheFirst, now())
-        const plans = (current: AppModel, entry: (typeof entries)[number]) => {
-          const planned = planAsked(
-            store.get(current),
-            askedWhile(projectionOf(entry, current)),
-            planOptions,
-          )
+        const plans = (
+          current: AppModel,
+          projections: ReadonlyArray<Projection<AppModel, unknown>>,
+        ) => {
+          const planned = planAsked(store.get(current), askedUnion(projections), planOptions)
           return planned.queries.length > 0 || planned.requirements.length > 0
         }
         let current = model
         for (let pass = 0; pass < passes; pass++) {
-          if (!entries.some(entry => plans(current, entry))) return current
+          if (
+            !entries.some(entry =>
+              plans(
+                current,
+                resolvedOf(entry, current).map(({ projection }) => projection),
+              ),
+            )
+          )
+            return current
           for (const entry of entries) {
-            // Asked again over the Model the Surface before it left.
-            const projection = projectionOf(entry, current)
-            if (Option.isSome(projection))
-              current = yield* domain.prefetch(current, projection.value, { now })
+            // Asked again over the Model the Surface before it left. A family
+            // resolves its parent first: a pass fetches the parent, and the
+            // instances the parent reveals are read in a later pass.
+            for (const { projection } of resolvedOf(entry, current))
+              current = yield* domain.prefetch(current, projection, { now })
           }
         }
-        const reading = entries.filter(entry => plans(current, entry))
+        const reading = entries.flatMap(entry =>
+          resolvedOf(entry, current).filter(({ projection }) => plans(current, [projection])),
+        )
         if (reading.length === 0) return current
         return yield* new RemoteUnsatisfied({
-          surfaces: reading.map(entry => entry.name),
+          surfaces: reading.map(({ name }) => name),
           passes,
         })
       }),
@@ -2783,13 +2856,16 @@ const bindDomain = <
       const { ref } = projection
       // Which active Surfaces read this connection, asked of the Model rather
       // than of the projection: a Surface's projection is rebuilt per Model, so
-      // the only honest comparison is by connection identity.
-      const reading = Object.values(options?.surfaces ?? {}).filter(active => {
-        // An inactive Surface reads nothing, which is not the same as reading
-        // something else.
-        return Option.exists(active.projectionOf(model), shown =>
+      // the only honest comparison is by connection identity. A family names
+      // each reading instance (`Grid[all]`), not just the Surface.
+      const reading = Object.values(options?.surfaces ?? {}).flatMap(source => {
+        const matched = resolvedOf(source, model).filter(({ projection: shown }) =>
           connectionsOf(shown).some(connection => connection.identity === ref.identity),
         )
+        // An inactive Surface reads nothing, which is not the same as reading
+        // something else.
+        if (matched.length === 0) return []
+        return [{ source, names: matched.map(({ name }) => name) }]
       })
       // The body lives on the descriptor, and a projection keeps only its
       // `QueryRef` — so the explanation looks the definition back up by name.
@@ -2813,12 +2889,13 @@ const bindDomain = <
         ...(options?.surfaces === undefined
           ? {}
           : {
-              surfaces: reading.map(active => active.name),
-              activation: reading.flatMap(active =>
-                active.activation === undefined
+              surfaces: reading.flatMap(read => read.names),
+              activation: reading.flatMap(read => {
+                const activation = 'activation' in read.source ? read.source.activation : undefined
+                return activation === undefined
                   ? []
-                  : [{ surface: active.name, ...active.activation }],
-              ),
+                  : [{ surface: read.source.name, ...activation }]
+              }),
             }),
       }
     },
@@ -2828,13 +2905,11 @@ const bindDomain = <
       const reading =
         options?.surfaces === undefined
           ? undefined
-          : Object.values(options.surfaces)
-              .filter(active => {
-                return Option.exists(active.projectionOf(model), shown =>
-                  covers(askedOf(shown), asked),
-                )
-              })
-              .map(active => active.name)
+          : Object.values(options.surfaces).flatMap(source =>
+              resolvedOf(source, model)
+                .filter(({ projection: shown }) => covers(askedOf(shown), asked))
+                .map(({ name }) => name),
+            )
       const withSurfaces = reading === undefined ? {} : { surfaces: reading }
       switch (state._tag) {
         case 'Ready':

@@ -288,7 +288,9 @@ read, and one read can decide what another asks for (a page's Blocks once its
 document is read). `Data.satisfy` takes the record `Data.wiring` takes and
 prefetches, cache-first, pass after pass until nothing is missing; past its
 bound (8 passes, `{ passes }`) it fails with `RemoteUnsatisfied`, naming the
-Surfaces still reading:
+Surfaces still reading. A `Surface.each` family is one record entry: its
+parent's requirements join its instances', and a still-reading instance is
+named `Child[key]`:
 
 ```ts
 const page = await Effect.runPromise(

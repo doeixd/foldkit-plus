@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: subscriptions, satisfy, and diagnostics follow
+  `SurfaceSource`s.** The active record `Data.subscriptions`, `Data.wiring`,
+  and `Data.satisfy` take accepts `Surface.each` families beside
+  `Surface.at`/`Surface.when` values. A family is one record entry whose read
+  unions its parent's requirements with its instances', so the parent is
+  fetched before what it reveals and `Data.satisfy` reaches the instances in
+  a later pass. `RemoteUnsatisfied`, `Data.explain`, and `Data.why` name a
+  still-reading instance as `Child[key]`.
 - **`foldkit-surface`: `Surface.each`, one Surface as many keyed instances.**
   `Surface.each(child, { from, instances })` instantiates a child Surface per
   item of a parent Surface's Model — a stored page's Blocks, say — where

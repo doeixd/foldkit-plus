@@ -869,9 +869,12 @@ const ready = await Effect.runPromise(
 )
 ```
 
-`actives` is the record `Data.wiring` takes. The passes are bounded (8 by
+`actives` is the record `Data.wiring` takes. A `Surface.each` family is one
+entry of it: its parent's requirements join its instances', so the parent is
+fetched before what it reveals. The passes are bounded (8 by
 default, `{ passes }` to change it); a Surface still reading after the last
-fails the Effect with `RemoteUnsatisfied`, which names it, rather than
+fails the Effect with `RemoteUnsatisfied`, which names it — a still-reading
+family instance as `Child[key]` — rather than
 rendering it loading. A read the server leaves unanswered settles as missing,
 so it ends the loop; what runs out the passes is a chain whose every read
 reveals one more.
@@ -1635,6 +1638,8 @@ Data.explain(model, projects, { surfaces: actives })
 // surfaces:   ['ProjectPage']
 // activation: [{ surface: 'ProjectPage', path: ['route'], tag: 'Project' }]
 ```
+
+A `Surface.each` family reports each reading instance as `Child[key]`.
 
 There is still no **executor**, because what answers a query is a
 `RemoteClient` Layer in the runtime rather than a value in the Model — the same
