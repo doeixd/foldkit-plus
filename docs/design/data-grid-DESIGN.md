@@ -275,8 +275,9 @@ and the copy, cut and paste handlers in the view. Where it departs from §14:
   application turns that into cells with `Grid.fill` when it arrives: a drag
   is let go over a frame, and what it writes is read from the rows as they
   are then, as a column drop is. Series are numbers a constant step apart;
-  dates and custom strategies are not built, nor scrolling while a fill is
-  dragged past the edge.
+  dates and custom strategies are not built. A drag held at or past the
+  grid's edge scrolls it; the drag lives on the cells' container, not the
+  handle, so it outlasts the handle's cell scrolling away.
 - **Not built:** HTML clipboard data, multi-range copy.
 
 ## Phase 6 as built (2026-10-03)

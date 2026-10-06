@@ -147,8 +147,9 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   of the range or the focused cell, is dragged to fill along one axis; the
   cells it would write say `data-fill="target"` until it is let go, and
   Escape lets it go back. The handle is pointer-only and hidden from
-  assistive technology, since the keys do the same. A drag past the grid's
-  edge does not scroll it yet.
+  assistive technology, since the keys do the same. Held near the grid's
+  edge or past it, the drag scrolls the grid that way and fills on into the
+  rows it brings in.
 - **The header row is part of the grid.** ArrowUp from the first row goes up
   to the header (`aria-activedescendant` names the header cell), the arrows
   and Home and End walk it, ArrowDown or Escape go back to the row focus came

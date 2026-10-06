@@ -6,6 +6,7 @@
  */
 const tests = [
   'packages/data-grid/test/grid.test.ts',
+  'packages/mixins-data-grid/test/fill.browser.test.ts',
   'packages/mixins-data-grid/test/editing.test.ts',
   'packages/mixins-data-grid/test/editing.browser.test.ts',
 ]
@@ -59,15 +60,23 @@ export default [
   ),
   one('no handle is drawn', view, '...(handled ? [fillHandle] : []),', ''),
   one(
-    'the cell under a captured pointer is its target',
+    'the cell is looked for where the pointer is, past the edge',
     drag,
-    'page.elementFromPoint(x, y)?.closest',
-    '(event.target as Element | null)?.closest',
+    'cellAt(probe(current.at))',
+    'cellAt({ ...current.at, toward: current.at })',
   ),
   one(
-    "the handle's click reaches its cell",
+    'no step toward the middle for a drawn cell',
     drag,
-    "element.addEventListener('click', onClick)",
-    '',
+    'for (let step = 0; step <= steps; step++)',
+    'for (let step = 0; step <= 0; step++)',
   ),
+  one('the grid does not scroll toward the pointer', drag, 'box.scrollBy(across, down)', ''),
+  one(
+    'a scroll does not move the fill along',
+    drag,
+    'report(current)' + String.fromCharCode(10) + '        box.scrollBy',
+    'box.scrollBy',
+  ),
+  one("the handle's click reaches its cell", '../src/press.ts', 'if (fill.owns(event)) return', ''),
 ]

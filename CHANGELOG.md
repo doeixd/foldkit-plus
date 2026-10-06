@@ -18,7 +18,8 @@ version changed; `pnpm` skips versions already in the registry.
   toward a cell, along one axis), `cells` (what each lane writes there) and
   `series` (numbers a constant step apart continue it; anything else
   repeats). In the grid, Ctrl or Meta with D or R, or a drag of the range's
-  fill handle (the `fillHandle` Slot, its target drawn `data-fill`), reports
+  fill handle (the `fillHandle` Slot, its target drawn `data-fill`; held at
+  the grid's edge, the drag scrolls it), reports
   `Out.Filled({ source, to })`, so `Grid.Out.match` needs that arm; the
   application writes `Grid.fill(rows, model.grid, request)`, judged as a
   paste is. The registry undoes a fill as one step. `Columns.textOf` is a

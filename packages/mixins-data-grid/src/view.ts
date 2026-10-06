@@ -25,7 +25,7 @@ import {
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
-import { FillDrag } from './fillDrag.js'
+import { fillHandleAttribute } from './fillDrag.js'
 import { HoldFocus } from './holdFocus.js'
 import { KeepFocus } from './keepFocus.js'
 import { HeaderDrag } from './headerDrag.js'
@@ -863,12 +863,14 @@ const view = <Message>() => ({
               ),
           })
 
-        const pressed = Mount.mapMessage(CellPress(), click =>
+        const pressed = Mount.mapMessage(CellPress(), fact =>
           input.wrap(
-            grid.Message.CellPressed({
-              cell: click.cell,
-              shiftKey: click.shiftKey,
-              toggleKey: click.toggleKey,
+            Match.valueTags(fact, {
+              CellClicked: ({ cell, shiftKey, toggleKey }) =>
+                grid.Message.CellPressed({ cell, shiftKey, toggleKey }),
+              FillDragStarted: () => grid.Message.FillStarted(),
+              FillDraggedOver: ({ cell }) => grid.Message.FillDragged({ cell }),
+              FillDragEnded: ({ completed }) => grid.Message.FillEnded({ completed }),
             }),
           ),
         )
@@ -916,19 +918,11 @@ const view = <Message>() => ({
           ),
           () => editsAny,
         )
-        const fillDragged = Mount.mapMessage(FillDrag(), fact =>
-          input.wrap(
-            Match.valueTags(fact, {
-              FillDragStarted: () => grid.Message.FillStarted(),
-              FillDraggedOver: ({ cell }) => grid.Message.FillDragged({ cell }),
-              FillDragEnded: ({ completed }) => grid.Message.FillEnded({ completed }),
-            }),
-          ),
-        )
+        // Its drag is the body's listener's, which outlives the handle's cell.
         const fillHandle = h.span(
           slots.fillHandle.attrs([
             h.AriaHidden(true),
-            h.OnMount(fillDragged),
+            h.Attribute(fillHandleAttribute, ''),
             h.Style({ position: 'absolute', insetInlineEnd: '0', insetBlockEnd: '0' }),
           ]),
           [],
@@ -1391,7 +1385,8 @@ const view = <Message>() => ({
             h.div(
               slots.body.attrs([
                 h.Role('rowgroup'),
-                // One listener for every cell's clicks, with their modifier keys.
+                // One listener for every cell's clicks, with their modifier keys,
+                // and for the fill handle's drag.
                 h.OnMount(pressed),
                 h.Style({ height: px(shown.height - headerHeight), width: px(shown.width) }),
               ]),

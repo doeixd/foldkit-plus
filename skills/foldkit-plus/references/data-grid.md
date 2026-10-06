@@ -103,7 +103,8 @@ the whole wiring, compiled.
   row's `height`, throws `slot "cell" protects style property`.
 - A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })`,
   `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
-  R, or the fill handle; write `Grid.fill(rows, model.grid, request).accepted`),
+  R, or the fill handle, whose drag scrolls the grid at its edge; write
+  `Grid.fill(rows, model.grid, request).accepted`),
   or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z, with Shift or Ctrl+Y; the
   application keeps the history and builds the inverse from its Model; match
   it with `Grid.Out.match`). Place it
