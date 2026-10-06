@@ -6,9 +6,11 @@
  *
  * The products are the application's: they are in its Model, and only its
  * `onOut` changes them, from the text the grid reports. The grid owns where
- * focus is, what is selected, how the columns stand, and the viewport.
+ * focus is, what is selected, how the columns stand, and the viewport. How
+ * the columns stand is kept in this browser, and read back as the page opens.
  */
-import { Option, Schema, SchemaGetter } from 'effect'
+import { Effect, Option, Schema, SchemaGetter } from 'effect'
+import { Command, type Update } from 'foldkit'
 import { type Document, type HtmlBuilder } from 'foldkit/html'
 import { gridDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
@@ -84,7 +86,11 @@ export const Model = Schema.Struct({
 })
 export type Model = typeof Model.Type
 
-export const Message = defineMessageUnion({ ...Placement.cases })
+export const Message = defineMessageUnion({
+  ...Placement.cases,
+  /** The column layout was written to this browser's storage. */
+  SavedLayout: {},
+})
 export type Message = typeof Message.Type
 
 const productKey = (product: Product) => product.id
@@ -158,9 +164,71 @@ const application = Bundle.assemble<Model, Message>()([
   }),
 ])
 
-export const init = (count = 100_000) =>
-  application.initial({ products: products(count), notice: '' })
-export const update = application.update()
+/** Where this browser keeps the column layout: one viewer's convenience, not shared state. */
+const layoutKey = 'foldkit-grid-demo:columns'
+
+/**
+ * The column layout this browser saved, if it saved one it can read. Storage
+ * can be refused (a private window, blocked site data); then there is none.
+ */
+export const savedLayout = (): Option.Option<unknown> => {
+  try {
+    return Option.map(Option.fromNullOr(localStorage.getItem(layoutKey)), text => JSON.parse(text))
+  } catch {
+    return Option.none()
+  }
+}
+
+const SaveLayout = Command.define('SaveLayout', {
+  args: { layout: Schema.String },
+  messages: [Message.SavedLayout],
+  execute: ({ layout }) =>
+    Effect.sync(() => {
+      try {
+        localStorage.setItem(layoutKey, layout)
+      } catch {
+        // Refused storage keeps nothing; the layout still holds for this visit.
+      }
+      return Message.SavedLayout()
+    }),
+})
+
+/**
+ * The page as it opens: the products, and the columns as this browser left
+ * them, read leniently, so a layout saved before a column was renamed keeps
+ * the rest.
+ */
+export const init = (
+  count = 100_000,
+  saved: Option.Option<unknown> = Option.none(),
+): Update.Return<Model, Message, unknown> => {
+  const start = application.initial({ products: products(count), notice: '' })
+  return Option.match(saved, {
+    onNone: () => start,
+    onSome: layout => ({
+      ...start,
+      model: modifyFields(start.model, {
+        grid: grid => modifyFields(grid, { columns: () => Grid.columnState.restore(layout).state }),
+      }),
+    }),
+  })
+}
+
+const placed = application.update()
+/** Every transition, and a save of the column layout when one changed it. */
+export const update = (model: Model, message: Message) => {
+  const next = placed(model, message)
+  return next.model.grid.columns === model.grid.columns
+    ? next
+    : {
+        ...next,
+        commands: [
+          ...(next.commands ?? []),
+          // Column state is plain data, as `restore` reads it back.
+          SaveLayout({ layout: JSON.stringify(next.model.grid.columns) }),
+        ],
+      }
+}
 
 const Registry = DataGridView<Message>()
   .define(Grid)

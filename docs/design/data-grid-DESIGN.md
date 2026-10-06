@@ -251,8 +251,12 @@ full seed, and checked by hand in Chromium.
 - **A tab closed for good while offline** keeps its unsent edits in
   IndexedDB under an id no tab opens again; one replica per profile with one
   writer would keep them, and is not built.
-- **Not built from §22:** search and filter, saved column layout, custom
-  columns and bulk edits beyond a paste.
+- **A saved column layout** needs nothing more of the grid: its column state
+  is plain data, and `columnState.restore` reads a save back leniently.
+  `examples/data-grid` saves it to `localStorage` whenever a transition
+  changes it and restores it as the page opens.
+- **Not built from §22:** search and filter, custom columns and bulk edits
+  beyond a paste and a fill.
 
 ## Phase 8 as built so far (2026-10-03)
 

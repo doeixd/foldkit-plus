@@ -3,7 +3,7 @@ import { Style } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Theme } from 'foldkit-mixins/theme'
 
-import { Message, Model, init, update, view } from './main.js'
+import { Message, Model, init, savedLayout, update, view } from './main.js'
 
 // The theme's tokens, which the grid's default style reads.
 Style.install(
@@ -18,7 +18,7 @@ if (container === null) throw new Error('#root is missing from index.html')
 Runtime.run(
   Runtime.makeApplication({
     Model,
-    init: () => init(),
+    init: () => init(100_000, savedLayout()),
     update,
     view,
     container,

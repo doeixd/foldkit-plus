@@ -18,6 +18,14 @@ grid's OutMessage (`Edited`, `Pasted`, or `Filled`, whose cells `Grid.fill` work
 into the products. A refused cell stays in the editor with its message, or is
 listed under `refused` in a paste.
 
+The columns stay as you leave them, in this browser. After any transition
+that changes the column state (a width, the order, a pin, a hidden column),
+`update` saves it to `localStorage` with a Command, and the entry reads it
+back as the page opens through `Grid.columnState.restore`, which drops a
+column no longer defined and keeps the rest. It is one viewer's
+convenience, so a private window, which refuses storage, opens the columns
+as declared.
+
 **Try it:** it is published at
 [foldkit-grid-demo.pages.dev](https://foldkit-grid-demo.pages.dev/), as static
 files; the rows are made in the page.
@@ -38,13 +46,16 @@ The workspace packages resolve to their source, so no build is needed first.
 2. [main.ts](src/main.ts) defines the columns (which pin, which edit and how
    they validate), makes the grid with `DataGrid.make`, places it with
    `Bundle.declare`, and applies its OutMessage in `onOut`.
-3. The view hands the grid a `RowModel` over the array. The grid draws only the
+3. `savedLayout`, `init` and `update` in main.ts keep the column layout.
+4. The view hands the grid a `RowModel` over the array. The grid draws only the
    rows and columns in view, while `aria-rowcount` counts all of them.
 
 ## Tests
 
 - `test/registry.test.ts` (jsdom) edits a price, has a bad one refused, pastes
   two rows with one refused cell, and selects every product.
+- `test/layout.test.ts` saves a resized column, opens the page from the
+  save, and reads a save naming a removed column.
 - `test/registry.browser.test.ts` (Chromium) scrolls to the last product at
   full size, checks that a window of rows is drawn, and checks that the UPC
   stays at the left edge while the rest scrolls sideways.

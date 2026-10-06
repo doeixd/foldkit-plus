@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/data-grid` keeps its column layout** in the browser: saved with
+  a Command after any transition that changes the column state, and read
+  back with `columnState.restore` as the page opens (#144).
 - **`foldkit-data-grid` and `foldkit-mixins-data-grid` are published,** at
   an experimental `0.1.0`: the grid's state, geometry and keyboard, and the
   grid drawn as an accessible, virtualized WAI-ARIA grid through slots. Their
