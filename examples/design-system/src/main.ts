@@ -512,6 +512,16 @@ const IconsDemo = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(IconStyle.style))
 
+/**
+ * The `:root` override the view renders from the Model. The hue knob and
+ * color scheme must be set on `:root`, not on the page: derived tokens
+ * (`--fk-hue-accent`, every `light-dark()` color) are computed at `:root`
+ * and inherited already resolved, so a knob overridden on a subtree never
+ * re-derives them. Unlayered, this wins over the layered token declarations.
+ */
+export const rootOverrideOf = (model: Pick<Model, 'hue' | 'scheme'>): string =>
+  `:root{--fk-knob-accent-h:${model.hue};color-scheme:${model.scheme === 'system' ? 'light dark' : model.scheme}}`
+
 const fillSwatch = (
   slots: PageBuilders,
   h: HtmlBuilder<Message>,
@@ -542,6 +552,7 @@ const textSwatch = (slots: PageBuilders, h: HtmlBuilder<Message>, name: string):
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
+  const rootOverride = rootOverrideOf(model)
   const tokensCode = [
     'palette = Theme.oklch((',
     '  accent: { h: 222, c: 0.09, l: 52% },',
@@ -559,13 +570,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     body: h.main(
       slots.root.attrs([
         h.Style({
-          '--fk-knob-accent-h': String(model.hue),
-          colorScheme: model.scheme === 'system' ? 'light dark' : model.scheme,
           background: 'var(--fk-surface-base)',
           color: 'var(--fk-text-default)',
         }),
       ]),
       [
+        h.style([], [rootOverride]),
         h.header(slots.header.attrs(), [
           h.p(slots.eyebrow.attrs(), ['Foldkit Plus · Design system']),
           h.h1(slots.title.attrs(), ['Components in a shadcn skin']),

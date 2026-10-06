@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SlotView } from 'foldkit-mixins'
-import { Message, initialModel, update, view } from '../src/main.js'
+import { Message, initialModel, rootOverrideOf, update, view } from '../src/main.js'
 
 describe('design-system update', () => {
   it('selects a hue, scheme, tab, and plan', () => {
@@ -44,6 +44,18 @@ describe('design-system update', () => {
     expect(popover.model.popoverOpen).toBe(true)
     const address = update(popover.model, Message.AddressTyped({ value: 'pricing' }))
     expect(address.model.address).toBe('pricing')
+  })
+
+  it('declares the hue knob and scheme on :root, where derived tokens compute', () => {
+    expect(rootOverrideOf({ hue: 172, scheme: 'system' })).toBe(
+      ':root{--fk-knob-accent-h:172;color-scheme:light dark}',
+    )
+    expect(rootOverrideOf({ hue: 222, scheme: 'dark' })).toBe(
+      ':root{--fk-knob-accent-h:222;color-scheme:dark}',
+    )
+    expect(rootOverrideOf({ hue: 38, scheme: 'light' })).toBe(
+      ':root{--fk-knob-accent-h:38;color-scheme:light}',
+    )
   })
 
   it('renders every section without a resolver conflict', () => {
