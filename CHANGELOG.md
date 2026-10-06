@@ -16,8 +16,8 @@ version changed; `pnpm` skips versions already in the registry.
   with its `via` parent), so a gap names the instance. Preparation stays
   caller-composed: `Data.satisfy` the Model, then render it.
 - **`foldkit-remote`: subscriptions, satisfy, and diagnostics follow
-  `SurfaceSource`s.** The active record `Data.subscriptions`, `Data.wiring`,
-  and `Data.satisfy` take accepts `Surface.each` families beside
+  `SurfaceSource`s.** The active record taken by `Data.subscriptions`,
+  `Data.wiring`, and `Data.satisfy` accepts `Surface.each` families beside
   `Surface.at`/`Surface.when` values. A family is one record entry whose read
   unions its parent's requirements with its instances', so the parent is
   fetched before what it reveals and `Data.satisfy` reaches the instances in

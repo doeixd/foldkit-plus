@@ -1686,7 +1686,7 @@ const projectionOf = <AppModel>(
 }
 
 /** One of an entry's reads, named for diagnostics: a lone Surface keeps its name, a family instance takes `Child[key]`. */
-export interface NamedProjection<AppModel> {
+interface NamedProjection<AppModel> {
   readonly name: string
   readonly projection: Projection<AppModel, unknown>
 }

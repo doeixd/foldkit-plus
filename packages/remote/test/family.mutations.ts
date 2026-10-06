@@ -52,4 +52,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a foreign parent is not refused',
+    edits: [
+      {
+        file,
+        find: '    const from = (entry as { readonly from?: ActiveSurface<AppModel> }).from\n    if (\n      from !== undefined &&\n      bound.contract.owner !== undefined &&\n      from.owner !== bound.contract.owner\n    ) {\n      throw new Error(\n        `Remote: Surface "${from.name}" belongs to another application than domain "${bound.contract.name}"`,\n      )\n    }',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

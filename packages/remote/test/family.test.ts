@@ -5,7 +5,7 @@
  * A page reads its document, and the document reveals a card per id: the
  * family joins the page's requirements with its instances', `Data.satisfy`
  * reaches the instances in a later pass, and what is still reading names the
- * instance (`Cards[a]`), not just the Surface.
+ * instance (`Card[a]`), not just the Surface.
  */
 import { Effect, Layer, Option, Schema, Stream, pipe } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -21,9 +21,15 @@ import {
 } from 'foldkit/route'
 import { fromString } from 'foldkit/url'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
-import { Surface } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, RemoteClient, RemoteUnsatisfied } from '../src/index.js'
+import {
+  Query,
+  Remote,
+  RemoteClient,
+  RemoteUnsatisfied,
+  type ReadDependencies,
+} from '../src/index.js'
 
 const Page = DomainEntity.define(
   'Page',
@@ -143,9 +149,7 @@ const recording = () => {
 const requested = (
   model: Model,
   read: {
-    modelToDependencies: (model: Model) => {
-      requirements: ReadonlyArray<{ readonly entity: string; readonly id: string }>
-    }
+    modelToDependencies: (model: Model) => Pick<ReadDependencies, 'requirements'>
   },
 ) =>
   read
@@ -197,6 +201,22 @@ describe('A family joins its parent with its instances', () => {
     })
   })
 
+  it('ends the loop when the server leaves the parent unanswered', async () => {
+    const empty = Layer.succeed(RemoteClient, {
+      read: () => Effect.succeed({ settled: [], entities: [] }),
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: () => Stream.empty,
+    })
+    const settled = await Effect.runPromise(
+      Data.satisfy(at('/pages/p1'), { cards: Cards }).pipe(Effect.provide(empty)),
+    )
+    // The page settles as missing, so no instance ever appears and nothing fails.
+    expect(Data.get(DomainEntity.select(Page, { title: true }), 'p1').read(settled)).toMatchObject({
+      _tag: 'NotFound',
+    })
+  })
+
   it('fails naming the instances still reading when the passes run out', async () => {
     const short = await Effect.runPromise(
       Effect.flip(Data.satisfy(at('/pages/p1'), { cards: Cards }, { passes: 1 })).pipe(
@@ -227,6 +247,25 @@ describe('A family joins its parent with its instances', () => {
       ),
     ).toThrow(/belongs to another application/)
   })
+
+  it('refuses a family whose parent is from another application', () => {
+    const Other = Surface.application({
+      Model,
+      Message: defineMessageUnion({ ...Remote.messages }),
+    })
+    const stranger = Surface.at(
+      Other.surface('Stranger', {
+        model: ({ model }) => Projection.struct({ page: model.route }),
+      }),
+      undefined,
+    )
+    const smuggled = Surface.each(Card, { from: stranger, instances: () => [] })
+    expect(() =>
+      Effect.runSync(
+        Data.satisfy(at('/pages/p1'), { cards: smuggled }).pipe(Effect.provide(recording().layer)),
+      ),
+    ).toThrow(/belongs to another application/)
+  })
 })
 
 describe('Diagnostics see instances', () => {
@@ -239,10 +278,11 @@ describe('Diagnostics see instances', () => {
     )
     const explained = Data.explain(loaded, gridQuery(), { surfaces: { grids: Grids } })
     expect(explained.surfaces).toEqual(['Grid[all]'])
-    const dark = Data.explain(loaded, gridQuery(), {
+    // The lone parent reads no connection, so adding it changes nothing.
+    const withParent = Data.explain(loaded, gridQuery(), {
       surfaces: { grids: Grids, page: pageAt },
     })
-    expect(dark.surfaces).toEqual(['Grid[all]'])
+    expect(withParent.surfaces).toEqual(['Grid[all]'])
   })
 
   it('carries a family query through subscriptions', async () => {

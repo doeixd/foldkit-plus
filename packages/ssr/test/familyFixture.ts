@@ -9,7 +9,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineRouteUnion } from 'foldkit/route'
 import { Entity, Remote } from 'foldkit-remote'
 import { Projection, Surface } from 'foldkit-surface'
-import { SSR } from 'foldkit-ssr'
+import { Resume, SSR } from 'foldkit-ssr'
 
 export const AppRoute = defineRouteUnion({ Home: {}, Team: {} })
 
@@ -19,7 +19,10 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
 })
 export type Model = typeof Model.Type
-export const Message = defineMessageUnion({ ...Remote.messages })
+export const Message = defineMessageUnion({
+  ...Remote.messages,
+  Cheered: { id: Schema.String },
+})
 export type Message = typeof Message.Type
 
 export const initial: Model = { route: AppRoute.Home(), members: [], remote: Remote.initial }
@@ -46,9 +49,20 @@ export const team = Surface.when(Team, App.model.route, AppRoute.Team, () => und
 const Member = App.surface('Member', {
   params: { id: Schema.String },
   model: ({ params }) => ({ user: Data.get(User.select({ name: true }), params.id) }),
-  messages: [],
+  messages: [Message.Cheered],
 })
 export const Members = Surface.each(Member, {
+  from: team,
+  instances: ({ members }) => members.map(id => ({ key: id, params: { id } })),
+})
+
+const Quiet = App.surface('Quiet', {
+  params: { id: Schema.String },
+  model: ({ params }) => ({ user: Data.get(User.select({ name: true }), params.id) }),
+  messages: [],
+})
+/** The same instances with no voice: a cheer bound for them is refused. */
+export const Quiets = Surface.each(Quiet, {
   from: team,
   instances: ({ members }) => members.map(id => ({ key: id, params: { id } })),
 })
@@ -80,10 +94,18 @@ export const config = {
   Model,
   init: () => ({ model: loaded }),
   update: (model: Model) => ({ model }),
-  view: (model: Model, h: HtmlBuilder<typeof Message.Type>) => ({
-    title: 'Team',
-    body: h.p([h.Id('team')], [model.members.join(',')]),
-  }),
+  view: (model: Model, h: HtmlBuilder<typeof Message.Type>) => {
+    const rh = Resume.builder(h)
+    return {
+      title: 'Team',
+      body: rh.div(
+        [],
+        model.members.map(id =>
+          rh.button([rh.Id(`cheer-${id}`), rh.OnClick(Message.Cheered({ id }))], [`Cheer ${id}`]),
+        ),
+      ),
+    }
+  },
   container: null,
 }
 

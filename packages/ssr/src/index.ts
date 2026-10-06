@@ -1405,6 +1405,7 @@ export {
   type DecodedBinding,
   type Loadable,
   type Meta,
+  type PlanSurface,
   type ResumableBuilder,
   type ResumableConfig,
   type ResumePart,

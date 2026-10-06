@@ -358,6 +358,7 @@ export {
   metaMarkup,
   type Loadable,
   type Meta,
+  type PlanSurface,
   type ResumableConfig,
   type ResumePart,
   type ResumePlan,

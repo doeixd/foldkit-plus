@@ -51,4 +51,27 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'no Surface allows any binding',
+    edits: [
+      {
+        file: '../src/shared.ts',
+        find: 'plan.surfaces.flatMap(source =>\n      projectionsOf(source, model).length > 0 ? source.messages : [],\n    ),',
+        replace: 'plan.surfaces.flatMap(source => []),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every active Surface allows a cheer',
+    edits: [
+      {
+        file: '../src/shared.ts',
+        find: '      projectionsOf(source, model).length > 0 ? source.messages : [],',
+        replace:
+          "      projectionsOf(source, model).length > 0 ? [...source.messages, 'Cheered'] : [],",
+      },
+    ],
+    tests,
+  },
 ]

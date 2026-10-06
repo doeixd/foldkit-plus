@@ -10,7 +10,17 @@ import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { SSR, type ResumePlan } from 'foldkit-ssr'
 import type { Model } from './familyFixture.js'
-import { App, Data, Members, config, loaded, offRoute, plan, team } from './familyFixture.js'
+import {
+  App,
+  Data,
+  Members,
+  Quiets,
+  config,
+  loaded,
+  offRoute,
+  plan,
+  team,
+} from './familyFixture.js'
 
 const refusal = <Fields extends Schema.Struct.Fields>(plan: ResumePlan<Model, Fields>) =>
   Effect.runPromise(Effect.flip(SSR.render(config, plan, { buildId: 'b' })))
@@ -118,6 +128,33 @@ describe('SSR.render refuses an uncovered instance by key', () => {
     expect(refused.message).toContain('Surface "Team" reads members')
     expect(refused.message).toContain(
       'Surface "Member[u1]" is active on the server and activates differently',
+    )
+  })
+})
+
+describe('A family’s messages authorize its bindings', () => {
+  const bound = (envelope: string) =>
+    JSON.parse(envelope.replace(/^<script[^>]*>/, '').replace(/<\/script>$/, '')).bindings
+
+  it('renders a binding each instance may send', async () => {
+    const { envelope } = await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' }))
+    expect(bound(envelope).map((binding: { message: unknown }) => binding.message)).toEqual([
+      { _tag: 'Cheered', id: 'u1' },
+      { _tag: 'Cheered', id: 'u2' },
+    ])
+  })
+
+  it('refuses a binding no instance may send', async () => {
+    const silent = SSR.plan(App, {
+      id: 'team',
+      state: Projection.pick(App.model.route, App.model.members),
+      surfaces: [Quiets],
+      parts: [Remote.resume(Data)],
+    })
+    const refused = await refusal(silent)
+    expect(refused).toMatchObject({ _tag: 'ResumeUnsafe', reason: 'Uncovered' })
+    expect(refused.message).toContain(
+      'the click binding on button#cheer-u1 dispatches Cheered, which no active Surface lists in its messages',
     )
   })
 })
