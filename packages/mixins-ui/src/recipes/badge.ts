@@ -22,7 +22,8 @@ export interface BadgeOptions {
 const toned = (attribute: string, value: string, tone: BadgeTone): StyleValue =>
   variant(
     Style.nest(`&[${attribute}="${value}"]`, {
-      background: `color-mix(in oklch, ${ref[tone].default} 14%, ${ref.surface.base})`,
+      // The tone's subtle tint, which keeps the tone's hue over a tinted base.
+      background: ref[tone].subtle,
       color: ref[tone].ink,
     }),
   )

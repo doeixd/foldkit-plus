@@ -351,12 +351,13 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         paddingBlockEnd: t.space.sm,
       }),
     ),
-    tabs: Recipes.Segmented({ tray: 'plain', size: 'sm' }).group ?? Style.empty,
+    // In a tray, so the chosen tab rises out of it; plain, it was white on white.
+    tabs: Recipes.Segmented({ tray: 'tray', size: 'sm' }).group ?? Style.empty,
     // A tab and a toolbar button are whole controls a finger aims at, so they
     // take the floor both ways round; `Touch.targets` gives the controls in a
     // region height only, which leaves a short one as narrow as its words.
     tab: Style.compose(
-      Recipes.Segmented({ tray: 'plain', size: 'sm' }).option ?? Style.empty,
+      Recipes.Segmented({ tray: 'tray', size: 'sm' }).option ?? Style.empty,
       Touch.target,
     ),
     searchBox: Style.compose(
@@ -546,7 +547,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
       Touch.target,
     ),
-    primary: Style.compose(button({ variant: 'primary', size: 'sm' }), Touch.target),
+    // The accent's solid button, as the forms' submit is: one primary look.
+    primary: Style.compose(button({ tone: 'accent', variant: 'solid', size: 'sm' }), Touch.target),
     danger: Style.compose(button({ tone: 'danger', variant: 'outline', size: 'sm' }), Touch.target),
     status: Style.compose(
       Style.self({
@@ -562,8 +564,13 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Loading.shown,
     ),
     muted: Style.compose(Style.self({ color: t.text.muted, margin: '0' }), Loading.shown),
-    badge: stateBadge('data-state'),
-    search: Style.compose(field, Style.self({ paddingInlineStart: '2.1rem' })),
+    // The attribute `Cms.stateBadge` writes.
+    badge: stateBadge('data-cms-state'),
+    // As tall as the tabs and buttons beside it, not a form's full field.
+    search: Style.compose(
+      field,
+      Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.7rem 0.4rem 2.1rem' }),
+    ),
     // A label over a control this package did not draw: no `Loading.shown` here.
     fieldLabel: Style.self({ color: t.text.muted, margin: '0' }),
   },

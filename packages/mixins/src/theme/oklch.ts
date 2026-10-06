@@ -53,9 +53,13 @@ const contrast = (color: string) =>
   `oklch(from ${color} clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`
 /** `color` as text on the base surface: dark in a light scheme, light in a dark one. */
 const ink = (color: string) => ld(from(color, '0.5', 'c'), from(color, '0.8', 'c'))
-/** `color` tinted onto the base surface, the same in both schemes. */
+/**
+ * `color` tinted onto the base surface, the same in both schemes. Mixed in
+ * OKLab, not OKLCH: OKLCH interpolates hue, so a mix mostly of the base keeps
+ * the base's hue, and a green tinted onto a blue-grey base came out blue.
+ */
 const tint = (color: string, percent: number) =>
-  `color-mix(in oklch, ${v('surface', 'base')} ${percent}%, ${color})`
+  `color-mix(in oklab, ${v('surface', 'base')} ${percent}%, ${color})`
 
 /** The default text color at `percent` over the base surface. */
 const line = (percent: number) =>

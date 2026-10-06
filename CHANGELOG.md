@@ -5,6 +5,22 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Fixed
+
+- **`foldkit-mixins/theme`: a tone's `subtle` keeps the tone's hue.** The
+  tint was mixed in OKLCH, which interpolates hue, so a mix mostly of a
+  tinted base kept the base's hue: over a blue-grey base, the success tint
+  came out blue under green text. Tints now mix in OKLab. `foldkit-mixins-ui`'s
+  Badge grounds a toned pill on the tone's `subtle`, so it follows.
+- **`examples/cms`:** the current section and the signed-in person are marked
+  in the accent's tint rather than a surface step that barely differed from
+  the sidebar; the post list's tabs sit in a tray, so the chosen one shows;
+  New post is the accent's solid button, as the forms' submit is; the search
+  box is as tall as the controls beside it; and the editor bar's state badge
+  matches the attribute `Cms.stateBadge` writes, so it is toned.
+
 ## 0.15.0
 
 `foldkit-sync` 0.9.0; `foldkit-durable` 0.7.0; `foldkit-remote` 0.12.0;

@@ -277,9 +277,7 @@ describe('Recipes', () => {
     })
 
     it('tones a value with its family wash and ink', () => {
-      expect(css()).toContain(
-        'color-mix(in oklch, var(--fk-success-default) 14%, var(--fk-surface-base))',
-      )
+      expect(css()).toContain('background:var(--fk-success-subtle)')
       expect(css()).toContain('color:var(--fk-success-ink)')
       expect(css()).toContain('color:var(--fk-warning-ink)')
     })

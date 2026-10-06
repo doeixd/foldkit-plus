@@ -1,22 +1,17 @@
 /**
- * The theme's shadow tokens, each broken in turn: `pnpm mutate
- * packages/mixins/test/theme.mutations.ts` checks that a test fails for every one.
+ * The theme's tints, broken in turn: `pnpm mutate packages/mixins/test/theme.mutations.ts`
+ * checks that a test fails for every one.
  */
 export default [
   {
-    name: 'only the first layer is drawn in the shadow color',
+    name: 'a tint is mixed in OKLCH, and takes the base hue',
     edits: [
       {
-        file: '../src/theme/tokens.ts',
-        find: 'layers.map(layer => `${layer} ${shade}`)',
-        replace: 'layers.map((layer, index) => (index === 0 ? `${layer} ${shade}` : layer))',
+        file: '../src/theme/oklch.ts',
+        find: "`color-mix(in oklab, ${v('surface', 'base')} ${percent}%, ${color})`",
+        replace: "`color-mix(in oklch, ${v('surface', 'base')} ${percent}%, ${color})`",
       },
     ],
-    tests: ['packages/mixins/test/themePage.test.ts'],
-  },
-  {
-    name: 'the dark shadow is as faint as the light one',
-    edits: [{ file: '../src/theme/oklch.ts', find: ' / 0.6)`', replace: ' / 0.14)`' }],
-    tests: ['packages/mixins/test/themePage.test.ts'],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
 ]

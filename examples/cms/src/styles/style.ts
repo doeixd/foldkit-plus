@@ -123,9 +123,11 @@ export const navLink = Style.compose(
   Style.media(phone, { flexShrink: '0', whiteSpace: 'nowrap' }),
   Touch.target,
   Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+  // The accent's own tint, so the place you are reads at a glance and in the
+  // page's hue; a surface step barely differs from the sidebar it sits on.
   Style.nest('&[aria-current="page"]', {
-    background: t.surface.default,
-    color: t.text.overt,
+    background: t.accent.subtle,
+    color: t.accent.ink,
     fontWeight: t.weight.semibold,
   }),
 )
