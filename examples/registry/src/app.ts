@@ -11,7 +11,7 @@
  *   applied, each row carrying the `revision` it has read the journal to, and
  *   Remote caches what it has read of it;
  * - the grid owns focus, selection, column state and the viewport;
- * - this application owns the order the list is read in.
+ * - this application owns the order the list is read in, and the search.
  *
  * A row is drawn as Remote read it with the edits it has not absorbed over
  * it: those still pending, and those committed after its revision. So an edit
@@ -165,6 +165,8 @@ const Base = Bundle.compose({
   remote: Remote.Model,
   /** The order the list is read in: the query's input, so another order is another read. */
   sort: ProductSort.Schema,
+  /** The text descriptions are searched for: the query's input too, so the server filters. */
+  search: Schema.String,
   /**
    * Every cell edited, the latest per cell, and when each committed. The
    * replicated slice: the journal's, not this device's.
@@ -201,6 +203,8 @@ const Base = Bundle.compose({
     /** A sort header was clicked: the intent, toggled in `update` from the Model as it is. */
     SortedProducts: { column: Schema.Literals(ProductSort.columns) },
     RequestedMoreProducts: {},
+    /** The search box's text, as typed: the query asks for it on the next read. */
+    SearchChanged: { text: Schema.String },
     RetriedProducts: {},
     /**
      * The durable fact: products' fields were edited. Replayed, so state only.
@@ -253,7 +257,7 @@ export const Data = Remote.make({
 
 export const Products = ProductList.at({
   data: Data,
-  input: (model: Model) => Option.some({ sort: model.sort }),
+  input: (model: Model) => Option.some({ sort: model.sort, search: model.search }),
 })
 
 type Cell = {
@@ -376,6 +380,7 @@ const transition = placements.update((model: Model, message: Message) =>
       SortedProducts: ({ column }) => ({
         model: modifyFields(model, { sort: sort => ProductSort.toggle(sort, column) }),
       }),
+      SearchChanged: ({ text }) => ({ model: modifyFields(model, { search: () => text }) }),
       RequestedMoreProducts: () => ({
         model: Option.getOrElse(Products.more(model), () => model),
       }),
@@ -446,6 +451,7 @@ export const initial = (): Model =>
   placements.initial({
     remote: Remote.initial,
     sort: ProductSort.none,
+    search: '',
     edits: [],
     retired: [],
     exchange: { pending: 0, error: Option.none() },

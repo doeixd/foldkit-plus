@@ -192,10 +192,29 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
             ],
             [status],
           ),
+          // The query's input: the server filters, over every product, not the page read.
+          h.input([
+            h.Type('search'),
+            h.Id('search'),
+            h.AriaLabel('Search descriptions'),
+            h.Placeholder('Search descriptions'),
+            h.Value(model.search),
+            h.OnInput(text => Message.SearchChanged({ text })),
+            h.Style({
+              marginInlineStart: 'auto',
+              inlineSize: 'min(16rem, 100%)',
+              padding: '0.375rem 0.625rem',
+              border: `1px solid ${hairline}`,
+              borderRadius: '8px',
+              background: 'transparent',
+              color: ink,
+              font: 'inherit',
+              fontSize: '0.875rem',
+            }),
+          ]),
           h.label(
             [
               h.Style({
-                marginInlineStart: 'auto',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.5rem',

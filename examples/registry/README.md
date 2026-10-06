@@ -17,7 +17,7 @@ the table is the journal's read model SQLite: the seed with each committed edit 
                                      on each row the revision it has read the journal to (server.ts)
 Remote caches the read model         a page at a time (app.ts: Data, Products)
 the grid owns the interaction        focus, selection, columns, viewport, the open editor
-the application owns the order       the query's input
+the application owns the order       the query's input, with the search
 ```
 
 The page shows this too. *How this page works*, under the legend, lists the
@@ -73,6 +73,12 @@ this example's own is below.
   socket, the tab's short name), and the journal stamps each edit with that
   actor and the replica it came from. Nothing checks the name, which a real
   deployment would.
+- **Search is the query's input.** The box above the grid sets `search` in
+  the Model, which the list reads as `ProductsQuery`'s input beside `sort`, so
+  a change is another read, answered over every product. The query's body
+  (`Query.define` in `operations.ts`) is `Expr.contains` on the description,
+  which the server's Drizzle binding compiles into its `where`: it folds case,
+  ASCII only, as every interpreter does. The grid holds no filter.
 - **Undo is a new edit.** Ctrl+Z on the grid (Ctrl+Shift+Z or Ctrl+Y to redo)
   takes back this tab's last edit, paste or fill as one step. An edit may already
   be committed and seen elsewhere, so nothing is rewound: the undo is an

@@ -1165,3 +1165,30 @@ test('a fill is one edit of the cells it writes, and one step to undo', async ()
     await dispose()
   }
 })
+
+test('a search is the query’s input: the server filters every product, case folded', async () => {
+  const { dispose, latest } = await mount(serve(), memoryStorage())
+  const search = (text: string) => {
+    const box = document.querySelector<HTMLInputElement>('#search')!
+    box.value = text
+    box.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  const descriptions = () =>
+    Array.from(
+      document.querySelectorAll('#products [role="gridcell"][id$=":description"]'),
+      element => element.textContent ?? '',
+    )
+  try {
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
+    search('DOWEL')
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')).toBeNull())
+    await vi.waitFor(() => expect(descriptions().length).toBeGreaterThan(5))
+    expect(descriptions().every(text => text.includes('Dowel'))).toBe(true)
+    // Read from the server's filter, not the page loaded: a page of matches.
+    expect(loaded(latest())).toBe(100)
+    search('')
+    await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
+  } finally {
+    await dispose()
+  }
+})

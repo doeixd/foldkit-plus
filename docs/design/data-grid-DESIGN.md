@@ -255,8 +255,12 @@ full seed, and checked by hand in Chromium.
   is plain data, and `columnState.restore` reads a save back leniently.
   `examples/data-grid` saves it to `localStorage` whenever a transition
   changes it and restores it as the page opens.
-- **Not built from §22:** search and filter, custom columns and bulk edits
-  beyond a paste and a fill.
+- **Search and filter (§17) are the query's.** The grid holds no filter
+  state: `examples/registry` puts a search in the Model, passes it as
+  `ProductsQuery`'s input, and the query's body (`Expr.contains`) is compiled
+  by the server. A filter control drawn by the grid, per column, is not built.
+- **Not built from §22:** custom columns and bulk edits beyond a paste and a
+  fill.
 
 ## Phase 8 as built so far (2026-10-03)
 

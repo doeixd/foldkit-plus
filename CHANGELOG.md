@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/registry` searches on the server.** A search box sets the
+  Products query's input; the query is now a `Query.define` whose body,
+  `Expr.contains` on the description, the Drizzle binding compiles (#144).
 - **`examples/data-grid` keeps its column layout** in the browser: saved with
   a Command after any transition that changes the column state, and read
   back with `columnState.restore` as the page opens (#144).

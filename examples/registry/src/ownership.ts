@@ -54,6 +54,7 @@ const facts = (
       Option.isSome(model.grid.editing) ? 'an editor open' : 'no editor open',
       `rows ${(shown.rows.start + 1).toLocaleString()} to ${shown.rows.end.toLocaleString()} drawn`,
     ].join(' · '),
+    search: model.search === '' ? 'Every product' : `Descriptions holding “${model.search}”`,
     sort:
       model.sort === null
         ? 'In the server’s own order'

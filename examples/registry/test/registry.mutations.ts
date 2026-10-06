@@ -245,4 +245,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the search is not the query’s input',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Option.some({ sort: model.sort, search: model.search })',
+        replace: "Option.some({ sort: model.sort, search: '' })",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the server does not filter by the search',
+    edits: [
+      {
+        file: '../src/operations.ts',
+        find: 'Expr.contains(Registry.Product.fields.description, input.search)',
+        replace: "Expr.contains(Registry.Product.fields.description, '')",
+      },
+    ],
+    tests,
+  },
 ]
