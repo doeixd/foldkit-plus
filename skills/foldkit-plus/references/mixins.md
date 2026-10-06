@@ -337,7 +337,8 @@ mechanisms, not components: compose them into your own slots, resolving icon `ur
   `@foldkit/ui` Button that set it, or a second `OnClick`, throws. Adding an attribute the base
   lacks is fine.
 - A rule piece inside `Style.whenInput` compiles to a static class whose presence follows the
-  input; its CSS is always in the stylesheet. Also: `Style.states({ open: {...} })` (`[data-state]`
+  input; its CSS is always in the stylesheet. Write a state as rules: an inline shorthand beside
+  a conditional inline longhand of it (`border` and `borderColor`) is refused at definition. Also: `Style.states({ open: {...} })` (`[data-state]`
   rules), `Style.responsive(breakpoints, map)`, `Style.at(prelude, piece)` (a piece's rules inside
   an at-rule, e.g. a selector under a container query), `Style.enter(decl)` (`@starting-style`) with
   `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, `Style.grid({ areas, columns?,

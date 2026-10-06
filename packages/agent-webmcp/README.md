@@ -69,7 +69,7 @@ const agentRuntime = AgentBuilder.bind({
   },
 })
 
-const modelContext = AgentWebMcp.documentModelContext()
+const modelContext = AgentWebMcp.pageModelContext()
 
 if (modelContext !== undefined) {
   const registration = AgentWebMcp.register({
@@ -90,8 +90,10 @@ That is the whole architecture: the contract remains protocol-neutral, the
 runtime remains the one authority for availability/authorization/dispatch, and
 this package translates it to the browser API.
 
-`documentModelContext()` is safe during SSR and returns `undefined` when no
-WebMCP producer surface exists. Calling `register()` without a model context
+`pageModelContext()` is `document.modelContext`, where the spec and Chromium
+150 put it, or else `navigator.modelContext`, the older name that earlier
+Chromium and agent extensions providing WebMCP still expose. It is safe during
+SSR and returns `undefined` when neither exists. Calling `register()` without a model context
 throws rather than silently pretending registration succeeded.
 
 Registration starts immediately, but browser registration is asynchronous.
@@ -169,7 +171,7 @@ The main options are:
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `agent` | — | The bound `AgentRuntime`. |
-| `modelContext` | `document.modelContext` | Producer surface to register against; pass a stand-in in tests. |
+| `modelContext` | `pageModelContext()` | Producer surface to register against; pass a stand-in in tests. |
 | `followModel` | `true` | Reconcile tools as capability availability changes. |
 | `signal` | — | Unregister everything when aborted. |
 | `invocationId` | `crypto.randomUUID()` | Supplies protocol invocation ids. |

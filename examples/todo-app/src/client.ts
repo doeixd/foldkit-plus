@@ -69,7 +69,7 @@ const agent = bindAgent({
     principal: () => principal,
   },
 })
-const modelContext = AgentWebMcp.documentModelContext()
+const modelContext = AgentWebMcp.pageModelContext()
 if (modelContext !== undefined) {
   const registration = AgentWebMcp.register({ agent, modelContext })
   void registration.refresh()

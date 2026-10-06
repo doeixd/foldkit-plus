@@ -20,6 +20,7 @@ export type DiagnosticCode =
   | 'mixins:duplicate-mount-name'
   | 'mixins:duplicate-item-id'
   | 'mixins:ragged-grid-areas'
+  | 'mixins:inline-shorthand-conflict'
   | 'style:duplicate-layer'
   | 'style:conflicting-layer-order'
   | 'style:unlayered-rule'

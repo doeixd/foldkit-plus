@@ -90,6 +90,73 @@ export const classPiece = (value: string): StyleValue =>
 export const inline = (value: Declarations): StyleValue =>
   make({ style: Object.freeze({ ...value }) })
 
+/** Shorthands whose longhands are named after them: `border` and `borderColor`. */
+const shorthands = [
+  'animation',
+  'background',
+  'border',
+  'borderBlock',
+  'borderBottom',
+  'borderInline',
+  'borderLeft',
+  'borderRadius',
+  'borderRight',
+  'borderTop',
+  'font',
+  'inset',
+  'listStyle',
+  'margin',
+  'mask',
+  'outline',
+  'overflow',
+  'padding',
+  'textDecoration',
+  'transition',
+]
+/**
+ * Properties named like a longhand that the shorthand does not set: a border's
+ * radius, image, collapse and spacing, an outline's offset, overflow's wrap
+ * and anchor, and the font settings the `font` shorthand leaves alone.
+ */
+const notLonghands =
+  /^border\w*(Radius|Image|Collapse|Spacing)|^outlineOffset$|^overflow(Wrap|Anchor)$|^font(Feature|Variation)Settings$|^textDecorationSkipInk$/
+const isLonghandOf = (shorthand: string, property: string) =>
+  property.length > shorthand.length &&
+  property.startsWith(shorthand) &&
+  /[A-Z]/.test(property[shorthand.length]!) &&
+  !notLonghands.test(property)
+
+/**
+ * Refuses an inline shorthand beside a longhand of it that comes and goes
+ * with a condition, in either order. The renderer drops a property by
+ * clearing it, and clearing `borderColor` clears the color `border` set too,
+ * while `border`, unchanged, is not written again: a pill that was once
+ * selected kept a `currentColor` border. Write the state as a rule
+ * (`Style.nest('&[aria-selected="true"]', …)`) or set the longhand always.
+ */
+const checkInlineShorthands = (
+  style: Readonly<Record<string, unknown>>,
+  conditions: ReadonlyArray<{ readonly piece: StyleValue }>,
+): void => {
+  const always = Object.keys(style)
+  for (const condition of conditions) {
+    for (const sometimes of Object.keys(condition.piece.style)) {
+      for (const property of always) {
+        const shorthand = shorthands.includes(property) && isLonghandOf(property, sometimes)
+        const longhand = shorthands.includes(sometimes) && isLonghandOf(sometimes, property)
+        if (!shorthand && !longhand) continue
+        throw new DiagnosticError({
+          source: 'mixins',
+          code: 'mixins:inline-shorthand-conflict',
+          severity: 'error',
+          message: `An inline \`${shorthand ? property : sometimes}\` beside a conditional \`${shorthand ? sometimes : property}\`: when the condition stops holding, the renderer clears \`${sometimes}\` and takes the shorthand's part with it. Write the state as a rule, or set the longhand unconditionally.`,
+          details: { always: property, conditional: sometimes },
+        })
+      }
+    }
+  }
+}
+
 /** Concatenate classes; later inline declarations win per property. */
 export const compose = (...written: ReadonlyArray<Piece>): StyleValue => {
   const pieces = written.map(toStyleValue)
@@ -97,9 +164,11 @@ export const compose = (...written: ReadonlyArray<Piece>): StyleValue => {
   const items = pieces.flatMap(piece => piece.items ?? [])
   const rules = pieces.flatMap(piece => piece.rules ?? [])
   const globalCss = pieces.flatMap(piece => piece.globalCss ?? [])
+  const style = Object.assign(Object.create(null), ...pieces.map(piece => piece.style))
+  checkInlineShorthands(style, conditions)
   return make({
     classes: Object.freeze(pieces.flatMap(piece => piece.classes)),
-    style: Object.freeze(Object.assign(Object.create(null), ...pieces.map(piece => piece.style))),
+    style: Object.freeze(style),
     ...(conditions.length === 0 ? {} : { conditions: Object.freeze(conditions) }),
     ...(items.length === 0 ? {} : { items: Object.freeze(items) }),
     ...(rules.length === 0 ? {} : { rules: Object.freeze(rules) }),

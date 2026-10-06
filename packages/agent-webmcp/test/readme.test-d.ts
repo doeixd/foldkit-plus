@@ -57,7 +57,7 @@ const agent = TodoAgent.bind({
 
 // Feature detection: `register` throws when there is no model context.
 declare const addEventListener: (type: string, listener: () => void) => void
-const modelContext = AgentWebMcp.documentModelContext()
+const modelContext = AgentWebMcp.pageModelContext()
 if (modelContext !== undefined) {
   const live = AgentWebMcp.register({ agent, modelContext })
   addEventListener('beforeunload', () => live.unregister())

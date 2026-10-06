@@ -188,7 +188,7 @@ RenamedList: {
 
 ```ts
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
-const modelContext = AgentWebMcp.documentModelContext() // undefined in SSR or without WebMCP support
+const modelContext = AgentWebMcp.pageModelContext() // undefined in SSR or without WebMCP support
 if (modelContext !== undefined) {
   const registration = AgentWebMcp.register({ agent: agentRuntime, modelContext })
   await registration.refresh() // wait until the browser accepts the current tool set

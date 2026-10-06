@@ -27,6 +27,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-agent-webmcp` registers where an older browser looks.**
+  `pageModelContext()`, which replaces `documentModelContext()`, reads
+  `document.modelContext`, where the spec and Chromium 150 put it, or else
+  `navigator.modelContext`, which earlier Chromium and agent extensions still
+  expose; the todo demo registered nothing for them.
+- **`foldkit-mixins`: an inline shorthand beside a conditional longhand of it
+  is refused** (`mixins:inline-shorthand-conflict`). Clearing the longhand when
+  the condition stopped holding cleared the shorthand's part too: the todo
+  demo's filter pills and checkboxes kept a black border after a state ended.
+  Its filters and checkboxes now write their states as rules.
 - **`foldkit-mixins/theme`: surfaces and outlines keep the page's tint.** The
   surface steps carried barely more of the base's chroma than the base, and
   the outlines mixed near-neutral text into it, so on a tinted page a panel, a

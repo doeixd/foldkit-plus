@@ -301,6 +301,13 @@ inside `Style.whenInput` compiles to its class like any other; the class is stat
 presence follows the input, and its CSS is in `Style.stylesheet` whether or not the condition
 ever holds. Drawn, it is injected like any other class.
 
+Prefer rule pieces for a state. An inline shorthand beside a conditional inline
+longhand of it (an inline `border` and a `whenInput` `borderColor`, either way
+round) is refused when the style is defined, with
+`mixins:inline-shorthand-conflict`: the renderer drops a property by clearing
+it, so clearing `borderColor` also cleared the color `border` set, and the
+element kept a `currentColor` border after the state ended.
+
 Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
 
 - `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that

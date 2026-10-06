@@ -44,8 +44,17 @@ export interface ModelContext {
   ) => void | Promise<unknown>
 }
 
-/** Reads `document.modelContext`, when the page provides it. */
-export const documentModelContext = (): ModelContext | undefined => {
+/**
+ * The page's model context, when it has one: `document.modelContext`, where
+ * the spec puts it, or else `navigator.modelContext`, the name Chromium used
+ * before 150 and agent extensions that provide WebMCP still use. Undefined on
+ * a server, or in a browser with neither.
+ */
+export const pageModelContext = (): ModelContext | undefined => {
   if (typeof document === 'undefined') return undefined
-  return (document as unknown as { modelContext?: ModelContext }).modelContext
+  const current = (document as unknown as { modelContext?: ModelContext }).modelContext
+  if (current !== undefined) return current
+  return typeof navigator === 'undefined'
+    ? undefined
+    : (navigator as unknown as { modelContext?: ModelContext }).modelContext
 }

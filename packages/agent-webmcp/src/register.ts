@@ -4,7 +4,7 @@ import {
   type ModelContext,
   type ToolDescriptor,
   type ToolResult,
-  documentModelContext,
+  pageModelContext,
 } from './webmcp.js'
 
 /** A live WebMCP registration. */
@@ -20,7 +20,7 @@ export interface Registration {
 export interface RegisterOptions<Model, Context_, Principal, ByName, ByTag> {
   /** The agent contract bound to a live Foldkit Runtime. */
   readonly agent: Agent.AgentRuntime<Model, Context_, Principal, ByName, ByTag>
-  /** Defaults to `document.modelContext`. */
+  /** Defaults to `pageModelContext()`: `document.modelContext`, or the older `navigator.modelContext`. */
   readonly modelContext?: ModelContext | undefined
   /** Unregisters everything when aborted. */
   readonly signal?: AbortSignal | undefined
@@ -65,10 +65,10 @@ const textResult = (text: string, isError = false): ToolResult => ({
 export const register = <Model, Context_, Principal, ByName, ByTag>(
   options: RegisterOptions<Model, Context_, Principal, ByName, ByTag>,
 ): Registration => {
-  const modelContext = options.modelContext ?? documentModelContext()
+  const modelContext = options.modelContext ?? pageModelContext()
   if (modelContext === undefined) {
     throw new Error(
-      'WebMCP is unavailable: no document.modelContext. Pass an explicit modelContext to register().',
+      'WebMCP is unavailable: no document.modelContext or navigator.modelContext. Pass an explicit modelContext to register().',
     )
   }
 

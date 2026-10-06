@@ -215,7 +215,9 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
   {
     button: Style.compose(
       Style.class('filter'),
-      Style.inline({
+      // Rules, not inline declarations: a state written inline as a longhand
+      // over an inline shorthand left a black border once it was cleared.
+      Style.self({
         padding: '0.3rem 0.75rem',
         border: '1px solid transparent',
         borderRadius: t.radius.full,
@@ -229,7 +231,7 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
       // per filter without a class per state in the view.
       Style.whenInput<FilterInput>(
         input => input.active,
-        Style.inline({
+        Style.self({
           borderColor: t.outline.subtle,
           background: t.accent.subtle,
           color: t.text.link,
@@ -384,7 +386,9 @@ export const EditorBehavior = Behavior.forSlots(ItemSlots)<ItemInput, BoardMessa
 export const ToggleStyle = Style.forSlots(CheckboxSlots)(
   {
     checkbox: Style.compose(
-      Style.inline({
+      // Rules, as the filters are: an inline `borderColor` over an inline
+      // `border` left a black ring once a todo was marked not done.
+      Style.self({
         width: '1.5rem',
         height: '1.5rem',
         display: 'grid',
@@ -398,7 +402,7 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
       }),
       Style.whenInput<ItemInput>(
         input => input.todo.completed,
-        Style.inline({ borderColor: t.accent.default }),
+        Style.self({ borderColor: t.accent.default }),
       ),
       Style.pseudo(':focus-visible', {
         outline: `2px solid ${t.outline.focus}`,
