@@ -684,16 +684,63 @@ export interface Activation {
   readonly tag: string
 }
 
-export interface ActiveSurface<Root> {
+export interface ActiveSurface<Root, Model = unknown> {
   readonly name: string
   /** Identity token of the application the Surface belongs to. */
   readonly owner: object
   /** The projection for the params the Model gives; none while the Surface is inactive. */
-  readonly projectionOf: (model: Root) => Option.Option<Projection<Root, unknown>>
+  readonly projectionOf: (model: Root) => Option.Option<Projection<Root, Model>>
   /** The tags of the Messages the Surface lists in `messages`: what it may send. */
   readonly messages: ReadonlyArray<string>
   /** Present when the Surface was placed with `Surface.when`; absent for `Surface.at`. */
   readonly activation?: Activation | undefined
+}
+
+/**
+ * One Surface definition instantiated with concrete params: the unit a
+ * `SurfaceSource` resolves to. `key` distinguishes instances of one Surface
+ * (a Composition node id, say); a lone `Surface.at`/`Surface.when` instance
+ * is keyed by its Surface name.
+ */
+export interface SurfaceInstance<Root, Model = unknown, Params = unknown> {
+  readonly key: string
+  readonly surface: Surface<Root, Model, unknown, Params>
+  readonly params: Params
+  readonly projection: Projection<Root, Model>
+}
+
+/**
+ * A source of active Surface instances: what `Data.subscriptions`,
+ * `Data.wiring`, `Remote.resume`, an SSR plan, an agent manifest, or DevTools
+ * resolves a declaration to. `Surface.at` and `Surface.when` are sources of
+ * zero or one instance; `Surface.each` of zero to many.
+ */
+export interface SurfaceSource<Root> {
+  readonly name: string
+  /** Identity token of the application the Surfaces belong to. */
+  readonly owner: object
+  readonly instancesOf: (model: Root) => ReadonlyArray<SurfaceInstance<Root, any, any>>
+}
+
+/**
+ * One Surface definition instantiated per item of a parent Surface's Model:
+ * `Surface.each` as data. `from` names the prerequisite — the family resolves
+ * no instances until the parent is active — so consumers can tell the
+ * requirements needed to *discover* instances from the requirements *of* the
+ * discovered instances. That distinction is what lets `Data.satisfy` reach a
+ * fixed point: first the parent, then what the parent reveals.
+ */
+export interface SurfaceFamily<
+  Root,
+  ParentModel,
+  Model,
+  Message,
+  Params,
+> extends SurfaceSource<Root> {
+  readonly from: ActiveSurface<Root, ParentModel>
+  readonly child: Surface<Root, Model, Message, Params>
+  /** The tags of the Messages the child Surface lists: what an instance may send. */
+  readonly messages: ReadonlyArray<string>
 }
 
 declare const invalid: unique symbol
@@ -1169,18 +1216,32 @@ export const Surface = {
   at: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
     params: Params | ((model: Root) => Option.Option<Params>),
-  ): ActiveSurface<Root> => ({
-    name: surface.name,
-    owner: surface.owner,
-    messages: messageTags(surface),
-    projectionOf: model =>
-      Option.map(
-        typeof params === 'function'
-          ? (params as (model: Root) => Option.Option<Params>)(model)
-          : Option.some(params),
-        surface.projection,
-      ),
-  }),
+  ): ActiveSurface<Root, Model> & SurfaceSource<Root> => {
+    const paramsOf = (model: Root): Option.Option<Params> =>
+      typeof params === 'function'
+        ? (params as (model: Root) => Option.Option<Params>)(model)
+        : Option.some(params)
+    const projectionOf = (model: Root): Option.Option<Projection<Root, Model>> =>
+      Option.map(paramsOf(model), surface.projection)
+    return {
+      name: surface.name,
+      owner: surface.owner,
+      messages: messageTags(surface),
+      projectionOf,
+      instancesOf: model => {
+        const value = paramsOf(model)
+        if (Option.isNone(value)) return []
+        return [
+          {
+            key: surface.name,
+            surface,
+            params: value.value,
+            projection: surface.projection(value.value),
+          },
+        ]
+      },
+    }
+  },
 
   /**
    * A Surface active while a tagged value at a known place has a given tag.
@@ -1208,26 +1269,103 @@ export const Surface = {
     place: ModelPlace<Root>,
     tagged: Case,
     params: (value: Schema.Schema.Type<Case>) => Params,
-  ): ActiveSurface<Root> => {
+  ): ActiveSurface<Root, Model> & SurfaceSource<Root> => {
     const tag = messageTag(tagged)
     if (tag === undefined) {
       throw new Error(
         `Surface.when: expected a tagged constructor for "${surface.name}", which is what names the case that activates it`,
       )
     }
+    const paramsOf = (model: Root): Option.Option<Params> => {
+      const value = place.get(model)
+      return Predicate.isTagged(value, tag)
+        ? Option.some(params(value as Schema.Schema.Type<Case>))
+        : Option.none()
+    }
     return {
       name: surface.name,
       owner: surface.owner,
       messages: messageTags(surface),
       activation: { path: place.dependency, tag },
-      projectionOf: model => {
-        const value = place.get(model)
-        return Predicate.isTagged(value, tag)
-          ? Option.some(surface.projection(params(value as Schema.Schema.Type<Case>)))
-          : Option.none()
+      projectionOf: model => Option.map(paramsOf(model), surface.projection),
+      instancesOf: model => {
+        const value = paramsOf(model)
+        if (Option.isNone(value)) return []
+        return [
+          {
+            key: surface.name,
+            surface,
+            params: value.value,
+            projection: surface.projection(value.value),
+          },
+        ]
       },
     }
   },
+
+  /**
+   * One Surface definition for each item of a parent Surface's Model: zero to
+   * many keyed instances, where `Surface.at`/`Surface.when` give zero or one.
+   *
+   * ```ts
+   * Surface.each(ProductGrid, {
+   *   from: CmsPage,
+   *   instances: ({ document }) => nodesOf(document).map(node => ({
+   *     key: node.id,
+   *     params: { category: node.props.category },
+   *   })),
+   * })
+   * ```
+   *
+   * Keys must be non-empty strings that survive as record keys: `__proto__`
+   * is refused, and duplicates throw. Consumers looking instances up by key
+   * must still read through `Object.hasOwn` or a `Map`: any string key is
+   * otherwise admitted.
+   */
+  each: <Root, ParentModel, Model, Message, Params>(
+    child: Surface<Root, Model, Message, Params>,
+    config: {
+      readonly from: ActiveSurface<Root, ParentModel>
+      readonly instances: (
+        parent: ParentModel,
+      ) => ReadonlyArray<{ readonly key: string; readonly params: Params }>
+    },
+  ): SurfaceFamily<Root, ParentModel, Model, Message, Params> => ({
+    name: child.name,
+    owner: child.owner,
+    from: config.from,
+    child,
+    messages: messageTags(child),
+    instancesOf: model => {
+      const parent = config.from.projectionOf(model)
+      if (Option.isNone(parent)) return []
+      const seen = new Set<string>()
+      return config.instances(parent.value.read(model)).map(({ key, params }) => {
+        if (typeof key !== 'string' || key.length === 0)
+          throw new Error(
+            `Surface.each: "${child.name}" needs a non-empty string key for every instance`,
+          )
+        if (key === '__proto__')
+          throw new Error(`Surface.each: "${child.name}" refuses "__proto__" as an instance key`)
+        if (seen.has(key))
+          throw new Error(`Surface.each: "${child.name}" has two instances keyed "${key}"`)
+        seen.add(key)
+        return { key, surface: child, params, projection: child.projection(params) }
+      })
+    },
+  }),
+
+  /**
+   * What a source resolves to for a Model: the family's instances, or the
+   * lone instance of a `Surface.at`/`Surface.when` value. Hand-written
+   * `ActiveSurface` values predate sources; they are not sources until they
+   * grow `instancesOf`, and consumers that still take them read `projectionOf`
+   * directly.
+   */
+  instances: <Root>(
+    source: SurfaceSource<Root>,
+    model: Root,
+  ): ReadonlyArray<SurfaceInstance<Root, any, any>> => source.instancesOf(model),
 
   make: <
     Root,

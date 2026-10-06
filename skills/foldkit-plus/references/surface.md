@@ -206,7 +206,14 @@ rejects copies and hand-built values.
   activation that is a genuine computation.
 - Both give an `ActiveSurface` with `projectionOf(model)`, `owner` and
   `messages`, the tags the Surface lists: what it may send, which `foldkit-ssr`
-  reads.
+  reads. Both are also a `SurfaceSource`: `instancesOf(model)` is the lone
+  instance (keyed by Surface name) or nothing while inactive.
+- `Surface.each(child, { from, instances })` is one Surface as zero to many
+  keyed instances: `instances` maps the parent's projected Model to
+  `{ key, params }` items. The family keeps its `from` parent, so a consumer
+  can tell the requirements needed to *discover* instances from the
+  requirements *of* them. Keys are stable strings: empty and `__proto__` keys
+  and duplicates throw. Read any source with `Surface.instances(source, model)`.
 
 ## Gotchas
 

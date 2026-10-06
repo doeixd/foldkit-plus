@@ -274,6 +274,15 @@ projection for those params, an `Option` too, and it carries the Surface's
 `owner` and `messages`, the tags of the Messages the Surface lists; a Subscription derives what to fetch from a list of them
 (`foldkit-remote`'s `Data.subscriptions`).
 
+`Surface.each(child, { from, instances })` is one Surface definition as zero to
+many keyed instances: `instances` maps the parent's projected Model to
+`{ key, params }` items, and there is an instance per item while the parent is
+active, none while it is not. Keys are stable strings (`__proto__` and
+duplicates throw). The family keeps its `from` parent, so a consumer can fetch
+the parent first and what the parent reveals after. `SurfaceSource` is the
+shared shape — `at`/`when` values resolve their lone instance through it, keyed
+by Surface name — read with `Surface.instances(source, model)`.
+
 ### `Surface.make`, the explicit form
 
 `Surface.make(app, name, { Params?, model, messages? })` takes the wrappers

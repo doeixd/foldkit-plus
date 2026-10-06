@@ -7,6 +7,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-surface`: `Surface.each`, one Surface as many keyed instances.**
+  `Surface.each(child, { from, instances })` instantiates a child Surface per
+  item of a parent Surface's Model — a stored page's Blocks, say — where
+  `Surface.at`/`Surface.when` give zero or one. The family keeps its `from`
+  parent, so consumers can tell the requirements needed to *discover*
+  instances from the requirements *of* them; it refuses empty and
+  `__proto__` keys and duplicate identities. `SurfaceSource` is the shared
+  shape (`at`/`when` values now resolve their lone instance through it, keyed
+  by Surface name), read with `Surface.instances(source, model)`.
+
 ### Changed
 
 - **`foldkit-mixins`: `Theme.oklch`'s families are one shape, and hold up in a
