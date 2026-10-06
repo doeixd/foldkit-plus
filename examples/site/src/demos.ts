@@ -66,6 +66,10 @@ export const registryDemo: Demo = {
       title: 'Reload',
       text: 'Reload Device B while it is offline. Its edits are still waiting, and go when it is back.',
     },
+    {
+      title: 'Undo',
+      text: 'Press Ctrl+Z on a device’s grid to take its last edit back. It goes as a new edit, and a cell the other device changed since is left alone.',
+    },
   ],
   readFirst: 'examples/registry/src/domain.ts',
   packages: ['data-grid', 'mixins-data-grid', 'remote', 'sync', 'durable'],
@@ -124,6 +128,10 @@ export const gridDemo: Demo = {
     {
       title: 'Copy',
       text: 'Select a range with Shift and the arrow keys, and copy it into a spreadsheet.',
+    },
+    {
+      title: 'Fill',
+      text: 'Drag the square at the corner of a selected cell down to carry its value on. Ctrl+D fills a selected range from its first row.',
     },
     {
       title: 'Arrange',
