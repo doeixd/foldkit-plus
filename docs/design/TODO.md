@@ -591,8 +591,14 @@ Recipes and accessibility patterns to build from. Its Phase 1A is the gated
   (23 contracts, 22 patterns — `HoverIntent` excepted as behavior without an
   ARIA contract); capabilities frozen at seven with a no-consumer-no-taxonomy
   rule; public/internal Slots exist as `hidden` with no adopter yet.
-- [ ] **Phase 2:** the capability algebra: `Collection`, `Overlay`, the
-  selection and navigation family, interaction, form-control semantics.
+- [x] **Phase 2:** the capability matrix as contract
+  ([capability-matrix-DESIGN.md](./capability-matrix-DESIGN.md)): every cell
+  checked against source — most of the algebra is built (Selection,
+  navigations, Typeahead, press/move/drag, focus, layers, disclosure, form
+  behaviors); the Collection Bundle stays deliberately unbuilt (parent array
+  + DOM order need no store). Three gaps with consumers: Overlay policy
+  (eight widgets; Drawer proves it), Collection drag-reorder and a
+  Virtualization Behavior (both deferred to the Tree slice that needs them).
 - [ ] **Phase 3:** a small shared vocabulary of Styles and Recipes
   (`Control`, `Interactive`, `Surface`, `FocusRing`, `CollectionItem` and the
   rest), recipes aware of anatomy, and recipe composition.
