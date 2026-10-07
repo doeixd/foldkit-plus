@@ -725,8 +725,8 @@ export const Site = {
       const { _tag, ...params } = current
       return Site.target(node, params)
     }
-    // tag-check: open — the tags are the application's own variants, named in config
     const reduces = (message: Message): boolean =>
+      // tag-check: open — the tags are the application's own variants, named in config
       message._tag === config.tags.clicked || message._tag === config.tags.changed
     const wiring: Wiring<Root, Message, R> = {
       key: 'site',
@@ -758,6 +758,7 @@ export const Site = {
             }),
           )
         }
+        // tag-check: open — same ownership as reduces
         if (message._tag === config.tags.changed) {
           const url = (message as unknown as { readonly url: UrlValue }).url
           const next = config.parse(url)
