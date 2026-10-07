@@ -476,7 +476,16 @@ export const TooltipStyle = app.forSlots(TooltipSlots)(
     trigger: [
       U.text('sm'),
       U.font('medium'),
-      { color: t.text.default, textDecoration: 'underline dotted', textUnderlineOffset: '3px' },
+      {
+        padding: '0',
+        border: '0',
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        textDecoration: 'underline dotted',
+        textUnderlineOffset: '3px',
+        cursor: 'default',
+      },
     ],
     panel: [
       U.text('xs'),

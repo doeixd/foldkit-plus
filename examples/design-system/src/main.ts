@@ -18,6 +18,7 @@ import * as UiFieldset from '@foldkit/ui/fieldset'
 import * as UiSelect from '@foldkit/ui/select'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
+import * as UiTooltip from '@foldkit/ui/tooltip'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   Button,
@@ -37,7 +38,7 @@ import {
   Switch,
   TabsSlots,
   Textarea,
-  TooltipSlots,
+  Tooltip,
 } from 'foldkit-mixins-ui'
 import {
   AreaStyle,
@@ -130,6 +131,7 @@ export const Model = Schema.Struct({
   contact: Contact,
   volume: Schema.Number,
   volumeSlider: UiSlider.Model,
+  tooltip: UiTooltip.Model,
   popoverOpen: Schema.Boolean,
   address: Schema.String,
 })
@@ -150,6 +152,7 @@ export const Message = defineMessageUnion({
   DetailsToggled: { value: Schema.Boolean },
   ContactSelected: { contact: Contact },
   VolumeSlider: { message: UiSlider.Message },
+  Tooltip: { message: UiTooltip.Message },
   PopoverToggled: {},
   AddressTyped: { value: Schema.String },
 })
@@ -171,6 +174,7 @@ export const initialModel: Model = {
   contact: 'email',
   volume: 60,
   volumeSlider: UiSlider.init({ id: 'volume-slider', min: 0, max: 100, step: 5 }),
+  tooltip: UiTooltip.init({ id: 'hint-tooltip' }),
   popoverOpen: false,
   address: 'about',
 }
@@ -197,6 +201,7 @@ export const update = (model: Model, message: Message) =>
     }),
     ContactSelected: ({ contact }) => ({ model: modifyFields(model, { contact: () => contact }) }),
     VolumeSlider: ({ message }) => foldVolumeSlider(model, message),
+    Tooltip: ({ message }) => foldTooltip(model, message),
     PopoverToggled: () => ({ model: modifyFields(model, { popoverOpen: open => !open }) }),
     AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
@@ -218,6 +223,18 @@ const foldVolumeSlider = Update.foldChild({
       model => ({
         model: modifyFields(model, { volume: () => value }),
       }),
+  }),
+})
+
+/** Visibility notifications need no parent state: showing is the child's own fact. */
+const foldTooltip = Update.foldChild({
+  update: UiTooltip.update,
+  read: (model: Model) => Option.some(model.tooltip),
+  write: (model, tooltip) => modifyFields(model, { tooltip: () => tooltip }),
+  toParentMessage: message => Message.Tooltip({ message }),
+  foldOutMessage: UiTooltip.OutMessage.match<Update.Step<Model, Message>>({
+    Shown: () => model => ({ model }),
+    Hidden: () => model => ({ model }),
   }),
 })
 
@@ -476,17 +493,34 @@ const PopoverPreview = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(PopoverStyle))
 
-const TooltipPreview = SlotView.forMessages<Message>()
-  .define(TooltipSlots, (_input: unknown, slots, h) =>
-    h.div(
-      [],
-      [
-        h.span(slots.trigger.attrs(), ['Hover or focus me']),
-        h.span(slots.panel.attrs([h.Role('tooltip')]), ['A helpful hint']),
-      ],
-    ),
-  )
-  .pipe(Style.attach(TooltipStyle))
+/**
+ * The live hint tooltip: the panel renders only while the component is
+ * visible — after the hover delay, or on keyboard focus — and positions
+ * itself against the trigger through the anchor.
+ */
+const TooltipDemo = (model: Pick<Model, 'tooltip'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.tooltip.id,
+    model: model.tooltip,
+    view: UiTooltip.view,
+    viewInputs: {
+      anchor: { placement: 'top', gap: 6, padding: 8 },
+      toView: attributes => {
+        const { trigger, panel, isVisible } = Tooltip.resolve(attributes, [TooltipStyle.mixin], {
+          input: undefined,
+          h,
+        })
+        return h.div(
+          [],
+          [
+            h.button(trigger, ['Hover or focus me']),
+            ...(isVisible ? [h.span(panel, ['A helpful hint'])] : []),
+          ],
+        )
+      },
+    },
+    toParentMessage: message => Message.Tooltip({ message }),
+  })
 
 const HoverPreview = SlotView.forMessages<Message>()
   .define(HoverIntentSlots, (_input: unknown, slots, h) =>
@@ -892,10 +926,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('overlays')]), [
           h.h2(slots.sectionTitle.attrs(), ['Overlays']),
           h.p(slots.sectionText.attrs(), [
-            'Floating UI drawn in place: a popover with real open state, a tooltip pill, and a hover card. The live components anchor against their triggers and dismiss on escape.',
+            'Floating UI with real state: a popover that opens, a tooltip that shows on hover or focus, and a hover card. The live components anchor against their triggers and dismiss on escape.',
           ]),
           PopoverPreview(model.popoverOpen, h),
-          TooltipPreview(undefined, h),
+          TooltipDemo(model, h),
           HoverPreview(undefined, h),
         ]),
         h.section(slots.section.attrs([h.Id('navigation')]), [

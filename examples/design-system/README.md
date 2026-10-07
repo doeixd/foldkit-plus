@@ -23,8 +23,8 @@ What it shows:
   and a live `Slider` (drag, arrow keys, Escape restores), each through its
   slot contract.
 - **Feedback** — `Badge` tones and a `Dialog` panel drawn in place.
-- **Overlays** — `Popover` (real open state), `Tooltip`, and `HoverIntent`
-  panels drawn in place.
+- **Overlays** — `Popover` (real open state), `Tooltip` (shows on hover or
+  focus, hides on leave), and `HoverIntent` panels drawn in place.
 - **Navigation** — `Tabs` (`line` and `pill`) and `Segmented`, driven by the
   application's own tab state rather than a Submodel.
 - **Calendar** — a month grid preview with a selected day.

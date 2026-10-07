@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as UiSlider from '@foldkit/ui/slider'
+import * as UiTooltip from '@foldkit/ui/tooltip'
 import { Message, initialModel, rootOverrideOf, update } from '../src/main.js'
 
 describe('design-system update', () => {
@@ -79,6 +80,26 @@ describe('design-system update', () => {
     expect(popover.model.popoverOpen).toBe(true)
     const address = update(popover.model, Message.AddressTyped({ value: 'pricing' }))
     expect(address.model.address).toBe('pricing')
+  })
+
+  it('shows the tooltip after its delay and hides it on leave', () => {
+    const entered = update(
+      initialModel,
+      Message.Tooltip({ message: UiTooltip.Message.EnteredTrigger() }),
+    )
+    expect(entered.model.tooltip.isHovered).toBe(true)
+    expect(entered.model.tooltip.isOpen).toBe(false)
+    // The delay is scheduled, not skipped: the fold returns the wait command.
+    const scheduled = 'commands' in entered ? entered.commands : undefined
+    expect(scheduled?.length ?? 0).toBe(1)
+    const version = entered.model.tooltip.pendingShowVersion
+    const shown = update(
+      entered.model,
+      Message.Tooltip({ message: UiTooltip.Message.CompletedWaitBeforeShowing({ version }) }),
+    )
+    expect(shown.model.tooltip.isOpen).toBe(true)
+    const left = update(shown.model, Message.Tooltip({ message: UiTooltip.Message.LeftTrigger() }))
+    expect(left.model.tooltip.isOpen).toBe(false)
   })
 
   it('declares the hue knob and scheme on :root, where derived tokens compute', () => {
