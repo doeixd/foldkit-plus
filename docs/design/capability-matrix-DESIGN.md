@@ -91,4 +91,9 @@ not the rows: one capability unlocks a family.
 
 Gap 1 landed first, proved by the Drawer slice. Gaps 2–3 wait inside the
 Tree slice if it demands them, not before. Then Phase 6's five-widget
-proof, then the Phase 7 matrix in waves.
+proof, then the Phase 7 matrix in waves — Wave A has landed as
+`examples/widgets` (toolbar, toggle, toggle-group, accordion, number-field,
+checkbox-group, meter, command; the overlay-backed rows wait for Wave B).
+Two cells corrected along the way: `Filter.text` was never a helper (the
+filter is a function of the Model), and `Disclosure` names one pair (N
+sections derive its attributes per item).

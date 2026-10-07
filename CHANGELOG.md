@@ -9,6 +9,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/widgets`: Wave A showcase, eight thin compositions, live page.**
+  Toolbar (RovingTabindex + Collection), Toggle (ToggleState, no Bundle),
+  ToggleGroup (single Selection), Accordion (Collection + per-item
+  disclosure), NumberField (SpinValue + FieldAssociation), CheckboxGroup
+  (multiple Selection over native boxes), Meter (stateless value/max), and
+  Command (Collection + inline filter + ListNavigation + single Selection).
+  Each with tests beside a mutation spec; one `makeElement` island per
+  widget in `src/entry.ts` (`pnpm dev`, `vite build` clean); a jsdom test
+  boots that same entry and answers one interaction per island. 42 tests.
+  Notable finds: no `Filter.text` helper exists in source (the filter stays
+  a three-line function of the Model); `Disclosure` names one pair, so N
+  sections derive its attributes per item; `embed` replaces its container,
+  so the test queries the drawn page.
+
 - **`foldkit-primitives`: Overlay policy over the existing pieces.**
   `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into
   `Overlay.behaviors(...)`, spread into the view's pipe: `DismissLayer`
