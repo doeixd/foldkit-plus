@@ -599,14 +599,29 @@ Recipes and accessibility patterns to build from. Its Phase 1A is the gated
   + DOM order need no store). Three gaps with consumers: Overlay policy
   (eight widgets; Drawer proves it), Collection drag-reorder and a
   Virtualization Behavior (both deferred to the Tree slice that needs them).
-- [ ] **Phase 3:** a small shared vocabulary of Styles and Recipes
-  (`Control`, `Interactive`, `Surface`, `FocusRing`, `CollectionItem` and the
-  rest), recipes aware of anatomy, and recipe composition.
-- [ ] **Phase 4:** themes as values, and knobs (density, radius, motion,
-  contrast) apart from variants.
-- [ ] **Phase 5:** the platform floor and an accessibility gate.
-- [ ] **Phase 6:** five representative widgets: Combobox, Menu, Tree, Field,
-  Drawer.
+- [x] **Phase 3:** the shared style vocabulary, verified as built:
+  `design.ts` pieces (`component`/`variant` layers, hover-besides-disabled,
+  `focusRing`, `disabled`, transitions, tones with independent axes),
+  `Style.recipeFor(Slots)` rejecting unknown slots like `forSlots` does,
+  composition via `.extend` plus partial selection (including `null` to
+  unset a defaulted axis), and `Style.forCapability` (one piece for every
+  slot a capability fits). No `Control`/`Surface`/`CollectionItem` names:
+  the pieces exist without the nouns; name them when a recipe needs one.
+- [x] **Phase 4:** themes as values (`Theme.define/compose/root/scoped/
+  lightDark`) with knobs apart from variants (`knob.density`,
+  `knob.radius-factor`, contrast and hue factors re-derive the palette;
+  space/radius multiply by them). Open micro-items, no consumer yet: a
+  motion-scale knob and a control-size knob.
+- [x] **Phase 5:** the platform floor as metadata (`pattern.floor`,
+  catalog `floor`: what the browser already covers) plus the gate
+  (`patterns.test.ts` refuses a contract that fails its pattern).
+  Native-first element choices stay upstream's domain; the forks preserve
+  them.
+- [x] **Phase 6:** five representative widgets: Combobox and Menu via
+  forks, Tree and Drawer via primitive composition, Field via
+  `foldkit-mixins-form`'s per-control validation wiring (no universal
+  `Field` component: the derivation lives in the renderers that own the
+  controls).
 - [ ] **Phases 7 to 10:** the component matrix in three waves, the stateless
   visual vocabulary, patterns (CommandPalette among them; DataGrid is its own
   section above), and blocks.
