@@ -15,6 +15,7 @@ import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
 import { FileDropSlots } from './fileDrop.js'
+import { ComboboxSlots } from './combobox.js'
 import { ToastSlots } from './toast.js'
 import { InputSlots } from './input.js'
 import { ListboxSlots } from './listbox.js'
@@ -168,6 +169,25 @@ export const Toast = A11y.pattern({
   entry: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
+export const Combobox = A11y.pattern({
+  input: {
+    capability: Capability.TextInput,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaExpanded],
+  },
+  items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
+  item: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role, Attr.AriaSelected],
+  },
+  toggleButton: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    optional: true,
+  },
+})
+
 export const Listbox = A11y.pattern({
   wrapper: { capability: Capability.Container },
   button: {
@@ -287,6 +307,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['native-control', 'form-submission'],
   ),
   entry('toast', Toast, ToastSlots, 'stateful', ['region', 'status', 'alert']),
+  entry(
+    'combobox',
+    Combobox,
+    ComboboxSlots,
+    'stateful',
+    ['combobox', 'listbox', 'option', 'button'],
+    ['native-control', 'form-submission', 'top-layer', 'backdrop'],
+  ),
   entry(
     'listbox',
     Listbox,

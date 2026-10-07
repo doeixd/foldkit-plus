@@ -63,42 +63,44 @@ export const defaultToView =
       ]
     }
     const grouped = render.groups.flatMap(drawGroup)
-    return h.div([...render.wrapper], [
-      h.div([...render.inputWrapper], [
-        h.input([...render.input]),
-        ...(render.toggleButton === undefined
+    return h.div(
+      [...render.wrapper],
+      [
+        h.div(
+          [...render.inputWrapper],
+          [
+            h.input([...render.input]),
+            ...(render.toggleButton === undefined
+              ? []
+              : [
+                  h.keyed('button')(
+                    render.toggleButton.key,
+                    [...render.toggleButton.attributes],
+                    [render.toggleButton.content],
+                  ),
+                ]),
+          ],
+        ),
+        ...(render.backdrop === undefined
+          ? []
+          : [h.keyed('div')(render.backdrop.key, [...render.backdrop.attributes])]),
+        ...(render.items === undefined
           ? []
           : [
-              h.keyed('button')(
-                render.toggleButton.key,
-                [...render.toggleButton.attributes],
-                [render.toggleButton.content],
+              h.keyed('div')(
+                render.items.key,
+                [...render.items.attributes],
+                render.scroll === undefined ? grouped : [h.div([...render.scroll], grouped)],
               ),
             ]),
-      ]),
-      ...(render.backdrop === undefined
-        ? []
-        : [h.keyed('div')(render.backdrop.key, [...render.backdrop.attributes])]),
-      ...(render.items === undefined
-        ? []
-        : [
-            h.keyed('div')(
-              render.items.key,
-              [...render.items.attributes],
-              render.scroll === undefined
-                ? grouped
-                : [h.div([...render.scroll], grouped)],
-            ),
-          ]),
-      ...render.hiddenInputs,
-    ])
+        ...render.hiddenInputs,
+      ],
+    )
   }
 
-const makeSharedView = (behavior: SharedBehavior): SubmodelView<
-  SingleModel,
-  Message,
-  SharedViewInputs
-> => {
+const makeSharedView = (
+  behavior: SharedBehavior,
+): SubmodelView<SingleModel, Message, SharedViewInputs> => {
   const view = (
     model: SingleModel,
     viewInputs: SharedViewInputs,
@@ -113,26 +115,19 @@ const makeSharedView = (behavior: SharedBehavior): SubmodelView<
 const singleShared = makeSharedView({ ariaMultiSelectable: false })
 const multiShared = makeSharedView({ ariaMultiSelectable: true })
 
-export type {
-  ComboboxGroupRender,
-  ComboboxHeadingRender,
-  ComboboxItemRender,
-  ComboboxRenderInfo,
-}
+export type { ComboboxGroupRender, ComboboxHeadingRender, ComboboxItemRender, ComboboxRenderInfo }
 
 /** Upstream single view inputs plus the seam. */
 export type SingleViewInputs<Item extends string> = UpstreamSingleInputs<Item> &
   Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }>
 
 /** Upstream multi view inputs plus the seam. */
-export type MultiViewInputs<Item extends string> =
-  UpstreamCombobox.Multi.ViewInputs<Item> &
-    Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }>
+export type MultiViewInputs<Item extends string> = UpstreamCombobox.Multi.ViewInputs<Item> &
+  Readonly<{ toView?: (render: ComboboxRenderInfo) => Html }>
 
 type MultiModel = UpstreamCombobox.Multi.Model
 
-type UpstreamMultiBundle<Item extends string> =
-  UpstreamCombobox.Multi.Bundle<Item>
+type UpstreamMultiBundle<Item extends string> = UpstreamCombobox.Multi.Bundle<Item>
 
 const singleViewImpl = defineView<SingleModel, Message, SingleViewInputs<string>>(
   (model, { maybeSelectedValue, toView, ...baseInputs }, h) =>
@@ -160,28 +155,17 @@ export const create = <Item extends string = string>(): SingleBundle<Item> => {
   const bound = UpstreamCombobox.create<Item>()
   return {
     ...bound,
-    view: singleViewImpl as unknown as SubmodelView<
-      SingleModel,
-      Message,
-      SingleViewInputs<Item>
-    >,
+    view: singleViewImpl as unknown as SubmodelView<SingleModel, Message, SingleViewInputs<Item>>,
   }
 }
 
 const multiViewImpl = defineView<MultiModel, Message, MultiViewInputs<string>>(
   (model, { toView, ...rest }, h) =>
-    multiShared(
-      model as unknown as SingleModel,
-      { ...rest, toView },
-      h,
-    ),
+    multiShared(model as unknown as SingleModel, { ...rest, toView }, h),
 )
 
 /** Upstream multi `Bundle` with the forked `view`. */
-export type MultiBundle<Item extends string = string> = Omit<
-  UpstreamMultiBundle<Item>,
-  'view'
-> & {
+export type MultiBundle<Item extends string = string> = Omit<UpstreamMultiBundle<Item>, 'view'> & {
   readonly view: SubmodelView<MultiModel, Message, MultiViewInputs<Item>>
 }
 
@@ -191,11 +175,7 @@ export const Multi = {
     const bound = UpstreamCombobox.Multi.create<Item>()
     return {
       ...bound,
-      view: multiViewImpl as unknown as SubmodelView<
-        MultiModel,
-        Message,
-        MultiViewInputs<Item>
-      >,
+      view: multiViewImpl as unknown as SubmodelView<MultiModel, Message, MultiViewInputs<Item>>,
     }
   },
 }

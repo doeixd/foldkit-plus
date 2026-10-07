@@ -8,6 +8,8 @@ export * as Anchor from './anchor.js'
 export * as Button from './button.js'
 export * as Calendar from './calendar.js'
 export * as Checkbox from './checkbox.js'
+export * as Combobox from './combobox.js'
+export * as ComboboxView from './comboboxView.js'
 export * as Dialog from './dialog.js'
 export * as Disclosure from './disclosure.js'
 export * as Fieldset from './fieldset.js'
@@ -37,6 +39,7 @@ export * as Touch from './touch.js'
 export { ButtonSlots } from './button.js'
 export { CalendarSlots } from './calendar.js'
 export { CheckboxSlots } from './checkbox.js'
+export { ComboboxSlots } from './combobox.js'
 export { DialogSlots } from './dialog.js'
 export { DisclosureSlots } from './disclosure.js'
 export { FieldsetSlots } from './fieldset.js'
@@ -61,6 +64,23 @@ export type { FieldParts } from './field.js'
 export type { MixinList, ResolveContext, Resolved, ResolvedSlots } from './resolve.js'
 export type { ButtonView, ResolvedButton } from './button.js'
 export type { ResolvedCheckbox } from './checkbox.js'
+export type {
+  ResolvedCombobox,
+  ResolvedComboboxGroup,
+  ResolvedComboboxHeading,
+  ResolvedComboboxItem,
+  ResolvedComboboxToggle,
+} from './combobox.js'
+export type {
+  ComboboxGroupRender,
+  ComboboxHeadingRender,
+  ComboboxItemRender,
+  ComboboxRenderInfo,
+  MultiBundle as ComboboxMultiBundle,
+  MultiViewInputs as ComboboxMultiViewInputs,
+  SingleBundle as ComboboxSingleBundle,
+  SingleViewInputs as ComboboxSingleViewInputs,
+} from './comboboxView.js'
 export type { ResolvedDialog } from './dialog.js'
 export type { ResolvedDisclosure } from './disclosure.js'
 export type { ResolvedFieldset } from './fieldset.js'

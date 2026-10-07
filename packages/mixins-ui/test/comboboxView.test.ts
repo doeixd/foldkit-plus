@@ -204,8 +204,7 @@ describe('combobox view parity (upstream views vs forked views)', () => {
         Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
           {
             update: upstreamSingle.update,
-            view: (current, h) =>
-              view(current, { ...singleInputs(h), isDisabled: true }, h),
+            view: (current, h) => view(current, { ...singleInputs(h), isDisabled: true }, h),
           },
           Scene.given(initial),
           Scene.Mount.resolve(
@@ -244,10 +243,7 @@ describe('combobox view parity (upstream views vs forked views)', () => {
             'aria-labelledby',
             `${id}-heading-a`,
           ),
-          Scene.expect(Scene.selector(`#${id}-heading-b`)).toHaveAttr(
-            'role',
-            'presentation',
-          ),
+          Scene.expect(Scene.selector(`#${id}-heading-b`)).toHaveAttr('role', 'presentation'),
           Scene.expect(Scene.selector('[role="separator"]')).toHaveAttr('class', 'sep'),
         )
       }

@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: Combobox adapter over a view fork with a `toView`
+  seam.** `ComboboxView.create`/`Multi.create` bind the upstream bundles and
+  swap in transcribed markup assembly (pinned `@foldkit/ui@0.165.0`,
+  attributed): single and multi share one transcription, proved by a
+  three-view parity battery (incl. typing through the input, disabled
+  handlers dropped, and multi staying open on select). `Combobox` adapts the
+  fork (11 slots: wrapper/inputWrapper/input/toggleButton/backdrop/items/
+  scroll/item/group/heading/separator) with a `Combobox` A11y pattern and
+  catalog entry.
 - **`foldkit-mixins-ui`: Listbox adapter over a view fork with a `toView`
   seam.** `ListboxView.create`/`Multi.create` bind the upstream bundles and
   swap in transcribed markup assembly (pinned `@foldkit/ui@0.165.0`,

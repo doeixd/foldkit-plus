@@ -362,6 +362,7 @@ Calendar   -> ResolvedDays | ResolvedMonths | ResolvedYears
 Menu       -> { wrapper, button, backdrop, items, scroll, groups, isVisible }
 Toast      -> { container, entries }
 Listbox    -> { wrapper, button, backdrop, items, scroll, groups, hiddenInputs, isVisible }
+Combobox   -> { wrapper, inputWrapper, input, toggleButton, backdrop, items, scroll, groups, hiddenInputs, isVisible }
 ```
 
 One Slot contribution can apply to each repeated item while every item's base
@@ -395,6 +396,7 @@ adapter.
 | FileDrop | `root`, `input` |
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
 | Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ListboxView` fork; single and multi share one transcription) |
+| Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ComboboxView` fork; single and multi share one transcription) |
 
 ## Recipes
 
@@ -582,11 +584,10 @@ The bridge needs a **consumer-visible attribute bundle**. If a component builds
 its entire element tree internally and exposes no `toView`-style seam, there is
 nothing for Mixins to attach to.
 
-Currently `ComboBox` falls into that category, as does
-`DatePicker` (whose calendar half already uses a seam internally — the date
-field around it does not). They cannot be adapted here without a change to
-their upstream component API. That is a limitation of the exposed render
-seam, not of Slot resolution.
+Currently only `DatePicker` falls into that category (its calendar half
+already uses a seam internally — the date field around it does not). It
+cannot be adapted here without a change to its upstream component API. That
+is a limitation of the exposed render seam, not of Slot resolution.
 
 `Menu` is the exception that proves the seam rule: its state machine stays
 upstream, but its markup assembly is transcribed into `MenuView` (from the
@@ -601,6 +602,8 @@ variants over one shared transcription (`ListboxView.create` and
 `ListboxView.Multi.create` bind the upstream bundles; the single and multi
 Models are structurally identical, so the single adaptor maps
 `maybeSelectedValue` to `selectedValues` exactly as upstream's does).
+`Combobox` follows the same shape over its own shared transcription
+(`ComboboxView.create` / `ComboboxView.Multi.create`).
 
 Other `@foldkit/ui` modules—`Toast`, `VirtualList`, `DragAndDrop`, and
 `Animation`—simply do not have adapters here yet.
