@@ -361,6 +361,7 @@ RadioGroup -> { group, options, selectedValue, hiddenInput }
 Calendar   -> ResolvedDays | ResolvedMonths | ResolvedYears
 Menu       -> { wrapper, button, backdrop, items, scroll, groups, isVisible }
 Toast      -> { container, entries }
+Listbox    -> { wrapper, button, backdrop, items, scroll, groups, hiddenInputs, isVisible }
 ```
 
 One Slot contribution can apply to each repeated item while every item's base
@@ -393,6 +394,7 @@ adapter.
 | Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `MenuView` fork; see below) |
 | FileDrop | `root`, `input` |
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
+| Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ListboxView` fork; single and multi share one transcription) |
 
 ## Recipes
 
@@ -580,7 +582,7 @@ The bridge needs a **consumer-visible attribute bundle**. If a component builds
 its entire element tree internally and exposes no `toView`-style seam, there is
 nothing for Mixins to attach to.
 
-Currently `Listbox` and `ComboBox` fall into that category, as does
+Currently `ComboBox` falls into that category, as does
 `DatePicker` (whose calendar half already uses a seam internally — the date
 field around it does not). They cannot be adapted here without a change to
 their upstream component API. That is a limitation of the exposed render
@@ -594,7 +596,11 @@ upstream's `update`, and a parity battery draws both views over the same
 models. If upstream gains a seam, the fork goes away. `Toast` follows the
 same shape: `ToastView.make` binds upstream's `Toast.make` for the payload
 and swaps in the transcribed view; the dismiss control stays inside the
-consumer's `entryToView`, so it is content, not a slot.
+consumer's `entryToView`, so it is content, not a slot. `Listbox` forks both
+variants over one shared transcription (`ListboxView.create` and
+`ListboxView.Multi.create` bind the upstream bundles; the single and multi
+Models are structurally identical, so the single adaptor maps
+`maybeSelectedValue` to `selectedValues` exactly as upstream's does).
 
 Other `@foldkit/ui` modules—`Toast`, `VirtualList`, `DragAndDrop`, and
 `Animation`—simply do not have adapters here yet.

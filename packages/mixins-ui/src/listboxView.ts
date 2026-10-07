@@ -25,12 +25,7 @@ import {
   type SharedViewInputs,
 } from './listboxShared.js'
 
-export type {
-  ListboxGroupRender,
-  ListboxHeadingRender,
-  ListboxItemRender,
-  ListboxRenderInfo,
-}
+export type { ListboxGroupRender, ListboxHeadingRender, ListboxItemRender, ListboxRenderInfo }
 
 /** Upstream's markup from the computed bundles: the default `toView`. */
 export const defaultToView =
@@ -64,29 +59,30 @@ export const defaultToView =
       ]
     }
     const grouped = render.groups.flatMap(drawGroup)
-    return h.div([...render.wrapper], [
-      h.keyed('button')(`${render.id}-button`, [...render.button], [
-        render.buttonContent,
-      ]),
-      ...render.hiddenInputs,
-      ...(render.backdrop === undefined
-        ? []
-        : [h.keyed('div')(render.backdrop.key, [...render.backdrop.attributes])]),
-      ...(render.items === undefined
-        ? []
-        : [
-            h.keyed('div')(
-              render.items.key,
-              [...render.items.attributes],
-              render.scroll === undefined
-                ? grouped
-                : [h.div([...render.scroll], grouped)],
-            ),
-          ]),
-    ])
+    return h.div(
+      [...render.wrapper],
+      [
+        h.keyed('button')(`${render.id}-button`, [...render.button], [render.buttonContent]),
+        ...render.hiddenInputs,
+        ...(render.backdrop === undefined
+          ? []
+          : [h.keyed('div')(render.backdrop.key, [...render.backdrop.attributes])]),
+        ...(render.items === undefined
+          ? []
+          : [
+              h.keyed('div')(
+                render.items.key,
+                [...render.items.attributes],
+                render.scroll === undefined ? grouped : [h.div([...render.scroll], grouped)],
+              ),
+            ]),
+      ],
+    )
   }
 
-const makeSharedView = (behavior: SharedBehavior): SubmodelView<SingleModel, Message, SharedViewInputs> => {
+const makeSharedView = (
+  behavior: SharedBehavior,
+): SubmodelView<SingleModel, Message, SharedViewInputs> => {
   const view = (
     model: SingleModel,
     viewInputs: SharedViewInputs,
@@ -111,12 +107,12 @@ export type SingleViewInputs<
 export type MultiViewInputs<
   Item = string,
   Value extends string = Item extends string ? Item : string,
-> = UpstreamListbox.Multi.ViewInputs<Item, Value> & Readonly<{ toView?: (render: ListboxRenderInfo) => Html }>
+> = UpstreamListbox.Multi.ViewInputs<Item, Value> &
+  Readonly<{ toView?: (render: ListboxRenderInfo) => Html }>
 
 type MultiModel = UpstreamListbox.Multi.Model
 
-type UpstreamMultiBundle<Item, Value extends string> =
-  UpstreamListbox.Multi.Bundle<Item, Value>
+type UpstreamMultiBundle<Item, Value extends string> = UpstreamListbox.Multi.Bundle<Item, Value>
 
 const singleViewImpl = defineView<SingleModel, Message, SingleViewInputs<unknown, string>>(
   (model, { maybeSelectedValue, toView, ...baseInputs }, h) =>
@@ -157,11 +153,7 @@ export const create = <
 
 const multiViewImpl = defineView<MultiModel, Message, MultiViewInputs<unknown, string>>(
   (model, { toView, ...rest }, h) =>
-    multiShared(
-      model as unknown as SingleModel,
-      { ...rest, toView },
-      h,
-    ),
+    multiShared(model as unknown as SingleModel, { ...rest, toView }, h),
 )
 
 /** Upstream multi `Bundle` with the forked `view`. */

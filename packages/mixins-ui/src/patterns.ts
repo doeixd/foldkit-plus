@@ -17,6 +17,7 @@ import { FieldsetSlots } from './fieldset.js'
 import { FileDropSlots } from './fileDrop.js'
 import { ToastSlots } from './toast.js'
 import { InputSlots } from './input.js'
+import { ListboxSlots } from './listbox.js'
 import { MenuSlots } from './menu.js'
 import { PopoverSlots } from './popover.js'
 import { RadioGroupSlots } from './radioGroup.js'
@@ -167,6 +168,22 @@ export const Toast = A11y.pattern({
   entry: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
+export const Listbox = A11y.pattern({
+  wrapper: { capability: Capability.Container },
+  button: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+  backdrop: { capability: Capability.Container, optional: true },
+  items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
+  item: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role, Attr.AriaSelected],
+  },
+})
+
 export const Menu = A11y.pattern({
   wrapper: { capability: Capability.Container },
   button: {
@@ -270,6 +287,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['native-control', 'form-submission'],
   ),
   entry('toast', Toast, ToastSlots, 'stateful', ['region', 'status', 'alert']),
+  entry(
+    'listbox',
+    Listbox,
+    ListboxSlots,
+    'stateful',
+    ['listbox', 'option', 'button'],
+    ['top-layer', 'backdrop', 'native-control', 'form-submission'],
+  ),
   entry(
     'menu',
     Menu,

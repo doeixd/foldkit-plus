@@ -26,12 +26,7 @@ import type {
   ItemConfig,
   ItemToValueInput,
 } from '@foldkit/ui/listbox'
-import {
-  childAttributes,
-  type ChildAttribute,
-  type Html,
-  type HtmlBuilder,
-} from 'foldkit/html'
+import { childAttributes, type ChildAttribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import {
   findFirstEnabledIndex,
@@ -61,9 +56,7 @@ export type ListboxGroupRender = Readonly<{
   key: string
   heading: ListboxHeadingRender | undefined
   group: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
-  separator:
-    | { key: string; attributes: ReadonlyArray<ChildAttribute> }
-    | undefined
+  separator: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
   items: ReadonlyArray<ListboxItemRender>
 }>
 
@@ -80,9 +73,7 @@ export type ListboxRenderInfo = Readonly<{
   button: ReadonlyArray<ChildAttribute>
   buttonContent: Html
   hiddenInputs: ReadonlyArray<Html>
-  backdrop:
-    | { key: string; attributes: ReadonlyArray<ChildAttribute> }
-    | undefined
+  backdrop: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
   items: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
   scroll: ReadonlyArray<ChildAttribute> | undefined
   groups: ReadonlyArray<ListboxGroupRender>
@@ -151,15 +142,11 @@ export const computeRender = (
     selectedValues,
   } = viewInputs
 
-  const itemToValue =
-    viewInputs.itemToValue ?? ((item: unknown) => globalThis.String(item))
-  const isValueSelected = (itemValue: string): boolean =>
-    Array.contains(selectedValues, itemValue)
-  const itemToSearchText =
-    viewInputs.itemToSearchText ?? ((item: unknown) => itemToValue(item))
+  const itemToValue = viewInputs.itemToValue ?? ((item: unknown) => globalThis.String(item))
+  const isValueSelected = (itemValue: string): boolean => Array.contains(selectedValues, itemValue)
+  const itemToSearchText = viewInputs.itemToSearchText ?? ((item: unknown) => itemToValue(item))
 
-  const isLeaving =
-    transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
+  const isLeaving = transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
   const isVisible = isOpen || isLeaving
 
   const animationAttributes = Match.value(transitionState).pipe(
@@ -200,15 +187,13 @@ export const computeRender = (
   const navigationKeys = [nextKey, previousKey, 'Home', 'End', 'PageUp', 'PageDown']
   const isNavigationKey = (key: string): boolean => Array.contains(navigationKeys, key)
 
-  const firstEnabledIndex = findFirstEnabledIndex(items.length, 0, isItemDisabledByIndex)(
-    0,
-    1,
-  )
+  const firstEnabledIndex = findFirstEnabledIndex(items.length, 0, isItemDisabledByIndex)(0, 1)
 
-  const lastEnabledIndex = findFirstEnabledIndex(items.length, 0, isItemDisabledByIndex)(
-    items.length - 1,
-    -1,
-  )
+  const lastEnabledIndex = findFirstEnabledIndex(
+    items.length,
+    0,
+    isItemDisabledByIndex,
+  )(items.length - 1, -1)
 
   const selectedItemIndex = pipe(
     selectedValues,
@@ -246,17 +231,11 @@ export const computeRender = (
     )
   }
 
-  const handleButtonPointerDown = (
-    pointerType: string,
-    button: number,
-  ): Option.Option<Message> =>
+  const handleButtonPointerDown = (pointerType: string, button: number): Option.Option<Message> =>
     Option.some(Message.PressedPointerOnButton({ pointerType, button }))
 
   const handleButtonClick = (): Message => {
-    const isMouse = Option.exists(
-      maybeLastButtonPointerType,
-      type => type === 'mouse',
-    )
+    const isMouse = Option.exists(maybeLastButtonPointerType, type => type === 'mouse')
 
     if (isMouse) {
       return Message.IgnoredMouseClick()
@@ -278,9 +257,7 @@ export const computeRender = (
           Match.orElse(() => firstEnabledIndex),
         ),
       onSome: activeIndex =>
-        keyToIndex(nextKey, previousKey, items.length, activeIndex, isItemDisabledByIndex)(
-          key,
-        ),
+        keyToIndex(nextKey, previousKey, items.length, activeIndex, isItemDisabledByIndex)(key),
     })
 
   const searchForKey = (key: string): Option.Option<Message> => {
@@ -300,9 +277,7 @@ export const computeRender = (
     if (isReadOnly) {
       return Option.as(maybeActiveItemIndex, Message.SuppressedItemCommit())
     } else {
-      return Option.map(maybeActiveItemIndex, index =>
-        Message.RequestedItemClick({ index }),
-      )
+      return Option.map(maybeActiveItemIndex, index => Message.RequestedItemClick({ index }))
     }
   }
 
@@ -366,9 +341,7 @@ export const computeRender = (
 
   const anchorAttributes = [
     h.Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
-    h.OnMount(
-      UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor }),
-    ),
+    h.OnMount(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor })),
   ]
 
   const wrapper: ReadonlyArray<ChildAttribute> = childAttributes([
@@ -438,63 +411,53 @@ export const computeRender = (
         ])
       : undefined
 
-  const itemRenders: ReadonlyArray<ListboxItemRender> = Array.map(
-    items,
-    (item, index) => {
-      const isActiveItem = Option.exists(
-        maybeActiveItemIndex,
-        activeIndex => activeIndex === index,
-      )
-      const isDisabledItem = isItemDisabledByIndex(index)
-      const isSelectedItem = isValueSelected(itemToValue(item))
-      const itemConfig: ItemConfig = itemToConfig(item, {
-        isActive: isActiveItem,
-        isDisabled: isDisabledItem,
-        isReadOnly,
-        isSelected: isSelectedItem,
-      })
+  const itemRenders: ReadonlyArray<ListboxItemRender> = Array.map(items, (item, index) => {
+    const isActiveItem = Option.exists(maybeActiveItemIndex, activeIndex => activeIndex === index)
+    const isDisabledItem = isItemDisabledByIndex(index)
+    const isSelectedItem = isValueSelected(itemToValue(item))
+    const itemConfig: ItemConfig = itemToConfig(item, {
+      isActive: isActiveItem,
+      isDisabled: isDisabledItem,
+      isReadOnly,
+      isSelected: isSelectedItem,
+    })
 
-      const isHoverable = !isDisabledItem && !isLeaving
-      const isClickable = isHoverable && !isReadOnly
+    const isHoverable = !isDisabledItem && !isLeaving
+    const isClickable = isHoverable && !isReadOnly
 
-      return {
-        key: itemId(id, index),
-        attributes: childAttributes([
-          h.Id(itemId(id, index)),
-          h.Role('option'),
-          h.AriaSelected(isSelectedItem),
-          ...(isActiveItem ? [h.DataAttribute('active', '')] : []),
-          ...(isSelectedItem ? [h.DataAttribute('selected', '')] : []),
-          ...(isDisabledItem
-            ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
-            : []),
-          ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-          ...(isClickable
-            ? [h.OnClick(Message.SelectedItem({ item: itemToValue(item) }))]
-            : []),
-          ...(isHoverable
-            ? [
-                ...(isActiveItem
-                  ? []
-                  : [
-                      h.OnPointerMove((screenX, screenY, pointerType) =>
-                        when(
-                          pointerType !== 'touch',
-                          Message.MovedPointerOverItem({ index, screenX, screenY }),
-                        ),
+    return {
+      key: itemId(id, index),
+      attributes: childAttributes([
+        h.Id(itemId(id, index)),
+        h.Role('option'),
+        h.AriaSelected(isSelectedItem),
+        ...(isActiveItem ? [h.DataAttribute('active', '')] : []),
+        ...(isSelectedItem ? [h.DataAttribute('selected', '')] : []),
+        ...(isDisabledItem ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')] : []),
+        ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
+        ...(isClickable ? [h.OnClick(Message.SelectedItem({ item: itemToValue(item) }))] : []),
+        ...(isHoverable
+          ? [
+              ...(isActiveItem
+                ? []
+                : [
+                    h.OnPointerMove((screenX, screenY, pointerType) =>
+                      when(
+                        pointerType !== 'touch',
+                        Message.MovedPointerOverItem({ index, screenX, screenY }),
                       ),
-                    ]),
-                h.OnPointerLeave(pointerType =>
-                  when(pointerType !== 'touch', Message.DeactivatedItem()),
-                ),
-              ]
-            : []),
-          ...(itemConfig.className ? [h.Class(itemConfig.className)] : []),
-        ]),
-        content: itemConfig.content,
-      }
-    },
-  )
+                    ),
+                  ]),
+              h.OnPointerLeave(pointerType =>
+                when(pointerType !== 'touch', Message.DeactivatedItem()),
+              ),
+            ]
+          : []),
+        ...(itemConfig.className ? [h.Class(itemConfig.className)] : []),
+      ]),
+      content: itemConfig.content,
+    }
+  })
 
   const groups: ReadonlyArray<ListboxGroupRender> = itemGroupKey
     ? Array.flatMap(
@@ -507,27 +470,22 @@ export const computeRender = (
           ),
         ),
         (segment, segmentIndex) => {
-          const maybeHeading = Option.fromNullishOr(
-            groupToHeading?.(segment.key),
-          )
+          const maybeHeading = Option.fromNullishOr(groupToHeading?.(segment.key))
 
           const headingId = `${id}-heading-${segment.key}`
 
-          const heading: ListboxHeadingRender | undefined = Option.match(
-            maybeHeading,
-            {
-              onNone: () => undefined,
-              onSome: (headingValue: GroupHeading) => ({
-                id: headingId,
-                attributes: childAttributes([
-                  h.Id(headingId),
-                  h.Role('presentation'),
-                  ...(headingValue.className ? [h.Class(headingValue.className)] : []),
-                ]),
-                content: headingValue.content,
-              }),
-            },
-          )
+          const heading: ListboxHeadingRender | undefined = Option.match(maybeHeading, {
+            onNone: () => undefined,
+            onSome: (headingValue: GroupHeading) => ({
+              id: headingId,
+              attributes: childAttributes([
+                h.Id(headingId),
+                h.Role('presentation'),
+                ...(headingValue.className ? [h.Class(headingValue.className)] : []),
+              ]),
+              content: headingValue.content,
+            }),
+          })
 
           return [
             {
@@ -544,8 +502,7 @@ export const computeRender = (
               },
               separator:
                 segmentIndex > 0 &&
-                (separatorClassName ||
-                  Array.isReadonlyArrayNonEmpty(separatorAttributes))
+                (separatorClassName || Array.isReadonlyArrayNonEmpty(separatorAttributes))
                   ? {
                       key: `${id}-separator-${segmentIndex}`,
                       attributes: childAttributes([
@@ -576,12 +533,7 @@ export const computeRender = (
     ? Array.match(selectedValues, {
         onEmpty: () => [h.input([h.Type('hidden'), h.Name(name), ...formAttribute])],
         onNonEmpty: Array.map(selectedValue =>
-          h.input([
-            h.Type('hidden'),
-            h.Name(name),
-            h.Value(selectedValue),
-            ...formAttribute,
-          ]),
+          h.input([h.Type('hidden'), h.Name(name), h.Value(selectedValue), ...formAttribute]),
         ),
       })
     : []

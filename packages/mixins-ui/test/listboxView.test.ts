@@ -160,11 +160,7 @@ describe('listbox view parity (upstream views vs forked views)', () => {
           {
             update: upstreamSingle.update,
             view: (current, h) =>
-              view(
-                current,
-                { ...singleInputs(h), isItemDisabled: item => item === 'banana' },
-                h,
-              ),
+              view(current, { ...singleInputs(h), isItemDisabled: item => item === 'banana' }, h),
           },
           Scene.given(initial),
           anchoredSingle(),
@@ -199,8 +195,7 @@ describe('listbox view parity (upstream views vs forked views)', () => {
         Scene.scene<SingleModel, Message, UpstreamListbox.OutMessage<Fruit>>(
           {
             update: upstreamSingle.update,
-            view: (current, h) =>
-              view(current, { ...singleInputs(h), name: 'fruit' }, h),
+            view: (current, h) => view(current, { ...singleInputs(h), name: 'fruit' }, h),
           },
           Scene.given(initial),
           anchoredSingle(),
@@ -235,10 +230,7 @@ describe('listbox view parity (upstream views vs forked views)', () => {
             'aria-labelledby',
             `${id}-heading-a`,
           ),
-          Scene.expect(Scene.selector(`#${id}-heading-b`)).toHaveAttr(
-            'role',
-            'presentation',
-          ),
+          Scene.expect(Scene.selector(`#${id}-heading-b`)).toHaveAttr('role', 'presentation'),
           Scene.expect(Scene.selector('[role="separator"]')).toHaveAttr('class', 'sep'),
         )
       }
@@ -301,10 +293,7 @@ describe('forked listbox seam', () => {
         UpstreamListbox.FocusButton,
         UpstreamListbox.Message.CompletedFocusButton(),
       ),
-      Scene.Mount.expectEnded(
-        UpstreamListbox.AnchorListbox,
-        UpstreamListbox.PortalListboxBackdrop,
-      ),
+      Scene.Mount.expectEnded(UpstreamListbox.AnchorListbox, UpstreamListbox.PortalListboxBackdrop),
       expectExpanded(false),
     )
   })

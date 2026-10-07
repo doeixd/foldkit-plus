@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: Listbox adapter over a view fork with a `toView`
+  seam.** `ListboxView.create`/`Multi.create` bind the upstream bundles and
+  swap in transcribed markup assembly (pinned `@foldkit/ui@0.165.0`,
+  attributed): single and multi share one transcription (their Models are
+  structurally identical), proved by a three-view parity battery (upstream
+  single/multi plus the forks, incl. selection display, readonly, hidden
+  form inputs, and multi staying open on select). `Listbox` adapts the fork
+  with a `Listbox` A11y pattern and catalog entry.
 - **`foldkit-mixins-ui`: Toast adapter over a view fork with a `toView` seam.**
   `ToastView.make` binds upstream's `Toast.make` for the payload and swaps in
   transcribed markup assembly (pinned `@foldkit/ui@0.165.0`, attributed):

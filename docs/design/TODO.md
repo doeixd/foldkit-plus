@@ -23,11 +23,11 @@ These wait on upstream Foldkit or Effect, not on work here.
   runtime. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] **Resources in Bundle collections.** Needs a pooled parent resource or a
   keyed `ManagedResource` upstream. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
-- [ ] **Adapting `@foldkit/ui`'s Listbox, ComboBox and DatePicker.** They
+- [ ] **Adapting `@foldkit/ui`'s ComboBox and DatePicker.** They
   build their markup internally and expose no seam for `mixins-ui`.
-  [mixins-DESIGN.md](./mixins-DESIGN.md) phase 9. (Menu done 2026-10-07 without
-  one: `foldkit-mixins-ui`'s `MenuView` transcribes its markup assembly from
-  the pinned source with a `toView` added; state stays upstream.)
+  [mixins-DESIGN.md](./mixins-DESIGN.md) phase 9. (Menu done 2026-10-07 and
+  Listbox/Toast after it, each via a view fork with upstream state; see the
+  `foldkit-mixins-ui` README.)
 
 ## SSR and resumability
 
