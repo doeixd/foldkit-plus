@@ -267,14 +267,17 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
   inclusion check, absent draws nothing). Adopted by the studio's two
   sections, deleting a fold and a submodel apiece. Children with view
   inputs or OutMessages of their own stay hand-rolled.
-- [ ] **One declaration of history intent** for routed params, as a mirror has
+- [x] **One declaration of history intent** for routed params, as a mirror has
   per key: a step when the node or entry changes, a replace otherwise. §33.4.
-  Second: Mirror-shaped, beside the address policy it replaces.
-- [ ] **Targets with intents.** An address that asks something of an owner with
+  Built as `Site.historyOf` (a string, or a function for entry-shaped params),
+  adopted by the routing example; mirrors keep their per-key spelling.
+- [x] **Targets with intents.** An address that asks something of an owner with
   no Model yet (a Builder before its page loads) is held until the owner is
-  ready, then applied through its Messages. Both CMS applications hand-wrote
-  it (`linked`, `previewAsked`). §33.3. Third: the held-ask pattern, wherever
-  it lands.
+  ready, then applied through its Messages. §33.3. Built as `Bundle.follow`
+  (`pending`/`release`/`ready`/`toMessages`, plus `send` and Model context),
+  adopted by both CMS applications for `linked`/`previewAsked`. Deliberately
+  no `target.intents` carrier: URL↔intent mapping is app-shaped (the CMS
+  address code keeps it), and a carrier nothing reads would be dead API.
 - [x] **Scroll keeping as a primitive,** from `examples/cms/src/routing/scroll.ts`: the
   offset taken when the reader acts, a restore that holds while the screen
   settles, entries keyed by the Navigation API. `foldkit-primitives`, or
