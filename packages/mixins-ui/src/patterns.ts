@@ -1,11 +1,14 @@
 /**
- * An accessibility pattern per adapter: the slots a widget of that kind must
- * publish, with the capability, events and attributes each must expose, as
- * `A11y.pattern` contracts. `catalog` lists them with their tier, the ARIA
- * roles involved, and the platform floor: what the widget relies on the
- * browser for, so a reader or an agent can ask. The gate test validates
- * every adapter's Slots against its pattern; a custom view built from
- * `foldkit-primitives/interaction` entries validates against the same one.
+ * An accessibility pattern per adapted widget with an ARIA contract: the
+ * slots a widget of that kind must publish, with the capability, events and
+ * attributes each must expose, as `A11y.pattern` contracts. Timing and
+ * positioning behaviors without an ARIA contract of their own (`Anchor`,
+ * `HoverIntent`) get none — they borrow their content's. `catalog` lists
+ * the patterns with their tier, the ARIA roles involved, and the platform
+ * floor: what the widget relies on the browser for, so a reader or an agent
+ * can ask. The gate test validates every adapter's Slots against its
+ * pattern; a custom view built from `foldkit-primitives/interaction`
+ * entries validates against the same one.
  */
 import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
 import { ButtonSlots } from './button.js'
@@ -16,6 +19,7 @@ import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
 import { FileDropSlots } from './fileDrop.js'
 import { ComboboxSlots } from './combobox.js'
+import { SegmentedSlots } from './segmented.js'
 import { DatePickerSlots } from './datePicker.js'
 import { ToastSlots } from './toast.js'
 import { InputSlots } from './input.js'
@@ -168,6 +172,15 @@ export const FileDrop = A11y.pattern({
 export const Toast = A11y.pattern({
   container: { capability: Capability.Container, attributes: [Attr.Role] },
   entry: { capability: Capability.Container, attributes: [Attr.Role] },
+})
+
+export const Segmented = A11y.pattern({
+  group: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  option: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaPressed, Attr.Disabled, Attr.AriaDisabled],
+  },
 })
 
 export const DatePicker = A11y.pattern({
@@ -333,6 +346,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['button', 'dialog', 'grid'],
     ['native-control', 'form-submission', 'top-layer'],
+  ),
+  entry(
+    'segmented',
+    Segmented,
+    SegmentedSlots,
+    'stateless',
+    ['group', 'button'],
+    ['native-control'],
   ),
   entry(
     'listbox',

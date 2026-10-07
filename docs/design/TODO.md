@@ -581,14 +581,16 @@ then widgets. None of the pieces below exists yet; `mixins-ui` has a Field,
 Recipes and accessibility patterns to build from. Its Phase 1A is the gated
 `@foldkit/ui` adapter item above.
 
-- [ ] **Phase 0:** write down the UI contract in `docs/ui-architecture.md`:
+- [x] **Phase 0:** the UI contract in `docs/ui-architecture.md`:
   anatomy, capability, pattern, behavior, state, style, recipe, theme, widget
-  and block, before more APIs.
-- [ ] **Phase 1:** finish the substrate: `mixins-ui` adapters done
-  (FileDrop direct; Menu, Toast, Listbox, Combobox and DatePicker via view
-  forks; VirtualList needs none; DragAndDrop has no view; Animation's
-  wrapper offers only passthrough styling). Remaining: Anatomy as a value;
-  slot capabilities; public and internal Slots.
+  and block, written from what is built — with the three verdicts (anatomy
+  complete at 23 contracts / 22 patterns; capabilities frozen at seven
+  pending a consumer; `hidden` unused pending internal slots).
+- [x] **Phase 1:** the substrate as verdicts, not just code: adapters done
+  (list above); Anatomy is the `XSlots` contracts plus catalog entries
+  (23 contracts, 22 patterns — `HoverIntent` excepted as behavior without an
+  ARIA contract); capabilities frozen at seven with a no-consumer-no-taxonomy
+  rule; public/internal Slots exist as `hidden` with no adopter yet.
 - [ ] **Phase 2:** the capability algebra: `Collection`, `Overlay`, the
   selection and navigation family, interaction, form-control semantics.
 - [ ] **Phase 3:** a small shared vocabulary of Styles and Recipes
