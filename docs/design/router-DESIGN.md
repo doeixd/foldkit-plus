@@ -6,6 +6,140 @@ That distinction matters because, after looking through the current `foldkit-plu
 
 Your own design docs almost predicted this. `data-query-DESIGN.md` says a `Page/RouteContract` would become justified once several things repeatedly needed one route-associated value: Surface activation, head metadata, SSR/preload policy, actions, layout metadata. I think you've now crossed that threshold. [See §31.11](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/data-query-DESIGN.md).
 
+# Status (2026-10-07)
+
+The core thesis held: there is no router runtime. `foldkit-site` (0.1.0,
+`packages/site`) is a thin topology — stable nodes, hierarchy, typed targets,
+annotated metadata, attached SurfaceSources, one lifecycle wiring, one
+placement shape — compiling to the Foldkit Router, `Surface.when`, Bundle
+placements, and wirings the runtime already runs. `SurfaceSource` is the
+centre, as §32 says; Site is one producer, Composition another.
+
+## Built (§31 steps 1–6 and 8, step 7's mechanism, §§33–34 slices)
+
+- **Sources and activation (§31.1):** `SurfaceSource` / `SurfaceInstance` /
+  `Surface.each` in `foldkit-surface`; `at` / `when` resolve their lone
+  instance.
+- **Remote and SSR consume sources (§31.2, §19):** `Data.subscriptions` /
+  `wiring` / `satisfy` / `resume`, SSR plans and per-instance coverage, with
+  `Child[key]` diagnostics. No second fetch protocol anywhere.
+- **Composition adapter (§31.3, §17):** `SurfaceBlock.families`, one family
+  per Block keyed by node id; preview, fetching, coverage, and retention
+  follow the draft Document.
+- **`Data.satisfy` (§31.4, §20):** the bounded fixed-point preparation; the
+  route → page → Document → dynamic Block Surfaces chain is its normal case.
+- **Site first cut (§31.5, §15, §§34.1/34.3/34.4):** nodes, mounts, tree,
+  targets/hrefs from one declaration, chain inspection, title/section/
+  landing/shortcut annotations derived in one place, one history declaration
+  (`Site.historyOf`), attached SurfaceSources (`Site.sources`),
+  `Site.routing` (click/change lifecycle as a wiring), `Site.placement`
+  (one link drives update + view, arrivals via `changed`).
+- **Nested layouts and rendering (§31.6, §34.2 half):** node `layout` / `view`,
+  `Site.view` composes the leaf in every ancestor layout root-first. No
+  Outlet, no child-router state.
+- **Held asks (§33.3):** `Bundle.follow` (`pending` / `release` / `ready` /
+  `toMessages`, plus `send` and Model context), adopted by both CMS studio
+  apps for `linked` / `previewAsked`. Deliberately no `target.intents`
+  carrier: URL↔intent mapping is app-shaped, and a carrier nothing reads
+  would be dead API.
+- **Prefetch mechanism (§31.7, §16):** `Site.sourcesFor` is the target chain
+  as Sources; target Model + `Data.satisfy` over them fills the destination
+  through its own Surfaces (`packages/site/test/prefetch.test.ts`). Hover and
+  programmatic preload share this composition.
+- **SSR connection (§31.8):** proved by composition, no new API — URL →
+  route → target Model → `sourcesFor` → `satisfy` → SSR plan over those
+  Sources with Remote's resume part renders the destination carrying its data
+  (`packages/site/test/ssr.test.ts`).
+- **Around the graph:** scroll keeping as `keepScroll` (§33.5, in
+  `foldkit-primitives/dom`); the delayed busy reveal as `Loading.shown`
+  (§33.6, delayed fade with held space — living in `mixins-crud`, not
+  `foldkit-mixins` as sketched); foundations CSS into the HTML (§33.7, the
+  `foundations` plugin + SSR head); one studio application with section-gated
+  subscriptions for the blank frame (§33.7). Open from §33.6: the audit of
+  views that draw facts before reading them (`Initial` is unknown, not
+  empty).
+
+## Deliberately not built
+
+- **No `SitePlan` object (§28):** the chain is `Site.chainOf`, the route-level
+  Sources are `Site.sourcesFor`; head/access/metadata arrive with real
+  consumers (§31.9), not ahead of them.
+- **No `Site.prefetch` / `prepare`:** preparation stays caller-composed
+  (`Data.satisfy`), for hover, programmatic, and SSR alike.
+- **No route actions (§24)** and **no server authorization in access (§25)**:
+  behavior stays Messages/Actions/Bundles/Surfaces; access would be
+  navigation/SSR policy only, never the trust boundary.
+- **No genuine nested route nodes (§34.2, second half):** flat routes plus
+  section tags scaled further than assumed; per-node child models,
+  route-local subscriptions/effects, and layout-spanning Surfaces (a
+  `whenAny` shape) wait for a real nested layout, not a hypothetical one.
+
+## Still to do, and why each waits
+
+- **Prefetch adoption:** hover/programmatic prefetch in a Remote-backed app.
+  The routing example is Remote-free, so adopting there would prove nothing.
+- **Head metadata (§§23, 33.9):** `meta` as a function of the Model feeding
+  SSR's head, indexed flags, per-page descriptions/images/article facts.
+  Waits for a Site + SSR consumer; the CMS prerender hand-writes all of it
+  today (`examples/cms/src/ssr/`).
+- **Access policy (§25):** `Site.access`-shaped navigation/SSR presentation
+  policy. Waits for a consumer; server authority stays `RemoteServer`.
+- **Paths and targets (§33.9):** `Site.paths(node, source)` enumerating a
+  node's addresses from a query, `Site.targets(site)` for builds/sitemaps/
+  prefetch, one declaration giving both `routeOf` and `pathOf`. (Half held:
+  `Site.target` already builds route + URL from one declaration; the parser
+  direction is still each app's own `urlToRoute`.)
+- **Document-aware targets (§§33.7, 33.10):** nodes saying which
+  application/document serves them, so `Site.navigate` chooses Navigate
+  Command vs full load (and generated pages state their preference).
+- **Locales (§33.11)** with the first localized content, and **themes**
+  staying preferences (§33.12, decided: not routes).
+- **Single flight (§§27, 31.10), last:** starts with a request-count
+  benchmark of a membership-changing mutation (mutate + refetch today), then
+  the wire design — `refresh: remainingActiveRequirements` answered in the
+  mutation's response. The requirements are already declarative, so no
+  loader key capture is needed; the wire shape is the open question.
+- **Pending-UI audit (§33.6):** the delayed reveal itself is built
+  (`Loading.shown` in `mixins-crud`); open is the review of every package
+  view for facts drawn before they are read, and whether the convention
+  generalizes from crud to `foldkit-mixins` as sketched.
+
+## The binding constraint
+
+The only Site consumer is `examples/foldkit/routing` — no Remote, no SSR,
+no prerender. The CMS, the app with real data/SSR/static pipelines, is not
+on Site: its studio and site hand-roll addresses (`linkIn` /
+`writeAddress`), its prerender lists SQL rows into paths by hand, and its
+head/meta is bespoke per page. Every item above is adoption-gated on a
+Site + Remote (+ SSR) application. Until one exists — a Remote-backed page
+in the routing example, or a CMS section ported to Site — **no further
+Site API**. Small slices before the graph, each in its owning package,
+is still the rule (§33's preamble); elimination (§34.5) is still the test.
+
+## Open questions
+
+1. **Who ports first?** A Remote-backed routing-example page proves
+   prefetch/SSR adoption cheaply but invents demand; a CMS section port
+   proves them against real demand expensively (its addresses, mirrors, and
+   editor holds are load-bearing). Undecided.
+2. **What carries a node's data source for `paths`?** A Remote query read
+   through the same `satisfy` as the page (§33.9's sketch) is the lead, but
+   no caller has forced the shape.
+3. **What is the `meta` function of?** Whole-Model access (the CMS's need:
+   a post's excerpt for its description) vs a declared Surface projection
+   (§23's preference). Undecided; the consumer decides.
+4. **Which document does a target prefer?** For generated pages, full load
+   (HTML + metadata at once) vs Navigate + prefetch (§33.10). Needs
+   measurement, not principle.
+5. **What is the single-flight wire?** `refresh` list vs declarative
+   requirement diff vs connection-change subscription; server evaluation
+   cost vs second round trip. Needs the benchmark first, then the wire
+   design (§27: "I would wait until the wire design is clear before
+   naming it").
+6. **Do locales nest or prefix?** Top-level locale parameter (§33.11) is
+   the sketch; per-locale drafts/revisions and `hreflang` alternates are
+   undesigned. Waits for a second language.
+
 # The architecture I would aim for
 
 ```text
@@ -5715,6 +5849,11 @@ possibly explicit navigation preloading
 
 # 13. Browser navigation stays Foldkit-native
 
+> Status 2026-10-07: holds — and the lifecycle is now a wiring too.
+> `Site.routing` owns link-click/URL-change handling, so `update` keeps only
+> the `reduces` guard. The Model stays authoritative; a Subscription still
+> writes the address.
+
 Affe has a sophisticated router runtime because its router owns loaders.
 
 Foldkit doesn't need that runtime.
@@ -5823,6 +5962,11 @@ Site should not own it.
 
 # 15. Target objects: steal Affe's typed-link ergonomics
 
+> Status 2026-10-07: target/URL/chain plus title/section/landing/shortcut/
+> history/sources are built (`Site.*`). Intents are answered by composition
+> (`Bundle.follow`; no `target.intents` carrier). Open: document identity
+> (§§33.7, 33.10) and query-driven path enumeration (§33.9).
+
 This is another place Affe is stronger.
 
 Introduce a pure typed destination:
@@ -5864,6 +6008,11 @@ That prevents link building, prefetching, and route analysis from each inventing
 ---
 
 # 16. Prefetch should operate on the target Site graph
+
+> Status 2026-10-07: the mechanism is built — `Site.sourcesFor` is the target
+> chain as Sources; target Model + `Data.satisfy` fills them
+> (`packages/site/test/prefetch.test.ts`). Hover/programmatic adoption in a
+> Remote-backed app is open.
 
 With a target:
 
@@ -6017,6 +6166,10 @@ This should be treated as a design requirement:
 ---
 
 # 19. SSR should accept `SurfaceSource`s
+
+> Status 2026-10-07: built — SSR plans take SurfaceSources with per-instance
+> coverage, and the route link is `sourcesFor` + `satisfy` + resume
+> (`packages/site/test/ssr.test.ts`).
 
 Current:
 
@@ -6233,6 +6386,10 @@ This is an extremely strong unification.
 
 # 23. Head metadata should be pure Site metadata
 
+> Status 2026-10-07: open. Only title/section annotations exist;
+> meta-as-function-of-Model, indexed flags, and the SSR head feed wait for a
+> Site + SSR consumer. The CMS prerender still hand-writes all of it.
+
 What a page's metadata must hold, learned from a generated site: see §33.9.
 
 Affe has excellent route-local title/meta support.
@@ -6276,6 +6433,9 @@ So Site provides a **pure projection into Document metadata**, not a head runtim
 
 # 24. Route actions should not exist
 
+> Status 2026-10-07: holds — no route actions were added; behavior stays
+> Messages/Actions/Bundles/Surfaces.
+
 Affe can attach actions to route nodes.
 
 Foldkit Plus now has better primitives.
@@ -6313,6 +6473,10 @@ but should not define another action system.
 ---
 
 # 25. Route guards need to be split into UX and authorization
+
+> Status 2026-10-07: holds as policy, unbuilt as API — access would be
+> navigation/SSR presentation policy only, with server authority staying at
+> `RemoteServer`/CMS audience. No consumer yet.
 
 Affe's guards are useful, especially because it enforces them consistently across navigation, SSR, and loader access.
 
@@ -6384,6 +6548,11 @@ It should not become an HTTP router.
 ---
 
 # 27. Single flight belongs in Remote
+
+> Status 2026-10-07: not started, and explicitly last (§31.10). Starts with a
+> request-count benchmark of a membership-changing mutation; the wire shape
+> (`refresh` list vs requirement diff) is the open question. Requirements are
+> already declarative, so no loader key capture is needed.
 
 This remains Affe's most valuable missing runtime feature.
 
@@ -6474,6 +6643,11 @@ But the ownership is clear:
 
 # 28. This gives Foldkit Plus a better notion of "route plan"
 
+> Status 2026-10-07: no `SitePlan` object — deliberately. The chain is
+> `Site.chainOf` and the route-level Sources are `Site.sourcesFor`; the rest
+> (layouts/head/access/metadata carriers) waits for consumers. See the Status
+> section at the top.
+
 Affe normalizes routes to an internal `RouteEntry`.
 
 Foldkit Plus could normalize a **target** into a richer pure `SitePlan`.
@@ -6528,6 +6702,9 @@ This is probably the cleanest way to steal Affe's normalized-route strength.
 ---
 
 # 29. Then add a resolved plan
+
+> Status 2026-10-07: not built. `ResolvedPlan` stays an inspection sketch;
+> DevTools has not forced it. Do not build ahead of a consumer.
 
 For dynamic systems such as Composition there is one more level:
 
@@ -6628,6 +6805,11 @@ rather than making Route absorb all five.
 ---
 
 # 31. Recommended implementation sequence
+
+> Status 2026-10-07: steps 1–6 and 8 are built (evidence in the Status
+> section); step 7's mechanism is built with adoption open; steps 9
+> (head/access metadata) and 10 (single flight) are open, both adoption- or
+> demand-gated.
 
 1. **Generalize Surface activation.** Add `SurfaceSource`, `SurfaceInstance`, and `Surface.each`; adapt `Surface.at` and `Surface.when` conceptually to the same source-of-instances model while preserving the public APIs.
 
@@ -6763,6 +6945,10 @@ in the repository; nothing here is a plan that was not tried.
 
 ## 33.2 Two kinds of URL state share one Message
 
+> Status 2026-10-07: decided and built — a shared tag is observed, not
+> claimed: every wiring sharing it folds it in list order, then the
+> application's `update` sees it (`foldkit-bundle` assembly).
+
 The address holds two kinds of state, and they reach it differently:
 
 | State | Owner | Written by | Read back by |
@@ -6790,6 +6976,11 @@ an intent (33.3).
 
 ## 33.3 Needs: an intent that waits for its owner
 
+> Status 2026-10-07: built as `Bundle.follow`
+> (`pending`/`release`/`ready`/`toMessages` + `send`), adopted by both CMS
+> studio apps. No `target.intents` carrier — URL↔intent mapping stays
+> app-shaped.
+
 Both studio applications hand-wrote the same mechanism. The address asks
 something of a child that has no Model yet: the Builder does not exist until
 its page loads, and the editor's preview is reset when the post arrives, so a
@@ -6812,6 +7003,10 @@ a request to an owner with a readiness predicate and an apply step. Prefetch
 Models the data makes.
 
 ## 33.4 Needs: one declaration of history intent
+
+> Status 2026-10-07: built as `Site.historyOf` (string or entry-shaped
+> function), adopted by the routing example; mirrors keep their per-key
+> spelling.
 
 Which changes add a history step, and which replace the current one, is
 declared per key for a mirror (`history: 'push' | 'replace'`). The routed half
@@ -6854,6 +7049,10 @@ layout's panel rather than the window.
 
 ## 33.6 Needs: pending UI that does not flash, and never guesses
 
+> Status 2026-10-07: half built — the delayed reveal is `Loading.shown` in
+> `mixins-crud` (not `foldkit-mixins` as sketched). Open: the audit of views
+> drawing facts before reading them.
+
 Loading states between screens looked broken in two ways:
 
 - **A flash.** A "Loading…" drawn for one frame reads as a glitch.
@@ -6870,6 +7069,10 @@ opening, and prefetching a Site target (§16) before navigation would remove
 the rest.
 
 ## 33.7 Document boundaries: Vite and SSR
+
+> Status 2026-10-07: foundations-in-HTML built (`foundations` plugin + SSR
+> head); one studio application built. Open: document-aware targets (which
+> application serves a node) and prefetch closing the remaining waits.
 
 Posts, pages and the site are three applications, so moving between them is a
 full document load. That load painted white with a line of text, because the
@@ -6908,6 +7111,11 @@ still shows is a wait prefetch removes.
 
 ## 33.9 What a static site asked of the route graph
 
+> Status 2026-10-07: open. Nothing enumerates a node's addresses from a query
+> yet (`Site.paths` / `Site.targets`), and `routeOf` / `pathOf` remain each
+> app's own pair — except that `Site.target` already builds route + URL from
+> one declaration. Meta/indexed are §31.9.
+
 The example's public site is now rendered at build time and taken over in
 the browser ([ssr-PLAN.md](./ssr-PLAN.md) Phase S has the rendering half). The
 route graph's half is what the build could not ask a Site for, because there
@@ -6937,6 +7145,10 @@ is none yet, and so hand-wrote:
 
 ## 33.10 Documents, and taking a page over
 
+> Status 2026-10-07: open — targets do not know their document yet, so link
+> handlers cannot tell Navigate from full load, and generated pages state no
+> preference. See open question 4.
+
 §33.7 said a target must know its document. With generated pages there are
 three kinds of navigation, and the Site graph is what tells them apart:
 
@@ -6952,6 +7164,9 @@ right while the visitor's data is the seed and wrong once it may not be
 §16 makes a Navigate Command as fast as the generated page.
 
 ## 33.11 Locales are part of the route
+
+> Status 2026-10-07: open, and waiting for a second language by design.
+> Locale-as-top-level-parameter is still the sketch.
 
 Nothing in the example is localized. A site that is makes the locale a route
 parameter at the top of the graph (`/fr/blog/...`), not a setting beside it
@@ -7002,6 +7217,11 @@ bundle placements and entity relationships.
 
 ## 34.1 The routing mechanism is still app-owned
 
+> Status 2026-10-07: no longer true — built as `Site.routing` (plus
+> `Site.placement` with `pages` informing). The heading stays as history;
+> per-application `ClickedLink` / `ChangedUrl` branches are what the third
+> cut eliminated.
+
 Both cuts keep `route` plus `peoplePage` in the Model, the same message union
 (`ClickedLink`, `ChangedUrl`, `EnteredNavigationShortcut`,
 `GotPeopleMessage`, …), and the same manual `ClickedLink` branch on
@@ -7015,6 +7235,11 @@ WebSocket lifecycle did, not stay as per-application update branches.
 
 ## 34.2 Nesting is syntactic, not architectural
 
+> Status 2026-10-07: half true — nesting is now an architectural tree for
+> layout and rendering (`Site.view` root-first), but child models,
+> route-local subscriptions/effects, and layout-spanning Surfaces are
+> deliberately deferred (see §34.5: last).
+
 The app serves a deeply nested URL (`/nested/route/is/very/nested`) as a flat
 `Nested: () => nestedView(...)` arm. A strong routing primitive needs a genuine
 nested route tree — layout, child routes, child models, route-local
@@ -7023,6 +7248,10 @@ parses. §7's hierarchy should therefore be read as an architectural tree that
 owns those per-node concerns, with the URL as one projection of it.
 
 ## 34.3 One placement should drive update and view
+
+> Status 2026-10-07: built — `Site.placement` states the link once for
+> `placed.update` + `placed.view`, with `changed` informing arrivals;
+> `Link.child` covers non-Bundle children.
 
 `People` is currently described twice: `Link.field('peoplePage', …)` plus
 `Update.foldChild` on the update side, and a separate `h.submodel({ model:
@@ -7035,6 +7264,10 @@ sync by hand.
 
 ## 34.4 Route metadata is one graph, not four projections
 
+> Status 2026-10-07: built — title/section/landing/shortcut/history annotated
+> once per node; nav, hrefs, shortcuts, titles, and sections derive from the
+> tree (routing example).
+
 `navSectionOf`, `navigationHrefBySection`, `navigationUrlByShortcut`, and
 `routeTitle` are separate hand-kept projections of the same route graph
 (`People`/`Person` both in the People section, each section with an href, a
@@ -7045,6 +7278,10 @@ the same direction §23 already takes for head metadata, extended to navigation
 metadata.
 
 ## 34.5 Acceptance: the third routing cut
+
+> Status 2026-10-07: four of five stars by its own ranking — lifecycle,
+> composition, metadata, and the nested-URL tree are in; genuine nested
+> nodes (§34.2 second half) are what remains, deliberately last.
 
 Rank the pairs by how far the abstraction moved: WebSocket ★★★★★ (mechanism
 became primitive), Form ★★★★★ (domain state machine became primitive),

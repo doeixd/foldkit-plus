@@ -289,7 +289,9 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
 - [ ] **A delayed busy reveal in `foldkit-mixins`:** `aria-busy` lines shown
   only once a wait is noticeable, their space held. And a review of every
   package view for facts drawn before they are read (`Initial` is unknown,
-  not empty). §33.6
+  not empty). §33.6 (The reveal itself is built as `Loading.shown` in
+  `mixins-crud`; open: the view audit, and whether the convention
+  generalizes to `foldkit-mixins`.)
 - [x] **Foundations in the HTML as a `foldkit-mixins` Vite plugin,** from
   `examples/cms/vite.config.ts`, and in `foldkit-ssr`'s head. §33.7, SSR S7.
   Built 2026-09-30 as `foundations` in `foldkit-mixins/foundations` (the
