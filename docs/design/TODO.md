@@ -585,7 +585,8 @@ Recipes and accessibility patterns to build from. Its Phase 1A is the gated
   anatomy, capability, pattern, behavior, state, style, recipe, theme, widget
   and block, before more APIs.
 - [ ] **Phase 1:** finish the substrate: `mixins-ui` adapters for Toast,
-  FileDrop, VirtualList, DragAndDrop and Animation; Anatomy as a value; slot
+  VirtualList, DragAndDrop and Animation (FileDrop done 2026-10-07, Menu done
+  via its view fork); Anatomy as a value; slot
   capabilities; public and internal Slots.
 - [ ] **Phase 2:** the capability algebra: `Collection`, `Overlay`, the
   selection and navigation family, interaction, form-control semantics.

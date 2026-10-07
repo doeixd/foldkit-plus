@@ -282,7 +282,7 @@ export const saveButton = (h: HtmlBuilder<Message>) =>
 ```
 
 Adapters: Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog,
-Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar, Menu (namespace + flat `XSlots`). Menu is
+Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar, Menu, FileDrop (namespace + flat `XSlots`). Menu is
 special: `@foldkit/ui/menu` exposes no consumer seam, so `MenuView` transcribes its markup assembly
 from the pinned `@foldkit/ui` source (attributed in the module) with a `toView` added, and `Menu`
 adapts that fork — state, Messages, update, Commands, and Mounts stay upstream, and a parity battery

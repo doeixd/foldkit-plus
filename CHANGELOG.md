@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: FileDrop adapter, no fork needed.** `FileDropSlots`
+  (`root`, `input`) with `FileDrop.resolve`/`FileDrop.toView` over
+  upstream's own `FileDropAttributes` seam, plus a `FileDrop` A11y pattern
+  and catalog entry. The root's drag handlers have no Event tokens, but the
+  resolver still refuses a second owner by event name (proved by a test).
 - **`foldkit-mixins-ui`: Menu adapter over a view fork with a `toView` seam.**
   `@foldkit/ui/menu` builds its markup internally, so `MenuView` transcribes
   its markup assembly from the pinned `@foldkit/ui@0.165.0` source

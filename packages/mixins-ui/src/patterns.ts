@@ -14,6 +14,7 @@ import { CheckboxSlots } from './checkbox.js'
 import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
+import { FileDropSlots } from './fileDrop.js'
 import { InputSlots } from './input.js'
 import { MenuSlots } from './menu.js'
 import { PopoverSlots } from './popover.js'
@@ -151,6 +152,15 @@ export const Calendar = A11y.pattern({
   nextMonthButton: { capability: Capability.Interactive, events: [Event.Click] },
 })
 
+export const FileDrop = A11y.pattern({
+  root: { capability: Capability.Container },
+  input: {
+    capability: Capability.Interactive,
+    events: [Event.Change],
+    attributes: [Attr.Disabled],
+  },
+})
+
 export const Menu = A11y.pattern({
   wrapper: { capability: Capability.Container },
   button: {
@@ -245,6 +255,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['form-submission'],
   ),
   entry('calendar', Calendar, CalendarSlots, 'stateful', ['grid', 'gridcell', 'button']),
+  entry(
+    'fileDrop',
+    FileDrop,
+    FileDropSlots,
+    'stateful',
+    ['group'],
+    ['native-control', 'form-submission'],
+  ),
   entry(
     'menu',
     Menu,

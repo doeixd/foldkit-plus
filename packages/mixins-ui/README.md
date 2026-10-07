@@ -390,6 +390,7 @@ adapter.
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
 | Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `MenuView` fork; see below) |
+| FileDrop | `root`, `input` |
 
 ## Recipes
 
@@ -577,7 +578,7 @@ The bridge needs a **consumer-visible attribute bundle**. If a component builds
 its entire element tree internally and exposes no `toView`-style seam, there is
 nothing for Mixins to attach to.
 
-Currently `Menu`, `Listbox`, and `ComboBox` fall into that category, as does
+Currently `Listbox` and `ComboBox` fall into that category, as does
 `DatePicker` (whose calendar half already uses a seam internally — the date
 field around it does not). They cannot be adapted here without a change to
 their upstream component API. That is a limitation of the exposed render
@@ -590,10 +591,8 @@ added, and `Menu` adapts that fork. `Menu.create` pairs the forked view with
 upstream's `update`, and a parity battery draws both views over the same
 models. If upstream gains a seam, the fork goes away.
 
-Other `@foldkit/ui` modules—`Toast`, `FileDrop`, `VirtualList`, `DragAndDrop`,
-and `Animation`—simply do not have adapters here yet.
-`FileDrop` does expose a render seam, so it is an example that could be added
-without changing `@foldkit/ui`.
+Other `@foldkit/ui` modules—`Toast`, `VirtualList`, `DragAndDrop`, and
+`Animation`—simply do not have adapters here yet.
 
 ## Status
 

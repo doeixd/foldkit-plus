@@ -17,7 +17,7 @@ describe('Patterns.catalog', () => {
   it('names every adapter once, each with a tier and at least one role', () => {
     const names = Patterns.catalog.map(entry => entry.name)
     expect(new Set(names).size).toBe(names.length)
-    expect(names).toHaveLength(16)
+    expect(names).toHaveLength(17)
     for (const entry of Patterns.catalog) {
       expect(['stateful', 'stateless']).toContain(entry.tier)
       expect(entry.roles.length).toBeGreaterThan(0)
