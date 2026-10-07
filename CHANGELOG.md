@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: Menu adapter over a view fork with a `toView` seam.**
+  `@foldkit/ui/menu` builds its markup internally, so `MenuView` transcribes
+  its markup assembly from the pinned `@foldkit/ui@0.165.0` source
+  (attributed in the module) with the missing `toView` added: state,
+  Messages, update, Commands, and Mounts stay upstream, and a parity battery
+  draws both views over the same models (closed/open/disabled/grouped/scroll
+  plus a pointer-open click-select through the fork). `Menu` adapts the fork
+  (`MenuSlots`: wrapper/button/backdrop/items/scroll/item/group/heading/
+  separator; `Menu.resolve`/`Menu.toView` in the established nested-adapter
+  shape), with a `Menu` A11y pattern and catalog entry. If upstream gains a
+  seam, the fork goes away.
 - **`foldkit-site`: incremental node building.** `Site.node(router, case)`
   returns a builder (`.title(...)`, `.section(...)`, ..., `.node`) for nodes
   annotated in steps or annotation bundles shared across nodes. Methods, not

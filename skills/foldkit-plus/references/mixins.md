@@ -282,8 +282,12 @@ export const saveButton = (h: HtmlBuilder<Message>) =>
 ```
 
 Adapters: Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog,
-Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar (namespace + flat `XSlots`). Pass mixins as
-`style.mixin` / `behavior.mixin`. Other components (Menu, Listbox, ComboBox, Toast, ...) have no
+Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar, Menu (namespace + flat `XSlots`). Menu is
+special: `@foldkit/ui/menu` exposes no consumer seam, so `MenuView` transcribes its markup assembly
+from the pinned `@foldkit/ui` source (attributed in the module) with a `toView` added, and `Menu`
+adapts that fork — state, Messages, update, Commands, and Mounts stay upstream, and a parity battery
+draws both views over the same models. Pass mixins as
+`style.mixin` / `behavior.mixin`. Other components (Listbox, ComboBox, Toast, ...) have no
 adapter.
 The same call goes in a Submodel's `viewInputs` (`toView: RadioGroup.toView(mixins, { h },
 ({ group, options }) => …)`), with `Value` and `Message` inferred. `input` is optional: only what an

@@ -297,7 +297,9 @@ attached Mixin reads one.
 What `resolve` returns (and `draw` receives) has a name for each adapter:
 `ResolvedButton<Message>`, `ResolvedInput<Message>`, `ResolvedDialog<Message>`,
 `ResolvedRadioGroup<Value, Message>` and `ResolvedRadioOption<Value, Message>`,
-`ResolvedTabs<Value, Message>`, `ResolvedCalendar<Message>`, and so on, so a
+`ResolvedTabs<Value, Message>`, `ResolvedCalendar<Message>`,
+`ResolvedMenu<Message>` (with `ResolvedMenuGroup`/`ResolvedMenuItem` per
+entry), and so on, so a
 helper that draws part of a component can be typed without `ReturnType`.
 `ResolvedTextarea`'s `textarea` bundle is typed for `h.textarea`, which refuses
 `InnerHTML`; the resolver refuses an `InnerHTML` from any Mixin, so no cast is
@@ -347,7 +349,7 @@ ChildAttribute
 component Submodel dispatcher
 ```
 
-Dialog, Popover, Tooltip, Slider, Tabs, RadioGroup, and Calendar all rely on this
+Dialog, Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar, and Menu all rely on this
 behavior.
 
 Per-item components can also return structured groups rather than one flat Slot
@@ -357,6 +359,7 @@ array. The adapter preserves that shape. For example:
 Tabs       -> { tablist, tabs, activeIndex }
 RadioGroup -> { group, options, selectedValue, hiddenInput }
 Calendar   -> ResolvedDays | ResolvedMonths | ResolvedYears
+Menu       -> { wrapper, button, backdrop, items, scroll, groups, isVisible }
 ```
 
 One Slot contribution can apply to each repeated item while every item's base
@@ -386,6 +389,7 @@ adapter.
 | RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
+| Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `MenuView` fork; see below) |
 
 ## Recipes
 
@@ -573,9 +577,18 @@ The bridge needs a **consumer-visible attribute bundle**. If a component builds
 its entire element tree internally and exposes no `toView`-style seam, there is
 nothing for Mixins to attach to.
 
-Currently `Menu`, `Listbox`, `ComboBox`, and `DatePicker` fall into that category.
-They cannot be adapted here without a change to their upstream component API.
-That is a limitation of the exposed render seam, not of Slot resolution.
+Currently `Menu`, `Listbox`, and `ComboBox` fall into that category, as does
+`DatePicker` (whose calendar half already uses a seam internally — the date
+field around it does not). They cannot be adapted here without a change to
+their upstream component API. That is a limitation of the exposed render
+seam, not of Slot resolution.
+
+`Menu` is the exception that proves the seam rule: its state machine stays
+upstream, but its markup assembly is transcribed into `MenuView` (from the
+pinned `@foldkit/ui` source, attributed there) with the missing `toView`
+added, and `Menu` adapts that fork. `Menu.create` pairs the forked view with
+upstream's `update`, and a parity battery draws both views over the same
+models. If upstream gains a seam, the fork goes away.
 
 Other `@foldkit/ui` modules—`Toast`, `FileDrop`, `VirtualList`, `DragAndDrop`,
 and `Animation`—simply do not have adapters here yet.

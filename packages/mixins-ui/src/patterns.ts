@@ -15,6 +15,7 @@ import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
 import { InputSlots } from './input.js'
+import { MenuSlots } from './menu.js'
 import { PopoverSlots } from './popover.js'
 import { RadioGroupSlots } from './radioGroup.js'
 import { SelectSlots } from './select.js'
@@ -150,6 +151,22 @@ export const Calendar = A11y.pattern({
   nextMonthButton: { capability: Capability.Interactive, events: [Event.Click] },
 })
 
+export const Menu = A11y.pattern({
+  wrapper: { capability: Capability.Container },
+  button: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+  backdrop: { capability: Capability.Container, optional: true },
+  items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
+  item: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role],
+  },
+})
+
 export interface Entry {
   readonly name: string
   readonly pattern: A11y.Pattern
@@ -228,4 +245,12 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['form-submission'],
   ),
   entry('calendar', Calendar, CalendarSlots, 'stateful', ['grid', 'gridcell', 'button']),
+  entry(
+    'menu',
+    Menu,
+    MenuSlots,
+    'stateful',
+    ['menu', 'menuitem', 'button'],
+    ['top-layer', 'backdrop', 'native-control'],
+  ),
 ])

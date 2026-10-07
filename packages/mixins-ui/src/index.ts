@@ -14,6 +14,8 @@ export * as Fieldset from './fieldset.js'
 export * as HoverIntent from './hoverIntent.js'
 export * as Icons from './icons.js'
 export * as Input from './input.js'
+export * as Menu from './menu.js'
+export * as MenuView from './menuView.js'
 export * as Patterns from './patterns.js'
 export * as Popover from './popover.js'
 export * as RadioGroup from './radioGroup.js'
@@ -35,6 +37,7 @@ export { DisclosureSlots } from './disclosure.js'
 export { FieldsetSlots } from './fieldset.js'
 export { HoverIntentSlots } from './hoverIntent.js'
 export { InputSlots } from './input.js'
+export { MenuSlots } from './menu.js'
 export { PopoverSlots } from './popover.js'
 export { RadioGroupSlots } from './radioGroup.js'
 export { SelectSlots } from './select.js'
@@ -55,6 +58,20 @@ export type { ResolvedDisclosure } from './disclosure.js'
 export type { ResolvedFieldset } from './fieldset.js'
 export type { ResolvedHoverIntent } from './hoverIntent.js'
 export type { InputField, InputView, ResolvedInput } from './input.js'
+export type {
+  ResolvedMenu,
+  ResolvedMenuGroup,
+  ResolvedMenuHeading,
+  ResolvedMenuItem,
+} from './menu.js'
+export type {
+  MenuBundle,
+  MenuGroupRender,
+  MenuHeadingRender,
+  MenuItemRender,
+  MenuRenderInfo,
+  MenuViewInputs,
+} from './menuView.js'
 export type { ResolvedPopover } from './popover.js'
 export type { ResolvedRadioGroup, ResolvedRadioOption } from './radioGroup.js'
 export type { ResolvedSelect } from './select.js'
