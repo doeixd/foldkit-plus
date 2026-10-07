@@ -131,7 +131,7 @@ describe('URL changes', () => {
   it('sets the route field on a new address', () => {
     const next = routed(at('/'), Message.ChangedUrl({ url: urlOf('/people/3') }))
     expect(next?.model.route).toEqual(AppRoute.Person({ personId: 3 }))
-    expect(next?.commands).toBeUndefined()
+    expect(next?.commands ?? []).toHaveLength(0)
   })
 
   it('returns the same Model for an echo of the shown address', () => {

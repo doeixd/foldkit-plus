@@ -8,6 +8,7 @@ export type {
   Wrapper,
 } from './link.js'
 export * as Bundle from './bundle.js'
+export type { Helper, PlacementConfig, ResourceEntries, SeedFor } from './bundle.js'
 export type { Declared, DeclaredEach } from './declare.js'
 export { isPlaced, isArgsFactory, UnresolvedArgsError } from './placed.js'
 export type {

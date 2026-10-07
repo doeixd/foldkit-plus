@@ -58,12 +58,19 @@ as its `Surface.when`, keyed by tag, for `Data.wiring` / `subscriptions` /
 `satisfy` / SSR `surfaces`. Refuses a foreign surface. Each entry answers its
 own tag only.
 
+**Routed pages.** `Site.placement(node, bundle, { link, args, changed?,
+key?, when?, onMessage? })`: the link states the relationship once;
+`placed.update` folds, `placed.view` draws. `changed: route => childMsg`
+tells the child on arrival (`undefined` = nothing needed; absent = never
+informed). `Site.routing({ ..., pages: [...] })` informs arrivals. Bundles
+with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
+
 ## Gotchas
 
 - A layout surface active for several tags is not expressible yet (a future
   `whenAny`-shaped extension); each entry answers its own tag.
-- Route-local model ownership, per-route Bundle placement, and shortcuts
-  are still per-application code — the placement cut, not this one.
-  `Site.routing` informs no child pages of route changes yet, either.
+- Route-local model ownership and shortcuts are still per-application
+  code. Bundles with OutMessages and non-Bundle children stay on
+  `Bundle.at` / `Link.child`.
 - `Site.target(Node, {})` for param-less routes: params are always explicit.
 - Locales are route params when they arrive; themes are preferences, not routes.

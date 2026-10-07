@@ -42,6 +42,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "foldkit-bundle": "workspace:*",
     "foldkit-surface": "workspace:*"
   },
   "peerDependencies": {
@@ -51,6 +52,7 @@
   "devDependencies": {
     "effect": "4.0.0",
     "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
     "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

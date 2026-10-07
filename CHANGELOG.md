@@ -20,8 +20,10 @@ version changed; `pnpm` skips versions already in the registry.
   link-click and URL-change lifecycle as one wiring: internal clicks navigate
   per `Site.historyOf`, external links load, URL changes set the route field
   (or touch nothing on an echo), and the application's own update guards with
-  `Routing.reduces`. Per-route Bundle placement stays per-application until
-  the next cut.
+  `Routing.reduces`. `Site.placement` states one routed page once — its link
+  drives `placed.update` and `placed.view`, and `Site.routing` informs it
+  through `changed` when its route arrives. Per-route Bundle placement stays
+  per-application until the next cut.
 - **`foldkit-composition`: `SurfaceBlock.families`, one family per
   Surface Block.** `SurfaceBlock.families(catalog, { from, document })` is
   every Surface Block on the page as one `Surface.each` family per Block,

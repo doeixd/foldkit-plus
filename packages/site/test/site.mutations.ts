@@ -3,7 +3,11 @@
  * `pnpm mutate packages/site/test/site.mutations.ts` checks that a test
  * fails for every one.
  */
-const tests = ['packages/site/test/site.test.ts', 'packages/site/test/routing.test.ts']
+const tests = [
+  'packages/site/test/site.test.ts',
+  'packages/site/test/routing.test.ts',
+  'packages/site/test/placement.test.ts',
+]
 const file = '../src/index.ts'
 
 export default [
@@ -92,6 +96,39 @@ export default [
         file,
         find: "    const completedTag = tagOfConstructor(\n      config.completed,\n      'Site.routing: completed must be a message constructor',\n    )",
         replace: "    const completedTag = 'CompletedNavigation'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a page is informed of every route',
+    edits: [
+      {
+        file,
+        find: '        if (!Predicate.isTagged(route, node.tag) || changed === undefined)',
+        replace: '        if (changed === undefined)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an arrival that needs no answer is still sent',
+    edits: [
+      {
+        file,
+        find: '        const child = changed(route as Route)\n        if (child === undefined) return Option.none()',
+        replace: '        const child = changed(route as Route)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a route change informs no page',
+    edits: [
+      {
+        file,
+        find: '            ...(config.pages ?? []).map(\n              page => (model: Root) =>\n                Option.getOrElse(page.inform(model, next), () => ({ model })),\n            ),',
+        replace: '',
       },
     ],
     tests,

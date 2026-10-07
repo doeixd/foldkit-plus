@@ -19,11 +19,22 @@
  * link-click and URL-change lifecycle as a wiring, so applications stop
  * hand-writing those two update branches.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Predicate, Schema } from 'effect'
+import {
+  Bundle,
+  Link,
+  type AnyMessage,
+  type Helper,
+  type Placed,
+  type PlacementConfig,
+  type ResourceEntries,
+  type SeedFor,
+} from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
 import * as Navigation from 'foldkit/navigation'
 import { UrlRequest } from 'foldkit/navigation'
 import type { Router } from 'foldkit/route'
+import * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
 import type { Url as UrlValue } from 'foldkit/url'
 import {
@@ -78,6 +89,26 @@ export interface RouteField<Root, Route> {
   readonly dependency: readonly string[]
   readonly get: (root: Root) => Route
   readonly set: (root: Root, route: Route) => Root
+}
+
+/**
+ * One routed page: its node, its Bundle placement, and how a route arrival
+ * reaches the child. The placement drives both folds from one declaration —
+ * `placed.update` for Messages, `placed.view` for drawing — and `inform`
+ * tells the child when its route arrives, through its own Message. The
+ * placement's full type rides along, so assemblies keep inferring services.
+ */
+export interface SitePage<Parent, ParentMessage, R, P> {
+  readonly node: SiteNode<any>
+  readonly placed: P
+  /**
+   * The child told of a route arrival: `None` for another node's route, for
+   * a page with nothing to say, or when the child says nothing is needed.
+   */
+  readonly inform: (
+    model: Parent,
+    route: { readonly _tag: string },
+  ) => Option.Option<Update.Return<Parent, ParentMessage, R>>
 }
 
 /**
@@ -399,14 +430,15 @@ export const Site = {
    * ```
    *
    * One routing per application: it claims the click tag and shares the
-   * change tag with URL mirrors, which read their slices first. Route changes
-   * reach child pages through their own Messages only once routed placements
-   * land; until then informing them stays hand-written.
+   * change tag with URL mirrors, which read their slices first. With `pages`,
+   * a route change sets the field and then informs each page whose route
+   * arrived, through the page's own `changed` Message.
    */
   routing: <
     Root,
     Message extends { readonly _tag: string },
     Route extends { readonly _tag: string },
+    R = never,
   >(config: {
     readonly site: SiteTree
     readonly owner: object
@@ -418,7 +450,13 @@ export const Site = {
     readonly tags: { readonly clicked: string; readonly changed: string }
     /** One completion for the navigation commands to dispatch. */
     readonly completed: Schema.Schema<Message> & (() => Message)
-  }): Wiring<Root, Message> & {
+    /**
+     * Routed pages, informed when their route arrives. With service-needing
+     * pages, name the services fourth:
+     * `Site.routing<Model, Message, AppRoute, RemoteClient>`.
+     */
+    readonly pages?: ReadonlyArray<SitePage<Root, Message, R, any>> | undefined
+  }): Wiring<Root, Message, R> & {
     /** Whether the routing owns a message: its click or its URL change. */
     readonly reduces: (message: Message) => boolean
   } => {
@@ -458,7 +496,7 @@ export const Site = {
     // tag-check: open — the tags are the application's own variants, named in config
     const reduces = (message: Message): boolean =>
       message._tag === config.tags.clicked || message._tag === config.tags.changed
-    const wiring: Wiring<Root, Message> = {
+    const wiring: Wiring<Root, Message, R> = {
       key: 'site',
       handles: [config.tags.clicked, config.tags.changed],
       shared: [config.tags.changed],
@@ -490,7 +528,18 @@ export const Site = {
         }
         if (message._tag === config.tags.changed) {
           const url = (message as unknown as { readonly url: UrlValue }).url
-          return Option.some({ model: setRoute(model, config.parse(url)) })
+          const next = config.parse(url)
+          // An echo of the shown address touches nothing: same Model back,
+          // and no page is informed of a route it already has.
+          if (sameRoute(config.route.get(model), next)) return Option.some({ model })
+          const steps: Array<Update.Step<Root, Message, R>> = [
+            model => ({ model: setRoute(model, next) }),
+            ...(config.pages ?? []).map(
+              page => (model: Root) =>
+                Option.getOrElse(page.inform(model, next), () => ({ model })),
+            ),
+          ]
+          return Option.some(Update.combine(model, steps))
         }
         return Option.none()
       },
@@ -506,5 +555,108 @@ export const Site = {
       } satisfies Contract,
     }
     return { ...wiring, reduces }
+  },
+
+  /**
+   * One routed page stated once: its link (where its Model lives and how its
+   * Messages wrap), what starts it, and what its route arrival tells it. The
+   * link carries the field and the wrapper together; `placed.update` folds
+   * the child's Messages and `placed.view` draws it, and `Site.routing`
+   * informs it through `changed` when its route arrives.
+   *
+   * ```ts
+   * const PeoplePage = Site.placement(People, PeopleBundle, {
+   *   link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
+   *   args: parent => ({
+   *     searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
+   *   }),
+   *   changed: route => People.Message.ChangedRoute({ route }),
+   * })
+   * const assembly = Bundle.assemble([PeoplePage.placed, Routing])
+   * ```
+   *
+   * `changed` receives the node's own case value and returns the child's
+   * Message, or nothing when the arrival needs no answer. Without it the
+   * page is never informed. Bundles with OutMessages, and children that are
+   * not Bundles, stay on `Bundle.at` and `Link.child` directly.
+   */
+  placement: <
+    Route extends { readonly _tag: string },
+    Parent,
+    LinkMessage extends AnyMessage,
+    ChildModel,
+    ChildMessage extends AnyMessage,
+    Field extends string,
+    Name extends string,
+    Args,
+    BundleR = never,
+    BundleS = never,
+    ViewInputs = void,
+    Resources extends ResourceEntries<ChildModel, ChildMessage> = never,
+    Helpers extends Readonly<Record<string, Helper<ChildModel, ChildMessage, never, BundleR>>> =
+      never,
+    ObserverR = never,
+  >(
+    node: SiteNode<Route>,
+    bundle: Bundle.Bundle<
+      Name,
+      Args,
+      ChildModel,
+      ChildMessage,
+      never,
+      BundleR,
+      BundleS,
+      ViewInputs,
+      Resources,
+      Helpers
+    >,
+    config: {
+      readonly link: Link<Parent, LinkMessage, ChildModel, ChildMessage, Field>
+      readonly changed?: (route: Route) => ChildMessage | undefined
+    } & PlacementConfig<
+      Args,
+      Parent,
+      LinkMessage,
+      ChildMessage,
+      never,
+      never,
+      ObserverR,
+      SeedFor<Parent, Field>
+    >,
+  ): SitePage<
+    Parent,
+    LinkMessage,
+    BundleR | ObserverR,
+    Placed<
+      Name,
+      Parent,
+      LinkMessage,
+      ChildModel,
+      ChildMessage,
+      BundleR | ObserverR,
+      BundleS,
+      ViewInputs,
+      Resources,
+      Helpers,
+      Field,
+      LinkMessage extends { readonly _tag: infer Tag extends string } ? Tag : string
+    >
+  > => {
+    const { link, changed } = config
+    // `link` and `changed` are this helper's own: `Bundle.at` reads its
+    // known keys, and a non-literal tolerates the extra properties.
+    const placed = bundle.at(link, config)
+    return {
+      node,
+      placed,
+      inform: (model, route) => {
+        if (!Predicate.isTagged(route, node.tag) || changed === undefined) return Option.none()
+        // Guarded by the tag the node was built from, which `Site.make`
+        // keeps unique: this is the node's own case value.
+        const child = changed(route as Route)
+        if (child === undefined) return Option.none()
+        return placed.update(model, link.toParentMessage(child))
+      },
+    }
   },
 }

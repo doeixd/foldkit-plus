@@ -133,6 +133,39 @@ layout surface active for several tags is not yet expressible — that is a
 `Surface.whenAny`-shaped extension, deliberately deferred until a real layout
 needs it.
 
+## Routed pages
+
+`Site.placement` states one routed page once — its link, what starts it, and
+what its route arrival tells it — so the fold and the drawing never restate
+the field, the wrapper, or the slot:
+
+```ts
+const PeoplePage = Site.placement(People, PeopleBundle, {
+  link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
+  args: parent => ({
+    searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
+  }),
+  changed: route => People.Message.ChangedRoute({ route }),
+})
+
+const assembly = Bundle.assemble([PeoplePage.placed, Routing])
+const update = assembly.update((model, message) =>
+  Routing.reduces(message) || message._tag === 'GotPeopleMessage' ? { model } : updateOwn(model, message),
+)
+```
+
+`placed.update` folds the child's Messages (route it in `update` through the
+assembly; the wrapper tag never reaches your own branches) and `placed.view`
+draws it. `changed` receives the node's own case value when its route
+arrives and returns the child's Message — or nothing when the arrival needs
+no answer. Pass the pages to `Site.routing` (`pages: [PeoplePage]`) and the
+wiring informs each page whose route arrives, after setting the route field.
+
+Without `changed` a page is never informed. Bundles with OutMessages, and
+children that are not Bundles, stay on `Bundle.at` and `Link.child` directly.
+With service-needing pages, name the services on both calls:
+`Site.routing<Model, Message, AppRoute, RemoteClient>`.
+
 ## The lifecycle wiring
 
 `Site.routing` is the application's link-click and URL-change lifecycle as
@@ -182,10 +215,9 @@ titles from `Site.titleOf`, and the current section by comparing tags.
 
 **Route changes.** On a URL change, resolve the route value once, then
 `Site.chainOf` for the active chain and `Site.historyOf` for the history
-step — or hand both branches to `Site.routing` and keep only the guard in
-`update`. What each route *does* with the change is still the application's
-`update`; route changes reach child pages through their own Messages only
-once routed placements land.
+step — or hand both branches to `Site.routing` (with `pages` for the routed
+placements) and keep only the guard in `update`. What each route *does* with
+the change beyond informing its page is still the application's `update`.
 
 **Prefetch and SSR.** `Site.target` plus `Site.chainOf` say which Surfaces a
 destination will activate; `Data.satisfy` over `Site.sources` prepares the
@@ -195,9 +227,10 @@ is no `prepare` in any plan.
 ## Limits / when not to use it
 
 - A single-screen application has one node; the tree buys nothing.
-- Route-local model ownership, per-route Bundle placement, and keyboard
-  shortcuts are still hand-written per application. They are the placement
-  cut, not this one; `Site.routing` informs no child pages yet, either.
+- Keyboard shortcuts are still hand-written per application.
+- Bundles with OutMessages, and children that are not Bundles, stay on
+  `Bundle.at` and `Link.child`: `Site.placement` takes neither `onOut` nor a
+  non-Bundle child.
 - A node's `history` function sees only its own route values; cross-node
   rules more subtle than "another node is a step" do not exist yet.
 - Locales are route params like any other when they arrive; themes are

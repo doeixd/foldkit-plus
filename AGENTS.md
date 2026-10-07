@@ -739,6 +739,10 @@ of its own named a form field "fits the Catalog". Read words with
   It is the only signal, and it looks like tidiness. Mutation-test types the way
   you mutation-test code: widen the constraint and confirm the negative cases go
   red. Four did, so the check was load-bearing; before the fix, none would have.
+- **An excess property shadows a missing one: one defect per negative case.**
+  A negative case with both an unknown prop and a missing required one reports
+  only the excess, so the missing check looks vacuous (its directive reads as
+  unused) while the API is correct. Probe each rejection alone.
 - **Tie generics to the definition they belong to.** A host's Message type
   inferred independently of the contract let an incompatible host bind.
 - **To type a callback from a sibling property, map over the inferred type, not

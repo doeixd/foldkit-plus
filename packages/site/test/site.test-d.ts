@@ -1,5 +1,7 @@
 import { Option } from 'effect'
 import { Schema, pipe } from 'effect'
+import { Bundle, Link } from 'foldkit-bundle'
+import { Submodel } from 'foldkit'
 import { defineRouteUnion, literal, mapTo, query, root } from 'foldkit/route'
 import { Projection, Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
@@ -52,4 +54,38 @@ export const BadSurfaced = Site.route(peopleRouter, AppRoute.People, {
     // @ts-expect-error: personId is not a Surface param
     params: () => ({ personId: 3 }),
   },
+})
+
+// A routed page: the link states the relationship once, and the placement
+// drives the fold and the drawing from it.
+const ChildModel = Schema.Struct({ text: Schema.String })
+type ChildModel = typeof ChildModel.Type
+const ChildMessage = defineMessageUnion({ Told: { text: Schema.String } })
+type ChildMessage = typeof ChildMessage.Type
+const ChildBundle = Bundle.make('Child', {
+  Model: ChildModel,
+  Message: ChildMessage,
+  args: Schema.Struct({ text: Schema.String }),
+  init: ({ text }) => ({ model: { text } }),
+  update: model => ({ model }),
+  view: Submodel.defineView<ChildModel, ChildMessage>(() => null as never),
+})
+
+const ChildModelApp = Schema.Struct({ route: AppRoute, child: ChildModel })
+type ChildModelApp = typeof ChildModelApp.Type
+const ChildAppMessage = defineMessageUnion({
+  GotChild: { message: ChildMessage },
+})
+const ChildNode = Site.route(peopleRouter, AppRoute.People)
+
+// @ts-expect-error: an arg-ful bundle needs its args
+export const ChildPageNoArgs = Site.placement(ChildNode, ChildBundle, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+})
+
+export const ChildPageBadChanged = Site.placement(ChildNode, ChildBundle, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  args: () => ({ text: 'hi' }),
+  // @ts-expect-error: the arrival message is the child's, not a number
+  changed: () => 42,
 })
