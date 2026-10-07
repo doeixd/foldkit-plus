@@ -2,11 +2,12 @@ import { Array, Effect, Match, Option, Schema } from 'effect'
 import { Command, type Runtime, Subscription, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
+import { UrlRequest, pushUrl } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
-import { Url, toString as urlToString } from 'foldkit/url'
+import { Url } from 'foldkit/url'
 import { Bundle, Link } from 'foldkit-bundle'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { Site } from 'foldkit-site'
 
 import { type File, type FileTreeEntry, fileTree, findEntry, formatFileSize } from './fileTree.js'
 import { People } from './page/index.js'
@@ -17,8 +18,8 @@ import {
   homeRouter,
   nestedRouter,
   peopleRouter,
+  personRouter,
   urlToAppRoute,
-  type PeopleRoute,
 } from './route.js'
 import { RoutingPage } from './style.js'
 
@@ -40,7 +41,7 @@ type NavigationShortcut = typeof NavigationShortcut.Type
 
 export const Message = defineMessageUnion({
   CompletedNavigateInternal: {},
-  CompletedLoadExternal: {},
+  CompletedNavigation: {},
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
   EnteredNavigationShortcut: { shortcut: NavigationShortcut },
@@ -49,21 +50,75 @@ export const Message = defineMessageUnion({
 
 export type Message = typeof Message.Type
 
+// SITE
+
+const HomeNode = Site.route(homeRouter, AppRoute.Home, {
+  title: () => 'Routing',
+  section: 'Home',
+})
+const PeopleNode = Site.route(peopleRouter, AppRoute.People, {
+  title: () => 'People | Routing',
+  section: 'People',
+})
+const PersonNode = Site.route(personRouter, AppRoute.Person, {
+  title: ({ personId }) => `Person ${personId} | Routing`,
+  section: 'People',
+  history: (prev, next) => (prev.personId === next.personId ? 'replace' : 'push'),
+})
+const FilesIndexNode = Site.route(filesIndexRouter, AppRoute.FilesIndex, {
+  title: () => 'Files | Routing',
+  section: 'Files',
+})
+const FilesNode = Site.route(filesRouter, AppRoute.Files, {
+  title: ({ path }) => `${Array.lastNonEmpty(path)} | Files | Routing`,
+  section: 'Files',
+  // Each path is an entry of its own: browsing deeper stays a history of steps.
+  history: (prev, next) => (prev.path.join('/') === next.path.join('/') ? 'replace' : 'push'),
+})
+const NestedNode = Site.route(nestedRouter, AppRoute.Nested, {
+  title: () => 'Nested | Routing',
+  section: 'Nested',
+})
+
+export const AppSite = Site.make(
+  HomeNode,
+  Site.mount(PeopleNode, [PersonNode]),
+  FilesIndexNode,
+  FilesNode,
+  NestedNode,
+)
+
 // PLACEMENT
 
 /**
  * The People page, placed once. Its search text is derived from the starting
  * route: every factory sees the seed `initial` was given, so `/people?searchText=ali`
  * starts with `ali` searched, with no second fetch and no post-init Message.
+ * The same declaration folds the child's Messages, draws it, and tells it
+ * when its route arrives.
  */
-const peopleLink = Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage))
-const peoplePlaced = People.PeopleBundle.at(peopleLink, {
+const PeoplePage = Site.placement(PeopleNode, People.PeopleBundle, {
+  link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
   args: parent => ({
     searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
   }),
+  changed: route => People.Message.ChangedRoute({ route }),
 })
 
-const assembly = Bundle.assemble<Model, Message>()([peoplePlaced])
+const Routing = Site.routing<Model, Message, AppRoute>({
+  site: AppSite,
+  route: {
+    dependency: ['route'],
+    get: model => model.route,
+    set: (model, route) => modifyFields(model, { route: () => route }),
+  },
+  parse: urlToAppRoute,
+  tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+  completed: Message.CompletedNavigation,
+  pages: [PeoplePage],
+})
+
+const assembly = Bundle.assemble<Model, Message>()([PeoplePage.placed, Routing])
 
 // INIT
 
@@ -78,69 +133,27 @@ export const NavigateInternal = Command.define('NavigateInternal', {
   execute: ({ url }) => pushUrl(url).pipe(Effect.as(Message.CompletedNavigateInternal())),
 })
 
-const LoadExternal = Command.define('LoadExternal', {
-  args: { href: Schema.String },
-  messages: [Message.CompletedLoadExternal],
-  execute: ({ href }) => load(href).pipe(Effect.as(Message.CompletedLoadExternal())),
-})
-
 // UPDATE
 
 type UpdateReturn = Update.Return<Model, Message>
 
 const navigationUrlByShortcut: Readonly<Record<NavigationShortcut, () => string>> = {
-  GH: homeRouter,
-  GP: () => peopleRouter({ searchText: Option.none() }),
-  GF: filesIndexRouter,
-  GN: nestedRouter,
+  GH: () => Site.href(HomeNode, {}),
+  GP: () => Site.href(PeopleNode, { searchText: Option.none() }),
+  GF: () => Site.href(FilesIndexNode, {}),
+  GN: () => Site.href(NestedNode, {}),
 }
-
-/** Tells the People page the route changed, through its placement wrapper. */
-const informPeopleRouteChanged =
-  (route: PeopleRoute): Update.Step<Model, Message> =>
-  model =>
-    Option.getOrElse(
-      peoplePlaced.update(
-        model,
-        Message.GotPeopleMessage({ message: People.Message.ChangedRoute({ route }) }),
-      ),
-      () => ({ model }),
-    )
-
-const setRoute =
-  (nextRoute: AppRoute): Update.Step<Model, Message> =>
-  model => ({ model: modifyFields(model, { route: () => nextRoute }) })
 
 type OwnMessage = Bundle.OwnMessage<Message, typeof assembly.placements>
 
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
+    // Claimed by Site.routing: never reaches `own`.
+    CompletedNavigation: () => ({ model }),
     CompletedNavigateInternal: () => ({ model }),
-    CompletedLoadExternal: () => ({ model }),
-
-    ClickedLink: ({ request }) =>
-      UrlRequest.match<UpdateReturn>(request, {
-        Internal: ({ url }) => ({
-          model,
-          commands: [NavigateInternal({ url: urlToString(url) })],
-        }),
-        External: ({ href }) => ({
-          model,
-          commands: [LoadExternal({ href })],
-        }),
-      }),
-
-    ChangedUrl: ({ url }) => {
-      const nextRoute = urlToAppRoute(url)
-
-      const routeSteps = Match.value(nextRoute).pipe(
-        Match.withReturnType<ReadonlyArray<Update.Step<Model, Message>>>(),
-        Match.tag('People', peopleRoute => [informPeopleRouteChanged(peopleRoute)]),
-        Match.orElse(() => []),
-      )
-
-      return Update.combine(model, [setRoute(nextRoute), ...routeSteps])
-    },
+    ClickedLink: () => ({ model }),
+    // Shared with Site.routing, which already routed it.
+    ChangedUrl: () => ({ model }),
 
     EnteredNavigationShortcut: ({ shortcut }) => {
       const url = navigationUrlByShortcut[shortcut]()
@@ -184,39 +197,28 @@ export const subscriptions = assembly.subscriptions(ownSubscriptions)
 
 type Slots = SlotBuilders<typeof RoutingPage.slots, Message>
 
-const NavSection = Schema.Literals(['Home', 'People', 'Files', 'Nested'])
-type NavSection = typeof NavSection.Type
+const navSections = ['Home', 'People', 'Files', 'Nested'] as const
+type NavSection = (typeof navSections)[number]
 
-const navSectionOf = (route: AppRoute): Option.Option<NavSection> =>
-  AppRoute.match(route, {
-    Home: () => Option.some('Home' as const),
-    Nested: () => Option.some('Nested' as const),
-    People: () => Option.some('People' as const),
-    Person: () => Option.some('People' as const),
-    FilesIndex: () => Option.some('Files' as const),
-    Files: () => Option.some('Files' as const),
-    NotFound: () => Option.none(),
-  })
-
-const navigationHrefBySection: Readonly<Record<NavSection, () => string>> = {
-  Home: homeRouter,
-  People: () => peopleRouter({ searchText: Option.none() }),
-  Files: filesIndexRouter,
-  Nested: nestedRouter,
+const sectionTarget: Readonly<Record<NavSection, () => string>> = {
+  Home: () => Site.href(HomeNode, {}),
+  People: () => Site.href(PeopleNode, { searchText: Option.none() }),
+  Files: () => Site.href(FilesIndexNode, {}),
+  Nested: () => Site.href(NestedNode, {}),
 }
 
 const navigationView = (currentRoute: AppRoute, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  const currentSection = navSectionOf(currentRoute)
+  const currentSection = Site.sectionOf(AppSite, currentRoute)
 
   return h.nav(slots.nav.attrs(), [
     h.ul(
       slots.navList.attrs(),
-      Array.map(NavSection.literals, section =>
+      Array.map(navSections, section =>
         h.li(slots.navItem.attrs(), [
           h.a(
             slots.navLink.attrs([
-              h.Href(navigationHrefBySection[section]()),
-              ...(Option.contains(currentSection, section) ? [h.AriaCurrent('page')] : []),
+              h.Href(sectionTarget[section]()),
+              ...(currentSection === section ? [h.AriaCurrent('page')] : []),
             ]),
             [section],
           ),
@@ -240,7 +242,7 @@ const nestedView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
     h.p(slots.lead.attrs(), ['You found the deeply nested route at /nested/route/is/very/nested']),
   ])
 
-const peopleHref = peopleRouter({ searchText: Option.none() })
+const peopleHref = Site.href(PeopleNode, { searchText: Option.none() })
 
 const detailView = (label: string, value: string, slots: Slots, h: HtmlBuilder<Message>): Html =>
   h.div(slots.detail.attrs(), [
@@ -386,7 +388,7 @@ export const Page = SlotView.forMessages<Message>()
         AppRoute.match(model.route, {
           Home: () => homeView(slots, h),
           Nested: () => nestedView(slots, h),
-          People: () => peoplePlaced.viewIn('people')(model, h),
+          People: () => PeoplePage.placed.view(model, h),
           Person: ({ personId }) => personView(personId, slots, h),
           FilesIndex: () => filesIndexView(slots, h),
           Files: ({ path }) => filesView(path, slots, h),
@@ -398,15 +400,7 @@ export const Page = SlotView.forMessages<Message>()
   .pipe(Style.attach(RoutingPage.style))
 
 export const routeTitle = (route: AppRoute): string =>
-  AppRoute.match(route, {
-    Home: () => 'Routing',
-    Nested: () => 'Nested | Routing',
-    People: () => 'People | Routing',
-    Person: ({ personId }) => `Person ${personId} | Routing`,
-    FilesIndex: () => 'Files | Routing',
-    Files: ({ path }) => `${Array.lastNonEmpty(path)} | Files | Routing`,
-    NotFound: () => 'NotFound | Routing',
-  })
+  Site.titleOf(AppSite, route) ?? 'NotFound | Routing'
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: routeTitle(model.route),

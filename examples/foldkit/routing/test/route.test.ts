@@ -12,7 +12,6 @@ import {
   personRouter,
   urlToAppRoute,
 } from '../src/route.js'
-import { People } from '../src/page/index.js'
 import { on, peoplePageWith, urlOrThrow } from './helpers.js'
 
 const routes: ReadonlyArray<readonly [path: string, route: AppRoute, title: string]> = [
@@ -58,26 +57,21 @@ describe('routes', () => {
 })
 
 describe('ChangedUrl for the People route the Model already shows', () => {
+  // An echo of the shown address touches nothing: the user's unsubmitted
+  // text stays, and nothing refetches. Re-searching is the submit's own job
+  // (it searches directly); the URL echo only syncs the address.
   test.each([
-    ['unsubmitted text on /people', '/people', '', 'bo', ''],
-    ['the same search again', '/people?searchText=designer', 'designer', 'designer', 'designer'],
-  ])(
-    '%s resets the input to the route and searches again',
-    (_case, path, routeText, typed, searched) => {
-      const model = modifyFields(
-        on(AppRoute.People({ searchText: Option.liftPredicate(routeText, String.isNonEmpty) })),
-        {
-          peoplePage: () => modifyFields(peoplePageWith(routeText), { searchInput: () => typed }),
-        },
-      )
-      const result = update(
-        model,
-        Message.ChangedUrl({ url: urlOrThrow(`http://localhost${path}`) }),
-      )
-      expect(result.model.peoplePage.searchInput).toBe(searched)
-      expect(result.model.peoplePage.searchHistory).toStrictEqual(model.peoplePage.searchHistory)
-      expect(result.model.peoplePage.results).toStrictEqual(People.SearchResults.Loading())
-      expect(result.commands).toHaveLength(1)
-    },
-  )
+    ['unsubmitted text on /people', '/people', '', 'bo'],
+    ['the same search again', '/people?searchText=designer', 'designer', 'designer'],
+  ])('%s keeps the input and fetches nothing', (_case, path, routeText, typed) => {
+    const model = modifyFields(
+      on(AppRoute.People({ searchText: Option.liftPredicate(routeText, String.isNonEmpty) })),
+      {
+        peoplePage: () => modifyFields(peoplePageWith(routeText), { searchInput: () => typed }),
+      },
+    )
+    const result = update(model, Message.ChangedUrl({ url: urlOrThrow(`http://localhost${path}`) }))
+    expect(result.model).toBe(model)
+    expect(result.commands ?? []).toHaveLength(0)
+  })
 })

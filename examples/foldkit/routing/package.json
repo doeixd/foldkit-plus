@@ -13,7 +13,8 @@
     "foldkit": "0.165.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",
-    "foldkit-mixins-ui": "workspace:*"
+    "foldkit-mixins-ui": "workspace:*",
+    "foldkit-site": "workspace:*"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.0.0",

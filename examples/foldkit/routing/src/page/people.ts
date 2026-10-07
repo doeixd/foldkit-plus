@@ -144,30 +144,47 @@ export const FetchPeople = Command.define('FetchPeople', {
 
 export type UpdateReturn = Update.Return<Model, Message>
 
+/**
+ * Searching `text`: record it, show Loading, and fetch. The submitter and
+ * the route arrival share it — a submit searches at once instead of waiting
+ * for its own URL echo, and the echo only syncs the address.
+ */
+const searchFor = (model: Model, searchText: string): UpdateReturn => ({
+  model: modifyFields(model, {
+    searchHistory: searchHistory => addSearchToHistory(searchHistory, searchText),
+    results: () => SearchResults.Loading(),
+  }),
+  commands: [FetchPeople({ searchText })],
+})
+
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
     ChangedSearchInput: ({ value }) => ({
       model: modifyFields(model, { searchInput: () => value }),
     }),
 
-    SubmittedSearch: () => ({
-      model,
-      commands: [
-        PushSearchUrl({
-          searchText: Option.liftPredicate(model.searchInput, String.isNonEmpty),
-        }),
-      ],
-    }),
+    SubmittedSearch: () => {
+      const searched = searchFor(model, model.searchInput)
+      return {
+        ...searched,
+        commands: [
+          PushSearchUrl({
+            searchText: Option.liftPredicate(model.searchInput, String.isNonEmpty),
+          }),
+          ...(searched.commands ?? []),
+        ],
+      }
+    },
 
     ChangedRoute: ({ route }) => {
       const searchText = routeSearchText(route)
+      // Already searching this text: the submit searched directly, and the
+      // URL echo only syncs the address. Don't fetch twice.
+      if (model.results._tag === 'Loading' && model.searchInput === searchText) return { model }
+      const searched = searchFor(model, searchText)
       return {
-        model: modifyFields(model, {
-          searchInput: () => searchText,
-          searchHistory: searchHistory => addSearchToHistory(searchHistory, searchText),
-          results: () => SearchResults.Loading(),
-        }),
-        commands: [FetchPeople({ searchText })],
+        ...searched,
+        model: modifyFields(searched.model, { searchInput: () => searchText }),
       }
     },
 

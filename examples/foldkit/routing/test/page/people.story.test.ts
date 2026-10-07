@@ -3,6 +3,7 @@ import { Command, given, message, model, story } from 'foldkit/story'
 import { describe, expect, test } from 'vitest'
 
 import {
+  FetchPeople,
   Message,
   Model,
   PushSearchUrl,
@@ -39,13 +40,30 @@ describe('people', () => {
     )
   })
 
-  test('SubmittedSearch pushes the current input to the URL', () => {
+  test('SubmittedSearch pushes the current input to the URL and searches at once', () => {
     story(
       update,
       givenLoaded('designer'),
       message(Message.SubmittedSearch()),
       Command.expectHas(PushSearchUrl),
       Command.resolve(PushSearchUrl, Message.CompletedPushSearchUrl()),
+      model(model => {
+        expect(model.results._tag).toBe('Loading')
+      }),
+      Command.resolve(
+        FetchPeople,
+        Message.SucceededFetchPeople({
+          query: 'designer',
+          people: searchPeople('designer'),
+        }),
+      ),
+      model(model => {
+        if (model.results._tag === 'Loaded') {
+          expect(model.results.people).toStrictEqual(searchPeople('designer'))
+        } else {
+          throw new Error('Expected SearchLoaded')
+        }
+      }),
     )
   })
 

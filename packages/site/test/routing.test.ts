@@ -67,14 +67,16 @@ const Message = defineMessageUnion({
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
 
+const field = {
+  dependency: App.model.route.dependency,
+  get: (model: Model) => model.route,
+  set: (model: Model, route: AppRoute) => modifyFields(model, { route: () => route }),
+}
+
 const Routing = Site.routing<Model, Message, AppRoute>({
   site: AppSite,
   owner: App.owner,
-  route: {
-    dependency: App.model.route.dependency,
-    get: (model: Model) => model.route,
-    set: (model, route) => modifyFields(model, { route: () => route }),
-  },
+  route: field,
   parse: urlToAppRoute,
   tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
   completed: Message.CompletedNavigation,
@@ -108,16 +110,24 @@ describe('Site.routing', () => {
     expect(routed(at('/'), Message.CompletedNavigation())).toBeUndefined()
   })
 
+  it('claims no owner without one', () => {
+    const ownerless = Site.routing<Model, Message, AppRoute>({
+      site: AppSite,
+      route: field,
+      parse: urlToAppRoute,
+      tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+      completed: Message.CompletedNavigation,
+    })
+    expect(ownerless.contract?.owner).toBeUndefined()
+    expect(Routing.contract).toMatchObject({ owner: App.owner })
+  })
+
   it('refuses a completion that names no message', () => {
     expect(() =>
       Site.routing<Model, Message, AppRoute>({
         site: AppSite,
         owner: App.owner,
-        route: {
-          dependency: App.model.route.dependency,
-          get: (model: Model) => model.route,
-          set: (model, route) => modifyFields(model, { route: () => route }),
-        },
+        route: field,
         parse: urlToAppRoute,
         tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
         // Deliberately invalid: a bare function names no message tag.

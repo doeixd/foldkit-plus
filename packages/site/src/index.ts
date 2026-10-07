@@ -441,7 +441,11 @@ export const Site = {
     R = never,
   >(config: {
     readonly site: SiteTree
-    readonly owner: object
+    /**
+     * The application's identity token, for the Module contract. Raw Foldkit
+     * applications have none; omit it and the contract claims no owner.
+     */
+    readonly owner?: object | undefined
     /** The route field, read and written (a `RouteField`, struct). */
     readonly route: RouteField<Root, Route>
     /** The application's URL parser, with its NotFound fallback. */
