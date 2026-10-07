@@ -548,3 +548,72 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
 // Foldkit's own lift signatures with the child and parent erased; `Place` gives
 // callers the types those lifts produce, and test/types.test-d.ts pins them.
 export const place: Place = placeErased as unknown as Place
+
+/**
+ * What an address asks of a child that has no Model yet, once it does:
+ * `follow` wraps an update result and, while a pending ask waits and its
+ * owner is ready, sends the ask through the owner's own Messages and lets it
+ * go. Holding, readiness, and translation are the application's; fetching
+ * the child, wrapping, folding, and merging Commands is this.
+ *
+ * ```ts
+ * const update = (model, message) => follow(baseUpdate(model, message))
+ *
+ * const follow = Bundle.follow(EditorPage.placed, {
+ *   // The ask, held in the Model until its owner can answer it.
+ *   pending: model => model.linked,
+ *   // Letting go, so the address follows the owner again.
+ *   release: model => ({ ...model, linked: Option.none() }),
+ *   // The owner is ready: loaded, not loading.
+ *   ready: editor => editor.status !== 'Loading',
+ *   // The ask in the owner's own Messages.
+ *   toMessages: (ask, editor) => [
+ *     EditorMessage.Selected({ id: ask.block }),
+ *     ...(ask.panel === undefined
+ *       ? []
+ *       : [EditorMessage.PanelChosen({ panel: ask.panel })]),
+ *   ],
+ * })
+ * ```
+ *
+ * Nothing happens without a pending ask, without the child, or before it is
+ * ready — each returns the result untouched, pending kept. An ask that
+ * translates to no Messages is still let go: it was considered, not lost.
+ */
+export const follow = <Parent, ParentMessage extends AnyMessage, Child, ChildMessage, R, Ask>(
+  placed: Placed<string, Parent, ParentMessage, Child, ChildMessage, R, any, any, any, any, any>,
+  config: {
+    /** The ask waiting in the Model, if any. */
+    readonly pending: (model: Parent) => Option.Option<Ask>
+    /** The Model with the ask let go. */
+    readonly release: (model: Parent) => Parent
+    /** Whether the child can answer yet. */
+    readonly ready: (child: Child) => boolean
+    /** The ask in the child's own Messages. */
+    readonly toMessages: (ask: Ask, child: Child) => ReadonlyArray<ChildMessage>
+  },
+): ((
+  result: Update.Return<Parent, ParentMessage, R>,
+) => Update.Return<Parent, ParentMessage, R>) => {
+  const send = (model: Parent, message: ChildMessage) =>
+    placed.update(model, placed.link.toParentMessage(message))
+  return result => {
+    const ask = config.pending(result.model)
+    if (Option.isNone(ask)) return result
+    const child = placed.link.read(result.model)
+    if (Option.isNone(child)) return result
+    if (!config.ready(child.value)) return result
+    const released: Update.Return<Parent, ParentMessage, R> = {
+      ...result,
+      model: config.release(result.model),
+    }
+    return config.toMessages(ask.value, child.value).reduce((done, message) => {
+      const next = send(done.model, message)
+      if (Option.isNone(next)) return done
+      return {
+        ...next.value,
+        commands: [...(done.commands ?? []), ...(next.value.commands ?? [])],
+      }
+    }, released)
+  }
+}

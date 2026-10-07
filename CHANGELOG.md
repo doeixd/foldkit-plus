@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-bundle`: `Bundle.follow`, an ask that waits for its owner.**
+  `follow(placed, { pending, release, ready, toMessages })` wraps an update
+  result: while a pending ask waits and its owner is ready, the ask goes
+  through the owner's own Messages (Commands merged after the result's own)
+  and is let go. Otherwise the result passes untouched, pending kept — an
+  address can ask something of a child with no Model yet, once it has one.
 - **`foldkit-site` (new, 0.1.0): the deployed route topology as data.**
   `Site.route(router, case, options?)` declares one location from its Foldkit
   Router; `Site.mount`/`Site.make` freeze the hierarchy; `Site.target` builds

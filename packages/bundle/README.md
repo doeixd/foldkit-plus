@@ -648,6 +648,31 @@ A child with view inputs, or with OutMessages of its own, stays hand-rolled:
 [`examples/foldkit/ui-showcase`](../../examples/foldkit/ui-showcase) folds its
 thirty-eight components this way.
 
+### An ask that waits for its owner: `Bundle.follow`
+
+An address can ask something of a child that has no Model yet — a block to
+select once the page loads, a preview to show once the entry arrives.
+`Bundle.follow` wraps an update result and, while a pending ask waits and its
+owner is ready, sends the ask through the owner's own Messages and lets it go:
+
+```ts
+const follow = Bundle.follow(EditorPage.placed, {
+  pending: model => model.linked,
+  release: model => ({ ...model, linked: Option.none() }),
+  ready: editor => editor.status !== 'Loading',
+  toMessages: ask => [EditorMessage.Selected({ id: ask.block })],
+})
+
+const update = (model, message) => follow(baseUpdate(model, message))
+```
+
+Nothing happens without a pending ask, without the child, or before it is
+ready — each returns the result untouched, pending kept. An ask that
+translates to no Messages is still let go. Apply the step outside whatever
+installs a loaded value, so the owner looks ready when it is read; and keep
+the pending ask where the address can rewrite it while it waits, or a reload
+during the load loses it.
+
 ## Bodies that load on demand: `Bundle.lazy`
 
 A bundle's declaration is what the parent Schema and the boot need: `Model`,
