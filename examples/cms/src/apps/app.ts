@@ -5,7 +5,7 @@
  * Nothing about how any of it is placed is CMS-specific.
  */
 import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
-import { Bundle } from 'foldkit-bundle'
+import { Bundle, follow as followPending } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
@@ -280,23 +280,19 @@ const stepped = PostEditor.after((model: Model, message: Message) => {
 /**
  * The preview a link asks for, once the post is open, through the editor's own
  * `update`; then let go, so the address follows the editor again. Outside
- * `after`, whose `sync` is what opens the post a load brings.
+ * `after`, whose `sync` is what opens the post a load brings — so the ask
+ * travels the full update, not just the placement's fold.
  */
-const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
-  const { model } = result
-  if (Option.isNone(model.previewAsked) || PostEditor.status(model) === 'Loading') return result
-  const settled = { ...model, previewAsked: Option.none() }
-  const asked = model.previewAsked.value
-  if (PostEditor.status(model) === 'Closed' || PostEditor.previewing(model) === asked)
-    return { ...result, model: settled }
-  const next = stepped(
-    settled,
-    Message.GotEditorMessage({
-      message: asked ? Editor.Message.PreviewShown() : Editor.Message.PreviewHidden(),
-    }),
-  )
-  return { ...next, commands: [...(result.commands ?? []), ...(next.commands ?? [])] }
-}
+const follow = followPending(EditorSlot, {
+  pending: model => model.previewAsked,
+  release: model => ({ ...model, previewAsked: Option.none() }),
+  ready: (_child, model) => PostEditor.status(model) !== 'Loading',
+  toMessages: (asked, _child, model) =>
+    PostEditor.status(model) === 'Closed' || PostEditor.previewing(model) === asked
+      ? []
+      : [asked ? Editor.Message.PreviewShown() : Editor.Message.PreviewHidden()],
+  send: (model, message) => Option.some(stepped(model, Message.GotEditorMessage({ message }))),
+})
 
 /** A post the address named as new, begun blank once the server says it has none. */
 const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {

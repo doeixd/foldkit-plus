@@ -6,7 +6,7 @@
  */
 import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
 import { Message as BuilderMessage, Panel, Viewport } from 'foldkit-builder'
-import { Bundle } from 'foldkit-bundle'
+import { Bundle, follow as followPending } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { BuilderView, type BuilderViewInputs } from 'foldkit-mixins-builder'
@@ -243,29 +243,28 @@ export const selectedOf = (model: Model): Option.Option<NodeId> => builderOf(mod
  * What a link asks, once the page has loaded, through the Builder's own
  * `update`: the Block selected if the page holds it, then the panel and the
  * width. A selection shows Settings, so the panel comes after it. Then it is
- * let go, so the address follows the Builder again.
+ * let go, so the address follows the Builder again. Outside `after`, whose
+ * `sync` is what installs a loaded value; inside it, the owner still looks
+ * unready.
  */
-const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
-  if (Option.isNone(result.model.linked) || PageEditor.status(result.model) === 'Loading')
-    return result
-  const { block, panel, viewport } = result.model.linked.value
-  // The id is the address's: `hasOwn`, since a plain object has `constructor`.
-  const held = Option.filter(block, id => Object.hasOwn(editing(result.model).nodes, id))
-  const asks = [
-    ...Option.toArray(Option.map(held, id => BuilderMessage.Selected({ id: NodeId.make(id) }))),
-    ...Option.toArray(Option.map(panel, chosen => BuilderMessage.PanelChosen({ panel: chosen }))),
-    ...Option.toArray(
-      Option.map(viewport, chosen => BuilderMessage.ViewportChosen({ viewport: chosen })),
-    ),
-  ]
-  return asks.reduce<ReturnType<typeof stepped>>(
-    (done, ask) => {
-      const next = stepped(done.model, Message.GotEditorMessage({ message: document.send(ask) }))
-      return { ...next, commands: [...(done.commands ?? []), ...(next.commands ?? [])] }
-    },
-    { ...result, model: { ...result.model, linked: Option.none() } },
-  )
-}
+const follow = followPending(EditorSlot, {
+  pending: model => model.linked,
+  release: model => ({ ...model, linked: Option.none() }),
+  ready: (_child, model) => PageEditor.status(model) !== 'Loading',
+  toMessages: (linked, _child, model) => {
+    const { block, panel, viewport } = linked
+    // The id is the address's: `hasOwn`, since a plain object has `constructor`.
+    const held = Option.filter(block, id => Object.hasOwn(editing(model).nodes, id))
+    return [
+      ...Option.toArray(Option.map(held, id => BuilderMessage.Selected({ id: NodeId.make(id) }))),
+      ...Option.toArray(Option.map(panel, chosen => BuilderMessage.PanelChosen({ panel: chosen }))),
+      ...Option.toArray(
+        Option.map(viewport, chosen => BuilderMessage.ViewportChosen({ viewport: chosen })),
+      ),
+    ].map(ask => document.send(ask))
+  },
+  send: (model, message) => Option.some(stepped(model, Message.GotEditorMessage({ message }))),
+})
 
 /**
  * The site's pages asked for again when the open page is saved and not among

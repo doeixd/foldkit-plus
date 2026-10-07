@@ -149,4 +149,35 @@ describe('Bundle.follow', () => {
     const result: Parameters<typeof followMaybe>[0] = { model }
     expect(followMaybe(result)).toBe(result)
   })
+
+  it('reads what only the Model knows, and sends further than the placement', () => {
+    const sent: Array<ChildMessage> = []
+    const viaFull = follow(placed, {
+      pending: model => model.pending as Option.Option<Ask>,
+      release: model => ({ ...model, pending: Option.none() }),
+      ready: () => true,
+      // Already showing the asked text: let go without sending.
+      toMessages: (ask, _child, model) =>
+        model.child.text === ask.text ? [] : [ChildMessage.SetText({ text: ask.text })],
+      send: (model, message) => {
+        sent.push(message)
+        return placed.update(model, Message.GotChild({ message }))
+      },
+    })
+    const showing: Model = {
+      child: { status: 'Ready', text: 'hi' },
+      pending: Option.some({ text: 'hi' }),
+    }
+    const settled = viaFull(returns(showing))
+    expect(settled.model.pending).toStrictEqual(Option.none())
+    expect(sent).toEqual([])
+
+    const changing: Model = {
+      child: { status: 'Ready', text: '' },
+      pending: Option.some({ text: 'hi' }),
+    }
+    const sentResult = viaFull(returns(changing))
+    expect(sentResult.model.child.text).toBe('hi')
+    expect(sent).toEqual([ChildMessage.SetText({ text: 'hi' })])
+  })
 })

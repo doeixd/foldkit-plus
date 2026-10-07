@@ -174,11 +174,12 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement's wrapper: type it `Bundle.OwnMessage<Message, typeof
   placements.placements>` and match it with Effect `Match.valueTags` (a union's
   own `match` still demands every variant).
-- **An ask that waits for its owner:** `Bundle.follow(placed, { pending,
-  release, ready, toMessages })` wraps an update result: while a pending ask
+- **An ask that waits for its owner:** `Bundle.follow(placed, { pending:
+  model => …, release, ready: (child, model) => …, toMessages: (ask, child,
+  model) => …, send? })` wraps an update result: while a pending ask
   waits and its owner is ready, the ask goes through the owner's own Messages
-  and is let go (Commands merged after the result's own). Otherwise the
-  result passes through untouched, pending kept. Apply outside whatever
+  and is let go (Commands merged after the result's own). `send` replaces the
+  dispatch when hooks around the placement must run too. Otherwise the result passes through untouched, pending kept. Apply outside whatever
   installs a loaded value; keep the pending ask where the address rewrites it
   while it waits.
 - **A Link without a Bundle:** `Link.child(link, update, view, slotId)` states

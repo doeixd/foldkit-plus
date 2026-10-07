@@ -673,6 +673,11 @@ installs a loaded value, so the owner looks ready when it is read; and keep
 the pending ask where the address can rewrite it while it waits, or a reload
 during the load loses it.
 
+`ready` and `toMessages` also see the Model the ask was held in, for what
+only it knows. `send` replaces the dispatch when the ask must travel further
+than the placement — through the full update with its hooks, rather than the
+placement's own fold.
+
 ## Bodies that load on demand: `Bundle.lazy`
 
 A bundle's declaration is what the parent Schema and the boot need: `Model`,

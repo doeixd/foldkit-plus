@@ -579,6 +579,11 @@ export const place: Place = placeErased as unknown as Place
  * Nothing happens without a pending ask, without the child, or before it is
  * ready — each returns the result untouched, pending kept. An ask that
  * translates to no Messages is still let go: it was considered, not lost.
+ *
+ * `ready` and `toMessages` also see the Model the ask was held in, for what
+ * only it knows (whether the asked state already shows, say). `send` replaces
+ * the dispatch when the ask must travel further than the placement — through
+ * the full update with its hooks, rather than the placement's own fold.
  */
 export const follow = <Parent, ParentMessage extends AnyMessage, Child, ChildMessage, R, Ask>(
   placed: Placed<string, Parent, ParentMessage, Child, ChildMessage, R, any, any, any, any, any>,
@@ -588,26 +593,39 @@ export const follow = <Parent, ParentMessage extends AnyMessage, Child, ChildMes
     /** The Model with the ask let go. */
     readonly release: (model: Parent) => Parent
     /** Whether the child can answer yet. */
-    readonly ready: (child: Child) => boolean
+    readonly ready: (child: Child, model: Parent) => boolean
     /** The ask in the child's own Messages. */
-    readonly toMessages: (ask: Ask, child: Child) => ReadonlyArray<ChildMessage>
+    readonly toMessages: (ask: Ask, child: Child, model: Parent) => ReadonlyArray<ChildMessage>
+    /**
+     * How an ask reaches its owner. The default folds it through the
+     * placement, wrapped in its variant; pass the full update when hooks
+     * around it must run for the synthetic Message too.
+     */
+    readonly send?:
+      | ((
+          model: Parent,
+          message: ChildMessage,
+        ) => Option.Option<Update.Return<Parent, ParentMessage, R>>)
+      | undefined
   },
 ): ((
   result: Update.Return<Parent, ParentMessage, R>,
 ) => Update.Return<Parent, ParentMessage, R>) => {
-  const send = (model: Parent, message: ChildMessage) =>
-    placed.update(model, placed.link.toParentMessage(message))
+  const send =
+    config.send ??
+    ((model: Parent, message: ChildMessage) =>
+      placed.update(model, placed.link.toParentMessage(message)))
   return result => {
     const ask = config.pending(result.model)
     if (Option.isNone(ask)) return result
     const child = placed.link.read(result.model)
     if (Option.isNone(child)) return result
-    if (!config.ready(child.value)) return result
+    if (!config.ready(child.value, result.model)) return result
     const released: Update.Return<Parent, ParentMessage, R> = {
       ...result,
       model: config.release(result.model),
     }
-    return config.toMessages(ask.value, child.value).reduce((done, message) => {
+    return config.toMessages(ask.value, child.value, result.model).reduce((done, message) => {
       const next = send(done.model, message)
       if (Option.isNone(next)) return done
       return {

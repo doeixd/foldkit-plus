@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file,
-        find: '    if (!config.ready(child.value)) return result',
+        find: '    if (!config.ready(child.value, result.model)) return result',
         replace: '',
       },
     ],
@@ -57,9 +57,9 @@ export default [
     edits: [
       {
         file,
-        find: '    return config.toMessages(ask.value, child.value).reduce((done, message) => {',
+        find: '    return config.toMessages(ask.value, child.value, result.model).reduce((done, message) => {',
         replace:
-          '    return config.toMessages(ask.value, child.value).slice(0, 1).reduce((done, message) => {',
+          '    return config.toMessages(ask.value, child.value, result.model).slice(0, 1).reduce((done, message) => {',
       },
     ],
     tests,
@@ -71,6 +71,18 @@ export default [
         file,
         find: '      return {\n        ...next.value,\n        commands: [...(done.commands ?? []), ...(next.value.commands ?? [])],\n      }',
         replace: '      return next.value',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a custom send is not used',
+    edits: [
+      {
+        file,
+        find: '  const send =\n    config.send ??\n    ((model: Parent, message: ChildMessage) =>\n      placed.update(model, placed.link.toParentMessage(message)))',
+        replace:
+          '  const send = (model: Parent, message: ChildMessage) =>\n    placed.update(model, placed.link.toParentMessage(message))',
       },
     ],
     tests,
