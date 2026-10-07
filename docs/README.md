@@ -68,6 +68,7 @@ Link and Placement to Connection and Segment, are in the
 | Keep local Model state in the URL or a device store without making that store authoritative | [Mirrored state](./mirror.md) | `foldkit-mirror` |
 | Package a Submodel once and place it several times or per key, with its Subscriptions, resources, and view wired | [`foldkit-bundle` README](../packages/bundle) | `foldkit-bundle`, `foldkit-bundle-surface` |
 | Join several integrations and placements through one checked list instead of hand-wiring each | [Wiring](./wiring.md) | `foldkit-bundle`, `foldkit-bundle-surface`, `foldkit-surface` |
+| Serve several screens from one route topology, with navigation, data preparation, and rendering derived from it | [Site guide](./site.md) | `foldkit-site` (+ `foldkit-surface`, `foldkit-remote`, `foldkit-ssr` as composed) |
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand the long-term path from one Foldkit state machine to Web, native iOS, native Android, and desktop without requiring a JavaScript runtime on mobile | [Native cross-platform Foldkit](./native-cross-platform.md) | `foldkit-surface`, `foldkit-mixins`, platform adapters, reffect |
