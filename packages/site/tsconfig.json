@@ -13,6 +13,9 @@
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-site": ["./src/index.ts"],
+      "foldkit-ssr": ["../ssr/src/index.ts"],
+      "foldkit-ssr/client": ["../ssr/src/client.ts"],
+      "foldkit-ssr/vite": ["../ssr/src/vite.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
@@ -26,6 +29,9 @@
     },
     {
       "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../ssr/tsconfig.build.json"
     },
     {
       "path": "../surface/tsconfig.build.json"

@@ -17,6 +17,13 @@ version changed; `pnpm` skips versions already in the registry.
   Deliberately no `SitePlan` object yet: the chain is already `Site.chainOf`,
   and head/access metadata arrive with their real consumers. Hover or
   programmatic prefetch adoption in an app is the next slice.
+- **`foldkit-site`: the SSR connection, proved by composition, no new API.**
+  URL → route → target Model → `Site.sourcesFor` → `Data.satisfy` → an SSR
+  plan over those Sources with Remote's resume part renders the destination
+  carrying its data (`packages/site/test/ssr.test.ts`): the route determines
+  the route-level SurfaceSources, preparation fills them, and the envelope
+  captures what they resolved. The browser takeover stays proved in
+  `foldkit-ssr`.
 - **`foldkit-bundle`: `Bundle.follow`, an ask that waits for its owner.**
   `follow(placed, { pending, release, ready, toMessages })` wraps an update
   result: while a pending ask waits and its owner is ready, the ask goes

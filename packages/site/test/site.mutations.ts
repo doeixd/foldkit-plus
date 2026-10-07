@@ -8,6 +8,7 @@ const tests = [
   'packages/site/test/routing.test.ts',
   'packages/site/test/placement.test.ts',
   'packages/site/test/prefetch.test.ts',
+  'packages/site/test/ssr.test.ts',
 ]
 const file = '../src/index.ts'
 
