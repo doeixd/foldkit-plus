@@ -1,4 +1,5 @@
 import { runDemo as runAccordionDemo } from './accordion/view.js'
+import { runDemo as runNumberFieldDemo } from './number-field/view.js'
 import { runDemo as runToggleDemo } from './toggle/view.js'
 import { runDemo as runToggleGroupDemo } from './toggle-group/view.js'
 import { runDemo as runToolbarDemo } from './toolbar/demo.js'
@@ -13,5 +14,8 @@ for (const line of runToggleGroupDemo()) {
   console.log(line)
 }
 for (const line of runAccordionDemo()) {
+  console.log(line)
+}
+for (const line of runNumberFieldDemo()) {
   console.log(line)
 }
