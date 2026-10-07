@@ -1607,6 +1607,31 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  examples/widgets:
+    dependencies:
+      effect:
+        specifier: 4.0.0
+        version: 4.0.0
+      foldkit:
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../../packages/bundle
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
+    devDependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/agent:
     dependencies:
       foldkit-surface:

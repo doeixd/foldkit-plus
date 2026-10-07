@@ -47,6 +47,7 @@
     { "path": "./examples/mixins" },
     { "path": "./examples/tree" },
     { "path": "./examples/drawer" },
+    { "path": "./examples/widgets" },
     { "path": "./examples/bundle" },
     { "path": "./examples/react" },
     { "path": "./examples/remote" },

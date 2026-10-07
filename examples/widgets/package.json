@@ -1,0 +1,26 @@
+{
+  "name": "foldkit-example-widgets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/main.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.0",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}
