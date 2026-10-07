@@ -94,6 +94,8 @@ centre, as §32 says; Site is one producer, Composition another.
   prefetch, one declaration giving both `routeOf` and `pathOf`. (Half held:
   `Site.target` already builds route + URL from one declaration; the parser
   direction is still each app's own `urlToRoute`.)
+- **Scaffold derivation (§35):** entities to a sectioned site — proposed,
+  unbuilt. `paths` comes first; everything else hangs off enumeration.
 - **Document-aware targets (§§33.7, 33.10):** nodes saying which
   application/document serves them, so `Site.navigate` chooses Navigate
   Command vs full load (and generated pages state their preference).
@@ -7306,3 +7308,88 @@ placement for update+view (34.3), and annotatable route metadata (34.4) belong
 in the first Site cut alongside targets-with-intents (33.3) and history intent
 (33.4); genuine nesting (34.2) is what step 6 (nested layouts/rendering) must
 deliver.
+
+---
+
+# 35. Scaffold: entities to a sectioned site (proposed 2026-10-07)
+
+> Status: unbuilt proposal. The per-entity half exists (`foldkit-crud`'s
+> `list` / `detail` / editor / remover from a Selection); the site-level
+> derivation does not. `paths` (§33.9) comes first — everything else hangs
+> off enumeration.
+
+Rails' `scaffold` turns one entity into a working admin section: model,
+migration, controller, views, routes. The Foldkit Plus analogue derives
+rather than emits — functions over descriptors returning descriptors, so the
+"scaffold" stays live (change the entity, the site follows) with no eject
+step and no drift:
+
+```ts
+const Posts = Site.section('Posts', {
+  entities: [Post],
+  list: Post.select({ id: true, title: true, slug: true }),
+  detail: Post.select({ id: true, title: true, body: true }),
+  form: Post.form({ title: 'text', slug: 'slug(title)', body: 'textarea' }),
+  // ^ the only handwriting: which fields show where, and control kinds
+})
+
+// Sketched surface, not shipped API: `Post.select` exists, as do the query,
+// Surface, form, placement, and prefetch pieces it would join. Proposed here
+// are `Site.section`, per-field control mapping, and `Site.defaults`.
+```
+
+From that, everything below is mechanical: list/detail queries, list/detail
+Surfaces, two nodes (`/posts`, `/posts/:slug`), nav section + landing,
+create/update/delete mutations, the form with validation, editor + remover
+placements, `changed` wiring, titles from the row, sitemap entries from the
+query. The CMS example is the proof this shape works: entries in, studio +
+published site out.
+
+## What is derivable now, and what is missing
+
+Derivable from what exists: list/detail reads (Selection → query → Surface),
+list/detail views (Selection → columns; `Loading` / `Empty` / `Failure`
+states), form controls per field kind (`FormView.fields` + overrides),
+nodes/targets/nav/titles/history (this package), prefetch/SSR preparation
+(`sourcesFor` + `satisfy`).
+
+Genuinely missing, in build order:
+
+1. **`Site.paths(node, source)`** — a node's addresses from a query
+   (§33.9). Without enumeration there is no index of generated pages, and
+   without an index there is no section. This is the rails-missing piece.
+2. **Standard mutations per entity** — `Mutation.make` with `Entity.input`
+   is sketched, not built (guard plan item 6).
+3. **Default ordering** — queries require explicit `orderBy` (entity DX
+   item 13); a scaffold needs a default (id) with an override.
+4. **`Site.meta` from the row** (§31.9) — excerpt → description, title →
+   OG tags.
+5. **Policy** — Guards are entirely unbuilt. Rails punts this to
+   Devise/Pundit too, so parity is "declare it once," not magic.
+
+## Conventions, not configuration
+
+The derivable-but-ambiguous bits need answers: slug field name, list page
+size, date formatting, empty-state words. Rails answers with inflection +
+overridable defaults; here that is a `Site.defaults({...})` value —
+locale, page size, words table — threaded as arguments, never ambient. Scope
+it as part of the slice, not after: a scaffold without stated defaults is a
+second config system.
+
+## What stays hand-built
+
+Bespoke interaction: landing pages, checkout flows, editor holds like the
+CMS's `linked` / `previewAsked`. That is the same 10% Rails developers
+rewrite after generating. The scaffold must compose with hand-built nodes in
+one tree — derived and declared sections side by side — or it is a
+framework apart, and fails the §34.5 elimination test.
+
+## Acceptance
+
+Generate the routing example's people pages from its entity through the
+derivation and delete the hand-written halves (nodes, placements, titles,
+history, nav entries). `paths` first, as its own slice with a query-backed
+node. Open: whether the derivation lives in `foldkit-site` or a
+`foldkit-scaffold` package (the thin-topology rule points to the latter),
+the exact `Site.section` / `Site.defaults` surface, and the policy hook
+shape against future Guards.
