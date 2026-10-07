@@ -21,10 +21,7 @@ import * as UpstreamDatePicker from '@foldkit/ui/datePicker'
 import { Message } from '@foldkit/ui/datePicker'
 import type { Model, ViewInputs as UpstreamViewInputs } from '@foldkit/ui/datePicker'
 import * as Popover from '@foldkit/ui/popover'
-import {
-  type Html,
-  type HtmlBuilder,
-} from 'foldkit/html'
+import { type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineView } from 'foldkit/submodel'
 import type { SlotAttributes } from 'foldkit-mixins'
 import { idSelector } from './datePickerUtils.js'
@@ -125,8 +122,7 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
         toView: toCalendarView,
         ...calendarViewLabels,
       },
-      toParentMessage: (message: UiCalendar.Message) =>
-        Message.GotCalendarMessage({ message }),
+      toParentMessage: (message: UiCalendar.Message) => Message.GotCalendarMessage({ message }),
     })
 
     const renderPopover = ({
@@ -178,8 +174,7 @@ export const view = defineView<Model, Message, DatePickerViewInputs>(
         focusSelector: idSelector(`${model.calendar.id}-grid`),
         toView: renderPopover,
       },
-      toParentMessage: (message: Popover.Message) =>
-        Message.GotPopoverMessage({ message }),
+      toParentMessage: (message: Popover.Message) => Message.GotPopoverMessage({ message }),
     })
 
     const hiddenInputValue = Option.match(maybeSelectedDate, {

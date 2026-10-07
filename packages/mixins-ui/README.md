@@ -397,6 +397,7 @@ adapter.
 | Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
 | Listbox | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ListboxView` fork; single and multi share one transcription) |
 | Combobox | `wrapper`, `inputWrapper`, `input`, `toggleButton`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `ComboboxView` fork; single and multi share one transcription) |
+| DatePicker | `trigger`, `panel`, `backdrop` (over the `DatePickerView` fork, which keeps upstream's Popover+Calendar composition and seams only the popover assembly) |
 
 ## Recipes
 
@@ -578,16 +579,16 @@ its pattern, so an adapter cannot drift from the contract it claims. The
 patterns are written separately from the Slots, which is what makes the
 check mean something.
 
-## Why some components cannot be adapted
+## Why some components needed a fork
 
-The bridge needs a **consumer-visible attribute bundle**. If a component builds
-its entire element tree internally and exposes no `toView`-style seam, there is
-nothing for Mixins to attach to.
-
-Currently only `DatePicker` falls into that category (its calendar half
-already uses a seam internally — the date field around it does not). It
-cannot be adapted here without a change to its upstream component API. That
-is a limitation of the exposed render seam, not of Slot resolution.
+The bridge needs a **consumer-visible attribute bundle**. `Menu`,
+`Listbox`, `ComboBox`, `DatePicker`, and `Toast` build (parts of) their
+element tree internally and expose no `toView`-style seam, so there is
+nothing for Mixins to attach to — a limitation of the exposed render seam,
+not of Slot resolution. Each is transcribed from the pinned `@foldkit/ui`
+source (attributed in its module) with the missing `toView` added, as
+described above; state, Messages, update, Commands, and Mounts stay
+upstream in every case. If upstream gains seams, the forks go away.
 
 `Menu` is the exception that proves the seam rule: its state machine stays
 upstream, but its markup assembly is transcribed into `MenuView` (from the

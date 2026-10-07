@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: DatePicker adapter over a view fork with a `toView`
+  seam.** `DatePickerView.view` keeps upstream's Popover+Calendar composition
+  (trigger face via `triggerContent`, grid via `toCalendarView`) and seams
+  only the popover assembly (pinned `@foldkit/ui@0.165.0`, attributed):
+  state, Messages, update, Commands stay upstream, and a parity battery draws
+  both views over the same models (incl. ISO hidden inputs and a full
+  day-select through the fork). `DatePicker` adapts the fork (`trigger`/
+  `panel`/`backdrop` slots; the adapter is concrete over the date picker's
+  own Message since the bundles mix pre-bound popover groups with plain
+  attributes) with a `DatePicker` A11y pattern and catalog entry.
 - **`foldkit-mixins-ui`: Combobox adapter over a view fork with a `toView`
   seam.** `ComboboxView.create`/`Multi.create` bind the upstream bundles and
   swap in transcribed markup assembly (pinned `@foldkit/ui@0.165.0`,

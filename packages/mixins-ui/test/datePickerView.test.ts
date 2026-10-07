@@ -185,14 +185,8 @@ describe('forked date picker seam', () => {
         _tag: 'SelectedDate',
         date: Calendar.make(2026, 4, 15),
       }),
-      Scene.Command.resolve(
-        Popover.FocusButton,
-        Popover.Message.CompletedFocusButton(),
-      ),
-      Scene.Mount.expectEnded(
-        Popover.AnchorPopover,
-        Popover.PortalPopoverBackdrop,
-      ),
+      Scene.Command.resolve(Popover.FocusButton, Popover.Message.CompletedFocusButton()),
+      Scene.Mount.expectEnded(Popover.AnchorPopover, Popover.PortalPopoverBackdrop),
     )
   })
 })

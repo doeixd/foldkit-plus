@@ -23,11 +23,11 @@ These wait on upstream Foldkit or Effect, not on work here.
   runtime. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] **Resources in Bundle collections.** Needs a pooled parent resource or a
   keyed `ManagedResource` upstream. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
-- [ ] **Adapting `@foldkit/ui`'s DatePicker.** It builds its markup
-  internally and exposes no seam for `mixins-ui`.
-  [mixins-DESIGN.md](./mixins-DESIGN.md) phase 9. (Menu, Listbox, Combobox and
-  Toast done, each via a view fork with upstream state; see the
-  `foldkit-mixins-ui` README.)
+- [x] **Adapting `@foldkit/ui`'s Menu, Listbox, ComboBox, DatePicker and
+  Toast.** Each builds (parts of) its markup internally with no seam for
+  `mixins-ui`; each is adapted over a view fork transcribed from the pinned
+  source with upstream state (see the `foldkit-mixins-ui` README).
+  [mixins-DESIGN.md](./mixins-DESIGN.md) phase 9
 
 ## SSR and resumability
 
@@ -584,10 +584,11 @@ Recipes and accessibility patterns to build from. Its Phase 1A is the gated
 - [ ] **Phase 0:** write down the UI contract in `docs/ui-architecture.md`:
   anatomy, capability, pattern, behavior, state, style, recipe, theme, widget
   and block, before more APIs.
-- [ ] **Phase 1:** finish the substrate: `mixins-ui` adapters for
-  VirtualList, DragAndDrop and Animation (FileDrop done 2026-10-07, Menu and
-  Toast done via view forks); Anatomy as a value; slot
-  capabilities; public and internal Slots.
+- [ ] **Phase 1:** finish the substrate: `mixins-ui` adapters done
+  (FileDrop direct; Menu, Toast, Listbox, Combobox and DatePicker via view
+  forks; VirtualList needs none; DragAndDrop has no view; Animation's
+  wrapper offers only passthrough styling). Remaining: Anatomy as a value;
+  slot capabilities; public and internal Slots.
 - [ ] **Phase 2:** the capability algebra: `Collection`, `Overlay`, the
   selection and navigation family, interaction, form-control semantics.
 - [ ] **Phase 3:** a small shared vocabulary of Styles and Recipes

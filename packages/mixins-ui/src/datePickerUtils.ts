@@ -28,8 +28,7 @@ const LOWERCASE_A_CODE = 0x61
 const LOWERCASE_Z_CODE = 0x7a
 const FIRST_NON_ASCII_CODE = 0x80
 
-const isDigitCode = (code: number): boolean =>
-  code >= DIGIT_ZERO_CODE && code <= DIGIT_NINE_CODE
+const isDigitCode = (code: number): boolean => code >= DIGIT_ZERO_CODE && code <= DIGIT_NINE_CODE
 
 const isIdentifierCode = (code: number): boolean =>
   code >= FIRST_NON_ASCII_CODE ||

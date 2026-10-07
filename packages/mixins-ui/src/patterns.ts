@@ -16,6 +16,7 @@ import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
 import { FileDropSlots } from './fileDrop.js'
 import { ComboboxSlots } from './combobox.js'
+import { DatePickerSlots } from './datePicker.js'
 import { ToastSlots } from './toast.js'
 import { InputSlots } from './input.js'
 import { ListboxSlots } from './listbox.js'
@@ -169,6 +170,16 @@ export const Toast = A11y.pattern({
   entry: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
+export const DatePicker = A11y.pattern({
+  trigger: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+  panel: { capability: Capability.Container },
+  backdrop: { capability: Capability.Container, optional: true },
+})
+
 export const Combobox = A11y.pattern({
   input: {
     capability: Capability.TextInput,
@@ -314,6 +325,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['combobox', 'listbox', 'option', 'button'],
     ['native-control', 'form-submission', 'top-layer', 'backdrop'],
+  ),
+  entry(
+    'datePicker',
+    DatePicker,
+    DatePickerSlots,
+    'stateful',
+    ['button', 'dialog', 'grid'],
+    ['native-control', 'form-submission', 'top-layer'],
   ),
   entry(
     'listbox',
