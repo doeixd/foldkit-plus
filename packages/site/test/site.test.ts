@@ -281,3 +281,75 @@ describe('attached Surfaces', () => {
     )
   })
 })
+
+describe('route-level Sources', () => {
+  const Model = Schema.Struct({
+    route: AppRoute,
+    search: Schema.String,
+  })
+  type Model = typeof Model.Type
+  const Message = defineMessageUnion({ Noted: {} })
+  const App = Surface.application({ Model, Message })
+
+  const page = (name: string) =>
+    App.surface(name, {
+      params: { searchText: Schema.Option(Schema.String) },
+      model: ({ model }) => Projection.struct({ search: model.search }),
+    })
+  const PeoplePage = page('PeoplePage')
+  const PersonPage = page('PersonPage')
+  const ArchivePage = page('ArchivePage')
+  const surfaced = Site.make(
+    Home,
+    Site.mount(
+      Site.route(peopleRouter, AppRoute.People, {
+        surface: {
+          surface: PeoplePage,
+          params: route => ({ searchText: route.searchText }),
+        },
+      }),
+      [
+        Site.route(personRouter, AppRoute.Person, {
+          surface: {
+            surface: PersonPage,
+            params: route => ({ searchText: Option.some(`${route.personId}`) }),
+          },
+        }),
+      ],
+    ),
+    Site.route(nestedRouter, AppRoute.Nested, {
+      surface: { surface: ArchivePage, params: () => ({ searchText: Option.none() }) },
+    }),
+  )
+  const at = (route: AppRoute): Model => ({ route, search: '' })
+
+  it('holds only the target chain, so prefetch reads what navigation will use', () => {
+    const person = Site.target(Site.nodeOf(surfaced, routeOf('/people/3'))!, { personId: 3 })
+    const sources = Site.sourcesFor(surfaced, App.owner, App.model.route, person.route)
+    expect(Object.keys(sources)).toEqual(['People', 'Person'])
+
+    // The chain's entries still answer only their own tag over the target Model.
+    const model = at(person.route)
+    expect(Option.isSome(sources['Person']!.projectionOf(model))).toBe(true)
+    expect(Option.isNone(sources['People']!.projectionOf(model))).toBe(true)
+  })
+
+  it('resolves nothing for a tag the tree does not hold', () => {
+    expect(Site.sourcesFor(surfaced, App.owner, App.model.route, routeOf('/nowhere'))).toEqual({})
+  })
+
+  it('refuses a surface of another application on the chain', () => {
+    const Other = Surface.application({ Model, Message })
+    const stranger = Site.make(
+      Site.route(personRouter, AppRoute.Person, {
+        surface: {
+          surface: Other.surface('Elsewhere', { model: ({ model }) => ({ search: model.search }) }),
+          params: () => undefined,
+        },
+      }),
+    )
+    expect(() =>
+      Site.sourcesFor(stranger, App.owner, App.model.route, routeOf('/people/3')),
+    ).toThrow('"Elsewhere" belongs to another application than the site')
+  })
+})

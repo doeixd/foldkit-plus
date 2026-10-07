@@ -158,7 +158,9 @@ const People = Site.route(peopleRouter, AppRoute.People, {
 `Surface.when`, keyed by tag, for `Data.wiring`, `Data.subscriptions`,
 `Data.satisfy`, or an SSR plan's `surfaces`. A surface from another
 application is refused here. Each entry answers its own tag only: on a
-person page the person surface is active and the people surface is not. A
+person page the person surface is active and the people surface is not.
+`Site.sourcesFor(site, owner, place, target.route)` is the same entries for
+the target's chain only — the route-level Sources prefetch and SSR read. A
 layout surface active for several tags is not yet expressible — that is a
 `Surface.whenAny`-shaped extension, deliberately deferred until a real layout
 needs it.
@@ -251,9 +253,10 @@ placements) and keep only the guard in `update`. What each route *does* with
 the change beyond informing its page is still the application's `update`.
 
 **Prefetch and SSR.** `Site.target` plus `Site.chainOf` say which Surfaces a
-destination will activate; `Data.satisfy` over `Site.sources` prepares the
-Model before a synchronous render. Preparation stays caller-composed — there
-is no `prepare` in any plan.
+destination will activate; `Site.sourcesFor(site, owner, place, target.route)`
+is those as Sources — `Data.satisfy` over them, with the route set to the
+target's, prepares the Model before a synchronous render. Preparation stays
+caller-composed — there is no `prepare` in any plan.
 
 ## Limits / when not to use it
 

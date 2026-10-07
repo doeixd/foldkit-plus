@@ -298,7 +298,12 @@ explicit code it replaces stays clearer; elimination (§34.5) is the test.
 - [ ] **Targets that know their document,** so a link to another application
   is a full load and one within it is a Navigate Command. §33.7
 - [ ] **Prefetch a target's data before navigating,** which removes the waits
-  the demo still shows between screens. §16, §33.6
+  the demo still shows between screens. §16, §33.6 The mechanism is built:
+  `Site.sourcesFor` is the target chain as Sources, prepared caller-side with
+  `Data.satisfy` over a target Model (proved in
+  `packages/site/test/prefetch.test.ts`); deliberately no `SitePlan` object
+  until head/access need carriers. Open: hover/programmatic prefetch in a
+  Remote-backed app.
 - [x] **The studio's one blank frame between sections:** one application with
   lazily loaded sections, or rendered first paints as the public site now has.
   §33.7 Built as one studio application (`examples/cms/src/apps/studioApp.ts`)

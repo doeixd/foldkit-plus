@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-site`: `Site.sourcesFor`, the route-level Sources for one
+  destination.** `sourcesFor(site, owner, place, target.route)` is the same
+  entries as `Site.sources` but only the target's chain — what a prefetch or
+  SSR preparation reads, prepared caller-side with `Data.satisfy({ ...model,
+  route: target.route }, active)`. Unknown tags resolve to no Sources.
+  Deliberately no `SitePlan` object yet: the chain is already `Site.chainOf`,
+  and head/access metadata arrive with their real consumers. Hover or
+  programmatic prefetch adoption in an app is the next slice.
 - **`foldkit-bundle`: `Bundle.follow`, an ask that waits for its owner.**
   `follow(placed, { pending, release, ready, toMessages })` wraps an update
   result: while a pending ask waits and its owner is ready, the ask goes

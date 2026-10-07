@@ -7,7 +7,6 @@
     "composite": true,
     "paths": {
       "foldkit-bundle": ["../../../packages/bundle/src/index.ts"],
-      "foldkit-site": ["../../../packages/site/src/index.ts"],
       "foldkit-mixins": ["../../../packages/mixins/src/index.ts"],
       "foldkit-mixins-ui": ["../../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../../packages/mixins/src/app.ts"],
@@ -18,7 +17,8 @@
       "foldkit-mixins/prose": ["../../../packages/mixins/src/prose.ts"],
       "foldkit-mixins/testing": ["../../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../../packages/mixins/src/theme.ts"],
-      "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"]
+      "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"],
+      "foldkit-site": ["../../../packages/site/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

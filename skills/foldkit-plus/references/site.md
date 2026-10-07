@@ -60,7 +60,11 @@ set }` — a union field is a union of refs, no single `ModelRef` accepts it).
 node; `Site.sources(site, App.owner, App.model.route)` is each surfaced node
 as its `Surface.when`, keyed by tag, for `Data.wiring` / `subscriptions` /
 `satisfy` / SSR `surfaces`. Refuses a foreign surface. Each entry answers its
-own tag only.
+own tag only. `Site.sourcesFor(site, App.owner, App.model.route,
+target.route)` is the same entries for the target's chain only — what
+prefetch/SSR read; prepare caller-side with `Data.satisfy({ ...model, route:
+target.route }, active)`. Unknown tags resolve to no Sources. No `SitePlan`
+object yet (chain is `chainOf`; head/access arrive with real consumers).
 
 **Nested rendering.** `layout: { render: (child, model, h) => ... }` wraps
 everything under the node; `view: { render: (model, h) => ... }` draws its

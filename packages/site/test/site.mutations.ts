@@ -7,6 +7,7 @@ const tests = [
   'packages/site/test/site.test.ts',
   'packages/site/test/routing.test.ts',
   'packages/site/test/placement.test.ts',
+  'packages/site/test/prefetch.test.ts',
 ]
 const file = '../src/index.ts'
 
@@ -49,7 +50,7 @@ export default [
     edits: [
       {
         file,
-        find: '      if (bound.surface.owner !== owner)\n        throw new Error(\n          `Site.sources: "${bound.surface.name}" belongs to another application than the site`,\n        )',
+        find: '  if (bound.surface.owner !== owner)\n    throw new Error(\n      `Site.sources: "${bound.surface.name}" belongs to another application than the site`,\n    )',
         replace: '',
       },
     ],
@@ -129,6 +130,17 @@ export default [
         file,
         find: '            ...(config.pages ?? []).map(\n              page => (model: Root) =>\n                Option.getOrElse(page.inform(model, next), () => ({ model })),\n            ),',
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'route-level Sources hold every node',
+    edits: [
+      {
+        file,
+        find: '    for (const node of Site.chainOf(site, route)) {',
+        replace: '    for (const node of Site.nodesOf(site)) {',
       },
     ],
     tests,

@@ -8,6 +8,10 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-site": ["./src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
@@ -16,6 +20,12 @@
   "references": [
     {
       "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
     },
     {
       "path": "../surface/tsconfig.build.json"

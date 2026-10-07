@@ -246,6 +246,21 @@ const indexOf = (site: SiteTree): SiteIndex => {
 const asMount = (node: SiteNode<any> | SiteMount): SiteMount =>
   'children' in node ? node : { node, children: [] }
 
+/** One surfaced node's `Surface.when` over the route place, or nothing surfaceless. */
+const sourceOf = <Root>(
+  node: SiteNode<any>,
+  owner: object,
+  place: ModelPlace<Root>,
+): [string, ActiveSurface<Root> & SurfaceSource<Root>] | undefined => {
+  const bound = node.bound
+  if (bound === undefined) return undefined
+  if (bound.surface.owner !== owner)
+    throw new Error(
+      `Site.sources: "${bound.surface.name}" belongs to another application than the site`,
+    )
+  return [node.tag, Surface.when(bound.surface, place, node.case, bound.params)]
+}
+
 const freezeMount = (mount: SiteMount): SiteMount =>
   Object.freeze({
     node: mount.node,
@@ -479,13 +494,39 @@ export const Site = {
   ): Record<string, ActiveSurface<Root> & SurfaceSource<Root>> => {
     const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
     for (const node of Site.nodesOf(site)) {
-      const bound = node.bound
-      if (bound === undefined) continue
-      if (bound.surface.owner !== owner)
-        throw new Error(
-          `Site.sources: "${bound.surface.name}" belongs to another application than the site`,
-        )
-      out[node.tag] = Surface.when(bound.surface, place, node.case, bound.params)
+      const entry = sourceOf(node, owner, place)
+      if (entry !== undefined) out[entry[0]] = entry[1]
+    }
+    return out
+  },
+
+  /**
+   * The route-level Sources for one destination: the same entries as
+   * `Site.sources`, but only the target's chain. Prefetch, SSR, and DevTools
+   * read what a route will activate without building its Model first; the
+   * preparation itself stays caller-composed (`Data.satisfy` over these, with
+   * the route set to the target's). A tag the tree does not hold resolves to
+   * no Sources, the way an inactive Surface resolves to nothing.
+   *
+   * ```ts
+   * const active = Site.sourcesFor(AppSite, App.owner, App.model.route, target.route)
+   * const prepared = yield* Data.satisfy({ ...model, route: target.route }, active)
+   * ```
+   *
+   * There is deliberately no `SitePlan` object yet: the chain is already
+   * `Site.chainOf`, and head/access metadata arrive with their real consumers
+   * (§31.9), not ahead of them.
+   */
+  sourcesFor: <Root>(
+    site: SiteTree,
+    owner: object,
+    place: ModelPlace<Root>,
+    route: { readonly _tag: string },
+  ): Record<string, ActiveSurface<Root> & SurfaceSource<Root>> => {
+    const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
+    for (const node of Site.chainOf(site, route)) {
+      const entry = sourceOf(node, owner, place)
+      if (entry !== undefined) out[entry[0]] = entry[1]
     }
     return out
   },
