@@ -55,10 +55,14 @@ export type Message = typeof Message.Type
 const HomeNode = Site.route(homeRouter, AppRoute.Home, {
   title: () => 'Routing',
   section: 'Home',
+  landing: {},
+  shortcut: 'GH',
 })
 const PeopleNode = Site.route(peopleRouter, AppRoute.People, {
   title: () => 'People | Routing',
   section: 'People',
+  landing: { searchText: Option.none() },
+  shortcut: 'GP',
 })
 const PersonNode = Site.route(personRouter, AppRoute.Person, {
   title: ({ personId }) => `Person ${personId} | Routing`,
@@ -68,6 +72,8 @@ const PersonNode = Site.route(personRouter, AppRoute.Person, {
 const FilesIndexNode = Site.route(filesIndexRouter, AppRoute.FilesIndex, {
   title: () => 'Files | Routing',
   section: 'Files',
+  landing: {},
+  shortcut: 'GF',
 })
 const FilesNode = Site.route(filesRouter, AppRoute.Files, {
   title: ({ path }) => `${Array.lastNonEmpty(path)} | Files | Routing`,
@@ -78,6 +84,8 @@ const FilesNode = Site.route(filesRouter, AppRoute.Files, {
 const NestedNode = Site.route(nestedRouter, AppRoute.Nested, {
   title: () => 'Nested | Routing',
   section: 'Nested',
+  landing: {},
+  shortcut: 'GN',
 })
 
 export const AppSite = Site.make(
@@ -169,24 +177,20 @@ export const update = assembly.update(updateOwn)
 const ownSubscriptions = Subscription.make<Model, Message>()(() => ({
   keyBindings: Subscription.persistent(
     Subscription.keyBindings<Message>({
-      bindings: [
-        {
-          keys: ['G', 'H'],
-          mapEvent: () => Message.EnteredNavigationShortcut({ shortcut: 'GH' }),
-        },
-        {
-          keys: ['G', 'P'],
-          mapEvent: () => Message.EnteredNavigationShortcut({ shortcut: 'GP' }),
-        },
-        {
-          keys: ['G', 'F'],
-          mapEvent: () => Message.EnteredNavigationShortcut({ shortcut: 'GF' }),
-        },
-        {
-          keys: ['G', 'N'],
-          mapEvent: () => Message.EnteredNavigationShortcut({ shortcut: 'GN' }),
-        },
-      ],
+      // One binding per annotated node: the shortcut names the destination
+      // beside it, and the union check fails the application that misnames one.
+      bindings: Site.nodesOf(AppSite).flatMap(node => {
+        if (node.shortcut === undefined) return []
+        const shortcut = Schema.decodeUnknownSync(NavigationShortcut)(node.shortcut)
+        // Every shortcut is a two-key chord (`G H`); the union check above
+        // fails the application that misnames one.
+        return [
+          {
+            keys: [...shortcut] as [string, string],
+            mapEvent: () => Message.EnteredNavigationShortcut({ shortcut }),
+          },
+        ]
+      }),
     }),
   ),
 }))
@@ -197,15 +201,19 @@ export const subscriptions = assembly.subscriptions(ownSubscriptions)
 
 type Slots = SlotBuilders<typeof RoutingPage.slots, Message>
 
-const navSections = ['Home', 'People', 'Files', 'Nested'] as const
-type NavSection = (typeof navSections)[number]
+const navSections: ReadonlyArray<string> = [
+  ...new Set(
+    Site.nodesOf(AppSite).flatMap(node => (node.section === undefined ? [] : [node.section])),
+  ),
+]
 
-const sectionTarget: Readonly<Record<NavSection, () => string>> = {
-  Home: () => Site.href(HomeNode, {}),
-  People: () => Site.href(PeopleNode, { searchText: Option.none() }),
-  Files: () => Site.href(FilesIndexNode, {}),
-  Nested: () => Site.href(NestedNode, {}),
-}
+const sectionHrefs: Readonly<Record<string, string>> = Object.fromEntries(
+  navSections.map(section => {
+    const landing = Site.landing(AppSite, section)
+    if (landing === undefined) throw new Error(`nav section "${section}" has no landing`)
+    return [section, Site.href(landing)] as const
+  }),
+)
 
 const navigationView = (currentRoute: AppRoute, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const currentSection = Site.sectionOf(AppSite, currentRoute)
@@ -217,7 +225,7 @@ const navigationView = (currentRoute: AppRoute, slots: Slots, h: HtmlBuilder<Mes
         h.li(slots.navItem.attrs(), [
           h.a(
             slots.navLink.attrs([
-              h.Href(sectionTarget[section]()),
+              h.Href(sectionHrefs[section]!),
               ...(currentSection === section ? [h.AriaCurrent('page')] : []),
             ]),
             [section],

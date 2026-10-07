@@ -126,6 +126,20 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
   /** The navigation section this route belongs to, for menus and breadcrumbs. */
   readonly section?: string | undefined
   /**
+   * Where the section's nav item points: this node's params for its landing
+   * address (a people list with no search, say). Nodes a section never lands
+   * on — a person, a file — leave it absent; `Site.landing` reads the first
+   * node of a section that declares one.
+   */
+  readonly landing?: Omit<Route, '_tag'> | undefined
+  /**
+   * The keyboard shortcut announcing this node, for key bindings derived
+   * beside the application (`G H` for Home): the characters pressed in
+   * sequence. Key bindings stay application-owned; this only names them once,
+   * next to the destination they go to.
+   */
+  readonly shortcut?: string | undefined
+  /**
    * Which history step a move within this node is: a string, or a function
    * for nodes where some param changes are entries of their own (another
    * person) and others are views of one entry (another search). A move to
@@ -233,6 +247,8 @@ export const Site = {
     options?: {
       readonly title?: ((route: Route) => string) | undefined
       readonly section?: string | undefined
+      readonly landing?: Omit<Route, '_tag'> | undefined
+      readonly shortcut?: string | undefined
       readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
       readonly surface?:
         | {
@@ -248,6 +264,8 @@ export const Site = {
       case: routeCase,
       ...(options?.title === undefined ? {} : { title: options.title }),
       ...(options?.section === undefined ? {} : { section: options.section }),
+      ...(options?.landing === undefined ? {} : { landing: options.landing }),
+      ...(options?.shortcut === undefined ? {} : { shortcut: options.shortcut }),
       ...(options?.history === undefined ? {} : { history: options.history }),
       ...(options?.surface === undefined ? {} : { bound: options.surface as BoundSurface }),
     }),
@@ -363,6 +381,21 @@ export const Site = {
   /** The navigation section the tree annotates for a route value, or nothing. */
   sectionOf: (site: SiteTree, route: { readonly _tag: string }): string | undefined =>
     indexOf(site).byTag.get(route._tag)?.section,
+
+  /**
+   * Where a section's nav item points: the first node of the section with a
+   * landing, as a target. Nothing when no node of the section declares one —
+   * every section shown needs a landing, so navigation asserts it.
+   */
+  landing: (site: SiteTree, section: string): SiteTarget<any> | undefined => {
+    for (const candidate of Site.nodesOf(site)) {
+      if (candidate.section !== section) continue
+      const landing = candidate.landing
+      if (landing === undefined) continue
+      return Site.target(candidate, landing)
+    }
+    return undefined
+  },
 
   /**
    * Which history step a move is: to another node, a step; within a node, its

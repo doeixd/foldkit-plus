@@ -86,9 +86,10 @@ without re-parsing anything.
 ## Core concepts
 
 **Nodes.** `Site.route(router, case, options?)` declares one location. Options
-are `title` (a function of the route value), `section`, `history`, and
-`surface` (below). The node is frozen; keep the exported value and use it for
-targets and hrefs.
+are `title` (a function of the route value), `section`, `landing` (the
+section's nav address as this node's params), `shortcut` (the keys that go
+here), `history`, and `surface` (below). The node is frozen; keep the
+exported value and use it for targets and hrefs.
 
 **Trees.** `Site.mount(node, children?)` mounts a node under children without
 mutating it — children may be bare nodes or mounts. `Site.make(...roots)`
@@ -107,11 +108,19 @@ the tree does not hold, as an inactive Surface resolves to nothing).
 (depth-first, parents before children) cover the rest.
 
 **History.** `Site.historyOf(prev, next)` declares push-vs-replace once: to
-another node, a step; within a node, its `history` rule (a string, or a
-function for nodes where some param changes are entries of their own, such as
-another person, and others are views of one entry, such as another search);
-with no previous target, a replace. This unifies the mirror's per-key
-spelling with the routed code that used to spell the same rule by hand.
+another node — or from an unknown location, so Back can still return to it — a
+step; within a node, its `history` rule (a string, or a function for nodes
+where some param changes are entries of their own, such as another person,
+and others are views of one entry, such as another search). This unifies the
+mirror's per-key spelling with the routed code that used to spell the same
+rule by hand.
+
+**Navigation metadata.** Titles and sections read with `Site.titleOf` and
+`Site.sectionOf`. `Site.landing(site, section)` is where the section's nav
+item points: the first node of the section that declares a landing, as a
+target. Shortcuts ride beside their destinations; key bindings stay
+application-owned, derived with each name validated against the application's
+union. Annotate once; derive nav, titles, shortcuts, and breadcrumbs from it.
 
 **Attached Surfaces.** A node may name the Surface its route activates:
 
@@ -210,8 +219,9 @@ placements land; until then informing them stays hand-written.
 ## Common workflows
 
 **Navigation rendering.** Derive the nav from the tree instead of keeping
-parallel tables: sections from `Site.sectionOf`, hrefs from `Site.href`,
-titles from `Site.titleOf`, and the current section by comparing tags.
+parallel tables: sections in tree order, hrefs from `Site.landing`, titles
+from `Site.titleOf`, shortcuts from the annotated nodes, and the current
+section by comparing tags.
 
 **Route changes.** On a URL change, resolve the route value once, then
 `Site.chainOf` for the active chain and `Site.historyOf` for the history

@@ -37,8 +37,12 @@ for an unknown tag); `Site.parentOf`, `Site.ancestorsOf`, `Site.depthOf`,
 `Site.nodesOf` (depth-first, parents first).
 
 **Metadata.** `title` (of the route value), `section`, read with
-`Site.titleOf` / `Site.sectionOf` (`undefined` when absent). Annotate once;
-derive nav, titles, and breadcrumbs from it.
+`Site.titleOf` / `Site.sectionOf` (`undefined` when absent). `landing` is a
+section's nav address as its node's params; `Site.landing(site, section)` is
+the first declaring node as a target. `shortcut` names the keys that go
+there; bindings stay application-owned, derived with the name validated
+against the Message union. Annotate once; derive nav, titles, shortcuts, and
+breadcrumbs from it.
 
 **History.** `Site.historyOf(prev, next)`: another node, or an unknown
 location, is a step; within a node its `history` rule (default replace; a

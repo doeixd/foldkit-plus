@@ -133,4 +133,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a section lands on whatever comes first',
+    edits: [
+      {
+        file,
+        find: '      if (candidate.section !== section) continue',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a section without a landing lands anyway',
+    edits: [
+      {
+        file,
+        find: '      if (landing === undefined) continue',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

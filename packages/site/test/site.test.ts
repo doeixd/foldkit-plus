@@ -50,10 +50,16 @@ const routeOf = (path: string): AppRoute => {
   return urlToRoute(url.value)
 }
 
-const Home = Site.route(homeRouter, AppRoute.Home, { title: () => 'Routing' })
+const Home = Site.route(homeRouter, AppRoute.Home, {
+  title: () => 'Routing',
+  landing: {},
+  shortcut: 'GH',
+})
 const People = Site.route(peopleRouter, AppRoute.People, {
   title: () => 'People | Routing',
   section: 'People',
+  landing: { searchText: Option.none() },
+  shortcut: 'GP',
 })
 const Person = Site.route(personRouter, AppRoute.Person, {
   title: ({ personId }) => `Person ${personId} | Routing`,
@@ -63,6 +69,8 @@ const Person = Site.route(personRouter, AppRoute.Person, {
 })
 const Nested = Site.route(nestedRouter, AppRoute.Nested, {
   title: () => 'Nested | Routing',
+  landing: {},
+  shortcut: 'GN',
   history: 'push',
 })
 
@@ -148,6 +156,33 @@ describe('metadata', () => {
     expect(Site.sectionOf(AppSite, routeOf('/people/3'))).toBe('People')
     expect(Site.sectionOf(AppSite, routeOf('/'))).toBeUndefined()
     expect(Site.titleOf(AppSite, routeOf('/nowhere'))).toBeUndefined()
+  })
+
+  it('lands each section on its annotated node', () => {
+    expect(Site.landing(AppSite, 'People')).toMatchObject({ url: '/people' })
+    expect(Site.landing(AppSite, 'People')?.route).toEqual(
+      AppRoute.People({ searchText: Option.none() }),
+    )
+    // The second node of the section never lands: landings are annotated.
+    expect(Site.landing(AppSite, 'People')?.node).toBe(People)
+    expect(Site.landing(AppSite, 'Missing')).toBeUndefined()
+  })
+
+  it('lands nothing for a section whose nodes declare no landing', () => {
+    const bare = Site.make(Person)
+    expect(Site.landing(bare, 'People')).toBeUndefined()
+  })
+
+  it('names each shortcut beside its destination', () => {
+    expect(
+      Site.nodesOf(AppSite).flatMap(node =>
+        node.shortcut === undefined ? [] : [[node.shortcut, node.tag] as const],
+      ),
+    ).toEqual([
+      ['GH', 'Home'],
+      ['GP', 'People'],
+      ['GN', 'Nested'],
+    ])
   })
 })
 

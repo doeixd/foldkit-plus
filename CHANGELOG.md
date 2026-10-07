@@ -14,9 +14,10 @@ version changed; `pnpm` skips versions already in the registry.
   Router; `Site.mount`/`Site.make` freeze the hierarchy; `Site.target` builds
   the route value and URL from one declaration; `Site.chainOf`/`nodeOf` and
   `parentOf`/`ancestorsOf`/`depthOf` inspect it; `title`/`section` annotate
-  once with `titleOf`/`sectionOf` readers; `Site.historyOf` declares
-  push-vs-replace once; and `Site.sources` lowers surfaced nodes to
-  `Surface.when` values for Remote, SSR, and retention. `Site.routing` is the
+  once with `titleOf`/`sectionOf` readers, `landing` gives each section its
+  nav address (`Site.landing`), and `shortcut` names the keys that go there;
+  `Site.historyOf` declares push-vs-replace once; and `Site.sources` lowers
+  surfaced nodes to `Surface.when` values for Remote, SSR, and retention. `Site.routing` is the
   link-click and URL-change lifecycle as one wiring: internal clicks navigate
   per `Site.historyOf`, external links load, URL changes set the route field
   (or touch nothing on an echo), and the application's own update guards with

@@ -45,6 +45,7 @@ export const Surfaced = Site.route(peopleRouter, AppRoute.People, {
     surface: Page,
     params: route => ({ searchText: route.searchText }),
   },
+  landing: { searchText: Option.none() },
 })
 
 // The Surface takes searchText, not personId.
@@ -54,6 +55,12 @@ export const BadSurfaced = Site.route(peopleRouter, AppRoute.People, {
     // @ts-expect-error: personId is not a Surface param
     params: () => ({ personId: 3 }),
   },
+})
+
+// A landing takes the node's own params.
+export const BadLanding = Site.route(peopleRouter, AppRoute.People, {
+  // @ts-expect-error: a people landing carries searchText, not personId
+  landing: { personId: 3 },
 })
 
 // A routed page: the link states the relationship once, and the placement
