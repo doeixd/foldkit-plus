@@ -43,11 +43,7 @@ export const wrapIndex = (index: number, length: number): number =>
   ((index % length) + length) % length
 
 export const findFirstEnabledIndex =
-  (
-    itemCount: number,
-    focusedIndex: number,
-    isDisabled: (index: number) => boolean,
-  ) =>
+  (itemCount: number, focusedIndex: number, isDisabled: (index: number) => boolean) =>
   (startIndex: number, direction: 1 | -1): number =>
     pipe(
       itemCount,
@@ -97,11 +93,7 @@ export const resolveTypeaheadMatch = <Item>(
       items,
       Array.get(index),
       Option.exists(item =>
-        pipe(
-          itemToSearchText(item, index),
-          String.toLowerCase,
-          String.startsWith(lowerQuery),
-        ),
+        pipe(itemToSearchText(item, index), String.toLowerCase, String.startsWith(lowerQuery)),
       ),
     )
 

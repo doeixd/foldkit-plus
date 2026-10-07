@@ -12,7 +12,12 @@ import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Menu from '@foldkit/ui/menu'
-import { create as createForkView, defaultToView, type MenuRenderInfo, type MenuViewInputs } from '../src/menuView.js'
+import {
+  create as createForkView,
+  defaultToView,
+  type MenuRenderInfo,
+  type MenuViewInputs,
+} from '../src/menuView.js'
 
 const fruits = ['apple', 'banana', 'cherry'] as const
 type Fruit = (typeof fruits)[number]
@@ -40,26 +45,17 @@ type Inputs = Omit<MenuViewInputs<Fruit>, 'itemToConfig' | 'buttonContent'> & {
   readonly buttonContent: ReturnType<HtmlBuilder<Menu.Message>['span']>
 }
 
-const inputs = (
-  h: HtmlBuilder<Menu.Message>,
-  overrides: Partial<Inputs> = {},
-): Inputs => ({
+const inputs = (h: HtmlBuilder<Menu.Message>, overrides: Partial<Inputs> = {}): Inputs => ({
   items: [...fruits],
   itemToConfig: item => ({ content: h.span([], [item]) }),
   buttonContent: h.span([], ['open']),
   ...overrides,
 })
 
-type Step = Parameters<
-  typeof Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>
->[1]
+type Step = Parameters<typeof Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>>[1]
 
 /** The same program against both views: upstream's, then the fork's. */
-const runBoth = (
-  initial: Menu.Model,
-  overrides: Partial<Inputs>,
-  ...steps: Array<Step>
-): void => {
+const runBoth = (initial: Menu.Model, overrides: Partial<Inputs>, ...steps: Array<Step>): void => {
   for (const view of [upstream.view, fork.view]) {
     Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>(
       {
@@ -81,10 +77,7 @@ const anchored = (): Step =>
 const expectExpanded = (expanded: boolean): Step =>
   Scene.expect(Scene.selector(button)).toHaveAttr('aria-expanded', String(expanded))
 const expectActive = (index: number): Step =>
-  Scene.expect(Scene.selector(panel)).toHaveAttr(
-    'aria-activedescendant',
-    `${id}-item-${index}`,
-  )
+  Scene.expect(Scene.selector(panel)).toHaveAttr('aria-activedescendant', `${id}-item-${index}`)
 
 describe('menu view parity (upstream view vs forked view)', () => {
   it('closed: button collapsed, no panel, no backdrop', () => {
@@ -119,11 +112,7 @@ describe('menu view parity (upstream view vs forked view)', () => {
           {
             update: upstream.update,
             view: (current, h) =>
-              view(
-                current,
-                inputs(h, { isItemDisabled: item => item === 'banana' }),
-                h,
-              ),
+              view(current, inputs(h, { isItemDisabled: item => item === 'banana' }), h),
           },
           Scene.given(initial),
           anchored(),
@@ -160,14 +149,8 @@ describe('menu view parity (upstream view vs forked view)', () => {
             'aria-labelledby',
             `${id}-heading-a`,
           ),
-          Scene.expect(Scene.selector(`#${id}-heading-b`)).toHaveAttr(
-            'role',
-            'presentation',
-          ),
-          Scene.expect(Scene.selector('[role="separator"]')).toHaveAttr(
-            'class',
-            'sep',
-          ),
+          Scene.expect(Scene.selector(`#${id}-heading-b`)).toHaveAttr('role', 'presentation'),
+          Scene.expect(Scene.selector('[role="separator"]')).toHaveAttr('class', 'sep'),
         )
       }
     }
@@ -180,8 +163,7 @@ describe('menu view parity (upstream view vs forked view)', () => {
         Scene.scene<Menu.Model, Menu.Message, Menu.OutMessage<Fruit>>(
           {
             update: upstream.update,
-            view: (current, h) =>
-              view(current, inputs(h, { itemsScrollClassName: 'scroll' }), h),
+            view: (current, h) => view(current, inputs(h, { itemsScrollClassName: 'scroll' }), h),
           },
           Scene.given(initial),
           anchored(),

@@ -14,18 +14,14 @@ const none = Option.none()
 
 describe('groupContiguous', () => {
   it('collects adjacent same-key items into one segment', () => {
-    expect(
-      groupContiguous(['a1', 'a2', 'b1'], item => item.slice(0, 1)),
-    ).toEqual([
+    expect(groupContiguous(['a1', 'a2', 'b1'], item => item.slice(0, 1))).toEqual([
       { key: 'a', items: ['a1', 'a2'] },
       { key: 'b', items: ['b1'] },
     ])
   })
 
   it('splits the same key when it recurs non-adjacently', () => {
-    expect(
-      groupContiguous(['a1', 'b1', 'a2'], item => item.slice(0, 1)),
-    ).toEqual([
+    expect(groupContiguous(['a1', 'b1', 'a2'], item => item.slice(0, 1))).toEqual([
       { key: 'a', items: ['a1'] },
       { key: 'b', items: ['b1'] },
       { key: 'a', items: ['a2'] },
@@ -78,34 +74,30 @@ describe('resolveTypeaheadMatch', () => {
   const enabled = () => false
 
   it('matches forward from after the active item on a fresh search', () => {
-    expect(
-      resolveTypeaheadMatch(fruits, 'ap', Option.some(0), enabled, text, false),
-    ).toEqual(Option.some(1))
-  })
-
-  it('includes the active item when refining', () => {
-    expect(
-      resolveTypeaheadMatch(fruits, 'app', Option.some(0), enabled, text, true),
-    ).toEqual(Option.some(0))
-  })
-
-  it('starts at zero with no active item', () => {
-    expect(resolveTypeaheadMatch(fruits, 'b', none, enabled, text, false)).toEqual(
-      Option.some(2),
+    expect(resolveTypeaheadMatch(fruits, 'ap', Option.some(0), enabled, text, false)).toEqual(
+      Option.some(1),
     )
   })
 
+  it('includes the active item when refining', () => {
+    expect(resolveTypeaheadMatch(fruits, 'app', Option.some(0), enabled, text, true)).toEqual(
+      Option.some(0),
+    )
+  })
+
+  it('starts at zero with no active item', () => {
+    expect(resolveTypeaheadMatch(fruits, 'b', none, enabled, text, false)).toEqual(Option.some(2))
+  })
+
   it('skips disabled items and answers none when nothing matches', () => {
-    expect(
-      resolveTypeaheadMatch(fruits, 'ap', none, index => index !== 1, text, false),
-    ).toEqual(Option.some(1))
+    expect(resolveTypeaheadMatch(fruits, 'ap', none, index => index !== 1, text, false)).toEqual(
+      Option.some(1),
+    )
     expect(resolveTypeaheadMatch(fruits, 'z', none, enabled, text, false)).toEqual(none)
   })
 
   it('matches case-insensitively', () => {
-    expect(resolveTypeaheadMatch(fruits, 'AP', none, enabled, text, false)).toEqual(
-      Option.some(0),
-    )
+    expect(resolveTypeaheadMatch(fruits, 'AP', none, enabled, text, false)).toEqual(Option.some(0))
   })
 })
 

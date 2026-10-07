@@ -15,10 +15,10 @@ import { Array, Match, Option, Predicate, String, pipe } from 'effect'
 import * as Menu from '@foldkit/ui/menu'
 import { Message } from '@foldkit/ui/menu'
 import type { GroupHeading, ItemConfig, Model, ViewInputs } from '@foldkit/ui/menu'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { ChildAttribute, Html, HtmlBuilder } from 'foldkit/html'
+import { childAttributes } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import type { ReturnWithOutMessage } from 'foldkit/update'
-import type { SlotAttributes } from 'foldkit-mixins'
 import {
   findFirstEnabledIndex,
   groupContiguous,
@@ -30,23 +30,21 @@ import {
 
 export type MenuItemRender = Readonly<{
   key: string
-  attributes: SlotAttributes<Message>
+  attributes: ReadonlyArray<ChildAttribute>
   content: Html
 }>
 
 export type MenuHeadingRender = Readonly<{
   id: string
-  attributes: SlotAttributes<Message>
+  attributes: ReadonlyArray<ChildAttribute>
   content: Html
 }>
 
 export type MenuGroupRender = Readonly<{
   key: string
   heading: MenuHeadingRender | undefined
-  group: { key: string; attributes: SlotAttributes<Message> } | undefined
-  separator:
-    | { key: string; attributes: SlotAttributes<Message> }
-    | undefined
+  group: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
+  separator: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
   items: ReadonlyArray<MenuItemRender>
 }>
 
@@ -58,14 +56,12 @@ export type MenuGroupRender = Readonly<{
 export type MenuRenderInfo = Readonly<{
   id: string
   isVisible: boolean
-  wrapper: SlotAttributes<Message>
-  button: SlotAttributes<Message>
+  wrapper: ReadonlyArray<ChildAttribute>
+  button: ReadonlyArray<ChildAttribute>
   buttonContent: Html
-  backdrop:
-    | { key: string; attributes: SlotAttributes<Message> }
-    | undefined
-  items: { key: string; attributes: SlotAttributes<Message> } | undefined
-  scroll: SlotAttributes<Message> | undefined
+  backdrop: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
+  items: { key: string; attributes: ReadonlyArray<ChildAttribute> } | undefined
+  scroll: ReadonlyArray<ChildAttribute> | undefined
   groups: ReadonlyArray<MenuGroupRender>
 }>
 
@@ -77,11 +73,7 @@ export type MenuViewInputs<Item extends string> = ViewInputs<Item> &
 
 const itemId = (id: string, index: number): string => `${id}-item-${index}`
 
-type ViewForItem<Item extends string> = SubmodelView<
-  Model,
-  Message,
-  MenuViewInputs<Item>
->
+type ViewForItem<Item extends string> = SubmodelView<Model, Message, MenuViewInputs<Item>>
 
 const computeRender = <Item extends string>(
   model: Model,
@@ -125,34 +117,32 @@ const computeRender = <Item extends string>(
     ariaLabelledBy,
   } = viewInputs
 
-  const dispatchSelectedItem = (item: Item, index: number) =>
-    Message.SelectedItem({ index, item })
+  const dispatchSelectedItem = (item: Item, index: number) => Message.SelectedItem({ index, item })
 
-  const isLeaving =
-    transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
+  const isLeaving = transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
   const isVisible = isOpen || isLeaving
 
-  const animationAttributes: SlotAttributes<Message> = Match.value(transitionState).pipe(
-      Match.when('EnterStart', () => [
-        h.DataAttribute('closed', ''),
-        h.DataAttribute('enter', ''),
-        h.DataAttribute('transition', ''),
-      ]),
-      Match.when('EnterAnimating', () => [
-        h.DataAttribute('enter', ''),
-        h.DataAttribute('transition', ''),
-      ]),
-      Match.when('LeaveStart', () => [
-        h.DataAttribute('leave', ''),
-        h.DataAttribute('transition', ''),
-      ]),
-      Match.when('LeaveAnimating', () => [
-        h.DataAttribute('closed', ''),
-        h.DataAttribute('leave', ''),
-        h.DataAttribute('transition', ''),
-      ]),
-      Match.orElse(() => []),
-    )
+  const animationAttributes = Match.value(transitionState).pipe(
+    Match.when('EnterStart', () => [
+      h.DataAttribute('closed', ''),
+      h.DataAttribute('enter', ''),
+      h.DataAttribute('transition', ''),
+    ]),
+    Match.when('EnterAnimating', () => [
+      h.DataAttribute('enter', ''),
+      h.DataAttribute('transition', ''),
+    ]),
+    Match.when('LeaveStart', () => [
+      h.DataAttribute('leave', ''),
+      h.DataAttribute('transition', ''),
+    ]),
+    Match.when('LeaveAnimating', () => [
+      h.DataAttribute('closed', ''),
+      h.DataAttribute('leave', ''),
+      h.DataAttribute('transition', ''),
+    ]),
+    Match.orElse(() => []),
+  )
 
   const isDisabled = (index: number): boolean =>
     isItemDisabled !== undefined &&
@@ -162,15 +152,9 @@ const computeRender = <Item extends string>(
       Option.exists(item => isItemDisabled(item, index)),
     )
 
-  const firstEnabledIndex = findFirstEnabledIndex(items.length, 0, isDisabled)(
-    0,
-    1,
-  )
+  const firstEnabledIndex = findFirstEnabledIndex(items.length, 0, isDisabled)(0, 1)
 
-  const lastEnabledIndex = findFirstEnabledIndex(items.length, 0, isDisabled)(
-    items.length - 1,
-    -1,
-  )
+  const lastEnabledIndex = findFirstEnabledIndex(items.length, 0, isDisabled)(items.length - 1, -1)
 
   const handleButtonKeyDown = (key: string): Option.Option<Message> => {
     if (isOpen) {
@@ -214,10 +198,7 @@ const computeRender = <Item extends string>(
     )
 
   const handleButtonClick = (): Message => {
-    const isMouse = Option.exists(
-      maybeLastButtonPointerType,
-      type => type === 'mouse',
-    )
+    const isMouse = Option.exists(maybeLastButtonPointerType, type => type === 'mouse')
 
     if (isMouse) {
       return Message.IgnoredMouseClick()
@@ -256,31 +237,20 @@ const computeRender = <Item extends string>(
     Match.value(key).pipe(
       Match.when('Escape', () => Option.some(Message.Closed())),
       Match.when('Enter', () =>
-        Option.map(maybeActiveItemIndex, index =>
-          Message.RequestedItemClick({ index }),
-        ),
+        Option.map(maybeActiveItemIndex, index => Message.RequestedItemClick({ index })),
       ),
       Match.when(' ', () =>
         String.isNonEmpty(searchQuery)
           ? searchForKey(' ')
-          : Option.map(maybeActiveItemIndex, index =>
-              Message.RequestedItemClick({ index }),
-            ),
+          : Option.map(maybeActiveItemIndex, index => Message.RequestedItemClick({ index })),
       ),
-      Match.whenOr(
-        'ArrowDown',
-        'ArrowUp',
-        'Home',
-        'End',
-        'PageUp',
-        'PageDown',
-        () =>
-          Option.some(
-            Message.ActivatedItem({
-              index: resolveActiveIndex(key),
-              activationTrigger: 'Keyboard',
-            }),
-          ),
+      Match.whenOr('ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown', () =>
+        Option.some(
+          Message.ActivatedItem({
+            index: resolveActiveIndex(key),
+            activationTrigger: 'Keyboard',
+          }),
+        ),
       ),
       Match.when(isPrintableKey, () => searchForKey(key)),
       Match.orElse(() => Option.none()),
@@ -292,10 +262,7 @@ const computeRender = <Item extends string>(
     pointerType: string,
     timeStamp: number,
   ): Option.Option<Message> =>
-    when(
-      pointerType === 'mouse',
-      Message.ReleasedPointerOnItems({ screenX, screenY, timeStamp }),
-    )
+    when(pointerType === 'mouse', Message.ReleasedPointerOnItems({ screenX, screenY, timeStamp }))
 
   const resolveButtonLabel = () => {
     if (Predicate.isNotUndefined(ariaLabel)) {
@@ -307,7 +274,7 @@ const computeRender = <Item extends string>(
     }
   }
 
-  const button: SlotAttributes<Message> = [
+  const button = childAttributes([
     h.Id(`${id}-button`),
     h.Type('button'),
     h.AriaHasPopup('menu'),
@@ -323,14 +290,11 @@ const computeRender = <Item extends string>(
           h.OnClick(handleButtonClick()),
         ]),
     ...(isVisible
-      ? [
-          h.DataAttribute('open', ''),
-          h.Style({ position: 'relative', zIndex: '1' }),
-        ]
+      ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
       : []),
     ...(buttonClassName ? [h.Class(buttonClassName)] : []),
     ...buttonAttributes,
-  ]
+  ])
 
   const maybeActiveDescendant = Option.match(maybeActiveItemIndex, {
     onNone: () => [],
@@ -342,11 +306,11 @@ const computeRender = <Item extends string>(
     h.OnMount(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor })),
   ]
 
-  const wrapper: SlotAttributes<Message> = [
+  const wrapper = childAttributes([
     ...(className ? [h.Class(className)] : []),
     ...attributes,
     ...(isVisible ? [h.DataAttribute('open', '')] : []),
-  ]
+  ])
 
   if (!isVisible) {
     return {
@@ -364,17 +328,17 @@ const computeRender = <Item extends string>(
 
   const backdrop = {
     key: `${id}-backdrop`,
-    attributes: [
+    attributes: childAttributes([
       h.OnMount(Menu.PortalMenuBackdrop()),
       ...(isLeaving ? [] : [h.OnClick(Message.Closed())]),
       ...(backdropClassName ? [h.Class(backdropClassName)] : []),
       ...backdropAttributes,
-    ] as SlotAttributes<Message>,
+    ]),
   }
 
   const itemsContainer = {
     key: `${id}-items-container`,
-    attributes: [
+    attributes: childAttributes([
       h.Id(`${id}-items`),
       h.Role('menu'),
       h.AriaLabelledBy(`${id}-button`),
@@ -392,69 +356,61 @@ const computeRender = <Item extends string>(
           ]),
       ...(itemsClassName ? [h.Class(itemsClassName)] : []),
       ...itemsAttributes,
-    ] as SlotAttributes<Message>,
+    ]),
   }
 
   const scroll =
     itemsScrollClassName || Array.isReadonlyArrayNonEmpty(itemsScrollAttributes)
-      ? ([
+      ? childAttributes([
           ...(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
           ...itemsScrollAttributes,
-        ] as SlotAttributes<Message>)
+        ])
       : undefined
 
-  const itemRenders: ReadonlyArray<MenuItemRender> = Array.map(
-    items,
-    (item, index) => {
-      const isActiveItem = Option.exists(
-        maybeActiveItemIndex,
-        activeIndex => activeIndex === index,
-      )
-      const isDisabledItem = isDisabled(index)
-      const itemConfig: ItemConfig = itemToConfig(item, {
-        isActive: isActiveItem,
-        isDisabled: isDisabledItem,
-      })
+  const itemRenders: ReadonlyArray<MenuItemRender> = Array.map(items, (item, index) => {
+    const isActiveItem = Option.exists(maybeActiveItemIndex, activeIndex => activeIndex === index)
+    const isDisabledItem = isDisabled(index)
+    const itemConfig: ItemConfig = itemToConfig(item, {
+      isActive: isActiveItem,
+      isDisabled: isDisabledItem,
+    })
 
-      const isInteractive = !isDisabledItem && !isLeaving
+    const isInteractive = !isDisabledItem && !isLeaving
 
-      return {
-        key: itemId(id, index),
-        attributes: [
-          h.Id(itemId(id, index)),
-          h.Role('menuitem'),
-          ...(isActiveItem ? [h.DataAttribute('active', '')] : []),
-          ...(isDisabledItem
-            ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
-            : []),
-          ...(isInteractive
-            ? [
-                h.OnClick(dispatchSelectedItem(item, index)),
-                ...(isActiveItem
-                  ? []
-                  : [
-                      h.OnPointerMove((screenX, screenY, pointerType) =>
-                        when(
-                          pointerType !== 'touch',
-                          Message.MovedPointerOverItem({
-                            index,
-                            screenX,
-                            screenY,
-                          }),
-                        ),
+    return {
+      key: itemId(id, index),
+      attributes: childAttributes([
+        h.Id(itemId(id, index)),
+        h.Role('menuitem'),
+        ...(isActiveItem ? [h.DataAttribute('active', '')] : []),
+        ...(isDisabledItem ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')] : []),
+        ...(isInteractive
+          ? [
+              h.OnClick(dispatchSelectedItem(item, index)),
+              ...(isActiveItem
+                ? []
+                : [
+                    h.OnPointerMove((screenX, screenY, pointerType) =>
+                      when(
+                        pointerType !== 'touch',
+                        Message.MovedPointerOverItem({
+                          index,
+                          screenX,
+                          screenY,
+                        }),
                       ),
-                    ]),
-                h.OnPointerLeave(pointerType =>
-                  when(pointerType !== 'touch', Message.DeactivatedItem()),
-                ),
-              ]
-            : []),
-          ...(itemConfig.className ? [h.Class(itemConfig.className)] : []),
-        ] as SlotAttributes<Message>,
-        content: itemConfig.content,
-      }
-    },
-  )
+                    ),
+                  ]),
+              h.OnPointerLeave(pointerType =>
+                when(pointerType !== 'touch', Message.DeactivatedItem()),
+              ),
+            ]
+          : []),
+        ...(itemConfig.className ? [h.Class(itemConfig.className)] : []),
+      ]),
+      content: itemConfig.content,
+    }
+  })
 
   const groups: ReadonlyArray<MenuGroupRender> = itemGroupKey
     ? Array.flatMap(
@@ -467,29 +423,22 @@ const computeRender = <Item extends string>(
           ),
         ),
         (segment, segmentIndex) => {
-          const maybeHeading = Option.fromNullishOr(
-            groupToHeading && groupToHeading(segment.key),
-          )
+          const maybeHeading = Option.fromNullishOr(groupToHeading && groupToHeading(segment.key))
 
           const headingId = `${id}-heading-${segment.key}`
 
-          const heading: MenuHeadingRender | undefined = Option.match(
-            maybeHeading,
-            {
-              onNone: () => undefined,
-              onSome: (headingValue: GroupHeading) => ({
-                id: headingId,
-                attributes: [
-                  h.Id(headingId),
-                  h.Role('presentation'),
-                  ...(headingValue.className
-                    ? [h.Class(headingValue.className)]
-                    : []),
-                ] as SlotAttributes<Message>,
-                content: headingValue.content,
-              }),
-            },
-          )
+          const heading: MenuHeadingRender | undefined = Option.match(maybeHeading, {
+            onNone: () => undefined,
+            onSome: (headingValue: GroupHeading) => ({
+              id: headingId,
+              attributes: childAttributes([
+                h.Id(headingId),
+                h.Role('presentation'),
+                ...(headingValue.className ? [h.Class(headingValue.className)] : []),
+              ]),
+              content: headingValue.content,
+            }),
+          })
 
           return [
             {
@@ -497,26 +446,23 @@ const computeRender = <Item extends string>(
               heading,
               group: {
                 key: `${id}-group-${segment.key}`,
-                attributes: [
+                attributes: childAttributes([
                   h.Role('group'),
                   ...(heading ? [h.AriaLabelledBy(headingId)] : []),
                   ...(groupClassName ? [h.Class(groupClassName)] : []),
                   ...groupAttributes,
-                ] as SlotAttributes<Message>,
+                ]),
               },
               separator:
                 segmentIndex > 0 &&
-                (separatorClassName ||
-                  Array.isReadonlyArrayNonEmpty(separatorAttributes))
+                (separatorClassName || Array.isReadonlyArrayNonEmpty(separatorAttributes))
                   ? {
                       key: `${id}-separator-${segmentIndex}`,
-                      attributes: [
+                      attributes: childAttributes([
                         h.Role('separator'),
-                        ...(separatorClassName
-                          ? [h.Class(separatorClassName)]
-                          : []),
+                        ...(separatorClassName ? [h.Class(separatorClassName)] : []),
                         ...separatorAttributes,
-                      ] as SlotAttributes<Message>,
+                      ]),
                     }
                   : undefined,
               items: segment.items,
@@ -574,49 +520,37 @@ export const defaultToView =
       return [
         ...(group.separator === undefined
           ? []
-          : [
-              h.keyed('div')(group.separator.key, [
-                ...group.separator.attributes,
-              ]),
-            ]),
+          : [h.keyed('div')(group.separator.key, [...group.separator.attributes])]),
         grouped,
       ]
     }
     const grouped = render.groups.flatMap(drawGroup)
-    return h.div([...render.wrapper], [
-      h.keyed('button')(`${render.id}-button`, [...render.button], [
-        render.buttonContent,
-      ]),
-      ...(render.backdrop === undefined
-        ? []
-        : [
-            h.keyed('div')(render.backdrop.key, [
-              ...render.backdrop.attributes,
+    return h.div(
+      [...render.wrapper],
+      [
+        h.keyed('button')(`${render.id}-button`, [...render.button], [render.buttonContent]),
+        ...(render.backdrop === undefined
+          ? []
+          : [h.keyed('div')(render.backdrop.key, [...render.backdrop.attributes])]),
+        ...(render.items === undefined
+          ? []
+          : [
+              h.keyed('div')(
+                render.items.key,
+                [...render.items.attributes],
+                render.scroll === undefined ? grouped : [h.div([...render.scroll], grouped)],
+              ),
             ]),
-          ]),
-      ...(render.items === undefined
-        ? []
-        : [
-            h.keyed('div')(
-              render.items.key,
-              [...render.items.attributes],
-              render.scroll === undefined
-                ? grouped
-                : [h.div([...render.scroll], grouped)],
-            ),
-          ]),
-    ])
+      ],
+    )
   }
 
-const menuViewImpl = defineView<Model, Message, MenuViewInputs<string>>(
-  (model, viewInputs, h) => {
-    const render = computeRender(model, viewInputs, h)
-    return (viewInputs.toView ?? defaultToView(h))(render)
-  },
-)
+const menuViewImpl = defineView<Model, Message, MenuViewInputs<string>>((model, viewInputs, h) => {
+  const render = computeRender(model, viewInputs, h)
+  return (viewInputs.toView ?? defaultToView(h))(render)
+})
 
-const internalView = <Item extends string>() =>
-  menuViewImpl as unknown as ViewForItem<Item>
+const internalView = <Item extends string>() => menuViewImpl as unknown as ViewForItem<Item>
 
 type BundleUpdateReturn<Item extends string> = ReturnWithOutMessage<
   Model,
@@ -628,11 +562,7 @@ type BundleUpdateReturn<Item extends string> = ReturnWithOutMessage<
 export type MenuBundle<Item extends string = string> = Readonly<{
   view: ViewForItem<Item>
   update: (model: Model, message: Message) => BundleUpdateReturn<Item>
-  selectItem: (
-    model: Model,
-    item: Item,
-    index: number,
-  ) => BundleUpdateReturn<Item>
+  selectItem: (model: Model, item: Item, index: number) => BundleUpdateReturn<Item>
   open: (model: Model) => BundleUpdateReturn<Item>
   close: (model: Model) => BundleUpdateReturn<Item>
 }>

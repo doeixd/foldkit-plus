@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file: '../src/menuView.ts',
-        find: '...(render.backdrop === undefined\n        ? []\n        : [',
-        replace: '...([]\n        ? []\n        : [',
+        find: '...(render.backdrop === undefined\n          ? []\n          : [h.keyed',
+        replace: '...([]\n          ? []\n          : [h.keyed',
       },
     ],
     tests,
