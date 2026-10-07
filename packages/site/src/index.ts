@@ -255,9 +255,7 @@ const sourceOf = <Root>(
   const bound = node.bound
   if (bound === undefined) return undefined
   if (bound.surface.owner !== owner)
-    throw new Error(
-      `Site.sources: "${bound.surface.name}" belongs to another application than the site`,
-    )
+    throw new Error(`Site: "${bound.surface.name}" belongs to another application than the site`)
   return [node.tag, Surface.when(bound.surface, place, node.case, bound.params)]
 }
 

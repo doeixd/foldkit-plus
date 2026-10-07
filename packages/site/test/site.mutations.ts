@@ -51,7 +51,7 @@ export default [
     edits: [
       {
         file,
-        find: '  if (bound.surface.owner !== owner)\n    throw new Error(\n      `Site.sources: "${bound.surface.name}" belongs to another application than the site`,\n    )',
+        find: '  if (bound.surface.owner !== owner)\n    throw new Error(`Site: "${bound.surface.name}" belongs to another application than the site`)',
         replace: '',
       },
     ],

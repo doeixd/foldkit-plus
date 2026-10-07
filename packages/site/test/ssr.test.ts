@@ -128,7 +128,11 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
     title: 'Owner',
     body: h.p(
       [],
-      [read?._tag === 'Ready' ? read.value.items.map(item => item.name).join(', ') : 'noroute'],
+      [
+        read?._tag === 'Ready'
+          ? read.value.items.map(item => item.name).join(', ')
+          : (read?._tag ?? 'noroute'),
+      ],
     ),
   }
 }
