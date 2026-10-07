@@ -45,6 +45,7 @@
     { "path": "./examples/todo" },
     { "path": "./examples/sync" },
     { "path": "./examples/mixins" },
+    { "path": "./examples/tree" },
     { "path": "./examples/bundle" },
     { "path": "./examples/react" },
     { "path": "./examples/remote" },

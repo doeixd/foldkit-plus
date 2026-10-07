@@ -21,6 +21,7 @@ mechanisms compose. The kitchen sink is a later integration reference.
 | [`sync`](./sync) | Offline/local-first replication: outbox, reconciliation, transport, presence, LWW fields, and the durable journal seam | Focused client/server trace |
 | [`pages`](./pages) | Collaborative rich text, local-first: pages two people edit at once (`RichText.Replicated` over `foldkit-sync` and `foldkit-durable`), a to-do list, Markdown export, and edits kept through an outage and a reload | Two-replica trace (`pnpm demo`), plus a browser app and a sync server |
 | [`mixins`](./mixins) | Typed view extension points: Surface → SlotView → Style/Behavior, plus A11y/introspection | Focused render trace |
+| [`tree`](./tree) | A file explorer from composed primitives: `TreeNavigation` + `Selection` placements over one Collection description, manual keyboard selection | Text trace (`pnpm demo`) and focused tests |
 | [`todo`](./todo) | `foldkit-agent` by itself: a contract, a hand-written host, and agent protocol adapters without Sync | Small agent-focused example |
 | [`react`](./react) | React interop in both directions, and compiling a Foldkit view to TSX | Focused jsdom trace |
 | [`data-grid`](./data-grid) | A 100,000-row product registry in `foldkit-data-grid`: a pinned column, editing with validation, row and range selection, and spreadsheet copy and paste, with the products owned by the application | Browser app (`pnpm dev`) and jsdom and Chromium tests |
