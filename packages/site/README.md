@@ -103,7 +103,9 @@ const Person = Site.node(personRouter, AppRoute.Person)
 Methods — not pipeable fragments — because each stage of a pipe is a
 separate generic call and could not infer the route. Read `.node` at any
 stage: every step freezes, so intermediates are usable nodes too, never
-drafts.
+drafts. Named bundles also compose through `.pipe` (Effect-style, one
+bundle; chain for more) or free `pipe(builder, bundle)` — the bundle stays
+generic over the builder it meets, so it instantiates with no annotation.
 
 **Trees.** `Site.mount(node, children?)` mounts a node under children without
 mutating it — children may be bare nodes or mounts. `Site.make(...roots)`

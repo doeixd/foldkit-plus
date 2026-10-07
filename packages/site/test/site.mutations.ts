@@ -169,6 +169,17 @@ export default [
     tests,
   },
   {
+    name: 'a piped bundle is not applied',
+    edits: [
+      {
+        file,
+        find: '      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => fn(at(built)),',
+        replace: '      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => at(built) as A,',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a bare node is only non-extensible, not frozen',
     edits: [
       {

@@ -37,6 +37,11 @@ centre, as §32 says; Site is one producer, Composition another.
 - **Nested layouts and rendering (§31.6, §34.2 half):** node `layout` / `view`,
   `Site.view` composes the leaf in every ancestor layout root-first. No
   Outlet, no child-router state.
+- **Incremental node building:** `Site.node(router, case)` returns a builder
+  (`.title(...)` … `.node`) for stepwise annotation and shared bundles.
+  Methods, not pipeable fragments — a pipe stage cannot infer the route;
+  named bundles compose through the builder's `.pipe` (or free `pipe`) with
+  no annotation. `Site.route`'s options are sugar over the builder.
 - **Held asks (§33.3):** `Bundle.follow` (`pending` / `release` / `ready` /
   `toMessages`, plus `send` and Model context), adopted by both CMS studio
   apps for `linked` / `previewAsked`. Deliberately no `target.intents`

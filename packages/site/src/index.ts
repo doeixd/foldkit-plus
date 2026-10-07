@@ -192,6 +192,22 @@ export interface SiteMount {
 export interface NodeBuilder<Route extends { readonly _tag: string }> {
   /** The node so far: frozen, usable for targets and hrefs at any stage. */
   readonly node: SiteNode<Route>
+  /**
+   * One named bundle through the builder, Effect-style: the bundle stays
+   * generic over the builder it meets, so it instantiates to this node's
+   * route with no annotation. Chain for more than one.
+   *
+   * ```ts
+   * const inSection = <R extends { readonly _tag: string }>(b: NodeBuilder<R>) =>
+   *   b.section('People').shortcut('GP')
+   *
+   * const Person = Site.node(personRouter, AppRoute.Person).pipe(inSection).node
+   * ```
+   *
+   * Free `pipe(builder, bundle)` from `effect` composes the same way; this
+   * method is the same spelling without the import.
+   */
+  pipe<A>(fn: (builder: NodeBuilder<Route>) => A): A
   /** The page's title for this route, once the route value is known. */
   title(title: (route: Route) => string): NodeBuilder<Route>
   /** The navigation section this route belongs to. */
@@ -383,6 +399,7 @@ export const Site = {
   ): NodeBuilder<Route> => {
     const at = (built: SiteNode<Route>): NodeBuilder<Route> => ({
       node: built,
+      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => fn(at(built)),
       title: title => at(Object.freeze({ ...built, title })),
       section: section => at(Object.freeze({ ...built, section })),
       landing: landing => at(Object.freeze({ ...built, landing })),

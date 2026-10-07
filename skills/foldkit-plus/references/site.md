@@ -25,7 +25,8 @@ Site.titleOf(AppSite, target.route) // 'Person 3 | Routing'
 the router stays the whole URL story. `Site.node(router, case)` is the same
 node as an incremental builder (`.title(...)`, `.section(...)`, ...,
 `.node`) — methods, not pipeable fragments, so the route infers through
-every step; `Site.route`'s options are sugar over it. `Site.mount(node,
+every step; named bundles compose through `.pipe` (or free `pipe`) with no
+annotation; `Site.route`'s options are sugar over it. `Site.mount(node,
 children?)` never mutates the node. `Site.make(...roots)` freezes the tree
 and refuses two nodes sharing a tag or one node mounted twice.
 

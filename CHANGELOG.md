@@ -13,7 +13,9 @@ version changed; `pnpm` skips versions already in the registry.
   returns a builder (`.title(...)`, `.section(...)`, ..., `.node`) for nodes
   annotated in steps or annotation bundles shared across nodes. Methods, not
   pipeable fragments: each stage of a pipe is a separate generic call and
-  cannot infer the route, while a method already knows its node's. Every
+  cannot infer the route, while a method already knows its node's. Named
+  bundles compose through the builder's `.pipe` (or free `pipe`) with no
+  annotation. Every
   step freezes, so intermediates are usable nodes too. `Site.route`'s options
   are sugar over the builder — one implementation, proved by behavioral
   parity tests.

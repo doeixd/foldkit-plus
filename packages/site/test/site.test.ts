@@ -448,4 +448,28 @@ describe('incremental nodes', () => {
     expect(one.shortcut).toBe('GP')
     expect(two.shortcut).toBe('GP')
   })
+
+  it('pipes bundles, chained or free', () => {
+    const inPeopleSection = <Route extends { readonly _tag: string }>(
+      built: NodeBuilder<Route>,
+    ): NodeBuilder<Route> => built.section('People')
+    const withShortcut = <Route extends { readonly _tag: string }>(
+      built: NodeBuilder<Route>,
+    ): NodeBuilder<Route> => built.shortcut('GP')
+    // The method, chained for two bundles; and free pipe, which threads the
+    // builder's type through the generic bundle the same way.
+    const viaMethod = Site.node(peopleRouter, AppRoute.People)
+      .pipe(inPeopleSection)
+      .pipe(withShortcut).node
+    const viaFree = pipe(Site.node(peopleRouter, AppRoute.People), inPeopleSection).node
+    for (const node of [viaMethod, viaFree]) {
+      expect(node.section).toBe('People')
+    }
+    expect(viaMethod.shortcut).toBe('GP')
+    // An inline stage reads the builder's route with no annotation.
+    const titled = Site.node(personRouter, AppRoute.Person).pipe(built =>
+      built.title(({ personId }) => `Person ${personId}`),
+    ).node
+    expect(Site.titleOf(Site.make(titled), AppRoute.Person({ personId: 3 }))).toBe('Person 3')
+  })
 })
