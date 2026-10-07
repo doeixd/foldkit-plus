@@ -1078,6 +1078,11 @@ of its own named a form field "fits the Catalog". Read words with
   A whole phase of `foldkit-ssr` shipped under a Remote docs commit that way.
   Stage only in the command that commits, and commit with explicit paths
   (`git commit -- <paths>`) so nothing staged by someone else rides along.
+  The worktree is shared too: another session's checkout or revert can move
+  files under you, so re-check `git status` at the start of a bout of work
+  and after anything surprising — an edit whose old text matches twice, or a
+  file that already contains the change, means the tree moved, not that the
+  tool misbehaved.
 - **But a pathspec that names only the new half of a rename ships both files.**
   `git mv old new` stages a rename; `git commit -- new` then commits the addition
   while the deletion of `old` stays in the index, so HEAD holds two copies and a
