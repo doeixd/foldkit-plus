@@ -1048,6 +1048,14 @@ of its own named a form field "fits the Catalog". Read words with
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
+- **A `package.json` change without `pnpm install` reds every job.** CI
+  installs with `--frozen-lockfile`, so a new dependency without a
+  regenerated lockfile fails all jobs in 30s. Regenerate in the same change
+  and prove it with `pnpm install --frozen-lockfile` before pushing.
+- **A fast red hides slower reds.** Fixing the 30s install failure above
+  revealed a `tags:check` failure the red main had masked for days. After
+  any CI repair, watch a full run to green — a green gate is not a green
+  build.
 - **Nothing reports an unused import here.** `tsconfig.base.json` leaves
   `noUnusedLocals` off, so moving `propsFailure` out of `kit.ts` left `Schema` and
   `RunMark` imported for nothing, and seven more dead imports had built up in the
