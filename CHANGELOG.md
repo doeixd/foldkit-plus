@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: Toast adapter over a view fork with a `toView` seam.**
+  `ToastView.make` binds upstream's `Toast.make` for the payload and swaps in
+  transcribed markup assembly (pinned `@foldkit/ui@0.165.0`, attributed):
+  state, Messages, update, Commands, and Mounts stay upstream, and a parity
+  battery draws both views over the same models (empty/entries/classes plus a
+  full dismiss lifecycle through the fork). `Toast` adapts the fork
+  (`ToastSlots`: container/entry; the dismiss control stays inside the
+  consumer's `entryToView`), with a `Toast` A11y pattern and catalog entry.
 - **`foldkit-mixins-ui`: FileDrop adapter, no fork needed.** `FileDropSlots`
   (`root`, `input`) with `FileDrop.resolve`/`FileDrop.toView` over
   upstream's own `FileDropAttributes` seam, plus a `FileDrop` A11y pattern

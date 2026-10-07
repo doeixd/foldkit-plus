@@ -82,15 +82,9 @@ describe('toast view parity (upstream view vs forked view)', () => {
     runBoth(
       model,
       Scene.expect(Scene.selector(`#${entryId(model, 0)}`)).toHaveAttr('role', 'status'),
-      Scene.expect(Scene.selector(`#${entryId(model, 0)}`)).toHaveAttr(
-        'data-variant',
-        'Info',
-      ),
+      Scene.expect(Scene.selector(`#${entryId(model, 0)}`)).toHaveAttr('data-variant', 'Info'),
       Scene.expect(Scene.selector(`#${entryId(model, 1)}`)).toHaveAttr('role', 'alert'),
-      Scene.expect(Scene.selector(`#${entryId(model, 1)}`)).toHaveAttr(
-        'data-variant',
-        'Error',
-      ),
+      Scene.expect(Scene.selector(`#${entryId(model, 1)}`)).toHaveAttr('data-variant', 'Error'),
       Scene.expect(Scene.selector(`#${entryId(model, 0)}`)).toHaveText(/hello/),
       Scene.expect(Scene.selector(`#${entryId(model, 1)}`)).toHaveText(/boom/),
     )

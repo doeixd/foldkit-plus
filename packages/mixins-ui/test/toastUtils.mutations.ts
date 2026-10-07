@@ -11,8 +11,9 @@ export default [
     edits: [
       {
         file: '../src/toastUtils.ts',
-        find: "'button, a, input, select, textarea, [contenteditable], [role=\"button\"], [role=\"link\"]'",
-        replace: "'a, input, select, textarea, [contenteditable], [role=\"button\"], [role=\"link\"]'",
+        find: '\'button, a, input, select, textarea, [contenteditable], [role="button"], [role="link"]\'',
+        replace:
+          '\'a, input, select, textarea, [contenteditable], [role="button"], [role="link"]\'',
       },
     ],
     tests,
@@ -34,7 +35,8 @@ export default [
       {
         file: '../src/toastUtils.ts',
         find: 'if (element.closest(SWIPE_EXCLUDED_TARGET_SELECTOR) !== null) {\n    return true\n  }',
-        replace: 'if (element.closest(SWIPE_EXCLUDED_TARGET_SELECTOR) !== null) {\n    return false\n  }',
+        replace:
+          'if (element.closest(SWIPE_EXCLUDED_TARGET_SELECTOR) !== null) {\n    return false\n  }',
       },
     ],
     tests,

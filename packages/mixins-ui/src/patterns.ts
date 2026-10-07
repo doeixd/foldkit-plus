@@ -15,6 +15,7 @@ import { DialogSlots } from './dialog.js'
 import { DisclosureSlots } from './disclosure.js'
 import { FieldsetSlots } from './fieldset.js'
 import { FileDropSlots } from './fileDrop.js'
+import { ToastSlots } from './toast.js'
 import { InputSlots } from './input.js'
 import { MenuSlots } from './menu.js'
 import { PopoverSlots } from './popover.js'
@@ -161,6 +162,11 @@ export const FileDrop = A11y.pattern({
   },
 })
 
+export const Toast = A11y.pattern({
+  container: { capability: Capability.Container, attributes: [Attr.Role] },
+  entry: { capability: Capability.Container, attributes: [Attr.Role] },
+})
+
 export const Menu = A11y.pattern({
   wrapper: { capability: Capability.Container },
   button: {
@@ -263,6 +269,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['group'],
     ['native-control', 'form-submission'],
   ),
+  entry('toast', Toast, ToastSlots, 'stateful', ['region', 'status', 'alert']),
   entry(
     'menu',
     Menu,

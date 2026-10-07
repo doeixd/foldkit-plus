@@ -360,6 +360,7 @@ Tabs       -> { tablist, tabs, activeIndex }
 RadioGroup -> { group, options, selectedValue, hiddenInput }
 Calendar   -> ResolvedDays | ResolvedMonths | ResolvedYears
 Menu       -> { wrapper, button, backdrop, items, scroll, groups, isVisible }
+Toast      -> { container, entries }
 ```
 
 One Slot contribution can apply to each repeated item while every item's base
@@ -391,6 +392,7 @@ adapter.
 | Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
 | Menu | `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator` (over the `MenuView` fork; see below) |
 | FileDrop | `root`, `input` |
+| Toast | `container`, `entry` (over the `ToastView` fork; the dismiss control stays inside the consumer's `entryToView`) |
 
 ## Recipes
 
@@ -589,7 +591,10 @@ upstream, but its markup assembly is transcribed into `MenuView` (from the
 pinned `@foldkit/ui` source, attributed there) with the missing `toView`
 added, and `Menu` adapts that fork. `Menu.create` pairs the forked view with
 upstream's `update`, and a parity battery draws both views over the same
-models. If upstream gains a seam, the fork goes away.
+models. If upstream gains a seam, the fork goes away. `Toast` follows the
+same shape: `ToastView.make` binds upstream's `Toast.make` for the payload
+and swaps in the transcribed view; the dismiss control stays inside the
+consumer's `entryToView`, so it is content, not a slot.
 
 Other `@foldkit/ui` modules—`Toast`, `VirtualList`, `DragAndDrop`, and
 `Animation`—simply do not have adapters here yet.

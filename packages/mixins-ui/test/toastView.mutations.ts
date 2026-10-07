@@ -57,8 +57,8 @@ export default [
     edits: [
       {
         file: '../src/toastView.ts',
-        find: 'h.OnClick(bound.Message.Dismissed({ entryId: entry.id })),',
-        replace: '',
+        find: 'dismiss: childAttributes([h.OnClick(bound.Message.Dismissed({ entryId: entry.id }))]),',
+        replace: 'dismiss: childAttributes([]),',
       },
     ],
     tests,

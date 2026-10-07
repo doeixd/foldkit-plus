@@ -19,9 +19,7 @@ describe('isSwipeExcludedTarget', () => {
   it('excludes links and editable content', () => {
     const host = element('<div><a href="/x">x</a><div contenteditable>t</div></div>')
     expect(isSwipeExcludedTarget('mouse', host.querySelector('a')!)).toBe(true)
-    expect(isSwipeExcludedTarget('mouse', host.querySelector('[contenteditable]')!)).toBe(
-      true,
-    )
+    expect(isSwipeExcludedTarget('mouse', host.querySelector('[contenteditable]')!)).toBe(true)
   })
 
   it('excludes marked text for mouse and pen but not touch', () => {

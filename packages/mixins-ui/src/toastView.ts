@@ -15,12 +15,7 @@
 import { Match, Option, type Schema } from 'effect'
 import * as UpstreamToast from '@foldkit/ui/toast'
 import { Position, SwipeState, Variant, type EntryHandlers } from '@foldkit/ui/toast'
-import {
-  childAttributes,
-  type ChildAttribute,
-  type Html,
-  type HtmlBuilder,
-} from 'foldkit/html'
+import { childAttributes, type ChildAttribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineView } from 'foldkit/submodel'
 import { isSwipeExcludedTarget } from './toastUtils.js'
 
@@ -179,33 +174,31 @@ export const make = <A, I>(payloadSchema: Schema.Codec<A, I>) => {
       )
 
       const swipeOffset = bound.swipeOffset(entry.swipeState)
-      const maybeSwipePhase = SwipeState.match<
-        Option.Option<'move' | 'settling' | 'end'>
-      >(entry.swipeState, {
-        Idle: () => Option.none(),
-        Dragging: () => Option.some('move'),
-        Settling: () => Option.some('settling'),
-        Dismissing: () => Option.some('end'),
-      })
-      const swipeExitTranslate = SwipeState.match<string | undefined>(
+      const maybeSwipePhase = SwipeState.match<Option.Option<'move' | 'settling' | 'end'>>(
         entry.swipeState,
         {
-          Idle: () => undefined,
-          Dragging: () => undefined,
-          Settling: () => undefined,
-          Dismissing: ({ direction }) => {
-            if (transitionState !== 'LeaveAnimating') {
-              return undefined
-            }
-
-            return Match.value(direction).pipe(
-              Match.when('Right', () => '100vw'),
-              Match.when('Left', () => '-100vw'),
-              Match.exhaustive,
-            )
-          },
+          Idle: () => Option.none(),
+          Dragging: () => Option.some('move'),
+          Settling: () => Option.some('settling'),
+          Dismissing: () => Option.some('end'),
         },
       )
+      const swipeExitTranslate = SwipeState.match<string | undefined>(entry.swipeState, {
+        Idle: () => undefined,
+        Dragging: () => undefined,
+        Settling: () => undefined,
+        Dismissing: ({ direction }) => {
+          if (transitionState !== 'LeaveAnimating') {
+            return undefined
+          }
+
+          return Match.value(direction).pipe(
+            Match.when('Right', () => '100vw'),
+            Match.when('Left', () => '-100vw'),
+            Match.exhaustive,
+          )
+        },
+      })
       const swipeTranslate =
         swipeExitTranslate ?? (swipeOffset !== 0 ? `${String(swipeOffset)}px` : undefined)
       const swipeAttributes = Option.match(maybeSwipePhase, {
@@ -241,9 +234,7 @@ export const make = <A, I>(payloadSchema: Schema.Codec<A, I>) => {
       }
 
       const handlers: EntryHandlers = {
-        dismiss: childAttributes([
-          h.OnClick(bound.Message.Dismissed({ entryId: entry.id })),
-        ]),
+        dismiss: childAttributes([h.OnClick(bound.Message.Dismissed({ entryId: entry.id }))]),
       }
 
       return {
@@ -265,9 +256,7 @@ export const make = <A, I>(payloadSchema: Schema.Codec<A, I>) => {
           }),
           h.OnMouseEnter(bound.Message.HoveredEntry({ entryId: entry.id })),
           h.OnMouseLeave(bound.Message.LeftEntry({ entryId: entry.id })),
-          ...(Option.isSome(model.maybeSwipeConfig)
-            ? [h.OnPointerDown(handlePointerDown)]
-            : []),
+          ...(Option.isSome(model.maybeSwipeConfig) ? [h.OnPointerDown(handlePointerDown)] : []),
           ...animationAttributes,
           ...swipeAttributes,
           ...(entryClassName ? [h.Class(entryClassName)] : []),
@@ -291,12 +280,10 @@ export const make = <A, I>(payloadSchema: Schema.Codec<A, I>) => {
         ),
       )
 
-  const view = defineView<ToastModel, ToastMessage, ToastViewInputs>(
-    (model, viewInputs, h) => {
-      const render = computeRender(model, viewInputs, h)
-      return (viewInputs.toView ?? defaultToView(h))(render)
-    },
-  )
+  const view = defineView<ToastModel, ToastMessage, ToastViewInputs>((model, viewInputs, h) => {
+    const render = computeRender(model, viewInputs, h)
+    return (viewInputs.toView ?? defaultToView(h))(render)
+  })
 
   return { ...bound, view }
 }
