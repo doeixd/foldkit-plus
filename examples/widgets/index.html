@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget showcase</title>
+    <style>
+      body {
+        font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 4rem;
+      }
+      section {
+        border-top: 1px solid #e4e4e7;
+        padding: 1.25rem 0;
+      }
+      h2 {
+        font-size: 1rem;
+        margin: 0 0 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Widget showcase</h1>
+    <p>Every widget below is live: one composed primitive set per island, no bespoke state machines.</p>
+    <section><h2>Toolbar</h2><div id="toolbar"></div></section>
+    <section><h2>Toggle</h2><div id="toggle"></div></section>
+    <section><h2>Toggle group</h2><div id="toggle-group"></div></section>
+    <section><h2>Accordion</h2><div id="accordion"></div></section>
+    <section><h2>Number field</h2><div id="number-field"></div></section>
+    <section><h2>Checkbox group</h2><div id="checkbox-group"></div></section>
+    <section><h2>Meter</h2><div id="meter"></div></section>
+    <section><h2>Command</h2><div id="command"></div></section>
+    <script type="module" src="/src/entry.ts"></script>
+  </body>
+</html>

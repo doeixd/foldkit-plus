@@ -1631,6 +1631,9 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      vite:
+        specifier: 5.4.21
+        version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
   packages/agent:
     dependencies:

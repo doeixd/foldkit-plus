@@ -5,6 +5,8 @@
     "outDir": ".tsbuild",
     "emitDeclarationOnly": true,
     "composite": true,
+    "noEmit": false,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
@@ -30,7 +32,7 @@
       "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
     {
       "path": "../../packages/bundle/tsconfig.build.json"
