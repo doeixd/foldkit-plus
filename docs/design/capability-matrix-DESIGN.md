@@ -59,12 +59,11 @@ not the rows: one capability unlocks a family.
 
 ## 3. Gaps (the actual Phase 2 build list)
 
-1. **Overlay policy.** The pieces exist but do not compose: every overlay
-   re-derives modality, dismissal, focus, scroll-lock, positioning, and
-   presence. Consumers: Drawer, Command, ContextMenu, Menubar,
-   NavigationMenu, Autocomplete, AlertDialog, HoverCard. Acceptance: those
-   widgets declare one policy value; nine subtly different overlay
-   implementations become impossible. (ui-DESIGN §5.)
+1. **Overlay policy: built.** `Overlay.modal` / `Overlay.nonModal` (or an
+   explicit `Policy`) into `Overlay.behaviors(...)`, spread into the view's
+   pipe — dismiss marking, focus scope, and the scroll/inert mounts the
+   policy keeps, nothing reimplemented. Positioning stays per-widget,
+   presence stays CSS. Proved by `examples/drawer`. (ui-DESIGN §5.)
 2. **Collection drag-reorder.** `Move`/`PointerDrag` report movement; nothing
    turns a drag across described items into a reorder. Consumer: Tree
    (optional) — and only Tree so far. Deferred until a second consumer or
@@ -90,7 +89,6 @@ not the rows: one capability unlocks a family.
 
 ## 5. Order of work
 
-Gap 1 first (eight consumers), proved by the Drawer slice (Phase 6's
-overlay representative: Overlay + Presence + Move + responsive policy).
-Gaps 2–3 inside the Tree slice if it demands them, not before. Then Phase
-6's five-widget proof, then the Phase 7 matrix in waves.
+Gap 1 landed first, proved by the Drawer slice. Gaps 2–3 wait inside the
+Tree slice if it demands them, not before. Then Phase 6's five-widget
+proof, then the Phase 7 matrix in waves.

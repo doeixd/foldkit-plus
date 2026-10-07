@@ -409,6 +409,32 @@ document's scroll while the container is mounted, refcounted so nested
 overlays release together; the second marks everything outside the container
 inert while it is mounted. A native `<dialog>` shown modally needs neither.
 
+**`Overlay`** is one policy value instead of nine overlay implementations:
+`Overlay.modal` (dismissed by Escape and outside press, focused, locked,
+inert) and `Overlay.nonModal` (dismissed, focus restored, page usable), or
+an explicit `Policy`. `Overlay.behaviors(Slots)<Model, Message,
+StackField>({ stack, layer, trigger?, id, policy })` turns the value into
+the existing pieces — `DismissLayer` marking, `FocusScope`, and the scroll
+and inert mounts the policy keeps — to spread into the view's pipe. Nothing
+is reimplemented: the mounts are the shared implementation. Positioning
+stays per-widget (`Anchor.behavior` binds a floating element to an external
+id, a different shape), and presence stays CSS. The stack bundle is placed
+once per app; its `Dismiss` outmessage closes what it names. See
+[`examples/drawer`](../../../examples/drawer) for the whole shape:
+
+```ts
+const DrawerOverlay = Overlay.behaviors(DrawerSlots)<Model, Message, 'layers'>({
+  stack: Stack,
+  layer: 'panel',
+  trigger: 'trigger',
+  id: () => 'drawer',
+  policy: Overlay.modal,
+})
+const Drawer = SlotView.forMessages<Message>()
+  .define(DrawerSlots, (model, slots, h) => h.div(/* … */))
+  .pipe(...DrawerOverlay.map(Behavior.attach))
+```
+
 **`Selection`** is which items are selected, with `mode` `'single'` (a click
 replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends

@@ -161,6 +161,10 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   The stack is DOM order at the event; a press inside a parent is outside its children; a trigger counts as inside.
   Not for `popover` elements. `Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({ container })`
   mount Foldkit's refcounted scroll lock and keyed inert set.
+- **One overlay policy:** `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into
+  `Overlay.behaviors(Slots)<Model, Message, StackField>({ stack, layer, trigger?, id, policy })`, spread into the
+  view's pipe: dismiss marking, focus scope, and the scroll/inert mounts the policy keeps. Positioning stays
+  per-widget (`Anchor.behavior`); presence stays CSS. See `examples/drawer`.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).

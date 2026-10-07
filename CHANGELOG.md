@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives`: Overlay policy over the existing pieces.**
+  `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into
+  `Overlay.behaviors(...)`, spread into the view's pipe: `DismissLayer`
+  marking, `FocusScope`, and the scroll/inert mounts the policy keeps —
+  nothing reimplemented. Positioning stays per-widget, presence stays CSS.
+  Proved by `examples/drawer` (modal settings panel: Escape/outside-press
+  dismiss through the stack, focus contained and restored).
 - **`foldkit-mixins-ui`: DatePicker adapter over a view fork with a `toView`
   seam.** `DatePickerView.view` keeps upstream's Popover+Calendar composition
   (trigger face via `triggerContent`, grid via `toCalendarView`) and seams
