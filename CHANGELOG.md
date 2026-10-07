@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-site`: incremental node building.** `Site.node(router, case)`
+  returns a builder (`.title(...)`, `.section(...)`, ..., `.node`) for nodes
+  annotated in steps or annotation bundles shared across nodes. Methods, not
+  pipeable fragments: each stage of a pipe is a separate generic call and
+  cannot infer the route, while a method already knows its node's. Every
+  step freezes, so intermediates are usable nodes too. `Site.route`'s options
+  are sugar over the builder — one implementation, proved by behavioral
+  parity tests.
 - **`foldkit-site`: `Site.sourcesFor`, the route-level Sources for one
   destination.** `sourcesFor(site, owner, place, target.route)` is the same
   entries as `Site.sources` but only the target's chain — what a prefetch or

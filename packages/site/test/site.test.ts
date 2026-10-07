@@ -19,7 +19,7 @@ import {
 import { fromString } from 'foldkit/url'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Site } from '../src/index.js'
+import { Site, type NodeBuilder, type NodeLayout, type NodeView } from '../src/index.js'
 
 const AppRoute = defineRouteUnion({
   Home: {},
@@ -351,5 +351,101 @@ describe('route-level Sources', () => {
     expect(() =>
       Site.sourcesFor(stranger, App.owner, App.model.route, routeOf('/people/3')),
     ).toThrow('"Elsewhere" belongs to another application than the site')
+  })
+})
+
+describe('incremental nodes', () => {
+  const Model = Schema.Struct({
+    route: AppRoute,
+    search: Schema.String,
+  })
+  type Model = typeof Model.Type
+  const Message = defineMessageUnion({ Noted: {} })
+  const App = Surface.application({ Model, Message })
+
+  const PersonPage = App.surface('PersonPage', {
+    params: { personId: Schema.Number },
+    model: ({ model }) => Projection.struct({ search: model.search }),
+  })
+  const layout: NodeLayout = {
+    render: child => child,
+  }
+  const view: NodeView = {
+    render: () => undefined as never,
+  }
+
+  // Built twice: once in steps with inline lambdas, once with the options.
+  // The inline lambdas prove inference — each reads the route as Person with
+  // no annotation — and the equality proves one implementation, two
+  // spellings.
+  const viaBuilder = Site.node(personRouter, AppRoute.Person)
+    .title(({ personId }) => `Person ${personId} | Routing`)
+    .section('People')
+    .landing({ personId: 1 })
+    .shortcut('GP')
+    .history((prev, next) => (prev.personId === next.personId ? 'replace' : 'push'))
+    .layout(layout)
+    .view(view)
+    .surface({ surface: PersonPage, params: route => ({ personId: route.personId }) }).node
+  const viaOptions = Site.route(personRouter, AppRoute.Person, {
+    title: ({ personId }) => `Person ${personId} | Routing`,
+    section: 'People',
+    landing: { personId: 1 },
+    shortcut: 'GP',
+    history: (prev, next) => (prev.personId === next.personId ? 'replace' : 'push'),
+    layout,
+    view,
+    surface: { surface: PersonPage, params: route => ({ personId: route.personId }) },
+  })
+
+  it('builds the same node either way', () => {
+    // Behavioral parity, not reference identity: the inline lambdas are
+    // distinct references by construction, so every observable answer must
+    // agree instead. A mutant dropping any annotation on either side breaks
+    // the pair.
+    const person = AppRoute.Person({ personId: 3 })
+    for (const node of [viaBuilder, viaOptions]) {
+      const tree = Site.make(node)
+      expect(Site.target(node, { personId: 3 }).url).toBe('/people/3')
+      expect(Site.titleOf(tree, person)).toBe('Person 3 | Routing')
+      expect(Site.sectionOf(tree, person)).toBe('People')
+      expect(Site.landing(tree, 'People')).toMatchObject({ url: '/people/1' })
+      expect(node.shortcut).toBe('GP')
+      expect(node.layout).toBe(layout)
+      expect(node.view).toBe(view)
+      expect(
+        Site.historyOf(Site.target(node, { personId: 1 }), Site.target(node, { personId: 2 })),
+      ).toBe('push')
+      expect(
+        Site.historyOf(Site.target(node, { personId: 1 }), Site.target(node, { personId: 1 })),
+      ).toBe('replace')
+      const sources = Site.sourcesFor(tree, App.owner, App.model.route, person)
+      expect(Object.keys(sources)).toEqual(['Person'])
+      const model = { route: person, search: '' }
+      expect(Option.isSome(sources['Person']!.projectionOf(model))).toBe(true)
+    }
+  })
+
+  it('freezes every stage: intermediates are usable nodes, never drafts', () => {
+    const bare = Site.node(personRouter, AppRoute.Person)
+    const titled = bare.title(() => 'Person')
+    expect(Object.isFrozen(bare.node)).toBe(true)
+    expect(Object.isFrozen(titled.node)).toBe(true)
+    expect(Object.isFrozen(viaBuilder)).toBe(true)
+    expect(Site.target(titled.node, { personId: 1 }).url).toBe('/people/1')
+  })
+
+  it('shares one annotation bundle across nodes', () => {
+    // A bundle is ordinary composition over the builder: generic over the
+    // node it meets, so both sections still type.
+    const inPeopleSection = <Route extends { readonly _tag: string }>(
+      built: NodeBuilder<Route>,
+    ): NodeBuilder<Route> => built.section('People').shortcut('GP')
+    const one = inPeopleSection(Site.node(peopleRouter, AppRoute.People)).node
+    const two = inPeopleSection(Site.node(nestedRouter, AppRoute.Nested)).node
+    expect(one.section).toBe('People')
+    expect(two.section).toBe('People')
+    expect(one.shortcut).toBe('GP')
+    expect(two.shortcut).toBe('GP')
   })
 })

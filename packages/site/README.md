@@ -89,7 +89,21 @@ without re-parsing anything.
 are `title` (a function of the route value), `section`, `landing` (the
 section's nav address as this node's params), `shortcut` (the keys that go
 here), `history`, and `surface` (below). The node is frozen; keep the
-exported value and use it for targets and hrefs.
+exported value and use it for targets and hrefs. To annotate in steps, or to
+share an annotation bundle across nodes, build incrementally instead — the
+options are sugar over this builder:
+
+```ts
+const Person = Site.node(personRouter, AppRoute.Person)
+  .title(({ personId }) => `Person ${personId} | Routing`)
+  .section('People')
+  .node
+```
+
+Methods — not pipeable fragments — because each stage of a pipe is a
+separate generic call and could not infer the route. Read `.node` at any
+stage: every step freezes, so intermediates are usable nodes too, never
+drafts.
 
 **Trees.** `Site.mount(node, children?)` mounts a node under children without
 mutating it — children may be bare nodes or mounts. `Site.make(...roots)`

@@ -182,6 +182,39 @@ export interface SiteMount {
   readonly children: ReadonlyArray<SiteMount>
 }
 
+/**
+ * A node under construction, from `Site.node`: each method annotates and
+ * returns the builder, so nodes compose in steps and annotation bundles are
+ * ordinary values. Methods — not pipeable fragments — because each stage of
+ * a pipe is a separate generic call and could not infer the route. Read
+ * `.node` at any stage for the frozen node so far.
+ */
+export interface NodeBuilder<Route extends { readonly _tag: string }> {
+  /** The node so far: frozen, usable for targets and hrefs at any stage. */
+  readonly node: SiteNode<Route>
+  /** The page's title for this route, once the route value is known. */
+  title(title: (route: Route) => string): NodeBuilder<Route>
+  /** The navigation section this route belongs to. */
+  section(section: string): NodeBuilder<Route>
+  /** Where the section's nav item points, as this node's params. */
+  landing(landing: Omit<Route, '_tag'>): NodeBuilder<Route>
+  /** The keyboard shortcut announcing this node. */
+  shortcut(shortcut: string): NodeBuilder<Route>
+  /** Which history step a move within this node is. */
+  history(
+    history: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent),
+  ): NodeBuilder<Route>
+  /** A layout wrapping everything under this node. */
+  layout(layout: NodeLayout): NodeBuilder<Route>
+  /** What this node draws for its own route. */
+  view(view: NodeView): NodeBuilder<Route>
+  /** The Surface this route activates. */
+  surface<SRoot, SModel, SMessage, SParams>(config: {
+    readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
+    readonly params: (route: Route) => SParams
+  }): NodeBuilder<Route>
+}
+
 /** The deployed topology: roots with everything mounted under them, frozen. */
 export interface SiteTree {
   readonly roots: ReadonlyArray<SiteMount>
@@ -265,6 +298,17 @@ const freezeMount = (mount: SiteMount): SiteMount =>
     children: Object.freeze(mount.children.map(freezeMount)),
   })
 
+/** A bare node: its tag from its route case, nothing annotated. */
+const baseNode = <Route extends { readonly _tag: string }>(
+  router: Router<Route>,
+  routeCase: RouteCase<Route>,
+): SiteNode<Route> =>
+  Object.freeze({
+    tag: tagOfConstructor(routeCase, 'Site.route: expected a route case from defineRouteUnion'),
+    router,
+    case: routeCase,
+  })
+
 export const Site = {
   /**
    * One deployed location from its Foldkit Router and its route case:
@@ -278,7 +322,9 @@ export const Site = {
    *
    * The router stays the whole URL story (parse and build); the case names
    * the tag and builds route values. Metadata is annotated once here, and
-   * navigation, titles, and history derive from it.
+   * navigation, titles, and history derive from it. To share annotations
+   * across nodes, or to build incrementally, use the `Site.node` builder
+   * instead — these options are sugar over it.
    */
   route: <Route extends { readonly _tag: string }, SRoot, SModel, SMessage, SParams>(
     router: Router<Route>,
@@ -298,20 +344,56 @@ export const Site = {
           }
         | undefined
     },
-  ): SiteNode<Route> =>
-    Object.freeze({
-      tag: tagOfConstructor(routeCase, 'Site.route: expected a route case from defineRouteUnion'),
-      router,
-      case: routeCase,
-      ...(options?.title === undefined ? {} : { title: options.title }),
-      ...(options?.section === undefined ? {} : { section: options.section }),
-      ...(options?.landing === undefined ? {} : { landing: options.landing }),
-      ...(options?.shortcut === undefined ? {} : { shortcut: options.shortcut }),
-      ...(options?.history === undefined ? {} : { history: options.history }),
-      ...(options?.layout === undefined ? {} : { layout: options.layout }),
-      ...(options?.view === undefined ? {} : { view: options.view }),
-      ...(options?.surface === undefined ? {} : { bound: options.surface as BoundSurface }),
-    }),
+  ): SiteNode<Route> => {
+    let built = Site.node(router, routeCase)
+    if (options?.title !== undefined) built = built.title(options.title)
+    if (options?.section !== undefined) built = built.section(options.section)
+    if (options?.landing !== undefined) built = built.landing(options.landing)
+    if (options?.shortcut !== undefined) built = built.shortcut(options.shortcut)
+    if (options?.history !== undefined) built = built.history(options.history)
+    if (options?.layout !== undefined) built = built.layout(options.layout)
+    if (options?.view !== undefined) built = built.view(options.view)
+    if (options?.surface !== undefined)
+      built = built.surface<SRoot, SModel, SMessage, SParams>(options.surface)
+    return built.node
+  },
+
+  /**
+   * One deployed location as an incremental builder, for nodes annotated in
+   * steps or annotations shared across nodes:
+   *
+   * ```ts
+   * const Person = Site.node(personRouter, AppRoute.Person)
+   *   .title(({ personId }) => `Person ${personId} | Routing`)
+   *   .section('People')
+   *   .node
+   * ```
+   *
+   * Methods — not pipeable fragments — because a pipeable fragment cannot
+   * infer the route: each stage is a separate generic call, so its type
+   * parameter falls back to the constraint and a typed callback no longer
+   * matches. A method already knows its node's route, so inline lambdas
+   * infer with no annotation. Read `.node` at any stage: every step freezes,
+   * so intermediates are usable nodes too (targets, hrefs), never drafts.
+   * `Site.route`'s options are sugar over this builder — one implementation.
+   */
+  node: <Route extends { readonly _tag: string }>(
+    router: Router<Route>,
+    routeCase: RouteCase<Route>,
+  ): NodeBuilder<Route> => {
+    const at = (built: SiteNode<Route>): NodeBuilder<Route> => ({
+      node: built,
+      title: title => at(Object.freeze({ ...built, title })),
+      section: section => at(Object.freeze({ ...built, section })),
+      landing: landing => at(Object.freeze({ ...built, landing })),
+      shortcut: shortcut => at(Object.freeze({ ...built, shortcut })),
+      history: history => at(Object.freeze({ ...built, history })),
+      layout: layout => at(Object.freeze({ ...built, layout })),
+      view: view => at(Object.freeze({ ...built, view })),
+      surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),
+    })
+    return at(baseNode(router, routeCase))
+  },
 
   /**
    * A node with its children. Returns a mount; the node itself is untouched,

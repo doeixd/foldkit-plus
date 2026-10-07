@@ -147,6 +147,39 @@ export default [
     tests,
   },
   {
+    name: 'a built title is lost',
+    edits: [
+      {
+        file,
+        find: '      title: title => at(Object.freeze({ ...built, title })),',
+        replace: '      title: _title => at(built),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a built Surface is lost',
+    edits: [
+      {
+        file,
+        find: '      surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),',
+        replace: '      surface: _config => at(built),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a bare node is only non-extensible, not frozen',
+    edits: [
+      {
+        file,
+        find: '  Object.freeze({\n    tag: tagOfConstructor(routeCase,',
+        replace: '  Object.preventExtensions({\n    tag: tagOfConstructor(routeCase,',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a section lands on whatever comes first',
     edits: [
       {
