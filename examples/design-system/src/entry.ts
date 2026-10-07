@@ -3,6 +3,7 @@ import { Style } from 'foldkit-mixins'
 
 import { Message, Model, initialModel, update, view } from './main.js'
 import { stylesheet } from './style.js'
+import { subscriptions } from './subscriptions.js'
 
 // Page tokens, palette, reset, and body defaults; every recipe injects its own
 // classes when its SlotView first draws them.
@@ -17,6 +18,7 @@ Runtime.run(
     init: () => ({ model: initialModel }),
     update,
     view,
+    subscriptions,
     container,
     devTools: { Message },
   }),

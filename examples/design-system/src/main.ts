@@ -7,7 +7,8 @@
  * drafts, toggles, a click counter); every control draws through a shipped
  * recipe, so the page is the documentation.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
+import { Subscription, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -15,6 +16,7 @@ import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiDisclosure from '@foldkit/ui/disclosure'
 import * as UiFieldset from '@foldkit/ui/fieldset'
 import * as UiSelect from '@foldkit/ui/select'
+import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
@@ -31,7 +33,7 @@ import {
   RadioGroupSlots,
   SegmentedSlots,
   Select,
-  SliderSlots,
+  Slider,
   Switch,
   TabsSlots,
   Textarea,
@@ -127,6 +129,7 @@ export const Model = Schema.Struct({
   detailsOpen: Schema.Boolean,
   contact: Contact,
   volume: Schema.Number,
+  volumeSlider: UiSlider.Model,
   popoverOpen: Schema.Boolean,
   address: Schema.String,
 })
@@ -146,7 +149,7 @@ export const Message = defineMessageUnion({
   CountrySelected: { value: Schema.String },
   DetailsToggled: { value: Schema.Boolean },
   ContactSelected: { contact: Contact },
-  VolumeStepped: { delta: Schema.Number },
+  VolumeSlider: { message: UiSlider.Message },
   PopoverToggled: {},
   AddressTyped: { value: Schema.String },
 })
@@ -167,11 +170,10 @@ export const initialModel: Model = {
   detailsOpen: false,
   contact: 'email',
   volume: 60,
+  volumeSlider: UiSlider.init({ id: 'volume-slider', min: 0, max: 100, step: 5 }),
   popoverOpen: false,
   address: 'about',
 }
-
-const clampVolume = (value: number): number => Math.min(100, Math.max(0, value))
 
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
@@ -194,12 +196,30 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { detailsOpen: () => value }),
     }),
     ContactSelected: ({ contact }) => ({ model: modifyFields(model, { contact: () => contact }) }),
-    VolumeStepped: ({ delta }) => ({
-      model: modifyFields(model, { volume: volume => clampVolume(volume + delta) }),
-    }),
+    VolumeSlider: ({ message }) => foldVolumeSlider(model, message),
     PopoverToggled: () => ({ model: modifyFields(model, { popoverOpen: open => !open }) }),
     AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
+
+/**
+ * The volume slider's interaction state lives beside the value it writes:
+ * the child owns the drag, the parent owns the number, and each
+ * `ChangedValue` the drag or keyboard produces becomes the value (already
+ * snapped and clamped by the component).
+ */
+const foldVolumeSlider = Update.foldChild({
+  update: UiSlider.update,
+  read: (model: Model) => Option.some(model.volumeSlider),
+  write: (model, volumeSlider) => modifyFields(model, { volumeSlider: () => volumeSlider }),
+  toParentMessage: message => Message.VolumeSlider({ message }),
+  foldOutMessage: UiSlider.OutMessage.match<Update.Step<Model, Message>>({
+    ChangedValue:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { volume: () => value }),
+      }),
+  }),
+})
 
 // --- views -------------------------------------------------------------------
 
@@ -379,30 +399,30 @@ const RadioPreview = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(RadioStyle))
 
-const SliderPreview = SlotView.forMessages<Message>()
-  .define(SliderSlots, (volume: number, slots, h) =>
-    h.div(slots.root.attrs(), [
-      h.p(slots.label.attrs(), [`Volume: ${volume}`]),
-      h.div(slots.track.attrs(), [
-        h.div(slots.filledTrack.attrs([h.Style({ inlineSize: `${volume}%` })]), []),
-        h.div(slots.thumb.attrs([h.Style({ insetInlineStart: `${volume}%` })]), []),
-      ]),
-      h.div(
-        [],
-        [
-          Button.view(
-            { label: '−', style: GhostButtonStyle, onClick: Message.VolumeStepped({ delta: -10 }) },
-            h,
-          ),
-          Button.view(
-            { label: '+', style: GhostButtonStyle, onClick: Message.VolumeStepped({ delta: 10 }) },
-            h,
-          ),
-        ],
-      ),
-    ]),
-  )
-  .pipe(Style.attach(SliderStyle))
+/**
+ * The live volume slider: the component owns the drag and keyboard
+ * interaction (through its drag subscriptions), the Model owns the value,
+ * and the style attaches through the Slot contract in `toView`.
+ */
+const SliderDemo = (model: Pick<Model, 'volume' | 'volumeSlider'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.volumeSlider.id,
+    model: model.volumeSlider,
+    view: UiSlider.view,
+    viewInputs: {
+      value: model.volume,
+      ariaLabel: 'Volume',
+      formatValue: (value: number) => `${Math.round(value)} percent`,
+      toView: attributes => {
+        const slider = Slider.resolve(attributes, [SliderStyle.mixin], { input: undefined, h })
+        return h.div(slider.root, [
+          h.label(slider.label, [`Volume: ${model.volume}`]),
+          h.div(slider.track, [h.div(slider.filledTrack, []), h.div(slider.thumb, [])]),
+        ])
+      },
+    },
+    toParentMessage: message => Message.VolumeSlider({ message }),
+  })
 
 const weekDays: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
@@ -796,7 +816,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('choice')]), [
           h.h2(slots.sectionTitle.attrs(), ['Choice']),
           h.p(slots.sectionText.attrs(), [
-            'One value from many: a native Select, radio pills, a slider preview, and a Disclosure — each through its slot contract.',
+            'One value from many: a native Select, radio pills, a live slider — drag it or use the arrow keys — and a Disclosure, each through its slot contract.',
           ]),
           UiSelect.view(
             {
@@ -859,7 +879,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             },
             h,
           ),
-          SliderPreview(model.volume, h),
+          SliderDemo(model, h),
         ]),
         h.section(slots.section.attrs([h.Id('feedback')]), [
           h.h2(slots.sectionTitle.attrs(), ['Feedback']),

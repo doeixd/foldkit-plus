@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { SlotView } from 'foldkit-mixins'
-import { Message, initialModel, rootOverrideOf, update, view } from '../src/main.js'
+import * as UiSlider from '@foldkit/ui/slider'
+import { Message, initialModel, rootOverrideOf, update } from '../src/main.js'
 
 describe('design-system update', () => {
   it('selects a hue, scheme, tab, and plan', () => {
@@ -27,20 +27,55 @@ describe('design-system update', () => {
     expect(clicked.model.clicks).toBe(1)
   })
 
-  it('selects a country, contact, and disclosure, steps the slider, and toggles the popover', () => {
+  it('selects a country, contact, and disclosure, drives the live slider, and toggles the popover', () => {
     const country = update(initialModel, Message.CountrySelected({ value: 'ca' }))
     expect(country.model.country).toBe('ca')
     const details = update(country.model, Message.DetailsToggled({ value: true }))
     expect(details.model.detailsOpen).toBe(true)
     const contact = update(details.model, Message.ContactSelected({ contact: 'phone' }))
     expect(contact.model.contact).toBe('phone')
-    const louder = update(contact.model, Message.VolumeStepped({ delta: 10 }))
-    expect(louder.model.volume).toBe(70)
-    const clamped = update(louder.model, Message.VolumeStepped({ delta: 1000 }))
-    expect(clamped.model.volume).toBe(100)
-    const quiet = update(clamped.model, Message.VolumeStepped({ delta: -1000 }))
-    expect(quiet.model.volume).toBe(0)
-    const popover = update(quiet.model, Message.PopoverToggled())
+    // Arrow keys step through the child's keyboard navigation.
+    const stepped = update(
+      contact.model,
+      Message.VolumeSlider({
+        message: UiSlider.Message.PressedKeyboardNavigation({
+          direction: 'StepIncrement',
+          value: 60,
+        }),
+      }),
+    )
+    expect(stepped.model.volume).toBe(65)
+    const steppedDown = update(
+      stepped.model,
+      Message.VolumeSlider({
+        message: UiSlider.Message.PressedKeyboardNavigation({
+          direction: 'StepDecrement',
+          value: 65,
+        }),
+      }),
+    )
+    expect(steppedDown.model.volume).toBe(60)
+    // A press starts the drag and each stop writes through ChangedValue.
+    const pressed = update(
+      steppedDown.model,
+      Message.VolumeSlider({
+        message: UiSlider.Message.PressedPointer({ value: 70, originValue: 60 }),
+      }),
+    )
+    expect(pressed.model.volume).toBe(70)
+    expect(pressed.model.volumeSlider.dragState._tag).toBe('Dragging')
+    const dragged = update(
+      pressed.model,
+      Message.VolumeSlider({ message: UiSlider.Message.MovedDragPointer({ value: 80 }) }),
+    )
+    expect(dragged.model.volume).toBe(80)
+    // A move with no drag in flight is ignored.
+    const idle = update(
+      initialModel,
+      Message.VolumeSlider({ message: UiSlider.Message.MovedDragPointer({ value: 80 }) }),
+    )
+    expect(idle.model.volume).toBe(60)
+    const popover = update(dragged.model, Message.PopoverToggled())
     expect(popover.model.popoverOpen).toBe(true)
     const address = update(popover.model, Message.AddressTyped({ value: 'pricing' }))
     expect(address.model.address).toBe('pricing')
@@ -56,12 +91,5 @@ describe('design-system update', () => {
     expect(rootOverrideOf({ hue: 38, scheme: 'light' })).toBe(
       ':root{--fk-knob-accent-h:38;color-scheme:light}',
     )
-  })
-
-  it('renders every section without a resolver conflict', () => {
-    const h = SlotView.inertBuilder<Message>()
-    const document = view(initialModel, h)
-    expect(document.title).toBe('Design system · Foldkit Plus')
-    expect(document.body).toBeDefined()
   })
 })

@@ -20,7 +20,8 @@ What it shows:
 - **Form** — `Input`, `Textarea`, and `InputGroup` recipes, plus live
   `Checkbox` and `Switch`, wired to the Model.
 - **Choice** — a native `Select`, a `Disclosure`, a `Fieldset` of radio pills,
-  and a slider preview, each through its slot contract.
+  and a live `Slider` (drag, arrow keys, Escape restores), each through its
+  slot contract.
 - **Feedback** — `Badge` tones and a `Dialog` panel drawn in place.
 - **Overlays** — `Popover` (real open state), `Tooltip`, and `HoverIntent`
   panels drawn in place.
