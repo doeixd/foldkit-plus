@@ -228,6 +228,34 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
+  examples/design-system:
+    dependencies:
+      '@foldkit/ui':
+        specifier: 0.165.0
+        version: 0.165.0(effect@4.0.0)(foldkit@0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0))
+      effect:
+        specifier: 4.0.0
+        version: 4.0.0
+      foldkit:
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
+    devDependencies:
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 5.4.21
+        version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
+
   examples/entity:
     dependencies:
       drizzle-orm:
@@ -645,6 +673,9 @@ importers:
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../../packages/mixins-ui
+      foldkit-site:
+        specifier: workspace:*
+        version: link:../../../packages/site
     devDependencies:
       '@effect/platform-browser':
         specifier: 4.0.0
@@ -2616,6 +2647,37 @@ importers:
       effect:
         specifier: 4.0.0
         version: 4.0.0
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/site:
+    dependencies:
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
+    devDependencies:
+      effect:
+        specifier: 4.0.0
+        version: 4.0.0
+      foldkit:
+        specifier: 0.165.0
+        version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../ssr
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
