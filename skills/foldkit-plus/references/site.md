@@ -62,6 +62,12 @@ as its `Surface.when`, keyed by tag, for `Data.wiring` / `subscriptions` /
 `satisfy` / SSR `surfaces`. Refuses a foreign surface. Each entry answers its
 own tag only.
 
+**Nested rendering.** `layout: { render: (child, model, h) => ... }` wraps
+everything under the node; `view: { render: (model, h) => ... }` draws its
+own route. `Site.view(site, route, model, h)` is the leaf's view in every
+ancestor layout, root-first; ancestors never draw their views. Unknown tags
+and viewless leaves fail loudly.
+
 **Routed pages.** `Site.placement(node, bundle, { link, args, changed?,
 key?, when?, onMessage? })`: the link states the relationship once;
 `placed.update` folds, `placed.view` draws. `changed: route => childMsg`

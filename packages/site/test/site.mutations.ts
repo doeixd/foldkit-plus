@@ -155,4 +155,37 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'layouts never apply',
+    edits: [
+      {
+        file,
+        find: '      if (layout !== undefined) child = layout.render(child, model, h)',
+        replace: '      void layout',
+      },
+    ],
+    tests: ['packages/site/test/view.test.ts'],
+  },
+  {
+    name: 'layouts wrap leaf-first',
+    edits: [
+      {
+        file,
+        find: '    for (let at = chain.length - 2; at >= 0; at--) {',
+        replace: '    for (let at = 0; at < chain.length - 1; at++) {',
+      },
+    ],
+    tests: ['packages/site/test/view.test.ts'],
+  },
+  {
+    name: 'a viewless leaf draws nothing',
+    edits: [
+      {
+        file,
+        find: '    if (leaf.view === undefined)\n      throw new Error(`Site.view: "${leaf.tag}" draws nothing; give the leaf a view`)',
+        replace: '',
+      },
+    ],
+    tests: ['packages/site/test/view.test.ts'],
+  },
 ]

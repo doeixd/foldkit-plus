@@ -31,6 +31,7 @@ import {
   type SeedFor,
 } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
 import { UrlRequest } from 'foldkit/navigation'
 import type { Router } from 'foldkit/route'
@@ -70,6 +71,27 @@ export interface RouteCase<Route extends { readonly _tag: string }> extends Sche
 export interface BoundSurface {
   readonly surface: SurfaceType<any, any, any, any>
   readonly params: (route: any) => any
+}
+
+/**
+ * A layout around everything under a node: it receives the composed child
+ * explicitly — no Outlet, no context, no hidden route state. Ancestors with
+ * layouts wrap the leaf's view root-first; ancestors without one pass
+ * through. The `any` positions are deliberate and quarantined, as with
+ * `BoundSurface`: annotate the function where it is declared and it checks
+ * there.
+ */
+export interface NodeLayout {
+  readonly render: (child: Html, model: any, h: any) => Html
+}
+
+/**
+ * What a node draws for its own route: only the deepest node of the active
+ * chain draws (its ancestors contribute layouts, never their views — a
+ * person page shows no people list). Same `any` quarantine as `NodeLayout`.
+ */
+export interface NodeView {
+  readonly render: (model: any, h: any) => Html
 }
 
 /**
@@ -148,6 +170,10 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
   readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
   /** The Surface this route activates, if the node declares one. */
   readonly bound?: BoundSurface | undefined
+  /** A layout wrapping everything under this node, if it declares one. */
+  readonly layout?: NodeLayout | undefined
+  /** What this node draws for its own route, if it draws anything. */
+  readonly view?: NodeView | undefined
 }
 
 /** A node mounted with its children: structure, not state. */
@@ -250,6 +276,8 @@ export const Site = {
       readonly landing?: Omit<Route, '_tag'> | undefined
       readonly shortcut?: string | undefined
       readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
+      readonly layout?: NodeLayout | undefined
+      readonly view?: NodeView | undefined
       readonly surface?:
         | {
             readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
@@ -267,6 +295,8 @@ export const Site = {
       ...(options?.landing === undefined ? {} : { landing: options.landing }),
       ...(options?.shortcut === undefined ? {} : { shortcut: options.shortcut }),
       ...(options?.history === undefined ? {} : { history: options.history }),
+      ...(options?.layout === undefined ? {} : { layout: options.layout }),
+      ...(options?.view === undefined ? {} : { view: options.view }),
       ...(options?.surface === undefined ? {} : { bound: options.surface as BoundSurface }),
     }),
 
@@ -407,6 +437,33 @@ export const Site = {
     if (prev === undefined || prev.node !== next.node) return 'push'
     const rule = next.node.history ?? 'replace'
     return typeof rule === 'function' ? rule(prev.route, next.route) : rule
+  },
+
+  /**
+   * What the route draws: the deepest node's view, wrapped by every
+   * ancestor's layout root-first. Ancestors contribute layouts only — never
+   * their views. Pure function composition over ordinary Foldkit rendering;
+   * unknown tags and viewless leaves fail loudly, since rendering one would
+   * guess.
+   */
+  view: <Root, Message>(
+    site: SiteTree,
+    route: { readonly _tag: string },
+    model: Root,
+    h: HtmlBuilder<Message>,
+  ): Html => {
+    const chain = Site.chainOf(site, route)
+    if (chain.length === 0) throw new Error(`Site.view: no node holds the tag "${route._tag}"`)
+    // A lookup, so the non-null assertion is the documented one.
+    const leaf = chain[chain.length - 1]!
+    if (leaf.view === undefined)
+      throw new Error(`Site.view: "${leaf.tag}" draws nothing; give the leaf a view`)
+    let child = leaf.view.render(model, h)
+    for (let at = chain.length - 2; at >= 0; at--) {
+      const layout = chain[at]!.layout
+      if (layout !== undefined) child = layout.render(child, model, h)
+    }
+    return child
   },
 
   /**

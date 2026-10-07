@@ -122,6 +122,27 @@ target. Shortcuts ride beside their destinations; key bindings stay
 application-owned, derived with each name validated against the application's
 union. Annotate once; derive nav, titles, shortcuts, and breadcrumbs from it.
 
+## Nested rendering
+
+`Site.view(site, route, model, h)` draws the route: the deepest node's view,
+wrapped by every ancestor's layout root-first. Declare them on nodes:
+
+```ts
+const Section = Site.route(sectionRouter, AppRoute.Section, {
+  layout: {
+    render: (child, model, h) => h.div([], [sidebar(model, h), child]),
+  },
+  view: {
+    render: (model, h) => h.ul([], [...]),
+  },
+})
+```
+
+Ancestors contribute layouts only — never their views. A layout receives its
+composed child explicitly: no Outlet, no context provider, no hidden route
+state, no child router. Unknown tags and viewless leaves fail loudly instead
+of guessing.
+
 **Attached Surfaces.** A node may name the Surface its route activates:
 
 ```ts
