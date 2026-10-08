@@ -1097,29 +1097,34 @@ const weekDays: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
 
 const CalendarPreview = SlotView.forMessages<Message>()
-  .define(CalendarSlots, (selected: number, slots, h) =>
-    h.div(slots.root.attrs(), [
-      h.div(slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026'), h.AriaRowcount(1)]), [
-        h.div(slots.headerRow.attrs([h.Role('row')]), [
-          ...weekDays.map(day => h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day])),
-        ]),
-        h.div(slots.weekRow.attrs([h.Role('row')]), [
-          ...monthDays.map(day =>
-            h.span(slots.dayCell.attrs([h.Role('gridcell')]), [
-              h.button(
-                slots.dayButton.attrs([
-                  h.Type('button'),
-                  ...(day === selected ? [h.DataAttribute('selected', 'true')] : []),
-                  h.AriaLabel(`October ${day}`),
-                ]),
-                [String(day)],
-              ),
-            ]),
-          ),
+  .define(CalendarSlots, (selected: number, slots, h) => {
+    const card = SlotView.buildersFor(CardSlots, [CardStyle.style.mixin], { input: selected, h })
+    return h.div(card.card.attrs(), [
+      h.div(slots.root.attrs(), [
+        h.div(slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026'), h.AriaRowcount(1)]), [
+          h.div(slots.headerRow.attrs([h.Role('row')]), [
+            ...weekDays.map(day =>
+              h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day]),
+            ),
+          ]),
+          h.div(slots.weekRow.attrs([h.Role('row')]), [
+            ...monthDays.map(day =>
+              h.span(slots.dayCell.attrs([h.Role('gridcell')]), [
+                h.button(
+                  slots.dayButton.attrs([
+                    h.Type('button'),
+                    ...(day === selected ? [h.DataAttribute('selected', 'true')] : []),
+                    h.AriaLabel(`October ${day}`),
+                  ]),
+                  [String(day)],
+                ),
+              ]),
+            ),
+          ]),
         ]),
       ]),
-    ]),
-  )
+    ])
+  })
   .pipe(Style.attach(CalendarStyle))
 
 /**

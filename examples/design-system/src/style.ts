@@ -406,16 +406,12 @@ export const SliderStyle = app.forSlots(SliderSlots)(
  */
 export const CalendarStyle = app.forSlots(CalendarSlots)(
   {
-    root: [
-      {
-        display: 'inline-block',
-        padding: t.space.md,
-        border: `${t.border.thin} solid ${t.outline.subtle}`,
-        borderRadius: t.radius.lg,
-        background: t.surface.base,
-        boxShadow: t.shadow.sm,
-      },
-    ],
+    // Layout only, no card: the standalone preview wraps this in a card of
+    // its own, and the picker panel already is one (a card here would double
+    // the box). Grids are fixed columns: fractional units collapse without a
+    // definite width, which neither the shrink-wrapped root nor the months
+    // grid's content provides.
+    root: [{ display: 'block' }],
     previousMonthButton: [
       U.text('sm'),
       {
@@ -489,8 +485,9 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
     grid: [
       {
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: 'repeat(3, 5rem)',
         gridTemplateRows: 'repeat(4, 1fr)',
+        justifyContent: 'center',
         gap: t.space['3xs'],
       },
       Style.pseudo('[aria-rowcount]', { display: 'flex', flexDirection: 'column' }),
