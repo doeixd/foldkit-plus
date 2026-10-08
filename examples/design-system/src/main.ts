@@ -83,6 +83,8 @@ import {
   DateChromeSlots,
   DateChromeStyle,
   DestructiveButtonStyle,
+  DialogActionsSlots,
+  DialogActionsStyle,
   DialogPreviewStyle,
   DisclosureStyle,
   FieldStyle,
@@ -733,6 +735,10 @@ const DialogDemo = (model: Pick<Model, 'dialog'>, h: HtmlBuilder<Message>): Html
       hasDescription: true,
       toView: render => {
         const dialog = Dialog.resolve(render, [DialogPreviewStyle.mixin], { input: undefined, h })
+        const actions = SlotView.buildersFor(DialogActionsSlots, [DialogActionsStyle.style.mixin], {
+          input: undefined,
+          h,
+        })
         return h.dialog(
           dialog.dialog,
           dialog.isVisible
@@ -744,27 +750,24 @@ const DialogDemo = (model: Pick<Model, 'dialog'>, h: HtmlBuilder<Message>): Html
                   h.p(dialog.description, [
                     'It goes for good, with its history. This dialog is a live modal: focus is trapped, Escape cancels.',
                   ]),
-                  h.div(
-                    [],
-                    [
-                      Button.view(
-                        {
-                          label: 'Delete',
-                          style: DestructiveButtonStyle,
-                          onClick: Message.CloseDeleteDialog(),
-                        },
-                        h,
-                      ),
-                      Button.view(
-                        {
-                          label: 'Cancel',
-                          style: GhostButtonStyle,
-                          onClick: Message.CloseDeleteDialog(),
-                        },
-                        h,
-                      ),
-                    ],
-                  ),
+                  h.div(actions.actions.attrs(), [
+                    Button.view(
+                      {
+                        label: 'Delete',
+                        style: DestructiveButtonStyle,
+                        onClick: Message.CloseDeleteDialog(),
+                      },
+                      h,
+                    ),
+                    Button.view(
+                      {
+                        label: 'Cancel',
+                        style: GhostButtonStyle,
+                        onClick: Message.CloseDeleteDialog(),
+                      },
+                      h,
+                    ),
+                  ]),
                 ]),
               ]
             : [],

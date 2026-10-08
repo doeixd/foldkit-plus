@@ -817,6 +817,17 @@ export const DialogPreviewStyle = app.forSlots(DialogSlots)(
   },
 )
 
+export const DialogActionsSlots = Slots.define({
+  actions: Slot.make({ capability: Capability.Container }),
+})
+
+export const DialogActionsStyle = app.slots(
+  {
+    actions: [L.in('layouts', Layout.cluster({ gap: t.space.sm }))],
+  },
+  { name: 'DialogActionsStyle' },
+)
+
 // --- shadcn-style card ---------------------------------------------------------------------
 
 export const CardSlots = Slots.define({

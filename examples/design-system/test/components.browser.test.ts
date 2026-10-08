@@ -122,6 +122,25 @@ test('delete dialog centers its panel on the viewport', async () => {
   )
 })
 
+test('delete dialog gaps its actions', async () => {
+  mount()
+  await page.getByRole('button', { name: 'Delete this project?' }).click()
+  await seen('It goes for good, with its history.')
+  // The Delete and Cancel buttons share a row: without the cluster gap the
+  // row's computed gap is `normal`, which parses to no pixels at all. (The
+  // × close button is skipped: its parent is the panel, which has its own
+  // grid gap from the recipe.)
+  await vi.waitFor(
+    () => {
+      const buttons = [...document.querySelectorAll('dialog[open] button')]
+      const remove = buttons.find(button => button.textContent === 'Delete') as HTMLElement
+      const gap = Number.parseFloat(getComputedStyle(remove.parentElement as HTMLElement).gap)
+      expect(gap).toBeGreaterThan(0)
+    },
+    { timeout: 10_000 },
+  )
+})
+
 test('slider offers the pointer over its bar and thumb', async () => {
   mount()
   await seen('Volume: 60')
