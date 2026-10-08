@@ -63,6 +63,12 @@ import {
 } from './native-select/view.js'
 import * as Sidebar from './sidebar/app.js'
 import { Sidebar as SidebarView, SidebarSlots, runDemo as runSidebarDemo } from './sidebar/view.js'
+import * as Resizable from './resizable/app.js'
+import {
+  Resizable as ResizableView,
+  ResizableSlots,
+  runDemo as runResizableDemo,
+} from './resizable/view.js'
 import * as NumberField from './number-field/app.js'
 import {
   NumberField as NumberFieldView,
@@ -105,6 +111,7 @@ import {
   navigationMenuStyle,
   nativeSelectStyle,
   numberFieldStyle,
+  resizableStyle,
   sidebarStyle,
   otpFieldStyle,
   progressStyle,
@@ -425,6 +432,23 @@ export const islands = [
           init: () => ({ model: Sidebar.initial }),
           update: Sidebar.update,
           view: (model, h) => SidebarView(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: 'resizable',
+    title: 'Resizable',
+    runDemo: runResizableDemo,
+    style: () => resizableStyle(ResizableSlots),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: Resizable.Model,
+          init: () => ({ model: Resizable.initial }),
+          update: Resizable.update,
+          view: (model, h) => ResizableView(model, h),
           container,
         }),
       )

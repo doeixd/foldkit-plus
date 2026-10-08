@@ -53,6 +53,8 @@ npx vitest run examples/widgets
   refused with the Model untouched.
 - `src/sidebar/` — collapsible docs rail: root Disclosure around section
   Disclosures over a Collection, links for bodies.
+- `src/resizable/` — file split: `Resize`-measured container with a `Move`
+  separator, arrows, and a clamped share.
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

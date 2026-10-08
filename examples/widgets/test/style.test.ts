@@ -23,6 +23,8 @@ import { NativeSelect } from '../src/native-select/view.js'
 import { initial as nativeSelectInitial } from '../src/native-select/app.js'
 import { Sidebar } from '../src/sidebar/view.js'
 import { initial as sidebarInitial } from '../src/sidebar/app.js'
+import { Resizable } from '../src/resizable/view.js'
+import { initial as resizableInitial } from '../src/resizable/app.js'
 import { Meter } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
 import { Progress } from '../src/progress/view.js'
@@ -70,6 +72,7 @@ describe('showcase styles', () => {
       Inert.draw(NavigationMenu, navigationInitial.model),
       Inert.draw(NativeSelect, nativeSelectInitial),
       Inert.draw(Sidebar, sidebarInitial),
+      Inert.draw(Resizable, resizableInitial),
     ]
     for (const page of pages) {
       expect(Inert.css([page!]).length).toBeGreaterThan(0)

@@ -17,6 +17,7 @@ import type { MenubarSlots } from './menubar/view.js'
 import type { NavigationMenuSlots } from './navigation-menu/view.js'
 import type { ContextMenuSlots } from './context-menu/view.js'
 import type { NativeSelectSlots } from './native-select/view.js'
+import type { ResizableSlots } from './resizable/view.js'
 import type { SidebarSlots } from './sidebar/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
@@ -516,4 +517,25 @@ export const sidebarStyle = (slots: typeof SidebarSlots) =>
       ),
     },
     { name: 'ShowcaseSidebar' },
+  )
+
+export const resizableStyle = (slots: typeof ResizableSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'flex', gap: '0.5rem', maxWidth: '40rem', minHeight: '12rem' }),
+      first: Style.self({ minWidth: '0' }),
+      handle: Style.compose(
+        Style.self({
+          flex: 'none',
+          width: '0.625rem',
+          borderRadius: '9999px',
+          background: line,
+          cursor: 'col-resize',
+        }),
+        focus,
+        Style.pseudo(':hover', { background: accent }),
+      ),
+      second: Style.self({ minWidth: '0', color: muted }),
+    },
+    { name: 'ShowcaseResizable' },
   )

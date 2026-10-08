@@ -160,5 +160,11 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.body.textContent).not.toContain('Install'))
     click(button('Expand'))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Install'))
+
+    // Resizable: stepping right grows the first panel.
+    const grip = document.querySelector('[role="separator"]') as HTMLElement
+    grip.focus()
+    grip.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('First panel 55%.'))
   })
 })
