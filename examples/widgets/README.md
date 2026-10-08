@@ -46,6 +46,8 @@ npx vitest run examples/widgets
   no intent delays (those stay upstream's `HoverIntent`).
 - `src/menubar/` — File/Edit/View over roving triggers with one popup:
   Collection + `RovingTabindex` + `ListNavigation` + single Selection.
+- `src/navigation-menu/` — hover-to-open sections with click toggle:
+  Collection + `ListNavigation` + single Selection under `Overlay.nonModal`.
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

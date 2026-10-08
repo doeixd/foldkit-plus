@@ -7,6 +7,7 @@ import { runDemo as runContextMenuDemo } from './context-menu/view.js'
 import { runDemo as runHoverCardDemo } from './hover-card/view.js'
 import { runDemo as runMenubarDemo } from './menubar/view.js'
 import { runDemo as runMeterDemo } from './meter/view.js'
+import { runDemo as runNavigationMenuDemo } from './navigation-menu/view.js'
 import { runDemo as runNumberFieldDemo } from './number-field/view.js'
 import { runDemo as runOtpFieldDemo } from './otp-field/view.js'
 import { runDemo as runToggleDemo } from './toggle/view.js'
@@ -53,5 +54,8 @@ for (const line of runHoverCardDemo()) {
   console.log(line)
 }
 for (const line of runMenubarDemo()) {
+  console.log(line)
+}
+for (const line of runNavigationMenuDemo()) {
   console.log(line)
 }

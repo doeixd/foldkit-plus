@@ -17,6 +17,8 @@ import { HoverCard, HoverCardSlots } from '../src/hover-card/view.js'
 import { initial as hoverInitial } from '../src/hover-card/app.js'
 import { Menubar, MenubarSlots } from '../src/menubar/view.js'
 import { initial as menubarInitial } from '../src/menubar/app.js'
+import { NavigationMenu, NavigationMenuSlots } from '../src/navigation-menu/view.js'
+import { initial as navigationInitial } from '../src/navigation-menu/app.js'
 import { Meter, MeterSlots } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
 import { NumberField, NumberFieldSlots } from '../src/number-field/view.js'
@@ -38,6 +40,7 @@ import {
   contextMenuStyle,
   hoverCardStyle,
   menubarStyle,
+  navigationMenuStyle,
   meterStyle,
   numberFieldStyle,
   otpFieldStyle,
@@ -62,6 +65,7 @@ const sheet = (): string =>
     contextMenuStyle(ContextMenuSlots),
     hoverCardStyle(HoverCardSlots),
     menubarStyle(MenubarSlots),
+    navigationMenuStyle(NavigationMenuSlots),
   )
 
 describe('showcase styles', () => {
@@ -89,6 +93,7 @@ describe('showcase styles', () => {
       Inert.draw(ContextMenu, contextInitial.model),
       Inert.draw(HoverCard, hoverInitial.model),
       Inert.draw(Menubar, menubarInitial.model),
+      Inert.draw(NavigationMenu, navigationInitial.model),
     ]
     for (const page of pages) {
       expect(Inert.css([page!]).length).toBeGreaterThan(0)

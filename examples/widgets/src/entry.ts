@@ -21,6 +21,11 @@ import * as HoverCard from './hover-card/app.js'
 import { HoverCard as HoverCardView, HoverCardSlots } from './hover-card/view.js'
 import * as Menubar from './menubar/app.js'
 import { Menubar as MenubarView, MenubarSlots } from './menubar/view.js'
+import * as NavigationMenu from './navigation-menu/app.js'
+import {
+  NavigationMenu as NavigationMenuView,
+  NavigationMenuSlots,
+} from './navigation-menu/view.js'
 import * as Meter from './meter/app.js'
 import { Meter as MeterView, MeterSlots } from './meter/view.js'
 import * as NumberField from './number-field/app.js'
@@ -42,6 +47,7 @@ import {
   contextMenuStyle,
   hoverCardStyle,
   menubarStyle,
+  navigationMenuStyle,
   meterStyle,
   numberFieldStyle,
   otpFieldStyle,
@@ -66,6 +72,7 @@ Style.install(
     contextMenuStyle(ContextMenuSlots),
     hoverCardStyle(HoverCardSlots),
     menubarStyle(MenubarSlots),
+    navigationMenuStyle(NavigationMenuSlots),
   ),
 )
 
@@ -175,6 +182,13 @@ const islands = [
     update: Menubar.update,
     view: (model, h) => MenubarView(model, h),
     container: island('menubar'),
+  }),
+  Runtime.makeElement({
+    Model: NavigationMenu.Model,
+    init: () => NavigationMenu.initial,
+    update: NavigationMenu.update,
+    view: (model, h) => NavigationMenuView(model, h),
+    container: island('navigation-menu'),
   }),
 ]
 

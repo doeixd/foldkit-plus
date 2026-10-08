@@ -45,6 +45,7 @@ describe('showcase islands', () => {
       'context-menu',
       'hover-card',
       'menubar',
+      'navigation-menu',
     ]
       .map(id => `<div id="${id}"></div>`)
       .join('')
@@ -142,5 +143,14 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.querySelector('[aria-label="Edit"]')).not.toBeNull())
     click(button('Copy'))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Last choice: Edit/Copy.'))
+
+    // Navigation menu: hovering Products and following Pricing records it.
+    const products = button('Products')
+    products.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+    await vi.waitFor(() => expect(document.querySelector('[aria-label="Products"]')).not.toBeNull())
+    click(button('Pricing'))
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain('Last followed: Products/Pricing.'),
+    )
   })
 })
