@@ -50,6 +50,13 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   an item redraws when an arg changes or what Mixins give its Slots changes (a static Style by
   identity). The memo is one per `drawRow`, shared by every view drawing it.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
+- **Styling pipeline:** `tokens -> ref -> pieces -> slots -> sheet`. `Theme.tokens`
+  (+ an `oklch` palette, joined by `Theme.compose`) are the only values; read them
+  through `Theme.ref` — a misspelled group/name is a type error, and it emits
+  `var(--fk-…)`, never a literal. `Style.self` is a rule on a generated class
+  (layerable, overridable); `Style.inline` sits outside every layer and beats
+  everything, so only for values no theme may touch. Bases go in `components`,
+  selections in `variants`, the page's own rules in `app` (always last).
 - `protected: { events, attributes, style }` forbids attachments from supplying those.
 - **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style
   merged per property (later wins) over the base, but a property a Behavior sets via `h.Style`
@@ -313,6 +320,25 @@ hover (outline, ghost, icon) is a tint of its own text, so it reads on a colored
 body defaults color scrollbars with `outline.overt`. `Touch`
 (`target`, `targets`) and `Icons` (`glyph(size)`, `byAttribute(attribute, icons)`) are style
 mechanisms, not components: compose them into your own slots, resolving icon `url(…)`s yourself.
+
+Ship both halves of the theme with `Theme.root` (scales once, palette beside them):
+
+```ts
+import { Layers, Style } from 'foldkit-mixins'
+import { Defaults } from 'foldkit-mixins/defaults'
+import { Theme } from 'foldkit-mixins/theme'
+
+const L = Layers.standard
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+
+export const stylesheet: string = Style.stylesheet(
+  L.declare,
+  L.in('reset', Defaults.reset),
+  L.in('tokens', Theme.root(Theme.tokens)),
+  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('defaults', Defaults.body),
+)
+```
 
 ## 6. Testing helpers
 
