@@ -492,9 +492,9 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
       },
       Style.pseudo('[aria-rowcount]', { display: 'flex', flexDirection: 'column' }),
     ],
-    headerRow: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 2rem)', gap: t.space['3xs'] }],
+    headerRow: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: t.space['3xs'] }],
     columnHeader: [U.text('xs'), U.color('text.muted'), { textAlign: 'center' }],
-    weekRow: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 2rem)', gap: t.space['3xs'] }],
+    weekRow: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: t.space['3xs'] }],
     dayCell: [{ display: 'grid', placeItems: 'center' }],
     dayButton: [
       U.text('sm'),
