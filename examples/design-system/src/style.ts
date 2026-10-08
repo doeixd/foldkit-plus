@@ -294,17 +294,28 @@ export const FieldsetStyle = app.forSlots(FieldsetSlots)(
 )
 
 /** Radio options as circles; the chosen one fills with a dot. */
-export const RadioStyle = app.forSlots(RadioGroupSlots)(Recipes.RadioGroup({}), {
-  name: 'RadioStyle',
-})
+export const RadioStyle = app.forSlots(RadioGroupSlots)(
+  Recipes.RadioGroup.extend({
+    // One choice per line: the recipe lays the group as a row, the demo
+    // stacks it, circle beside its text.
+    base: {
+      group: { flexDirection: 'column', alignItems: 'stretch', gap: t.space.sm },
+    },
+  })({}),
+  {
+    name: 'RadioStyle',
+  },
+)
 
 export const RadioRowSlots = Slots.define({
   row: Slot.make({ capability: Capability.Container }),
+  text: Slot.make({ capability: Capability.Container }),
 })
 
 export const RadioRowStyle = app.slots(
   {
-    row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' }))],
+    row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'start' }))],
+    text: [L.in('layouts', Layout.stack({ gap: '0' }))],
   },
   { name: 'RadioRowStyle' },
 )

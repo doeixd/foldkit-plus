@@ -888,13 +888,10 @@ const RadioDemo = (model: Pick<Model, 'contact' | 'contactGroup'>, h: HtmlBuilde
             const known = contacts.find(contact => contact.value === option.value)
             return h.div(rows.row.attrs(), [
               h.button(option.option, []),
-              h.div(
-                [],
-                [
-                  h.label(option.label, [known?.label ?? option.value]),
-                  h.span(option.description, [contactDescriptions[option.value]]),
-                ],
-              ),
+              h.div(rows.text.attrs(), [
+                h.label(option.label, [known?.label ?? option.value]),
+                h.span(option.description, [contactDescriptions[option.value]]),
+              ]),
             ])
           }),
         ])
