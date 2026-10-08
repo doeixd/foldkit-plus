@@ -42,9 +42,19 @@ export default [
     edits: [
       {
         file: '../src/recipes/listbox.ts',
-        find: "      Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),",
-        replace:
-          "      Style.pseudo(selected, { background: ref.surface.muted, color: ref.text.default }),",
+        find: '        { true: { background: ref.accent.subtle, color: ref.accent.ink } },',
+        replace: '        { true: { background: ref.surface.muted, color: ref.text.default } },',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a chosen combobox row takes the accent wash',
+    edits: [
+      {
+        file: '../src/recipes/combobox.ts',
+        find: '        { true: { background: ref.accent.subtle, color: ref.accent.ink } },',
+        replace: '        { true: { background: ref.surface.muted, color: ref.text.default } },',
       },
     ],
     tests,
@@ -53,9 +63,9 @@ export default [
     name: 'a combobox rings while its input has focus',
     edits: [
       {
-        file: '../src/recipes/combobox.ts',
-        find: "      Style.pseudo(':focus-within', {",
-        replace: "      Style.pseudo(':focus', {",
+        file: '../src/recipes/design.ts',
+        find: "export const focusWithin: StyleValue = Style.pseudo(':focus-within', {",
+        replace: "export const focusWithin: StyleValue = Style.pseudo(':focus', {",
       },
     ],
     tests,
@@ -84,11 +94,22 @@ export default [
     tests,
   },
   {
+    name: 'a checked radio dot sits on whole pixels',
+    edits: [
+      {
+        file: '../src/recipes/radio.ts',
+        find: "        inset: '3px',",
+        replace: "        inset: '25%',",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a slider fills in its tone',
     edits: [
       {
         file: '../src/recipes/slider.ts',
-        find: '        background: toneVar(\'fill\'),',
+        find: "        background: toneVar('fill'),",
         replace: '        background: ref.surface.muted,',
       },
     ],
@@ -139,6 +160,51 @@ export default [
         file: '../src/recipes/tooltip.ts',
         find: '        background: ref.text.overt,',
         replace: '        background: ref.surface.muted,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a dialog sinks to the modal step',
+    edits: [
+      {
+        file: '../src/recipes/dialog.ts',
+        find: "        boxShadow: ref.shadow['2xl'],",
+        replace: '        boxShadow: ref.shadow.xl,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a disabled tooltip trigger dims instead of inviting hover',
+    edits: [
+      {
+        file: '../src/recipes/tooltip.ts',
+        find: '      // of inviting hover it will not answer.\n      disabled,',
+        replace: '      // of inviting hover it will not answer.',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an invalid select lines itself in error',
+    edits: [
+      {
+        file: '../src/recipes/select.ts',
+        find: "      Style.states({ true: { borderColor: ref.error.outline } }, 'aria-invalid'),",
+        replace:
+          "      Style.states({ true: { borderColor: ref.outline.default } }, 'aria-invalid'),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a disabled menu trigger dims like its rows',
+    edits: [
+      {
+        file: '../src/recipes/menu.ts',
+        find: '      hover({ background: ref.surface.muted }),\n      focusRing,\n      // The contract lets the trigger disable, like the items it opens.\n      disabled,',
+        replace: '      hover({ background: ref.surface.muted }),\n      focusRing,',
       },
     ],
     tests,
