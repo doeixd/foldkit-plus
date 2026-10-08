@@ -11,6 +11,8 @@ import { CheckboxGroup, CheckboxGroupSlots } from '../src/checkbox-group/view.js
 import { initial as checkboxInitial } from '../src/checkbox-group/app.js'
 import { Command, CommandSlots } from '../src/command/view.js'
 import { initial as commandInitial } from '../src/command/app.js'
+import { ContextMenu, ContextMenuSlots } from '../src/context-menu/view.js'
+import { initial as contextInitial } from '../src/context-menu/app.js'
 import { HoverCard, HoverCardSlots } from '../src/hover-card/view.js'
 import { initial as hoverInitial } from '../src/hover-card/app.js'
 import { Meter, MeterSlots } from '../src/meter/view.js'
@@ -31,6 +33,7 @@ import {
   autocompleteStyle,
   checkboxGroupStyle,
   commandStyle,
+  contextMenuStyle,
   hoverCardStyle,
   meterStyle,
   numberFieldStyle,
@@ -53,6 +56,7 @@ const sheet = (): string =>
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
     commandStyle(CommandSlots),
+    contextMenuStyle(ContextMenuSlots),
     hoverCardStyle(HoverCardSlots),
   )
 
@@ -78,6 +82,7 @@ describe('showcase styles', () => {
       Inert.draw(CheckboxGroup, checkboxInitial.model),
       Inert.draw(Meter, meterInitial),
       Inert.draw(Command, commandInitial.model),
+      Inert.draw(ContextMenu, contextInitial.model),
       Inert.draw(HoverCard, hoverInitial.model),
     ]
     for (const page of pages) {

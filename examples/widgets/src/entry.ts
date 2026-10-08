@@ -15,6 +15,8 @@ import * as CheckboxGroup from './checkbox-group/app.js'
 import { CheckboxGroup as CheckboxGroupView, CheckboxGroupSlots } from './checkbox-group/view.js'
 import * as Command from './command/app.js'
 import { Command as CommandView, CommandSlots } from './command/view.js'
+import * as ContextMenu from './context-menu/app.js'
+import { ContextMenu as ContextMenuView, ContextMenuSlots } from './context-menu/view.js'
 import * as HoverCard from './hover-card/app.js'
 import { HoverCard as HoverCardView, HoverCardSlots } from './hover-card/view.js'
 import * as Meter from './meter/app.js'
@@ -35,6 +37,7 @@ import {
   autocompleteStyle,
   checkboxGroupStyle,
   commandStyle,
+  contextMenuStyle,
   hoverCardStyle,
   meterStyle,
   numberFieldStyle,
@@ -57,6 +60,7 @@ Style.install(
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
     commandStyle(CommandSlots),
+    contextMenuStyle(ContextMenuSlots),
     hoverCardStyle(HoverCardSlots),
   ),
 )
@@ -146,6 +150,13 @@ const islands = [
     update: Command.update,
     view: (model, h) => CommandView(model, h),
     container: island('command'),
+  }),
+  Runtime.makeElement({
+    Model: ContextMenu.Model,
+    init: () => ContextMenu.initial,
+    update: ContextMenu.update,
+    view: (model, h) => ContextMenuView(model, h),
+    container: island('context-menu'),
   }),
   Runtime.makeElement({
     Model: HoverCard.Model,

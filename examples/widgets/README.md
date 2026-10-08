@@ -38,6 +38,10 @@ npx vitest run examples/widgets
 - `src/meter/` — stateless value/max attributes (the trivial end).
 - `src/command/` — filterable list: Collection + `Filter.text` +
   `ListNavigation` + `Selection`.
+- `src/context-menu/` — right-click file menu: `OnContextMenu` trigger +
+  Collection + `ListNavigation` + single Selection under `Overlay.nonModal`.
+  Statically placed: pointer-exact positioning stays open (the `Anchor`
+  Mount burns ~35s under jsdom's zero geometry, portal or not).
 - `src/hover-card/` — informational popup on hover/focus: immediate open,
   no intent delays (those stay upstream's `HoverIntent`).
 

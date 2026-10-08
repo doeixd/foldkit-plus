@@ -42,6 +42,7 @@ describe('showcase islands', () => {
       'checkbox-group',
       'meter',
       'command',
+      'context-menu',
       'hover-card',
     ]
       .map(id => `<div id="${id}"></div>`)
@@ -116,6 +117,19 @@ describe('showcase islands', () => {
     search.value = 'new'
     search.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]').length).toBe(2))
+
+    // Context menu: right-clicking a row opens its menu, choosing acts.
+    const notes = [...document.querySelectorAll('div')].find(
+      each => each.textContent === 'notes.txt' && each.id === 'notes.txt',
+    )!
+    notes.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+    await vi.waitFor(() =>
+      expect(document.querySelector('[aria-label="Actions for notes.txt"]')).not.toBeNull(),
+    )
+    click(button('Delete'))
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain('Last action: Delete notes.txt.'),
+    )
 
     // Hover card: hovering the trigger shows Ada.
     const ada = button('ada')
