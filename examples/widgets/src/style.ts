@@ -18,6 +18,7 @@ import type { NavigationMenuSlots } from './navigation-menu/view.js'
 import type { ContextMenuSlots } from './context-menu/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
+import type { ProgressSlots } from './progress/view.js'
 import type { ToggleSlots } from './toggle/view.js'
 import type { ToggleGroupSlots } from './toggle-group/view.js'
 import type { ToolbarSlots } from './toolbar/view.js'
@@ -164,6 +165,18 @@ export const meterStyle = (slots: typeof MeterSlots) =>
       more: Style.compose(control, focus),
     },
     { name: 'ShowcaseMeter' },
+  )
+
+export const progressStyle = (slots: typeof ProgressSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '24rem' }),
+      bar: Style.self({ width: '100%', height: '1.25rem' }),
+      less: Style.compose(control, focus),
+      more: Style.compose(control, focus),
+      unknown: Style.compose(control, focus),
+    },
+    { name: 'ShowcaseProgress' },
   )
 
 export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>

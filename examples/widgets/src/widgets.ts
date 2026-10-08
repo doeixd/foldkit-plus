@@ -67,6 +67,12 @@ import {
   OtpFieldSlots,
   runDemo as runOtpFieldDemo,
 } from './otp-field/view.js'
+import * as Progress from './progress/app.js'
+import {
+  Progress as ProgressView,
+  ProgressSlots,
+  runDemo as runProgressDemo,
+} from './progress/view.js'
 import * as Toggle from './toggle/app.js'
 import { Toggle as ToggleView, ToggleSlots, runDemo as runToggleDemo } from './toggle/view.js'
 import * as ToggleGroup from './toggle-group/app.js'
@@ -91,6 +97,7 @@ import {
   navigationMenuStyle,
   numberFieldStyle,
   otpFieldStyle,
+  progressStyle,
   toggleGroupStyle,
   toggleStyle,
   toolbarStyle,
@@ -272,6 +279,23 @@ export const islands = [
           init: () => ({ model: Meter.initial }),
           update: Meter.update,
           view: (model, h) => MeterView(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: 'progress',
+    title: 'Progress',
+    runDemo: runProgressDemo,
+    style: () => progressStyle(ProgressSlots),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: Progress.Model,
+          init: () => ({ model: Progress.initial }),
+          update: Progress.update,
+          view: (model, h) => ProgressView(model, h),
           container,
         }),
       )

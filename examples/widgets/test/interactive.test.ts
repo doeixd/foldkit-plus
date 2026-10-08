@@ -104,6 +104,12 @@ describe('showcase islands', () => {
     click(button('Use 10'))
     await vi.waitFor(() => expect(document.body.textContent).toContain('72 of 100 GB'))
 
+    // Progress: sending 10 more reaches 44, losing the total indeterminates.
+    click(button('Send 10'))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('44 of 100 MB'))
+    click(button('Lose total'))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Sending…'))
+
     // Command: typing narrows to two options.
     const search = document.querySelector('input[aria-label="Search commands"]') as HTMLInputElement
     search.value = 'new'

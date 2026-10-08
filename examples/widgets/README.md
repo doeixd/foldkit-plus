@@ -36,6 +36,7 @@ npx vitest run examples/widgets
   input-event builder carries a focus selector).
 - `src/checkbox-group/` — multi-select options with label association.
 - `src/meter/` — stateless value/max attributes (the trivial end).
+- `src/progress/` — native determinate bar plus the valueless indeterminate.
 - `src/command/` — filterable list: Collection + `Filter.text` +
   `ListNavigation` + `Selection`.
 - `src/context-menu/` — right-click file menu: `OnContextMenu` trigger +

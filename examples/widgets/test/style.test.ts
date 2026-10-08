@@ -21,6 +21,8 @@ import { NavigationMenu } from '../src/navigation-menu/view.js'
 import { initial as navigationInitial } from '../src/navigation-menu/app.js'
 import { Meter } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
+import { Progress } from '../src/progress/view.js'
+import { initial as progressInitial } from '../src/progress/app.js'
 import { NumberField } from '../src/number-field/view.js'
 import { initial as numberInitial } from '../src/number-field/app.js'
 import { OtpField } from '../src/otp-field/view.js'
@@ -56,6 +58,7 @@ describe('showcase styles', () => {
       Inert.draw(OtpField, otpInitial.model),
       Inert.draw(CheckboxGroup, checkboxInitial.model),
       Inert.draw(Meter, meterInitial),
+      Inert.draw(Progress, progressInitial),
       Inert.draw(Command, commandInitial.model),
       Inert.draw(ContextMenu, contextInitial.model),
       Inert.draw(HoverCard, hoverInitial.model),
