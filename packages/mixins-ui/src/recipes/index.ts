@@ -6,6 +6,7 @@
  * `variants`, of `Layers.standard`.
  */
 export { Alert } from './alert.js'
+export { Avatar } from './avatar.js'
 export { Badge, type BadgeOptions, type BadgeTone } from './badge.js'
 export { Breadcrumb } from './breadcrumb.js'
 export { Button } from './button.js'

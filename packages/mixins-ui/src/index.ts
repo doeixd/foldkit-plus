@@ -6,6 +6,7 @@
  */
 export * as Alert from './alert.js'
 export * as Anchor from './anchor.js'
+export * as Avatar from './avatar.js'
 export * as Badge from './badge.js'
 export * as Breadcrumb from './breadcrumb.js'
 export * as Button from './button.js'
@@ -51,6 +52,7 @@ export * as Tooltip from './tooltip.js'
 export * as Touch from './touch.js'
 
 export { AlertSlots } from './alert.js'
+export { AvatarSlots } from './avatar.js'
 export { BadgeSlots } from './badge.js'
 export { BreadcrumbSlots } from './breadcrumb.js'
 export { ButtonSlots } from './button.js'

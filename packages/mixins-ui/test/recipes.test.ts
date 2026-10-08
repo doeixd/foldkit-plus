@@ -19,6 +19,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
   ButtonSlots,
+  AvatarSlots,
   CardSlots,
   AlertSlots,
   SeparatorSlots,
@@ -87,6 +88,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Avatar.def.variants).map(selection => Recipes.Avatar(selection)),
   ...selections(Recipes.Table.def.variants).map(selection => Recipes.Table(selection)),
   ...selections(Recipes.Label.def.variants).map(selection => Recipes.Label(selection)),
   ...selections(Recipes.Breadcrumb.def.variants).map(selection => Recipes.Breadcrumb(selection)),
@@ -121,6 +123,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Avatar: selections(Recipes.Avatar.def.variants).map(
+    selection => Style.forSlots(AvatarSlots)(Recipes.Avatar(selection)).css,
   ),
   Table: selections(Recipes.Table.def.variants).map(
     selection => Style.forSlots(TableSlots)(Recipes.Table(selection)).css,
