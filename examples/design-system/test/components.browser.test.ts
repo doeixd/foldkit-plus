@@ -104,6 +104,33 @@ test('dialog opens modal and cancel closes', async () => {
   )
 })
 
+test('delete dialog centers its panel on the viewport', async () => {
+  mount()
+  await page.getByRole('button', { name: 'Delete this project?' }).click()
+  await seen('It goes for good, with its history.')
+  // Geometry, not text: the dialog element is a full-viewport layer, so an
+  // uncentered panel sits at its top, ~350px above center here.
+  await vi.waitFor(
+    () => {
+      const heading = document.querySelector('dialog[open] h2') as HTMLElement
+      const panel = heading.parentElement as HTMLElement
+      const box = panel.getBoundingClientRect()
+      const offset = Math.abs(window.innerHeight / 2 - (box.top + box.height / 2))
+      expect(offset).toBeLessThanOrEqual(2)
+    },
+    { timeout: 10_000 },
+  )
+})
+
+test('slider offers the pointer over its bar and thumb', async () => {
+  mount()
+  await seen('Volume: 60')
+  const thumb = document.querySelector('[role="slider"]') as HTMLElement
+  const track = thumb.parentElement as HTMLElement
+  expect(getComputedStyle(track).cursor).toBe('pointer')
+  expect(getComputedStyle(thumb).cursor).toBe('pointer')
+})
+
 test('hover card opens anchored and hides on leave', async () => {
   mount()
   const trigger = page.getByRole('button', { name: 'A team member' })

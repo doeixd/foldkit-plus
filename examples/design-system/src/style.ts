@@ -502,9 +502,16 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
   { name: 'CalendarStyle' },
 )
 
-export const SliderStyle = app.forSlots(SliderSlots)(Recipes.Slider({}), {
-  name: 'SliderStyle',
-})
+export const SliderStyle = app.forSlots(SliderSlots)(
+  Recipes.Slider.extend({
+    // The thumb already offers the pointer; the bar it rides does too, so
+    // the whole control reads draggable before the pointer finds the thumb.
+    base: { track: { cursor: 'pointer' } },
+  })({}),
+  {
+    name: 'SliderStyle',
+  },
+)
 
 // --- overlays ----------------------------------------------------------------------
 // Popover, Tooltip, and HoverIntent are Submodels: each trigger draws through
@@ -793,9 +800,22 @@ export const StatusStyle = app.slots(
   { name: 'StatusStyle' },
 )
 
-export const DialogPreviewStyle = app.forSlots(DialogSlots)(Recipes.Dialog({ size: 'sm' }), {
-  name: 'DialogPreviewStyle',
-})
+export const DialogPreviewStyle = app.forSlots(DialogSlots)(
+  Recipes.Dialog.extend({
+    // The dialog element is a full-viewport fixed layer, so the panel sits
+    // at its top: grid centers it on both axes. Scoped to `[open]` — an
+    // unconditional display would override the user agent's
+    // `dialog:not([open]) { display: none }` and leave a closed dialog
+    // intercepting every pointer event. The fixed backdrop does not take
+    // part in grid layout, so only the panel moves.
+    base: {
+      dialog: Style.nest('&[open]', { display: 'grid', placeItems: 'center' }),
+    },
+  })({ size: 'sm' }),
+  {
+    name: 'DialogPreviewStyle',
+  },
+)
 
 // --- shadcn-style card ---------------------------------------------------------------------
 
