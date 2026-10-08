@@ -253,6 +253,7 @@ export const commandStyle = (slots: typeof CommandSlots) =>
 export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
   Style.forSlots(slots)(
     {
+      wrap: Style.self({ position: 'relative', display: 'inline-block' }),
       trigger: Style.compose(
         Style.self({
           font: 'inherit',
@@ -267,8 +268,12 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
       ),
       card: Style.compose(
         Style.self({
-          maxWidth: '20rem',
-          marginBlockStart: '0.25rem',
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: '0',
+          zIndex: '10',
+          width: 'max-content',
+          maxWidth: 'min(20rem, calc(100vw - 2rem))',
           padding: '0.75rem',
           background: onAccent,
           border: `1px solid ${line}`,

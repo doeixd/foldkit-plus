@@ -8,10 +8,12 @@
 import { Option } from 'effect'
 import { Behavior, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Overlay } from 'foldkit-primitives/interaction'
+import { keepInView } from '../place.js'
 import { hoverCardStyle } from '../style.js'
 import { Stack, Message, initial, update, type Model } from './app.js'
 
 export const HoverCardSlots = Slots.define({
+  wrap: Slot.make({ capability: Capability.Container }),
   trigger: Slot.make({ capability: Capability.Interactive }),
   card: Slot.make({ capability: Capability.Container }),
 })
@@ -26,32 +28,33 @@ export const HoverOverlay = Overlay.behaviors(HoverCardSlots)<Model, Message, 'l
 
 export const HoverCard = SlotView.forMessages<Message>()
   .define(HoverCardSlots, (model: Model, slots, h) =>
-    h.div(
-      [],
-      [
-        h.button(
-          slots.trigger.attrs([
-            h.OnMouseEnter(Message.Entered()),
-            h.OnPointerLeave(pointerType =>
-              pointerType === 'touch' ? Option.none() : Option.some(Message.Left()),
-            ),
-            h.OnFocusEnter(Message.Focused()),
-            h.OnBlur(Message.Blurred()),
-            h.OnClick(Message.Toggled()),
-          ]),
-          ['ada'],
-        ),
-        ...(model.open
-          ? [
-              h.div(slots.card.attrs([h.Role('dialog'), h.AriaLabel('About ada')]), [
-                h.p([], ['Ada Lovelace — first programmer. 3 projects, 12 followers.']),
-              ]),
-            ]
-          : []),
-      ],
-    ),
+    h.div(slots.wrap.attrs(), [
+      h.button(
+        slots.trigger.attrs([
+          h.OnMouseEnter(Message.Entered()),
+          h.OnPointerLeave(pointerType =>
+            pointerType === 'touch' ? Option.none() : Option.some(Message.Left()),
+          ),
+          h.OnFocusEnter(Message.Focused()),
+          h.OnBlur(Message.Blurred()),
+          h.OnClick(Message.Toggled()),
+        ]),
+        ['ada'],
+      ),
+      ...(model.open
+        ? [
+            h.div(slots.card.attrs([h.Role('dialog'), h.AriaLabel('About ada')]), [
+              h.p([], ['Ada Lovelace — first programmer. 3 projects, 12 followers.']),
+            ]),
+          ]
+        : []),
+    ]),
   )
-  .pipe(...HoverOverlay.map(Behavior.attach), Style.attach(hoverCardStyle(HoverCardSlots)))
+  .pipe(
+    ...HoverOverlay.map(Behavior.attach),
+    Behavior.attach(keepInView(HoverCardSlots)({ panel: 'card' })),
+    Style.attach(hoverCardStyle(HoverCardSlots)),
+  )
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model

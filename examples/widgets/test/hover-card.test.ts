@@ -47,19 +47,19 @@ describe('view structure', () => {
     expect(Inert.text(card)).toContain('Ada Lovelace')
   })
 
-  it('the card carries the nonModal policy mounts', () => {
+  it('the card carries the nonModal policy mounts and watches its edge', () => {
     const h = SlotView.inertBuilder<Message>()
-    const builders = SlotView.buildersFor(
-      HoverCardSlots,
-      HoverOverlay.map(behavior => behavior.mixin),
-      { input: update(initial.model, Message.Entered()).model, h },
-    )
+    const builders = SlotView.buildersFor(HoverCardSlots, HoverCard.mixins, {
+      input: update(initial.model, Message.Entered()).model,
+      h,
+    })
     const mount = Attributes.find(builders.card.attrs([]), 'OnMount') as unknown as {
       readonly action?: { readonly name?: string }
     }
     expect(mount?.action?.name).toContain('FocusScope')
     expect(mount?.action?.name).not.toContain('ScrollLock')
     expect(mount?.action?.name).not.toContain('HideOutside')
+    expect(mount?.action?.name).toContain('KeepInView')
   })
 })
 
