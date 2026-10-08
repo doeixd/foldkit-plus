@@ -34,4 +34,7 @@ npx vitest run examples/widgets
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with
-a mutation spec beside it.
+a mutation spec beside it. `src/style.ts` holds the showcase's look — one
+`Style.forSlots` per widget, state visuals read from the ARIA the behaviors
+already write (`Style.states(..., 'aria-pressed')`), installed by
+`src/entry.ts`; `test/style.test.ts` pins the sheet.

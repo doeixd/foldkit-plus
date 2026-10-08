@@ -4,8 +4,9 @@
  * `RovingTabindex` Behavior (one tab stop, arrows). The only view rule is
  * the pressed state; a disabled tool draws with no click.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { toolbarStyle } from '../style.js'
 import { Message, Roving, TOOLS, toolbarArgs, type Model } from './app.js'
 
 export const ToolbarSlots = Slots.define({
@@ -50,4 +51,4 @@ export const Toolbar = SlotView.forMessages<Message>()
       ),
     )
   })
-  .pipe(Behavior.attach(Ids), Behavior.attach(Focus))
+  .pipe(Behavior.attach(Ids), Behavior.attach(Focus), Style.attach(toolbarStyle(ToolbarSlots)))

@@ -4,8 +4,9 @@
  * set, since a toggle group's options are pressables that read selected.
  * `ToggleState` stays out: it names one control, not one per item.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Selection } from 'foldkit-primitives/interaction'
+import { toggleGroupStyle } from '../style.js'
 import { OPTIONS, Sel, initial, selectedOf, update, type Message, type Model } from './app.js'
 
 export const ToggleGroupSlots = Slots.define({
@@ -48,7 +49,11 @@ export const ToggleGroup = SlotView.forMessages<Message>()
       ),
     )
   })
-  .pipe(Behavior.attach(Ids), Behavior.attach(Picks))
+  .pipe(
+    Behavior.attach(Ids),
+    Behavior.attach(Picks),
+    Style.attach(toggleGroupStyle(ToggleGroupSlots)),
+  )
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model

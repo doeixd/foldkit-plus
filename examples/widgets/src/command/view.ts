@@ -5,8 +5,9 @@
  * handler: arrows, Home/End, PageUp/Down, typeahead), and `Selection`
  * (clicks and `aria-selected`). Typing narrows; keys and clicks choose.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
+import { commandStyle } from '../style.js'
 import { Nav, Sel, Message, initial, matching, selectedOf, update, type Model } from './app.js'
 
 export const CommandSlots = Slots.define({
@@ -71,7 +72,12 @@ export const Command = SlotView.forMessages<Message>()
       ),
     ])
   })
-  .pipe(Behavior.attach(Ids), Behavior.attach(Keys), Behavior.attach(Picks))
+  .pipe(
+    Behavior.attach(Ids),
+    Behavior.attach(Keys),
+    Behavior.attach(Picks),
+    Style.attach(commandStyle(CommandSlots)),
+  )
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model

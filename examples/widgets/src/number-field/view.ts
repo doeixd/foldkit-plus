@@ -4,7 +4,8 @@
  * the control to its label and description with derived ids. The +/- buttons
  * are plain clicks through the same clamped `SetValue`.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { numberFieldStyle } from '../style.js'
 import { BOUNDS, Message, clamp, initial, update, type Model } from './app.js'
 
 export const NumberFieldSlots = Slots.define({
@@ -49,7 +50,11 @@ export const NumberField = SlotView.forMessages<Message>()
       ],
     ),
   )
-  .pipe(Behavior.attach(Spin), Behavior.attach(Associated))
+  .pipe(
+    Behavior.attach(Spin),
+    Behavior.attach(Associated),
+    Style.attach(numberFieldStyle(NumberFieldSlots)),
+  )
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial

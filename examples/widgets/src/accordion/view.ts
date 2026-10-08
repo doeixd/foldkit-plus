@@ -6,7 +6,8 @@
  * content id and expanded state from the open id. Same attributes the
  * behavior would write, derived per item.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { accordionStyle } from '../style.js'
 import { Message, SECTIONS, initial, update, type Model } from './app.js'
 
 export const AccordionSlots = Slots.define({
@@ -54,7 +55,7 @@ export const Accordion = SlotView.forMessages<Message>()
       }),
     )
   })
-  .pipe(Behavior.attach(Ids))
+  .pipe(Behavior.attach(Ids), Style.attach(accordionStyle(AccordionSlots)))
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial

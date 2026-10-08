@@ -3,8 +3,9 @@
  * parent's boolean, the view's click flips it. No Bundle — one boolean needs
  * no placement.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Message, initial, update, type Model } from './app.js'
+import { toggleStyle } from '../style.js'
 
 export const ToggleSlots = Slots.define({
   control: Slot.make({ capability: Capability.Interactive }),
@@ -22,7 +23,7 @@ export const Toggle = SlotView.forMessages<Message>()
       model.on ? 'Muted' : 'Mute',
     ]),
   )
-  .pipe(Behavior.attach(Pressed))
+  .pipe(Behavior.attach(Pressed), Style.attach(toggleStyle(ToggleSlots)))
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial

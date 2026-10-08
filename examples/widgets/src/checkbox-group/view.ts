@@ -4,8 +4,9 @@
  * per option, checked from the same selected set. The `<fieldset>` legend
  * is the floor — no association behavior needed to name the group.
  */
-import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Selection } from 'foldkit-primitives/interaction'
+import { checkboxGroupStyle } from '../style.js'
 import { TOPPINGS, Sel, initial, selectedOf, update, type Message, type Model } from './app.js'
 
 export const CheckboxGroupSlots = Slots.define({
@@ -45,7 +46,11 @@ export const CheckboxGroup = SlotView.forMessages<Message>()
       ),
     ])
   })
-  .pipe(Behavior.attach(Ids), Behavior.attach(Picks))
+  .pipe(
+    Behavior.attach(Ids),
+    Behavior.attach(Picks),
+    Style.attach(checkboxGroupStyle(CheckboxGroupSlots)),
+  )
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model

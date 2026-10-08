@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/meter/view.ts',
-        find: "h.meter([h.Value(String(model.used)), h.Min('0'), h.Max(String(QUOTA))], [`${model.used} of ${QUOTA} GB`]),",
-        replace: 'h.meter([], [`${model.used} of ${QUOTA} GB`]),',
+        find: "slots.bar.attrs([h.Value(String(model.used)), h.Min('0'), h.Max(String(QUOTA))]),",
+        replace: 'slots.bar.attrs([]),',
       },
     ],
     tests,

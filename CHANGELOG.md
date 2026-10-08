@@ -17,7 +17,7 @@ version changed; `pnpm` skips versions already in the registry.
   Command (Collection + inline filter + ListNavigation + single Selection).
   Each with tests beside a mutation spec; one `makeElement` island per
   widget in `src/entry.ts` (`pnpm dev`, `vite build` clean); a jsdom test
-  boots that same entry and answers one interaction per island. 42 tests.
+  boots that same entry and answers one interaction per island. 44 tests.
   Notable finds: no `Filter.text` helper exists in source (the filter stays
   a three-line function of the Model); `Disclosure` names one pair, so N
   sections derive its attributes per item; `embed` replaces its container,

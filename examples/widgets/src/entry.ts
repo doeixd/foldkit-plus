@@ -4,22 +4,46 @@
  * point of the page is that each composition stands alone.
  */
 import { Runtime } from 'foldkit'
+import { Style } from 'foldkit-mixins'
 import * as Accordion from './accordion/app.js'
-import { Accordion as AccordionView } from './accordion/view.js'
+import { Accordion as AccordionView, AccordionSlots } from './accordion/view.js'
 import * as CheckboxGroup from './checkbox-group/app.js'
-import { CheckboxGroup as CheckboxGroupView } from './checkbox-group/view.js'
+import { CheckboxGroup as CheckboxGroupView, CheckboxGroupSlots } from './checkbox-group/view.js'
 import * as Command from './command/app.js'
-import { Command as CommandView } from './command/view.js'
+import { Command as CommandView, CommandSlots } from './command/view.js'
 import * as Meter from './meter/app.js'
-import { Meter as MeterView } from './meter/view.js'
+import { Meter as MeterView, MeterSlots } from './meter/view.js'
 import * as NumberField from './number-field/app.js'
-import { NumberField as NumberFieldView } from './number-field/view.js'
+import { NumberField as NumberFieldView, NumberFieldSlots } from './number-field/view.js'
 import * as Toggle from './toggle/app.js'
-import { Toggle as ToggleView } from './toggle/view.js'
+import { Toggle as ToggleView, ToggleSlots } from './toggle/view.js'
 import * as ToggleGroup from './toggle-group/app.js'
-import { ToggleGroup as ToggleGroupView } from './toggle-group/view.js'
+import { ToggleGroup as ToggleGroupView, ToggleGroupSlots } from './toggle-group/view.js'
 import * as Toolbar from './toolbar/app.js'
-import { Toolbar as ToolbarView } from './toolbar/view.js'
+import { Toolbar as ToolbarView, ToolbarSlots } from './toolbar/view.js'
+import {
+  accordionStyle,
+  checkboxGroupStyle,
+  commandStyle,
+  meterStyle,
+  numberFieldStyle,
+  toggleGroupStyle,
+  toggleStyle,
+  toolbarStyle,
+} from './style.js'
+
+Style.install(
+  Style.stylesheet(
+    toolbarStyle(ToolbarSlots),
+    toggleStyle(ToggleSlots),
+    toggleGroupStyle(ToggleGroupSlots),
+    accordionStyle(AccordionSlots),
+    numberFieldStyle(NumberFieldSlots),
+    checkboxGroupStyle(CheckboxGroupSlots),
+    meterStyle(MeterSlots),
+    commandStyle(CommandSlots),
+  ),
+)
 
 const island = (id: string): HTMLElement => {
   const container = document.getElementById(id)

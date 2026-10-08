@@ -3,11 +3,13 @@
  * max, and a label carries the whole contract — no Bundle, no Behavior.
  * This is the trivial end the matrix names: value/max attributes.
  */
-import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { meterStyle } from '../style.js'
 import { Message, QUOTA, clamp, initial, update, type Model } from './app.js'
 
 export const MeterSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  bar: Slot.make({ capability: Capability.Container }),
   less: Slot.make({ capability: Capability.Interactive }),
   more: Slot.make({ capability: Capability.Interactive }),
 })
@@ -20,7 +22,7 @@ export const Meter = SlotView.forMessages<Message>()
         [
           'Storage',
           h.meter(
-            [h.Value(String(model.used)), h.Min('0'), h.Max(String(QUOTA))],
+            slots.bar.attrs([h.Value(String(model.used)), h.Min('0'), h.Max(String(QUOTA))]),
             [`${model.used} of ${QUOTA} GB`],
           ),
         ],
@@ -33,7 +35,7 @@ export const Meter = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe()
+  .pipe(Style.attach(meterStyle(MeterSlots)))
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial

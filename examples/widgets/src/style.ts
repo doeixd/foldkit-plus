@@ -1,0 +1,167 @@
+/**
+ * The showcase's look, one `Style.forSlots` per widget plus the page sheet.
+ * Layout and control chrome are static pieces; state visuals read the ARIA
+ * the behaviors already write (`Style.states(..., 'aria-pressed')`), so no
+ * view changes and no `whenInput` — the DOM carries the state. `stylesheet`
+ * is what `entry.ts` installs; tests read it through `Inert.css`.
+ */
+import { Style } from 'foldkit-mixins'
+import type { AccordionSlots } from './accordion/view.js'
+import type { CheckboxGroupSlots } from './checkbox-group/view.js'
+import type { CommandSlots } from './command/view.js'
+import type { MeterSlots } from './meter/view.js'
+import type { NumberFieldSlots } from './number-field/view.js'
+import type { ToggleSlots } from './toggle/view.js'
+import type { ToggleGroupSlots } from './toggle-group/view.js'
+import type { ToolbarSlots } from './toolbar/view.js'
+
+const ink = '#18181b'
+const muted = '#52525b'
+const line = '#d4d4d8'
+const wash = '#f4f4f5'
+const accent = '#4f46e5'
+const onAccent = '#ffffff'
+
+const focus = Style.pseudo(':focus-visible', {
+  outline: `2px solid ${accent}`,
+  outlineOffset: '2px',
+})
+
+const control = Style.self({
+  font: 'inherit',
+  color: ink,
+  background: onAccent,
+  border: `1px solid ${line}`,
+  borderRadius: '8px',
+  paddingBlock: '0.375rem',
+  paddingInline: '0.75rem',
+  cursor: 'pointer',
+})
+
+const pressed = Style.states(
+  {
+    true: {
+      background: ink,
+      borderColor: ink,
+      color: onAccent,
+    },
+  },
+  'aria-pressed',
+)
+
+const selected = Style.states(
+  {
+    true: {
+      background: wash,
+    },
+  },
+  'aria-selected',
+)
+
+export const toolbarStyle = (slots: typeof ToolbarSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'flex', gap: '0.5rem' }),
+      tool: Style.compose(control, focus, pressed),
+    },
+    { name: 'ShowcaseToolbar' },
+  )
+
+export const toggleStyle = (slots: typeof ToggleSlots) =>
+  Style.forSlots(slots)(
+    { control: Style.compose(control, focus, pressed) },
+    { name: 'ShowcaseToggle' },
+  )
+
+export const toggleGroupStyle = (slots: typeof ToggleGroupSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'inline-flex', gap: '0.5rem' }),
+      option: Style.compose(control, focus, pressed),
+    },
+    { name: 'ShowcaseToggleGroup' },
+  )
+
+export const accordionStyle = (slots: typeof AccordionSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '28rem' }),
+      trigger: Style.compose(
+        Style.self({ display: 'block', width: '100%', textAlign: 'start' }),
+        control,
+        focus,
+        Style.states({ true: { borderColor: ink } }, 'aria-expanded'),
+      ),
+      content: Style.self({ margin: '0', paddingInline: '0.75rem', color: muted }),
+    },
+    { name: 'ShowcaseAccordion' },
+  )
+
+export const numberFieldStyle = (slots: typeof NumberFieldSlots) =>
+  Style.forSlots(slots)(
+    {
+      control: Style.compose(
+        Style.self({
+          display: 'inline-block',
+          minWidth: '3rem',
+          textAlign: 'center',
+          fontVariantNumeric: 'tabular-nums',
+        }),
+        control,
+        focus,
+      ),
+      label: Style.self({ display: 'block', fontWeight: '600', marginBlockEnd: '0.25rem' }),
+      description: Style.self({ color: muted, fontSize: '0.8125rem', marginBlock: '0.25rem' }),
+      increment: Style.compose(control, focus),
+      decrement: Style.compose(control, focus),
+    },
+    { name: 'ShowcaseNumberField' },
+  )
+
+export const checkboxGroupStyle = (slots: typeof CheckboxGroupSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.375rem', border: 'none', padding: '0' }),
+      option: Style.compose(
+        Style.self({ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }),
+        focus,
+      ),
+    },
+    { name: 'ShowcaseCheckboxGroup' },
+  )
+
+export const meterStyle = (slots: typeof MeterSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '24rem' }),
+      bar: Style.self({ width: '100%', height: '1.25rem' }),
+      less: Style.compose(control, focus),
+      more: Style.compose(control, focus),
+    },
+    { name: 'ShowcaseMeter' },
+  )
+
+export const commandStyle = (slots: typeof CommandSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '28rem' }),
+      input: Style.compose(
+        Style.self({ width: '100%', boxSizing: 'border-box' }),
+        control,
+        Style.self({ cursor: 'text' }),
+        focus,
+      ),
+      list: Style.self({
+        display: 'grid',
+        border: `1px solid ${line}`,
+        borderRadius: '8px',
+        overflow: 'hidden',
+      }),
+      item: Style.compose(
+        Style.self({ paddingBlock: '0.375rem', paddingInline: '0.75rem', cursor: 'pointer' }),
+        focus,
+        selected,
+      ),
+    },
+    { name: 'ShowcaseCommand' },
+  )
