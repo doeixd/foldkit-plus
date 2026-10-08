@@ -25,6 +25,7 @@ import {
   SkeletonSlots,
   ItemSlots,
   EmptySlots,
+  SpinnerSlots,
   CheckboxSlots,
   ComboboxSlots,
   DatePickerSlots,
@@ -82,6 +83,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Spinner.def.variants).map(selection => Recipes.Spinner(selection)),
   ...selections(Recipes.Empty.def.variants).map(selection => Recipes.Empty(selection)),
   ...selections(Recipes.Item.def.variants).map(selection => Recipes.Item(selection)),
   ...selections(Recipes.Skeleton.def.variants).map(selection => Recipes.Skeleton(selection)),
@@ -111,6 +113,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Spinner: selections(Recipes.Spinner.def.variants).map(
+    selection => Style.forSlots(SpinnerSlots)(Recipes.Spinner(selection)).css,
   ),
   Empty: selections(Recipes.Empty.def.variants).map(
     selection => Style.forSlots(EmptySlots)(Recipes.Empty(selection)).css,
