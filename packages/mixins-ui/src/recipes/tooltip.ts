@@ -4,7 +4,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { TooltipSlots } from '../tooltip.js'
-import { component, ref } from './design.js'
+import { component, disabled, ref } from './design.js'
 
 export const Tooltip = Style.recipeFor(TooltipSlots)({
   base: {
@@ -21,6 +21,9 @@ export const Tooltip = Style.recipeFor(TooltipSlots)({
         textUnderlineOffset: '3px',
         cursor: 'default',
       }),
+      // The contract lets the trigger disable; a dead trigger dims instead
+      // of inviting hover it will not answer.
+      disabled,
     ),
     panel: component(
       Style.self({

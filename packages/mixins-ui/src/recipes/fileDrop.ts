@@ -24,11 +24,17 @@ export const FileDrop = Style.recipeFor(FileDropSlots)({
         cursor: 'pointer',
       }),
       Style.pseudo(':hover', { borderColor: ref.outline.overt }),
-      Style.pseudo('[data-drag-over="true"]', {
-        borderColor: ref.accent.default,
-        background: ref.accent.subtle,
-        color: ref.accent.ink,
-      }),
+      // Drag-over is DOM state on the root, so it goes through `states`.
+      Style.states(
+        {
+          true: {
+            borderColor: ref.accent.default,
+            background: ref.accent.subtle,
+            color: ref.accent.ink,
+          },
+        },
+        'data-drag-over',
+      ),
       Style.nest('& > input', {
         position: 'absolute',
         inlineSize: '1px',

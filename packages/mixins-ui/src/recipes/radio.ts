@@ -52,7 +52,10 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
         cursor: 'pointer',
         ...transition('background-color, border-color'),
       }),
-      Style.pseudo(checked, { borderColor: toneVar('fill') }),
+      // The checked ring reads DOM state, so it goes through `states`; the
+      // dot below fuses state with `::after`, which declarations alone
+      // cannot spell, so it stays a pseudo rule.
+      Style.states({ true: { borderColor: toneVar('fill') } }, 'aria-checked'),
       // A dot centered in the circle, in the tone's fill. A whole-pixel
       // inset keeps it on whole pixels at every size: the padding box is
       // the edge minus a 1px rim each side (14px at md, 12 at sm, 18 at

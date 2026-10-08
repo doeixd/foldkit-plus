@@ -581,6 +581,10 @@ describe('Recipes', () => {
     it('underlines the trigger dotted', () => {
       expect(css()).toContain('text-decoration:underline dotted')
     })
+
+    it('dims a disabled trigger instead of inviting hover', () => {
+      expect(css()).toContain('cursor:not-allowed')
+    })
   })
 
   describe('Badge', () => {

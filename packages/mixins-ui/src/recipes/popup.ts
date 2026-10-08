@@ -5,7 +5,7 @@
  * trigger and density. Internal to the recipes, not a published contract.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { component, disabled, ref, variant } from './design.js'
+import { component, disabled, hover, ref, variant } from './design.js'
 
 /** The floating panel: a bordered card over later content, under the nav. */
 export const panel: StyleValue = component(
@@ -41,7 +41,7 @@ export const item: StyleValue = component(
     textAlign: 'start',
     cursor: 'pointer',
   }),
-  Style.pseudo(':hover:not([aria-disabled="true"], :disabled)', { background: ref.surface.muted }),
+  hover({ background: ref.surface.muted }),
   disabled,
 )
 
