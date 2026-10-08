@@ -127,8 +127,8 @@ not ad-hoc CSS.
   the adapter + fork work already landed, not as bespoke state machines.
 - Styles/recipes (Phase 3): `design.ts` shared pieces, anatomy-checked
   `recipeFor`, `.extend` + partial selection, `forCapability`. Themes
-  (Phase 4): values with density/radius/contrast knobs; motion and
-  control-size knobs open. Floor/gate (Phase 5): metadata + CI gate.
+  (Phase 4): values with density/radius/motion/contrast knobs (the
+  control-size knob stays open: no height scale exists yet). Floor/gate (Phase 5): metadata + CI gate.
 - Component coverage past that follows the capability matrix, not a
   checklist: fill a missing capability and a family of widgets gets cheap.
 

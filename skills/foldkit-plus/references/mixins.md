@@ -373,7 +373,7 @@ mechanisms, not components: compose them into your own slots, resolving icon `ur
 - Theme pieces (`foldkit-mixins/theme`): `Theme.root(theme, { omit?, colorScheme? })` is the
   tokens as `:root` custom properties and `Theme.scoped(theme, selector, overrides)` is overrides under a
   selector, typed by `theme`'s own groups and names so a misspelled knob is a type error, both unlayered global pieces (`L.in('theme', …)`). `Theme.tokens` is the shared
-  scales (`knob` density/radius-factor, `space`, `radius`, `font`, `size`, `leading`, `weight`,
+  scales (`knob` density/radius-factor/motion, `space`, `radius`, `font`, `size`, `leading`, `weight`,
   `motion`, `border`, `shadow`, `breakpoint`; `shadow.xs`…`xl`/`inset` draw in `shadow.color`,
   which `Theme.oklch` sets per scheme). `Theme.oklch({ accent: { h, c, l }, … })` derives the
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,

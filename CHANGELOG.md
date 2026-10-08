@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins`: motion knob on the shared durations.**
+  `knob.motion` (default `'1'`) multiplies `motion.fast`/`normal`, so a
+  still theme is one scoped override and every recipe transition follows;
+  `prefers-reduced-motion` still wins through the reset. The control-size
+  knob stays unbuilt: no height scale exists for it to multiply.
+
 - **`examples/widgets`: Wave A showcase, eight thin compositions, live page.**
   Toolbar (RovingTabindex + Collection), Toggle (ToggleState, no Bundle),
   ToggleGroup (single Selection), Accordion (Collection + per-item

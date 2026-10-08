@@ -1,7 +1,9 @@
 /**
- * The non-color scales a design system shares across themes. Space and
- * radius multiply by the `density` and `radius-factor` knobs, so a compact
- * or a rounder theme is one override. `shadow` is drawn in `shadow.color`,
+ * The non-color scales a design system shares across themes. Space, radius,
+ * and durations multiply by the `density`, `radius-factor`, and `motion`
+ * knobs, so a compact, a rounder, or a stiller theme is one override
+ * (`motion: '0'` stills every recipe transition; `prefers-reduced-motion`
+ * still wins through the reset). `shadow` is drawn in `shadow.color`,
  * which a palette sets (`Theme.oklch` does, stronger in a dark scheme, where
  * a shadow mixed from the text would glow); alone it falls back to black. `breakpoint` is the record
  * `Style.responsive` takes; `breakpointWidths` gives the same names as pixel
@@ -12,12 +14,13 @@ import { define } from './core.js'
 
 const space = (rem: number) => `calc(${rem}rem * var(--fk-knob-density))`
 const radius = (px: number) => `calc(${px}px * var(--fk-knob-radius-factor))`
+const duration = (ms: number) => `calc(${ms}ms * var(--fk-knob-motion))`
 const shade = 'var(--fk-shadow-color, oklch(0% 0 0 / 0.12))'
 const shadow = (...layers: ReadonlyArray<string>) =>
   layers.map(layer => `${layer} ${shade}`).join(', ')
 
 export const tokens = define({
-  knob: { density: '1', 'radius-factor': '1' },
+  knob: { density: '1', 'radius-factor': '1', motion: '1' },
   space: {
     '3xs': space(0.125),
     '2xs': space(0.25),
@@ -50,7 +53,7 @@ export const tokens = define({
   },
   leading: { tight: '1.2', snug: '1.375', normal: '1.5', relaxed: '1.6' },
   weight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
-  motion: { fast: '150ms', normal: '250ms', ease: 'ease-out' },
+  motion: { fast: duration(150), normal: duration(250), ease: 'ease-out' },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
   // Raised a little to a lot: a pressed control, a lifted cell, a menu, a dialog.
   shadow: {

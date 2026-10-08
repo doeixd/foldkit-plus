@@ -52,11 +52,20 @@ describe('Theme.scoped', () => {
 })
 
 describe('Theme.tokens', () => {
-  it('scales space and radius by the density and radius knobs', () => {
-    expect(Theme.tokens.knob).toEqual({ density: '1', 'radius-factor': '1' })
+  it('scales space, radius, and durations by their knobs', () => {
+    expect(Theme.tokens.knob).toEqual({ density: '1', 'radius-factor': '1', motion: '1' })
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
     expect(Theme.tokens.radius.md).toBe('calc(6px * var(--fk-knob-radius-factor))')
     expect(Theme.tokens.radius.full).toBe('9999px')
+    expect(Theme.tokens.motion.fast).toBe('calc(150ms * var(--fk-knob-motion))')
+    expect(Theme.tokens.motion.normal).toBe('calc(250ms * var(--fk-knob-motion))')
+    expect(Theme.tokens.motion.ease).toBe('ease-out')
+  })
+
+  it('a still theme zeroes every recipe transition through the knob', () => {
+    const still = Theme.compose(Theme.tokens, { knob: { motion: '0' } })
+    expect(still.knob.motion).toBe('0')
+    expect(still.motion.fast).toBe('calc(150ms * var(--fk-knob-motion))')
   })
 
   it('names the groups a design system shares', () => {

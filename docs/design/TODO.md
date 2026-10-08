@@ -609,9 +609,11 @@ Recipes and accessibility patterns to build from. Its Phase 1A is the gated
   the pieces exist without the nouns; name them when a recipe needs one.
 - [x] **Phase 4:** themes as values (`Theme.define/compose/root/scoped/
   lightDark`) with knobs apart from variants (`knob.density`,
-  `knob.radius-factor`, contrast and hue factors re-derive the palette;
-  space/radius multiply by them). Open micro-items, no consumer yet: a
-  motion-scale knob and a control-size knob.
+  `knob.radius-factor`, `knob.motion` multiplying durations so a still theme
+  is one override; contrast and hue factors re-derive the palette;
+  space/radius multiply by them). Open micro-item, no consumer yet: a
+  control-size knob — deliberately not built, since no height scale exists
+  for it to multiply and inventing one means re-specifying recipe sizes.
 - [x] **Phase 5:** the platform floor as metadata (`pattern.floor`,
   catalog `floor`: what the browser already covers) plus the gate
   (`patterns.test.ts` refuses a contract that fails its pattern).
