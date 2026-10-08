@@ -20,6 +20,7 @@ import {
   Button,
   ButtonSlots,
   AvatarSlots,
+  TypographySlots,
   CardSlots,
   AlertSlots,
   SeparatorSlots,
@@ -88,6 +89,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Typography.def.variants).map(selection => Recipes.Typography(selection)),
   ...selections(Recipes.Avatar.def.variants).map(selection => Recipes.Avatar(selection)),
   ...selections(Recipes.Table.def.variants).map(selection => Recipes.Table(selection)),
   ...selections(Recipes.Label.def.variants).map(selection => Recipes.Label(selection)),
@@ -123,6 +125,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Typography: selections(Recipes.Typography.def.variants).map(
+    selection => Style.forSlots(TypographySlots)(Recipes.Typography(selection)).css,
   ),
   Avatar: selections(Recipes.Avatar.def.variants).map(
     selection => Style.forSlots(AvatarSlots)(Recipes.Avatar(selection)).css,
