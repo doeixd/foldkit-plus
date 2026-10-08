@@ -23,6 +23,13 @@ version changed; `pnpm` skips versions already in the registry.
   sections derive its attributes per item; `embed` replaces its container,
   so the test queries the drawn page.
 
+- **Wave B (`examples/widgets`): alert-dialog, autocomplete, otp-field,
+  hover-card, context-menu, menubar, navigation-menu.** Seven more thin
+  compositions: explicit-response and `nonModal` Overlay policies get their
+  first consumers; right-click (`OnContextMenu`) and hover (`OnMouseEnter` /
+  `OnPointerLeave`) arrive as triggers; roving cells carry an OTP with a
+  Backspace handoff. Pointer-exact positioning stays open. 96 tests.
+
 - **`foldkit-primitives`: Overlay policy over the existing pieces.**
   `Overlay.modal` / `Overlay.nonModal` (or an explicit `Policy`) into
   `Overlay.behaviors(...)`, spread into the view's pipe: `DismissLayer`

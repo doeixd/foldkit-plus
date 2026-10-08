@@ -97,3 +97,13 @@ checkbox-group, meter, command; the overlay-backed rows wait for Wave B).
 Two cells corrected along the way: `Filter.text` was never a helper (the
 filter is a function of the Model), and `Disclosure` names one pair (N
 sections derive its attributes per item).
+
+Wave B has landed too (`examples/widgets`: alert-dialog over an
+explicit-response policy; autocomplete, the first `nonModal` consumer;
+otp-field over roving cells; hover-card on immediate hover; context-menu on
+right-click; menubar over roving triggers; navigation-menu on hover plus
+click). Two cells corrected in turn: pointer-exact positioning stays open —
+`OnContextMenu` carries no coordinates and the `Anchor` Mount that binds to
+element ids burns ~35s under jsdom's zero geometry (portal or locked), so
+the menu places statically; and auto-advance on OTP type is not expressible
+(no input-event builder carries a focus selector).
