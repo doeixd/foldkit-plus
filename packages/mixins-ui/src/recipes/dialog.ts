@@ -42,7 +42,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
         background: ref.surface.base,
-        boxShadow: ref.shadow.xl,
+        boxShadow: ref.shadow['2xl'],
       }),
     ),
     title: component(

@@ -15,13 +15,15 @@ import { Message, ToastStack, initModel, rootOverrideOf, update } from '../src/m
 const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
 
 describe('design-system update', () => {
-  it('selects a hue, scheme, tabs, and plan', () => {
+  it('selects a hue, scheme, shadow strength, tabs, and plan', () => {
     const hue = update(modelForTests, Message.HueSelected({ hue: 172 }))
     expect(hue.model.hue).toBe(172)
     const scheme = update(hue.model, Message.SchemeSelected({ scheme: 'dark' }))
     expect(scheme.model.scheme).toBe('dark')
+    const shadow = update(scheme.model, Message.ShadowSelected({ strength: 60 }))
+    expect(shadow.model.shadow).toBe(60)
     const tabs = update(
-      scheme.model,
+      shadow.model,
       Message.SectionsTabs({
         message: UiTabs.Message.SelectedTab({ index: 2, value: 'settings' }),
       }),
@@ -278,15 +280,15 @@ describe('design-system update', () => {
     expect(noFiles.model.files).toHaveLength(0)
   })
 
-  it('declares the hue knob and scheme on :root, where derived tokens compute', () => {
-    expect(rootOverrideOf({ hue: 172, scheme: 'system' })).toBe(
-      ':root{--fk-knob-accent-h:172;color-scheme:light dark}',
+  it('declares the hue knob, shadow knob, and scheme on :root, where derived tokens compute', () => {
+    expect(rootOverrideOf({ hue: 172, scheme: 'system', shadow: 100 })).toBe(
+      ':root{--fk-knob-accent-h:172;--fk-knob-shadow-strength:100%;color-scheme:light dark}',
     )
-    expect(rootOverrideOf({ hue: 222, scheme: 'dark' })).toBe(
-      ':root{--fk-knob-accent-h:222;color-scheme:dark}',
+    expect(rootOverrideOf({ hue: 222, scheme: 'dark', shadow: 60 })).toBe(
+      ':root{--fk-knob-accent-h:222;--fk-knob-shadow-strength:60%;color-scheme:dark}',
     )
-    expect(rootOverrideOf({ hue: 38, scheme: 'light' })).toBe(
-      ':root{--fk-knob-accent-h:38;color-scheme:light}',
+    expect(rootOverrideOf({ hue: 38, scheme: 'light', shadow: 30 })).toBe(
+      ':root{--fk-knob-accent-h:38;--fk-knob-shadow-strength:30%;color-scheme:light}',
     )
   })
 })

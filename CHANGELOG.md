@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins` theme: deeper shadows and a strength knob.** The shadow
+  scale gains a `2xl` modal step (the Dialog recipe moved onto it), `lg`/`xl`
+  diffuse wider instead of ringing, and every layer mixes toward transparent
+  by the new `shadow-strength` knob (`100%` keeps today's look), so one
+  override dims the whole elevation system. The design-system demo exposes
+  the knob as Faint/Soft/Full presets in its header.
+
 - **`foldkit-remote-server/fetch`: Remote over the Fetch API.**
   `serveFetch({ server, resolvePrincipal, layer })` is a Worker's `fetch`
   (or any `Request`/`Response` runtime): reads, queries, and mutations ride

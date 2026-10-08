@@ -5,7 +5,10 @@
  * (`motion: '0'` stills every recipe transition; `prefers-reduced-motion`
  * still wins through the reset). `shadow` is drawn in `shadow.color`,
  * which a palette sets (`Theme.oklch` does, stronger in a dark scheme, where
- * a shadow mixed from the text would glow); alone it falls back to black. `breakpoint` is the record
+ * a shadow mixed from the text would glow); alone it falls back to black.
+ * Every layer is mixed toward transparent by the `shadow-strength` knob, so
+ * one override dims the whole elevation system without touching its shapes.
+ * `breakpoint` is the record
  * `Style.responsive` takes; `breakpointWidths` gives the same names as pixel
  * thresholds for `foldkit-primitives/media` Breakpoints.
  */
@@ -16,11 +19,12 @@ const space = (rem: number) => `calc(${rem}rem * var(--fk-knob-density))`
 const radius = (px: number) => `calc(${px}px * var(--fk-knob-radius-factor))`
 const duration = (ms: number) => `calc(${ms}ms * var(--fk-knob-motion))`
 const shade = 'var(--fk-shadow-color, oklch(0% 0 0 / 0.12))'
+const strength = 'var(--fk-knob-shadow-strength, 100%)'
 const shadow = (...layers: ReadonlyArray<string>) =>
-  layers.map(layer => `${layer} ${shade}`).join(', ')
+  layers.map(layer => `${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`).join(', ')
 
 export const tokens = define({
-  knob: { density: '1', 'radius-factor': '1', motion: '1' },
+  knob: { density: '1', 'radius-factor': '1', motion: '1', 'shadow-strength': '100%' },
   space: {
     '3xs': space(0.125),
     '2xs': space(0.25),
@@ -55,13 +59,16 @@ export const tokens = define({
   weight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
   motion: { fast: duration(150), normal: duration(250), ease: 'ease-out' },
   border: { thin: '1px', thick: '2px', heavy: '3px' },
-  // Raised a little to a lot: a pressed control, a lifted cell, a menu, a dialog.
+  // Raised a little to a lot: a pressed control, a lifted cell, a menu, a
+  // dialog. Each step is a tight contact layer plus a wide ambient one, so
+  // large surfaces diffuse instead of ringing; `2xl` is the modal step.
   shadow: {
     xs: shadow('0 1px 2px 0'),
     sm: shadow('0 1px 3px 0', '0 1px 2px -1px'),
     md: shadow('0 4px 6px -1px', '0 2px 4px -2px'),
-    lg: shadow('0 10px 15px -3px', '0 4px 6px -4px'),
-    xl: shadow('0 20px 25px -5px', '0 8px 10px -6px'),
+    lg: shadow('0 12px 28px -8px', '0 4px 8px -4px'),
+    xl: shadow('0 24px 48px -12px', '0 8px 16px -8px'),
+    '2xl': shadow('0 32px 64px -16px', '0 12px 24px -12px'),
     inset: shadow('inset 0 2px 4px 0'),
   },
   breakpoint: {

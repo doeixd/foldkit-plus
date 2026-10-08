@@ -171,6 +171,20 @@ test('collections show an empty state, a list, and a table', async () => {
   await seen('Team plans')
 })
 
+test('shadow presets rewrite the strength knob on :root', async () => {
+  mount()
+  await page.getByRole('button', { name: 'Soft' }).click()
+  await vi.waitFor(
+    () =>
+      expect(
+        [...document.querySelectorAll('style')].some(element =>
+          (element.textContent ?? '').includes('--fk-knob-shadow-strength:60%'),
+        ),
+      ).toBe(true),
+    { timeout: 10_000 },
+  )
+})
+
 test('slider offers the pointer over its bar and thumb', async () => {
   mount()
   await seen('Volume: 60')

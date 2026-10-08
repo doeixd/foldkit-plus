@@ -226,6 +226,7 @@ export const ToastStack: ReturnType<
 export const Model = Schema.Struct({
   hue: Schema.Number,
   scheme: Scheme,
+  shadow: Schema.Number,
   lineTab: LineTab,
   pillTab: PillTab,
   plan: Plan,
@@ -264,6 +265,7 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   HueSelected: { hue: Schema.Number },
   SchemeSelected: { scheme: Scheme },
+  ShadowSelected: { strength: Schema.Number },
   PlanSelected: { plan: Plan },
   NameTyped: { value: Schema.String },
   BioTyped: { value: Schema.String },
@@ -300,6 +302,7 @@ export type CalendarDate = typeof FoldkitCalendar.CalendarDate.Type
 export const initModel = (today: CalendarDate): Model => ({
   hue: 222,
   scheme: 'system',
+  shadow: 100,
   lineTab: 'overview',
   pillTab: 'week',
   plan: 'pro',
@@ -343,6 +346,9 @@ export const update = (model: Model, message: Message) =>
   Message.match(message, {
     HueSelected: ({ hue }) => ({ model: modifyFields(model, { hue: () => hue }) }),
     SchemeSelected: ({ scheme }) => ({ model: modifyFields(model, { scheme: () => scheme }) }),
+    ShadowSelected: ({ strength }) => ({
+      model: modifyFields(model, { shadow: () => strength }),
+    }),
     PlanSelected: ({ plan }) => ({ model: modifyFields(model, { plan: () => plan }) }),
     NameTyped: ({ value }) => ({ model: modifyFields(model, { name: () => value }) }),
     BioTyped: ({ value }) => ({ model: modifyFields(model, { bio: () => value }) }),
@@ -630,6 +636,12 @@ const schemes: ReadonlyArray<{ readonly label: string; readonly scheme: Scheme }
   { label: 'System', scheme: 'system' },
   { label: 'Light', scheme: 'light' },
   { label: 'Dark', scheme: 'dark' },
+]
+
+const shadows: ReadonlyArray<{ readonly label: string; readonly strength: number }> = [
+  { label: 'Faint', strength: 30 },
+  { label: 'Soft', strength: 60 },
+  { label: 'Full', strength: 100 },
 ]
 
 const lineTabs: ReadonlyArray<{ readonly value: LineTab; readonly label: string }> = [
@@ -1486,14 +1498,15 @@ const IconsDemo = SlotView.forMessages<Message>()
   .pipe(Style.attach(IconStyle.style))
 
 /**
- * The `:root` override the view renders from the Model. The hue knob and
- * color scheme must be set on `:root`, not on the page: derived tokens
- * (`--fk-hue-accent`, every `light-dark()` color) are computed at `:root`
- * and inherited already resolved, so a knob overridden on a subtree never
- * re-derives them. Unlayered, this wins over the layered token declarations.
+ * The `:root` override the view renders from the Model. The hue and shadow
+ * knobs and color scheme must be set on `:root`, not on the page: derived
+ * tokens (`--fk-hue-accent`, every `light-dark()` color, every shadow layer)
+ * are computed at `:root` and inherited already resolved, so a knob
+ * overridden on a subtree never re-derives them. Unlayered, this wins over
+ * the layered token declarations.
  */
-export const rootOverrideOf = (model: Pick<Model, 'hue' | 'scheme'>): string =>
-  `:root{--fk-knob-accent-h:${model.hue};color-scheme:${model.scheme === 'system' ? 'light dark' : model.scheme}}`
+export const rootOverrideOf = (model: Pick<Model, 'hue' | 'scheme' | 'shadow'>): string =>
+  `:root{--fk-knob-accent-h:${model.hue};--fk-knob-shadow-strength:${model.shadow}%;color-scheme:${model.scheme === 'system' ? 'light dark' : model.scheme}}`
 
 const fillSwatch = (
   slots: PageBuilders,
@@ -1581,6 +1594,22 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                     label: entry.label,
                     style: model.scheme === entry.scheme ? SecondaryButtonStyle : GhostButtonStyle,
                     onClick: Message.SchemeSelected({ scheme: entry.scheme }),
+                  },
+                  h,
+                ),
+              ),
+            ]),
+          ]),
+          h.div(slots.controlGroup.attrs(), [
+            h.p(slots.controlLabel.attrs(), ['Shadow strength (dims every shadow)']),
+            h.div(slots.row.attrs(), [
+              ...shadows.map(preset =>
+                Button.view(
+                  {
+                    label: preset.label,
+                    style:
+                      model.shadow === preset.strength ? SecondaryButtonStyle : GhostButtonStyle,
+                    onClick: Message.ShadowSelected({ strength: preset.strength }),
                   },
                   h,
                 ),

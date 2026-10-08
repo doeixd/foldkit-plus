@@ -53,7 +53,12 @@ describe('Theme.scoped', () => {
 
 describe('Theme.tokens', () => {
   it('scales space, radius, and durations by their knobs', () => {
-    expect(Theme.tokens.knob).toEqual({ density: '1', 'radius-factor': '1', motion: '1' })
+    expect(Theme.tokens.knob).toEqual({
+      density: '1',
+      'radius-factor': '1',
+      motion: '1',
+      'shadow-strength': '100%',
+    })
     expect(Theme.tokens.space.md).toBe('calc(1rem * var(--fk-knob-density))')
     expect(Theme.tokens.radius.md).toBe('calc(6px * var(--fk-knob-radius-factor))')
     expect(Theme.tokens.radius.full).toBe('9999px')
@@ -84,14 +89,19 @@ describe('Theme.tokens', () => {
     ])
   })
 
-  it('draws every shadow in the one color a palette sets, with a fallback alone', () => {
+  it('draws every shadow in the one color a palette sets, dimmed by the strength knob', () => {
     const steps = Object.values(Theme.tokens.shadow)
-    expect(steps).toHaveLength(6)
+    expect(steps).toHaveLength(7)
     for (const step of steps) {
       expect(step).toContain('var(--fk-shadow-color, oklch(0% 0 0 / 0.12))')
+      expect(step).toContain('var(--fk-knob-shadow-strength, 100%)')
     }
     // Each layer of a step is drawn in it, not only the first.
     expect(Theme.tokens.shadow.md.split('var(--fk-shadow-color').length - 1).toBe(2)
+  })
+
+  it('keeps a deeper step for modals', () => {
+    expect(Theme.tokens.shadow['2xl']).toContain('32px')
   })
 
   it('breakpoint is the record Style.responsive takes', () => {

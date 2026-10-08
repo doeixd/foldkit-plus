@@ -113,4 +113,26 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'every shadow answers to the strength knob',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: '`${layer} color-mix(in oklch, ${shade} ${strength}, transparent)`',
+        replace: '`${layer} color-mix(in oklch, ${shade} 100%, transparent)`',
+      },
+    ],
+    tests: ['packages/mixins/test/themePage.test.ts'],
+  },
+  {
+    name: 'modals sink deeper than panels',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: "    '2xl': shadow('0 32px 64px -16px', '0 12px 24px -12px'),",
+        replace: "    '2xl': shadow('0 24px 48px -12px', '0 8px 16px -8px'),",
+      },
+    ],
+    tests: ['packages/mixins/test/themePage.test.ts'],
+  },
 ]
