@@ -8,7 +8,7 @@
  * recipe, so the page is the documentation.
  */
 import { Match, Option, Schema } from 'effect'
-import { Calendar as FoldkitCalendar, File, Subscription, Update } from 'foldkit'
+import { Calendar as FoldkitCalendar, File, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { childAttributes } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -42,21 +42,17 @@ import {
   CalendarSlots,
   Checkbox,
   Combobox,
-  ComboboxSlots,
   ComboboxView,
   Dialog,
   Disclosure,
   Fieldset,
   FileDrop,
-  FileDropSlots,
   HoverIntent,
   HoverIntentSlots,
   Input,
   Listbox,
-  ListboxSlots,
   ListboxView,
   Menu,
-  MenuSlots,
   MenuView,
   Patterns,
   Popover,
@@ -72,13 +68,9 @@ import {
   Tooltip,
 } from 'foldkit-mixins-ui'
 import type {
-  ResolvedCombobox,
   ResolvedComboboxGroup,
-  ResolvedListbox,
   ResolvedListboxGroup,
-  ResolvedMenu,
   ResolvedMenuGroup,
-  ResolvedToast,
 } from 'foldkit-mixins-ui'
 import {
   AreaStyle,
@@ -116,6 +108,8 @@ import {
   PlanStyle,
   PopoverStyle,
   PrimaryButtonStyle,
+  RadioRowSlots,
+  RadioRowStyle,
   RadioStyle,
   SecondaryButtonStyle,
   SelectStyle,
@@ -885,12 +879,22 @@ const RadioDemo = (model: Pick<Model, 'contact' | 'contactGroup'>, h: HtmlBuilde
       hasOptionDescription: () => true,
       toView: render => {
         const resolved = RadioGroup.resolve(render, [RadioStyle.mixin], { input: undefined, h })
+        const rows = SlotView.buildersFor(RadioRowSlots, [RadioRowStyle.style.mixin], {
+          input: undefined,
+          h,
+        })
         return h.div(resolved.group, [
           ...resolved.options.map(option => {
             const known = contacts.find(contact => contact.value === option.value)
-            return h.div(option.option, [
-              h.label(option.label, [known?.label ?? option.value]),
-              h.span(option.description, [contactDescriptions[option.value]]),
+            return h.div(rows.row.attrs(), [
+              h.button(option.option, []),
+              h.div(
+                [],
+                [
+                  h.label(option.label, [known?.label ?? option.value]),
+                  h.span(option.description, [contactDescriptions[option.value]]),
+                ],
+              ),
             ])
           }),
         ])
@@ -1197,35 +1201,43 @@ const ToastDemo = (model: Pick<Model, 'toast'>, h: HtmlBuilder<Message>): Html =
     input: model,
     h,
   })
-  return h.submodel({
-    slotId: model.toast.id,
-    model: model.toast,
-    view: ToastStack.view,
-    viewInputs: {
-      position: 'BottomRight',
-      entryToView: (toastEntry, handlers: EntryHandlers) =>
-        h.div(
-          [],
-          [
-            h.p(entry.title.attrs(), [toastEntry.payload.title]),
-            ...Option.match(toastEntry.payload.maybeDescription, {
-              onNone: () => [],
-              onSome: text => [h.p(entry.text.attrs(), [text])],
-            }),
-            h.button(entry.dismiss.attrs(handlers.dismiss), ['Dismiss']),
-          ],
-        ),
-      toView: Toast.toView([ToastStyle.mixin], { h }, resolved =>
-        h.div(
-          resolved.container,
-          resolved.entries.map(entryView =>
-            h.keyed('div')(entryView.id, entryView.attributes, [entryView.content]),
+  // A bare wrapper: the section's stack layout forces `inline-size: 100%` on
+  // its direct children, which would stretch the fixed container full-width.
+  // The wrapper takes that rule instead, and the container keeps its size.
+  return h.div(
+    [],
+    [
+      h.submodel({
+        slotId: model.toast.id,
+        model: model.toast,
+        view: ToastStack.view,
+        viewInputs: {
+          position: 'BottomRight',
+          entryToView: (toastEntry, handlers: EntryHandlers) =>
+            h.div(
+              [],
+              [
+                h.p(entry.title.attrs(), [toastEntry.payload.title]),
+                ...Option.match(toastEntry.payload.maybeDescription, {
+                  onNone: () => [],
+                  onSome: text => [h.p(entry.text.attrs(), [text])],
+                }),
+                h.button(entry.dismiss.attrs(handlers.dismiss), ['Dismiss']),
+              ],
+            ),
+          toView: Toast.toView([ToastStyle.mixin], { h }, resolved =>
+            h.div(
+              resolved.container,
+              resolved.entries.map(entryView =>
+                h.keyed('div')(entryView.id, entryView.attributes, [entryView.content]),
+              ),
+            ),
           ),
-        ),
-      ),
-    },
-    toParentMessage: message => Message.Toast({ message }),
-  })
+        },
+        toParentMessage: message => Message.Toast({ message }),
+      }),
+    ],
+  )
 }
 
 /** An attachment drop zone with the files it collected. */
@@ -1739,7 +1751,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('choice')]), [
           h.h2(slots.sectionTitle.attrs(), ['Choice']),
           h.p(slots.sectionText.attrs(), [
-            'One value from many: a native Select, radio pills, a live slider — drag it or use the arrow keys — a listbox, a filtering combobox, and a Disclosure, each through its slot contract.',
+            'One value from many: a native Select, radio circles, a live slider — drag it or use the arrow keys — a listbox, a filtering combobox, and a Disclosure, each through its slot contract.',
           ]),
           UiSelect.view(
             {

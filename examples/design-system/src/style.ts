@@ -238,43 +238,9 @@ export const ToggleStyle = app.forSlots(SwitchSlots)(Recipes.Switch({ tone: 'acc
   name: 'ToggleStyle',
 })
 
-/**
- * Select has no shipped recipe, so it is styled here to match the text
- * field: the same border, radius, and density, with room for a chevron.
- */
-export const SelectStyle = app.forSlots(SelectSlots)(
-  {
-    select: [
-      L.in('layouts', Layout.stack({ gap: '0' })),
-      {
-        display: 'block',
-        inlineSize: '100%',
-        padding: `${t.space.xs} 2rem ${t.space.xs} ${t.space.sm}`,
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.md,
-        background: t.surface.base,
-        color: t.text.default,
-        font: 'inherit',
-        lineHeight: t.leading.normal,
-        appearance: 'none',
-      },
-      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: t.outline.overt }),
-      Style.pseudo(':focus-visible', {
-        outline: `${t.border.thick} solid ${t.outline.focus}`,
-        outlineOffset: '2px',
-      }),
-    ],
-    label: [
-      U.m('0'),
-      U.text('sm'),
-      U.font('medium'),
-      U.color('text.overt'),
-      { display: 'block', marginBlockEnd: t.space['2xs'] },
-    ],
-    description: [U.m('0'), U.text('sm'), U.color('text.muted')],
-  },
-  { name: 'SelectStyle' },
-)
+export const SelectStyle = app.forSlots(SelectSlots)(Recipes.Select({}), {
+  name: 'SelectStyle',
+})
 
 /** A collapsible section: a ghost-like trigger and an indented panel. */
 export const DisclosureStyle = app.forSlots(DisclosureSlots)(
@@ -327,75 +293,20 @@ export const FieldsetStyle = app.forSlots(FieldsetSlots)(
   { name: 'FieldsetStyle' },
 )
 
-/** Radio options as pills; the chosen one takes the accent tint and ink. */
-export const RadioStyle = app.forSlots(RadioGroupSlots)(
-  {
-    group: [L.in('layouts', Layout.cluster({ gap: t.space['2xs'], align: 'center' }))],
-    option: [
-      U.text('sm'),
-      U.font('medium'),
-      {
-        padding: `${t.space['2xs']} ${t.space.sm}`,
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.full,
-        background: 'transparent',
-        color: t.text.muted,
-        font: 'inherit',
-        cursor: 'pointer',
-      },
-      Style.pseudo(':hover', { color: t.text.overt }),
-      Style.pseudo('[aria-selected="true"]', {
-        background: t.accent.subtle,
-        borderColor: 'transparent',
-        color: t.accent.ink,
-      }),
-    ],
-    label: [U.m('0'), U.text('sm'), U.font('medium'), U.color('text.overt')],
-    description: [U.m('0'), U.text('sm'), U.color('text.muted')],
-  },
-  { name: 'RadioStyle' },
-)
+/** Radio options as circles; the chosen one fills with a dot. */
+export const RadioStyle = app.forSlots(RadioGroupSlots)(Recipes.RadioGroup({}), {
+  name: 'RadioStyle',
+})
 
-/**
- * A volume-style slider preview. Geometry (fill width, thumb position) is
- * left to the view's inline style; the style owns the track, fill, and
- * thumb looks only.
- */
-export const SliderStyle = app.forSlots(SliderSlots)(
+export const RadioRowSlots = Slots.define({
+  row: Slot.make({ capability: Capability.Container }),
+})
+
+export const RadioRowStyle = app.slots(
   {
-    root: [L.in('layouts', Layout.stack({ gap: t.space['2xs'] })), { maxWidth: '20rem' }],
-    track: [
-      {
-        position: 'relative',
-        blockSize: '0.375rem',
-        borderRadius: t.radius.full,
-        background: t.surface.muted,
-      },
-    ],
-    filledTrack: [
-      {
-        position: 'absolute',
-        insetBlock: '0',
-        insetInlineStart: '0',
-        borderRadius: t.radius.full,
-        background: t.accent.default,
-      },
-    ],
-    thumb: [
-      {
-        position: 'absolute',
-        insetBlockStart: '50%',
-        blockSize: '1rem',
-        inlineSize: '1rem',
-        borderRadius: t.radius.full,
-        background: t.surface.base,
-        border: `${t.border.thick} solid ${t.accent.default}`,
-        translate: '-50% -50%',
-      },
-    ],
-    label: [U.m('0'), U.text('sm'), U.font('medium'), U.color('text.overt')],
+    row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' }))],
   },
-  { name: 'SliderStyle' },
+  { name: 'RadioRowStyle' },
 )
 
 /**
@@ -575,76 +486,22 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
   { name: 'CalendarStyle' },
 )
 
-// --- overlay previews ------------------------------------------------------------------
-// Popover, Tooltip, and HoverIntent are Submodels; the demo draws their slots
-// statically (trigger plus panel in place), so the section shows the look
-// while the state stays two booleans in the Model.
+export const SliderStyle = app.forSlots(SliderSlots)(Recipes.Slider({}), {
+  name: 'SliderStyle',
+})
+
+// --- overlays ----------------------------------------------------------------------
+// Popover, Tooltip, and HoverIntent are Submodels: each trigger draws through
+// the component, each panel only while open.
 
 /** A floating card with a shadow, drawn in place for the preview. */
-export const PopoverStyle = app.forSlots(PopoverSlots)(
-  {
-    button: [
-      U.text('sm'),
-      U.font('medium'),
-      {
-        padding: `${t.space.xs} ${t.space.md}`,
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.md,
-        background: 'transparent',
-        color: t.text.default,
-        font: 'inherit',
-        cursor: 'pointer',
-      },
-      Style.pseudo(':hover', { background: t.surface.muted }),
-    ],
-    panel: [
-      {
-        padding: t.space.md,
-        maxWidth: '18rem',
-        border: `${t.border.thin} solid ${t.outline.subtle}`,
-        borderRadius: t.radius.lg,
-        background: t.surface.base,
-        boxShadow: t.shadow.lg,
-        color: t.text.muted,
-        zIndex: '20',
-      },
-    ],
-    backdrop: [{ position: 'fixed', inset: '0' }],
-  },
-  { name: 'PopoverStyle' },
-)
+export const PopoverStyle = app.forSlots(PopoverSlots)(Recipes.Popover({}), {
+  name: 'PopoverStyle',
+})
 
-/** A dark pill, as tooltips read on any ground. */
-export const TooltipStyle = app.forSlots(TooltipSlots)(
-  {
-    trigger: [
-      U.text('sm'),
-      U.font('medium'),
-      {
-        padding: '0',
-        border: '0',
-        background: 'transparent',
-        color: t.text.default,
-        font: 'inherit',
-        textDecoration: 'underline dotted',
-        textUnderlineOffset: '3px',
-        cursor: 'default',
-      },
-    ],
-    panel: [
-      U.text('xs'),
-      {
-        display: 'inline-block',
-        marginInlineStart: t.space.xs,
-        padding: `${t.space['3xs']} ${t.space.xs}`,
-        borderRadius: t.radius.md,
-        background: t.text.overt,
-        color: t.surface.base,
-      },
-    ],
-  },
-  { name: 'TooltipStyle' },
-)
+export const TooltipStyle = app.forSlots(TooltipSlots)(Recipes.Tooltip({}), {
+  name: 'TooltipStyle',
+})
 
 /** A hover card: a trigger with its panel beside it, both drawn in place. */
 export const HoverCardStyle = app.forSlots(HoverIntentSlots)(
@@ -680,8 +537,8 @@ export const HoverCardStyle = app.forSlots(HoverIntentSlots)(
 )
 
 // --- pickers: menu, listbox, combobox -------------------------------------------------
-// None of these ships a recipe, so each is styled here in the shadcn skin:
-// a bordered panel under the trigger, rows that tint when chosen.
+// Each draws through its shipped recipe now. The date panel below reuses the
+// popup card language through this shared base.
 
 const popupPanel = [
   {
@@ -698,150 +555,17 @@ const popupPanel = [
   },
 ]
 
-const popupRow = [
-  U.text('sm'),
-  {
-    display: 'block',
-    inlineSize: '100%',
-    boxSizing: 'border-box',
-    padding: `${t.space['2xs']} ${t.space.sm}`,
-    border: '0',
-    borderRadius: t.radius.md,
-    background: 'transparent',
-    color: t.text.default,
-    font: 'inherit',
-    textAlign: 'start',
-    cursor: 'pointer',
-  },
-  Style.pseudo(':hover', { background: t.surface.muted }),
-]
+export const MenuStyle = app.forSlots(MenuSlots)(Recipes.Menu({}), {
+  name: 'MenuStyle',
+})
 
-export const MenuStyle = app.forSlots(MenuSlots)(
-  {
-    wrapper: [{ position: 'relative', display: 'inline-block' }],
-    button: [
-      U.text('sm'),
-      U.font('medium'),
-      {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: t.space.xs,
-        padding: `${t.space.xs} ${t.space.md}`,
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.md,
-        background: 'transparent',
-        color: t.text.default,
-        font: 'inherit',
-        cursor: 'pointer',
-      },
-      Style.pseudo(':hover', { background: t.surface.muted }),
-    ],
-    backdrop: [{ position: 'fixed', inset: '0' }],
-    items: popupPanel,
-    item: [
-      ...popupRow,
-      Style.pseudo('[aria-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
-    ],
-    heading: [
-      U.m('0'),
-      U.text('xs'),
-      U.font('semibold'),
-      U.color('text.muted'),
-      { padding: `${t.space['2xs']} ${t.space.sm}`, textTransform: 'uppercase' },
-    ],
-    separator: [
-      {
-        marginBlock: t.space['2xs'],
-        borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
-      },
-    ],
-  },
-  { name: 'MenuStyle' },
-)
+export const ListboxStyle = app.forSlots(ListboxSlots)(Recipes.Listbox({}), {
+  name: 'ListboxStyle',
+})
 
-export const ListboxStyle = app.forSlots(ListboxSlots)(
-  {
-    wrapper: [{ position: 'relative', display: 'inline-block', minInlineSize: '14rem' }],
-    button: [
-      {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: t.space.sm,
-        inlineSize: '100%',
-        padding: `${t.space.xs} 2rem ${t.space.xs} ${t.space.sm}`,
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.md,
-        background: t.surface.base,
-        color: t.text.default,
-        font: 'inherit',
-        lineHeight: t.leading.normal,
-        appearance: 'none',
-        cursor: 'pointer',
-      },
-      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: t.outline.overt }),
-    ],
-    backdrop: [{ position: 'fixed', inset: '0' }],
-    items: popupPanel,
-    item: [
-      ...popupRow,
-      Style.pseudo('[aria-selected="true"]', { background: t.accent.subtle, color: t.accent.ink }),
-    ],
-  },
-  { name: 'ListboxStyle' },
-)
-
-export const ComboBoxStyle = app.forSlots(ComboboxSlots)(
-  {
-    wrapper: [{ position: 'relative', display: 'inline-block', minInlineSize: '14rem' }],
-    inputWrapper: [
-      {
-        display: 'flex',
-        alignItems: 'center',
-        border: `${t.border.thin} solid ${t.outline.default}`,
-        borderRadius: t.radius.md,
-        background: t.surface.base,
-      },
-      Style.pseudo(':hover:not(:focus-within)', { borderColor: t.outline.overt }),
-      Style.pseudo(':focus-within', {
-        outline: `${t.border.thick} solid ${t.outline.focus}`,
-        outlineOffset: '2px',
-      }),
-    ],
-    input: [
-      {
-        flex: '1',
-        minInlineSize: '0',
-        padding: `${t.space.xs} ${t.space.sm}`,
-        border: '0',
-        background: 'transparent',
-        color: t.text.default,
-        font: 'inherit',
-        lineHeight: t.leading.normal,
-      },
-      Style.pseudo(':focus-visible', { outline: 'none' }),
-    ],
-    toggleButton: [
-      U.text('sm'),
-      {
-        padding: `${t.space.xs} ${t.space.sm}`,
-        border: '0',
-        background: 'transparent',
-        color: t.text.muted,
-        font: 'inherit',
-        cursor: 'pointer',
-      },
-      Style.pseudo(':hover', { color: t.text.overt }),
-    ],
-    backdrop: [{ position: 'fixed', inset: '0' }],
-    items: popupPanel,
-    item: [
-      ...popupRow,
-      Style.pseudo('[aria-selected="true"]', { background: t.accent.subtle, color: t.accent.ink }),
-    ],
-  },
-  { name: 'ComboBoxStyle' },
-)
+export const ComboBoxStyle = app.forSlots(ComboboxSlots)(Recipes.Combobox({}), {
+  name: 'ComboBoxStyle',
+})
 
 // --- date chrome: the picker shell rides attribute bundles ---------------------------
 // The DatePicker adapter resolves in the child's own Message universe, so a
@@ -892,31 +616,9 @@ export const DateChromeStyle = app.slots(
 
 // --- toast + file drop -------------------------------------------------------------------
 
-export const ToastStyle = app.forSlots(ToastSlots)(
-  {
-    container: [
-      L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      {
-        position: 'fixed',
-        insetBlockEnd: t.space.lg,
-        insetInlineEnd: t.space.lg,
-        inlineSize: 'min(22rem, calc(100vw - 2rem))',
-        zIndex: '50',
-      },
-    ],
-    entry: [
-      {
-        padding: t.space.md,
-        border: `${t.border.thin} solid ${t.outline.subtle}`,
-        borderInlineStart: `${t.border.thick} solid ${t.accent.default}`,
-        borderRadius: t.radius.lg,
-        background: t.surface.base,
-        boxShadow: t.shadow.lg,
-      },
-    ],
-  },
-  { name: 'ToastStyle' },
-)
+export const ToastStyle = app.forSlots(ToastSlots)(Recipes.Toast({}), {
+  name: 'ToastStyle',
+})
 
 export const ToastEntrySlots = Slots.define({
   title: Slot.make({ capability: Capability.Container }),
@@ -944,39 +646,9 @@ export const ToastEntryStyle = app.slots(
   { name: 'ToastEntryStyle' },
 )
 
-export const FileDropStyle = app.forSlots(FileDropSlots)(
-  {
-    root: [
-      L.in('layouts', Layout.stack({ gap: t.space['2xs'], align: 'center' })),
-      {
-        padding: t.space.xl,
-        border: `${t.border.thin} dashed ${t.outline.default}`,
-        borderRadius: t.radius.lg,
-        background: t.surface.subtle,
-        color: t.text.muted,
-        textAlign: 'center',
-        cursor: 'pointer',
-      },
-      Style.pseudo(':hover', { borderColor: t.outline.overt }),
-      Style.pseudo('[data-drag-over="true"]', {
-        borderColor: t.accent.default,
-        background: t.accent.subtle,
-        color: t.accent.ink,
-      }),
-      // The input keeps its component-owned class, which a mixin class does
-      // not survive beside (only the base class reaches the element), so the
-      // visually-hidden treatment hangs off the root instead.
-      Style.nest('& > input', {
-        position: 'absolute',
-        inlineSize: '1px',
-        blockSize: '1px',
-        overflow: 'hidden',
-        clipPath: 'inset(50%)',
-      }),
-    ],
-  },
-  { name: 'FileDropStyle' },
-)
+export const FileDropStyle = app.forSlots(FileDropSlots)(Recipes.FileDrop({}), {
+  name: 'FileDropStyle',
+})
 
 export const FileTextSlots = Slots.define({
   primary: Slot.make({ capability: Capability.Container }),
