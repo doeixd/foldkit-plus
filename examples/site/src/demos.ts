@@ -142,7 +142,34 @@ export const gridDemo: Demo = {
   packages: ['data-grid', 'mixins-data-grid', 'bundle'],
 }
 
-export const demos: ReadonlyArray<Demo> = [cmsDemo, registryDemo, pagesDemo, todoDemo, gridDemo]
+export const widgetsDemo: Demo = {
+  title: 'Eight widgets from shared primitives',
+  url: 'https://foldkit-widgets-demo.pages.dev/',
+  example: 'examples/widgets',
+  proves:
+    'Once the capabilities exist, a family of widgets gets cheap: each one is a Bundle placement plus Behaviors on a shared Collection description, with no bespoke state machine.',
+  tryThis: [
+    {
+      title: 'Press',
+      text: 'Press Bold in the toolbar, flip the toggle, pick an alignment: every island answers on its own.',
+    },
+    {
+      title: 'Narrow',
+      text: 'Type "new" in the command palette: six commands narrow to two, and picking one selects it.',
+    },
+  ],
+  readFirst: 'examples/widgets/src/toolbar/app.ts',
+  packages: ['bundle', 'mixins', 'primitives'],
+}
+
+export const demos: ReadonlyArray<Demo> = [
+  cmsDemo,
+  registryDemo,
+  pagesDemo,
+  todoDemo,
+  gridDemo,
+  widgetsDemo,
+]
 
 /** Where the list of every demo is published. */
 export const SITE_URL = 'https://foldkit-plus.pages.dev/'

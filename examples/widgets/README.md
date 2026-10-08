@@ -5,11 +5,16 @@ placement plus Behaviors on a shared Collection description, no bespoke
 state machines. Proves the Phase 7 claim: once the capabilities exist, a
 family of widgets gets cheap.
 
+**Try it:** published at
+[foldkit-widgets-demo.pages.dev](https://foldkit-widgets-demo.pages.dev/),
+as static files; every island boots in the page.
+
 ## Run it
 
 ```bash
 pnpm --filter foldkit-example-widgets demo   # headless trace of every widget
 pnpm --filter foldkit-example-widgets dev     # interactive page (Vite)
+pnpm --filter foldkit-example-widgets build   # static files, to dist/
 pnpm --filter foldkit-example-widgets typecheck
 npx vitest run examples/widgets
 ```

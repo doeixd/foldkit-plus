@@ -31,6 +31,7 @@ do leaves it:
 - [Pages two tabs edit at once](https://foldkit-pages-demo.pages.dev/) ([`examples/pages`](./examples/pages)): Rich text two people edit at the same time, online or not, converging through one journal.
 - [A todo list an agent can use](https://foldkit-todo-demo.pages.dev/) ([`examples/todo-app`](./examples/todo-app)): One application definition drives the view, the tools an agent calls, the document replicas share, and the policy the server enforces.
 - [A data grid over 100,000 rows](https://foldkit-grid-demo.pages.dev/) ([`examples/data-grid`](./examples/data-grid)): A grid that owns focus, selection, columns and the open editor, while the application owns every row.
+- [Eight widgets from shared primitives](https://foldkit-widgets-demo.pages.dev/) ([`examples/widgets`](./examples/widgets)): Once the capabilities exist, a family of widgets gets cheap: each one is a Bundle placement plus Behaviors on a shared Collection description, with no bespoke state machine.
 <!-- /demos -->
 
 ## Choose who owns the state
