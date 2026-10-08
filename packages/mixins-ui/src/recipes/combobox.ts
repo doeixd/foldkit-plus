@@ -4,7 +4,15 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ComboboxSlots } from '../combobox.js'
-import { component, disabled, focusRing, ref, transition } from './design.js'
+import {
+  component,
+  disabled,
+  focusRing,
+  focusWithin,
+  listScroll,
+  ref,
+  transition,
+} from './design.js'
 import { backdrop, density, heading, item, panel, separator } from './popup.js'
 
 const selected = '[aria-selected="true"]'
@@ -22,10 +30,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         ...transition('border-color, background-color'),
       }),
       Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
-      Style.pseudo(':focus-within', {
-        outline: `${ref.border.thick} solid ${ref.outline.focus}`,
-        outlineOffset: '2px',
-      }),
+      focusWithin,
     ),
     input: component(
       Style.self({
@@ -59,7 +64,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
     ),
     backdrop,
     items: panel,
-    scroll: component(Style.self({ maxBlockSize: '16rem', overflowY: 'auto' })),
+    scroll: listScroll,
     item: component(
       item,
       Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),

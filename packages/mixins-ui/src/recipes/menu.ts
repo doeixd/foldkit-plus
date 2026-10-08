@@ -4,7 +4,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { MenuSlots } from '../menu.js'
-import { component, focusRing, hover, ref } from './design.js'
+import { component, focusRing, hover, listScroll, ref } from './design.js'
 import { backdrop, density, heading, item, panel, separator } from './popup.js'
 
 export const Menu = Style.recipeFor(MenuSlots)({
@@ -31,7 +31,7 @@ export const Menu = Style.recipeFor(MenuSlots)({
     ),
     backdrop,
     items: panel,
-    scroll: component(Style.self({ maxBlockSize: '16rem', overflowY: 'auto' })),
+    scroll: listScroll,
     item,
     heading,
     separator,

@@ -86,7 +86,7 @@ describe('itemsOf', () => {
 
 describe('Pagination view', () => {
   const drawn = (page: number, pageCount: number) =>
-    view({ page, pageCount, onPage: page => ({ _tag: 'Go', page }) }, h)
+    view<Message>({ page, pageCount, onPage: page => Message.Go({ page }) }, h)
 
   it('lands in a named landmark with its stops', () => {
     const nav = drawn(5, 10)
@@ -131,7 +131,9 @@ describe('Pagination on the runtime', () => {
   it('choosing a stop moves the page', async () => {
     draw({ page: 5 })
     await vi.waitFor(() => expect(document.body.textContent).toContain('on 5'))
-    const six = [...document.querySelectorAll('button')].find(button => button.textContent === '6')
+    const six = Array.from(document.querySelectorAll('button')).find(
+      button => button.textContent === '6',
+    )
     if (six === undefined) throw new Error('no stop 6')
     six.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('on 6'))

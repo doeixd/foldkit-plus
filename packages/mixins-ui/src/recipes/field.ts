@@ -5,7 +5,7 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { InputSlots } from '../input.js'
 import { TextareaSlots } from '../textarea.js'
-import { component, disabled, focusRing, ref, transition, variant } from './design.js'
+import { component, disabled, focusRing, focusWithin, ref, transition, variant } from './design.js'
 
 const control = component(
   Style.self({
@@ -102,10 +102,7 @@ export const InputGroup: {
       ...transition('border-color'),
     }),
     Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
-    Style.pseudo(':focus-within', {
-      outline: `${ref.border.thick} solid ${ref.outline.focus}`,
-      outlineOffset: '2px',
-    }),
+    focusWithin,
     Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
   ),
   affix: component(

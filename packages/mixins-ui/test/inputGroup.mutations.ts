@@ -7,12 +7,13 @@ const tests = ['packages/mixins-ui/test/inputGroup.test.ts']
 
 export default [
   {
-    name: 'the group rings with the default outline',
+    name: 'every group rings with the default outline',
     edits: [
       {
-        file: '../src/recipes/field.ts',
-        find: 'outline: `${ref.border.thick} solid ${ref.outline.focus}`',
-        replace: 'outline: `${ref.border.thick} solid ${ref.outline.default}`',
+        file: '../src/recipes/design.ts',
+        find: "export const focusWithin: StyleValue = Style.pseudo(':focus-within', {\n  outline: `${ref.border.thick} solid ${ref.outline.focus}`,",
+        replace:
+          "export const focusWithin: StyleValue = Style.pseudo(':focus-within', {\n  outline: `${ref.border.thick} solid ${ref.outline.default}`,",
       },
     ],
     tests,

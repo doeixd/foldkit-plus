@@ -33,6 +33,21 @@ export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
   outlineOffset: '2px',
 })
 
+/**
+ * The ring a group draws while the control inside it has focus. One piece,
+ * not one per group, so the field group and the combobox agree on chrome
+ * without copying it.
+ */
+export const focusWithin: StyleValue = Style.pseudo(':focus-within', {
+  outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+  outlineOffset: '2px',
+})
+
+/** One capped scroll region for popup lists, in the `components` layer. */
+export const listScroll: StyleValue = component(
+  Style.self({ maxBlockSize: '16rem', overflowY: 'auto' }),
+)
+
 export const disabled: StyleValue = Style.pseudo(':is([aria-disabled="true"], :disabled)', {
   opacity: '0.5',
   cursor: 'not-allowed',

@@ -5,7 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ListboxSlots } from '../listbox.js'
-import { component, disabled, focusRing, ref, transition } from './design.js'
+import { component, disabled, focusRing, listScroll, ref, transition } from './design.js'
 import { backdrop, density, heading, item, panel, separator } from './popup.js'
 
 const selected = '[aria-selected="true"]'
@@ -37,7 +37,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     ),
     backdrop,
     items: panel,
-    scroll: component(Style.self({ maxBlockSize: '16rem', overflowY: 'auto' })),
+    scroll: listScroll,
     item: component(
       item,
       Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),
