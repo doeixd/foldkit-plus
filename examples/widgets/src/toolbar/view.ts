@@ -42,7 +42,9 @@ export const Toolbar = SlotView.forMessages<Message>()
             [
               h.Key(tool.id),
               h.AriaPressed(model.active === tool.id ? 'true' : 'false'),
-              ...(tool.disabled ? [] : [h.OnClick(Message.PressedTool({ id: tool.id }))]),
+              ...(tool.disabled
+                ? [h.Title('Unavailable with plain text selected')]
+                : [h.OnClick(Message.PressedTool({ id: tool.id }))]),
             ],
             items.slotItem(index),
           ),

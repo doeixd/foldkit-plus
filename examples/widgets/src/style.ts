@@ -69,7 +69,12 @@ export const toolbarStyle = (slots: typeof ToolbarSlots) =>
   Style.forSlots(slots)(
     {
       root: Style.self({ display: 'flex', gap: '0.5rem' }),
-      tool: Style.compose(control, focus, pressed),
+      tool: Style.compose(
+        control,
+        focus,
+        pressed,
+        Style.states({ true: { opacity: '0.45', cursor: 'not-allowed' } }, 'aria-disabled'),
+      ),
     },
     { name: 'ShowcaseToolbar' },
   )

@@ -58,7 +58,10 @@ describe('view structure', () => {
   it('enabled tools are clickable and the disabled one is not', () => {
     const bar = Inert.draw(Toolbar, initial.model)
     expect(typeof clickOf(Inert.byLabel(bar, 'Bold')[0])).toBe('function')
-    expect(clickOf(Inert.byLabel(bar, 'Strikethrough')[0])).toBeUndefined()
+    const strike = Inert.byLabel(bar, 'Strikethrough')[0]
+    expect(clickOf(strike)).toBeUndefined()
+    expect(Inert.value(strike, 'aria-disabled')).toBe('true')
+    expect(Inert.value(strike, 'title')).toBe('Unavailable with plain text selected')
   })
 })
 
