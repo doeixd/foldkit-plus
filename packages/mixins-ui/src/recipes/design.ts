@@ -24,6 +24,10 @@ export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
 export const variant = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('variants', Style.compose(...pieces))
 
+/** One density step: padding with a font size, for controls sized by padding. */
+export const density = (block: string, inline: string, font: string): StyleValue =>
+  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
+
 /** A hover rule that skips a disabled element. */
 export const hover = (declarations: Declarations): StyleValue =>
   Style.pseudo(':hover:not([aria-disabled="true"], :disabled)', declarations)

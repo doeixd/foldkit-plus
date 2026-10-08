@@ -9,6 +9,7 @@ import { Style } from 'foldkit-mixins'
 import { ButtonSlots } from '../button.js'
 import {
   component,
+  density,
   disabled,
   focusRing,
   ref,
@@ -19,9 +20,6 @@ import {
   variant,
   hover,
 } from './design.js'
-
-const size = (block: string, inline: string, font: string) =>
-  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
 
 /**
  * Text on a button with no fill: the tone's ink, unless a container drawn in a
@@ -115,9 +113,9 @@ export const Button = Style.recipeFor(ButtonSlots)({
       },
     },
     size: {
-      sm: { button: size(ref.space['2xs'], ref.space.sm, ref.size.sm) },
-      md: { button: size(ref.space.xs, ref.space.md, ref.size.md) },
-      lg: { button: size(ref.space.sm, ref.space.lg, ref.size.lg) },
+      sm: { button: density(ref.space['2xs'], ref.space.sm, ref.size.sm) },
+      md: { button: density(ref.space.xs, ref.space.md, ref.size.md) },
+      lg: { button: density(ref.space.sm, ref.space.lg, ref.size.lg) },
     },
   },
   defaults: { tone: 'accent', variant: 'solid', size: 'md' },

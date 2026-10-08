@@ -5,7 +5,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { BreadcrumbSlots } from '../breadcrumb.js'
-import { component, ref, variant } from './design.js'
+import { component, ref } from './design.js'
 
 export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
   base: {

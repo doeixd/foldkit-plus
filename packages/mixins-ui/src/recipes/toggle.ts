@@ -66,7 +66,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         inlineSize: '32%',
         blockSize: '56%',
         border: `solid ${toneVar('on-fill')}`,
-        borderWidth: '0 2px 2px 0',
+        borderWidth: `0 ${ref.border.thick} ${ref.border.thick} 0`,
         rotate: '45deg',
       }),
       Style.pseudo('[aria-checked="mixed"]::after', {

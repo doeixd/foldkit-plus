@@ -7,10 +7,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { DatePickerSlots } from '../datePicker.js'
-import { component, disabled, focusRing, ref, transition, variant } from './design.js'
-
-const size = (block: string, inline: string, font: string) =>
-  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
+import { component, density, disabled, focusRing, ref, transition } from './design.js'
 
 export const DatePicker = Style.recipeFor(DatePickerSlots)({
   base: {
@@ -46,8 +43,8 @@ export const DatePicker = Style.recipeFor(DatePickerSlots)({
   },
   variants: {
     size: {
-      sm: { trigger: size(ref.space['2xs'], ref.space.sm, ref.size.sm) },
-      md: { trigger: size(ref.space.xs, ref.space.md, ref.size.md) },
+      sm: { trigger: density(ref.space['2xs'], ref.space.sm, ref.size.sm) },
+      md: { trigger: density(ref.space.xs, ref.space.md, ref.size.md) },
     },
   },
   defaults: { size: 'md' },

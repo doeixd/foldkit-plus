@@ -4,6 +4,7 @@
  * rows for menus and palettes, comfortable ones for files and contacts.
  */
 import { Style } from 'foldkit-mixins'
+import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ItemSlots } from '../item.js'
 import { component, ref, variant } from './design.js'
 
@@ -35,19 +36,15 @@ export const Item = Style.recipeFor(ItemSlots)({
       }),
     ),
     title: component(
+      U.truncate,
       Style.self({
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
         fontWeight: ref.weight.semibold,
         color: ref.text.overt,
       }),
     ),
     description: component(
+      U.truncate,
       Style.self({
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
         fontSize: ref.size.sm,
         color: ref.text.muted,
       }),

@@ -5,7 +5,16 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { InputSlots } from '../input.js'
 import { TextareaSlots } from '../textarea.js'
-import { component, disabled, focusRing, focusWithin, ref, transition, variant } from './design.js'
+import {
+  component,
+  density,
+  disabled,
+  focusRing,
+  focusWithin,
+  ref,
+  transition,
+  variant,
+} from './design.js'
 
 const control = component(
   Style.self({
@@ -44,13 +53,10 @@ const description = component(
   }),
 )
 
-const size = (block: string, inline: string, font: string) =>
-  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
-
 const sizes = {
-  sm: size(ref.space['2xs'], ref.space.xs, ref.size.sm),
-  md: size(ref.space.xs, ref.space.sm, ref.size.md),
-  lg: size(ref.space.sm, ref.space.md, ref.size.lg),
+  sm: density(ref.space['2xs'], ref.space.xs, ref.size.sm),
+  md: density(ref.space.xs, ref.space.sm, ref.size.md),
+  lg: density(ref.space.sm, ref.space.md, ref.size.lg),
 } as const
 
 const filled: StyleValue = variant(

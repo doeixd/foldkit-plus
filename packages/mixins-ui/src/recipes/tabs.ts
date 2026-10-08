@@ -5,12 +5,18 @@
  */
 import { Style } from 'foldkit-mixins'
 import { TabsSlots } from '../tabs.js'
-import { component, disabled, focusRing, ref, transition, variant, hover } from './design.js'
+import {
+  component,
+  density,
+  disabled,
+  focusRing,
+  ref,
+  transition,
+  variant,
+  hover,
+} from './design.js'
 
 const selected = '[aria-selected="true"]'
-
-const size = (block: string, inline: string, font: string) =>
-  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
 
 export const Tabs = Style.recipeFor(TabsSlots)({
   base: {
@@ -64,8 +70,8 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       },
     },
     size: {
-      sm: { tab: size(ref.space['2xs'], ref.space.sm, ref.size.sm) },
-      md: { tab: size(ref.space.xs, ref.space.md, ref.size.md) },
+      sm: { tab: density(ref.space['2xs'], ref.space.sm, ref.size.sm) },
+      md: { tab: density(ref.space.xs, ref.space.md, ref.size.md) },
     },
   },
   defaults: { variant: 'line', size: 'md' },
