@@ -25,6 +25,8 @@ import { Sidebar } from '../src/sidebar/view.js'
 import { initial as sidebarInitial } from '../src/sidebar/app.js'
 import { Resizable } from '../src/resizable/view.js'
 import { initial as resizableInitial } from '../src/resizable/app.js'
+import { Palette } from '../src/palette/view.js'
+import { initial as paletteInitial } from '../src/palette/app.js'
 import { Meter } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
 import { Progress } from '../src/progress/view.js'
@@ -73,6 +75,7 @@ describe('showcase styles', () => {
       Inert.draw(NativeSelect, nativeSelectInitial),
       Inert.draw(Sidebar, sidebarInitial),
       Inert.draw(Resizable, resizableInitial),
+      Inert.draw(Palette, paletteInitial.model),
     ]
     for (const page of pages) {
       expect(Inert.css([page!]).length).toBeGreaterThan(0)

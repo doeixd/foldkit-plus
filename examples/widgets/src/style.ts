@@ -21,6 +21,7 @@ import type { ResizableSlots } from './resizable/view.js'
 import type { SidebarSlots } from './sidebar/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
+import type { PaletteSlots } from './palette/view.js'
 import type { ProgressSlots } from './progress/view.js'
 import type { ToggleSlots } from './toggle/view.js'
 import type { ToggleGroupSlots } from './toggle-group/view.js'
@@ -68,6 +69,32 @@ const selected = Style.states(
   },
   'aria-selected',
 )
+
+/** One dimmer behind every modal island. */
+const modalBackdrop = Style.self({
+  position: 'fixed',
+  inset: '0',
+  zIndex: '10',
+  background: 'rgb(0 0 0 / 0.4)',
+})
+
+/**
+ * One floating panel for modal islands; each island rides its placement
+ * (where it sits, how wide) beside this. Kept in one place so the islands
+ * agree on chrome without copying it.
+ */
+const modalPanel = (width: string): ReturnType<typeof Style.self> =>
+  Style.self({
+    position: 'fixed',
+    left: '50%',
+    zIndex: '20',
+    display: 'grid',
+    width: `min(${width}, calc(100vw - 2rem))`,
+    background: onAccent,
+    border: `1px solid ${line}`,
+    borderRadius: '12px',
+    boxShadow: '0 12px 32px rgb(0 0 0 / 0.18)',
+  })
 
 export const toolbarStyle = (slots: typeof ToolbarSlots) =>
   Style.forSlots(slots)(
@@ -195,29 +222,16 @@ export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>
   Style.forSlots(slots)(
     {
       trigger: Style.compose(control, focus),
-      backdrop: Style.self({
-        position: 'fixed',
-        inset: '0',
-        zIndex: '10',
-        background: 'rgb(0 0 0 / 0.4)',
-      }),
+      backdrop: modalBackdrop,
       panel: Style.compose(
+        modalPanel('24rem'),
         Style.self({
-          position: 'fixed',
           top: '50%',
-          left: '50%',
           translate: '-50% -50%',
-          zIndex: '20',
-          display: 'grid',
           gap: '0.75rem',
-          width: 'min(24rem, calc(100vw - 2rem))',
           maxHeight: 'calc(100vh - 2rem)',
           overflow: 'auto',
           padding: '1.25rem',
-          background: onAccent,
-          border: `1px solid ${line}`,
-          borderRadius: '12px',
-          boxShadow: '0 12px 32px rgb(0 0 0 / 0.18)',
         }),
         focus,
       ),
@@ -490,6 +504,41 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
       ),
     },
     { name: 'ShowcaseNavigationMenu' },
+  )
+
+export const paletteStyle = (slots: typeof PaletteSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '28rem' }),
+      trigger: Style.compose(control, focus),
+      backdrop: modalBackdrop,
+      panel: Style.compose(
+        modalPanel('28rem'),
+        Style.self({
+          top: '20%',
+          translate: '-50% 0',
+          gap: '0.5rem',
+          padding: '0.75rem',
+        }),
+        focus,
+      ),
+      input: Style.compose(control, focus, Style.self({ width: '100%' })),
+      list: Style.self({ display: 'grid', maxHeight: '16rem', overflow: 'auto' }),
+      item: Style.compose(
+        Style.self({
+          textAlign: 'start',
+          background: 'transparent',
+          border: 'none',
+          borderRadius: '6px',
+          paddingBlock: '0.375rem',
+          paddingInline: '0.75rem',
+          cursor: 'pointer',
+        }),
+        focus,
+        selected,
+      ),
+    },
+    { name: 'ShowcasePalette' },
   )
 
 export const sidebarStyle = (slots: typeof SidebarSlots) =>

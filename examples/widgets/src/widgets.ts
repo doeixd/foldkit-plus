@@ -81,6 +81,8 @@ import {
   OtpFieldSlots,
   runDemo as runOtpFieldDemo,
 } from './otp-field/view.js'
+import * as Palette from './palette/app.js'
+import { Palette as PaletteView, PaletteSlots, runDemo as runPaletteDemo } from './palette/view.js'
 import * as Progress from './progress/app.js'
 import {
   Progress as ProgressView,
@@ -114,6 +116,7 @@ import {
   resizableStyle,
   sidebarStyle,
   otpFieldStyle,
+  paletteStyle,
   progressStyle,
   toggleGroupStyle,
   toggleStyle,
@@ -262,6 +265,23 @@ export const islands = [
           init: () => OtpField.initial,
           update: OtpField.update,
           view: (model, h) => OtpFieldView(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: 'palette',
+    title: 'Command palette',
+    runDemo: runPaletteDemo,
+    style: () => paletteStyle(PaletteSlots),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: Palette.Model,
+          init: () => Palette.initial,
+          update: Palette.update,
+          view: (model, h) => PaletteView(model, h),
           container,
         }),
       )

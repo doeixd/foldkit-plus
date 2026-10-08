@@ -55,6 +55,8 @@ npx vitest run examples/widgets
   Disclosures over a Collection, links for bodies.
 - `src/resizable/` — file split: `Resize`-measured container with a `Move`
   separator, arrows, and a clamped share.
+- `src/palette/` — command palette: the command island's query/list/pick
+  under `Overlay.modal`, running the chosen command through `update`.
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

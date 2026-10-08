@@ -166,5 +166,22 @@ describe('showcase islands', () => {
     grip.focus()
     grip.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('First panel 55%.'))
+
+    // Palette: opening, narrowing, and running report the run.
+    click(button('Commands'))
+    await vi.waitFor(() =>
+      expect(document.querySelector('[aria-label="Command palette"]')).not.toBeNull(),
+    )
+    const panel = document.querySelector('[aria-label="Command palette"]') as HTMLElement
+    const query = panel.querySelector('input[aria-label="Search commands"]') as HTMLInputElement
+    query.value = 'new'
+    query.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => expect(panel.querySelectorAll('[role="option"]').length).toBe(2))
+    const pick = [...panel.querySelectorAll('[role="option"]')].find(
+      option => option.textContent === 'New folder',
+    )
+    if (pick === undefined) throw new Error('no New folder pick')
+    pick.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Ran: New folder.'))
   })
 })
