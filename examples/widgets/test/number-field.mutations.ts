@@ -18,6 +18,18 @@ export default [
     tests,
   },
   {
+    name: 'decrease stays live at the minimum',
+    edits: [
+      {
+        file: '../src/number-field/view.ts',
+        find: "atMin\n              ? [h.AriaDisabled(true), h.AriaLabel('Decrease (at minimum)')]",
+        replace:
+          "atMin\n              ? [h.OnClick(Message.SetValue({ value: 0 })), h.AriaLabel('Decrease')]",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the control loses its spinbutton role',
     edits: [
       {

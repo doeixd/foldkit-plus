@@ -29,6 +29,28 @@ export default [
     tests,
   },
   {
+    name: 'pasting keeps dashes and spaces',
+    edits: [
+      {
+        file: '../src/otp-field/app.ts',
+        find: 'const digits = [...message.text].filter(char => /[0-9]/.test(char))',
+        replace: 'const digits = [...message.text]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'emptying a filled cell sticks',
+    edits: [
+      {
+        file: '../src/otp-field/app.ts',
+        find: 'message.char ===',
+        replace: 'message.char === " " &&',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'five digits complete the code',
     edits: [
       {

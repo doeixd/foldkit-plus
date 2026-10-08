@@ -64,11 +64,17 @@ export const OtpField = SlotView.forMessages<Message>()
             [
               h.Key(cellId(index)),
               h.Type('text'),
-              h.Attribute('inputmode', 'numeric'),
-              h.Attribute('maxlength', '1'),
+              h.InputMode('numeric'),
+              h.Maxlength(1),
+              h.Autocomplete('one-time-code'),
               h.AriaLabel(`Digit ${index + 1}`),
               h.Value(model.cells[index] ?? ''),
               h.OnInput(text => Message.CellTyped({ index, char: text })),
+              h.OnPastePreventDefault(text =>
+                /[0-9]/.test(text)
+                  ? Option.some(Message.PastedCode({ index, text }))
+                  : Option.none(),
+              ),
               h.OnKeyDownFocus((key, _modifiers) =>
                 key === 'Backspace' ? backspaceOf(model, index) : Option.none(),
               ),

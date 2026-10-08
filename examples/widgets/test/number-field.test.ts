@@ -36,6 +36,22 @@ describe('view structure', () => {
     expect(Inert.text(field)).toContain('3')
   })
 
+  it('disables each end button at its bound', () => {
+    const clickOf = (node: unknown): unknown =>
+      (node as { readonly data?: { readonly on?: { readonly click?: unknown } } })?.data?.on?.click
+    const bottom = Inert.draw(NumberField, update(initial, Message.SetValue({ value: 0 })).model)
+    const less = Inert.byLabel(bottom, 'Decrease (at minimum)')[0]
+    expect(Inert.value(less, 'aria-disabled')).toBe('true')
+    expect(clickOf(less)).toBeUndefined()
+    const top = Inert.draw(NumberField, update(initial, Message.SetValue({ value: 10 })).model)
+    const more = Inert.byLabel(top, 'Increase (at maximum)')[0]
+    expect(Inert.value(more, 'aria-disabled')).toBe('true')
+    expect(clickOf(more)).toBeUndefined()
+    const mid = Inert.draw(NumberField, initial)
+    expect(typeof clickOf(Inert.byLabel(mid, 'Decrease')[0])).toBe('function')
+    expect(typeof clickOf(Inert.byLabel(mid, 'Increase')[0])).toBe('function')
+  })
+
   it('ArrowUp steps through the behavior', () => {
     const h = SlotView.inertBuilder<Message>()
     const builders = SlotView.buildersFor(NumberFieldSlots, NumberField.mixins, {

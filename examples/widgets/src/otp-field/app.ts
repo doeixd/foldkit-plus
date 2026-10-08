@@ -26,6 +26,7 @@ export const Message = defineMessageUnion({
   ...Roving.cases,
   CellTyped: { index: Schema.Number, char: Schema.String },
   CellCleared: { index: Schema.Number },
+  PastedCode: { index: Schema.Number, text: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -53,6 +54,12 @@ export const codeOf = (model: Model): string | null => {
 export const update = assembly.update((model, message) => {
   switch (message._tag) {
     case 'CellTyped': {
+      // Empty text is a deletion: the cell clears instead of sticking.
+      if (message.char === '') {
+        return message.index < 0 || message.index >= LENGTH || model.cells[message.index] === ''
+          ? { model }
+          : { model: { ...model, cells: at(model.cells, message.index, '') } }
+      }
       const char = message.char.slice(-1)
       if (message.index < 0 || message.index >= LENGTH || !/[0-9]/.test(char)) return { model }
       return { model: { ...model, cells: at(model.cells, message.index, char) } }
@@ -60,5 +67,16 @@ export const update = assembly.update((model, message) => {
     case 'CellCleared':
       if (message.index < 0 || message.index >= LENGTH) return { model }
       return { model: { ...model, cells: at(model.cells, message.index, '') } }
+    case 'PastedCode': {
+      // Digits land left to right from the focused cell; dashes, spaces,
+      // and anything past the last cell fall away.
+      const digits = [...message.text].filter(char => /[0-9]/.test(char))
+      if (message.index < 0 || message.index >= LENGTH || digits.length === 0) return { model }
+      const cells = [...model.cells]
+      digits.forEach((digit, offset) => {
+        if (message.index + offset < LENGTH) cells[message.index + offset] = digit
+      })
+      return { model: { ...model, cells } }
+    }
   }
 })

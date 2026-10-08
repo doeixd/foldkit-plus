@@ -38,14 +38,36 @@ describe('update flows', () => {
   it('clears one cell', () => {
     expect(update(filled(), Message.CellCleared({ index: 0 })).model.cells[0]).toBe('')
   })
+
+  it('emptying a cell clears it instead of sticking', () => {
+    const one = update(initial.model, Message.CellTyped({ index: 0, char: '4' })).model
+    expect(update(one, Message.CellTyped({ index: 0, char: '' })).model.cells[0]).toBe('')
+    expect(update(initial.model, Message.CellTyped({ index: 0, char: '' })).model).toBe(
+      initial.model,
+    )
+  })
+
+  it('pasting fills digits left to right from the focused cell', () => {
+    const pasted = update(initial.model, Message.PastedCode({ index: 2, text: '9a8-7' })).model
+    expect(pasted.cells).toEqual(['', '', '9', '8', '7', ''])
+    expect(update(initial.model, Message.PastedCode({ index: 0, text: 'no digits' })).model).toBe(
+      initial.model,
+    )
+  })
+
+  it('pasting past the last cell stays six cells', () => {
+    const pasted = update(initial.model, Message.PastedCode({ index: 4, text: '12345' })).model
+    expect(pasted.cells).toEqual(['', '', '', '', '1', '2'])
+  })
 })
 
 describe('view structure', () => {
-  it('draws six labelled cells and the status', () => {
+  it('draws six labelled cells with one-time-code autocomplete', () => {
     const page = Inert.draw(OtpField, initial.model)
     const inputs = Inert.byTag(page, 'input')
     expect(inputs).toHaveLength(LENGTH)
     expect(Inert.value(inputs[0], 'aria-label')).toBe('Digit 1')
+    expect(Inert.value(inputs[0], 'autocomplete')).toBe('one-time-code')
     expect(Inert.text(page)).toContain('Enter all six digits.')
     expect(Inert.text(Inert.draw(OtpField, filled()))).toContain('Code complete: 123456.')
   })
