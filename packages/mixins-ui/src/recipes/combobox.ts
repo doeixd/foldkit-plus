@@ -9,13 +9,12 @@ import {
   disabled,
   focusRing,
   focusWithin,
+  hover,
   listScroll,
   ref,
   transition,
 } from './design.js'
 import { backdrop, density, heading, item, panel, separator } from './popup.js'
-
-const selected = '[aria-selected="true"]'
 
 export const Combobox = Style.recipeFor(ComboboxSlots)({
   base: {
@@ -58,7 +57,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         font: 'inherit',
         cursor: 'pointer',
       }),
-      Style.pseudo(':hover:not([aria-disabled="true"], :disabled)', { color: ref.text.overt }),
+      hover({ color: ref.text.overt }),
       focusRing,
       disabled,
     ),
@@ -67,7 +66,11 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
     scroll: listScroll,
     item: component(
       item,
-      Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),
+      // The chosen row reads DOM state, so it goes through `states`.
+      Style.states(
+        { true: { background: ref.accent.subtle, color: ref.accent.ink } },
+        'aria-selected',
+      ),
     ),
     heading,
     separator,

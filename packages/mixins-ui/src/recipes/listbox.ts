@@ -8,8 +8,6 @@ import { ListboxSlots } from '../listbox.js'
 import { component, disabled, focusRing, listScroll, ref, transition } from './design.js'
 import { backdrop, density, heading, item, panel, separator } from './popup.js'
 
-const selected = '[aria-selected="true"]'
-
 export const Listbox = Style.recipeFor(ListboxSlots)({
   base: {
     wrapper: component(Style.self({ position: 'relative', display: 'inline-block' })),
@@ -40,7 +38,11 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     scroll: listScroll,
     item: component(
       item,
-      Style.pseudo(selected, { background: ref.accent.subtle, color: ref.accent.ink }),
+      // The chosen row reads DOM state, so it goes through `states`.
+      Style.states(
+        { true: { background: ref.accent.subtle, color: ref.accent.ink } },
+        'aria-selected',
+      ),
     ),
     heading,
     separator,

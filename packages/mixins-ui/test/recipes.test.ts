@@ -431,6 +431,13 @@ describe('Recipes', () => {
       expect(css({ size: 'sm' })).not.toBe(css({ size: 'md' }))
       expect(css({ size: 'md' })).toContain('border-radius:var(--fk-radius-lg)')
     })
+
+    it('dims a disabled trigger like its rows', () => {
+      const button = Recipes.Menu({}).button
+      expect(button === undefined ? '' : Style.forSlots(MenuSlots)({ button }).css).toContain(
+        'cursor:not-allowed',
+      )
+    })
   })
 
   describe('Listbox', () => {
@@ -473,6 +480,12 @@ describe('Recipes', () => {
     it('fills instead of outlining on request', () => {
       expect(css({ variant: 'filled' })).toContain('background:var(--fk-surface-subtle)')
       expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-subtle)')
+    })
+
+    it('lines an invalid control in error', () => {
+      expect(css({})).toMatch(
+        /\[aria-invalid="true"\]\{[^}]*border-color:var\(--fk-error-outline\)/,
+      )
     })
   })
 

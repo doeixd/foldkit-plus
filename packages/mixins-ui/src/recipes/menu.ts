@@ -4,7 +4,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { MenuSlots } from '../menu.js'
-import { component, focusRing, hover, listScroll, ref } from './design.js'
+import { component, disabled, focusRing, hover, listScroll, ref } from './design.js'
 import { backdrop, density, heading, item, panel, separator } from './popup.js'
 
 export const Menu = Style.recipeFor(MenuSlots)({
@@ -28,6 +28,8 @@ export const Menu = Style.recipeFor(MenuSlots)({
       }),
       hover({ background: ref.surface.muted }),
       focusRing,
+      // The contract lets the trigger disable, like the items it opens.
+      disabled,
     ),
     backdrop,
     items: panel,

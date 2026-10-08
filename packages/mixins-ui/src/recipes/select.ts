@@ -28,7 +28,8 @@ export const Select = Style.recipeFor(SelectSlots)({
       }),
       Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
       Style.pseudo('::placeholder', { color: ref.text.muted }),
-      Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
+      // Invalidity reads DOM state, so it goes through `states`.
+      Style.states({ true: { borderColor: ref.error.outline } }, 'aria-invalid'),
       focusRing,
       disabled,
     ),
@@ -60,9 +61,7 @@ export const Select = Style.recipeFor(SelectSlots)({
         select: variant(Style.self({ background: ref.surface.base })),
       },
       filled: {
-        select: variant(
-          Style.self({ background: ref.surface.subtle, borderColor: 'transparent' }),
-        ),
+        select: variant(Style.self({ background: ref.surface.subtle, borderColor: 'transparent' })),
       },
     },
   },
