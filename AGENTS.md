@@ -1117,6 +1117,11 @@ of its own named a form field "fits the Catalog". Read words with
   and after anything surprising — an edit whose old text matches twice, or a
   file that already contains the change, means the tree moved, not that the
   tool misbehaved.
+- **A pathspec commit takes the working tree, not the index.** `git commit --
+  <paths>` snapshots those paths as they are on disk: unstaging a foreign
+  hunk (`git apply --reverse --cached`) does not keep it out, and it rode a
+  Dialog test into an unrelated commit that way. Extract the foreign hunk
+  from the file first (or wait), then commit.
 - **But a pathspec that names only the new half of a rename ships both files.**
   `git mv old new` stages a rename; `git commit -- new` then commits the addition
   while the deletion of `old` stays in the index, so HEAD holds two copies and a
