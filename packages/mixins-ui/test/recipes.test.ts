@@ -19,6 +19,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
   ButtonSlots,
+  CardSlots,
   CheckboxSlots,
   ComboboxSlots,
   DatePickerSlots,
@@ -76,6 +77,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Card.def.variants).map(selection => Recipes.Card(selection)),
   ...selections(Recipes.Input.def.variants).map(selection => Recipes.Input(selection)),
   ...selections(Recipes.Textarea.def.variants).map(selection => Recipes.Textarea(selection)),
   ...selections(Recipes.Checkbox.def.variants).map(selection => Recipes.Checkbox(selection)),
@@ -99,6 +101,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Card: selections(Recipes.Card.def.variants).map(
+    selection => Style.forSlots(CardSlots)(Recipes.Card(selection)).css,
   ),
   Input: selections(Recipes.Input.def.variants).map(
     selection => Style.forSlots(InputSlots)(Recipes.Input(selection)).css,
@@ -351,9 +356,7 @@ describe('Recipes', () => {
       Style.forSlots(ListboxSlots)(Recipes.Listbox(selection)).css
 
     it('tints the chosen option with the accent wash and ink', () => {
-      expect(css({})).toMatch(
-        /\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/,
-      )
+      expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/)
       expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*color:var\(--fk-accent-ink\)/)
     })
   })
@@ -368,9 +371,7 @@ describe('Recipes', () => {
     })
 
     it('tints the chosen row like the listbox', () => {
-      expect(css({})).toMatch(
-        /\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/,
-      )
+      expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/)
     })
   })
 
@@ -404,9 +405,7 @@ describe('Recipes', () => {
     })
 
     it('checks neutral in ink, not the pale surface', () => {
-      const neutral = Style.forSlots(RadioGroupSlots)(
-        Recipes.RadioGroup({ tone: 'neutral' }),
-      ).css
+      const neutral = Style.forSlots(RadioGroupSlots)(Recipes.RadioGroup({ tone: 'neutral' })).css
       expect(neutral).toContain('--_fk-tone-fill:var(--fk-text-default)')
     })
 
