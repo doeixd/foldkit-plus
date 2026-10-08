@@ -886,9 +886,25 @@ const RadioDemo = (model: Pick<Model, 'contact' | 'contactGroup'>, h: HtmlBuilde
         return h.div(resolved.group, [
           ...resolved.options.map(option => {
             const known = contacts.find(contact => contact.value === option.value)
+            // The label and description select too: they dispatch the
+            // option's own selection through the group, exactly as the
+            // circle's click does — but only when the option takes input.
+            const select =
+              option.isDisabled || option.isReadOnly
+                ? []
+                : [
+                    h.OnClick(
+                      Message.ContactGroup({
+                        message: UiRadioGroup.Message.SelectedOption({
+                          index: option.index,
+                          value: option.value,
+                        }),
+                      }),
+                    ),
+                  ]
             return h.div(rows.row.attrs(), [
               h.button(option.option, []),
-              h.div(rows.text.attrs(), [
+              h.div(rows.text.attrs(select), [
                 h.label(option.label, [known?.label ?? option.value]),
                 h.span(option.description, [contactDescriptions[option.value]]),
               ]),

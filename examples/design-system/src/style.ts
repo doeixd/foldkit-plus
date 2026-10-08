@@ -319,7 +319,8 @@ export const RadioRowSlots = Slots.define({
 export const RadioRowStyle = app.slots(
   {
     row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'start' }))],
-    text: [L.in('layouts', Layout.stack({ gap: '0' }))],
+    // The text selects the option on click, so it offers the pointer.
+    text: [L.in('layouts', Layout.stack({ gap: '0' })), { cursor: 'pointer' }],
   },
   { name: 'RadioRowStyle' },
 )

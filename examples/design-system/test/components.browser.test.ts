@@ -52,6 +52,18 @@ test('radio group selects with a click', async () => {
   await seen('Currently phone.')
 })
 
+test('radio labels select with a click', async () => {
+  mount()
+  await page.getByText('Phone', { exact: true }).click()
+  await seen('Currently phone.')
+})
+
+test('radio descriptions select with a click', async () => {
+  mount()
+  await page.getByText('Only when something is on fire.').click()
+  await seen('Currently phone.')
+})
+
 test('radio circles center on their labels’ first lines', async () => {
   mount()
   await seen('Currently email.')
