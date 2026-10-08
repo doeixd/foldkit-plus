@@ -4,6 +4,7 @@
  * each adapter's `toView` hands it the bundles with attached Mixins applied,
  * and `resolve` applies them to bundles already in hand.
  */
+export * as Alert from './alert.js'
 export * as Anchor from './anchor.js'
 export * as Button from './button.js'
 export * as Calendar from './calendar.js'
@@ -39,6 +40,7 @@ export * as ToastView from './toastView.js'
 export * as Tooltip from './tooltip.js'
 export * as Touch from './touch.js'
 
+export { AlertSlots } from './alert.js'
 export { ButtonSlots } from './button.js'
 export { CalendarSlots } from './calendar.js'
 export { CardSlots } from './card.js'
