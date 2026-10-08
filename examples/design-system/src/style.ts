@@ -518,7 +518,7 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
       }),
       Style.nest('[data-focused] > &', {
         outline: `${t.border.thick} solid ${t.accent.default}`,
-        outlineOffset: '2px',
+        outlineOffset: '-2px',
       }),
       Style.nest('[data-disabled] > &', { opacity: '0.4', cursor: 'not-allowed' }),
     ],
@@ -542,7 +542,7 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
       }),
       Style.nest('[data-focused] > &', {
         outline: `${t.border.thick} solid ${t.accent.default}`,
-        outlineOffset: '2px',
+        outlineOffset: '-2px',
       }),
       Style.nest('[data-disabled] > &', { opacity: '0.4', cursor: 'not-allowed' }),
     ],
@@ -567,7 +567,7 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
       }),
       Style.nest('[data-focused] > &', {
         outline: `${t.border.thick} solid ${t.accent.default}`,
-        outlineOffset: '2px',
+        outlineOffset: '-2px',
       }),
       Style.nest('[data-disabled] > &', { opacity: '0.4', cursor: 'not-allowed' }),
     ],
