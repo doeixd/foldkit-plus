@@ -34,7 +34,7 @@ import * as UiSelect from '@foldkit/ui/select'
 import * as UiSlider from '@foldkit/ui/slider'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import {
   Anchor,
   Button,
@@ -829,17 +829,17 @@ const formatFileSize = (bytes: number): string =>
       ? `${(bytes / 1024).toFixed(1)} KB`
       : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
+/** The option-group wire shape menu, listbox, and combobox share. */
+type OptionGroups = ReadonlyArray<
+  ResolvedMenuGroup<Message> | ResolvedListboxGroup<Message> | ResolvedComboboxGroup<Message>
+>
+
 /**
  * One option group's rows: its items, or the headed group with its separator.
  * Menu, listbox, and combobox publish the same wire shape (keyed bundles with
  * content, headings by id), so one draw serves all three panels.
  */
-const drawOptionGroups = (
-  groups: ReadonlyArray<
-    ResolvedMenuGroup<Message> | ResolvedListboxGroup<Message> | ResolvedComboboxGroup<Message>
-  >,
-  h: HtmlBuilder<Message>,
-): ReadonlyArray<Html> =>
+const drawOptionGroups = (groups: OptionGroups, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   groups.flatMap(group => {
     const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
     if (group.group === undefined) return drawn
@@ -854,6 +854,38 @@ const drawOptionGroups = (
       h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
     ]
   })
+
+/**
+ * A popup panel's floating parts: the click-away behind it and the items card
+ * with its rows, scrolled when the panel says so. Menu, listbox, and combobox
+ * publish the same parts; only their triggers differ.
+ */
+const drawPopupParts = (
+  panel: {
+    readonly backdrop:
+      { readonly key: string; readonly attributes: SlotAttributes<Message> } | undefined
+    readonly items:
+      { readonly key: string; readonly attributes: SlotAttributes<Message> } | undefined
+    readonly scroll: SlotAttributes<Message> | undefined
+    readonly groups: OptionGroups
+  },
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> => [
+  ...(panel.backdrop === undefined
+    ? []
+    : [h.keyed('div')(panel.backdrop.key, panel.backdrop.attributes)]),
+  ...(panel.items === undefined
+    ? []
+    : [
+        h.keyed('div')(
+          panel.items.key,
+          panel.items.attributes,
+          panel.scroll === undefined
+            ? drawOptionGroups(panel.groups, h)
+            : [h.div(panel.scroll, drawOptionGroups(panel.groups, h))],
+        ),
+      ]),
+]
 
 const contacts: ReadonlyArray<{ readonly value: Contact; readonly label: string }> = [
   { value: 'email', label: 'Email' },
@@ -966,20 +998,7 @@ const MenuDemo = (model: Pick<Model, 'menu' | 'menuChoice'>, h: HtmlBuilder<Mess
       toView: Menu.toView([MenuStyle.mixin], { h }, resolved =>
         h.div(resolved.wrapper, [
           h.keyed('button')(`${resolved.id}-button`, resolved.button, [resolved.buttonContent]),
-          ...(resolved.backdrop === undefined
-            ? []
-            : [h.keyed('div')(resolved.backdrop.key, resolved.backdrop.attributes)]),
-          ...(resolved.items === undefined
-            ? []
-            : [
-                h.keyed('div')(
-                  resolved.items.key,
-                  resolved.items.attributes,
-                  resolved.scroll === undefined
-                    ? drawOptionGroups(resolved.groups, h)
-                    : [h.div(resolved.scroll, drawOptionGroups(resolved.groups, h))],
-                ),
-              ]),
+          ...drawPopupParts(resolved, h),
         ]),
       ),
     },
@@ -1005,20 +1024,7 @@ const ListboxDemo = (
       toView: Listbox.toView([ListboxStyle.mixin], { h }, resolved =>
         h.div(resolved.wrapper, [
           h.keyed('button')(`${resolved.id}-button`, resolved.button, [resolved.buttonContent]),
-          ...(resolved.backdrop === undefined
-            ? []
-            : [h.keyed('div')(resolved.backdrop.key, resolved.backdrop.attributes)]),
-          ...(resolved.items === undefined
-            ? []
-            : [
-                h.keyed('div')(
-                  resolved.items.key,
-                  resolved.items.attributes,
-                  resolved.scroll === undefined
-                    ? drawOptionGroups(resolved.groups, h)
-                    : [h.div(resolved.scroll, drawOptionGroups(resolved.groups, h))],
-                ),
-              ]),
+          ...drawPopupParts(resolved, h),
           ...resolved.hiddenInputs,
         ]),
       ),
@@ -1057,20 +1063,7 @@ const ComboboxDemo = (
                   ]),
                 ]),
           ]),
-          ...(resolved.backdrop === undefined
-            ? []
-            : [h.keyed('div')(resolved.backdrop.key, resolved.backdrop.attributes)]),
-          ...(resolved.items === undefined
-            ? []
-            : [
-                h.keyed('div')(
-                  resolved.items.key,
-                  resolved.items.attributes,
-                  resolved.scroll === undefined
-                    ? drawOptionGroups(resolved.groups, h)
-                    : [h.div(resolved.scroll, drawOptionGroups(resolved.groups, h))],
-                ),
-              ]),
+          ...drawPopupParts(resolved, h),
           ...resolved.hiddenInputs,
         ]),
       ),
