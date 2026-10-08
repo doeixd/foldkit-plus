@@ -911,20 +911,21 @@ const drawComboboxGroups = (
   })
 
 /** The month grid any calendar draws through, here in the picker's panel. */
-const drawCalendarGrid = (attributes: CalendarAttributes, h: HtmlBuilder<Message>): Html => {
+const drawCalendarGrid = (
+  attributes: CalendarAttributes,
+  chrome: SlotBuilders<typeof DateChromeSlots, Message>,
+  h: HtmlBuilder<Message>,
+): Html => {
   const calendar = Calendar.resolve(attributes, [CalendarStyle.mixin], { input: undefined, h })
   return Match.value(calendar).pipe(
     Match.tagsExhaustive({
       Days: days =>
         h.div(days.root, [
-          h.div(
-            [],
-            [
-              h.button(days.previousMonthButton, ['‹']),
-              h.button(days.headingButton, [days.heading.text]),
-              h.button(days.nextMonthButton, ['›']),
-            ],
-          ),
+          h.div(chrome.header.attrs(), [
+            h.button(days.previousMonthButton, ['‹']),
+            h.button(days.headingButton, [days.heading.text]),
+            h.button(days.nextMonthButton, ['›']),
+          ]),
           h.div(days.grid, [
             h.div(days.headerRow, [
               ...days.columnHeaders.map(header => h.div(header.attributes, [header.name])),
@@ -940,7 +941,9 @@ const drawCalendarGrid = (attributes: CalendarAttributes, h: HtmlBuilder<Message
         ]),
       Months: months =>
         h.div(months.root, [
-          h.div([], [h.button(months.headingButton, [months.heading.text])]),
+          h.div(chrome.monthHeader.attrs(), [
+            h.button(months.headingButton, [months.heading.text]),
+          ]),
           h.div(
             months.grid,
             months.cells.map(cell =>
@@ -950,14 +953,11 @@ const drawCalendarGrid = (attributes: CalendarAttributes, h: HtmlBuilder<Message
         ]),
       Years: years =>
         h.div(years.root, [
-          h.div(
-            [],
-            [
-              h.button(years.previousPageButton, ['«']),
-              h.span([], [years.heading.text]),
-              h.button(years.nextPageButton, ['»']),
-            ],
-          ),
+          h.div(chrome.header.attrs(), [
+            h.button(years.previousPageButton, ['«']),
+            h.span([], [years.heading.text]),
+            h.button(years.nextPageButton, ['»']),
+          ]),
           h.div(
             years.grid,
             years.cells.map(cell =>
@@ -987,7 +987,9 @@ const DatePickerDemo = (
     model: model.picker,
     view: UiDatePicker.view,
     viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
+      // Locked: paging months and years resizes the panel, which must not
+      // flip it to the other side of the trigger mid-use.
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8, isPlacementLocked: true },
       maybeSelectedDate: model.maybeDue,
       triggerContent: maybeDue =>
         h.span(
@@ -998,7 +1000,7 @@ const DatePickerDemo = (
       triggerAttributes: childAttributes(chrome.trigger.attrs()),
       panelAttributes: childAttributes(chrome.panel.attrs()),
       backdropAttributes: childAttributes(chrome.backdrop.attrs()),
-      toCalendarView: attributes => drawCalendarGrid(attributes, h),
+      toCalendarView: attributes => drawCalendarGrid(attributes, chrome, h),
     },
     toParentMessage: message => Message.DatePicker({ message }),
   })
