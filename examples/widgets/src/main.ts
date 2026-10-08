@@ -5,6 +5,7 @@ import { runDemo as runCheckboxGroupDemo } from './checkbox-group/view.js'
 import { runDemo as runCommandDemo } from './command/view.js'
 import { runDemo as runContextMenuDemo } from './context-menu/view.js'
 import { runDemo as runHoverCardDemo } from './hover-card/view.js'
+import { runDemo as runMenubarDemo } from './menubar/view.js'
 import { runDemo as runMeterDemo } from './meter/view.js'
 import { runDemo as runNumberFieldDemo } from './number-field/view.js'
 import { runDemo as runOtpFieldDemo } from './otp-field/view.js'
@@ -49,5 +50,8 @@ for (const line of runContextMenuDemo()) {
   console.log(line)
 }
 for (const line of runHoverCardDemo()) {
+  console.log(line)
+}
+for (const line of runMenubarDemo()) {
   console.log(line)
 }

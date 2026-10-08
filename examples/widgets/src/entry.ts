@@ -19,6 +19,8 @@ import * as ContextMenu from './context-menu/app.js'
 import { ContextMenu as ContextMenuView, ContextMenuSlots } from './context-menu/view.js'
 import * as HoverCard from './hover-card/app.js'
 import { HoverCard as HoverCardView, HoverCardSlots } from './hover-card/view.js'
+import * as Menubar from './menubar/app.js'
+import { Menubar as MenubarView, MenubarSlots } from './menubar/view.js'
 import * as Meter from './meter/app.js'
 import { Meter as MeterView, MeterSlots } from './meter/view.js'
 import * as NumberField from './number-field/app.js'
@@ -39,6 +41,7 @@ import {
   commandStyle,
   contextMenuStyle,
   hoverCardStyle,
+  menubarStyle,
   meterStyle,
   numberFieldStyle,
   otpFieldStyle,
@@ -62,6 +65,7 @@ Style.install(
     commandStyle(CommandSlots),
     contextMenuStyle(ContextMenuSlots),
     hoverCardStyle(HoverCardSlots),
+    menubarStyle(MenubarSlots),
   ),
 )
 
@@ -164,6 +168,13 @@ const islands = [
     update: HoverCard.update,
     view: (model, h) => HoverCardView(model, h),
     container: island('hover-card'),
+  }),
+  Runtime.makeElement({
+    Model: Menubar.Model,
+    init: () => Menubar.initial,
+    update: Menubar.update,
+    view: (model, h) => MenubarView(model, h),
+    container: island('menubar'),
   }),
 ]
 

@@ -44,6 +44,7 @@ describe('showcase islands', () => {
       'command',
       'context-menu',
       'hover-card',
+      'menubar',
     ]
       .map(id => `<div id="${id}"></div>`)
       .join('')
@@ -135,5 +136,11 @@ describe('showcase islands', () => {
     const ada = button('ada')
     ada.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Ada Lovelace'))
+
+    // Menu bar: opening Edit and choosing Copy records the choice.
+    click(button('Edit'))
+    await vi.waitFor(() => expect(document.querySelector('[aria-label="Edit"]')).not.toBeNull())
+    click(button('Copy'))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Last choice: Edit/Copy.'))
   })
 })

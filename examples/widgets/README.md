@@ -44,6 +44,8 @@ npx vitest run examples/widgets
   Mount burns ~35s under jsdom's zero geometry, portal or not).
 - `src/hover-card/` — informational popup on hover/focus: immediate open,
   no intent delays (those stay upstream's `HoverIntent`).
+- `src/menubar/` — File/Edit/View over roving triggers with one popup:
+  Collection + `RovingTabindex` + `ListNavigation` + single Selection.
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

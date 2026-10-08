@@ -13,6 +13,7 @@ import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
 import type { MeterSlots } from './meter/view.js'
 import type { HoverCardSlots } from './hover-card/view.js'
+import type { MenubarSlots } from './menubar/view.js'
 import type { ContextMenuSlots } from './context-menu/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
@@ -316,4 +317,47 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
       ),
     },
     { name: 'ShowcaseContextMenu' },
+  )
+
+export const menubarStyle = (slots: typeof MenubarSlots) =>
+  Style.forSlots(slots)(
+    {
+      bar: Style.self({
+        display: 'flex',
+        gap: '0.25rem',
+        maxWidth: '28rem',
+        padding: '0.25rem',
+        background: wash,
+        border: `1px solid ${line}`,
+        borderRadius: '10px',
+      }),
+      trigger: Style.compose(control, focus),
+      popup: Style.compose(
+        Style.self({
+          display: 'grid',
+          minWidth: '12rem',
+          marginBlockStart: '0.25rem',
+          background: onAccent,
+          border: `1px solid ${line}`,
+          borderRadius: '10px',
+          boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+          padding: '0.25rem',
+        }),
+        focus,
+      ),
+      item: Style.compose(
+        Style.self({
+          textAlign: 'start',
+          background: 'transparent',
+          border: 'none',
+          borderRadius: '6px',
+          paddingBlock: '0.375rem',
+          paddingInline: '0.75rem',
+          cursor: 'pointer',
+        }),
+        focus,
+        selected,
+      ),
+    },
+    { name: 'ShowcaseMenubar' },
   )
