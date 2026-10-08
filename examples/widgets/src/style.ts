@@ -13,6 +13,7 @@ import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
 import type { MeterSlots } from './meter/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
+import type { OtpFieldSlots } from './otp-field/view.js'
 import type { ToggleSlots } from './toggle/view.js'
 import type { ToggleGroupSlots } from './toggle-group/view.js'
 import type { ToolbarSlots } from './toolbar/view.js'
@@ -200,6 +201,24 @@ export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
       ),
     },
     { name: 'ShowcaseAutocomplete' },
+  )
+
+export const otpFieldStyle = (slots: typeof OtpFieldSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'flex', gap: '0.5rem', alignItems: 'center' }),
+      cell: Style.compose(
+        Style.self({
+          width: '2.75rem',
+          textAlign: 'center',
+          fontSize: '1.25rem',
+          fontVariantNumeric: 'tabular-nums',
+        }),
+        control,
+        focus,
+      ),
+    },
+    { name: 'ShowcaseOtpField' },
   )
 
 export const commandStyle = (slots: typeof CommandSlots) =>

@@ -31,6 +31,9 @@ npx vitest run examples/widgets
 - `src/autocomplete/` — input + filtered popup: Collection + ListNavigation
   + single Selection + FieldAssociation under `Overlay.nonModal`.
 - `src/number-field/` — stepped value via `SpinValue` + `FieldAssociation`.
+- `src/otp-field/` — six cells over `RovingTabindex` + Collection; Backspace
+  in an empty cell clears the previous one (no auto-advance on type: no
+  input-event builder carries a focus selector).
 - `src/checkbox-group/` — multi-select options with label association.
 - `src/meter/` — stateless value/max attributes (the trivial end).
 - `src/command/` — filterable list: Collection + `Filter.text` +

@@ -38,6 +38,7 @@ describe('showcase islands', () => {
       'alert-dialog',
       'autocomplete',
       'number-field',
+      'otp-field',
       'checkbox-group',
       'meter',
       'command',
@@ -89,6 +90,12 @@ describe('showcase islands', () => {
     await vi.waitFor(() =>
       expect(document.querySelector('[role="spinbutton"]')?.textContent).toBe('4'),
     )
+
+    // One-time code: typing fills the first cell.
+    const digit1 = document.querySelector('input[aria-label="Digit 1"]') as HTMLInputElement
+    digit1.value = '7'
+    digit1.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() => expect(digit1.value).toBe('7'))
 
     // Checkbox group: picking cheese checks its box.
     const boxes = [

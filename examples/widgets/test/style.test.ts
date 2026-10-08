@@ -15,6 +15,8 @@ import { Meter, MeterSlots } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
 import { NumberField, NumberFieldSlots } from '../src/number-field/view.js'
 import { initial as numberInitial } from '../src/number-field/app.js'
+import { OtpField, OtpFieldSlots } from '../src/otp-field/view.js'
+import { initial as otpInitial } from '../src/otp-field/app.js'
 import { Toggle, ToggleSlots } from '../src/toggle/view.js'
 import { initial as toggleInitial } from '../src/toggle/app.js'
 import { ToggleGroup, ToggleGroupSlots } from '../src/toggle-group/view.js'
@@ -29,6 +31,7 @@ import {
   commandStyle,
   meterStyle,
   numberFieldStyle,
+  otpFieldStyle,
   toggleGroupStyle,
   toggleStyle,
   toolbarStyle,
@@ -43,6 +46,7 @@ const sheet = (): string =>
     alertDialogStyle(AlertDialogSlots),
     autocompleteStyle(AutocompleteSlots),
     numberFieldStyle(NumberFieldSlots),
+    otpFieldStyle(OtpFieldSlots),
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
     commandStyle(CommandSlots),
@@ -66,6 +70,7 @@ describe('showcase styles', () => {
       Inert.draw(AlertDialog, alertInitial.model),
       Inert.draw(Autocomplete, autocompleteInitial.model),
       Inert.draw(NumberField, numberInitial),
+      Inert.draw(OtpField, otpInitial.model),
       Inert.draw(CheckboxGroup, checkboxInitial.model),
       Inert.draw(Meter, meterInitial),
       Inert.draw(Command, commandInitial.model),

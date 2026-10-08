@@ -5,6 +5,7 @@ import { runDemo as runCheckboxGroupDemo } from './checkbox-group/view.js'
 import { runDemo as runCommandDemo } from './command/view.js'
 import { runDemo as runMeterDemo } from './meter/view.js'
 import { runDemo as runNumberFieldDemo } from './number-field/view.js'
+import { runDemo as runOtpFieldDemo } from './otp-field/view.js'
 import { runDemo as runToggleDemo } from './toggle/view.js'
 import { runDemo as runToggleGroupDemo } from './toggle-group/view.js'
 import { runDemo as runToolbarDemo } from './toolbar/demo.js'
@@ -28,6 +29,9 @@ for (const line of runAutocompleteDemo()) {
   console.log(line)
 }
 for (const line of runNumberFieldDemo()) {
+  console.log(line)
+}
+for (const line of runOtpFieldDemo()) {
   console.log(line)
 }
 for (const line of runCheckboxGroupDemo()) {

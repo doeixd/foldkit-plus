@@ -19,6 +19,8 @@ import * as Meter from './meter/app.js'
 import { Meter as MeterView, MeterSlots } from './meter/view.js'
 import * as NumberField from './number-field/app.js'
 import { NumberField as NumberFieldView, NumberFieldSlots } from './number-field/view.js'
+import * as OtpField from './otp-field/app.js'
+import { OtpField as OtpFieldView, OtpFieldSlots } from './otp-field/view.js'
 import * as Toggle from './toggle/app.js'
 import { Toggle as ToggleView, ToggleSlots } from './toggle/view.js'
 import * as ToggleGroup from './toggle-group/app.js'
@@ -33,6 +35,7 @@ import {
   commandStyle,
   meterStyle,
   numberFieldStyle,
+  otpFieldStyle,
   toggleGroupStyle,
   toggleStyle,
   toolbarStyle,
@@ -47,6 +50,7 @@ Style.install(
     alertDialogStyle(AlertDialogSlots),
     autocompleteStyle(AutocompleteSlots),
     numberFieldStyle(NumberFieldSlots),
+    otpFieldStyle(OtpFieldSlots),
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
     commandStyle(CommandSlots),
@@ -110,6 +114,13 @@ const islands = [
     update: NumberField.update,
     view: (model, h) => NumberFieldView(model, h),
     container: island('number-field'),
+  }),
+  Runtime.makeElement({
+    Model: OtpField.Model,
+    init: () => OtpField.initial,
+    update: OtpField.update,
+    view: (model, h) => OtpFieldView(model, h),
+    container: island('otp-field'),
   }),
   Runtime.makeElement({
     Model: CheckboxGroup.Model,
