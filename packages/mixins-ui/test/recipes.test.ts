@@ -27,6 +27,7 @@ import {
   EmptySlots,
   SpinnerSlots,
   KbdSlots,
+  BreadcrumbSlots,
   CheckboxSlots,
   ComboboxSlots,
   DatePickerSlots,
@@ -84,6 +85,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Breadcrumb.def.variants).map(selection => Recipes.Breadcrumb(selection)),
   ...selections(Recipes.Kbd.def.variants).map(selection => Recipes.Kbd(selection)),
   ...selections(Recipes.Spinner.def.variants).map(selection => Recipes.Spinner(selection)),
   ...selections(Recipes.Empty.def.variants).map(selection => Recipes.Empty(selection)),
@@ -115,6 +117,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Breadcrumb: selections(Recipes.Breadcrumb.def.variants).map(
+    selection => Style.forSlots(BreadcrumbSlots)(Recipes.Breadcrumb(selection)).css,
   ),
   Kbd: selections(Recipes.Kbd.def.variants).map(
     selection => Style.forSlots(KbdSlots)(Recipes.Kbd(selection)).css,
