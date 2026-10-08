@@ -21,6 +21,8 @@ import { NavigationMenu } from '../src/navigation-menu/view.js'
 import { initial as navigationInitial } from '../src/navigation-menu/app.js'
 import { NativeSelect } from '../src/native-select/view.js'
 import { initial as nativeSelectInitial } from '../src/native-select/app.js'
+import { Sidebar } from '../src/sidebar/view.js'
+import { initial as sidebarInitial } from '../src/sidebar/app.js'
 import { Meter } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
 import { Progress } from '../src/progress/view.js'
@@ -67,6 +69,7 @@ describe('showcase styles', () => {
       Inert.draw(Menubar, menubarInitial.model),
       Inert.draw(NavigationMenu, navigationInitial.model),
       Inert.draw(NativeSelect, nativeSelectInitial),
+      Inert.draw(Sidebar, sidebarInitial),
     ]
     for (const page of pages) {
       expect(Inert.css([page!]).length).toBeGreaterThan(0)

@@ -61,6 +61,8 @@ import {
   NativeSelectSlots,
   runDemo as runNativeSelectDemo,
 } from './native-select/view.js'
+import * as Sidebar from './sidebar/app.js'
+import { Sidebar as SidebarView, SidebarSlots, runDemo as runSidebarDemo } from './sidebar/view.js'
 import * as NumberField from './number-field/app.js'
 import {
   NumberField as NumberFieldView,
@@ -103,6 +105,7 @@ import {
   navigationMenuStyle,
   nativeSelectStyle,
   numberFieldStyle,
+  sidebarStyle,
   otpFieldStyle,
   progressStyle,
   toggleGroupStyle,
@@ -405,6 +408,23 @@ export const islands = [
           init: () => NavigationMenu.initial,
           update: NavigationMenu.update,
           view: (model, h) => NavigationMenuView(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: 'sidebar',
+    title: 'Sidebar',
+    runDemo: runSidebarDemo,
+    style: () => sidebarStyle(SidebarSlots),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: Sidebar.Model,
+          init: () => ({ model: Sidebar.initial }),
+          update: Sidebar.update,
+          view: (model, h) => SidebarView(model, h),
           container,
         }),
       )

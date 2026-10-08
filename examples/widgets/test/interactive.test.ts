@@ -154,5 +154,11 @@ describe('showcase islands', () => {
     reach.value = 'phone'
     reach.dispatchEvent(new Event('change', { bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Chosen: phone.'))
+
+    // Sidebar: collapsing hides Install, expanding brings it back.
+    click(button('Collapse'))
+    await vi.waitFor(() => expect(document.body.textContent).not.toContain('Install'))
+    click(button('Expand'))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Install'))
   })
 })

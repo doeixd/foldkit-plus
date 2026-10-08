@@ -51,6 +51,8 @@ npx vitest run examples/widgets
   Collection + `ListNavigation` + single Selection under `Overlay.nonModal`.
 - `src/native-select/` — native dropdown: value + change, unlisted values
   refused with the Model untouched.
+- `src/sidebar/` — collapsible docs rail: root Disclosure around section
+  Disclosures over a Collection, links for bodies.
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

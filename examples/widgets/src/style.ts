@@ -17,6 +17,7 @@ import type { MenubarSlots } from './menubar/view.js'
 import type { NavigationMenuSlots } from './navigation-menu/view.js'
 import type { ContextMenuSlots } from './context-menu/view.js'
 import type { NativeSelectSlots } from './native-select/view.js'
+import type { SidebarSlots } from './sidebar/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
 import type { ProgressSlots } from './progress/view.js'
@@ -488,4 +489,31 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
       ),
     },
     { name: 'ShowcaseNavigationMenu' },
+  )
+
+export const sidebarStyle = (slots: typeof SidebarSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '18rem' }),
+      collapse: Style.compose(control, focus),
+      trigger: Style.compose(
+        Style.self({ display: 'block', width: '100%', textAlign: 'start' }),
+        control,
+        focus,
+        Style.states({ true: { borderColor: ink } }, 'aria-expanded'),
+      ),
+      content: Style.self({
+        margin: '0',
+        paddingInlineStart: '1rem',
+        listStyle: 'none',
+        display: 'grid',
+        gap: '0.25rem',
+      }),
+      link: Style.compose(
+        Style.self({ color: muted, textDecoration: 'none' }),
+        focus,
+        Style.pseudo(':hover', { color: ink, textDecoration: 'underline' }),
+      ),
+    },
+    { name: 'ShowcaseSidebar' },
   )
