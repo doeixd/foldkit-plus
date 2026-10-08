@@ -7,11 +7,21 @@
  * drafts, toggles, a click counter); every control draws through a shipped
  * recipe, so the page is the documentation.
  */
-import { Option, Schema } from 'effect'
-import { Subscription, Update } from 'foldkit'
+import { Match, Option, Schema } from 'effect'
+import { Calendar as FoldkitCalendar, File, Subscription, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
+import { childAttributes } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
+import {
+  Combobox as UiCombobox,
+  DatePicker as UiDatePicker,
+  FileDrop as UiFileDrop,
+  Listbox as UiListbox,
+  Menu as UiMenu,
+} from '@foldkit/ui'
+import type { CalendarAttributes } from '@foldkit/ui/calendar'
+import type { EntryHandlers } from '@foldkit/ui/toast'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiDisclosure from '@foldkit/ui/disclosure'
 import * as UiFieldset from '@foldkit/ui/fieldset'
@@ -22,13 +32,25 @@ import * as UiTooltip from '@foldkit/ui/tooltip'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   Button,
+  Calendar,
   CalendarSlots,
   Checkbox,
+  Combobox,
+  ComboboxSlots,
+  ComboboxView,
   DialogSlots,
   Disclosure,
   Fieldset,
+  FileDrop,
+  FileDropSlots,
   HoverIntentSlots,
   Input,
+  Listbox,
+  ListboxSlots,
+  ListboxView,
+  Menu,
+  MenuSlots,
+  MenuView,
   Patterns,
   PopoverSlots,
   RadioGroupSlots,
@@ -38,7 +60,18 @@ import {
   Switch,
   TabsSlots,
   Textarea,
+  Toast,
+  ToastView,
   Tooltip,
+} from 'foldkit-mixins-ui'
+import type {
+  ResolvedCombobox,
+  ResolvedComboboxGroup,
+  ResolvedListbox,
+  ResolvedListboxGroup,
+  ResolvedMenu,
+  ResolvedMenuGroup,
+  ResolvedToast,
 } from 'foldkit-mixins-ui'
 import {
   AreaStyle,
@@ -47,12 +80,18 @@ import {
   CardSlots,
   CardStyle,
   CheckStyle,
+  ComboBoxStyle,
+  DateChromeSlots,
+  DateChromeStyle,
   DestructiveButtonStyle,
   DialogPreviewStyle,
   DisclosureStyle,
   FieldStyle,
   FieldsetStyle,
   FilledFieldStyle,
+  FileDropStyle,
+  FileTextSlots,
+  FileTextStyle,
   GhostButtonStyle,
   HoverCardStyle,
   IconSlots,
@@ -61,6 +100,8 @@ import {
   InputGroupStyle,
   LargeButtonStyle,
   LineTabsStyle,
+  ListboxStyle,
+  MenuStyle,
   OutlineButtonStyle,
   PageSlots,
   PageStyle,
@@ -74,6 +115,9 @@ import {
   SliderStyle,
   SmallButtonStyle,
   StatusStyle,
+  ToastEntrySlots,
+  ToastEntryStyle,
+  ToastStyle,
   ToggleStyle,
   TooltipStyle,
 } from './style.js'
@@ -115,6 +159,36 @@ const Contact = Schema.Union([
 ])
 type Contact = typeof Contact.Type
 
+const MenuAction = Schema.Union([
+  Schema.Literal('Reply'),
+  Schema.Literal('Forward'),
+  Schema.Literal('Archive'),
+  Schema.Literal('Delete'),
+])
+type MenuAction = typeof MenuAction.Type
+
+const Frequency = Schema.Union([
+  Schema.Literal('Daily'),
+  Schema.Literal('Weekly'),
+  Schema.Literal('Monthly'),
+])
+type Frequency = typeof Frequency.Type
+
+const ToastPayload = Schema.Struct({
+  title: Schema.String,
+  maybeDescription: Schema.Option(Schema.String),
+})
+export type ToastPayload = typeof ToastPayload.Type
+
+const ActionMenu = MenuView.create<MenuAction>()
+const FrequencyBox = ListboxView.create<Frequency>()
+const CityBox = ComboboxView.create<string>()
+// Annotated: the inferred type names a foldkit internal module, which a
+// composite project cannot emit a declaration for.
+export const ToastStack: ReturnType<
+  typeof ToastView.make<ToastPayload, typeof ToastPayload.Encoded>
+> = ToastView.make(ToastPayload)
+
 export const Model = Schema.Struct({
   hue: Schema.Number,
   scheme: Scheme,
@@ -132,6 +206,17 @@ export const Model = Schema.Struct({
   volume: Schema.Number,
   volumeSlider: UiSlider.Model,
   tooltip: UiTooltip.Model,
+  menu: UiMenu.Model,
+  menuChoice: Schema.String,
+  listbox: UiListbox.Model,
+  maybeFrequency: Schema.Option(Frequency),
+  combobox: UiCombobox.Model,
+  maybeCity: Schema.Option(Schema.String),
+  picker: UiDatePicker.Model,
+  maybeDue: Schema.Option(FoldkitCalendar.CalendarDate),
+  toast: ToastStack.Model,
+  drop: UiFileDrop.Model,
+  files: Schema.Array(File.File),
   popoverOpen: Schema.Boolean,
   address: Schema.String,
 })
@@ -153,12 +238,23 @@ export const Message = defineMessageUnion({
   ContactSelected: { contact: Contact },
   VolumeSlider: { message: UiSlider.Message },
   Tooltip: { message: UiTooltip.Message },
+  Menu: { message: UiMenu.Message },
+  Listbox: { message: UiListbox.Message },
+  Combobox: { message: UiCombobox.Message },
+  DatePicker: { message: UiDatePicker.Message },
+  Toast: { message: ToastStack.Message },
+  NotifyPressed: {},
+  DropFiles: { message: UiFileDrop.Message },
+  RemoveFile: { index: Schema.Number },
   PopoverToggled: {},
   AddressTyped: { value: Schema.String },
 })
 export type Message = typeof Message.Type
 
-export const initialModel: Model = {
+export type CalendarDate = typeof FoldkitCalendar.CalendarDate.Type
+
+/** The initial Model for a day: the date picker opens on it. Tests pass a fixed date. */
+export const initModel = (today: CalendarDate): Model => ({
   hue: 222,
   scheme: 'system',
   lineTab: 'overview',
@@ -175,9 +271,25 @@ export const initialModel: Model = {
   volume: 60,
   volumeSlider: UiSlider.init({ id: 'volume-slider', min: 0, max: 100, step: 5 }),
   tooltip: UiTooltip.init({ id: 'hint-tooltip' }),
+  menu: UiMenu.init({ id: 'row-actions' }),
+  menuChoice: '',
+  listbox: UiListbox.init({ id: 'backup-frequency' }),
+  maybeFrequency: Option.none(),
+  combobox: UiCombobox.init({ id: 'home-city' }),
+  maybeCity: Option.none(),
+  picker: UiDatePicker.init({
+    id: 'due-date',
+    today,
+    minDate: FoldkitCalendar.subtractYears(today, 5),
+    maxDate: FoldkitCalendar.addYears(today, 5),
+  }),
+  maybeDue: Option.none(),
+  toast: ToastStack.init({ id: 'notify-toast' }),
+  drop: UiFileDrop.init({ id: 'attachments' }),
+  files: [],
   popoverOpen: false,
   address: 'about',
-}
+})
 
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
@@ -202,6 +314,23 @@ export const update = (model: Model, message: Message) =>
     ContactSelected: ({ contact }) => ({ model: modifyFields(model, { contact: () => contact }) }),
     VolumeSlider: ({ message }) => foldVolumeSlider(model, message),
     Tooltip: ({ message }) => foldTooltip(model, message),
+    Menu: ({ message }) => foldMenu(model, message),
+    Listbox: ({ message }) => foldListbox(model, message),
+    Combobox: ({ message }) => foldCombobox(model, message),
+    DatePicker: ({ message }) => foldDatePicker(model, message),
+    Toast: ({ message }) => foldToast(model, message),
+    NotifyPressed: () =>
+      foldToastShow(model, {
+        variant: 'Success',
+        payload: {
+          title: 'Saved',
+          maybeDescription: Option.some('Your changes are live.'),
+        },
+      }),
+    DropFiles: ({ message }) => foldDropFiles(model, message),
+    RemoveFile: ({ index }) => ({
+      model: modifyFields(model, { files: files => files.filter((_, at) => at !== index) }),
+    }),
     PopoverToggled: () => ({ model: modifyFields(model, { popoverOpen: open => !open }) }),
     AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
@@ -235,6 +364,112 @@ const foldTooltip = Update.foldChild({
   foldOutMessage: UiTooltip.OutMessage.match<Update.Step<Model, Message>>({
     Shown: () => model => ({ model }),
     Hidden: () => model => ({ model }),
+  }),
+})
+
+/** The chosen action is the parent's fact; the menu already closed itself. */
+const foldMenu = Update.foldChild({
+  update: ActionMenu.update,
+  read: (model: Model) => Option.some(model.menu),
+  write: (model, menu) => modifyFields(model, { menu: () => menu }),
+  toParentMessage: message => Message.Menu({ message }),
+  foldOutMessage: UiMenu.OutMessage.match<
+    Update.Step<Model, Message>,
+    UiMenu.OutMessage<MenuAction>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { menuChoice: () => value }),
+      }),
+  }),
+})
+
+const foldListbox = Update.foldChild({
+  update: FrequencyBox.update,
+  read: (model: Model) => Option.some(model.listbox),
+  write: (model, listbox) => modifyFields(model, { listbox: () => listbox }),
+  toParentMessage: message => Message.Listbox({ message }),
+  foldOutMessage: UiListbox.OutMessage.match<
+    Update.Step<Model, Message>,
+    UiListbox.OutMessage<Frequency>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { maybeFrequency: () => Option.some(value) }),
+      }),
+  }),
+})
+
+const foldCombobox = Update.foldChild({
+  update: CityBox.update,
+  read: (model: Model) => Option.some(model.combobox),
+  write: (model, combobox) => modifyFields(model, { combobox: () => combobox }),
+  toParentMessage: message => Message.Combobox({ message }),
+  foldOutMessage: UiCombobox.OutMessage.match<
+    Update.Step<Model, Message>,
+    UiCombobox.OutMessage<string>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { maybeCity: () => Option.some(value) }),
+      }),
+    ClearedSelection: () => model => ({
+      model: modifyFields(model, { maybeCity: () => Option.none() }),
+    }),
+  }),
+})
+
+const foldDatePicker = Update.foldChild({
+  update: UiDatePicker.update,
+  read: (model: Model) => Option.some(model.picker),
+  write: (model, picker) => modifyFields(model, { picker: () => picker }),
+  toParentMessage: message => Message.DatePicker({ message }),
+  foldOutMessage: UiDatePicker.OutMessage.match<Update.Step<Model, Message>>({
+    SelectedDate:
+      ({ date }) =>
+      model => ({
+        model: modifyFields(model, { maybeDue: () => Option.some(date) }),
+      }),
+    ClearedDate: () => model => ({ model: modifyFields(model, { maybeDue: () => Option.none() }) }),
+    ChangedViewMonth: () => model => ({ model }),
+  }),
+})
+
+const foldToast = Update.foldChild({
+  update: ToastStack.update,
+  read: (model: Model) => Option.some(model.toast),
+  write: (model, toast) => modifyFields(model, { toast: () => toast }),
+  toParentMessage: message => Message.Toast({ message }),
+  foldOutMessage: ToastStack.OutMessage.match<Update.Step<Model, Message>>({
+    DismissedToast: () => model => ({ model }),
+  }),
+})
+
+const foldToastShow = Update.foldChild({
+  update: ToastStack.show,
+  read: (model: Model) => Option.some(model.toast),
+  write: (model, toast) => modifyFields(model, { toast: () => toast }),
+  toParentMessage: message => Message.Toast({ message }),
+  foldOutMessage: ToastStack.OutMessage.match<Update.Step<Model, Message>>({
+    DismissedToast: () => model => ({ model }),
+  }),
+})
+
+const foldDropFiles = Update.foldChild({
+  update: UiFileDrop.update,
+  read: (model: Model) => Option.some(model.drop),
+  write: (model, drop) => modifyFields(model, { drop: () => drop }),
+  toParentMessage: message => Message.DropFiles({ message }),
+  foldOutMessage: UiFileDrop.OutMessage.match<Update.Step<Model, Message>>({
+    ReceivedFiles:
+      ({ files }) =>
+      model => ({
+        model: modifyFields(model, { files: current => [...current, ...files] }),
+      }),
+    RejectedNonFiles: () => model => ({ model }),
   }),
 })
 
@@ -392,6 +627,57 @@ const countries: ReadonlyArray<readonly [value: string, label: string]> = [
   ['au', 'Australia'],
 ]
 
+const menuItems: ReadonlyArray<MenuAction> = ['Reply', 'Forward', 'Archive', 'Delete']
+
+const itemGroupKey = (item: MenuAction): string =>
+  item === 'Archive' || item === 'Delete' ? 'Manage' : 'Respond'
+
+const frequencies: ReadonlyArray<Frequency> = ['Daily', 'Weekly', 'Monthly']
+
+const cities: ReadonlyArray<string> = [
+  'Johannesburg',
+  'Kyiv',
+  'Oxford',
+  'Plymouth',
+  'Quito',
+  'Wellington',
+  'Zurich',
+]
+
+const filterCities = (inputValue: string): ReadonlyArray<string> =>
+  inputValue === ''
+    ? cities
+    : cities.filter(city => city.toLowerCase().includes(inputValue.toLowerCase()))
+
+const formatIsoDate = (date: CalendarDate): string =>
+  `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
+
+const formatFileSize = (bytes: number): string =>
+  bytes < 1024
+    ? `${bytes} B`
+    : bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+const drawMenuGroups = (
+  groups: ReadonlyArray<ResolvedMenuGroup<Message>>,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> =>
+  groups.flatMap(group => {
+    const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
+    if (group.group === undefined) return drawn
+    const headed =
+      group.heading === undefined
+        ? []
+        : [h.keyed('div')(group.heading.id, group.heading.attributes, [group.heading.content])]
+    return [
+      ...(group.separator === undefined
+        ? []
+        : [h.keyed('div')(group.separator.key, group.separator.attributes)]),
+      h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
+    ]
+  })
+
 const contacts: ReadonlyArray<{ readonly value: Contact; readonly label: string }> = [
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
@@ -440,6 +726,358 @@ const SliderDemo = (model: Pick<Model, 'volume' | 'volumeSlider'>, h: HtmlBuilde
     },
     toParentMessage: message => Message.VolumeSlider({ message }),
   })
+
+/**
+ * A row-action menu: grouped items, one disabled, the choice reported back.
+ * The draw mirrors the fork's default markup with the resolved bundles.
+ */
+const MenuDemo = (model: Pick<Model, 'menu' | 'menuChoice'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.menu.id,
+    model: model.menu,
+    view: ActionMenu.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
+      items: menuItems,
+      itemToConfig: (item: MenuAction) => ({ content: h.span([], [item]) }),
+      buttonContent: h.span([], ['Actions']),
+      isItemDisabled: (item: MenuAction) => item === 'Archive',
+      itemGroupKey,
+      groupToHeading: (groupKey: string) =>
+        groupKey === 'Manage' ? { content: h.span([], ['Manage']) } : undefined,
+      toView: Menu.toView([MenuStyle.mixin], { h }, resolved =>
+        h.div(resolved.wrapper, [
+          h.keyed('button')(`${resolved.id}-button`, resolved.button, [resolved.buttonContent]),
+          ...(resolved.backdrop === undefined
+            ? []
+            : [h.keyed('div')(resolved.backdrop.key, resolved.backdrop.attributes)]),
+          ...(resolved.items === undefined
+            ? []
+            : [
+                h.keyed('div')(
+                  resolved.items.key,
+                  resolved.items.attributes,
+                  resolved.scroll === undefined
+                    ? drawMenuGroups(resolved.groups, h)
+                    : [h.div(resolved.scroll, drawMenuGroups(resolved.groups, h))],
+                ),
+              ]),
+        ]),
+      ),
+    },
+    toParentMessage: message => Message.Menu({ message }),
+  })
+
+/** A backup-frequency listbox: the button shows the choice. */
+const ListboxDemo = (
+  model: Pick<Model, 'listbox' | 'maybeFrequency'>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const label = Option.getOrElse(model.maybeFrequency, () => 'Select frequency')
+  return h.submodel({
+    slotId: model.listbox.id,
+    model: model.listbox,
+    view: FrequencyBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
+      items: frequencies,
+      maybeSelectedValue: model.maybeFrequency,
+      itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
+      buttonContent: h.span([], [label]),
+      toView: Listbox.toView([ListboxStyle.mixin], { h }, resolved =>
+        h.div(resolved.wrapper, [
+          h.keyed('button')(`${resolved.id}-button`, resolved.button, [resolved.buttonContent]),
+          ...(resolved.backdrop === undefined
+            ? []
+            : [h.keyed('div')(resolved.backdrop.key, resolved.backdrop.attributes)]),
+          ...(resolved.items === undefined
+            ? []
+            : [
+                h.keyed('div')(
+                  resolved.items.key,
+                  resolved.items.attributes,
+                  resolved.scroll === undefined
+                    ? drawListboxGroups(resolved.groups, h)
+                    : [h.div(resolved.scroll, drawListboxGroups(resolved.groups, h))],
+                ),
+              ]),
+          ...resolved.hiddenInputs,
+        ]),
+      ),
+    },
+    toParentMessage: message => Message.Listbox({ message }),
+  })
+}
+
+const drawListboxGroups = (
+  groups: ReadonlyArray<ResolvedListboxGroup<Message>>,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> =>
+  groups.flatMap(group => {
+    const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
+    if (group.group === undefined) return drawn
+    const headed =
+      group.heading === undefined
+        ? []
+        : [h.keyed('div')(group.heading.id, group.heading.attributes, [group.heading.content])]
+    return [
+      ...(group.separator === undefined
+        ? []
+        : [h.keyed('div')(group.separator.key, group.separator.attributes)]),
+      h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
+    ]
+  })
+
+/** A city combobox: type to filter, pick to fill. */
+const ComboboxDemo = (
+  model: Pick<Model, 'combobox' | 'maybeCity'>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: model.combobox.id,
+    model: model.combobox,
+    view: CityBox.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 8, padding: 8 },
+      items: filterCities(model.combobox.inputValue),
+      restingInputValue: Option.getOrElse(model.maybeCity, () => ''),
+      itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
+      itemToValue: (city: string) => city,
+      itemToDisplayText: (city: string) => city,
+      buttonContent: h.span([], ['▾']),
+      maybeSelectedValue: model.maybeCity,
+      toView: Combobox.toView([ComboBoxStyle.mixin], { h }, resolved =>
+        h.div(resolved.wrapper, [
+          h.div(resolved.inputWrapper, [
+            h.input([...resolved.input, h.Placeholder('Search cities…')]),
+            ...(resolved.toggleButton === undefined
+              ? []
+              : [
+                  h.keyed('button')(resolved.toggleButton.key, resolved.toggleButton.attributes, [
+                    resolved.toggleButton.content,
+                  ]),
+                ]),
+          ]),
+          ...(resolved.backdrop === undefined
+            ? []
+            : [h.keyed('div')(resolved.backdrop.key, resolved.backdrop.attributes)]),
+          ...(resolved.items === undefined
+            ? []
+            : [
+                h.keyed('div')(
+                  resolved.items.key,
+                  resolved.items.attributes,
+                  resolved.scroll === undefined
+                    ? drawComboboxGroups(resolved.groups, h)
+                    : [h.div(resolved.scroll, drawComboboxGroups(resolved.groups, h))],
+                ),
+              ]),
+          ...resolved.hiddenInputs,
+        ]),
+      ),
+    },
+    toParentMessage: message => Message.Combobox({ message }),
+  })
+
+const drawComboboxGroups = (
+  groups: ReadonlyArray<ResolvedComboboxGroup<Message>>,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> =>
+  groups.flatMap(group => {
+    const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
+    if (group.group === undefined) return drawn
+    const headed =
+      group.heading === undefined
+        ? []
+        : [h.keyed('div')(group.heading.id, group.heading.attributes, [group.heading.content])]
+    return [
+      ...(group.separator === undefined
+        ? []
+        : [h.keyed('div')(group.separator.key, group.separator.attributes)]),
+      h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
+    ]
+  })
+
+/** The month grid any calendar draws through, here in the picker's panel. */
+const drawCalendarGrid = (attributes: CalendarAttributes, h: HtmlBuilder<Message>): Html => {
+  const calendar = Calendar.resolve(attributes, [CalendarStyle.mixin], { input: undefined, h })
+  return Match.value(calendar).pipe(
+    Match.tagsExhaustive({
+      Days: days =>
+        h.div(days.root, [
+          h.div(
+            [],
+            [
+              h.button(days.previousMonthButton, ['‹']),
+              h.button(days.headingButton, [days.heading.text]),
+              h.button(days.nextMonthButton, ['›']),
+            ],
+          ),
+          h.div(days.grid, [
+            h.div(days.headerRow, [
+              ...days.columnHeaders.map(header => h.div(header.attributes, [header.name])),
+            ]),
+            ...days.weeks.map(week =>
+              h.div(week.attributes, [
+                ...week.cells.map(cell =>
+                  h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
+                ),
+              ]),
+            ),
+          ]),
+        ]),
+      Months: months =>
+        h.div(months.root, [
+          h.div([], [h.button(months.headingButton, [months.heading.text])]),
+          h.div(
+            months.grid,
+            months.cells.map(cell =>
+              h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.shortLabel])]),
+            ),
+          ),
+        ]),
+      Years: years =>
+        h.div(years.root, [
+          h.div(
+            [],
+            [
+              h.button(years.previousPageButton, ['«']),
+              h.span([], [years.heading.text]),
+              h.button(years.nextPageButton, ['»']),
+            ],
+          ),
+          h.div(
+            years.grid,
+            years.cells.map(cell =>
+              h.div(cell.cellAttributes, [h.button(cell.buttonAttributes, [cell.label])]),
+            ),
+          ),
+        ]),
+    }),
+  )
+}
+
+/**
+ * A due-date picker: the shell rides attribute bundles (the adapter resolves
+ * in the child's own universe), while the month grid inside draws through
+ * CalendarSlots like the preview above.
+ */
+const DatePickerDemo = (
+  model: Pick<Model, 'picker' | 'maybeDue'>,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const chrome = SlotView.buildersFor(DateChromeSlots, [DateChromeStyle.style.mixin], {
+    input: model,
+    h,
+  })
+  return h.submodel({
+    slotId: model.picker.id,
+    model: model.picker,
+    view: UiDatePicker.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
+      maybeSelectedDate: model.maybeDue,
+      triggerContent: maybeDue =>
+        h.span(
+          [],
+          [Option.match(maybeDue, { onNone: () => 'Pick a date', onSome: formatIsoDate })],
+        ),
+      attributes: childAttributes(chrome.picker.attrs()),
+      triggerAttributes: childAttributes(chrome.trigger.attrs()),
+      panelAttributes: childAttributes(chrome.panel.attrs()),
+      backdropAttributes: childAttributes(chrome.backdrop.attrs()),
+      toCalendarView: attributes => drawCalendarGrid(attributes, h),
+    },
+    toParentMessage: message => Message.DatePicker({ message }),
+  })
+}
+
+/** A notify button and the stack it feeds: entries auto-dismiss. */
+const ToastDemo = (model: Pick<Model, 'toast'>, h: HtmlBuilder<Message>): Html => {
+  const entry = SlotView.buildersFor(ToastEntrySlots, [ToastEntryStyle.style.mixin], {
+    input: model,
+    h,
+  })
+  return h.submodel({
+    slotId: model.toast.id,
+    model: model.toast,
+    view: ToastStack.view,
+    viewInputs: {
+      position: 'BottomRight',
+      entryToView: (toastEntry, handlers: EntryHandlers) =>
+        h.div(
+          [],
+          [
+            h.p(entry.title.attrs(), [toastEntry.payload.title]),
+            ...Option.match(toastEntry.payload.maybeDescription, {
+              onNone: () => [],
+              onSome: text => [h.p(entry.text.attrs(), [text])],
+            }),
+            h.button(entry.dismiss.attrs(handlers.dismiss), ['Dismiss']),
+          ],
+        ),
+      toView: Toast.toView([ToastStyle.mixin], { h }, resolved =>
+        h.div(
+          resolved.container,
+          resolved.entries.map(entryView =>
+            h.keyed('div')(entryView.id, entryView.attributes, [entryView.content]),
+          ),
+        ),
+      ),
+    },
+    toParentMessage: message => Message.Toast({ message }),
+  })
+}
+
+/** An attachment drop zone with the files it collected. */
+const FileDropDemo = (
+  model: Pick<Model, 'drop' | 'files'>,
+  slots: PageBuilders,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const text = SlotView.buildersFor(FileTextSlots, [FileTextStyle.style.mixin], { input: model, h })
+  return h.div(
+    [],
+    [
+      h.submodel({
+        slotId: model.drop.id,
+        model: model.drop,
+        view: UiFileDrop.view,
+        viewInputs: {
+          multiple: true,
+          toView: attributes => {
+            const resolved = FileDrop.resolve(attributes, [FileDropStyle.mixin], { h })
+            return h.label(resolved.root, [
+              h.p(text.primary.attrs(), ['Drop files or click to browse']),
+              h.p(text.secondary.attrs(), [
+                model.files.length === 0
+                  ? 'Any file type. This demo just lists them.'
+                  : `${model.files.length} attached.`,
+              ]),
+              h.input(resolved.input),
+            ])
+          },
+        },
+        toParentMessage: message => Message.DropFiles({ message }),
+      }),
+      ...model.files.map((file, index) =>
+        h.div(slots.row.attrs([h.Key(`${File.name(file)}:${File.size(file)}`)]), [
+          h.span(text.fileName.attrs(), [
+            `${File.name(file)} (${formatFileSize(File.size(file))})`,
+          ]),
+          Button.view(
+            {
+              label: 'Remove',
+              style: GhostButtonStyle,
+              onClick: Message.RemoveFile({ index }),
+            },
+            h,
+          ),
+        ]),
+      ),
+    ],
+  )
+}
 
 const weekDays: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
@@ -676,10 +1314,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               ['buttons', 'Buttons'],
               ['form', 'Form'],
               ['choice', 'Choice'],
+              ['menu', 'Menu'],
               ['feedback', 'Feedback'],
               ['overlays', 'Overlays'],
               ['navigation', 'Navigation'],
-              ['calendar', 'Calendar'],
+              ['calendar', 'Date'],
               ['card', 'Card'],
               ['utilities', 'Utilities'],
               ['tokens', 'Tokens'],
@@ -763,7 +1402,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('form')]), [
           h.h2(slots.sectionTitle.attrs(), ['Form']),
           h.p(slots.sectionText.attrs(), [
-            'Input, Textarea, Checkbox, and Switch, each a headless component resolved through its slot contract.',
+            'Input, Textarea, Checkbox, and Switch, each a headless component resolved through its slot contract — plus a drop zone for attachments.',
           ]),
           Input.view(
             {
@@ -846,11 +1485,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             },
             h,
           ),
+          FileDropDemo(model, slots, h),
         ]),
         h.section(slots.section.attrs([h.Id('choice')]), [
           h.h2(slots.sectionTitle.attrs(), ['Choice']),
           h.p(slots.sectionText.attrs(), [
-            'One value from many: a native Select, radio pills, a live slider — drag it or use the arrow keys — and a Disclosure, each through its slot contract.',
+            'One value from many: a native Select, radio pills, a live slider — drag it or use the arrow keys — a listbox, a filtering combobox, and a Disclosure, each through its slot contract.',
           ]),
           UiSelect.view(
             {
@@ -914,14 +1554,32 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             h,
           ),
           SliderDemo(model, h),
+          ListboxDemo(model, h),
+          ComboboxDemo(model, h),
+        ]),
+        h.section(slots.section.attrs([h.Id('menu')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Menu']),
+          h.p(slots.sectionText.attrs(), [
+            model.menuChoice === ''
+              ? 'Grouped actions with one disabled. Open it and pick one.'
+              : `Chose ${model.menuChoice}.`,
+          ]),
+          MenuDemo(model, h),
         ]),
         h.section(slots.section.attrs([h.Id('feedback')]), [
           h.h2(slots.sectionTitle.attrs(), ['Feedback']),
           h.p(slots.sectionText.attrs(), [
-            'One badge style serves every tone through data-state; the dialog panel draws in place.',
+            'One badge style serves every tone through data-state; the dialog panel draws in place; toasts stack bottom-right and dismiss themselves.',
           ]),
           BadgesView(undefined, h),
           DialogPreview(undefined, h),
+          h.div(slots.row.attrs(), [
+            Button.view(
+              { label: 'Notify', style: PrimaryButtonStyle, onClick: Message.NotifyPressed() },
+              h,
+            ),
+          ]),
+          ToastDemo(model, h),
         ]),
         h.section(slots.section.attrs([h.Id('overlays')]), [
           h.h2(slots.sectionTitle.attrs(), ['Overlays']),
@@ -945,11 +1603,18 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ]),
         ]),
         h.section(slots.section.attrs([h.Id('calendar')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Calendar']),
+          h.h2(slots.sectionTitle.attrs(), ['Date']),
           h.p(slots.sectionText.attrs(), [
-            'A month grid preview through the Calendar slots; the 15th is selected. The live component pages months and years as a Submodel.',
+            'A month grid preview through the Calendar slots, and a live picker that writes the due date. The picker shell rides attribute bundles; its grid draws through the same Calendar slots as the preview.',
           ]),
           CalendarPreview(15, h),
+          DatePickerDemo(model, h),
+          h.p(slots.sectionText.attrs(), [
+            Option.match(model.maybeDue, {
+              onNone: () => 'No due date yet.',
+              onSome: date => `Due ${formatIsoDate(date)}.`,
+            }),
+          ]),
         ]),
         h.section(slots.section.attrs([h.Id('card')]), [
           h.h2(slots.sectionTitle.attrs(), ['Card']),

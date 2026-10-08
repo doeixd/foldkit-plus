@@ -19,12 +19,16 @@ import {
   ButtonSlots,
   CalendarSlots,
   CheckboxSlots,
+  ComboboxSlots,
   DialogSlots,
   DisclosureSlots,
   FieldsetSlots,
+  FileDropSlots,
   HoverIntentSlots,
   Icons,
   InputSlots,
+  ListboxSlots,
+  MenuSlots,
   PopoverSlots,
   RadioGroupSlots,
   Recipes,
@@ -34,6 +38,7 @@ import {
   SwitchSlots,
   TabsSlots,
   TextareaSlots,
+  ToastSlots,
   TooltipSlots,
   Touch,
 } from 'foldkit-mixins-ui'
@@ -533,6 +538,308 @@ export const HoverCardStyle = app.forSlots(HoverIntentSlots)(
     ],
   },
   { name: 'HoverCardStyle' },
+)
+
+// --- pickers: menu, listbox, combobox -------------------------------------------------
+// None of these ships a recipe, so each is styled here in the shadcn skin:
+// a bordered panel under the trigger, rows that tint when chosen.
+
+const popupPanel = [
+  {
+    marginBlockStart: t.space['2xs'],
+    minInlineSize: '14rem',
+    padding: t.space['2xs'],
+    border: `${t.border.thin} solid ${t.outline.subtle}`,
+    borderRadius: t.radius.lg,
+    background: t.surface.base,
+    boxShadow: t.shadow.lg,
+  },
+]
+
+const popupRow = [
+  U.text('sm'),
+  {
+    display: 'block',
+    inlineSize: '100%',
+    boxSizing: 'border-box',
+    padding: `${t.space['2xs']} ${t.space.sm}`,
+    border: '0',
+    borderRadius: t.radius.md,
+    background: 'transparent',
+    color: t.text.default,
+    font: 'inherit',
+    textAlign: 'start',
+    cursor: 'pointer',
+  },
+  Style.pseudo(':hover', { background: t.surface.muted }),
+]
+
+export const MenuStyle = app.forSlots(MenuSlots)(
+  {
+    wrapper: [{ position: 'relative', display: 'inline-block' }],
+    button: [
+      U.text('sm'),
+      U.font('medium'),
+      {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: t.space.xs,
+        padding: `${t.space.xs} ${t.space.md}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+    ],
+    backdrop: [{ position: 'fixed', inset: '0' }],
+    items: popupPanel,
+    item: [
+      ...popupRow,
+      Style.pseudo('[aria-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
+    ],
+    heading: [
+      U.m('0'),
+      U.text('xs'),
+      U.font('semibold'),
+      U.color('text.muted'),
+      { padding: `${t.space['2xs']} ${t.space.sm}`, textTransform: 'uppercase' },
+    ],
+    separator: [
+      {
+        marginBlock: t.space['2xs'],
+        borderBlockStart: `${t.border.thin} solid ${t.outline.subtle}`,
+      },
+    ],
+  },
+  { name: 'MenuStyle' },
+)
+
+export const ListboxStyle = app.forSlots(ListboxSlots)(
+  {
+    wrapper: [{ position: 'relative', display: 'inline-block', minInlineSize: '14rem' }],
+    button: [
+      {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: t.space.sm,
+        inlineSize: '100%',
+        padding: `${t.space.xs} 2rem ${t.space.xs} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+        color: t.text.default,
+        font: 'inherit',
+        lineHeight: t.leading.normal,
+        appearance: 'none',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: t.outline.overt }),
+    ],
+    backdrop: [{ position: 'fixed', inset: '0' }],
+    items: popupPanel,
+    item: [
+      ...popupRow,
+      Style.pseudo('[aria-selected="true"]', { background: t.accent.subtle, color: t.accent.ink }),
+    ],
+  },
+  { name: 'ListboxStyle' },
+)
+
+export const ComboBoxStyle = app.forSlots(ComboboxSlots)(
+  {
+    wrapper: [{ position: 'relative', display: 'inline-block', minInlineSize: '14rem' }],
+    inputWrapper: [
+      {
+        display: 'flex',
+        alignItems: 'center',
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+      },
+      Style.pseudo(':hover:not(:focus-within)', { borderColor: t.outline.overt }),
+      Style.pseudo(':focus-within', {
+        outline: `${t.border.thick} solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+    ],
+    input: [
+      {
+        flex: '1',
+        minInlineSize: '0',
+        padding: `${t.space.xs} ${t.space.sm}`,
+        border: '0',
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        lineHeight: t.leading.normal,
+      },
+      Style.pseudo(':focus-visible', { outline: 'none' }),
+    ],
+    toggleButton: [
+      U.text('sm'),
+      {
+        padding: `${t.space.xs} ${t.space.sm}`,
+        border: '0',
+        background: 'transparent',
+        color: t.text.muted,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { color: t.text.overt }),
+    ],
+    backdrop: [{ position: 'fixed', inset: '0' }],
+    items: popupPanel,
+    item: [
+      ...popupRow,
+      Style.pseudo('[aria-selected="true"]', { background: t.accent.subtle, color: t.accent.ink }),
+    ],
+  },
+  { name: 'ComboBoxStyle' },
+)
+
+// --- date chrome: the picker shell rides attribute bundles ---------------------------
+// The DatePicker adapter resolves in the child's own Message universe, so a
+// parent draws its shell through these slots instead: the month grid inside
+// still resolves through CalendarSlots.
+
+export const DateChromeSlots = Slots.define({
+  picker: Slot.make({ capability: Capability.Container }),
+  trigger: Slot.make({ capability: Capability.Container }),
+  panel: Slot.make({ capability: Capability.Container }),
+  backdrop: Slot.make({ capability: Capability.Container }),
+})
+
+export const DateChromeStyle = app.slots(
+  {
+    picker: [{ position: 'relative', display: 'inline-block' }],
+    trigger: [
+      U.text('sm'),
+      {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: t.space.xs,
+        padding: `${t.space.xs} ${t.space.md}`,
+        border: `${t.border.thin} solid ${t.outline.default}`,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+        color: t.text.default,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { borderColor: t.outline.overt }),
+    ],
+    panel: popupPanel,
+    backdrop: [{ position: 'fixed', inset: '0' }],
+  },
+  { name: 'DateChromeStyle' },
+)
+
+// --- toast + file drop -------------------------------------------------------------------
+
+export const ToastStyle = app.forSlots(ToastSlots)(
+  {
+    container: [
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      {
+        position: 'fixed',
+        insetBlockEnd: t.space.lg,
+        insetInlineEnd: t.space.lg,
+        inlineSize: 'min(22rem, calc(100vw - 2rem))',
+        zIndex: '50',
+      },
+    ],
+    entry: [
+      {
+        padding: t.space.md,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderInlineStart: `${t.border.thick} solid ${t.accent.default}`,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        boxShadow: t.shadow.lg,
+      },
+    ],
+  },
+  { name: 'ToastStyle' },
+)
+
+export const ToastEntrySlots = Slots.define({
+  title: Slot.make({ capability: Capability.Container }),
+  text: Slot.make({ capability: Capability.Container }),
+  dismiss: Slot.make({ capability: Capability.Container }),
+})
+
+export const ToastEntryStyle = app.slots(
+  {
+    title: [U.m('0'), U.text('sm'), U.font('semibold'), U.color('text.overt')],
+    text: [U.m('0'), U.text('sm'), U.color('text.muted')],
+    dismiss: [
+      U.text('sm'),
+      U.font('medium'),
+      {
+        padding: '0',
+        border: '0',
+        background: 'transparent',
+        color: t.text.muted,
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { color: t.text.overt }),
+    ],
+  },
+  { name: 'ToastEntryStyle' },
+)
+
+export const FileDropStyle = app.forSlots(FileDropSlots)(
+  {
+    root: [
+      L.in('layouts', Layout.stack({ gap: t.space['2xs'], align: 'center' })),
+      {
+        padding: t.space.xl,
+        border: `${t.border.thin} dashed ${t.outline.default}`,
+        borderRadius: t.radius.lg,
+        background: t.surface.subtle,
+        color: t.text.muted,
+        textAlign: 'center',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { borderColor: t.outline.overt }),
+      Style.pseudo('[data-drag-over="true"]', {
+        borderColor: t.accent.default,
+        background: t.accent.subtle,
+        color: t.accent.ink,
+      }),
+    ],
+    input: [
+      {
+        position: 'absolute',
+        inlineSize: '1px',
+        blockSize: '1px',
+        overflow: 'hidden',
+        clipPath: 'inset(50%)',
+      },
+    ],
+  },
+  { name: 'FileDropStyle' },
+)
+
+export const FileTextSlots = Slots.define({
+  primary: Slot.make({ capability: Capability.Container }),
+  secondary: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Container }),
+  fileName: Slot.make({ capability: Capability.Container }),
+})
+
+export const FileTextStyle = app.slots(
+  {
+    primary: [U.m('0'), U.text('sm'), U.font('medium'), U.color('text.overt')],
+    secondary: [U.m('0'), U.text('sm'), U.color('text.muted')],
+    row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' }))],
+    fileName: [U.text('sm'), U.font('medium'), U.color('text.default')],
+  },
+  { name: 'FileTextStyle' },
 )
 
 // --- input group, icons, touch -----------------------------------------------------------

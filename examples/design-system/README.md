@@ -17,12 +17,16 @@ What it shows:
 - **Buttons** — the shadcn mapping (`primary` = Default, `neutral` solid =
   Secondary, `neutral` outline/ghost, `danger` = Destructive), sizes, icon,
   and disabled, all live `@foldkit/ui` buttons through `Button.view`.
-- **Form** — `Input`, `Textarea`, and `InputGroup` recipes, plus live
-  `Checkbox` and `Switch`, wired to the Model.
+- **Form** — `Input`, `Textarea`, and `InputGroup` recipes, live `Checkbox`
+  and `Switch`, and a `FileDrop` zone that lists what it catches.
 - **Choice** — a native `Select`, a `Disclosure`, a `Fieldset` of radio pills,
-  and a live `Slider` (drag, arrow keys, Escape restores), each through its
+  a live `Slider`, a `Listbox`, and a filtering `ComboBox`, each through its
   slot contract.
-- **Feedback** — `Badge` tones and a `Dialog` panel drawn in place.
+- **Menu** — grouped row actions with a disabled item; the choice reports back.
+- **Feedback** — `Badge` tones, a `Dialog` panel drawn in place, and `Toast`
+  entries that dismiss themselves.
+- **Date** — the `Calendar` grid plus a live `DatePicker` that writes the due
+  date.
 - **Overlays** — `Popover` (real open state), `Tooltip` (shows on hover or
   focus, hides on leave), and `HoverIntent` panels drawn in place.
 - **Navigation** — `Tabs` (`line` and `pill`) and `Segmented`, driven by the

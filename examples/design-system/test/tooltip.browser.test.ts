@@ -8,7 +8,9 @@ import { Runtime } from 'foldkit'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page } from 'vitest/browser'
 
-import { initialModel, update, view, Message, Model } from '../src/main.js'
+import { initModel, update, view, Message, Model } from '../src/main.js'
+
+const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
 import { stylesheet } from '../src/style.js'
 import { subscriptions } from '../src/subscriptions.js'
 
@@ -24,7 +26,7 @@ test('hover shows the hint, leaving hides it', async () => {
   Runtime.run(
     Runtime.makeApplication({
       Model,
-      init: () => ({ model: initialModel }),
+      init: () => ({ model: modelForTests }),
       update,
       view,
       subscriptions,
