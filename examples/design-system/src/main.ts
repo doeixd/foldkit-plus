@@ -12,7 +12,7 @@ import { Calendar as FoldkitCalendar, File, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { childAttributes } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { modifyFields } from 'foldkit/struct'
+import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
 import {
   Combobox as UiCombobox,
   DatePicker as UiDatePicker,
@@ -361,16 +361,40 @@ export const update = (model: Model, message: Message) =>
   })
 
 /**
+ * A child fold over one Model field: `read` lifts the field, `write` stores
+ * it back, `toParentMessage` wraps the child's messages. Every fold below
+ * repeats these three lines around its own `update` and `foldOutMessage`,
+ * so each fold states only what differs. `makeModifyFieldsFor` (not a bare
+ * object spread) keeps the write typed: the transform is checked against
+ * the Model while the field stays generic.
+ */
+const modifyModel = makeModifyFieldsFor<Model>()
+
+const own = <K extends keyof Model, ChildMessage>(
+  field: K,
+  wrap: (args: { readonly message: ChildMessage }) => Message,
+): {
+  readonly read: (model: Model) => Option.Option<Model[K]>
+  readonly write: (model: Model, child: Model[K]) => Model
+  readonly toParentMessage: (message: ChildMessage) => Message
+} => ({
+  read: model => Option.some(model[field]),
+  // The computed key keeps its association to the field through the mapped
+  // type; an object literal would widen it to `string` and lose the check.
+  write: (model, child) =>
+    modifyModel(model, { [field]: () => child } as { readonly [P in K]: () => Model[P] }),
+  toParentMessage: message => wrap({ message }),
+})
+
+/**
  * The volume slider's interaction state lives beside the value it writes:
  * the child owns the drag, the parent owns the number, and each
  * `ChangedValue` the drag or keyboard produces becomes the value (already
  * snapped and clamped by the component).
  */
 const foldVolumeSlider = Update.foldChild({
+  ...own('volumeSlider', Message.VolumeSlider),
   update: UiSlider.update,
-  read: (model: Model) => Option.some(model.volumeSlider),
-  write: (model, volumeSlider) => modifyFields(model, { volumeSlider: () => volumeSlider }),
-  toParentMessage: message => Message.VolumeSlider({ message }),
   foldOutMessage: UiSlider.OutMessage.match<Update.Step<Model, Message>>({
     ChangedValue:
       ({ value }) =>
@@ -382,10 +406,8 @@ const foldVolumeSlider = Update.foldChild({
 
 /** Visibility notifications need no parent state: showing is the child's own fact. */
 const foldTooltip = Update.foldChild({
+  ...own('tooltip', Message.Tooltip),
   update: UiTooltip.update,
-  read: (model: Model) => Option.some(model.tooltip),
-  write: (model, tooltip) => modifyFields(model, { tooltip: () => tooltip }),
-  toParentMessage: message => Message.Tooltip({ message }),
   foldOutMessage: UiTooltip.OutMessage.match<Update.Step<Model, Message>>({
     Shown: () => model => ({ model }),
     Hidden: () => model => ({ model }),
@@ -394,10 +416,8 @@ const foldTooltip = Update.foldChild({
 
 /** The contact preference lives in the parent; the group owns focus only. */
 const foldContactGroup = Update.foldChild({
+  ...own('contactGroup', Message.ContactGroup),
   update: ContactGroup.update,
-  read: (model: Model) => Option.some(model.contactGroup),
-  write: (model, contactGroup) => modifyFields(model, { contactGroup: () => contactGroup }),
-  toParentMessage: message => Message.ContactGroup({ message }),
   foldOutMessage: UiRadioGroup.OutMessage.match<
     Update.Step<Model, Message>,
     UiRadioGroup.OutMessage<Contact>
@@ -411,10 +431,8 @@ const foldContactGroup = Update.foldChild({
 })
 
 const foldSectionsTabs = Update.foldChild({
+  ...own('sectionsTabs', Message.SectionsTabs),
   update: SectionsTabs.update,
-  read: (model: Model) => Option.some(model.sectionsTabs),
-  write: (model, sectionsTabs) => modifyFields(model, { sectionsTabs: () => sectionsTabs }),
-  toParentMessage: message => Message.SectionsTabs({ message }),
   foldOutMessage: UiTabs.OutMessage.match<Update.Step<Model, Message>, UiTabs.OutMessage<LineTab>>({
     Selected:
       ({ value }) =>
@@ -425,10 +443,8 @@ const foldSectionsTabs = Update.foldChild({
 })
 
 const foldRangeTabs = Update.foldChild({
+  ...own('rangeTabs', Message.RangeTabs),
   update: RangeTabs.update,
-  read: (model: Model) => Option.some(model.rangeTabs),
-  write: (model, rangeTabs) => modifyFields(model, { rangeTabs: () => rangeTabs }),
-  toParentMessage: message => Message.RangeTabs({ message }),
   foldOutMessage: UiTabs.OutMessage.match<Update.Step<Model, Message>, UiTabs.OutMessage<PillTab>>({
     Selected:
       ({ value }) =>
@@ -444,34 +460,26 @@ const foldDeleteDialogOut = UiDialog.OutMessage.match<Update.Step<Model, Message
 })
 
 const foldDeleteDialog = Update.foldChild({
+  ...own('dialog', Message.DeleteDialog),
   update: UiDialog.update,
-  read: (model: Model) => Option.some(model.dialog),
-  write: (model, dialog) => modifyFields(model, { dialog: () => dialog }),
-  toParentMessage: message => Message.DeleteDialog({ message }),
   foldOutMessage: foldDeleteDialogOut,
 })
 
 const foldDeleteDialogOpen = Update.foldChildStep({
+  ...own('dialog', Message.DeleteDialog),
   update: UiDialog.open,
-  read: (model: Model) => Option.some(model.dialog),
-  write: (model, dialog) => modifyFields(model, { dialog: () => dialog }),
-  toParentMessage: message => Message.DeleteDialog({ message }),
   foldOutMessage: foldDeleteDialogOut,
 })
 
 const foldDeleteDialogClose = Update.foldChildStep({
+  ...own('dialog', Message.DeleteDialog),
   update: UiDialog.close,
-  read: (model: Model) => Option.some(model.dialog),
-  write: (model, dialog) => modifyFields(model, { dialog: () => dialog }),
-  toParentMessage: message => Message.DeleteDialog({ message }),
   foldOutMessage: foldDeleteDialogOut,
 })
 
 const foldHoverCard = Update.foldChild({
+  ...own('hoverCard', Message.HoverCard),
   update: UiHoverIntent.update,
-  read: (model: Model) => Option.some(model.hoverCard),
-  write: (model, hoverCard) => modifyFields(model, { hoverCard: () => hoverCard }),
-  toParentMessage: message => Message.HoverCard({ message }),
   foldOutMessage: UiHoverIntent.OutMessage.match<Update.Step<Model, Message>>({
     Opened: () => model => ({ model }),
     Closed: () => model => ({ model }),
@@ -479,10 +487,8 @@ const foldHoverCard = Update.foldChild({
 })
 
 const foldPopover = Update.foldChild({
+  ...own('popover', Message.Popover),
   update: UiPopover.update,
-  read: (model: Model) => Option.some(model.popover),
-  write: (model, popover) => modifyFields(model, { popover: () => popover }),
-  toParentMessage: message => Message.Popover({ message }),
   foldOutMessage: UiPopover.OutMessage.match<Update.Step<Model, Message>>({
     Opened: () => model => ({ model }),
     Closed: () => model => ({ model }),
@@ -491,10 +497,8 @@ const foldPopover = Update.foldChild({
 
 /** The chosen action is the parent's fact; the menu already closed itself. */
 const foldMenu = Update.foldChild({
+  ...own('menu', Message.Menu),
   update: ActionMenu.update,
-  read: (model: Model) => Option.some(model.menu),
-  write: (model, menu) => modifyFields(model, { menu: () => menu }),
-  toParentMessage: message => Message.Menu({ message }),
   foldOutMessage: UiMenu.OutMessage.match<
     Update.Step<Model, Message>,
     UiMenu.OutMessage<MenuAction>
@@ -508,10 +512,8 @@ const foldMenu = Update.foldChild({
 })
 
 const foldListbox = Update.foldChild({
+  ...own('listbox', Message.Listbox),
   update: FrequencyBox.update,
-  read: (model: Model) => Option.some(model.listbox),
-  write: (model, listbox) => modifyFields(model, { listbox: () => listbox }),
-  toParentMessage: message => Message.Listbox({ message }),
   foldOutMessage: UiListbox.OutMessage.match<
     Update.Step<Model, Message>,
     UiListbox.OutMessage<Frequency>
@@ -525,10 +527,8 @@ const foldListbox = Update.foldChild({
 })
 
 const foldCombobox = Update.foldChild({
+  ...own('combobox', Message.Combobox),
   update: CityBox.update,
-  read: (model: Model) => Option.some(model.combobox),
-  write: (model, combobox) => modifyFields(model, { combobox: () => combobox }),
-  toParentMessage: message => Message.Combobox({ message }),
   foldOutMessage: UiCombobox.OutMessage.match<
     Update.Step<Model, Message>,
     UiCombobox.OutMessage<string>
@@ -545,10 +545,8 @@ const foldCombobox = Update.foldChild({
 })
 
 const foldDatePicker = Update.foldChild({
+  ...own('picker', Message.DatePicker),
   update: UiDatePicker.update,
-  read: (model: Model) => Option.some(model.picker),
-  write: (model, picker) => modifyFields(model, { picker: () => picker }),
-  toParentMessage: message => Message.DatePicker({ message }),
   foldOutMessage: UiDatePicker.OutMessage.match<Update.Step<Model, Message>>({
     SelectedDate:
       ({ date }) =>
@@ -561,30 +559,24 @@ const foldDatePicker = Update.foldChild({
 })
 
 const foldToast = Update.foldChild({
+  ...own('toast', Message.Toast),
   update: ToastStack.update,
-  read: (model: Model) => Option.some(model.toast),
-  write: (model, toast) => modifyFields(model, { toast: () => toast }),
-  toParentMessage: message => Message.Toast({ message }),
   foldOutMessage: ToastStack.OutMessage.match<Update.Step<Model, Message>>({
     DismissedToast: () => model => ({ model }),
   }),
 })
 
 const foldToastShow = Update.foldChild({
+  ...own('toast', Message.Toast),
   update: ToastStack.show,
-  read: (model: Model) => Option.some(model.toast),
-  write: (model, toast) => modifyFields(model, { toast: () => toast }),
-  toParentMessage: message => Message.Toast({ message }),
   foldOutMessage: ToastStack.OutMessage.match<Update.Step<Model, Message>>({
     DismissedToast: () => model => ({ model }),
   }),
 })
 
 const foldDropFiles = Update.foldChild({
+  ...own('drop', Message.DropFiles),
   update: UiFileDrop.update,
-  read: (model: Model) => Option.some(model.drop),
-  write: (model, drop) => modifyFields(model, { drop: () => drop }),
-  toParentMessage: message => Message.DropFiles({ message }),
   foldOutMessage: UiFileDrop.OutMessage.match<Update.Step<Model, Message>>({
     ReceivedFiles:
       ({ files }) =>
