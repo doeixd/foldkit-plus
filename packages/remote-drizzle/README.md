@@ -901,6 +901,17 @@ currently designed around Postgres behavior:
 The SQLite integration tests are a real SQL/compiler check, but they do not
 prove every Postgres-specific NULL-ordering edge case.
 
+## Cloudflare D1
+
+The same reads run over D1, through `drizzle-orm/d1`, with no adapter
+changes: windowed collection pages (`row_number() over (partition by …)`),
+row-value membership, `LIKE … ESCAPE`, `COLLATE "C"` search, keyset queries,
+and `returning` are all statements D1 accepts. `test/d1.test.ts` proves the
+core paths against a miniflare binding, which rejects what production D1
+rejects; `databaseLayer(drizzle(env.DB))` is the only wiring. The
+nullable-column rule above applies as on SQLite: D1 sorts nulls first for
+`ASC`, so sort by columns that are not null.
+
 ## License
 
 MIT. The keyset-cursor and projection logic adapts

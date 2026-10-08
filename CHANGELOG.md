@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-drizzle`: proven over Cloudflare D1.**
+  The same reads run through `drizzle-orm/d1` with no adapter changes
+  (`databaseLayer(drizzle(env.DB))`); `test/d1.test.ts` covers refs,
+  collections, windowed pages, keyset queries, compiled `contains`, and
+  typed writes against a miniflare binding.
+
 - **`foldkit-durable`: the journal over Cloudflare D1 (`d1: true`).**
   D1 refuses transactions, `PRAGMA user_version`, and `VACUUM`, so the
   journal adapts when the options say so: the schema version lives in a
