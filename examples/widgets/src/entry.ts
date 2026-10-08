@@ -7,6 +7,8 @@ import { Runtime } from 'foldkit'
 import { Style } from 'foldkit-mixins'
 import * as Accordion from './accordion/app.js'
 import { Accordion as AccordionView, AccordionSlots } from './accordion/view.js'
+import * as AlertDialog from './alert-dialog/app.js'
+import { AlertDialog as AlertDialogView, AlertDialogSlots } from './alert-dialog/view.js'
 import * as CheckboxGroup from './checkbox-group/app.js'
 import { CheckboxGroup as CheckboxGroupView, CheckboxGroupSlots } from './checkbox-group/view.js'
 import * as Command from './command/app.js'
@@ -23,6 +25,7 @@ import * as Toolbar from './toolbar/app.js'
 import { Toolbar as ToolbarView, ToolbarSlots } from './toolbar/view.js'
 import {
   accordionStyle,
+  alertDialogStyle,
   checkboxGroupStyle,
   commandStyle,
   meterStyle,
@@ -38,6 +41,7 @@ Style.install(
     toggleStyle(ToggleSlots),
     toggleGroupStyle(ToggleGroupSlots),
     accordionStyle(AccordionSlots),
+    alertDialogStyle(AlertDialogSlots),
     numberFieldStyle(NumberFieldSlots),
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
@@ -81,6 +85,13 @@ const islands = [
     update: Accordion.update,
     view: (model, h) => AccordionView(model, h),
     container: island('accordion'),
+  }),
+  Runtime.makeElement({
+    Model: AlertDialog.Model,
+    init: () => AlertDialog.initial,
+    update: AlertDialog.update,
+    view: (model, h) => AlertDialogView(model, h),
+    container: island('alert-dialog'),
   }),
   Runtime.makeElement({
     Model: NumberField.Model,

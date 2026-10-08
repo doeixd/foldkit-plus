@@ -26,6 +26,8 @@ npx vitest run examples/widgets
 - `src/toggle/` — a single pressable with `aria-pressed` (`ToggleState`).
 - `src/toggle-group/` — exclusive pressables over `Selection` single mode.
 - `src/accordion/` — stacked `Disclosure` sections over a Collection.
+- `src/alert-dialog/` — explicit-response dialog over an Overlay policy
+  (modal focus, scroll lock, inertness; no outside/Escape dismiss).
 - `src/number-field/` — stepped value via `SpinValue` + `FieldAssociation`.
 - `src/checkbox-group/` — multi-select options with label association.
 - `src/meter/` — stateless value/max attributes (the trivial end).

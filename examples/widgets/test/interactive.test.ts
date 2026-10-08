@@ -35,6 +35,7 @@ describe('showcase islands', () => {
       'toggle',
       'toggle-group',
       'accordion',
+      'alert-dialog',
       'number-field',
       'checkbox-group',
       'meter',
@@ -65,6 +66,12 @@ describe('showcase islands', () => {
     // Accordion: opening Team shows its body.
     click(button('Team'))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Invite, remove'))
+
+    // Alert dialog: opening and cancelling answers cancelled.
+    click(button('Delete project'))
+    await vi.waitFor(() => expect(document.querySelector('[role="alertdialog"]')).not.toBeNull())
+    click(button('Cancel'))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Last answer: cancelled.'))
 
     // Number field: stepping up reaches 4.
     click(button('+'))

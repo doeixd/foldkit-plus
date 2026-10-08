@@ -7,6 +7,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import type { AccordionSlots } from './accordion/view.js'
+import type { AlertDialogSlots } from './alert-dialog/view.js'
 import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
 import type { MeterSlots } from './meter/view.js'
@@ -139,6 +140,32 @@ export const meterStyle = (slots: typeof MeterSlots) =>
       more: Style.compose(control, focus),
     },
     { name: 'ShowcaseMeter' },
+  )
+
+export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>
+  Style.forSlots(slots)(
+    {
+      trigger: Style.compose(control, focus),
+      panel: Style.compose(
+        Style.self({
+          display: 'grid',
+          gap: '0.75rem',
+          maxWidth: '24rem',
+          padding: '1.25rem',
+          background: onAccent,
+          border: `1px solid ${line}`,
+          borderRadius: '12px',
+          boxShadow: '0 12px 32px rgb(0 0 0 / 0.18)',
+        }),
+        focus,
+      ),
+      cancel: Style.compose(control, focus),
+      confirm: Style.compose(
+        Style.self({ background: '#dc2626', borderColor: '#dc2626', color: onAccent }),
+        focus,
+      ),
+    },
+    { name: 'ShowcaseAlertDialog' },
   )
 
 export const commandStyle = (slots: typeof CommandSlots) =>
