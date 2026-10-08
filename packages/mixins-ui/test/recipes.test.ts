@@ -22,6 +22,7 @@ import {
   CardSlots,
   AlertSlots,
   SeparatorSlots,
+  SkeletonSlots,
   CheckboxSlots,
   ComboboxSlots,
   DatePickerSlots,
@@ -79,6 +80,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Skeleton.def.variants).map(selection => Recipes.Skeleton(selection)),
   ...selections(Recipes.Separator.def.variants).map(selection => Recipes.Separator(selection)),
   ...selections(Recipes.Alert.def.variants).map(selection => Recipes.Alert(selection)),
   ...selections(Recipes.Card.def.variants).map(selection => Recipes.Card(selection)),
@@ -105,6 +107,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Skeleton: selections(Recipes.Skeleton.def.variants).map(
+    selection => Style.forSlots(SkeletonSlots)(Recipes.Skeleton(selection)).css,
   ),
   Separator: selections(Recipes.Separator.def.variants).map(
     selection => Style.forSlots(SeparatorSlots)(Recipes.Separator(selection)).css,
@@ -421,6 +426,10 @@ describe('Recipes', () => {
 
     it('scales the box by size', () => {
       expect(css({ size: 'lg' })).toContain('--_fk-toggle-size:1.25rem')
+    })
+
+    it('sits the checked dot on whole pixels, centered at every size', () => {
+      expect(css({})).toMatch(/\[aria-checked="true"\]::after\{[^}]*inset:3px/)
     })
   })
 
