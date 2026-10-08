@@ -753,6 +753,14 @@ of its own named a form field "fits the Catalog". Read words with
   `Expr.contains`'s text check vacuously true, so every operand passed,
   including the number the check existed for. Constrain the type parameter
   instead; a constraint cannot be defeated by inference falling back to it.
+- **An intersection on a declared handle breaks `Parent.at`'s `B` inference.**
+  Storing placement args on the object (an added member or an intersected one)
+  made every `Parent.at` resolve its config args to `never` — including with
+  an explicit literal, so the value was never the problem. Probing narrowed
+  it: any extra member poisons it, even `{ readonly bound: true }`. Keep
+  handles exactly their declared shape; share values through imports, and
+  suspect inference (not the value) whenever a whole call family reports
+  `never`.
 - **An unused `@ts-expect-error` is how a fails-open check announces itself.**
   It is the only signal, and it looks like tidiness. Mutation-test types the way
   you mutation-test code: widen the constraint and confirm the negative cases go
