@@ -10,7 +10,17 @@ import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { otpFieldStyle } from '../style.js'
-import { LENGTH, Message, Roving, codeOf, initial, otpArgs, update, type Model } from './app.js'
+import {
+  LENGTH,
+  Message,
+  Roving,
+  cellIdOf,
+  codeOf,
+  initial,
+  otpArgs,
+  update,
+  type Model,
+} from './app.js'
 
 export const OtpFieldSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -36,7 +46,7 @@ const Focus = RovingTabindex.behavior(Roving, otpArgs)(OtpFieldSlots)<Model, Mes
   items: () => describeCells(),
 })
 
-const cellId = (index: number): string => `digit-${index + 1}`
+const cellId = cellIdOf
 
 /**
  * What Backspace means in a cell: in an empty cell past the first, clear

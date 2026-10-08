@@ -51,6 +51,17 @@ export default [
     tests,
   },
   {
+    name: 'typing issues no focus command',
+    edits: [
+      {
+        file: '../src/otp-field/app.ts',
+        find: ': { model: { ...model, cells }, commands: [AdvanceFocus({ to: target })] }',
+        replace: ': { model: { ...model, cells } }',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'five digits complete the code',
     edits: [
       {

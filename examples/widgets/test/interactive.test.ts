@@ -95,11 +95,15 @@ describe('showcase islands', () => {
       expect(document.querySelector('[role="spinbutton"]')?.textContent).toBe('4'),
     )
 
-    // One-time code: typing fills the first cell.
+    // One-time code: typing fills the first cell and advances focus.
     const digit1 = document.querySelector('input[aria-label="Digit 1"]') as HTMLInputElement
+    digit1.focus()
     digit1.value = '7'
     digit1.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(digit1.value).toBe('7'))
+    await vi.waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Digit 2'),
+    )
 
     // Checkbox group: picking cheese checks its box.
     const boxes = [

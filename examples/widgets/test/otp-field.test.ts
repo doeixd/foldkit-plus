@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
+import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { LENGTH, Message, codeOf, initial, update } from '../src/otp-field/app.js'
-import { OtpField, backspaceOf, runDemo } from '../src/otp-field/view.js'
+import { LENGTH, Message, advanceTarget, codeOf, initial, update } from '../src/otp-field/app.js'
+import { OtpField, OtpFieldSlots, backspaceOf, runDemo } from '../src/otp-field/view.js'
 
 const filled = (): ReturnType<typeof update>['model'] => {
   let model = initial.model
@@ -94,6 +95,27 @@ describe('view structure', () => {
           ?.keydown,
       ).toBeTypeOf('function')
     }
+  })
+  it('advances from a filled cell to the first empty one, never otherwise', () => {
+    expect(advanceTarget(['4', '', '', '', '', ''], 0)).toBe(1)
+    expect(advanceTarget(['4', '2', '', '', '', ''], 1)).toBe(2)
+    expect(advanceTarget(['', '', '', '', '', ''], 0)).toBe(null)
+    expect(advanceTarget(['4', '', '', '', '', ''], null)).toBe(null)
+    expect(advanceTarget(['1', '2', '3', '4', '5', '6'], 5)).toBe(null)
+  })
+
+  it('typing and pasting issue a focus command for the first empty cell', () => {
+    const typed = update(initial.model, Message.CellTyped({ index: 0, char: '4' }))
+    expect(typed.commands?.map(command => command.name)).toEqual(['AdvanceFocus'])
+    expect(typed.commands?.[0]).toMatchObject({ args: { to: 1 } })
+    const pasted = update(initial.model, Message.PastedCode({ index: 0, text: '12' }))
+    expect(pasted.commands?.[0]).toMatchObject({ args: { to: 2 } })
+    const last = update(
+      { ...initial.model, cells: ['1', '2', '3', '4', '5', ''] },
+      Message.CellTyped({ index: 5, char: '6' }),
+    )
+    expect(last.commands ?? []).toEqual([])
+    expect(update(last.model, Message.FocusAdvanced()).model).toBe(last.model)
   })
 })
 
