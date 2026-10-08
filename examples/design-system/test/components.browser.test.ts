@@ -52,6 +52,28 @@ test('radio group selects with a click', async () => {
   await seen('Currently phone.')
 })
 
+test('radio circles center on their labels’ first lines', async () => {
+  mount()
+  await seen('Currently email.')
+  // Geometry, not text: the circle top-aligns against a taller first line,
+  // so the style nudges it down. Fails at 3.5px without the nudge.
+  await vi.waitFor(
+    () => {
+      const radio = document.querySelector('[role="radio"]') as HTMLElement
+      const label = radio.parentElement?.querySelector('label') as HTMLElement
+      const circle = radio.getBoundingClientRect()
+      const range = document.createRange()
+      range.selectNodeContents(label)
+      const lines = range.getClientRects()
+      expect(lines.length).toBeGreaterThan(0)
+      const line = lines[0]!
+      const offset = Math.abs(circle.top + circle.height / 2 - (line.top + line.height / 2))
+      expect(offset).toBeLessThanOrEqual(1.5)
+    },
+    { timeout: 10_000 },
+  )
+})
+
 test('tabs switch panels', async () => {
   mount()
   await page.getByRole('tab', { name: 'Settings' }).click()

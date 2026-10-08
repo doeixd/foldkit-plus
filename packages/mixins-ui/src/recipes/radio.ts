@@ -53,11 +53,14 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
         ...transition('background-color, border-color'),
       }),
       Style.pseudo(checked, { borderColor: toneVar('fill') }),
-      // A dot centered in the circle, in the tone's fill.
+      // A dot centered in the circle, in the tone's fill. A whole-pixel
+      // inset keeps it on whole pixels at every size: the padding box is
+      // the edge minus a 1px rim each side (14px at md, 12 at sm, 18 at
+      // lg), so 3px leaves an even remainder (8, 6, 12) split evenly.
       Style.pseudo(`${checked}::after`, {
         content: '""',
         position: 'absolute',
-        inset: '25%',
+        inset: '3px',
         borderRadius: ref.radius.full,
         background: toneVar('fill'),
       }),

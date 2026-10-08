@@ -300,6 +300,10 @@ export const RadioStyle = app.forSlots(RadioGroupSlots)(
     // stacks it, circle beside its text.
     base: {
       group: { flexDirection: 'column', alignItems: 'stretch', gap: t.space.sm },
+      // The 1rem circle top-aligns against a taller first line (21px here),
+      // so it rides 3px down to sit on the line's center. Measured in
+      // Chromium; re-measure if the label's type or the default size moves.
+      option: { marginBlockStart: '3px' },
     },
   })({}),
   {
