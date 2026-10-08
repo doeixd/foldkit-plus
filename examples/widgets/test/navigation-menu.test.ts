@@ -71,7 +71,7 @@ describe('view structure', () => {
     }
   })
 
-  it('the popup carries the nonModal mounts', () => {
+  it('the popup carries the nonModal mounts and watches its edge', () => {
     const h = SlotView.inertBuilder<Message>()
     const builders = SlotView.buildersFor(NavigationMenuSlots, NavigationMenu.mixins, {
       input: update(initial.model, Message.EnteredSection({ section: 'Products' })).model,
@@ -80,6 +80,7 @@ describe('view structure', () => {
     const text = JSON.stringify(builders.popup.attrs([]))
     expect(text).toContain('FocusScope')
     expect(text).not.toContain('ScrollLock')
+    expect(text).toContain('KeepInView')
   })
 })
 

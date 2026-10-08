@@ -388,13 +388,16 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
 export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
   Style.forSlots(slots)(
     {
-      bar: Style.self({ maxWidth: '28rem' }),
+      bar: Style.self({ position: 'relative', maxWidth: '28rem' }),
       trigger: Style.compose(control, focus),
       popup: Style.compose(
         Style.self({
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: '0',
+          zIndex: '10',
           display: 'grid',
           minWidth: '12rem',
-          marginBlockStart: '0.25rem',
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
