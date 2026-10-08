@@ -8,6 +8,7 @@
 import { Style } from 'foldkit-mixins'
 import type { AccordionSlots } from './accordion/view.js'
 import type { AlertDialogSlots } from './alert-dialog/view.js'
+import type { AutocompleteSlots } from './autocomplete/view.js'
 import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
 import type { MeterSlots } from './meter/view.js'
@@ -166,6 +167,39 @@ export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>
       ),
     },
     { name: 'ShowcaseAlertDialog' },
+  )
+
+export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
+  Style.forSlots(slots)(
+    {
+      label: Style.self({ display: 'block', fontWeight: '600', marginBlockEnd: '0.25rem' }),
+      input: Style.compose(
+        Style.self({ width: '100%', boxSizing: 'border-box', cursor: 'text' }),
+        control,
+        focus,
+      ),
+      list: Style.self({
+        display: 'grid',
+        border: `1px solid ${line}`,
+        borderRadius: '8px',
+        overflow: 'hidden',
+        marginBlockStart: '0.25rem',
+      }),
+      item: Style.compose(
+        Style.self({
+          textAlign: 'start',
+          background: onAccent,
+          border: 'none',
+          borderRadius: '0',
+          paddingBlock: '0.375rem',
+          paddingInline: '0.75rem',
+          cursor: 'pointer',
+        }),
+        focus,
+        selected,
+      ),
+    },
+    { name: 'ShowcaseAutocomplete' },
   )
 
 export const commandStyle = (slots: typeof CommandSlots) =>

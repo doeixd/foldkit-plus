@@ -9,6 +9,8 @@ import * as Accordion from './accordion/app.js'
 import { Accordion as AccordionView, AccordionSlots } from './accordion/view.js'
 import * as AlertDialog from './alert-dialog/app.js'
 import { AlertDialog as AlertDialogView, AlertDialogSlots } from './alert-dialog/view.js'
+import * as Autocomplete from './autocomplete/app.js'
+import { Autocomplete as AutocompleteView, AutocompleteSlots } from './autocomplete/view.js'
 import * as CheckboxGroup from './checkbox-group/app.js'
 import { CheckboxGroup as CheckboxGroupView, CheckboxGroupSlots } from './checkbox-group/view.js'
 import * as Command from './command/app.js'
@@ -26,6 +28,7 @@ import { Toolbar as ToolbarView, ToolbarSlots } from './toolbar/view.js'
 import {
   accordionStyle,
   alertDialogStyle,
+  autocompleteStyle,
   checkboxGroupStyle,
   commandStyle,
   meterStyle,
@@ -42,6 +45,7 @@ Style.install(
     toggleGroupStyle(ToggleGroupSlots),
     accordionStyle(AccordionSlots),
     alertDialogStyle(AlertDialogSlots),
+    autocompleteStyle(AutocompleteSlots),
     numberFieldStyle(NumberFieldSlots),
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
@@ -92,6 +96,13 @@ const islands = [
     update: AlertDialog.update,
     view: (model, h) => AlertDialogView(model, h),
     container: island('alert-dialog'),
+  }),
+  Runtime.makeElement({
+    Model: Autocomplete.Model,
+    init: () => Autocomplete.initial,
+    update: Autocomplete.update,
+    view: (model, h) => AutocompleteView(model, h),
+    container: island('autocomplete'),
   }),
   Runtime.makeElement({
     Model: NumberField.Model,

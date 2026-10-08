@@ -36,6 +36,7 @@ describe('showcase islands', () => {
       'toggle-group',
       'accordion',
       'alert-dialog',
+      'autocomplete',
       'number-field',
       'checkbox-group',
       'meter',
@@ -73,6 +74,16 @@ describe('showcase islands', () => {
     click(button('Cancel'))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Last answer: cancelled.'))
 
+    // Autocomplete: typing narrows, picking fills and closes.
+    const fruit = document.querySelector('input[role="combobox"]') as HTMLInputElement
+    fruit.value = 'berry'
+    fruit.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll('[role="listbox"] button').length).toBe(2),
+    )
+    click(button('blueberry'))
+    await vi.waitFor(() => expect(fruit.value).toBe('blueberry'))
+
     // Number field: stepping up reaches 4.
     click(button('+'))
     await vi.waitFor(() =>
@@ -93,7 +104,7 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain('72 of 100 GB'))
 
     // Command: typing narrows to two options.
-    const search = document.querySelector('input[type="search"]') as HTMLInputElement
+    const search = document.querySelector('input[aria-label="Search commands"]') as HTMLInputElement
     search.value = 'new'
     search.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]').length).toBe(2))

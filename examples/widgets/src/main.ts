@@ -1,5 +1,6 @@
 import { runDemo as runAccordionDemo } from './accordion/view.js'
 import { runDemo as runAlertDialogDemo } from './alert-dialog/view.js'
+import { runDemo as runAutocompleteDemo } from './autocomplete/view.js'
 import { runDemo as runCheckboxGroupDemo } from './checkbox-group/view.js'
 import { runDemo as runCommandDemo } from './command/view.js'
 import { runDemo as runMeterDemo } from './meter/view.js'
@@ -21,6 +22,9 @@ for (const line of runAccordionDemo()) {
   console.log(line)
 }
 for (const line of runAlertDialogDemo()) {
+  console.log(line)
+}
+for (const line of runAutocompleteDemo()) {
   console.log(line)
 }
 for (const line of runNumberFieldDemo()) {

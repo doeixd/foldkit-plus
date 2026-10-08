@@ -3,6 +3,8 @@ import { Inert } from 'foldkit-mixins/testing'
 import { Style } from 'foldkit-mixins'
 import { AlertDialog, AlertDialogSlots } from '../src/alert-dialog/view.js'
 import { initial as alertInitial } from '../src/alert-dialog/app.js'
+import { Autocomplete, AutocompleteSlots } from '../src/autocomplete/view.js'
+import { initial as autocompleteInitial } from '../src/autocomplete/app.js'
 import { Accordion, AccordionSlots } from '../src/accordion/view.js'
 import { initial as accordionInitial } from '../src/accordion/app.js'
 import { CheckboxGroup, CheckboxGroupSlots } from '../src/checkbox-group/view.js'
@@ -22,6 +24,7 @@ import { initial as toolbarInitial } from '../src/toolbar/app.js'
 import {
   accordionStyle,
   alertDialogStyle,
+  autocompleteStyle,
   checkboxGroupStyle,
   commandStyle,
   meterStyle,
@@ -38,6 +41,7 @@ const sheet = (): string =>
     toggleGroupStyle(ToggleGroupSlots),
     accordionStyle(AccordionSlots),
     alertDialogStyle(AlertDialogSlots),
+    autocompleteStyle(AutocompleteSlots),
     numberFieldStyle(NumberFieldSlots),
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
@@ -60,6 +64,7 @@ describe('showcase styles', () => {
       Inert.draw(ToggleGroup, toggleGroupInitial.model),
       Inert.draw(Accordion, accordionInitial),
       Inert.draw(AlertDialog, alertInitial.model),
+      Inert.draw(Autocomplete, autocompleteInitial.model),
       Inert.draw(NumberField, numberInitial),
       Inert.draw(CheckboxGroup, checkboxInitial.model),
       Inert.draw(Meter, meterInitial),
