@@ -36,7 +36,10 @@ import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import { SlotView, Style, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import {
+  Alert,
   Anchor,
+  Avatar,
+  Breadcrumb,
   Button,
   Calendar,
   CalendarSlots,
@@ -46,11 +49,14 @@ import {
   ComboboxView,
   Dialog,
   Disclosure,
+  Empty,
   Fieldset,
   FileDrop,
   HoverIntent,
   HoverIntentSlots,
   Input,
+  Item,
+  Kbd,
   Listbox,
   ListboxView,
   Menu,
@@ -60,8 +66,12 @@ import {
   RadioGroup,
   SegmentedSlots,
   Select,
+  Separator,
+  Skeleton,
   Slider,
+  Spinner,
   Switch,
+  Table,
   Tabs,
   Textarea,
   Toast,
@@ -74,8 +84,14 @@ import type {
   ResolvedMenuGroup,
 } from 'foldkit-mixins-ui'
 import {
+  AlertSuccessStyle,
+  AlertWarningStyle,
   AreaStyle,
+  AvatarLgStyle,
+  AvatarMdStyle,
+  AvatarSmStyle,
   BadgeSlots,
+  BreadcrumbStyle,
   CalendarStyle,
   CardStyle,
   CheckStyle,
@@ -87,6 +103,7 @@ import {
   DialogActionsStyle,
   DialogPreviewStyle,
   DisclosureStyle,
+  EmptyStyle,
   FieldStyle,
   FieldsetStyle,
   FilledFieldStyle,
@@ -99,6 +116,8 @@ import {
   IconStyle,
   InputGroupSlots,
   InputGroupStyle,
+  ItemStyle,
+  KbdStyle,
   LargeButtonStyle,
   LineTabsStyle,
   ListboxStyle,
@@ -115,9 +134,15 @@ import {
   RadioStyle,
   SecondaryButtonStyle,
   SelectStyle,
+  SeparatorStyle,
+  SeparatorVerticalStyle,
+  SkeletonCircleStyle,
+  SkeletonStyle,
   SliderStyle,
   SmallButtonStyle,
+  SpinnerStyle,
   StatusStyle,
+  TableStyle,
   ToastEntrySlots,
   ToastEntryStyle,
   ToastStyle,
@@ -899,6 +924,20 @@ const contactDescriptions: Record<Contact, string> = {
   none: 'No contact at all.',
 }
 
+/** A message-free builder for the stateless views: alert, avatar, breadcrumb,
+ * empty, item, kbd, separator, skeleton, spinner, and table take no messages,
+ * so their views never ask the builder to dispatch. Built once, shared by
+ * every static draw below — like the inert builder the package tests use.
+ * Their VNodes carry no handlers and mount as static content in the live page.
+ */
+const neverH = SlotView.inertBuilder<never>()
+
+/** A hermetic picture tile: the avatar demo loads no network images. Hex fills
+ * stay out: `%23` will not load as an image (nor will a bare `#`, which
+ * starts a fragment), so the tile is a named color. */
+const avatarTile =
+  'data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2764%27 height=%2764%27 viewBox=%270%200%2064%2064%27><rect width=%2764%27 height=%2764%27 fill=%27slategray%27/></svg>'
+
 /**
  * The contact preference, live: radio semantics with arrow keys, the choice
  * in the Model. Replaces the static pills that used to sit here.
@@ -1560,6 +1599,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               ['navigation', 'Navigation'],
               ['calendar', 'Date'],
               ['card', 'Card'],
+              ['display', 'Display'],
+              ['collections', 'Collections'],
               ['utilities', 'Utilities'],
               ['tokens', 'Tokens'],
             ] as const
@@ -1809,9 +1850,28 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('feedback')]), [
           h.h2(slots.sectionTitle.attrs(), ['Feedback']),
           h.p(slots.sectionText.attrs(), [
-            'One badge style serves every tone through data-state; toasts stack bottom-right and dismiss themselves.',
+            'One badge style serves every tone through data-state; alerts speak up in their own tones; toasts stack bottom-right and dismiss themselves.',
           ]),
           BadgesView(undefined, h),
+          Alert.view(
+            {
+              title: 'Storage almost full',
+              description: 'Only 2 GB left on this project.',
+              icon: h.span([h.AriaHidden(true)], ['!']),
+              assertive: true,
+              style: AlertWarningStyle,
+            },
+            neverH,
+          ),
+          Alert.view(
+            {
+              title: 'All checks passed',
+              description: 'The deploy finished in 42 seconds.',
+              icon: h.span([h.AriaHidden(true)], ['✓']),
+              style: AlertSuccessStyle,
+            },
+            neverH,
+          ),
           h.div(slots.row.attrs(), [
             Button.view(
               {
@@ -1851,6 +1911,17 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.p(slots.sectionText.attrs(), [
             `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,
           ]),
+          Breadcrumb.view(
+            {
+              steps: [
+                { label: 'Projects', href: '#' },
+                { label: 'Website', href: '#' },
+                { label: 'Launch checklist', current: true },
+              ],
+              style: BreadcrumbStyle,
+            },
+            neverH,
+          ),
         ]),
         h.section(slots.section.attrs([h.Id('calendar')]), [
           h.h2(slots.sectionTitle.attrs(), ['Date']),
@@ -1872,6 +1943,79 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             'The shadcn card: base surface, hairline border, large radius, soft shadow.',
           ]),
           CardView(model.clicks, h),
+        ]),
+        h.section(slots.section.attrs([h.Id('display')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Display']),
+          h.p(slots.sectionText.attrs(), [
+            'Status at a glance, each in one view call: who is here, which keys to press, rules between things, placeholders while content loads, and a spinner that announces itself.',
+          ]),
+          h.div(slots.row.attrs(), [
+            Avatar.view({ name: 'Ada Lovelace', src: avatarTile, style: AvatarSmStyle }, neverH),
+            Avatar.view({ name: 'Grace Hopper', src: avatarTile, style: AvatarMdStyle }, neverH),
+            Avatar.view({ name: 'Alan Turing', src: avatarTile, style: AvatarLgStyle }, neverH),
+          ]),
+          h.p(slots.sectionText.attrs(), [
+            'Press ',
+            Kbd.view({ key: '⌘', style: KbdStyle }, neverH),
+            Kbd.view({ key: 'K', style: KbdStyle }, neverH),
+            ' to search.',
+          ]),
+          h.p(slots.sectionText.attrs(), ['Shipped']),
+          Separator.view({ style: SeparatorStyle }, neverH),
+          h.p(slots.sectionText.attrs(), ['Archived']),
+          h.div(slots.row.attrs(), [
+            h.span([], ['Draft']),
+            Separator.view({ orientation: 'vertical', style: SeparatorVerticalStyle }, neverH),
+            h.span([], ['Live']),
+          ]),
+          Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
+          Skeleton.view({ label: 'Loading body', style: SkeletonStyle }, neverH),
+          Skeleton.view({ label: 'Loading avatar', style: SkeletonCircleStyle }, neverH),
+          h.div(slots.row.attrs(), [
+            Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
+            h.span([], ['Loading projects']),
+          ]),
+        ]),
+        h.section(slots.section.attrs([h.Id('collections')]), [
+          h.h2(slots.sectionTitle.attrs(), ['Collections']),
+          h.p(slots.sectionText.attrs(), [
+            'Structured content: an empty state, a rich row, and a plain table with a numeric column.',
+          ]),
+          Empty.view(
+            {
+              title: 'No projects yet',
+              description: 'Create one to get started.',
+              style: EmptyStyle,
+            },
+            neverH,
+          ),
+          Item.view(
+            {
+              media: h.span([h.AriaHidden(true)], ['●']),
+              title: 'Deploy finished',
+              description: '2 minutes ago',
+              content: h.span([], ['Production is live.']),
+              style: ItemStyle,
+            },
+            neverH,
+          ),
+          Table.view(
+            {
+              caption: 'Team plans',
+              columns: [
+                { header: 'Plan', value: row => row.plan },
+                { header: 'Seats', numeric: true, value: row => String(row.seats) },
+                { header: 'Price', value: row => row.price },
+              ],
+              rows: [
+                { plan: 'Starter', seats: 5, price: 'Free' },
+                { plan: 'Pro', seats: 25, price: '$20' },
+                { plan: 'Enterprise', seats: 500, price: 'Custom' },
+              ],
+              style: TableStyle,
+            },
+            neverH,
+          ),
         ]),
         h.section(slots.section.attrs([h.Id('utilities')]), [
           h.h2(slots.sectionTitle.attrs(), ['Utilities']),

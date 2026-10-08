@@ -16,6 +16,9 @@ import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import {
+  AlertSlots,
+  AvatarSlots,
+  BreadcrumbSlots,
   ButtonSlots,
   CalendarSlots,
   CardSlots,
@@ -23,11 +26,14 @@ import {
   ComboboxSlots,
   DialogSlots,
   DisclosureSlots,
+  EmptySlots,
   FieldsetSlots,
   FileDropSlots,
   HoverIntentSlots,
   Icons,
   InputSlots,
+  ItemSlots,
+  KbdSlots,
   ListboxSlots,
   MenuSlots,
   PopoverSlots,
@@ -35,8 +41,12 @@ import {
   Recipes,
   SegmentedSlots,
   SelectSlots,
+  SeparatorSlots,
+  SkeletonSlots,
   SliderSlots,
+  SpinnerSlots,
   SwitchSlots,
+  TableSlots,
   TabsSlots,
   TextareaSlots,
   ToastSlots,
@@ -842,3 +852,71 @@ export const CardStyle = app.forSlots(CardSlots)(
   })({ padding: 'roomy' }),
   { name: 'CardStyle' },
 )
+
+// --- display + collections ---------------------------------------------------------------
+// The stateless views: each draws in one call through its shipped recipe, so
+// each style below is a selection (plus a name), not new CSS.
+
+export const AlertWarningStyle = app.forSlots(AlertSlots)(Recipes.Alert({ tone: 'warning' }), {
+  name: 'AlertWarningStyle',
+})
+
+export const AlertSuccessStyle = app.forSlots(AlertSlots)(Recipes.Alert({ tone: 'success' }), {
+  name: 'AlertSuccessStyle',
+})
+
+export const AvatarSmStyle = app.forSlots(AvatarSlots)(Recipes.Avatar({ size: 'sm' }), {
+  name: 'AvatarSmStyle',
+})
+
+export const AvatarMdStyle = app.forSlots(AvatarSlots)(Recipes.Avatar({ size: 'md' }), {
+  name: 'AvatarMdStyle',
+})
+
+export const AvatarLgStyle = app.forSlots(AvatarSlots)(Recipes.Avatar({ size: 'lg' }), {
+  name: 'AvatarLgStyle',
+})
+
+export const BreadcrumbStyle = app.forSlots(BreadcrumbSlots)(Recipes.Breadcrumb({}), {
+  name: 'BreadcrumbStyle',
+})
+
+export const EmptyStyle = app.forSlots(EmptySlots)(Recipes.Empty({}), {
+  name: 'EmptyStyle',
+})
+
+export const ItemStyle = app.forSlots(ItemSlots)(Recipes.Item({}), {
+  name: 'ItemStyle',
+})
+
+export const KbdStyle = app.forSlots(KbdSlots)(Recipes.Kbd({}), {
+  name: 'KbdStyle',
+})
+
+export const SeparatorStyle = app.forSlots(SeparatorSlots)(Recipes.Separator({}), {
+  name: 'SeparatorStyle',
+})
+
+export const SeparatorVerticalStyle = app.forSlots(SeparatorSlots)(
+  Recipes.Separator({ orientation: 'vertical' }),
+  { name: 'SeparatorVerticalStyle' },
+)
+
+export const SkeletonStyle = app.forSlots(SkeletonSlots)(Recipes.Skeleton({}), {
+  name: 'SkeletonStyle',
+})
+
+export const SkeletonCircleStyle = app.forSlots(SkeletonSlots)(
+  Recipes.Skeleton({ shape: 'circle' }),
+  {
+    name: 'SkeletonCircleStyle',
+  },
+)
+
+export const SpinnerStyle = app.forSlots(SpinnerSlots)(Recipes.Spinner({}), {
+  name: 'SpinnerStyle',
+})
+
+export const TableStyle = app.forSlots(TableSlots)(Recipes.Table({}), {
+  name: 'TableStyle',
+})

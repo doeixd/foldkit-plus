@@ -141,6 +141,35 @@ test('delete dialog gaps its actions', async () => {
   )
 })
 
+test('feedback warns and confirms with alerts', async () => {
+  mount()
+  await seen('Storage almost full')
+  await seen('All checks passed')
+})
+
+test('navigation trails a breadcrumb', async () => {
+  mount()
+  await seen('Launch checklist')
+})
+
+test('display shows people, keys, rules, placeholders, and a spinner', async () => {
+  mount()
+  await seen('Loading projects')
+  expect(document.querySelectorAll('img[alt]')).toHaveLength(3)
+  expect(document.querySelectorAll('kbd')).toHaveLength(2)
+  expect(document.querySelectorAll('[role="separator"]')).toHaveLength(2)
+  // Two skeleton bars, the skeleton disc, and the spinner wheel. Scoped to
+  // the section: the success alert elsewhere is a status too.
+  expect(document.querySelectorAll('#display [role="status"]')).toHaveLength(4)
+})
+
+test('collections show an empty state, a row, and a table', async () => {
+  mount()
+  await seen('No projects yet')
+  await seen('Deploy finished')
+  await seen('Team plans')
+})
+
 test('slider offers the pointer over its bar and thumb', async () => {
   mount()
   await seen('Volume: 60')
