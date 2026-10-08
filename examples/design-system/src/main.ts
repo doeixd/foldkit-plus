@@ -829,8 +829,15 @@ const formatFileSize = (bytes: number): string =>
       ? `${(bytes / 1024).toFixed(1)} KB`
       : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
-const drawMenuGroups = (
-  groups: ReadonlyArray<ResolvedMenuGroup<Message>>,
+/**
+ * One option group's rows: its items, or the headed group with its separator.
+ * Menu, listbox, and combobox publish the same wire shape (keyed bundles with
+ * content, headings by id), so one draw serves all three panels.
+ */
+const drawOptionGroups = (
+  groups: ReadonlyArray<
+    ResolvedMenuGroup<Message> | ResolvedListboxGroup<Message> | ResolvedComboboxGroup<Message>
+  >,
   h: HtmlBuilder<Message>,
 ): ReadonlyArray<Html> =>
   groups.flatMap(group => {
@@ -969,8 +976,8 @@ const MenuDemo = (model: Pick<Model, 'menu' | 'menuChoice'>, h: HtmlBuilder<Mess
                   resolved.items.key,
                   resolved.items.attributes,
                   resolved.scroll === undefined
-                    ? drawMenuGroups(resolved.groups, h)
-                    : [h.div(resolved.scroll, drawMenuGroups(resolved.groups, h))],
+                    ? drawOptionGroups(resolved.groups, h)
+                    : [h.div(resolved.scroll, drawOptionGroups(resolved.groups, h))],
                 ),
               ]),
         ]),
@@ -1008,8 +1015,8 @@ const ListboxDemo = (
                   resolved.items.key,
                   resolved.items.attributes,
                   resolved.scroll === undefined
-                    ? drawListboxGroups(resolved.groups, h)
-                    : [h.div(resolved.scroll, drawListboxGroups(resolved.groups, h))],
+                    ? drawOptionGroups(resolved.groups, h)
+                    : [h.div(resolved.scroll, drawOptionGroups(resolved.groups, h))],
                 ),
               ]),
           ...resolved.hiddenInputs,
@@ -1019,25 +1026,6 @@ const ListboxDemo = (
     toParentMessage: message => Message.Listbox({ message }),
   })
 }
-
-const drawListboxGroups = (
-  groups: ReadonlyArray<ResolvedListboxGroup<Message>>,
-  h: HtmlBuilder<Message>,
-): ReadonlyArray<Html> =>
-  groups.flatMap(group => {
-    const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
-    if (group.group === undefined) return drawn
-    const headed =
-      group.heading === undefined
-        ? []
-        : [h.keyed('div')(group.heading.id, group.heading.attributes, [group.heading.content])]
-    return [
-      ...(group.separator === undefined
-        ? []
-        : [h.keyed('div')(group.separator.key, group.separator.attributes)]),
-      h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
-    ]
-  })
 
 /** A city combobox: type to filter, pick to fill. */
 const ComboboxDemo = (
@@ -1079,8 +1067,8 @@ const ComboboxDemo = (
                   resolved.items.key,
                   resolved.items.attributes,
                   resolved.scroll === undefined
-                    ? drawComboboxGroups(resolved.groups, h)
-                    : [h.div(resolved.scroll, drawComboboxGroups(resolved.groups, h))],
+                    ? drawOptionGroups(resolved.groups, h)
+                    : [h.div(resolved.scroll, drawOptionGroups(resolved.groups, h))],
                 ),
               ]),
           ...resolved.hiddenInputs,
@@ -1088,25 +1076,6 @@ const ComboboxDemo = (
       ),
     },
     toParentMessage: message => Message.Combobox({ message }),
-  })
-
-const drawComboboxGroups = (
-  groups: ReadonlyArray<ResolvedComboboxGroup<Message>>,
-  h: HtmlBuilder<Message>,
-): ReadonlyArray<Html> =>
-  groups.flatMap(group => {
-    const drawn = group.items.map(item => h.keyed('div')(item.key, item.attributes, [item.content]))
-    if (group.group === undefined) return drawn
-    const headed =
-      group.heading === undefined
-        ? []
-        : [h.keyed('div')(group.heading.id, group.heading.attributes, [group.heading.content])]
-    return [
-      ...(group.separator === undefined
-        ? []
-        : [h.keyed('div')(group.separator.key, group.separator.attributes)]),
-      h.keyed('div')(group.group.key, group.group.attributes, [...headed, ...drawn]),
-    ]
   })
 
 /** The month grid any calendar draws through, here in the picker's panel. */
