@@ -19,6 +19,7 @@ import {
   AlertSlots,
   AvatarSlots,
   BreadcrumbSlots,
+  ButtonGroupSlots,
   ButtonSlots,
   CalendarSlots,
   CardSlots,
@@ -36,9 +37,11 @@ import {
   KbdSlots,
   ListboxSlots,
   MenuSlots,
+  PaginationSlots,
   PopoverSlots,
   RadioGroupSlots,
   Recipes,
+  ScrollAreaSlots,
   SegmentedSlots,
   SelectSlots,
   SeparatorSlots,
@@ -230,6 +233,10 @@ export const LargeButtonStyle = app.forSlots(ButtonSlots)(
   Recipes.Button({ variant: 'primary', size: 'lg' }),
   { name: 'LargeButtonStyle' },
 )
+
+export const ButtonGroupStyle = app.forSlots(ButtonGroupSlots)(Recipes.ButtonGroup({}), {
+  name: 'ButtonGroupStyle',
+})
 
 // --- form recipes ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -538,6 +545,15 @@ export const TooltipStyle = app.forSlots(TooltipSlots)(Recipes.Tooltip({}), {
 })
 
 /** A hover card: a trigger with its panel beside it, both drawn in place. */
+export const ScrollAreaStyle = app.forSlots(ScrollAreaSlots)(
+  // The scroll viewport's height stays the caller's: the recipe owns the
+  // bars and chaining, the demo only says how tall the box is.
+  Recipes.ScrollArea.extend({ base: { viewport: { maxBlockSize: '12rem' } } })({
+    orientation: 'vertical',
+  }),
+  { name: 'ScrollAreaStyle' },
+)
+
 export const HoverCardStyle = app.forSlots(HoverIntentSlots)(
   {
     trigger: [
@@ -790,6 +806,10 @@ export const PlanStyle = app.forSlots(SegmentedSlots)(
   },
   { name: 'PlanStyle' },
 )
+
+export const PaginationStyle = app.forSlots(PaginationSlots)(Recipes.Pagination({}), {
+  name: 'PaginationStyle',
+})
 
 // --- feedback ----------------------------------------------------------------------------
 

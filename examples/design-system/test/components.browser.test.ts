@@ -185,6 +185,41 @@ test('shadow presets rewrite the strength knob on :root', async () => {
   )
 })
 
+test('pagination turns pages', async () => {
+  mount()
+  await page.getByRole('button', { name: '2', exact: true }).click()
+  await seen('Page 2 of 10.')
+})
+
+test('format buttons bold the preview line', async () => {
+  mount()
+  await page.getByRole('button', { name: 'B', exact: true }).click()
+  await vi.waitFor(
+    () => {
+      const preview = [...document.querySelectorAll('p, span')].find(
+        element => element.textContent === 'The quick brown fox',
+      ) as HTMLElement
+      expect(getComputedStyle(preview).fontWeight).toBe('700')
+    },
+    { timeout: 10_000 },
+  )
+})
+
+test('scroll area chains instead of paging', async () => {
+  mount()
+  await seen('Twelve rems of box; the rest is overflow.')
+  const viewport = [...document.querySelectorAll('div')].find(element =>
+    [...element.children].some(
+      child =>
+        child.tagName === 'DIV' &&
+        [...child.children].some(
+          paragraph => paragraph.textContent === 'Twelve rems of box; the rest is overflow.',
+        ),
+    ),
+  ) as HTMLElement
+  expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight)
+})
+
 test('slider offers the pointer over its bar and thumb', async () => {
   mount()
   await seen('Volume: 60')

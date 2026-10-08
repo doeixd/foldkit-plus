@@ -41,6 +41,7 @@ import {
   Avatar,
   Breadcrumb,
   Button,
+  ButtonGroup,
   Calendar,
   CalendarSlots,
   CardSlots,
@@ -61,9 +62,11 @@ import {
   ListboxView,
   Menu,
   MenuView,
+  Pagination,
   Patterns,
   Popover,
   RadioGroup,
+  ScrollArea,
   SegmentedSlots,
   Select,
   Separator,
@@ -92,6 +95,7 @@ import {
   AvatarSmStyle,
   BadgeSlots,
   BreadcrumbStyle,
+  ButtonGroupStyle,
   CalendarStyle,
   CardStyle,
   CheckStyle,
@@ -127,6 +131,7 @@ import {
   OutlineButtonStyle,
   PageSlots,
   PageStyle,
+  PaginationStyle,
   PillTabsStyle,
   PlanStyle,
   PopoverStyle,
@@ -134,6 +139,7 @@ import {
   RadioRowSlots,
   RadioRowStyle,
   RadioStyle,
+  ScrollAreaStyle,
   SecondaryButtonStyle,
   SelectStyle,
   SeparatorStyle,
@@ -235,6 +241,10 @@ export const Model = Schema.Struct({
   marketing: Schema.Boolean,
   notifications: Schema.Boolean,
   clicks: Schema.Number,
+  page: Schema.Number,
+  bold: Schema.Boolean,
+  italic: Schema.Boolean,
+  underline: Schema.Boolean,
   country: Schema.String,
   detailsOpen: Schema.Boolean,
   contact: Contact,
@@ -272,6 +282,10 @@ export const Message = defineMessageUnion({
   MarketingToggled: { value: Schema.Boolean },
   NotificationsToggled: { value: Schema.Boolean },
   ButtonClicked: {},
+  PageSelected: { page: Schema.Number },
+  BoldToggled: { value: Schema.Boolean },
+  ItalicToggled: { value: Schema.Boolean },
+  UnderlineToggled: { value: Schema.Boolean },
   CountrySelected: { value: Schema.String },
   DetailsToggled: { value: Schema.Boolean },
   VolumeSlider: { message: UiSlider.Message },
@@ -311,6 +325,10 @@ export const initModel = (today: CalendarDate): Model => ({
   marketing: true,
   notifications: false,
   clicks: 0,
+  page: 1,
+  bold: false,
+  italic: false,
+  underline: false,
   country: 'us',
   detailsOpen: false,
   contact: 'email',
@@ -359,6 +377,10 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { notifications: () => value }),
     }),
     ButtonClicked: () => ({ model: modifyFields(model, { clicks: clicks => clicks + 1 }) }),
+    PageSelected: ({ page }) => ({ model: modifyFields(model, { page: () => page }) }),
+    BoldToggled: ({ value }) => ({ model: modifyFields(model, { bold: () => value }) }),
+    ItalicToggled: ({ value }) => ({ model: modifyFields(model, { italic: () => value }) }),
+    UnderlineToggled: ({ value }) => ({ model: modifyFields(model, { underline: () => value }) }),
     CountrySelected: ({ value }) => ({ model: modifyFields(model, { country: () => value }) }),
     DetailsToggled: ({ value }) => ({
       model: modifyFields(model, { detailsOpen: () => value }),
@@ -1710,6 +1732,52 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             ),
             Button.view({ label: 'Disabled', style: PrimaryButtonStyle, disabled: true }, h),
           ]),
+          h.p(slots.sectionText.attrs(), [
+            'A joined group toggles real style: bold, italic, and underline write the Model, and the line below reads it back.',
+          ]),
+          ButtonGroup.view(
+            {
+              label: 'Text style',
+              items: [
+                Button.view(
+                  {
+                    label: 'B',
+                    style: model.bold ? SecondaryButtonStyle : OutlineButtonStyle,
+                    onClick: Message.BoldToggled({ value: !model.bold }),
+                  },
+                  h,
+                ),
+                Button.view(
+                  {
+                    label: 'I',
+                    style: model.italic ? SecondaryButtonStyle : OutlineButtonStyle,
+                    onClick: Message.ItalicToggled({ value: !model.italic }),
+                  },
+                  h,
+                ),
+                Button.view(
+                  {
+                    label: 'U',
+                    style: model.underline ? SecondaryButtonStyle : OutlineButtonStyle,
+                    onClick: Message.UnderlineToggled({ value: !model.underline }),
+                  },
+                  h,
+                ),
+              ],
+              style: ButtonGroupStyle,
+            },
+            neverH,
+          ),
+          h.p(
+            slots.sectionText.attrs([
+              h.Style({
+                fontWeight: model.bold ? '700' : '400',
+                fontStyle: model.italic ? 'italic' : 'normal',
+                textDecoration: model.underline ? 'underline' : 'none',
+              }),
+            ]),
+            ['The quick brown fox'],
+          ),
         ]),
         h.section(slots.section.attrs([h.Id('form')]), [
           h.h2(slots.sectionTitle.attrs(), ['Form']),
@@ -1942,6 +2010,16 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.p(slots.sectionText.attrs(), [
             `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,
           ]),
+          Pagination.view(
+            {
+              page: model.page,
+              pageCount: 10,
+              onPage: page => Message.PageSelected({ page }),
+              style: PaginationStyle,
+            },
+            h,
+          ),
+          h.p(slots.sectionText.attrs(), [`Page ${model.page} of 10.`]),
           Breadcrumb.view(
             {
               steps: [
@@ -2086,6 +2164,29 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ]),
           InputGroupDemo(model.address, h),
           h.p(slots.sectionText.attrs(), [`Previewing “/${model.address}”.`]),
+          h.p(slots.sectionText.attrs(), [
+            'A scroll area chains at its edge: the box scrolls instead of the page.',
+          ]),
+          ScrollArea.view(
+            {
+              content: h.div(
+                [],
+                [
+                  'The first line stays put while the rest moves.',
+                  'Chained scrolling stops here instead of taking the page with it.',
+                  'The bars stay thin in both schemes.',
+                  'Keyboard users reach it by Tab: the viewport is a stop.',
+                  'Twelve rems of box; the rest is overflow.',
+                  'Short lines, many of them: the box never grows.',
+                  'Each line is ordinary section text in a plain div.',
+                  'Nothing here dispatches; the demo scrolls, nothing more.',
+                  'Nine lines at this measure clear twelve rems.',
+                ].map(line => h.p(slots.sectionText.attrs(), [line])),
+              ),
+              style: ScrollAreaStyle,
+            },
+            neverH,
+          ),
           IconsDemo(undefined, h),
           h.div(slots.code.attrs(), [
             Patterns.catalog

@@ -38,6 +38,10 @@ describe('design-system update', () => {
     expect(pill.model.pillTab).toBe('month')
     const plan = update(pill.model, Message.PlanSelected({ plan: 'enterprise' }))
     expect(plan.model.plan).toBe('enterprise')
+    const page = update(plan.model, Message.PageSelected({ page: 3 }))
+    expect(page.model.page).toBe(3)
+    const bold = update(page.model, Message.BoldToggled({ value: true }))
+    expect(bold.model.bold).toBe(true)
   })
 
   it('types drafts, toggles options, and counts button presses', () => {
