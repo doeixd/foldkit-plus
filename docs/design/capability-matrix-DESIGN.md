@@ -22,13 +22,14 @@ not the rows: one capability unlocks a family.
 | `LongPress`, `Move`, `PointerDrag` | Bundle/Mount + Behavior | `.../interaction` | Built. (`Move`: drag meaning stays in the parent's `update`.) |
 | `FocusScope`, `FocusVisible` | Mount + Behavior | `.../interaction` (+ `dom`) | Built (contain/restore/initialFocus; modality data). |
 | `DismissLayer`, `HideOutside`, `ScrollLock` | Bundle/Mount + Behavior | `.../interaction` (+ `dom`) | Built (topmost-first Escape/outside-press; trigger exclusion; refcounted locks; exact-once inert restore). |
-| Anchor/position | Mount + Behavior over `@foldkit/ui/anchor` | `foldkit-mixins-ui` `Anchor` | Built (adapted, like Hover). |
+| Anchor/position | Mount + Behavior over `@foldkit/ui/anchor` | `foldkit-mixins-ui` `Anchor` | Built (adapted, like Hover). Relocates nodes (portal by default) and repositions continuously; hostile without layout. |
+| Viewport placing | Pure geometry (`placeFor`) + Mount + Behavior | `.../interaction` `Placing` | Built (shifts left past the right edge, flips above with room overhead; no timers, inert without layout). |
 | Hover intent | Submodel + slots | `foldkit-mixins-ui` `HoverIntent` | Built (adapted; open/close delays). |
 | Presence/motion | Service + `Presence` | `foldkit-primitives/motion` | Built (`data-state`, reduced-motion, timeout fallback). |
 | Disclosure, ToggleState | Attributes over input | `foldkit-mixins` `Behaviors` | Built (`aria-expanded`+controls+ids; checked/pressed). |
 | FieldAssociation, SpinValue | Attributes over input | `foldkit-mixins` `Behaviors` | Built (label/description/error links; spinbutton stepping). |
 | Virtualization | Model logic | `foldkit-primitives/state` `virtual` | Partial: windowing math exists; no Behavior and no Slot story (upstream `VirtualList` owns its own). |
-| Filter | Pure helper | `foldkit-primitives/state` (`Filter.text`) | Built deliberately stateless (a filter is a function of the Model). |
+| Filter | Pure helper | Deliberately none (a filter is a function of the Model; `Filter.text` was never a helper) | Built deliberately stateless. |
 | LiveAnnounce | Bundle (placed once) | `.../interaction` `LiveAnnounce` | Built (debounced, deduped regions). |
 
 ## 2. Rows: what each widget needs

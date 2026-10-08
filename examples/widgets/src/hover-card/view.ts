@@ -7,8 +7,7 @@
  */
 import { Option } from 'effect'
 import { Behavior, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
-import { Overlay } from 'foldkit-primitives/interaction'
-import { keepInView } from '../place.js'
+import { Overlay, Placing } from 'foldkit-primitives/interaction'
 import { hoverCardStyle } from '../style.js'
 import { Stack, Message, initial, update, type Model } from './app.js'
 
@@ -52,7 +51,7 @@ export const HoverCard = SlotView.forMessages<Message>()
   )
   .pipe(
     ...HoverOverlay.map(Behavior.attach),
-    Behavior.attach(keepInView(HoverCardSlots)({ panel: 'card' })),
+    Behavior.attach(Placing.keepWithin(HoverCardSlots)({ panel: 'card' })),
     Style.attach(hoverCardStyle(HoverCardSlots)),
   )
 

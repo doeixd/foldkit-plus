@@ -165,6 +165,10 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `Overlay.behaviors(Slots)<Model, Message, StackField>({ stack, layer, trigger?, id, policy })`, spread into the
   view's pipe: dismiss marking, focus scope, and the scroll/inert mounts the policy keeps. Positioning stays
   per-widget (`Anchor.behavior`); presence stays CSS. See `examples/drawer`.
+- **Keep a floating panel inside the viewport:** `Placing.keepWithin(Slots)({ panel })` shifts left past the
+  right edge and flips above when the bottom overflows with room overhead; `Placing.placeFor(rect, viewport)`
+  is the pure rule. No timers or repositioning, inert without layout. Not `dom`'s `KeepInView`, which scrolls
+  content into view instead.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).

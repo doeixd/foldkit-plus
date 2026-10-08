@@ -81,7 +81,7 @@ describe('view structure', () => {
     expect(mount?.action?.name).toContain('FocusScope')
     expect(mount?.action?.name).not.toContain('ScrollLock')
     expect(mount?.action?.name).not.toContain('HideOutside')
-    expect(mount?.action?.name).toContain('KeepInView')
+    expect(mount?.action?.name).toContain('KeepWithin')
     const text = JSON.stringify(builders.list.attrs([]))
     expect(text).not.toContain('data-foldkit-plus-layer-outside')
     expect(text).not.toContain('data-foldkit-plus-layer-escape')

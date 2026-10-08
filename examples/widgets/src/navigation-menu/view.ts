@@ -7,8 +7,7 @@
  */
 import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
-import { ListNavigation, Overlay, Selection } from 'foldkit-primitives/interaction'
-import { keepInView } from '../place.js'
+import { ListNavigation, Overlay, Placing, Selection } from 'foldkit-primitives/interaction'
 import { navigationMenuStyle } from '../style.js'
 import { NAMES, Nav, Sel, Stack, Message, initial, linksOf, update, type Model } from './app.js'
 
@@ -123,7 +122,7 @@ export const NavigationMenu = SlotView.forMessages<Message>()
     Behavior.attach(Keys),
     Behavior.attach(Picks),
     ...NavigationOverlay.map(Behavior.attach),
-    Behavior.attach(keepInView(NavigationMenuSlots)({ panel: 'popup' })),
+    Behavior.attach(Placing.keepWithin(NavigationMenuSlots)({ panel: 'popup' })),
     Style.attach(navigationMenuStyle(NavigationMenuSlots)),
   )
 

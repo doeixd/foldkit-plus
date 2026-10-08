@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives`: viewport placing for floating panels.**
+  `Placing.placeFor(rect, viewport)` (pure shift/flip geometry) plus the
+  `KeepWithin` mount and `keepWithin` behavior, proven by five showcase
+  islands. No timers, observers, or node relocation — inert without layout.
+  Named apart from `dom`'s `KeepInView` (scrolls content into view).
+
 - **`foldkit-mixins`: motion knob on the shared durations.**
   `knob.motion` (default `'1'`) multiplies `motion.fast`/`normal`, so a
   still theme is one scoped override and every recipe transition follows;

@@ -8,8 +8,7 @@
  * restored to the input, page usable throughout.
  */
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
-import { ListNavigation, Overlay, Selection } from 'foldkit-primitives/interaction'
-import { keepInView } from '../place.js'
+import { ListNavigation, Overlay, Placing, Selection } from 'foldkit-primitives/interaction'
 import { autocompleteStyle } from '../style.js'
 import { Nav, Sel, Stack, Message, initial, matching, update, type Model } from './app.js'
 
@@ -110,7 +109,7 @@ export const Autocomplete = SlotView.forMessages<Message>()
     Behavior.attach(Picks),
     Behavior.attach(Associated),
     ...AutocompleteOverlay.map(Behavior.attach),
-    Behavior.attach(keepInView(AutocompleteSlots)({ panel: 'list' })),
+    Behavior.attach(Placing.keepWithin(AutocompleteSlots)({ panel: 'list' })),
     Style.attach(autocompleteStyle(AutocompleteSlots)),
   )
 

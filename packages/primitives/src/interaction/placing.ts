@@ -1,11 +1,23 @@
 /**
  * Keeps a floating panel inside the viewport: on insert it shifts left past
  * the right edge and flips above its trigger when the bottom overflows and
- * the room above fits; on release every inline prop goes. `placeFor` is pure
- * geometry over rects, so the rule is unit-tested and the Mount only reads
- * and writes. Inert under jsdom (zero rects never overflow), with no
- * timers, observers, or reposition loops — unlike an anchoring library,
- * which relocates nodes and repositions forever.
+ * the room overhead fits; on release every inline prop goes. `placeFor` is
+ * pure geometry over rects, so the rule is unit-tested and the Mount only
+ * reads and writes. Inert without layout (zero rects never overflow), with
+ * no timers, observers, or reposition loops.
+ *
+ * Three related pieces this is not:
+ *
+ * - `Anchor.behavior` (`foldkit-mixins-ui`) binds a floating element to
+ *   another element's id through floating-ui, with portals and continuous
+ *   repositioning. It relocates nodes out from under the runtime (portal by
+ *   default) and burns under zero geometry; reach for it when the panel must
+ *   track a moving anchor, not for a popup placed once.
+ * - `KeepInView` (`foldkit-primitives/dom`) scrolls newly marked content
+ *   into view. Same verb, opposite direction: that one moves the page to
+ *   the panel, this one moves the panel into the page.
+ * - `Overlay.behaviors` owns dismissal, focus, scroll lock, and inertness,
+ *   but no positioning; spread this alongside it for the full overlay.
  */
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
@@ -40,7 +52,7 @@ export const placeFor = (rect: PanelRect, viewport: Viewport, margin = 8): Place
   }
 }
 
-export const KeepInView = Mount.defineStream('KeepInView', {
+export const KeepWithin = Mount.defineStream('KeepWithin', {
   messages: [Schema.Never],
   execute: ({ element }) =>
     Stream.callback<never>(() =>
@@ -69,7 +81,7 @@ export const KeepInView = Mount.defineStream('KeepInView', {
     ),
 })
 
-export const keepInView =
+export const keepWithin =
   <Slots>(slots: Slots) =>
   <Input, ParentMessage>(options: {
     readonly panel: keyof Slots & string
@@ -78,9 +90,9 @@ export const keepInView =
       {
         [options.panel]: Behavior.slot({
           requires: { capability: Capability.Container },
-          mount: () => KeepInView(),
+          mount: () => KeepWithin(),
         }),
         // Keyed by a value the caller chose; `forSlots` checks the key exists.
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'KeepInView' },
+      { name: 'KeepWithin' },
     )

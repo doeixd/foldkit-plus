@@ -66,7 +66,7 @@ describe('view structure', () => {
     const text = JSON.stringify(builders.popup.attrs([]))
     expect(text).toContain('FocusScope')
     expect(text).not.toContain('ScrollLock')
-    expect(text).toContain('KeepInView')
+    expect(text).toContain('KeepWithin')
   })
 
   it('every action draws and every row takes a right-click', () => {

@@ -435,6 +435,20 @@ const Drawer = SlotView.forMessages<Message>()
   .pipe(...DrawerOverlay.map(Behavior.attach))
 ```
 
+**`Placing`** keeps a floating panel inside the viewport: on insert it
+shifts left past the right edge and flips above its trigger when the bottom
+overflows and the room overhead fits; on release every inline prop goes.
+`Placing.placeFor(rect, viewport)` is the pure rule; `Placing.keepWithin`
+is the Behavior that mounts it on a panel slot. No timers, observers, or
+reposition loops — and unlike `Anchor.behavior` nothing relocates nodes,
+so it stays inert without layout. Not to confuse with `KeepInView` in
+`foldkit-primitives/dom`, which scrolls newly marked content into view:
+same verb, opposite direction.
+
+```ts
+Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),
+```
+
 **`Selection`** is which items are selected, with `mode` `'single'` (a click
 replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends

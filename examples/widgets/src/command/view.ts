@@ -6,8 +6,7 @@
  * (clicks and `aria-selected`). Typing narrows; keys and clicks choose.
  */
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
-import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
-import { keepInView } from '../place.js'
+import { ListNavigation, Placing, Selection } from 'foldkit-primitives/interaction'
 import { commandStyle } from '../style.js'
 import { Nav, Sel, Message, initial, matching, selectedOf, update, type Model } from './app.js'
 
@@ -77,7 +76,7 @@ export const Command = SlotView.forMessages<Message>()
     Behavior.attach(Ids),
     Behavior.attach(Keys),
     Behavior.attach(Picks),
-    Behavior.attach(keepInView(CommandSlots)({ panel: 'list' })),
+    Behavior.attach(Placing.keepWithin(CommandSlots)({ panel: 'list' })),
     Style.attach(commandStyle(CommandSlots)),
   )
 
