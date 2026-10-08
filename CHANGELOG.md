@@ -19,13 +19,22 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-server/fetch`: Remote over the Fetch API.**
   `serveFetch({ server, resolvePrincipal, layer })` is a Worker's `fetch`
   (or any `Request`/`Response` runtime): reads, queries, and mutations ride
-  one `POST` each, as `Remote.http` sends them. The principal is resolved
-  per request and the Sources' requirements are provided per request from
-  the environment (`layer: env => databaseLayer(drizzle(env.DB))`).
+  one `POST` each, as `Remote.http` sends them, and a live open rides one
+  `POST` answered with a `text/event-stream` of `LiveChange` frames (one
+  `data:` frame per change, a terminal `event: error` frame on failure).
+  The principal is resolved per request and the Sources' requirements are
+  provided per request from the environment
+  (`layer: env => databaseLayer(drizzle(env.DB))`).
   Non-`POST`s and other paths are 404; a body that is not JSON, or not a
   request, is a 400 that reaches no handler; a throwing principal
   resolution is a 401; anything else this side breaks is a 500 that says
-  nothing of it. It carries no live data.
+  nothing of it. Disconnecting interrupts the subscription.
+
+- **`foldkit-remote`: `Remote.httpWithLive`.**
+  Reads, queries, and mutations as `Remote.http` sends them, live as the
+  event stream above, for `Remote.clientLayer`; abandoning the stream
+  aborts the request. `Remote.http` also takes an optional `fetch`
+  implementation for tests.
 
 - **`foldkit-mixins-ui`: recipes for every remaining slot contract.**
   `Recipes.Menu`, `Listbox`, `Combobox` (one shared popup panel, rows, and

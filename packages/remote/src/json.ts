@@ -68,14 +68,19 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
  * answer its JSON body whatever its status. `headers` is read per request, so
- * a token that changes reaches the next call.
+ * a token that changes reaches the next call. `fetch` defaults to the global
+ * one; pass it to route calls through another implementation in tests.
  */
 export const http = (
   url: string,
-  options: { readonly headers?: () => Readonly<Record<string, string>> } = {},
+  options: {
+    readonly headers?: (() => Readonly<Record<string, string>>) | undefined
+    readonly fetch?: typeof fetch | undefined
+  } = {},
 ): RemoteRpcClient =>
   json(async request => {
-    const response = await fetch(url, {
+    const via = options.fetch ?? fetch
+    const response = await via(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...options.headers?.() },
       body: request,

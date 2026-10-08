@@ -361,7 +361,12 @@ const overHttp = Remote.clientLayer(
 ```
 
 `headers` is read for each request, so a token that changes reaches the next
-call. Neither carries live data.
+call. Neither carries live data. For live data over the same `POST`s,
+`Remote.httpWithLive` keeps reads, queries, and mutations as `http` sends
+them and streams live requirements as a `text/event-stream` of changes;
+[`serveFetch`](../remote-server/README.md#over-fetch-workers) is the other
+end. Abandoning the stream aborts the request, which interrupts the
+subscription server-side.
 
 For a server in a worker or in the page (a sandbox), `foldkit-remote/port`
 speaks Effect's own RPC worker protocol over a `MessagePort`, so live data,

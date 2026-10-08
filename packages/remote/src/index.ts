@@ -142,10 +142,12 @@ import {
 import { markAll, resumePart } from './resume.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
+import { httpWithLive as httpWithLiveClient } from './sse.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export * from './coalesce.js'
 export { RemoteJsonAnswer, RemoteJsonRequest, type RemoteJsonSend } from './json.js'
+export { httpWithLive, liveFetch, type LiveFetchOptions } from './sse.js'
 export * from './connection.js'
 export * from './entity.js'
 export * from './inspect.js'
@@ -2182,6 +2184,14 @@ export const Remote = {
    * request to `url`. `headers` is read per request (a session token, say).
    */
   http: httpClient,
+
+  /**
+   * Remote's client over HTTP with live, for `clientLayer`: reads, queries,
+   * and mutations as `http` sends them, live requirements as one `POST`
+   * answered with a `text/event-stream` of changes.
+   * `foldkit-remote-server/fetch` is the other end.
+   */
+  httpWithLive: httpWithLiveClient,
 
   clientLayer: <R = never>(
     client: RemoteRpcClient<R, RpcClientError.RpcClientError>,

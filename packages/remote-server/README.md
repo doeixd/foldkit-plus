@@ -754,12 +754,19 @@ export default {
 }
 ```
 
-Only `POST`s to `path` (default `/remote`) are answered; anything else is a
-404. A body that is not JSON, or not a request, is a 400 that reaches no
+Only `POST`s to `path` (default `/remote`) are answered; anything else is a 404. A body that is not JSON, or not a request, is a 400 that reaches no
 handler; a handler's failure a 500 with its message. A principal resolution
 that throws is a 401 with its message; anything else this side breaks,
-including layer provision, a 500 that says nothing of it. It carries no live
-data.
+including layer provision, a 500 that says nothing of it.
+
+A body that opens live (`{ operation: 'live', payload }`) is answered with
+the stream as `text/event-stream`: one `data:` frame per `LiveChange`, then
+a terminal `event: error` frame carrying the failure's message when the
+stream fails rather than ends. A payload no live stream speaks is a 400 that
+subscribes to nothing. `Remote.httpWithLive` is the other end; a client that
+disconnects interrupts the subscription, as closing the RPC stream would.
+Pass a hub as `live` so `changed`/`deleted` signals reach these streams —
+one per isolate, so cross-isolate fan-out stays a Durable Object's job.
 
 ## What it does not own
 
