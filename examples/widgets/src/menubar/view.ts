@@ -91,39 +91,48 @@ export const Menubar = SlotView.forMessages<Message>()
     const menus = describeMenus()
     const items = describeItems(model)
     const shown = itemsOf(model.openMenu)
-    return h.div(slots.bar.attrs([h.Role('menubar')]), [
-      ...NAMES.map((name, index) =>
-        h.button(
-          slots.trigger.attrs(
-            [
-              h.Key(name),
-              h.AriaHasPopup('menu'),
-              h.AriaExpanded(model.openMenu === name),
-              h.OnClick(Message.OpenedMenu({ menu: name })),
-            ],
-            menus.slotItem(index),
-          ),
-          [name],
-        ),
-      ),
-      ...(model.openMenu === null
-        ? []
-        : [
-            h.div(
-              slots.popup.attrs([h.Role('menu'), h.AriaLabel(model.openMenu)]),
-              shown.map((item, index) =>
-                h.button(
-                  slots.item.attrs(
-                    [h.Key(item), h.OnClick(Message.ChoseItem({ item }))],
-                    items.slotItem(index),
-                  ),
-                  [item],
-                ),
+    // The popup stays inside the bar's element so the layer stack reads one
+    // subtree, but absolute positioning takes it out of the flex row: it
+    // overlays what follows instead of stretching the bar. The choice line
+    // sits below the bar for the same reason.
+    return h.div(
+      [],
+      [
+        h.div(slots.bar.attrs([h.Role('menubar')]), [
+          ...NAMES.map((name, index) =>
+            h.button(
+              slots.trigger.attrs(
+                [
+                  h.Key(name),
+                  h.AriaHasPopup('menu'),
+                  h.AriaExpanded(model.openMenu === name),
+                  h.OnClick(Message.OpenedMenu({ menu: name })),
+                ],
+                menus.slotItem(index),
               ),
+              [name],
             ),
-          ]),
-      ...(model.choice === null ? [] : [h.p([], [`Last choice: ${model.choice}.`])]),
-    ])
+          ),
+          ...(model.openMenu === null
+            ? []
+            : [
+                h.div(
+                  slots.popup.attrs([h.Role('menu'), h.AriaLabel(model.openMenu)]),
+                  shown.map((item, index) =>
+                    h.button(
+                      slots.item.attrs(
+                        [h.Key(item), h.OnClick(Message.ChoseItem({ item }))],
+                        items.slotItem(index),
+                      ),
+                      [item],
+                    ),
+                  ),
+                ),
+              ]),
+        ]),
+        ...(model.choice === null ? [] : [h.p([], [`Last choice: ${model.choice}.`])]),
+      ],
+    )
   })
   .pipe(
     Behavior.attach(MenuIds),

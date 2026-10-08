@@ -324,6 +324,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
   Style.forSlots(slots)(
     {
       bar: Style.self({
+        position: 'relative',
         display: 'flex',
         gap: '0.25rem',
         maxWidth: '28rem',
@@ -335,9 +336,12 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
       trigger: Style.compose(control, focus),
       popup: Style.compose(
         Style.self({
+          position: 'absolute',
+          top: 'calc(100% + 0.25rem)',
+          left: '0',
+          zIndex: '10',
           display: 'grid',
           minWidth: '12rem',
-          marginBlockStart: '0.25rem',
           background: onAccent,
           border: `1px solid ${line}`,
           borderRadius: '10px',
