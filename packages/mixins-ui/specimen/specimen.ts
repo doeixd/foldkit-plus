@@ -12,13 +12,24 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   ButtonSlots,
   CheckboxSlots,
+  ComboboxSlots,
+  DatePickerSlots,
   DialogSlots,
+  FileDropSlots,
   InputSlots,
+  ListboxSlots,
+  MenuSlots,
+  PopoverSlots,
+  RadioGroupSlots,
   Recipes,
   SegmentedSlots,
+  SelectSlots,
+  SliderSlots,
   SwitchSlots,
   TabsSlots,
   TextareaSlots,
+  ToastSlots,
+  TooltipSlots,
 } from '../src/index.js'
 
 const [, , out = 'specimen.html', hue = '265'] = process.argv
@@ -205,6 +216,91 @@ const dialogs = section(
   `<div class="${dialog['panel']}" style="position:static;transform:none;max-inline-size:28rem"><h2 class="${dialog['title']}">Delete this page?</h2><p class="${dialog['description']}">It goes for good, with its history.</p>${row(`<button class="${button({ tone: 'danger' })}">Delete</button>`, `<button class="${button({ tone: 'neutral', variant: 'ghost' })}">Cancel</button>`)}</div>`,
 )
 
+const select = classesOf(SelectSlots, Recipes.Select({}))
+const selects = section(
+  'Recipes.Select',
+  row(
+    `<label class="spec-stack"><span class="${select['label']}">Country</span><select class="${select['select']}"><option>United States</option></select><span class="${select['description']}">Where you reside.</span></label>`,
+  ),
+)
+
+const radio = classesOf(RadioGroupSlots, Recipes.RadioGroup({ tone: 'accent' }))
+const slider = classesOf(SliderSlots, Recipes.Slider({}))
+const choices = section(
+  'Recipes.RadioGroup, Slider',
+  row(
+    label('radio'),
+    ...['false', 'true'].map(
+      state =>
+        `<span class="spec-inline"><span role="radio" aria-checked="${state}" class="${radio['checkbox'] ?? radio['option']}"></span><span class="${radio['label']}">${state}</span></span>`,
+    ),
+  ) +
+    row(
+      label('slider 60'),
+      `<span class="${slider['root']}" style="min-inline-size:12rem"><span class="${slider['label']}">Volume</span><span class="${slider['track']}" style="display:block;position:relative"><span class="${slider['filledTrack']}" style="position:absolute;inset:0 auto 0 0;inline-size:60%"></span><span class="${slider['thumb']}" style="position:absolute;inset-inline-start:60%"></span></span></span>`,
+    ),
+)
+
+const menu = classesOf(MenuSlots, Recipes.Menu({}))
+const listbox = classesOf(ListboxSlots, Recipes.Listbox({}))
+const combobox = classesOf(ComboboxSlots, Recipes.Combobox({}))
+const popups = section(
+  'Recipes.Menu, Listbox, Combobox (panels pinned open)',
+  row(
+    label('menu'),
+    `<span class="${menu['wrapper']}" style="position:relative;display:inline-block"><button class="${menu['button']}">Actions</button><span class="${menu['items']}"><span class="${menu['item']}" style="display:block">Reply</span><span class="${menu['item']}" style="display:block">Forward</span></span></span>`,
+  ) +
+    row(
+      label('listbox'),
+      `<span class="${listbox['wrapper']}" style="position:relative;display:inline-block"><button class="${listbox['button']}">Weekly</button><span class="${listbox['items']}"><span class="${listbox['item']}" style="display:block">Daily</span><span class="${listbox['item']}" style="display:block">Weekly</span></span></span>`,
+    ) +
+    row(
+      label('combobox'),
+      `<span class="${combobox['wrapper']}" style="position:relative;display:inline-block"><span class="${combobox['inputWrapper']}" style="display:flex"><input class="${combobox['input']}" value="qui"><button class="${combobox['toggleButton']}">▾</button></span><span class="${combobox['items']}"><span class="${combobox['item']}" style="display:block">Quito</span></span></span>`,
+    ),
+)
+
+const toast = classesOf(ToastSlots, Recipes.Toast({}))
+const toasts = section(
+  'Recipes.Toast',
+  `<div class="${toast['container']}" style="position:static"><div class="${toast['entry']}"><p>Saved</p><p>Your changes are live.</p></div></div>`,
+)
+
+const drop = classesOf(FileDropSlots, Recipes.FileDrop({}))
+const drops = section(
+  'Recipes.FileDrop',
+  row(
+    `<label class="${drop['root']}"><span>Drop files or click to browse</span><input type="file" class="${drop['input']}"></label>`,
+  ),
+)
+
+const picker = classesOf(DatePickerSlots, Recipes.DatePicker({}))
+const pickers = section(
+  'Recipes.DatePicker',
+  row(
+    `<button class="${picker['trigger']}">Pick a date</button>`,
+    `<span class="${picker['panel']}" style="position:static">October 2026</span>`,
+  ),
+)
+
+const popover = classesOf(PopoverSlots, Recipes.Popover({}))
+const popovers = section(
+  'Recipes.Popover',
+  row(
+    `<button class="${popover['button']}">Show details</button>`,
+    `<span class="${popover['panel']}" style="position:static">Anchored details.</span>`,
+  ),
+)
+
+const tooltip = classesOf(TooltipSlots, Recipes.Tooltip({}))
+const tooltips = section(
+  'Recipes.Tooltip',
+  row(
+    `<span class="${tooltip['trigger']}">Hover or focus me</span>`,
+    `<span class="${tooltip['panel']}">A helpful hint.</span>`,
+  ),
+)
+
 const L = Layers.standard
 const css =
   Style.stylesheet(
@@ -221,6 +317,6 @@ const page = `<!doctype html><html><head><meta charset="utf-8"><title>Specimen</
 .spec-inline{display:inline-flex;gap:0.4rem;align-items:center}
 .spec-label{font-size:0.75rem;color:var(--fk-text-muted);min-inline-size:3.5rem}
 .spec-swatch{inline-size:2.5rem;block-size:2rem;border-radius:6px;border:1px solid var(--fk-outline-subtle)}
-</style></head><body><main class="spec">${[palette, plain, buttons, fields, toggles, tabs, badges, dialogs].join('')}</main></body></html>`
+</style></head><body><main class="spec">${[palette, plain, buttons, fields, selects, toggles, choices, tabs, popups, badges, dialogs, pickers, popovers, tooltips, toasts, drops].join('')}</main></body></html>`
 writeFileSync(out, page)
 console.log(`wrote ${out} (${page.length} bytes)`)

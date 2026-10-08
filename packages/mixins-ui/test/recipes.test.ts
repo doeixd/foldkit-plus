@@ -20,13 +20,24 @@ import {
   Button,
   ButtonSlots,
   CheckboxSlots,
+  ComboboxSlots,
+  DatePickerSlots,
   DialogSlots,
+  FileDropSlots,
   InputSlots,
+  ListboxSlots,
+  MenuSlots,
+  PopoverSlots,
+  RadioGroupSlots,
   Recipes,
   SegmentedSlots,
+  SelectSlots,
+  SliderSlots,
   SwitchSlots,
   TabsSlots,
   TextareaSlots,
+  ToastSlots,
+  TooltipSlots,
 } from '../src/index.js'
 import { attributeOf, h, message, type TestMessage } from './fixture.js'
 
@@ -72,6 +83,17 @@ const allPieces = [
   ...selections(Recipes.Dialog.def.variants).map(selection => Recipes.Dialog(selection)),
   ...selections(Recipes.Tabs.def.variants).map(selection => Recipes.Tabs(selection)),
   ...selections(Recipes.Segmented.def.variants).map(selection => Recipes.Segmented(selection)),
+  ...selections(Recipes.Menu.def.variants).map(selection => Recipes.Menu(selection)),
+  ...selections(Recipes.Listbox.def.variants).map(selection => Recipes.Listbox(selection)),
+  ...selections(Recipes.Combobox.def.variants).map(selection => Recipes.Combobox(selection)),
+  ...selections(Recipes.Select.def.variants).map(selection => Recipes.Select(selection)),
+  ...selections(Recipes.RadioGroup.def.variants).map(selection => Recipes.RadioGroup(selection)),
+  ...selections(Recipes.Slider.def.variants).map(selection => Recipes.Slider(selection)),
+  ...selections(Recipes.Toast.def.variants).map(selection => Recipes.Toast(selection)),
+  ...selections(Recipes.FileDrop.def.variants).map(selection => Recipes.FileDrop(selection)),
+  ...selections(Recipes.DatePicker.def.variants).map(selection => Recipes.DatePicker(selection)),
+  ...selections(Recipes.Popover.def.variants).map(selection => Recipes.Popover(selection)),
+  ...selections(Recipes.Tooltip.def.variants).map(selection => Recipes.Tooltip(selection)),
 ].flatMap(pieces => Object.values(pieces))
 
 const compiled = {
@@ -98,6 +120,39 @@ const compiled = {
   ),
   Segmented: selections(Recipes.Segmented.def.variants).map(
     selection => Style.forSlots(SegmentedSlots)(Recipes.Segmented(selection)).css,
+  ),
+  Menu: selections(Recipes.Menu.def.variants).map(
+    selection => Style.forSlots(MenuSlots)(Recipes.Menu(selection)).css,
+  ),
+  Listbox: selections(Recipes.Listbox.def.variants).map(
+    selection => Style.forSlots(ListboxSlots)(Recipes.Listbox(selection)).css,
+  ),
+  Combobox: selections(Recipes.Combobox.def.variants).map(
+    selection => Style.forSlots(ComboboxSlots)(Recipes.Combobox(selection)).css,
+  ),
+  Select: selections(Recipes.Select.def.variants).map(
+    selection => Style.forSlots(SelectSlots)(Recipes.Select(selection)).css,
+  ),
+  RadioGroup: selections(Recipes.RadioGroup.def.variants).map(
+    selection => Style.forSlots(RadioGroupSlots)(Recipes.RadioGroup(selection)).css,
+  ),
+  Slider: selections(Recipes.Slider.def.variants).map(
+    selection => Style.forSlots(SliderSlots)(Recipes.Slider(selection)).css,
+  ),
+  Toast: selections(Recipes.Toast.def.variants).map(
+    selection => Style.forSlots(ToastSlots)(Recipes.Toast(selection)).css,
+  ),
+  FileDrop: selections(Recipes.FileDrop.def.variants).map(
+    selection => Style.forSlots(FileDropSlots)(Recipes.FileDrop(selection)).css,
+  ),
+  DatePicker: selections(Recipes.DatePicker.def.variants).map(
+    selection => Style.forSlots(DatePickerSlots)(Recipes.DatePicker(selection)).css,
+  ),
+  Popover: selections(Recipes.Popover.def.variants).map(
+    selection => Style.forSlots(PopoverSlots)(Recipes.Popover(selection)).css,
+  ),
+  Tooltip: selections(Recipes.Tooltip.def.variants).map(
+    selection => Style.forSlots(TooltipSlots)(Recipes.Tooltip(selection)).css,
   ),
 }
 
@@ -272,6 +327,174 @@ describe('Recipes', () => {
       expect(panel === undefined ? '' : Style.forSlots(DialogSlots)({ panel }).css).toContain(
         'max-inline-size:min(24rem, 100% - 2rem)',
       )
+    })
+  })
+
+  describe('Menu', () => {
+    const css = (selection: Parameters<typeof Recipes.Menu>[0]): string =>
+      Style.forSlots(MenuSlots)(Recipes.Menu(selection)).css
+
+    it('opens a bordered panel over later content', () => {
+      expect(css({})).toContain('border-radius:var(--fk-radius-lg)')
+      expect(css({})).toContain('box-shadow:var(--fk-shadow-lg)')
+      expect(css({})).toContain('z-index:20')
+    })
+
+    it('densities rows without changing the panel', () => {
+      expect(css({ size: 'sm' })).not.toBe(css({ size: 'md' }))
+      expect(css({ size: 'md' })).toContain('border-radius:var(--fk-radius-lg)')
+    })
+  })
+
+  describe('Listbox', () => {
+    const css = (selection: Parameters<typeof Recipes.Listbox>[0]): string =>
+      Style.forSlots(ListboxSlots)(Recipes.Listbox(selection)).css
+
+    it('tints the chosen option with the accent wash and ink', () => {
+      expect(css({})).toMatch(
+        /\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/,
+      )
+      expect(css({})).toMatch(/\[aria-selected="true"\]\{[^}]*color:var\(--fk-accent-ink\)/)
+    })
+  })
+
+  describe('Combobox', () => {
+    const css = (selection: Parameters<typeof Recipes.Combobox>[0]): string =>
+      Style.forSlots(ComboboxSlots)(Recipes.Combobox(selection)).css
+
+    it('rings the group while its input has focus and keeps the input borderless', () => {
+      expect(css({})).toMatch(/:focus-within\{[^}]*outline:[^}]*var\(--fk-outline-focus\)/)
+      expect(css({})).toMatch(/\.style-[a-z0-9]+\{[^}]*border:0[^}]*\}/)
+    })
+
+    it('tints the chosen row like the listbox', () => {
+      expect(css({})).toMatch(
+        /\[aria-selected="true"\]\{[^}]*background:var\(--fk-accent-subtle\)/,
+      )
+    })
+  })
+
+  describe('Select', () => {
+    const css = (selection: Parameters<typeof Recipes.Select>[0]): string =>
+      Style.forSlots(SelectSlots)(Recipes.Select(selection)).css
+
+    it('keeps room for the value on every size', () => {
+      for (const size of ['sm', 'md', 'lg'] as const) {
+        const variantBlocks = blocks(css({ size })).filter(block =>
+          block.startsWith('@layer variants'),
+        )
+        expect(variantBlocks.some(block => /padding-inline:[^;]*2rem/.test(block))).toBe(true)
+      }
+    })
+
+    it('fills instead of outlining on request', () => {
+      expect(css({ variant: 'filled' })).toContain('background:var(--fk-surface-subtle)')
+      expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-subtle)')
+    })
+  })
+
+  describe('RadioGroup', () => {
+    const css = (selection: Parameters<typeof Recipes.RadioGroup>[0]): string =>
+      Style.forSlots(RadioGroupSlots)(Recipes.RadioGroup(selection)).css
+
+    it('fills the checked circle from the tone', () => {
+      expect(css({ tone: 'accent' })).toMatch(
+        /\[aria-checked="true"\]::after\{[^}]*background:var\(--_fk-tone-fill\)/,
+      )
+    })
+
+    it('checks neutral in ink, not the pale surface', () => {
+      const neutral = Style.forSlots(RadioGroupSlots)(
+        Recipes.RadioGroup({ tone: 'neutral' }),
+      ).css
+      expect(neutral).toContain('--_fk-tone-fill:var(--fk-text-default)')
+    })
+
+    it('scales the box by size', () => {
+      expect(css({ size: 'lg' })).toContain('--_fk-toggle-size:1.25rem')
+    })
+  })
+
+  describe('Slider', () => {
+    const css = (selection: Parameters<typeof Recipes.Slider>[0]): string =>
+      Style.forSlots(SliderSlots)(Recipes.Slider(selection)).css
+
+    it('fills the track and rims the thumb in the tone', () => {
+      expect(css({})).toContain('background:var(--_fk-tone-fill)')
+      expect(css({ tone: 'neutral' })).toContain('--_fk-tone-fill:var(--fk-text-default)')
+    })
+
+    it('scales the thumb by size', () => {
+      expect(css({ size: 'sm' })).toContain('--_fk-slider-size:0.75rem')
+    })
+  })
+
+  describe('Toast', () => {
+    const css = (): string => Style.forSlots(ToastSlots)(Recipes.Toast({})).css
+
+    it('stacks entries bottom-right above the page', () => {
+      expect(css()).toContain('position:fixed')
+      expect(css()).toContain('z-index:50')
+    })
+
+    it('edges each entry with the accent', () => {
+      expect(css()).toContain('border-inline-start:')
+      expect(css()).toContain('var(--fk-accent-default)')
+    })
+  })
+
+  describe('FileDrop', () => {
+    const css = (): string => Style.forSlots(FileDropSlots)(Recipes.FileDrop({})).css
+
+    it('draws a dashed zone that tints on drag-over', () => {
+      expect(css()).toMatch(/border:[^;]*dashed/)
+      expect(css()).toContain('[data-drag-over="true"]')
+      expect(css()).toContain('background:var(--fk-accent-subtle)')
+    })
+
+    it('hides the file input off the root, beside the component class', () => {
+      expect(css()).toContain('> input{')
+      expect(css()).toContain('clip-path:inset(50%)')
+    })
+  })
+
+  describe('DatePicker', () => {
+    const css = (selection: Parameters<typeof Recipes.DatePicker>[0]): string =>
+      Style.forSlots(DatePickerSlots)(Recipes.DatePicker(selection)).css
+
+    it('draws the trigger as a bordered control', () => {
+      expect(css({})).toMatch(/border:[^;]*solid[^;]*var\(--fk-outline-default\)/)
+    })
+
+    it('densities the trigger by size', () => {
+      expect(css({ size: 'sm' })).toContain('font-size:var(--fk-size-sm)')
+    })
+  })
+
+  describe('Popover', () => {
+    const css = (selection: Parameters<typeof Recipes.Popover>[0]): string =>
+      Style.forSlots(PopoverSlots)(Recipes.Popover(selection)).css
+
+    it('floats the panel above page content', () => {
+      expect(css({})).toContain('box-shadow:var(--fk-shadow-lg)')
+      expect(css({})).toContain('z-index:20')
+    })
+
+    it('sizes the panel by selection', () => {
+      expect(css({ size: 'lg' })).toContain('max-inline-size:min(32rem, 100% - 2rem)')
+    })
+  })
+
+  describe('Tooltip', () => {
+    const css = (): string => Style.forSlots(TooltipSlots)(Recipes.Tooltip({})).css
+
+    it('draws the pill dark on any ground', () => {
+      expect(css()).toContain('background:var(--fk-text-overt)')
+      expect(css()).toContain('color:var(--fk-surface-base)')
+    })
+
+    it('underlines the trigger dotted', () => {
+      expect(css()).toContain('text-decoration:underline dotted')
     })
   })
 

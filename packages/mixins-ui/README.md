@@ -402,8 +402,10 @@ adapter.
 ## Recipes
 
 The adapters only name slots. `Recipes` gives those slots a look: one
-`Style.recipeFor` per contract (`Button`, `Input`, `Textarea`, `Checkbox`,
-`Switch`, `Dialog`, `Tabs`, `Segmented`), built on the tokens of `foldkit-mixins/theme`.
+`Style.recipeFor` per contract (`Button`, `Input`, `Textarea`, `Select`,
+`Checkbox`, `Switch`, `RadioGroup`, `Slider`, `Dialog`, `Tabs`, `Segmented`,
+`Menu`, `Listbox`, `Combobox`, `DatePicker`, `Popover`, `Tooltip`, `Toast`,
+`FileDrop`), built on the tokens of `foldkit-mixins/theme`.
 Select variants, hand the pieces to `Style.forSlots`, and attach the result
 like any other Style:
 

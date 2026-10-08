@@ -32,6 +32,34 @@ Recipes.Button({ tone: 'neutral', variant: 'icon', size: null })
 // @ts-expect-error a variant the recipe does not offer.
 Recipes.Button({ variant: 'raised' })
 
+Recipes.Menu({ size: 'sm' })
+
+// @ts-expect-error a size the menu recipe does not offer.
+Recipes.Menu({ size: 'xl' })
+
+Recipes.Listbox({ size: 'md' })
+Recipes.Combobox({ size: 'md' })
+Recipes.Select({ size: 'lg', variant: 'filled' })
+
+// @ts-expect-error a variant the select recipe does not offer.
+Recipes.Select({ variant: 'ghost' })
+
+Recipes.RadioGroup({ tone: 'neutral', size: 'lg' })
+
+// @ts-expect-error a tone the radio recipe does not offer.
+Recipes.RadioGroup({ tone: 'brand' })
+
+Recipes.Slider({ tone: 'neutral', size: 'md' })
+Recipes.Toast({})
+Recipes.FileDrop({})
+Recipes.DatePicker({ size: 'sm' })
+
+// @ts-expect-error a size the date picker recipe does not offer.
+Recipes.DatePicker({ size: 'xl' })
+
+Recipes.Popover({ size: 'lg' })
+Recipes.Tooltip({})
+
 Recipes.Segmented({ tray: 'plain', size: 'sm' })
 
 // @ts-expect-error a tray the recipe does not offer.

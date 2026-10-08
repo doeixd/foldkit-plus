@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: recipes for every remaining slot contract.**
+  `Recipes.Menu`, `Listbox`, `Combobox` (one shared popup panel, rows, and
+  density), `Select` (the Input control's size and variant axes),
+  `RadioGroup` (checked circle in a tone), `Slider` (toned fill and thumb),
+  `Toast` (bottom-right stack, accented entries), `FileDrop` (dashed zone
+  that tints on drag-over), `DatePicker` (trigger and panel), `Popover`
+  (trigger and sized panel), and `Tooltip` (dark pill). The popup trio share
+  an internal base; the file input hides off the root because a mixin class
+  beside the component's own class does not reach the element.
+
 - **`foldkit-primitives`: viewport placing for floating panels.**
   `Placing.placeFor(rect, viewport)` (pure shift/flip geometry) plus the
   `KeepWithin` mount and `keepWithin` behavior, proven by five showcase
