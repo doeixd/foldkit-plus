@@ -148,5 +148,11 @@ describe('showcase islands', () => {
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain('Last followed: Products/Pricing.'),
     )
+
+    // Native select: choosing phone names it.
+    const reach = document.querySelector('select') as HTMLSelectElement
+    reach.value = 'phone'
+    reach.dispatchEvent(new Event('change', { bubbles: true }))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Chosen: phone.'))
   })
 })

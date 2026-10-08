@@ -49,6 +49,8 @@ npx vitest run examples/widgets
   Collection + `RovingTabindex` + `ListNavigation` + single Selection.
 - `src/navigation-menu/` — hover-to-open sections with click toggle:
   Collection + `ListNavigation` + single Selection under `Overlay.nonModal`.
+- `src/native-select/` — native dropdown: value + change, unlisted values
+  refused with the Model untouched.
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

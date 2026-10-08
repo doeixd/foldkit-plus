@@ -55,6 +55,12 @@ import {
   NavigationMenuSlots,
   runDemo as runNavigationMenuDemo,
 } from './navigation-menu/view.js'
+import * as NativeSelect from './native-select/app.js'
+import {
+  NativeSelect as NativeSelectView,
+  NativeSelectSlots,
+  runDemo as runNativeSelectDemo,
+} from './native-select/view.js'
 import * as NumberField from './number-field/app.js'
 import {
   NumberField as NumberFieldView,
@@ -95,6 +101,7 @@ import {
   menubarStyle,
   meterStyle,
   navigationMenuStyle,
+  nativeSelectStyle,
   numberFieldStyle,
   otpFieldStyle,
   progressStyle,
@@ -364,6 +371,23 @@ export const islands = [
           init: () => Menubar.initial,
           update: Menubar.update,
           view: (model, h) => MenubarView(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: 'native-select',
+    title: 'Native select',
+    runDemo: runNativeSelectDemo,
+    style: () => nativeSelectStyle(NativeSelectSlots),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: NativeSelect.Model,
+          init: () => ({ model: NativeSelect.initial }),
+          update: NativeSelect.update,
+          view: (model, h) => NativeSelectView(model, h),
           container,
         }),
       )

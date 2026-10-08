@@ -16,6 +16,7 @@ import type { HoverCardSlots } from './hover-card/view.js'
 import type { MenubarSlots } from './menubar/view.js'
 import type { NavigationMenuSlots } from './navigation-menu/view.js'
 import type { ContextMenuSlots } from './context-menu/view.js'
+import type { NativeSelectSlots } from './native-select/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
 import type { ProgressSlots } from './progress/view.js'
@@ -165,6 +166,15 @@ export const meterStyle = (slots: typeof MeterSlots) =>
       more: Style.compose(control, focus),
     },
     { name: 'ShowcaseMeter' },
+  )
+
+export const nativeSelectStyle = (slots: typeof NativeSelectSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '24rem' }),
+      field: Style.compose(control, focus),
+    },
+    { name: 'ShowcaseNativeSelect' },
   )
 
 export const progressStyle = (slots: typeof ProgressSlots) =>
