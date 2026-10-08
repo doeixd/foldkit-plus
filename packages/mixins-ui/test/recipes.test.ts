@@ -19,6 +19,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
   ButtonSlots,
+  ButtonGroupSlots,
   AvatarSlots,
   TypographySlots,
   ScrollAreaSlots,
@@ -90,6 +91,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.ButtonGroup.def.variants).map(selection => Recipes.ButtonGroup(selection)),
   ...selections(Recipes.ScrollArea.def.variants).map(selection => Recipes.ScrollArea(selection)),
   ...selections(Recipes.Typography.def.variants).map(selection => Recipes.Typography(selection)),
   ...selections(Recipes.Avatar.def.variants).map(selection => Recipes.Avatar(selection)),
@@ -127,6 +129,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  ButtonGroup: selections(Recipes.ButtonGroup.def.variants).map(
+    selection => Style.forSlots(ButtonGroupSlots)(Recipes.ButtonGroup(selection)).css,
   ),
   ScrollArea: selections(Recipes.ScrollArea.def.variants).map(
     selection => Style.forSlots(ScrollAreaSlots)(Recipes.ScrollArea(selection)).css,
