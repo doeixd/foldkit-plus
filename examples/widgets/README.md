@@ -55,3 +55,9 @@ a mutation spec beside it. `src/style.ts` holds the showcase's look — one
 `Style.forSlots` per widget, state visuals read from the ARIA the behaviors
 already write (`Style.states(..., 'aria-pressed')`), installed by
 `src/entry.ts`; `test/style.test.ts` pins the sheet.
+
+Adding a widget means adding one entry to `src/widgets.ts` (plus its folder
+and tests): the entry's demo trace, the page sections, the style sheet, and
+the interactive boot all derive from that registry. Each `mount` closure
+keeps its own Model and Message types; the list only reads `id`, `title`,
+`runDemo`, `style`, and `mount`.

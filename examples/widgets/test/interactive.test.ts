@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 /**
  * The showcase page on the real runtime: every island boots from the same
- * `entry.ts` the dev server serves, and one interaction per widget reaches
- * its Model and redraws. Proves the page is interactive, not just drawn.
- * (`embed` replaces each container with its rendering, so the test queries
- * the drawn page, not the staged divs.)
+ * `entry.ts` the dev server serves (sections included), and one interaction
+ * per widget reaches its Model and redraws. Proves the page is interactive,
+ * not just drawn. (`embed` replaces each container with its rendering, so
+ * the test queries the drawn page, not the staged divs.)
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { islands } from '../src/widgets.js'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -30,26 +31,11 @@ describe('showcase islands', () => {
       setTimeout(() => callback(performance.now()), 0),
     )
     vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-    document.body.innerHTML = [
-      'toolbar',
-      'toggle',
-      'toggle-group',
-      'accordion',
-      'alert-dialog',
-      'autocomplete',
-      'number-field',
-      'otp-field',
-      'checkbox-group',
-      'meter',
-      'command',
-      'context-menu',
-      'hover-card',
-      'menubar',
-      'navigation-menu',
-    ]
-      .map(id => `<div id="${id}"></div>`)
-      .join('')
+    document.body.innerHTML = '<main id="showcase"></main>'
     await import('../src/entry.js')
+
+    // Every registered island drew a section.
+    expect(document.querySelectorAll('main#showcase > section')).toHaveLength(islands.length)
 
     // The toolbar drew over its container.
     expect(document.querySelector('[role="toolbar"]')).not.toBeNull()

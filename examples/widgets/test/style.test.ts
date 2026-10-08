@@ -1,72 +1,39 @@
 import { describe, expect, it } from 'vitest'
 import { Inert } from 'foldkit-mixins/testing'
 import { Style } from 'foldkit-mixins'
-import { AlertDialog, AlertDialogSlots } from '../src/alert-dialog/view.js'
+import { AlertDialog } from '../src/alert-dialog/view.js'
 import { initial as alertInitial } from '../src/alert-dialog/app.js'
-import { Autocomplete, AutocompleteSlots } from '../src/autocomplete/view.js'
+import { Autocomplete } from '../src/autocomplete/view.js'
 import { initial as autocompleteInitial } from '../src/autocomplete/app.js'
-import { Accordion, AccordionSlots } from '../src/accordion/view.js'
+import { Accordion } from '../src/accordion/view.js'
 import { initial as accordionInitial } from '../src/accordion/app.js'
-import { CheckboxGroup, CheckboxGroupSlots } from '../src/checkbox-group/view.js'
+import { CheckboxGroup } from '../src/checkbox-group/view.js'
 import { initial as checkboxInitial } from '../src/checkbox-group/app.js'
-import { Command, CommandSlots } from '../src/command/view.js'
+import { Command } from '../src/command/view.js'
 import { initial as commandInitial } from '../src/command/app.js'
-import { ContextMenu, ContextMenuSlots } from '../src/context-menu/view.js'
+import { ContextMenu } from '../src/context-menu/view.js'
 import { initial as contextInitial } from '../src/context-menu/app.js'
-import { HoverCard, HoverCardSlots } from '../src/hover-card/view.js'
+import { HoverCard } from '../src/hover-card/view.js'
 import { initial as hoverInitial } from '../src/hover-card/app.js'
-import { Menubar, MenubarSlots } from '../src/menubar/view.js'
+import { Menubar } from '../src/menubar/view.js'
 import { initial as menubarInitial } from '../src/menubar/app.js'
-import { NavigationMenu, NavigationMenuSlots } from '../src/navigation-menu/view.js'
+import { NavigationMenu } from '../src/navigation-menu/view.js'
 import { initial as navigationInitial } from '../src/navigation-menu/app.js'
-import { Meter, MeterSlots } from '../src/meter/view.js'
+import { Meter } from '../src/meter/view.js'
 import { initial as meterInitial } from '../src/meter/app.js'
-import { NumberField, NumberFieldSlots } from '../src/number-field/view.js'
+import { NumberField } from '../src/number-field/view.js'
 import { initial as numberInitial } from '../src/number-field/app.js'
-import { OtpField, OtpFieldSlots } from '../src/otp-field/view.js'
+import { OtpField } from '../src/otp-field/view.js'
 import { initial as otpInitial } from '../src/otp-field/app.js'
-import { Toggle, ToggleSlots } from '../src/toggle/view.js'
+import { Toggle } from '../src/toggle/view.js'
 import { initial as toggleInitial } from '../src/toggle/app.js'
-import { ToggleGroup, ToggleGroupSlots } from '../src/toggle-group/view.js'
+import { ToggleGroup } from '../src/toggle-group/view.js'
 import { initial as toggleGroupInitial } from '../src/toggle-group/app.js'
-import { Toolbar, ToolbarSlots } from '../src/toolbar/view.js'
+import { Toolbar } from '../src/toolbar/view.js'
 import { initial as toolbarInitial } from '../src/toolbar/app.js'
-import {
-  accordionStyle,
-  alertDialogStyle,
-  autocompleteStyle,
-  checkboxGroupStyle,
-  commandStyle,
-  contextMenuStyle,
-  hoverCardStyle,
-  menubarStyle,
-  navigationMenuStyle,
-  meterStyle,
-  numberFieldStyle,
-  otpFieldStyle,
-  toggleGroupStyle,
-  toggleStyle,
-  toolbarStyle,
-} from '../src/style.js'
+import { islands } from '../src/widgets.js'
 
-const sheet = (): string =>
-  Style.stylesheet(
-    toolbarStyle(ToolbarSlots),
-    toggleStyle(ToggleSlots),
-    toggleGroupStyle(ToggleGroupSlots),
-    accordionStyle(AccordionSlots),
-    alertDialogStyle(AlertDialogSlots),
-    autocompleteStyle(AutocompleteSlots),
-    numberFieldStyle(NumberFieldSlots),
-    otpFieldStyle(OtpFieldSlots),
-    checkboxGroupStyle(CheckboxGroupSlots),
-    meterStyle(MeterSlots),
-    commandStyle(CommandSlots),
-    contextMenuStyle(ContextMenuSlots),
-    hoverCardStyle(HoverCardSlots),
-    menubarStyle(MenubarSlots),
-    navigationMenuStyle(NavigationMenuSlots),
-  )
+const sheet = (): string => Style.stylesheet(...islands.map(island => island.style()))
 
 describe('showcase styles', () => {
   it('builds one sheet with state read from ARIA', () => {
