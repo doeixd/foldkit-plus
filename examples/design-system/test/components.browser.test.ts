@@ -86,6 +86,22 @@ test('date picker picks the 15th', async () => {
   await seen('-15.')
 })
 
+test('date picker pages months and years with full labels', async () => {
+  mount()
+  await page.getByRole('button', { name: 'Pick a date' }).click()
+  await page.getByRole('button', { name: 'Switch to month picker' }).click()
+  await page.getByRole('button', { name: 'January 2026' }).click()
+  const daysHeading = page.getByRole('button', { name: 'Switch to month picker' })
+  await vi.waitFor(() => expect(daysHeading.query()?.textContent).toContain('January 2026'), {
+    timeout: 10_000,
+  })
+  await daysHeading.click()
+  await page.getByRole('button', { name: 'Switch to year picker' }).click()
+  // A truncated year button would read '199', not '2024'.
+  await page.getByRole('button', { name: '2024', exact: true }).click()
+  await seen('2024')
+})
+
 test('notify shows a toast that dismisses itself', async () => {
   mount()
   await page.getByRole('button', { name: 'Notify' }).click()

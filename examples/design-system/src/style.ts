@@ -398,7 +398,12 @@ export const SliderStyle = app.forSlots(SliderSlots)(
   { name: 'SliderStyle' },
 )
 
-/** A static month preview: a bordered card with a seven-column day grid. */
+/**
+ * Every calendar mode: the day grid stacks its weeks (it carries
+ * `aria-rowcount`), while the month and year pickers share a three-by-four
+ * grid. Cell buttons read their state off the cell: today, selected, focused,
+ * disabled, or outside the shown month.
+ */
 export const CalendarStyle = app.forSlots(CalendarSlots)(
   {
     root: [
@@ -411,16 +416,121 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
         boxShadow: t.shadow.sm,
       },
     ],
-    grid: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 2rem)', gap: '2px' }],
-    headerRow: [{ display: 'contents' }],
+    previousMonthButton: [
+      U.text('sm'),
+      {
+        inlineSize: '2rem',
+        blockSize: '2rem',
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.muted,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+    ],
+    nextMonthButton: [
+      U.text('sm'),
+      {
+        inlineSize: '2rem',
+        blockSize: '2rem',
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.muted,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+    ],
+    headingButton: [
+      U.text('sm'),
+      U.font('semibold'),
+      {
+        padding: `${t.space['2xs']} ${t.space.xs}`,
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.overt,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+    ],
+    previousPageButton: [
+      U.text('sm'),
+      {
+        inlineSize: '2rem',
+        blockSize: '2rem',
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.muted,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+    ],
+    nextPageButton: [
+      U.text('sm'),
+      {
+        inlineSize: '2rem',
+        blockSize: '2rem',
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.muted,
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+    ],
+    grid: [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateRows: 'repeat(4, 1fr)',
+        gap: t.space['3xs'],
+      },
+      Style.pseudo('[aria-rowcount]', { display: 'flex', flexDirection: 'column' }),
+    ],
+    headerRow: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 2rem)', gap: t.space['3xs'] }],
     columnHeader: [U.text('xs'), U.color('text.muted'), { textAlign: 'center' }],
-    weekRow: [{ display: 'contents' }],
+    weekRow: [{ display: 'grid', gridTemplateColumns: 'repeat(7, 2rem)', gap: t.space['3xs'] }],
     dayCell: [{ display: 'grid', placeItems: 'center' }],
     dayButton: [
       U.text('sm'),
       {
         inlineSize: '2rem',
         blockSize: '2rem',
+        border: '0',
+        borderRadius: t.radius.full,
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        fontVariantNumeric: 'tabular-nums',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+      Style.nest('[data-today] > &', { boxShadow: `0 0 0 1px ${t.outline.overt}` }),
+      Style.nest('[data-outside-month] > &', { color: t.text.muted }),
+      Style.nest('[data-selected] > &, [data-selected] > &:hover', {
+        background: t.accent.default,
+        color: t.accent['on-fill'],
+      }),
+      Style.nest('[data-focused] > &', {
+        outline: `${t.border.thick} solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+      Style.nest('[data-disabled] > &', { opacity: '0.4', cursor: 'not-allowed' }),
+    ],
+    monthCell: [{ display: 'grid', placeItems: 'center' }],
+    monthButton: [
+      U.text('sm'),
+      {
+        inlineSize: '100%',
+        paddingBlock: t.space.xs,
         border: '0',
         borderRadius: t.radius.md,
         background: 'transparent',
@@ -429,10 +539,40 @@ export const CalendarStyle = app.forSlots(CalendarSlots)(
         cursor: 'pointer',
       },
       Style.pseudo(':hover', { background: t.surface.muted }),
-      Style.nest('&[data-selected="true"]', {
+      Style.nest('[data-selected] > &, [data-selected] > &:hover', {
         background: t.accent.default,
         color: t.accent['on-fill'],
       }),
+      Style.nest('[data-focused] > &', {
+        outline: `${t.border.thick} solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+      Style.nest('[data-disabled] > &', { opacity: '0.4', cursor: 'not-allowed' }),
+    ],
+    yearCell: [{ display: 'grid', placeItems: 'center' }],
+    yearButton: [
+      U.text('sm'),
+      {
+        inlineSize: '100%',
+        paddingBlock: t.space.xs,
+        border: '0',
+        borderRadius: t.radius.md,
+        background: 'transparent',
+        color: t.text.default,
+        font: 'inherit',
+        fontVariantNumeric: 'tabular-nums',
+        cursor: 'pointer',
+      },
+      Style.pseudo(':hover', { background: t.surface.muted }),
+      Style.nest('[data-selected] > &, [data-selected] > &:hover', {
+        background: t.accent.default,
+        color: t.accent['on-fill'],
+      }),
+      Style.nest('[data-focused] > &', {
+        outline: `${t.border.thick} solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+      Style.nest('[data-disabled] > &', { opacity: '0.4', cursor: 'not-allowed' }),
     ],
   },
   { name: 'CalendarStyle' },
@@ -469,6 +609,7 @@ export const PopoverStyle = app.forSlots(PopoverSlots)(
         background: t.surface.base,
         boxShadow: t.shadow.lg,
         color: t.text.muted,
+        zIndex: '20',
       },
     ],
     backdrop: [{ position: 'fixed', inset: '0' }],
@@ -554,6 +695,9 @@ const popupPanel = [
     borderRadius: t.radius.lg,
     background: t.surface.base,
     boxShadow: t.shadow.lg,
+    // Floating panels paint above later page content (and its positioned
+    // wrappers); the sticky nav and toasts sit above them.
+    zIndex: '20',
   },
 ]
 

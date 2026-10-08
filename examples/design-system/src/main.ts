@@ -1097,7 +1097,7 @@ const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
 const CalendarPreview = SlotView.forMessages<Message>()
   .define(CalendarSlots, (selected: number, slots, h) =>
     h.div(slots.root.attrs(), [
-      h.div(slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026')]), [
+      h.div(slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026'), h.AriaRowcount(1)]), [
         h.div(slots.headerRow.attrs([h.Role('row')]), [
           ...weekDays.map(day => h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day])),
         ]),
@@ -1107,7 +1107,7 @@ const CalendarPreview = SlotView.forMessages<Message>()
               h.button(
                 slots.dayButton.attrs([
                   h.Type('button'),
-                  h.DataAttribute('selected', day === selected ? 'true' : 'false'),
+                  ...(day === selected ? [h.DataAttribute('selected', 'true')] : []),
                   h.AriaLabel(`October ${day}`),
                 ]),
                 [String(day)],
