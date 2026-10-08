@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server/fetch`: Remote over the Fetch API.**
+  `serveFetch({ server, resolvePrincipal, layer })` is a Worker's `fetch`
+  (or any `Request`/`Response` runtime): reads, queries, and mutations ride
+  one `POST` each, as `Remote.http` sends them. The principal is resolved
+  per request and the Sources' requirements are provided per request from
+  the environment (`layer: env => databaseLayer(drizzle(env.DB))`).
+  Non-`POST`s and other paths are 404; a body that is not JSON, or not a
+  request, is a 400 that reaches no handler; a throwing principal
+  resolution is a 401; anything else this side breaks is a 500 that says
+  nothing of it. It carries no live data.
+
 - **`foldkit-mixins-ui`: recipes for every remaining slot contract.**
   `Recipes.Menu`, `Listbox`, `Combobox` (one shared popup panel, rows, and
   density), `Select` (the Input control's size and variant axes),

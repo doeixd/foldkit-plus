@@ -734,6 +734,33 @@ It binds no principal: pass the `handlers` for the request's own,
 established by your authentication, as everywhere else. It carries no live
 data.
 
+## Over fetch (Workers)
+
+`serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a
+`(request: Request, env: Env) => Promise<Response>` for a Worker's `fetch`,
+or any other runtime that speaks `Request`/`Response`. The principal is
+resolved per request, and the Sources' requirements are provided per request
+from the environment:
+
+```ts
+import { serveFetch } from 'foldkit-remote-server/fetch'
+
+export default {
+  fetch: serveFetch({
+    server,
+    resolvePrincipal: request => ({ actorId: request.headers.get('x-actor') ?? 'anon' }),
+    layer: env => databaseLayer(drizzle(env.DB)),
+  }),
+}
+```
+
+Only `POST`s to `path` (default `/remote`) are answered; anything else is a
+404. A body that is not JSON, or not a request, is a 400 that reaches no
+handler; a handler's failure a 500 with its message. A principal resolution
+that throws is a 401 with its message; anything else this side breaks,
+including layer provision, a 500 that says nothing of it. It carries no live
+data.
+
 ## What it does not own
 
 `foldkit-remote-server` intentionally does **not** own:
