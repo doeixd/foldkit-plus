@@ -157,16 +157,17 @@ test('display shows people, keys, rules, placeholders, and a spinner', async () 
   await seen('Loading projects')
   expect(document.querySelectorAll('img[alt]')).toHaveLength(3)
   expect(document.querySelectorAll('kbd')).toHaveLength(2)
-  expect(document.querySelectorAll('[role="separator"]')).toHaveLength(2)
+  expect(document.querySelectorAll('#display [role="separator"]')).toHaveLength(2)
   // Two skeleton bars, the skeleton disc, and the spinner wheel. Scoped to
   // the section: the success alert elsewhere is a status too.
   expect(document.querySelectorAll('#display [role="status"]')).toHaveLength(4)
 })
 
-test('collections show an empty state, a row, and a table', async () => {
+test('collections show an empty state, a list, and a table', async () => {
   mount()
   await seen('No projects yet')
   await seen('Deploy finished')
+  await seen('Review requested')
   await seen('Team plans')
 })
 

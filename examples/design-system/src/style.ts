@@ -920,3 +920,23 @@ export const SpinnerStyle = app.forSlots(SpinnerSlots)(Recipes.Spinner({}), {
 export const TableStyle = app.forSlots(TableSlots)(Recipes.Table({}), {
   name: 'TableStyle',
 })
+
+export const NoticeListSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+})
+
+/** A bordered card for stacked rows: the rows pad themselves, so the list
+ * stays flush and only clips the corners. */
+export const NoticeListStyle = app.slots(
+  {
+    list: [
+      {
+        background: t.surface.base,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.lg,
+        overflow: 'clip',
+      },
+    ],
+  },
+  { name: 'NoticeListStyle' },
+)

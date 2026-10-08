@@ -122,6 +122,8 @@ import {
   LineTabsStyle,
   ListboxStyle,
   MenuStyle,
+  NoticeListSlots,
+  NoticeListStyle,
   OutlineButtonStyle,
   PageSlots,
   PageStyle,
@@ -1979,25 +1981,56 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('collections')]), [
           h.h2(slots.sectionTitle.attrs(), ['Collections']),
           h.p(slots.sectionText.attrs(), [
-            'Structured content: an empty state, a rich row, and a plain table with a numeric column.',
+            'Structured content: an empty state, a notification list, and a plain table with a numeric column.',
           ]),
           Empty.view(
             {
               title: 'No projects yet',
               description: 'Create one to get started.',
+              icon: neverH.span([neverH.AriaHidden(true)], ['∅']),
               style: EmptyStyle,
             },
             neverH,
           ),
-          Item.view(
-            {
-              media: h.span([h.AriaHidden(true)], ['●']),
-              title: 'Deploy finished',
-              description: '2 minutes ago',
-              content: h.span([], ['Production is live.']),
-              style: ItemStyle,
-            },
-            neverH,
+          h.div(
+            SlotView.buildersFor(NoticeListSlots, [NoticeListStyle.style.mixin], {
+              input: undefined,
+              h,
+            }).list.attrs(),
+            [
+              Item.view(
+                {
+                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                  title: 'Deploy finished',
+                  description: '2 minutes ago',
+                  content: neverH.span([], ['Production is live.']),
+                  style: ItemStyle,
+                },
+                neverH,
+              ),
+              Separator.view({ style: SeparatorStyle }, neverH),
+              Item.view(
+                {
+                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                  title: 'Review requested',
+                  description: '1 hour ago',
+                  content: neverH.span([], ['The website redesign is ready.']),
+                  style: ItemStyle,
+                },
+                neverH,
+              ),
+              Separator.view({ style: SeparatorStyle }, neverH),
+              Item.view(
+                {
+                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                  title: 'Mentioned by Wren',
+                  description: 'Yesterday',
+                  content: neverH.span([], ['Feedback on the onboarding flow.']),
+                  style: ItemStyle,
+                },
+                neverH,
+              ),
+            ],
           ),
           Table.view(
             {
