@@ -12,6 +12,7 @@ import type { AutocompleteSlots } from './autocomplete/view.js'
 import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
 import type { MeterSlots } from './meter/view.js'
+import type { HoverCardSlots } from './hover-card/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
 import type { OtpFieldSlots } from './otp-field/view.js'
 import type { ToggleSlots } from './toggle/view.js'
@@ -244,4 +245,37 @@ export const commandStyle = (slots: typeof CommandSlots) =>
       ),
     },
     { name: 'ShowcaseCommand' },
+  )
+
+export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
+  Style.forSlots(slots)(
+    {
+      trigger: Style.compose(
+        Style.self({
+          font: 'inherit',
+          color: accent,
+          background: 'transparent',
+          border: 'none',
+          padding: '0',
+          cursor: 'pointer',
+          textDecoration: 'underline',
+        }),
+        focus,
+      ),
+      card: Style.compose(
+        Style.self({
+          maxWidth: '20rem',
+          marginBlockStart: '0.25rem',
+          padding: '0.75rem',
+          background: onAccent,
+          border: `1px solid ${line}`,
+          borderRadius: '10px',
+          boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+          color: muted,
+          fontSize: '0.875rem',
+        }),
+        focus,
+      ),
+    },
+    { name: 'ShowcaseHoverCard' },
   )

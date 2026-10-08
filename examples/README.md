@@ -23,7 +23,7 @@ mechanisms compose. The kitchen sink is a later integration reference.
 | [`mixins`](./mixins) | Typed view extension points: Surface → SlotView → Style/Behavior, plus A11y/introspection | Focused render trace |
 | [`tree`](./tree) | A file explorer from composed primitives: `TreeNavigation` + `Selection` placements over one Collection description, manual keyboard selection | Text trace (`pnpm demo`) and focused tests |
 | [`drawer`](./drawer) | A modal settings panel from the Overlay policy: one `modal` value into dismiss marking, focus, scroll lock, and inertness | Text trace (`pnpm demo`) and focused tests |
-| [`widgets`](./widgets) | Thin composed widgets (toolbar, toggle, toggle-group, accordion, alert-dialog, autocomplete, number-field, otp-field, checkbox-group, meter, command) over the shared primitives | Text trace (`pnpm demo`), interactive page (`pnpm dev`), focused tests |
+| [`widgets`](./widgets) | Thin composed widgets (toolbar, toggle, toggle-group, accordion, alert-dialog, autocomplete, number-field, otp-field, checkbox-group, meter, command, hover-card) over the shared primitives | Text trace (`pnpm demo`), interactive page (`pnpm dev`), focused tests |
 | [`todo`](./todo) | `foldkit-agent` by itself: a contract, a hand-written host, and agent protocol adapters without Sync | Small agent-focused example |
 | [`react`](./react) | React interop in both directions, and compiling a Foldkit view to TSX | Focused jsdom trace |
 | [`data-grid`](./data-grid) | A 100,000-row product registry in `foldkit-data-grid`: a pinned column, editing with validation, row and range selection, and spreadsheet copy and paste, with the products owned by the application | Browser app (`pnpm dev`) and jsdom and Chromium tests |

@@ -42,6 +42,7 @@ describe('showcase islands', () => {
       'checkbox-group',
       'meter',
       'command',
+      'hover-card',
     ]
       .map(id => `<div id="${id}"></div>`)
       .join('')
@@ -115,5 +116,10 @@ describe('showcase islands', () => {
     search.value = 'new'
     search.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]').length).toBe(2))
+
+    // Hover card: hovering the trigger shows Ada.
+    const ada = button('ada')
+    ada.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Ada Lovelace'))
   })
 })

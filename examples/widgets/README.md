@@ -38,6 +38,8 @@ npx vitest run examples/widgets
 - `src/meter/` — stateless value/max attributes (the trivial end).
 - `src/command/` — filterable list: Collection + `Filter.text` +
   `ListNavigation` + `Selection`.
+- `src/hover-card/` — informational popup on hover/focus: immediate open,
+  no intent delays (those stay upstream's `HoverIntent`).
 
 Each folder holds `app.ts` (Model/Message/update), `view.ts` (SlotView),
 `demo.ts` (headless trace `main.ts` prints); `test/` pins each widget with

@@ -15,6 +15,8 @@ import * as CheckboxGroup from './checkbox-group/app.js'
 import { CheckboxGroup as CheckboxGroupView, CheckboxGroupSlots } from './checkbox-group/view.js'
 import * as Command from './command/app.js'
 import { Command as CommandView, CommandSlots } from './command/view.js'
+import * as HoverCard from './hover-card/app.js'
+import { HoverCard as HoverCardView, HoverCardSlots } from './hover-card/view.js'
 import * as Meter from './meter/app.js'
 import { Meter as MeterView, MeterSlots } from './meter/view.js'
 import * as NumberField from './number-field/app.js'
@@ -33,6 +35,7 @@ import {
   autocompleteStyle,
   checkboxGroupStyle,
   commandStyle,
+  hoverCardStyle,
   meterStyle,
   numberFieldStyle,
   otpFieldStyle,
@@ -54,6 +57,7 @@ Style.install(
     checkboxGroupStyle(CheckboxGroupSlots),
     meterStyle(MeterSlots),
     commandStyle(CommandSlots),
+    hoverCardStyle(HoverCardSlots),
   ),
 )
 
@@ -142,6 +146,13 @@ const islands = [
     update: Command.update,
     view: (model, h) => CommandView(model, h),
     container: island('command'),
+  }),
+  Runtime.makeElement({
+    Model: HoverCard.Model,
+    init: () => HoverCard.initial,
+    update: HoverCard.update,
+    view: (model, h) => HoverCardView(model, h),
+    container: island('hover-card'),
   }),
 ]
 
