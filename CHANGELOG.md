@@ -9,6 +9,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-durable`: the journal over Cloudflare D1 (`d1: true`).**
+  D1 refuses transactions, `PRAGMA user_version`, and `VACUUM`, so the
+  journal adapts when the options say so: the schema version lives in a
+  `durable_meta` table (migrations are the same steps, each safe to rerun),
+  commits retry on uniqueness conflicts instead of holding a write lock
+  (concurrent appends still land gap-free), `appendAll` commits each
+  operation on its own, snapshots replay only the prefix their cursor
+  names, a tail a compaction cut short mid-read is refused rather than
+  returned short, and `vacuum` succeeds without doing anything (D1
+  auto-vacuums). Route appends through one writer: `Journal.make` (the
+  `node:sqlite` file entry) refuses `d1: true`. Proven against a miniflare
+  binding, which rejects what production D1 rejects.
+
 - **`foldkit-mixins` theme: deeper shadows and a strength knob.** The shadow
   scale gains a `2xl` modal step (the Dialog recipe moved onto it), `lg`/`xl`
   diffuse wider instead of ringing, and every layer mixes toward transparent

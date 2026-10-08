@@ -52,6 +52,12 @@ export const makeJournal = Effect.fn('Journal.make')(function* <
   OperationEncoded = unknown,
   SnapshotEncoded = unknown,
 >(options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>) {
+  if (options.d1 === true)
+    return yield* Effect.fail(
+      new JournalError({
+        message: 'Journal: d1 is for a D1 SqlClient through foldkit-durable/core, not a file',
+      }),
+    )
   const file = yield* resolveFile(options.file)
   // Build the driver into the journal's own scope, not the transient scope of
   // this effect, so the connection outlives `makeJournal`.

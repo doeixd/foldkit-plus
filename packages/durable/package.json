@@ -58,10 +58,12 @@
     "@noble/hashes": "^2.4.0"
   },
   "devDependencies": {
+    "@effect/sql-d1": "4.0.0",
     "@effect/sql-sqlite-node": "4.0.0",
     "@effect/sql-sqlite-wasm": "4.0.0",
     "effect": "4.0.0",
     "esbuild": "0.28.2",
+    "miniflare": "3.20250718.3",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }

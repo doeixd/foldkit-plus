@@ -94,6 +94,9 @@ as long as the code using it (`runtime.runPromise(Effect.service(Todos.tag))`).
 in plain JavaScript, as `node:crypto` hashed them, so a database written
 before still recognizes its retransmissions.
 
+On Cloudflare D1, provide `@effect/sql-d1`'s client and pass `d1: true` (see
+[On Cloudflare D1](#on-cloudflare-d1-d1-true)).
+
 ## Sixty seconds, with `foldkit-sync`
 
 If the journal backs a Sync contract, do not restate the shared schema or the
@@ -464,13 +467,53 @@ and coalesced effect runs.
 `user_version` migration; an interrupted one is retried safely. Your own
 operation, snapshot, and effect payloads are not migrated.
 
+## On Cloudflare D1 (`d1: true`)
+
+D1 speaks SQLite but refuses transactions, `PRAGMA user_version`, and
+`VACUUM`, so the journal adapts when the options say `d1: true`:
+
+```ts
+import * as D1Client from '@effect/sql-d1/D1Client'
+import { Layer } from 'effect'
+import { Journal } from 'foldkit-durable/core'
+
+// `TodoSync` is the Sync contract from Sixty seconds, with `foldkit-sync`
+// above; `env.DB` is the Worker's D1 binding.
+const Todos = Journal.define<Operation, Snapshot, Principal>('app/Todos')
+const live = Todos.layer({ ...TodoSync.journalContract(), d1: true }).pipe(
+  Layer.provide(D1Client.layer({ db: env.DB })),
+)
+```
+
+What changes, and what does not:
+
+- The schema version lives in a `durable_meta` table instead of
+  `PRAGMA user_version`; migrations are the same steps, each safe to rerun.
+- A commit retries on a uniqueness conflict instead of holding a write
+  lock: whoever loses the sequence race re-reads the cursor and replays the
+  decision, so concurrent appends still land gap-free. `validate` and
+  `authorize` see the latest committed snapshot.
+- `appendAll` commits each operation on its own rather than atomically.
+- Reads are separate statements: a snapshot replays only the prefix its
+  cursor names, and a tail a compaction cut short mid-read is refused rather
+  than returned short.
+- `vacuum` succeeds without doing anything: D1 auto-vacuums, and there is
+  no file or WAL to reclaim.
+- Route appends through one writer (a Durable Object): concurrent writers
+  stay safe through the constraints, but exact read-your-commit consistency
+  is a single writer's property.
+
+`Journal.make` (the `node:sqlite` file entry) refuses `d1: true`: it is for
+a D1 `SqlClient` through `foldkit-durable/core`, not a file.
+
 ## Limits
 
 - SQLite is the only database: through `@effect/sql-sqlite-node` (Node 22)
   for `Journal.make`, or any `effect/sql` SQLite client for the core `Journal.layer`
-  (`foldkit-durable/core`), such as `@effect/sql-sqlite-wasm` in a browser.
+  (`foldkit-durable/core`), such as `@effect/sql-sqlite-wasm` in a browser
+  or `@effect/sql-d1` on Cloudflare (with `d1: true`).
   `vacuum` reclaims a file's space and checkpoints its write-ahead log, which
-  an in-memory database has nothing of.
+  an in-memory database has nothing of; on D1 it is a no-op (see above).
 - `reduce`, `validate`, and `authorize` hold the write lock. Keep them pure,
   fast, and service-free.
 - One Journal handle per file. Uniqueness of `[key, op_id]` and

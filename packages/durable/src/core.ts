@@ -1,7 +1,8 @@
 /**
  * `foldkit-durable/core`: the journal over any `effect/sql` SQLite client,
- * without Node's driver, for a browser (`@effect/sql-sqlite-wasm`) or any
- * other runtime. `Journal.layer(options)` is the journal as a layer that
+ * without Node's driver, for a browser (`@effect/sql-sqlite-wasm`), D1
+ * (`@effect/sql-d1`, with `d1: true`), or any other runtime.
+ * `Journal.layer(options)` is the journal as a layer that
  * needs the `SqlClient`; the package's main entry adds `Journal.make` over a
  * `node:sqlite` file.
  */
