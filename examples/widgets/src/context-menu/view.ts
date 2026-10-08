@@ -12,7 +12,19 @@
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Placing, Selection } from 'foldkit-primitives/interaction'
 import { contextMenuStyle } from '../style.js'
-import { ACTIONS, FILES, Nav, Sel, Stack, Message, initial, update, type Model } from './app.js'
+import {
+  ACTIONS,
+  FILES,
+  Nav,
+  Sel,
+  Stack,
+  Message,
+  initial,
+  navArgs,
+  selArgs,
+  update,
+  type Model,
+} from './app.js'
 
 export const ContextMenuSlots = Slots.define({
   files: Slot.make({ capability: Capability.Container }),
@@ -20,15 +32,6 @@ export const ContextMenuSlots = Slots.define({
   popup: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Focusable }),
 })
-
-const navArgs = {
-  orientation: 'vertical',
-  loop: true,
-  virtual: false,
-  timeoutMs: 500,
-  page: 3,
-} as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
 
 const describeActions = () =>
   Behaviors.Collection.of(ACTIONS, {

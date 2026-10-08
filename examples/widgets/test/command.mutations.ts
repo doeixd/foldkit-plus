@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/command/app.ts',
-        find: "return needle === '' ? COMMANDS : COMMANDS.filter(command => command.label.toLocaleLowerCase().includes(needle))",
+        find: "return needle === ''\n    ? COMMANDS\n    : COMMANDS.filter(command => command.label.toLocaleLowerCase().includes(needle))",
         replace: 'return COMMANDS',
       },
     ],

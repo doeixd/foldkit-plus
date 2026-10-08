@@ -23,6 +23,8 @@ export const TOOLS: ReadonlyArray<Tool> = [
 
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'toolbarFocus')
 
+export const toolbarArgs = { orientation: 'horizontal', loop: true, virtual: false } as const
+
 export const Model = Schema.Struct({
   ...Roving.fields,
   active: Schema.NullOr(Schema.String),
@@ -36,8 +38,6 @@ export const Message = defineMessageUnion({
 export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
-
-export const toolbarArgs = { orientation: 'horizontal', loop: true, virtual: false } as const
 
 const assembly = Parent.assemble(Parent.at(Roving, { args: toolbarArgs }))
 

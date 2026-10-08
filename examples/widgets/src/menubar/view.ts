@@ -17,6 +17,9 @@ import {
   Message,
   initial,
   itemsOf,
+  navArgs,
+  rovingArgs,
+  selArgs,
   update,
   type Model,
 } from './app.js'
@@ -27,16 +30,6 @@ export const MenubarSlots = Slots.define({
   popup: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Focusable }),
 })
-
-const rovingArgs = { orientation: 'horizontal', loop: true, virtual: false } as const
-const navArgs = {
-  orientation: 'vertical',
-  loop: true,
-  virtual: false,
-  timeoutMs: 500,
-  page: 3,
-} as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
 
 const describeMenus = () =>
   Behaviors.Collection.of(NAMES, {

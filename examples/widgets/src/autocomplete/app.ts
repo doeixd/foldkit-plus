@@ -29,17 +29,19 @@ export const matching = (query: string): ReadonlyArray<string> => {
 }
 
 export const Nav = Bundle.declare(ListNavigation.bundle, 'fruitNav')
+
 export const Sel = Bundle.declare(Selection.bundle, 'fruitPick')
+
 export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 
-const navArgs = {
+export const navArgs = {
   orientation: 'vertical',
   loop: true,
   virtual: false,
   timeoutMs: 500,
   page: 3,
 } as const
-const selArgs = { mode: 'single', allowEmpty: true } as const
+export const selArgs = { mode: 'single', allowEmpty: true } as const
 
 export const Model = Schema.Struct({
   ...Nav.fields,

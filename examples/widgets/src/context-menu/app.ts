@@ -15,17 +15,19 @@ export const FILES: ReadonlyArray<string> = ['report.pdf', 'notes.txt', 'photo.p
 export const ACTIONS: ReadonlyArray<string> = ['Open', 'Rename', 'Delete']
 
 export const Nav = Bundle.declare(ListNavigation.bundle, 'fileNav')
+
 export const Sel = Bundle.declare(Selection.bundle, 'filePick')
+
 export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 
-const navArgs = {
+export const navArgs = {
   orientation: 'vertical',
   loop: true,
   virtual: false,
   timeoutMs: 500,
   page: 3,
 } as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
+export const selArgs = { mode: 'single', allowEmpty: false } as const
 
 export const Model = Schema.Struct({
   ...Nav.fields,

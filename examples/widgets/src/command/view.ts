@@ -8,7 +8,18 @@
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Placing, Selection } from 'foldkit-primitives/interaction'
 import { commandStyle } from '../style.js'
-import { Nav, Sel, Message, initial, matching, selectedOf, update, type Model } from './app.js'
+import {
+  Nav,
+  Sel,
+  Message,
+  initial,
+  matching,
+  navArgs,
+  selArgs,
+  selectedOf,
+  update,
+  type Model,
+} from './app.js'
 
 export const CommandSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -16,15 +27,6 @@ export const CommandSlots = Slots.define({
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Focusable }),
 })
-
-const navArgs = {
-  orientation: 'vertical',
-  loop: true,
-  virtual: false,
-  timeoutMs: 500,
-  page: 3,
-} as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
 
 const describeMatching = (model: Model) =>
   Behaviors.Collection.of(matching(model.query), {

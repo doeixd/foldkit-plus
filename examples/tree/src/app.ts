@@ -41,6 +41,7 @@ export const allRows = (): ReadonlyArray<TreeNavigation.Row> =>
 export const labelOf = (id: string): string => NODES.find(node => node.id === id)?.label ?? id
 
 export const Nav = Bundle.declare(TreeNavigation.bundle, 'nav')
+
 export const Sel = Bundle.declare(Selection.bundle, 'selection')
 
 export const navArgs = { openByDefault: false } as const

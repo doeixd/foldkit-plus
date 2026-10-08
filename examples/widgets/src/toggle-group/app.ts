@@ -13,7 +13,7 @@ export type Option = (typeof OPTIONS)[number]
 
 export const Sel = Bundle.declare(Selection.bundle, 'alignment')
 
-const selArgs = { mode: 'single', allowEmpty: true } as const
+export const selArgs = { mode: 'single', allowEmpty: true } as const
 
 export const Model = Schema.Struct({
   ...Sel.fields,

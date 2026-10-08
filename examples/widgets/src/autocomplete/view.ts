@@ -10,7 +10,18 @@
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Placing, Selection } from 'foldkit-primitives/interaction'
 import { autocompleteStyle } from '../style.js'
-import { Nav, Sel, Stack, Message, initial, matching, update, type Model } from './app.js'
+import {
+  Nav,
+  Sel,
+  Stack,
+  Message,
+  initial,
+  matching,
+  navArgs,
+  selArgs,
+  update,
+  type Model,
+} from './app.js'
 
 export const AutocompleteSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -19,15 +30,6 @@ export const AutocompleteSlots = Slots.define({
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Focusable }),
 })
-
-const navArgs = {
-  orientation: 'vertical',
-  loop: true,
-  virtual: false,
-  timeoutMs: 500,
-  page: 3,
-} as const
-const selArgs = { mode: 'single', allowEmpty: true } as const
 
 const describeMatching = (model: Model) =>
   Behaviors.Collection.of(matching(model.query), {

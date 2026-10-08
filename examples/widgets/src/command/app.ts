@@ -32,16 +32,17 @@ export const matching = (query: string): ReadonlyArray<Command> => {
 }
 
 export const Nav = Bundle.declare(ListNavigation.bundle, 'paletteNav')
+
 export const Sel = Bundle.declare(Selection.bundle, 'palettePick')
 
-const navArgs = {
+export const navArgs = {
   orientation: 'vertical',
   loop: true,
   virtual: false,
   timeoutMs: 500,
   page: 3,
 } as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
+export const selArgs = { mode: 'single', allowEmpty: false } as const
 
 export const Model = Schema.Struct({
   ...Nav.fields,

@@ -22,17 +22,19 @@ export const linksOf = (section: string | null): ReadonlyArray<string> =>
   section === null ? [] : (SECTIONS[section] ?? [])
 
 export const Nav = Bundle.declare(ListNavigation.bundle, 'siteNav')
+
 export const Sel = Bundle.declare(Selection.bundle, 'sitePick')
+
 export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 
-const navArgs = {
+export const navArgs = {
   orientation: 'vertical',
   loop: true,
   virtual: false,
   timeoutMs: 500,
   page: 3,
 } as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
+export const selArgs = { mode: 'single', allowEmpty: false } as const
 
 export const Model = Schema.Struct({
   ...Nav.fields,

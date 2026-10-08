@@ -7,7 +7,16 @@
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Selection } from 'foldkit-primitives/interaction'
 import { checkboxGroupStyle } from '../style.js'
-import { TOPPINGS, Sel, initial, selectedOf, update, type Message, type Model } from './app.js'
+import {
+  TOPPINGS,
+  Sel,
+  initial,
+  selArgs,
+  selectedOf,
+  update,
+  type Message,
+  type Model,
+} from './app.js'
 
 export const CheckboxGroupSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -18,8 +27,6 @@ const describeToppings = () =>
   Behaviors.Collection.of(TOPPINGS, {
     id: topping => topping,
   })
-
-const selArgs = { mode: 'multiple', allowEmpty: true } as const
 
 const Ids = Behaviors.Collection.behavior(CheckboxGroupSlots)<Model, Message>({
   item: 'option',

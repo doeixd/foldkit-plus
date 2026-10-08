@@ -9,7 +9,19 @@ import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Placing, Selection } from 'foldkit-primitives/interaction'
 import { navigationMenuStyle } from '../style.js'
-import { NAMES, Nav, Sel, Stack, Message, initial, linksOf, update, type Model } from './app.js'
+import {
+  NAMES,
+  Nav,
+  Sel,
+  Stack,
+  Message,
+  initial,
+  linksOf,
+  navArgs,
+  selArgs,
+  update,
+  type Model,
+} from './app.js'
 
 export const NavigationMenuSlots = Slots.define({
   bar: Slot.make({ capability: Capability.Container }),
@@ -17,15 +29,6 @@ export const NavigationMenuSlots = Slots.define({
   popup: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Focusable }),
 })
-
-const navArgs = {
-  orientation: 'vertical',
-  loop: true,
-  virtual: false,
-  timeoutMs: 500,
-  page: 3,
-} as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
 
 const describeSections = () =>
   Behaviors.Collection.of(NAMES, {

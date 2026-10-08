@@ -7,7 +7,16 @@
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Selection } from 'foldkit-primitives/interaction'
 import { toggleGroupStyle } from '../style.js'
-import { OPTIONS, Sel, initial, selectedOf, update, type Message, type Model } from './app.js'
+import {
+  OPTIONS,
+  Sel,
+  initial,
+  selArgs,
+  selectedOf,
+  update,
+  type Message,
+  type Model,
+} from './app.js'
 
 export const ToggleGroupSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -18,8 +27,6 @@ const describeOptions = () =>
   Behaviors.Collection.of(OPTIONS, {
     id: option => option,
   })
-
-const selArgs = { mode: 'single', allowEmpty: true } as const
 
 const Ids = Behaviors.Collection.behavior(ToggleGroupSlots)<Model, Message>({
   item: 'option',

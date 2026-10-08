@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/toggle-group/app.ts',
-        find: "const selArgs = { mode: 'single', allowEmpty: true } as const",
-        replace: "const selArgs = { mode: 'single', allowEmpty: false } as const",
+        find: "export const selArgs = { mode: 'single', allowEmpty: true } as const",
+        replace: "export const selArgs = { mode: 'single', allowEmpty: false } as const",
       },
     ],
     tests,

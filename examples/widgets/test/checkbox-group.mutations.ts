@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/checkbox-group/app.ts',
-        find: "const selArgs = { mode: 'multiple', allowEmpty: true } as const",
-        replace: "const selArgs = { mode: 'single', allowEmpty: true } as const",
+        find: "export const selArgs = { mode: 'multiple', allowEmpty: true } as const",
+        replace: "export const selArgs = { mode: 'single', allowEmpty: true } as const",
       },
     ],
     tests,

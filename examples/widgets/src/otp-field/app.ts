@@ -20,6 +20,8 @@ const Cell = Schema.String.pipe(Schema.check(Schema.isMaxLength(1)))
 
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'otpFocus')
 
+export const otpArgs = { orientation: 'horizontal', loop: false, virtual: false } as const
+
 export const Model = Schema.Struct({
   ...Roving.fields,
   cells: Schema.Array(Cell),
@@ -37,10 +39,6 @@ export const Message = defineMessageUnion({
 export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
-
-const otpArgs = { orientation: 'horizontal', loop: false, virtual: false } as const
-
-export { otpArgs }
 
 const assembly = Parent.assemble(Parent.at(Roving, { args: otpArgs }))
 

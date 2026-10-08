@@ -28,19 +28,22 @@ export const itemsOf = (menu: string | null): ReadonlyArray<string> =>
   menu === null ? [] : (MENUS[menu] ?? [])
 
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'menuFocus')
+
 export const Nav = Bundle.declare(ListNavigation.bundle, 'menuNav')
+
 export const Sel = Bundle.declare(Selection.bundle, 'menuPick')
+
 export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 
-const rovingArgs = { orientation: 'horizontal', loop: true, virtual: false } as const
-const navArgs = {
+export const rovingArgs = { orientation: 'horizontal', loop: true, virtual: false } as const
+export const navArgs = {
   orientation: 'vertical',
   loop: true,
   virtual: false,
   timeoutMs: 500,
   page: 3,
 } as const
-const selArgs = { mode: 'single', allowEmpty: false } as const
+export const selArgs = { mode: 'single', allowEmpty: false } as const
 
 export const Model = Schema.Struct({
   ...Roving.fields,

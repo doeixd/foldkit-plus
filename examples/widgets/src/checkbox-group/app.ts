@@ -13,7 +13,7 @@ export type Topping = (typeof TOPPINGS)[number]
 
 export const Sel = Bundle.declare(Selection.bundle, 'toppings')
 
-const selArgs = { mode: 'multiple', allowEmpty: true } as const
+export const selArgs = { mode: 'multiple', allowEmpty: true } as const
 
 export const Model = Schema.Struct({
   ...Sel.fields,

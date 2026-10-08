@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/context-menu/view.ts',
-        find: 'h.OnContextMenu(Message.OpenedFor({ id: file }))]),',
-        replace: 'h.OnClick(Message.OpenedFor({ id: file }))]),',
+        find: 'h.OnContextMenu(Message.OpenedFor({ id: file })),',
+        replace: 'h.OnClick(Message.OpenedFor({ id: file })),',
       },
     ],
     tests,
