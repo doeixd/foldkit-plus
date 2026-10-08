@@ -19,6 +19,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
   ButtonSlots,
+  PaginationSlots,
   ButtonGroupSlots,
   AvatarSlots,
   TypographySlots,
@@ -91,6 +92,7 @@ const blocks = (css: string): ReadonlyArray<string> => {
 /** Every slot piece of every selection of every recipe. */
 const allPieces = [
   ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Pagination.def.variants).map(selection => Recipes.Pagination(selection)),
   ...selections(Recipes.ButtonGroup.def.variants).map(selection => Recipes.ButtonGroup(selection)),
   ...selections(Recipes.ScrollArea.def.variants).map(selection => Recipes.ScrollArea(selection)),
   ...selections(Recipes.Typography.def.variants).map(selection => Recipes.Typography(selection)),
@@ -129,6 +131,9 @@ const allPieces = [
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
+  ),
+  Pagination: selections(Recipes.Pagination.def.variants).map(
+    selection => Style.forSlots(PaginationSlots)(Recipes.Pagination(selection)).css,
   ),
   ButtonGroup: selections(Recipes.ButtonGroup.def.variants).map(
     selection => Style.forSlots(ButtonGroupSlots)(Recipes.ButtonGroup(selection)).css,
@@ -401,6 +406,13 @@ describe('Recipes', () => {
       const panel = Recipes.Dialog({ size: 'sm' }).panel
       expect(panel === undefined ? '' : Style.forSlots(DialogSlots)({ panel }).css).toContain(
         'max-inline-size:min(24rem, 100% - 2rem)',
+      )
+    })
+
+    it('sinks the panel to the modal step', () => {
+      const panel = Recipes.Dialog({}).panel
+      expect(panel === undefined ? '' : Style.forSlots(DialogSlots)({ panel }).css).toContain(
+        'box-shadow:var(--fk-shadow-2xl)',
       )
     })
   })
