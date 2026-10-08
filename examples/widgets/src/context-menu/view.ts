@@ -11,6 +11,7 @@
  */
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Selection } from 'foldkit-primitives/interaction'
+import { keepInView } from '../place.js'
 import { contextMenuStyle } from '../style.js'
 import { ACTIONS, FILES, Nav, Sel, Stack, Message, initial, update, type Model } from './app.js'
 
@@ -99,6 +100,7 @@ export const ContextMenu = SlotView.forMessages<Message>()
     Behavior.attach(Keys),
     Behavior.attach(Picks),
     ...ContextMenuOverlay.map(Behavior.attach),
+    Behavior.attach(keepInView(ContextMenuSlots)({ panel: 'popup' })),
     Style.attach(contextMenuStyle(ContextMenuSlots)),
   )
 

@@ -11,6 +11,7 @@ import { Stack, Message, initial, update, type Model } from './app.js'
 
 export const AlertDialogSlots = Slots.define({
   trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  backdrop: Slot.make({ capability: Capability.Container }),
   panel: Slot.make({ capability: Capability.Container }),
   cancel: Slot.make({ capability: Capability.Interactive }),
   confirm: Slot.make({ capability: Capability.Interactive }),
@@ -37,6 +38,7 @@ export const AlertDialog = SlotView.forMessages<Message>()
         h.button(slots.trigger.attrs([h.OnClick(Message.Opened())]), ['Delete project']),
         ...(model.open
           ? [
+              h.div(slots.backdrop.attrs([]), []),
               h.div(
                 slots.panel.attrs([
                   h.Role('alertdialog'),

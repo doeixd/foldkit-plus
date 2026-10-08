@@ -165,11 +165,24 @@ export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>
   Style.forSlots(slots)(
     {
       trigger: Style.compose(control, focus),
+      backdrop: Style.self({
+        position: 'fixed',
+        inset: '0',
+        zIndex: '10',
+        background: 'rgb(0 0 0 / 0.4)',
+      }),
       panel: Style.compose(
         Style.self({
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          translate: '-50% -50%',
+          zIndex: '20',
           display: 'grid',
           gap: '0.75rem',
-          maxWidth: '24rem',
+          width: 'min(24rem, calc(100vw - 2rem))',
+          maxHeight: 'calc(100vh - 2rem)',
+          overflow: 'auto',
           padding: '1.25rem',
           background: onAccent,
           border: `1px solid ${line}`,
@@ -190,6 +203,7 @@ export const alertDialogStyle = (slots: typeof AlertDialogSlots) =>
 export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
   Style.forSlots(slots)(
     {
+      root: Style.self({ position: 'relative', display: 'grid', gap: '0.25rem' }),
       label: Style.self({ display: 'block', fontWeight: '600', marginBlockEnd: '0.25rem' }),
       input: Style.compose(
         Style.self({ width: '100%', boxSizing: 'border-box', cursor: 'text' }),
@@ -197,11 +211,16 @@ export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
         focus,
       ),
       list: Style.self({
+        position: 'absolute',
+        top: 'calc(100% + 4px)',
+        left: '0',
+        right: '0',
+        zIndex: '10',
         display: 'grid',
         border: `1px solid ${line}`,
         borderRadius: '8px',
         overflow: 'hidden',
-        marginBlockStart: '0.25rem',
+        background: onAccent,
       }),
       item: Style.compose(
         Style.self({
@@ -241,7 +260,12 @@ export const otpFieldStyle = (slots: typeof OtpFieldSlots) =>
 export const commandStyle = (slots: typeof CommandSlots) =>
   Style.forSlots(slots)(
     {
-      root: Style.self({ display: 'grid', gap: '0.5rem', maxWidth: '28rem' }),
+      root: Style.self({
+        position: 'relative',
+        display: 'grid',
+        gap: '0.5rem',
+        maxWidth: '28rem',
+      }),
       input: Style.compose(
         Style.self({ width: '100%', boxSizing: 'border-box' }),
         control,
@@ -249,10 +273,16 @@ export const commandStyle = (slots: typeof CommandSlots) =>
         focus,
       ),
       list: Style.self({
+        position: 'absolute',
+        top: 'calc(100% + 4px)',
+        left: '0',
+        right: '0',
+        zIndex: '10',
         display: 'grid',
         border: `1px solid ${line}`,
         borderRadius: '8px',
         overflow: 'hidden',
+        background: onAccent,
       }),
       item: Style.compose(
         Style.self({ paddingBlock: '0.375rem', paddingInline: '0.75rem', cursor: 'pointer' }),
@@ -304,13 +334,22 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
 export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
   Style.forSlots(slots)(
     {
-      files: Style.self({ display: 'grid', gap: '0.25rem', maxWidth: '24rem' }),
+      files: Style.self({
+        position: 'relative',
+        display: 'grid',
+        gap: '0.25rem',
+        maxWidth: '24rem',
+      }),
       row: Style.compose(
         Style.self({ paddingBlock: '0.375rem', paddingInline: '0.75rem', cursor: 'context-menu' }),
         focus,
       ),
       popup: Style.compose(
         Style.self({
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: '0',
+          zIndex: '10',
           display: 'grid',
           minWidth: '10rem',
           background: onAccent,

@@ -71,17 +71,17 @@ describe('view structure', () => {
 
   it('the popup carries the nonModal policy mounts and no opt-outs', () => {
     const h = SlotView.inertBuilder<Message>()
-    const builders = SlotView.buildersFor(
-      AutocompleteSlots,
-      AutocompleteOverlay.map(behavior => behavior.mixin),
-      { input: update(initial.model, { _tag: 'Queried', text: 'a' }).model, h },
-    )
+    const builders = SlotView.buildersFor(AutocompleteSlots, Autocomplete.mixins, {
+      input: update(initial.model, { _tag: 'Queried', text: 'a' }).model,
+      h,
+    })
     const mount = Attributes.find(builders.list.attrs([]), 'OnMount') as unknown as {
       readonly action?: { readonly name?: string }
     }
     expect(mount?.action?.name).toContain('FocusScope')
     expect(mount?.action?.name).not.toContain('ScrollLock')
     expect(mount?.action?.name).not.toContain('HideOutside')
+    expect(mount?.action?.name).toContain('KeepInView')
     const text = JSON.stringify(builders.list.attrs([]))
     expect(text).not.toContain('data-foldkit-plus-layer-outside')
     expect(text).not.toContain('data-foldkit-plus-layer-escape')

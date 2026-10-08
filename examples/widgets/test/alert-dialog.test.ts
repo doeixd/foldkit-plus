@@ -37,10 +37,13 @@ describe('update flows', () => {
 })
 
 describe('view structure', () => {
-  it('hides the dialog when closed, names it when open', () => {
-    expect(Inert.byRole(Inert.draw(AlertDialog, initial.model), 'alertdialog')).toHaveLength(0)
+  it('hides the dialog and its backdrop when closed, names it when open', () => {
+    const shut = Inert.draw(AlertDialog, initial.model)
+    expect(Inert.byRole(shut, 'alertdialog')).toHaveLength(0)
+    expect(Inert.bySlot(shut, 'backdrop')).toHaveLength(0)
     const open = update(initial.model, { _tag: 'Opened' }).model
     const dialog = Inert.draw(AlertDialog, open)
+    expect(Inert.bySlot(dialog, 'backdrop')).toHaveLength(1)
     const panel = Inert.byRole(dialog, 'alertdialog')
     expect(panel).toHaveLength(1)
     expect(Inert.value(panel[0], 'aria-modal')).toBe('true')

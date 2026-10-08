@@ -9,10 +9,12 @@
  */
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Selection } from 'foldkit-primitives/interaction'
+import { keepInView } from '../place.js'
 import { autocompleteStyle } from '../style.js'
 import { Nav, Sel, Stack, Message, initial, matching, update, type Model } from './app.js'
 
 export const AutocompleteSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
   input: Slot.make({ capability: Capability.Interactive }),
   list: Slot.make({ capability: Capability.Container }),
@@ -70,40 +72,37 @@ export const Autocomplete = SlotView.forMessages<Message>()
   .define(AutocompleteSlots, (model: Model, slots, h) => {
     const shown = matching(model.query)
     const items = describeMatching(model)
-    return h.div(
-      [],
-      [
-        h.label(slots.label.attrs(), ['Fruit']),
-        h.input(
-          slots.input.attrs([
-            h.Type('search'),
-            h.OnInput(text => Message.Queried({ text })),
-            h.OnFocus(Message.Opened()),
-            h.Value(model.query),
-            h.Role('combobox'),
-            h.AriaExpanded(model.open && shown.length > 0),
-            h.AriaControls('fruit-popup'),
-          ]),
-        ),
-        ...(model.open && shown.length > 0
-          ? [
-              h.div(
-                slots.list.attrs([h.Role('listbox'), h.AriaLabel('Matching fruits')]),
-                shown.map((fruit, index) =>
-                  h.button(
-                    slots.item.attrs(
-                      [h.Key(fruit), h.OnClick(Message.PickedOption({ id: fruit }))],
-                      items.slotItem(index),
-                    ),
-                    [fruit],
+    return h.div(slots.root.attrs(), [
+      h.label(slots.label.attrs(), ['Fruit']),
+      h.input(
+        slots.input.attrs([
+          h.Type('search'),
+          h.OnInput(text => Message.Queried({ text })),
+          h.OnFocus(Message.Opened()),
+          h.Value(model.query),
+          h.Role('combobox'),
+          h.AriaExpanded(model.open && shown.length > 0),
+          h.AriaControls('fruit-popup'),
+        ]),
+      ),
+      ...(model.open && shown.length > 0
+        ? [
+            h.div(
+              slots.list.attrs([h.Role('listbox'), h.AriaLabel('Matching fruits')]),
+              shown.map((fruit, index) =>
+                h.button(
+                  slots.item.attrs(
+                    [h.Key(fruit), h.OnClick(Message.PickedOption({ id: fruit }))],
+                    items.slotItem(index),
                   ),
+                  [fruit],
                 ),
               ),
-            ]
-          : []),
-        ...(model.picked === null ? [] : [h.p([], [`Picked: ${model.picked}.`])]),
-      ],
-    )
+            ),
+          ]
+        : []),
+      ...(model.picked === null ? [] : [h.p([], [`Picked: ${model.picked}.`])]),
+    ])
   })
   .pipe(
     Behavior.attach(Ids),
@@ -111,6 +110,7 @@ export const Autocomplete = SlotView.forMessages<Message>()
     Behavior.attach(Picks),
     Behavior.attach(Associated),
     ...AutocompleteOverlay.map(Behavior.attach),
+    Behavior.attach(keepInView(AutocompleteSlots)({ panel: 'list' })),
     Style.attach(autocompleteStyle(AutocompleteSlots)),
   )
 
