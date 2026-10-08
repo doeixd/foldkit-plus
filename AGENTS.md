@@ -482,12 +482,23 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   The adapter is cast, so only diffing the client's request/response types against
   the payload/success schemas catches it.
 
+- **Upstream's anchor portals by default and burns without layout.**
+  `anchorSetup` relocates the node into a portal root (`portal ?? true`), so
+  the runtime that drew it patches a stranger and crashes; and under jsdom's
+  zero geometry it burns ~35s (portal or locked) where the same open takes
+  milliseconds without it. Pass `portal: false` to keep the node, drive the
+  config in tests instead of the clock, and prefer a placing Behavior that
+  never relocates for popups placed once.
+
 **Library behaviour**
 
 - **An embedded runtime draws in place of its container.** A test that kept
   the container element and read `container.querySelector(...)` saw an empty
   page for good, and it looked like the view never ran. Read the page from
   `document`, as the other runtime tests do.
+- **`embed` replaces its container with the rendering.** `getElementById` of
+  the staged div is null right after boot; the content is there, the div is
+  not. Query the drawn page (a role, a label), never the staged containers.
 - **Foldkit's lazy slots throw outside a runtime render.** `createLazy` and
   `createKeyedLazy` read the current frame and throw when there is none (an
   inert test, a server's first pass), and Foldkit offers no way to ask first.
@@ -510,6 +521,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   Mount's stream neither ended nor reported, and the observer it left called
   `measure` later ("Cannot access 'sizes' before initialization"). Make every
   observer before any observes, and test with the constructor stubbed away.
+- **Mount args are captured at insert, never refreshed.** A Mount that should
+  follow the Model (focus the next OTP cell after a fill) ran once with the
+  initial args and never again: `OnMount` binds `insert` and `destroy` only,
+  there is no update hook. Drive Model-caused DOM effects from the Message
+  that updated the Model, as a Command — the platform's own prescribed path.
 - **A view input may hold no nested function.** `h.submodel` throws on a
   function below the top level of `viewInputs`. The plan's sketch made each
   word that takes a value a function, and the Builder's words, a nested
@@ -672,7 +688,9 @@ swaps its results. Names that moved, each found the slow way:
 `Stream.mapBoth`'s callbacks -> `onElement`/`onError`. Since rc.116 `Stream.scan`
 and `Stream.mapAccum` take their seed as a thunk; a plain value type-checks
 against `LazyArg<unknown>` and fails at runtime with "initial is not a
-function". Check the installed `.d.ts` before reaching for a remembered API.
+function". `Schema.Union` and `Schema.Literals` take an array
+(`Union([a, b])`, `Literals(['x', 'y'])`), not variadics; the variadic call
+fails at the type level, not silently. Check the installed `.d.ts` before reaching for a remembered API.
 
 A checked schema resolves to its **last check's** annotations, which carry
 what the check expects and no `title`: `Schema.String.annotate({ title })

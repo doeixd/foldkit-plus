@@ -5,6 +5,12 @@
  * releases on unmount. The Mount writes `position`, `top` and `left` on the
  * element itself, imperatively; a Style on the same slot must leave those
  * alone, and `data-placement` is written by `@foldkit/ui` for styling.
+ *
+ * `portal` defaults to true upstream: the element is relocated into a
+ * portal root, so the runtime no longer patches it and a test sees it move.
+ * Pass `portal: false` to keep the node where the view drew it. Positioning
+ * without layout (jsdom's zero geometry) burns tens of seconds, portal or
+ * not — drive the config, not the clock, in tests.
  */
 import { Effect, Schema, Stream } from 'effect'
 import { AnchorConfig, anchorSetup } from '@foldkit/ui/anchor'
