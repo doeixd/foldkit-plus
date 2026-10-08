@@ -18,6 +18,7 @@ import { Utilities as U } from 'foldkit-mixins/utilities'
 import {
   ButtonSlots,
   CalendarSlots,
+  CardSlots,
   CheckboxSlots,
   ComboboxSlots,
   DialogSlots,
@@ -830,31 +831,14 @@ export const DialogActionsStyle = app.slots(
 
 // --- shadcn-style card ---------------------------------------------------------------------
 
-export const CardSlots = Slots.define({
-  card: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
-  content: Slot.make({ capability: Capability.Container }),
-  footer: Slot.make({ capability: Capability.Container }),
-})
-
-export const CardStyle = app.slots(
-  {
-    card: [
-      L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      {
-        background: t.surface.base,
-        border: `${t.border.thin} solid ${t.outline.subtle}`,
-        borderRadius: t.radius.lg,
-        boxShadow: t.shadow.sm,
-        padding: t.space.lg,
-        maxWidth: '24rem',
-      },
-    ],
-    title: [U.m('0'), U.font('semibold'), U.color('text.overt')],
-    description: [U.m('0'), U.text('sm'), U.color('text.muted')],
-    content: [U.m('0'), U.text('sm'), U.color('text.default')],
-    footer: [L.in('layouts', Layout.cluster({ gap: t.space.sm }))],
-  },
+export const CardStyle = app.forSlots(CardSlots)(
+  Recipes.Card.extend({
+    // The demo's card caps its width and keeps its actions leading; the
+    // recipe spreads them to the end.
+    base: {
+      root: { maxWidth: '24rem' },
+      footer: { justifyContent: 'flex-start' },
+    },
+  })({ padding: 'roomy' }),
   { name: 'CardStyle' },
 )

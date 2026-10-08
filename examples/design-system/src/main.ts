@@ -40,6 +40,7 @@ import {
   Button,
   Calendar,
   CalendarSlots,
+  CardSlots,
   Checkbox,
   Combobox,
   ComboboxView,
@@ -76,7 +77,6 @@ import {
   AreaStyle,
   BadgeSlots,
   CalendarStyle,
-  CardSlots,
   CardStyle,
   CheckStyle,
   ComboBoxStyle,
@@ -779,9 +779,11 @@ const DialogDemo = (model: Pick<Model, 'dialog'>, h: HtmlBuilder<Message>): Html
 
 const CardView = SlotView.forMessages<Message>()
   .define(CardSlots, (clicks: number, slots, h) =>
-    h.article(slots.card.attrs(), [
-      h.h3(slots.title.attrs(), ['Usage this month']),
-      h.p(slots.description.attrs(), ['Synced just now']),
+    h.article(slots.root.attrs(), [
+      h.div(slots.header.attrs(), [
+        h.h3(slots.title.attrs(), ['Usage this month']),
+        h.p(slots.description.attrs(), ['Synced just now']),
+      ]),
       h.p(slots.content.attrs(), [
         `The team pressed a button ${clicks} ${clicks === 1 ? 'time' : 'times'}. A card is page slots plus a recipe: no new CSS.`,
       ]),
@@ -794,7 +796,7 @@ const CardView = SlotView.forMessages<Message>()
       ]),
     ]),
   )
-  .pipe(Style.attach(CardStyle.style))
+  .pipe(Style.attach(CardStyle))
 
 const countries: ReadonlyArray<readonly [value: string, label: string]> = [
   ['us', 'United States'],
@@ -1311,29 +1313,36 @@ const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
 
 const CalendarPreview = SlotView.forMessages<Message>()
   .define(CalendarSlots, (selected: number, slots, h) => {
-    const card = SlotView.buildersFor(CardSlots, [CardStyle.style.mixin], { input: selected, h })
-    return h.div(card.card.attrs(), [
-      h.div(slots.root.attrs(), [
-        h.div(slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026'), h.AriaRowcount(1)]), [
-          h.div(slots.headerRow.attrs([h.Role('row')]), [
-            ...weekDays.map(day =>
-              h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day]),
-            ),
-          ]),
-          h.div(slots.weekRow.attrs([h.Role('row')]), [
-            ...monthDays.map(day =>
-              h.span(slots.dayCell.attrs([h.Role('gridcell')]), [
-                h.button(
-                  slots.dayButton.attrs([
-                    h.Type('button'),
-                    ...(day === selected ? [h.DataAttribute('selected', 'true')] : []),
-                    h.AriaLabel(`October ${day}`),
-                  ]),
-                  [String(day)],
+    const card = SlotView.buildersFor(CardSlots, [CardStyle.mixin], { input: selected, h })
+    // The recipe pads content, not the root: the calendar rides the content
+    // slot so the preview card breathes.
+    return h.div(card.root.attrs(), [
+      h.div(card.content.attrs(), [
+        h.div(slots.root.attrs(), [
+          h.div(
+            slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026'), h.AriaRowcount(1)]),
+            [
+              h.div(slots.headerRow.attrs([h.Role('row')]), [
+                ...weekDays.map(day =>
+                  h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day]),
                 ),
               ]),
-            ),
-          ]),
+              h.div(slots.weekRow.attrs([h.Role('row')]), [
+                ...monthDays.map(day =>
+                  h.span(slots.dayCell.attrs([h.Role('gridcell')]), [
+                    h.button(
+                      slots.dayButton.attrs([
+                        h.Type('button'),
+                        ...(day === selected ? [h.DataAttribute('selected', 'true')] : []),
+                        h.AriaLabel(`October ${day}`),
+                      ]),
+                      [String(day)],
+                    ),
+                  ]),
+                ),
+              ]),
+            ],
+          ),
         ]),
       ]),
     ])
