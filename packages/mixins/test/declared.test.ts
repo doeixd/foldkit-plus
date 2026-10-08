@@ -159,6 +159,10 @@ describe('Utilities', () => {
     [U.justify('between'), 'justify-content:space-between'],
     [U.column, 'display:flex;flex-direction:column'],
     [U.truncate, 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'],
+    [
+      U.srOnly,
+      'border:0;clip:rect(0, 0, 0, 0);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;white-space:nowrap;width:1px',
+    ],
   ])('%# writes %s', (piece, declarations) => {
     expect(css(piece)).toBe(`.x{${declarations}}`)
   })

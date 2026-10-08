@@ -95,6 +95,18 @@ export const Utilities = {
   uppercase: self({ textTransform: 'uppercase' }),
   /** One line, cut with an ellipsis. */
   truncate: self({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+  /** Visually hidden but announced: screen-reader-only content. */
+  srOnly: self({
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: '0',
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    border: '0',
+  }),
   pointer: self({ cursor: 'pointer' }),
   selectNone: self({ userSelect: 'none' }),
 } as const
