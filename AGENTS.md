@@ -455,6 +455,82 @@ before changing it.
   (`examples/*/e2e/*.e2e.ts`, run with `pnpm e2e`) that starts it and drives
   Chromium, for what only the running page shows.
 
+## Styling, themes, and tokens
+
+The styling system is one pipeline; learn it in order before styling anything:
+
+```text
+tokens -> ref -> pieces -> slots -> sheet
+```
+
+**Tokens are the only values.** `Theme.tokens` (`packages/mixins/src/theme/tokens.ts`)
+is the shipped scales (space, radius, size, leading, weight, motion, border,
+shadow, breakpoint); `Theme.oklch` derives a whole palette from a few knobs;
+`Theme.compose` joins them. Read every value through `Theme.ref` — a group or
+name the theme lacks is a type error, and it reads names, never values, so a
+test or probe sees `var(--fk-…)` rather than a color. Never copy a literal out
+of a theme into a style; add or override a token instead.
+
+**Knobs are tokens too.** `density`, `radius-factor`, `motion`,
+`shadow-strength` (and the palette's `accent-h`, `surface-contrast`, …) live
+in the `knob` group, and the scales derive from them: space multiplies by
+density, radius by radius-factor, durations by motion (`motion: '0'` stills
+every recipe transition). A still/compact/rounder theme is one override, via
+`Theme.scoped` (a selector the Model selects) or an inline variable — never a
+second set of sizes. There is no `knob` helper to look for.
+
+**Install order is the cascade.** `Layers.standard` is
+`reset, tokens, theme, defaults, components, layouts, variants, utilities, app`
+(`packages/mixins/src/layers.ts`). The canonical sheet (`examples/todo-app/src/sheet.ts`):
+
+```ts
+Style.stylesheet(
+  L.declare,
+  L.in('reset', Defaults.reset),
+  L.in('tokens', Theme.root(Theme.tokens)),
+  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('defaults', Defaults.body),
+  ...slotStyles,
+)
+```
+
+`Theme.root` is unlayered, so place it with `L.in`; `omit` ships shared scales
+once. `Style.stylesheet` refuses an unlayered rule — it would beat `app`. A
+page without `Theme.root` has no tokens: pieces that must stand alone (see
+`prose.ts`) read `var(--fk-x, <fallback>)`, and the `missingTokens` gate
+(`packages/mixins/src/testing.ts`) treats every `var(--fk-…)` read, fallback
+or not, as needing a definition in the sheet.
+
+**Pieces: `self` is normal, `inline` is the escape hatch.**
+`Style.self` emits a rule on a generated class, so `Layers.in` can place it and
+a later layer can override it. `Style.inline` sits outside every layer and
+beats everything including `app` — use it only for values no theme may touch
+(a measured pixel offset, a `display` the behavior requires). `Style.compose`
+concatenates classes; later inline declarations win per property, while rules
+cascade by layer. `component(...)`/`variant(...)` (`packages/mixins-ui/src/recipes/design.ts`)
+are just `compose` placed in `components`/`variants`: bases in components,
+selections in variants, so a selection beats its base and the application's
+`app` layer beats both. `Style.class('name')` is a named class for targeted
+overrides; `Style.global` is raw CSS (keyframes, `@layer` declarations).
+
+**Recipes select, applications extend.** `Style.recipeFor(Slots)` rejects an
+unknown slot at definition time, like `forSlots` does. A selection picks per
+axis with `defaults` filling the rest; `null` unsets a defaulted axis. Adjust a
+shipped recipe with `.extend`, never by forking it. `Style.forCapability` is
+one piece for every slot a capability fits. State the DOM already knows is
+`Style.states(map, attribute)` (`&[aria-pressed="true"]`); state only the view
+knows is `Style.whenInput(predicate, piece)`. Do not use one for the other's job.
+
+**Subpaths are unlayered on purpose.** `utilities`, `layout`, `prose`, `touch`,
+and `icons` pieces (`U.gap('sm')`, `Layout.frame()`, `Prose.style()`) take the
+layer of whatever they are composed into, and a plain declaration beside them
+wins per property. That is what makes them composable — do not wrap them in
+`component`/`variant` at their definition.
+
+**`Defaults.reset` zeroes margins.** Any dialog/panel relying on the user
+agent's `margin: auto` centering must restore it (`margin: 'auto'`), or it
+lands in the top corner.
+
 ## Traps already hit here
 
 Every item below cost real time here. Check for them by name, and **add to this
