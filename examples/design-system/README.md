@@ -12,29 +12,27 @@ pnpm --filter foldkit-example-design-system dev
 What it shows:
 
 - **Colors** — every `Theme.oklch` token family as swatches, with a hue picker
-  that re-derives the accent live by overriding `--fk-knob-accent-h`, plus a
-  light/dark switch via `color-scheme`.
+  that re-derives the accent live, plus a light/dark switch.
 - **Buttons** — the shadcn mapping (`primary` = Default, `neutral` solid =
-  Secondary, `neutral` outline/ghost, `danger` = Destructive), sizes, icon,
-  and disabled, all live `@foldkit/ui` buttons through `Button.view`.
+  Secondary, `neutral` outline/ghost, `danger` = Destructive), sizes and
+  disabled, all live `@foldkit/ui` buttons through `Button.view`.
 - **Form** — `Input`, `Textarea`, and `InputGroup` recipes, live `Checkbox`
-  and `Switch`, and a `FileDrop` zone that lists what it catches.
-- **Choice** — a native `Select`, a `Disclosure`, a `Fieldset` of radio pills,
-  a live `Slider`, a `Listbox`, and a filtering `ComboBox`, each through its
-  slot contract.
+  and `Switch`, a `Fieldset` with a live `RadioGroup`, and a `FileDrop` zone
+  that lists what it catches.
+- **Choice** — a native `Select`, a `Disclosure`, a live `Slider`, a `Listbox`,
+  and a filtering `ComboBox`, each through its slot contract.
 - **Menu** — grouped row actions with a disabled item; the choice reports back.
-- **Feedback** — `Badge` tones, a `Dialog` panel drawn in place, and `Toast`
-  entries that dismiss themselves.
-- **Date** — the `Calendar` grid plus a live `DatePicker` that writes the due
-  date.
-- **Overlays** — `Popover` (anchored, dismisses on escape/outside), `Tooltip`
-  (shows on hover or focus, hides on leave), and `HoverIntent` panels drawn
-  in place.
-- **Navigation** — `Tabs` (`line` and `pill`) and `Segmented`, driven by the
-  application's own tab state rather than a Submodel.
-- **Calendar** — a month grid preview with a selected day.
-- **Utilities** — the `InputGroup` recipe, `Icons` + `Touch` mechanisms, and
-  the `Patterns` accessibility catalog every adapter is gated against.
+- **Feedback** — `Badge` tones, a live modal `Dialog` (focus trap, Escape,
+  backdrop), and `Toast` entries that dismiss themselves.
+- **Overlays** — an anchored `Popover`, a `Tooltip`, and an `HoverIntent` card
+  positioned by the `Anchor` behavior; all show on hover/focus and dismiss on
+  leave, blur, or Escape.
+- **Navigation** — live `Tabs` (`line` and `pill`) with arrow-key movement and
+  per-tab panels, plus a `Segmented` plan picker, all driven by the Model.
+- **Date** — a `Calendar` month-grid preview plus a live `DatePicker` that
+  writes the due date.
+- **Utilities** — `Icons` + `Touch` mechanisms and the `Patterns`
+  accessibility catalog every adapter is gated against.
 - **Card** — a shadcn-style card composed from page slots and the Button
   recipe.
 

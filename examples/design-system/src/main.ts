@@ -16,10 +16,14 @@ import { modifyFields } from 'foldkit/struct'
 import {
   Combobox as UiCombobox,
   DatePicker as UiDatePicker,
+  Dialog as UiDialog,
   FileDrop as UiFileDrop,
+  HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
   Menu as UiMenu,
   Popover as UiPopover,
+  RadioGroup as UiRadioGroup,
+  Tabs as UiTabs,
 } from '@foldkit/ui'
 import type { CalendarAttributes } from '@foldkit/ui/calendar'
 import type { EntryHandlers } from '@foldkit/ui/toast'
@@ -32,6 +36,7 @@ import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
+  Anchor,
   Button,
   Calendar,
   CalendarSlots,
@@ -39,11 +44,12 @@ import {
   Combobox,
   ComboboxSlots,
   ComboboxView,
-  DialogSlots,
+  Dialog,
   Disclosure,
   Fieldset,
   FileDrop,
   FileDropSlots,
+  HoverIntent,
   HoverIntentSlots,
   Input,
   Listbox,
@@ -54,12 +60,12 @@ import {
   MenuView,
   Patterns,
   Popover,
-  RadioGroupSlots,
+  RadioGroup,
   SegmentedSlots,
   Select,
   Slider,
   Switch,
-  TabsSlots,
+  Tabs,
   Textarea,
   Toast,
   ToastView,
@@ -160,6 +166,10 @@ const Contact = Schema.Union([
 ])
 type Contact = typeof Contact.Type
 
+const ContactGroup = UiRadioGroup.create<Contact>()
+const SectionsTabs = UiTabs.create<LineTab>()
+const RangeTabs = UiTabs.create<PillTab>()
+
 const MenuAction = Schema.Union([
   Schema.Literal('Reply'),
   Schema.Literal('Forward'),
@@ -207,6 +217,11 @@ export const Model = Schema.Struct({
   volume: Schema.Number,
   volumeSlider: UiSlider.Model,
   tooltip: UiTooltip.Model,
+  contactGroup: UiRadioGroup.Model,
+  sectionsTabs: UiTabs.Model,
+  rangeTabs: UiTabs.Model,
+  dialog: UiDialog.Model,
+  hoverCard: UiHoverIntent.Model,
   menu: UiMenu.Model,
   menuChoice: Schema.String,
   listbox: UiListbox.Model,
@@ -226,8 +241,6 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   HueSelected: { hue: Schema.Number },
   SchemeSelected: { scheme: Scheme },
-  LineTabSelected: { tab: LineTab },
-  PillTabSelected: { tab: PillTab },
   PlanSelected: { plan: Plan },
   NameTyped: { value: Schema.String },
   BioTyped: { value: Schema.String },
@@ -236,9 +249,15 @@ export const Message = defineMessageUnion({
   ButtonClicked: {},
   CountrySelected: { value: Schema.String },
   DetailsToggled: { value: Schema.Boolean },
-  ContactSelected: { contact: Contact },
   VolumeSlider: { message: UiSlider.Message },
   Tooltip: { message: UiTooltip.Message },
+  ContactGroup: { message: UiRadioGroup.Message },
+  SectionsTabs: { message: UiTabs.Message },
+  RangeTabs: { message: UiTabs.Message },
+  OpenDeleteDialog: {},
+  CloseDeleteDialog: {},
+  DeleteDialog: { message: UiDialog.Message },
+  HoverCard: { message: UiHoverIntent.Message },
   Menu: { message: UiMenu.Message },
   Listbox: { message: UiListbox.Message },
   Combobox: { message: UiCombobox.Message },
@@ -272,6 +291,11 @@ export const initModel = (today: CalendarDate): Model => ({
   volume: 60,
   volumeSlider: UiSlider.init({ id: 'volume-slider', min: 0, max: 100, step: 5 }),
   tooltip: UiTooltip.init({ id: 'hint-tooltip' }),
+  contactGroup: UiRadioGroup.init({ id: 'contact-group' }),
+  sectionsTabs: UiTabs.init({ id: 'sections-tabs' }),
+  rangeTabs: UiTabs.init({ id: 'range-tabs' }),
+  dialog: UiDialog.init({ id: 'delete-dialog' }),
+  hoverCard: UiHoverIntent.init(),
   menu: UiMenu.init({ id: 'row-actions' }),
   menuChoice: '',
   listbox: UiListbox.init({ id: 'backup-frequency' }),
@@ -296,8 +320,6 @@ export const update = (model: Model, message: Message) =>
   Message.match(message, {
     HueSelected: ({ hue }) => ({ model: modifyFields(model, { hue: () => hue }) }),
     SchemeSelected: ({ scheme }) => ({ model: modifyFields(model, { scheme: () => scheme }) }),
-    LineTabSelected: ({ tab }) => ({ model: modifyFields(model, { lineTab: () => tab }) }),
-    PillTabSelected: ({ tab }) => ({ model: modifyFields(model, { pillTab: () => tab }) }),
     PlanSelected: ({ plan }) => ({ model: modifyFields(model, { plan: () => plan }) }),
     NameTyped: ({ value }) => ({ model: modifyFields(model, { name: () => value }) }),
     BioTyped: ({ value }) => ({ model: modifyFields(model, { bio: () => value }) }),
@@ -312,9 +334,15 @@ export const update = (model: Model, message: Message) =>
     DetailsToggled: ({ value }) => ({
       model: modifyFields(model, { detailsOpen: () => value }),
     }),
-    ContactSelected: ({ contact }) => ({ model: modifyFields(model, { contact: () => contact }) }),
     VolumeSlider: ({ message }) => foldVolumeSlider(model, message),
     Tooltip: ({ message }) => foldTooltip(model, message),
+    ContactGroup: ({ message }) => foldContactGroup(model, message),
+    SectionsTabs: ({ message }) => foldSectionsTabs(model, message),
+    RangeTabs: ({ message }) => foldRangeTabs(model, message),
+    OpenDeleteDialog: () => foldDeleteDialogOpen(model),
+    CloseDeleteDialog: () => foldDeleteDialogClose(model),
+    DeleteDialog: ({ message }) => foldDeleteDialog(model, message),
+    HoverCard: ({ message }) => foldHoverCard(model, message),
     Menu: ({ message }) => foldMenu(model, message),
     Listbox: ({ message }) => foldListbox(model, message),
     Combobox: ({ message }) => foldCombobox(model, message),
@@ -365,6 +393,92 @@ const foldTooltip = Update.foldChild({
   foldOutMessage: UiTooltip.OutMessage.match<Update.Step<Model, Message>>({
     Shown: () => model => ({ model }),
     Hidden: () => model => ({ model }),
+  }),
+})
+
+/** The contact preference lives in the parent; the group owns focus only. */
+const foldContactGroup = Update.foldChild({
+  update: ContactGroup.update,
+  read: (model: Model) => Option.some(model.contactGroup),
+  write: (model, contactGroup) => modifyFields(model, { contactGroup: () => contactGroup }),
+  toParentMessage: message => Message.ContactGroup({ message }),
+  foldOutMessage: UiRadioGroup.OutMessage.match<
+    Update.Step<Model, Message>,
+    UiRadioGroup.OutMessage<Contact>
+  >({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { contact: () => value }),
+      }),
+  }),
+})
+
+const foldSectionsTabs = Update.foldChild({
+  update: SectionsTabs.update,
+  read: (model: Model) => Option.some(model.sectionsTabs),
+  write: (model, sectionsTabs) => modifyFields(model, { sectionsTabs: () => sectionsTabs }),
+  toParentMessage: message => Message.SectionsTabs({ message }),
+  foldOutMessage: UiTabs.OutMessage.match<Update.Step<Model, Message>, UiTabs.OutMessage<LineTab>>({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { lineTab: () => value }),
+      }),
+  }),
+})
+
+const foldRangeTabs = Update.foldChild({
+  update: RangeTabs.update,
+  read: (model: Model) => Option.some(model.rangeTabs),
+  write: (model, rangeTabs) => modifyFields(model, { rangeTabs: () => rangeTabs }),
+  toParentMessage: message => Message.RangeTabs({ message }),
+  foldOutMessage: UiTabs.OutMessage.match<Update.Step<Model, Message>, UiTabs.OutMessage<PillTab>>({
+    Selected:
+      ({ value }) =>
+      model => ({
+        model: modifyFields(model, { pillTab: () => value }),
+      }),
+  }),
+})
+
+const foldDeleteDialogOut = UiDialog.OutMessage.match<Update.Step<Model, Message>>({
+  Opened: () => model => ({ model }),
+  Closed: () => model => ({ model }),
+})
+
+const foldDeleteDialog = Update.foldChild({
+  update: UiDialog.update,
+  read: (model: Model) => Option.some(model.dialog),
+  write: (model, dialog) => modifyFields(model, { dialog: () => dialog }),
+  toParentMessage: message => Message.DeleteDialog({ message }),
+  foldOutMessage: foldDeleteDialogOut,
+})
+
+const foldDeleteDialogOpen = Update.foldChildStep({
+  update: UiDialog.open,
+  read: (model: Model) => Option.some(model.dialog),
+  write: (model, dialog) => modifyFields(model, { dialog: () => dialog }),
+  toParentMessage: message => Message.DeleteDialog({ message }),
+  foldOutMessage: foldDeleteDialogOut,
+})
+
+const foldDeleteDialogClose = Update.foldChildStep({
+  update: UiDialog.close,
+  read: (model: Model) => Option.some(model.dialog),
+  write: (model, dialog) => modifyFields(model, { dialog: () => dialog }),
+  toParentMessage: message => Message.DeleteDialog({ message }),
+  foldOutMessage: foldDeleteDialogOut,
+})
+
+const foldHoverCard = Update.foldChild({
+  update: UiHoverIntent.update,
+  read: (model: Model) => Option.some(model.hoverCard),
+  write: (model, hoverCard) => modifyFields(model, { hoverCard: () => hoverCard }),
+  toParentMessage: message => Message.HoverCard({ message }),
+  foldOutMessage: UiHoverIntent.OutMessage.match<Update.Step<Model, Message>>({
+    Opened: () => model => ({ model }),
+    Closed: () => model => ({ model }),
   }),
 })
 
@@ -521,41 +635,59 @@ const plans: ReadonlyArray<{ readonly value: Plan; readonly label: string }> = [
   { value: 'enterprise', label: 'Enterprise' },
 ]
 
-const LineTabsView = SlotView.forMessages<Message>()
-  .define(TabsSlots, (active: LineTab, slots, h) =>
-    h.div(slots.tablist.attrs([h.Role('tablist'), h.AriaLabel('Sections')]), [
-      ...lineTabs.map(tab =>
-        h.button(
-          slots.tab.attrs([
-            h.Type('button'),
-            h.Role('tab'),
-            h.AriaSelected(active === tab.value),
-            h.OnClick(Message.LineTabSelected({ tab: tab.value })),
-          ]),
-          [tab.label],
-        ),
-      ),
-    ]),
-  )
-  .pipe(Style.attach(LineTabsStyle))
+/**
+ * The section tabs, live: the component owns focus and arrow-key movement,
+ * the Model owns which tab shows. Only the active panel renders.
+ */
+const tabPanels: Record<LineTab, string> = {
+  overview: 'Overview: everything, one screen.',
+  account: 'Account: who pays and who belongs.',
+  settings: 'Settings: knobs for the whole page.',
+}
 
-const PillTabsView = SlotView.forMessages<Message>()
-  .define(TabsSlots, (active: PillTab, slots, h) =>
-    h.div(slots.tablist.attrs([h.Role('tablist'), h.AriaLabel('Range')]), [
-      ...pillTabs.map(tab =>
-        h.button(
-          slots.tab.attrs([
-            h.Type('button'),
-            h.Role('tab'),
-            h.AriaSelected(active === tab.value),
-            h.OnClick(Message.PillTabSelected({ tab: tab.value })),
-          ]),
-          [tab.label],
-        ),
-      ),
-    ]),
-  )
-  .pipe(Style.attach(PillTabsStyle))
+const LineTabsView = (
+  model: Pick<Model, 'lineTab' | 'sectionsTabs'>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: model.sectionsTabs.id,
+    model: model.sectionsTabs,
+    view: SectionsTabs.view,
+    viewInputs: {
+      tabs: lineTabs.map(tab => tab.value),
+      selectedValue: model.lineTab,
+      ariaLabel: 'Sections',
+      toView: render => {
+        const resolved = Tabs.resolve(render, [LineTabsStyle.mixin], { input: undefined, h })
+        return h.div(resolved.tablist, [
+          ...resolved.tabs.map(tab => h.button(tab.tab, [lineTabs[tab.index]?.label ?? tab.value])),
+          ...resolved.tabs
+            .filter(tab => tab.index === resolved.activeIndex)
+            .map(tab => h.div(tab.panel, [tabPanels[tab.value]])),
+        ])
+      },
+    },
+    toParentMessage: message => Message.SectionsTabs({ message }),
+  })
+
+const PillTabsView = (model: Pick<Model, 'pillTab' | 'rangeTabs'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.rangeTabs.id,
+    model: model.rangeTabs,
+    view: RangeTabs.view,
+    viewInputs: {
+      tabs: pillTabs.map(tab => tab.value),
+      selectedValue: model.pillTab,
+      ariaLabel: 'Range',
+      toView: render => {
+        const resolved = Tabs.resolve(render, [PillTabsStyle.mixin], { input: undefined, h })
+        return h.div(resolved.tablist, [
+          ...resolved.tabs.map(tab => h.button(tab.tab, [pillTabs[tab.index]?.label ?? tab.value])),
+        ])
+      },
+    },
+    toParentMessage: message => Message.RangeTabs({ message }),
+  })
 
 const PlanView = SlotView.forMessages<Message>()
   .define(SegmentedSlots, (active: Plan, slots, h) =>
@@ -592,26 +724,61 @@ const BadgesView = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(StatusStyle.style))
 
-const DialogPreview = SlotView.forMessages<Message>()
-  .define(DialogSlots, (_input: unknown, slots, h) =>
-    h.div(slots.panel.attrs([h.Style({ position: 'static', transform: 'none' })]), [
-      h.h2(slots.title.attrs(), ['Delete this project?']),
-      h.p(slots.description.attrs(), [
-        'It goes for good, with its history. This panel is drawn in place, not opened as a modal.',
-      ]),
-      h.div(
-        [],
-        [
-          Button.view(
-            { label: 'Delete', style: DestructiveButtonStyle, onClick: Message.ButtonClicked() },
-            h,
-          ),
-          Button.view({ label: 'Cancel', style: GhostButtonStyle }, h),
-        ],
-      ),
-    ]),
-  )
-  .pipe(Style.attach(DialogPreviewStyle))
+/**
+ * The delete confirmation, live: a real modal with focus trap, Escape to
+ * cancel, and backdrop click. Nothing is actually deleted. The recipe's
+ * close bundle draws the corner X; the actions dispatch a parent message
+ * that runs the close step, so each keeps its own button styling.
+ */
+const DialogDemo = (model: Pick<Model, 'dialog'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.dialog.id,
+    model: model.dialog,
+    view: UiDialog.view,
+    viewInputs: {
+      hasDescription: true,
+      toView: render => {
+        const dialog = Dialog.resolve(render, [DialogPreviewStyle.mixin], { input: undefined, h })
+        return h.dialog(
+          dialog.dialog,
+          dialog.isVisible
+            ? [
+                h.div(dialog.backdrop),
+                h.div(dialog.panel, [
+                  h.button(dialog.closeButton, [h.span([], ['×'])]),
+                  h.h2(dialog.title, ['Delete this project?']),
+                  h.p(dialog.description, [
+                    'It goes for good, with its history. This dialog is a live modal: focus is trapped, Escape cancels.',
+                  ]),
+                  h.div(
+                    [],
+                    [
+                      Button.view(
+                        {
+                          label: 'Delete',
+                          style: DestructiveButtonStyle,
+                          onClick: Message.CloseDeleteDialog(),
+                        },
+                        h,
+                      ),
+                      Button.view(
+                        {
+                          label: 'Cancel',
+                          style: GhostButtonStyle,
+                          onClick: Message.CloseDeleteDialog(),
+                        },
+                        h,
+                      ),
+                    ],
+                  ),
+                ]),
+              ]
+            : [],
+        )
+      },
+    },
+    toParentMessage: message => Message.DeleteDialog({ message }),
+  })
 
 const CardView = SlotView.forMessages<Message>()
   .define(CardSlots, (clicks: number, slots, h) =>
@@ -696,23 +863,41 @@ const contacts: ReadonlyArray<{ readonly value: Contact; readonly label: string 
   { value: 'none', label: 'None' },
 ]
 
-const RadioPreview = SlotView.forMessages<Message>()
-  .define(RadioGroupSlots, (active: Contact, slots, h) =>
-    h.div(slots.group.attrs([h.Role('radiogroup'), h.AriaLabel('Preferred contact')]), [
-      ...contacts.map(contact =>
-        h.button(
-          slots.option.attrs([
-            h.Type('button'),
-            h.Role('radio'),
-            h.AriaSelected(active === contact.value),
-            h.OnClick(Message.ContactSelected({ contact: contact.value })),
-          ]),
-          [contact.label],
-        ),
-      ),
-    ]),
-  )
-  .pipe(Style.attach(RadioStyle))
+const contactDescriptions: Record<Contact, string> = {
+  email: 'Receipts and news, most weeks.',
+  phone: 'Only when something is on fire.',
+  none: 'No contact at all.',
+}
+
+/**
+ * The contact preference, live: radio semantics with arrow keys, the choice
+ * in the Model. Replaces the static pills that used to sit here.
+ */
+const RadioDemo = (model: Pick<Model, 'contact' | 'contactGroup'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.contactGroup.id,
+    model: model.contactGroup,
+    view: ContactGroup.view,
+    viewInputs: {
+      selectedValue: Option.some(model.contact),
+      options: contacts.map(contact => contact.value),
+      ariaLabel: 'Preferred contact',
+      hasOptionDescription: () => true,
+      toView: render => {
+        const resolved = RadioGroup.resolve(render, [RadioStyle.mixin], { input: undefined, h })
+        return h.div(resolved.group, [
+          ...resolved.options.map(option => {
+            const known = contacts.find(contact => contact.value === option.value)
+            return h.div(option.option, [
+              h.label(option.label, [known?.label ?? option.value]),
+              h.span(option.description, [contactDescriptions[option.value]]),
+            ])
+          }),
+        ])
+      },
+    },
+    toParentMessage: message => Message.ContactGroup({ message }),
+  })
 
 /**
  * The live volume slider: the component owns the drag and keyboard
@@ -1192,19 +1377,51 @@ const TooltipDemo = (model: Pick<Model, 'tooltip'>, h: HtmlBuilder<Message>): Ht
     toParentMessage: message => Message.Tooltip({ message }),
   })
 
-const HoverPreview = SlotView.forMessages<Message>()
-  .define(HoverIntentSlots, (_input: unknown, slots, h) =>
-    h.div(
-      [],
-      [
-        h.span(slots.trigger.attrs(), ['A team member']),
-        h.div(slots.panel.attrs(), [
-          'A hover card with open and close delays, so moving between trigger and panel does not flicker. Drawn in place here.',
-        ]),
-      ],
-    ),
-  )
-  .pipe(Style.attach(HoverCardStyle))
+/**
+ * A team-member hover card, live: open and close delays keep it from
+ * flickering, and the Anchor behavior positions the panel against the
+ * trigger. The panel renders only while open.
+ */
+const AnchorCard = Anchor.behavior(HoverIntentSlots)<unknown, Message>({
+  floating: 'panel',
+  config: () => ({
+    buttonId: 'teammate-button',
+    anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
+  }),
+})
+
+const HoverDemo = (model: Pick<Model, 'hoverCard'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: 'teammate-card',
+    model: model.hoverCard,
+    view: UiHoverIntent.view,
+    viewInputs: {
+      focusTriggerSelector: '#teammate-button',
+      toView: render => {
+        const resolved = HoverIntent.resolve(render, [HoverCardStyle.mixin, AnchorCard.mixin], {
+          input: undefined,
+          h,
+        })
+        return h.div(
+          [],
+          [
+            h.button(
+              [...resolved.trigger, h.Type('button'), h.Id('teammate-button')],
+              ['A team member'],
+            ),
+            ...(resolved.isVisible
+              ? [
+                  h.div(resolved.panel, [
+                    'Wren Quan, design engineer. Moving into the card keeps it open; leaving either side starts the close delay.',
+                  ]),
+                ]
+              : []),
+          ],
+        )
+      },
+    },
+    toParentMessage: message => Message.HoverCard({ message }),
+  })
 
 const InputGroupDemo = SlotView.forMessages<Message>()
   .define(InputGroupSlots, (value: string, slots, h) =>
@@ -1576,9 +1793,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               toView: Fieldset.toView([FieldsetStyle.mixin], { h }, resolved =>
                 h.fieldset(resolved.fieldset, [
                   h.legend(resolved.legend, ['Preferred contact']),
-                  RadioPreview(model.contact, h),
+                  RadioDemo(model, h),
                   h.span(resolved.description, [
-                    `Currently ${model.contact}. The group is a fieldset, the options radio pills.`,
+                    `Currently ${model.contact}. The group is a live radio: arrow keys move, the choice stays in the Model.`,
                   ]),
                 ]),
               ),
@@ -1601,10 +1818,20 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('feedback')]), [
           h.h2(slots.sectionTitle.attrs(), ['Feedback']),
           h.p(slots.sectionText.attrs(), [
-            'One badge style serves every tone through data-state; the dialog panel draws in place; toasts stack bottom-right and dismiss themselves.',
+            'One badge style serves every tone through data-state; toasts stack bottom-right and dismiss themselves.',
           ]),
           BadgesView(undefined, h),
-          DialogPreview(undefined, h),
+          h.div(slots.row.attrs(), [
+            Button.view(
+              {
+                label: 'Delete this project?',
+                style: DestructiveButtonStyle,
+                onClick: Message.OpenDeleteDialog(),
+              },
+              h,
+            ),
+          ]),
+          DialogDemo(model, h),
           h.div(slots.row.attrs(), [
             Button.view(
               { label: 'Notify', style: PrimaryButtonStyle, onClick: Message.NotifyPressed() },
@@ -1620,15 +1847,15 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ]),
           PopoverDemo(model, h),
           TooltipDemo(model, h),
-          HoverPreview(undefined, h),
+          HoverDemo(model, h),
         ]),
         h.section(slots.section.attrs([h.Id('navigation')]), [
           h.h2(slots.sectionTitle.attrs(), ['Navigation']),
           h.p(slots.sectionText.attrs(), [
             'Tabs in line and pill variants, and a Segmented plan picker — all driven by this page\u2019s own tab state.',
           ]),
-          LineTabsView(model.lineTab, h),
-          PillTabsView(model.pillTab, h),
+          LineTabsView(model, h),
+          PillTabsView(model, h),
           PlanView(model.plan, h),
           h.p(slots.sectionText.attrs(), [
             `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,

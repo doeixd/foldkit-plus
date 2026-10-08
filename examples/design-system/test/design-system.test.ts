@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
 import { Combobox, DatePicker, FileDrop, Listbox, Menu } from '@foldkit/ui'
+import { Dialog as UiDialog } from '@foldkit/ui'
+import { HoverIntent as UiHoverIntent } from '@foldkit/ui'
 import { Popover as UiPopover } from '@foldkit/ui'
+import { RadioGroup as UiRadioGroup } from '@foldkit/ui'
+import { Tabs as UiTabs } from '@foldkit/ui'
 import * as Animation from '@foldkit/ui/animation'
 import { File as FoldkitFile } from 'foldkit'
 import * as UiSlider from '@foldkit/ui/slider'
@@ -11,14 +15,26 @@ import { Message, ToastStack, initModel, rootOverrideOf, update } from '../src/m
 const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
 
 describe('design-system update', () => {
-  it('selects a hue, scheme, tab, and plan', () => {
+  it('selects a hue, scheme, tabs, and plan', () => {
     const hue = update(modelForTests, Message.HueSelected({ hue: 172 }))
     expect(hue.model.hue).toBe(172)
     const scheme = update(hue.model, Message.SchemeSelected({ scheme: 'dark' }))
     expect(scheme.model.scheme).toBe('dark')
-    const tab = update(scheme.model, Message.LineTabSelected({ tab: 'settings' }))
-    expect(tab.model.lineTab).toBe('settings')
-    const plan = update(tab.model, Message.PlanSelected({ plan: 'enterprise' }))
+    const tabs = update(
+      scheme.model,
+      Message.SectionsTabs({
+        message: UiTabs.Message.SelectedTab({ index: 2, value: 'settings' }),
+      }),
+    )
+    expect(tabs.model.lineTab).toBe('settings')
+    const pill = update(
+      tabs.model,
+      Message.RangeTabs({
+        message: UiTabs.Message.SelectedTab({ index: 2, value: 'month' }),
+      }),
+    )
+    expect(pill.model.pillTab).toBe('month')
+    const plan = update(pill.model, Message.PlanSelected({ plan: 'enterprise' }))
     expect(plan.model.plan).toBe('enterprise')
   })
 
@@ -35,12 +51,17 @@ describe('design-system update', () => {
     expect(clicked.model.clicks).toBe(1)
   })
 
-  it('selects a country, contact, and disclosure, drives the live slider, and toggles the popover', () => {
+  it('selects a country, contact radio, and disclosure, drives the live slider, and toggles the popover', () => {
     const country = update(modelForTests, Message.CountrySelected({ value: 'ca' }))
     expect(country.model.country).toBe('ca')
     const details = update(country.model, Message.DetailsToggled({ value: true }))
     expect(details.model.detailsOpen).toBe(true)
-    const contact = update(details.model, Message.ContactSelected({ contact: 'phone' }))
+    const contact = update(
+      details.model,
+      Message.ContactGroup({
+        message: UiRadioGroup.Message.SelectedOption({ index: 1, value: 'phone' }),
+      }),
+    )
     expect(contact.model.contact).toBe('phone')
     // Arrow keys step through the child's keyboard navigation.
     const stepped = update(
@@ -115,6 +136,44 @@ describe('design-system update', () => {
     expect(shown.model.tooltip.isOpen).toBe(true)
     const left = update(shown.model, Message.Tooltip({ message: UiTooltip.Message.LeftTrigger() }))
     expect(left.model.tooltip.isOpen).toBe(false)
+  })
+
+  it('opens the dialog on request and closes it on request', () => {
+    const opened = update(modelForTests, Message.OpenDeleteDialog())
+    expect(opened.model.dialog.isOpen).toBe(true)
+    const closed = update(
+      opened.model,
+      Message.DeleteDialog({ message: UiDialog.Message.RequestedClose() }),
+    )
+    expect(closed.model.dialog.isOpen).toBe(false)
+  })
+
+  it('opens the hover card after its delay and closes it on leave', () => {
+    const entered = update(
+      modelForTests,
+      Message.HoverCard({ message: UiHoverIntent.Message.EnteredTrigger() }),
+    )
+    expect(entered.model.hoverCard.isOpen).toBe(false)
+    const version = entered.model.hoverCard.pendingOpenVersion
+    const shown = update(
+      entered.model,
+      Message.HoverCard({
+        message: UiHoverIntent.Message.CompletedWaitBeforeOpening({ version }),
+      }),
+    )
+    expect(shown.model.hoverCard.isOpen).toBe(true)
+    const left = update(
+      shown.model,
+      Message.HoverCard({ message: UiHoverIntent.Message.LeftTrigger() }),
+    )
+    const closeVersion = left.model.hoverCard.pendingCloseVersion
+    const closed = update(
+      left.model,
+      Message.HoverCard({
+        message: UiHoverIntent.Message.CompletedWaitBeforeClosing({ version: closeVersion }),
+      }),
+    )
+    expect(closed.model.hoverCard.isOpen).toBe(false)
   })
 
   it('drives the menu, listbox, combobox, date picker, toast, and file drop folds', () => {

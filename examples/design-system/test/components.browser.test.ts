@@ -46,6 +46,45 @@ test('menu picks an action', async () => {
   await seen('Chose Forward.')
 })
 
+test('radio group selects with a click', async () => {
+  mount()
+  await page.getByRole('radio', { name: /phone/i }).click()
+  await seen('Currently phone.')
+})
+
+test('tabs switch panels', async () => {
+  mount()
+  await page.getByRole('tab', { name: 'Settings' }).click()
+  await seen('knobs for the whole page.')
+})
+
+test('dialog opens modal and cancel closes', async () => {
+  mount()
+  await page.getByRole('button', { name: 'Delete this project?' }).click()
+  await seen('It goes for good, with its history.')
+  expect(document.querySelector('dialog[open]')).not.toBeNull()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await vi.waitFor(
+    () => expect(document.body.textContent ?? '').not.toContain('It goes for good'),
+    { timeout: 10_000 },
+  )
+})
+
+test('hover card opens anchored and hides on leave', async () => {
+  mount()
+  const trigger = page.getByRole('button', { name: 'A team member' })
+  await trigger.hover()
+  await seen('Wren Quan, design engineer.')
+  // The Anchor behavior positioned the panel: it carries a placement.
+  await vi.waitFor(() => expect(document.querySelector('[data-placement]')).not.toBeNull(), {
+    timeout: 10_000,
+  })
+  await page.getByRole('button', { name: 'Show details' }).hover()
+  await vi.waitFor(() => expect(document.body.textContent ?? '').not.toContain('Wren Quan'), {
+    timeout: 10_000,
+  })
+})
+
 test('popover anchors and closes from its trigger', async () => {
   mount()
   await page.getByRole('button', { name: 'Show details' }).click()
