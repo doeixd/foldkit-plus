@@ -120,6 +120,7 @@ export const PageStyle = app.slots(
       {
         position: 'sticky',
         top: '0',
+        zIndex: '10',
         paddingBlock: t.space.xs,
         background: t.surface.base,
         borderBlockEnd: `${t.border.thin} solid ${t.outline.subtle}`,
@@ -461,7 +462,6 @@ export const PopoverStyle = app.forSlots(PopoverSlots)(
     ],
     panel: [
       {
-        marginBlockStart: t.space.xs,
         padding: t.space.md,
         maxWidth: '18rem',
         border: `${t.border.thin} solid ${t.outline.subtle}`,
@@ -471,6 +471,7 @@ export const PopoverStyle = app.forSlots(PopoverSlots)(
         color: t.text.muted,
       },
     ],
+    backdrop: [{ position: 'fixed', inset: '0' }],
   },
   { name: 'PopoverStyle' },
 )
@@ -811,15 +812,16 @@ export const FileDropStyle = app.forSlots(FileDropSlots)(
         background: t.accent.subtle,
         color: t.accent.ink,
       }),
-    ],
-    input: [
-      {
+      // The input keeps its component-owned class, which a mixin class does
+      // not survive beside (only the base class reaches the element), so the
+      // visually-hidden treatment hangs off the root instead.
+      Style.nest('& > input', {
         position: 'absolute',
         inlineSize: '1px',
         blockSize: '1px',
         overflow: 'hidden',
         clipPath: 'inset(50%)',
-      },
+      }),
     ],
   },
   { name: 'FileDropStyle' },

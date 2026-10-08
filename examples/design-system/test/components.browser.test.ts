@@ -46,6 +46,17 @@ test('menu picks an action', async () => {
   await seen('Chose Forward.')
 })
 
+test('popover anchors and closes from its trigger', async () => {
+  mount()
+  await page.getByRole('button', { name: 'Show details' }).click()
+  await seen('Project details, anchored live')
+  await page.getByRole('button', { name: 'Show details' }).click()
+  await vi.waitFor(
+    () => expect(document.body.textContent ?? '').not.toContain('Project details, anchored live'),
+    { timeout: 10_000 },
+  )
+})
+
 test('listbox picks a frequency', async () => {
   mount()
   await page.getByRole('button', { name: 'Select frequency' }).click()

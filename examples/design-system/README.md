@@ -27,8 +27,9 @@ What it shows:
   entries that dismiss themselves.
 - **Date** — the `Calendar` grid plus a live `DatePicker` that writes the due
   date.
-- **Overlays** — `Popover` (real open state), `Tooltip` (shows on hover or
-  focus, hides on leave), and `HoverIntent` panels drawn in place.
+- **Overlays** — `Popover` (anchored, dismisses on escape/outside), `Tooltip`
+  (shows on hover or focus, hides on leave), and `HoverIntent` panels drawn
+  in place.
 - **Navigation** — `Tabs` (`line` and `pill`) and `Segmented`, driven by the
   application's own tab state rather than a Submodel.
 - **Calendar** — a month grid preview with a selected day.

@@ -19,6 +19,7 @@ import {
   FileDrop as UiFileDrop,
   Listbox as UiListbox,
   Menu as UiMenu,
+  Popover as UiPopover,
 } from '@foldkit/ui'
 import type { CalendarAttributes } from '@foldkit/ui/calendar'
 import type { EntryHandlers } from '@foldkit/ui/toast'
@@ -52,7 +53,7 @@ import {
   MenuSlots,
   MenuView,
   Patterns,
-  PopoverSlots,
+  Popover,
   RadioGroupSlots,
   SegmentedSlots,
   Select,
@@ -217,7 +218,7 @@ export const Model = Schema.Struct({
   toast: ToastStack.Model,
   drop: UiFileDrop.Model,
   files: Schema.Array(File.File),
-  popoverOpen: Schema.Boolean,
+  popover: UiPopover.Model,
   address: Schema.String,
 })
 export type Model = typeof Model.Type
@@ -246,7 +247,7 @@ export const Message = defineMessageUnion({
   NotifyPressed: {},
   DropFiles: { message: UiFileDrop.Message },
   RemoveFile: { index: Schema.Number },
-  PopoverToggled: {},
+  Popover: { message: UiPopover.Message },
   AddressTyped: { value: Schema.String },
 })
 export type Message = typeof Message.Type
@@ -287,7 +288,7 @@ export const initModel = (today: CalendarDate): Model => ({
   toast: ToastStack.init({ id: 'notify-toast' }),
   drop: UiFileDrop.init({ id: 'attachments' }),
   files: [],
-  popoverOpen: false,
+  popover: UiPopover.init({ id: 'details-popover' }),
   address: 'about',
 })
 
@@ -331,7 +332,7 @@ export const update = (model: Model, message: Message) =>
     RemoveFile: ({ index }) => ({
       model: modifyFields(model, { files: files => files.filter((_, at) => at !== index) }),
     }),
-    PopoverToggled: () => ({ model: modifyFields(model, { popoverOpen: open => !open }) }),
+    Popover: ({ message }) => foldPopover(model, message),
     AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
 
@@ -364,6 +365,17 @@ const foldTooltip = Update.foldChild({
   foldOutMessage: UiTooltip.OutMessage.match<Update.Step<Model, Message>>({
     Shown: () => model => ({ model }),
     Hidden: () => model => ({ model }),
+  }),
+})
+
+const foldPopover = Update.foldChild({
+  update: UiPopover.update,
+  read: (model: Model) => Option.some(model.popover),
+  write: (model, popover) => modifyFields(model, { popover: () => popover }),
+  toParentMessage: message => Message.Popover({ message }),
+  foldOutMessage: UiPopover.OutMessage.match<Update.Step<Model, Message>>({
+    Opened: () => model => ({ model }),
+    Closed: () => model => ({ model }),
   }),
 })
 
@@ -1108,28 +1120,41 @@ const CalendarPreview = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(CalendarStyle))
 
-const PopoverPreview = SlotView.forMessages<Message>()
-  .define(PopoverSlots, (open: boolean, slots, h) =>
-    h.div(
-      [],
-      [
-        h.button(
-          slots.button.attrs([
-            h.Type('button'),
-            h.AriaExpanded(open),
-            h.OnClick(Message.PopoverToggled()),
-          ]),
-          [open ? 'Close details' : 'Show details'],
-        ),
-        open
-          ? h.div(slots.panel.attrs(), [
-              'A popover panel, drawn in place. The real component anchors this against its trigger and closes on escape or outside press.',
-            ])
-          : h.empty,
-      ],
-    ),
-  )
-  .pipe(Style.attach(PopoverStyle))
+/**
+ * A live details popover: anchored against its trigger, dismissed on escape
+ * or outside press. The draw places the resolved bundles; the backdrop only
+ * exists while open.
+ */
+const PopoverDemo = (model: Pick<Model, 'popover'>, h: HtmlBuilder<Message>): Html =>
+  h.submodel({
+    slotId: model.popover.id,
+    model: model.popover,
+    view: UiPopover.view,
+    viewInputs: {
+      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
+      toView: attributes => {
+        const resolved = Popover.resolve(attributes, [PopoverStyle.mixin], {
+          input: undefined,
+          h,
+        })
+        return h.div(
+          [],
+          [
+            h.button(resolved.button, ['Show details']),
+            ...(resolved.isVisible
+              ? [
+                  h.div(resolved.backdrop, []),
+                  h.div(resolved.panel, [
+                    'Project details, anchored live: six people, three open milestones, and one demo that keeps growing.',
+                  ]),
+                ]
+              : []),
+          ],
+        )
+      },
+    },
+    toParentMessage: message => Message.Popover({ message }),
+  })
 
 /**
  * The live hint tooltip: the panel renders only while the component is
@@ -1584,9 +1609,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.section(slots.section.attrs([h.Id('overlays')]), [
           h.h2(slots.sectionTitle.attrs(), ['Overlays']),
           h.p(slots.sectionText.attrs(), [
-            'Floating UI with real state: a popover that opens, a tooltip that shows on hover or focus, and a hover card. The live components anchor against their triggers and dismiss on escape.',
+            'Floating UI with real state: a popover that anchors, a tooltip that shows on hover or focus, and a hover card. Escape or an outside press dismisses them.',
           ]),
-          PopoverPreview(model.popoverOpen, h),
+          PopoverDemo(model, h),
           TooltipDemo(model, h),
           HoverPreview(undefined, h),
         ]),

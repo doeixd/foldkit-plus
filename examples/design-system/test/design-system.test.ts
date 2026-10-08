@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
 import { Combobox, DatePicker, FileDrop, Listbox, Menu } from '@foldkit/ui'
+import { Popover as UiPopover } from '@foldkit/ui'
 import * as Animation from '@foldkit/ui/animation'
 import { File as FoldkitFile } from 'foldkit'
 import * as UiSlider from '@foldkit/ui/slider'
@@ -82,9 +83,17 @@ describe('design-system update', () => {
       Message.VolumeSlider({ message: UiSlider.Message.MovedDragPointer({ value: 80 }) }),
     )
     expect(idle.model.volume).toBe(60)
-    const popover = update(dragged.model, Message.PopoverToggled())
-    expect(popover.model.popoverOpen).toBe(true)
-    const address = update(popover.model, Message.AddressTyped({ value: 'pricing' }))
+    const popoverOpened = update(
+      dragged.model,
+      Message.Popover({ message: UiPopover.Message.RequestedOpen() }),
+    )
+    expect(popoverOpened.model.popover.isOpen).toBe(true)
+    const popoverClosed = update(
+      popoverOpened.model,
+      Message.Popover({ message: UiPopover.Message.RequestedClose() }),
+    )
+    expect(popoverClosed.model.popover.isOpen).toBe(false)
+    const address = update(popoverClosed.model, Message.AddressTyped({ value: 'pricing' }))
     expect(address.model.address).toBe('pricing')
   })
 
