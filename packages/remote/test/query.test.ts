@@ -205,13 +205,14 @@ describe('Query.define declares a query by what it means', () => {
   })
 
   it('says what it reads, which is the whole point of carrying the body', () => {
+    const slug = { entity: 'Post', key: 'slug', owner: Post.identity }
+    const id = { entity: 'Post', key: 'id', owner: Post.identity }
     expect(Query.dependencies(PostsBySlug.body!)).toEqual({
-      fields: [
-        { entity: 'Post', key: 'slug', owner: Post.identity },
-        { entity: 'Post', key: 'id', owner: Post.identity },
-      ],
+      fields: [slug, id],
       inputs: ['slug'],
       operations: ['eq'],
+      predicate: [slug],
+      order: [id],
     })
   })
 
