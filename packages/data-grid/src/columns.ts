@@ -49,8 +49,29 @@ export const CellEditor = defineTaggedUnion({
   Number: {},
   /** The schema's text is one of these, offered in order. */
   Choice: { options: Schema.Array(Schema.String) },
+  /** The schema decodes to a date: a native date field over the draft text. */
+  Date: {},
 })
 export type CellEditor = typeof CellEditor.Type
+
+/**
+ * Whether a schema decodes to a date, found as Effect's own tools find it:
+ * by the declaration's representation id. Only Date-ness is read here, never
+ * the text format: committing decodes the draft through the schema, and a
+ * refusal is the cell's error.
+ */
+const DATE_ID = 'effect/schema/Date'
+
+const isDate = (ast: SchemaAST.AST): boolean => {
+  if (!SchemaAST.isDeclaration(ast)) return false
+  const representation: unknown = ast.annotations?.['representation']
+  return (
+    typeof representation === 'object' &&
+    representation !== null &&
+    'id' in representation &&
+    representation.id === DATE_ID
+  )
+}
 
 /** A column's editor, from its schema; a column with none edits text. */
 export const editorOf = (schema: Schema.Top | undefined): CellEditor => {
@@ -63,7 +84,9 @@ export const editorOf = (schema: Schema.Top | undefined): CellEditor => {
     // Every member a text literal: anything else typed would be refused.
     if (options.length === encoded.types.length) return CellEditor.Choice({ options })
   }
-  return SchemaAST.isNumber(SchemaAST.toType(schema.ast)) ? CellEditor.Number() : CellEditor.Text()
+  const type = SchemaAST.toType(schema.ast)
+  if (isDate(type)) return CellEditor.Date()
+  return SchemaAST.isNumber(type) ? CellEditor.Number() : CellEditor.Text()
 }
 
 /** The ids of the columns that edit. */

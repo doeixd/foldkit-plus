@@ -27,6 +27,7 @@ interface Item {
   readonly id: string
   readonly status: typeof Status.Type
   readonly qty: number
+  readonly due: Date
 }
 const rows = RowModel.fromArray<Item>(
   // r2 is the last option, so a select that showed its first would be caught.
@@ -34,6 +35,7 @@ const rows = RowModel.fromArray<Item>(
     id: `r${index}`,
     status: index === 2 ? 'Discontinued' : 'Active',
     qty: index,
+    due: new Date(`2026-10-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`),
   })),
   item => item.id,
 )
@@ -41,6 +43,12 @@ const columns = Columns.define<Item>()({
   id: { header: 'Id', value: item => item.id, width: 80 },
   status: { header: 'Status', value: item => item.status, width: 120, edit: { schema: Status } },
   qty: { header: 'Qty', value: item => item.qty, width: 80, edit: { schema: Count } },
+  due: {
+    header: 'Due',
+    value: item => item.due,
+    width: 140,
+    edit: { schema: Schema.DateFromString },
+  },
 })
 
 const Grid = DataGrid.make({ id: 'items', columns })
@@ -61,6 +69,7 @@ const application = Bundle.assemble<Model, Message>()([
               Grid.matchEdit(edited, {
                 status: ({ row, value }) => `${row} is ${value}`,
                 qty: ({ row, value }) => `${row} has ${value + 1} less one`,
+                due: ({ row, value }) => `${row} is due ${value.toISOString().slice(0, 10)}`,
               }),
             ],
           }),
@@ -125,7 +134,7 @@ const mount = (choiceEditor: 'list' | 'native') => {
 const grid = () => document.getElementById('items')!
 const press = (target: Element, key: string) =>
   target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
-const focusOn = async (row: string, column: 'status' | 'qty') => {
+const focusOn = async (row: string, column: 'status' | 'qty' | 'due') => {
   document
     .getElementById(GridFocus.cellId('items', { row, column }))!
     .dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -226,6 +235,30 @@ test('a choice drawn native is a select, and a number a field with a decimal key
     field()!.dispatchEvent(new Event('input', { bubbles: true }))
     press(field()!, 'Enter')
     await vi.waitFor(() => expect(edits()).toEqual(['r0 is Pending', 'r1 has 42 less one']))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a date is picked in a date field over the ISO date, and read back a date', async () => {
+  const { handle, edits } = mount('native')
+  const date = () => document.querySelector<HTMLInputElement>('#items input[type="date"]')
+  try {
+    await ready()
+    // The draft is that instant's local calendar day. UTC midnight on the 2nd
+    // is still the 1st west of UTC, and the field has to show the local day.
+    await focusOn('r1', 'due')
+    press(grid(), 'Enter')
+    await vi.waitFor(() => expect(date()).not.toBeNull())
+    const due = new Date('2026-10-02T00:00:00.000Z')
+    const month = String(due.getMonth() + 1).padStart(2, '0')
+    const day = String(due.getDate()).padStart(2, '0')
+    expect(date()!.value).toBe(`${due.getFullYear()}-${month}-${day}`)
+    // A new date commits, and reads back decoded.
+    date()!.value = '2026-12-25'
+    date()!.dispatchEvent(new Event('input', { bubbles: true }))
+    press(date()!, 'Enter')
+    await vi.waitFor(() => expect(edits()).toEqual(['r1 is due 2026-12-25']))
   } finally {
     handle.dispose()
   }

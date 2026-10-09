@@ -284,7 +284,9 @@ A column with `edit` is editable. The grid owns the edit session (which
 cell, the draft, an error); the application owns the value, and hears of a
 commit as the grid's OutMessage. The column's `schema` says what its text
 means, from the text typed to the value: a draft is committed only when it
-decodes, and the failure's message is the cell's error.
+decodes, and the failure's message is the cell's error. A schema that
+decodes to a date (`Schema.DateFromString`) edits in a date field. The draft
+the field opens on is the local calendar day, `YYYY-MM-DD`, not the UTC day.
 
 ```ts
 // Dollars as typed, with at most two decimals, and the number they mean.
@@ -494,5 +496,5 @@ twice keeps its first place.
 
 - Not built: a drag across regions to pin a column (the view's column
   menu pins), a Shift-click row range,
-  more than one cell range, editors other than text, and a fill handle.
+  more than one cell range, and a fill handle.
 - Every row is one height.

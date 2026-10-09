@@ -869,6 +869,25 @@ describe('DataGrid editing', () => {
   })
 })
 
+describe('DataGrid date editing', () => {
+  interface Task {
+    readonly id: string
+    readonly due: Date
+  }
+  const dated = Columns.define<Task>()({
+    due: { header: 'Due', value: task => task.due, edit: { schema: Schema.DateFromString } },
+  })
+  const Dated = DataGrid.make({ id: 'dated', columns: dated })
+  type DatedCell = Parameters<typeof Dated.matchEdit>[0]
+
+  test('matchEdit hands a date column its decoded date, and refuses garbage', () => {
+    const read = (cell: DatedCell) =>
+      Dated.matchEdit(cell, { due: ({ value }) => value.toISOString() })
+    expect(read({ row: 't:1', column: 'due', text: '2026-10-08' })).toBe('2026-10-08T00:00:00.000Z')
+    expect(() => read({ row: 't:1', column: 'due', text: 'someday' })).toThrow(/refuses "someday"/)
+  })
+})
+
 describe('DataGrid undo and redo', () => {
   test.each([
     ['undo', Editing.Message.UndoRequested(), Editing.Out.UndoRequested()],

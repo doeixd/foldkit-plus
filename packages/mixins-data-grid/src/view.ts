@@ -644,11 +644,11 @@ const view = <Message>() => ({
           ]
           const shared = sharedWith((pressed, modifiers) => editorKey(address, pressed, modifiers))
           const changed = (draft: string) => input.wrap(grid.Message.EditChanged({ draft }))
-          const field = (mode: Option.Option<'decimal'>) =>
+          const field = (mode: Option.Option<'decimal'>, type: 'text' | 'date' = 'text') =>
             h.input(
               slots.editor.attrs([
                 ...shared,
-                h.Type('text'),
+                h.Type(type),
                 h.Value(edit.draft),
                 ...Option.match(mode, {
                   onNone: () => [],
@@ -668,6 +668,7 @@ const view = <Message>() => ({
             onSome: CellEditor.match({
               Text: () => [field(Option.none())],
               Number: () => [field(Option.some('decimal'))],
+              Date: () => [field(Option.none(), 'date')],
               Choice: ({ options }): ReadonlyArray<Html> =>
                 input.choiceEditor === 'native'
                   ? [

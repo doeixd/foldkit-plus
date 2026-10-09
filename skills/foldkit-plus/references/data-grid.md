@@ -5,8 +5,8 @@ built: the pure model, focus, two-axis virtualization, the accessible view in
 `foldkit-mixins-data-grid`, column state, selection, editing as text, Remote
 and CRUD rows, the clipboard, header drag, a column menu, and editing typed
 by Schema (a choice of literals is a combobox and listbox the grid draws,
-or a native select with `choiceEditor: 'native'`). A date editor and fill are
-not.
+or a native select with `choiceEditor: 'native'`; a `DateFromString` column
+is a date field prefilled with the local calendar day).
 
 ## What it owns
 

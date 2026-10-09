@@ -409,6 +409,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       CellEditor.match({
         Text: () => Option.none(),
         Number: () => Option.none(),
+        Date: () => Option.none(),
         Choice: ({ options }) => Option.some(options),
       }),
     )
@@ -999,7 +1000,20 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         onNone: () => '',
         onSome: row => {
           const column = options.columns.byId[address.column]
-          return column.edit?.draft?.(row) ?? Columns.textOf(column.value(row))
+          const authored = column.edit?.draft?.(row)
+          if (authored !== undefined) return authored
+          const value = column.value(row)
+          // A date input reads `YYYY-MM-DD` in the local calendar. `toISOString`
+          // is the UTC day, so a local midnight opens the field on the wrong one.
+          if (value instanceof Date && !Number.isNaN(value.getTime())) {
+            const editor = editorFor(address.column)
+            if (Option.exists(editor, CellEditor.guards.Date)) {
+              const month = String(value.getMonth() + 1).padStart(2, '0')
+              const day = String(value.getDate()).padStart(2, '0')
+              return `${value.getFullYear()}-${month}-${day}`
+            }
+          }
+          return Columns.textOf(value)
         },
       },
     )

@@ -266,8 +266,9 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
   gesture.
 - A column menu opens below its header, inside the scroll container: a grid
   shorter than the menu clips it.
-- There is no date editor: a column whose schema decodes to a date is
-  edited as text.
+- A `DateFromString` column edits in a date field. The draft is the local
+  calendar day, `YYYY-MM-DD`. Committing still decodes that text through
+  the schema.
 - A copy's text is drawn with the grid, built once per range and rows, so
   copying a very large range costs its size each time the range changes.
 - No fill handle yet.

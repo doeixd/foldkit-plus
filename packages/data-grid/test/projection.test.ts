@@ -6,6 +6,7 @@ import {
   ColumnLayout,
   Columns,
   DataGrid,
+  GridProjection,
   RowCount,
   RowModel,
 } from 'foldkit-data-grid'
@@ -439,6 +440,17 @@ describe('a column’s editor', () => {
       value: () => '',
       edit: { schema: Schema.Union([Schema.Literal('a'), Schema.String]) },
     },
+    due: {
+      header: 'Due',
+      value: () => new Date('2026-10-08T00:00:00.000Z'),
+      edit: { schema: Schema.DateFromString },
+    },
+    // Without a schema even a date value edits as text.
+    stamp: {
+      header: 'Stamp',
+      value: () => new Date('2026-10-08T00:00:00.000Z'),
+      edit: {},
+    },
   })
   const Editing = DataGrid.make({ id: 'editors', columns: edited })
 
@@ -447,11 +459,49 @@ describe('a column’s editor', () => {
     { column: 'line', editor: CellEditor.Choice({ options: ['Hardware', 'Garden'] }) },
     { column: 'price', editor: CellEditor.Number() },
     { column: 'either', editor: CellEditor.Text() },
+    { column: 'due', editor: CellEditor.Date() },
+    { column: 'stamp', editor: CellEditor.Text() },
   ])('$column is edited as its schema says', ({ column, editor }) => {
     expect(Editing.editorFor(column)).toEqual(Option.some(editor))
   })
 
   test('a column that does not edit has no editor', () => {
     expect(Editing.editorFor('sku')).toEqual(Option.none())
+  })
+})
+
+describe('a date edit’s draft', () => {
+  interface Task {
+    readonly id: string
+    readonly due: Date
+  }
+  const dated = Columns.define<Task>()({
+    due: { header: 'Due', value: task => task.due, edit: { schema: Schema.DateFromString } },
+  })
+  const Dated = DataGrid.make({ id: 'dated', columns: dated })
+
+  test('begins from the local calendar day, which a date field reads', () => {
+    // Tokyo midnight on the 8th is still the 7th in UTC. The draft must follow
+    // the local day; `toISOString().slice(0, 10)` would stay on the 7th.
+    const previous = process.env.TZ
+    process.env.TZ = 'Asia/Tokyo'
+    try {
+      const due = new Date('2026-10-07T15:00:00.000Z')
+      if (due.getHours() !== 0 || due.getDate() !== 8) {
+        throw new Error(
+          `TZ did not apply (${Intl.DateTimeFormat().resolvedOptions().timeZone}, day ${due.getDate()}, hour ${due.getHours()})`,
+        )
+      }
+      const datedRows = RowModel.fromArray([{ id: 't:1', due }], task => task.id)
+      const datedProject = GridProjection.make({
+        rows: datedRows,
+        columns: dated,
+        layout: ColumnLayout.initial(dated),
+      })
+      expect(Dated.draftOf(datedProject, { row: 't:1', column: 'due' })).toBe('2026-10-08')
+    } finally {
+      if (previous === undefined) delete process.env.TZ
+      else process.env.TZ = previous
+    }
   })
 })

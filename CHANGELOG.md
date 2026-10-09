@@ -18,6 +18,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-data-grid`: a date column edits in a date field.** A schema
+  that decodes to a date (`Schema.DateFromString`) is `CellEditor.Date`.
+  The draft the field opens on is the local calendar day, `YYYY-MM-DD`.
+  `toISOString` is the UTC day, so a local midnight used to open the field
+  on the wrong one.
+
 - **`foldkit-mixins-ui`: AspectRatio and Icon.** Both are a slot and a
   recipe, like Separator. `AspectRatio` holds content in a square, a 16:9
   frame, or a portrait. `Icon` hides a decorative glyph and names one that
