@@ -115,6 +115,9 @@ export const settleTodos = (journal: TodoJournal, db: D1Database): Effect.Effect
         .bind(SETTLED_KEY)
         .first<string>('value'),
     )
+    // `recover` runs the intent once and records it by the application's own
+    // effect identity, so an interrupted intent is retried rather than
+    // applied twice, and a failed one refuses to settle instead of advancing.
     const settled = yield* journal.recover({
       key: durableDocumentId(TODOS_KEY),
       from: Cursor.make(Number(saved ?? 0)),
@@ -158,8 +161,10 @@ const applyTodo = (db: D1Database, operation: Operation): Effect.Effect<void, un
  * A live source that polls D1 from inside the subscriber's own request.
  * Each tick re-reads every subscribed row through the entity's own source,
  * under the subscriber's principal, and emits a patch for what moved since
- * the last tick: appeared rows patch whole, vanished rows delete. Scalar
- * fields compare by identity; relations are out of scope for the poll.
+ * the last tick: a row absent at one tick and present at the next patches
+ * whole (so a subscription opened before the row existed still sees it
+ * appear), and one that was present and is gone deletes. Scalar fields
+ * compare by identity; relations are out of scope for the poll.
  */
 export const pollLive = (
   binding: EntitySource<string, DrizzleDatabase>,
@@ -177,12 +182,11 @@ export const pollLive = (
     if (wanted.size === 0) return Stream.never
     return Stream.unwrap(
       Effect.gen(function* () {
-        const ids = [...wanted.keys()]
         const read = (id: string, fields: ReadonlyArray<string>) =>
           binding.read({ ids: [id], fields: [...fields], principal })
-        // The baseline: what the rows look like when the subscription opens.
-        // A change that lands before it is already in it, so open the stream
-        // before the change you wait for.
+        // The baseline: what each subscribed row looks like when the
+        // subscription opens. A change that landed before it is already in
+        // it, so open the stream before the change you wait for.
         const previous = new Map<string, Record<string, unknown>>()
         for (const [id, fields] of wanted) {
           const [record] = yield* read(id, [...fields])
