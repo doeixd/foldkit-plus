@@ -31,6 +31,13 @@ label {
 .field {
   display: grid;
   gap: 0.25rem;
+  position: relative;
+  /* The error is absent until the field is invalid. This line is its place. */
+  padding-bottom: 1.25rem;
+}
+
+.form > button {
+  margin-bottom: 1.25rem;
 }
 
 .field input[type='text'] {
@@ -43,9 +50,16 @@ label {
 }
 
 .field-error {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
   color: #c0392b;
   font-size: 0.9rem;
+  line-height: 1.25rem;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 button,
@@ -86,8 +100,23 @@ button.done {
   cursor: pointer;
 }
 
-#status {
+#status,
+#editor-status,
+#Todos [role='status'],
+#Todos [role='alert'] {
+  margin: 0;
   min-height: 1.4em;
+  line-height: 1.4;
+}
+
+#status {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#status button {
+  padding: 0 0.4rem;
 }
 
 #editor {

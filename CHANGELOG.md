@@ -18,6 +18,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`examples/cloudflare` page:** saving, loading, and a field error keep the
+  space they will occupy. "Saving…" and "Loading…" use `Loading.shown`, so a
+  fast answer does not flash, and none of them push the form or the list.
+
 - **`examples/widgets`: a context menu opens at the pointer.** A right-click
   records the point, and the menu opens there. The keyboard, which has no
   point, still opens under the row. Navigation and the hover card keep a

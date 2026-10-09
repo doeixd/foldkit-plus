@@ -2,10 +2,15 @@
  * The list, the add form, and the rename editor. The list view is Crud's:
  * "Loading…" until the first page, the previous rows while a refresh is in
  * flight. A write's "Saving…" is Remote's pending mutations.
+ *
+ * Every indicator keeps its line from the first paint. `Loading.shown` leaves
+ * the words invisible until the wait has lasted, so a fast answer never
+ * flashes and nothing below moves when the words appear.
  */
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { RowListView } from 'foldkit-mixins-crud'
+import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { Loading, RowListSlots, RowListView } from 'foldkit-mixins-crud'
 import {
   AddForm,
   Data,
@@ -17,23 +22,66 @@ import {
   type TodoItem,
 } from './app.js'
 
-const TodoRows = RowListView.forMessages<Message>().define<TodoItem>({ name: 'Todos' })
+/** Busy words fade in only once the wait has lasted. The line's box is page.css. */
+const held = Loading.shown
+
+const IndicatorSlots = Slots.define({
+  line: Slot.make({ capability: Capability.Base }),
+})
+
+const Indicator = SlotView.forMessages<Message>()
+  .define(
+    IndicatorSlots,
+    (
+      input: {
+        readonly id: string
+        readonly busy: boolean
+        readonly alert: boolean
+        readonly text: string
+        readonly dismiss: boolean
+      },
+      slots,
+      h,
+    ) =>
+      h.p(
+        slots.line.attrs([
+          h.Id(input.id),
+          h.Role(input.alert ? 'alert' : 'status'),
+          ...(input.busy ? [h.AriaBusy(true)] : []),
+        ]),
+        [
+          input.text,
+          ...(input.dismiss
+            ? [' ', h.button([h.Type('button'), h.OnClick(Message.DismissedNotice())], ['Dismiss'])]
+            : []),
+        ],
+      ),
+  )
+  .pipe(Style.attach(Style.forSlots(IndicatorSlots)({ line: held })))
+
+const TodoRows = RowListView.forMessages<Message>()
+  .define<TodoItem>({ name: 'Todos' })
+  .pipe(Style.attach(Style.forSlots(RowListSlots)({ status: held })))
 
 const status = (model: Model, h: HtmlBuilder<Message>): Html =>
   Option.match(model.notice, {
     onSome: message =>
-      h.p(
-        [h.Id('status'), h.Role('alert')],
-        [
-          message,
-          ' ',
-          h.button([h.Type('button'), h.OnClick(Message.DismissedNotice())], ['Dismiss']),
-        ],
-      ),
-    onNone: () =>
-      Data.inspect(model).mutations.pending.length > 0
-        ? h.p([h.Id('status'), h.Role('status')], ['Saving…'])
-        : h.span([h.Id('status'), h.Hidden(true)], []),
+      Indicator({ id: 'status', busy: false, alert: true, text: message, dismiss: true }, h),
+    onNone: () => {
+      const busy = Data.inspect(model).mutations.pending.length > 0
+      return Indicator(
+        {
+          id: 'status',
+          busy,
+          alert: false,
+          // Absent while idle: the line stays, and the words are busy-only,
+          // so a finished save does not leave "Saving…" on screen.
+          text: busy ? 'Saving…' : '',
+          dismiss: false,
+        },
+        h,
+      )
+    },
   })
 
 const saveLine: Readonly<Record<string, string>> = {
@@ -48,12 +96,20 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
   const state = Rename.status(model)
   if (state === 'Closed') return h.span([h.Hidden(true)], [])
   const error = Rename.saveError(model)
+  const busy = state === 'Loading' || state === 'Saving'
   return h.section(
     [h.Id('editor')],
     [
-      h.p(
-        [h.Id('editor-status'), h.Role('status')],
-        [state === 'SaveFailed' ? `Not saved: ${error?.message ?? ''}` : (saveLine[state] ?? '')],
+      Indicator(
+        {
+          id: 'editor-status',
+          busy,
+          alert: state === 'SaveFailed' || state === 'NotFound' || state === 'LoadFailed',
+          text:
+            state === 'SaveFailed' ? `Not saved: ${error?.message ?? ''}` : (saveLine[state] ?? ''),
+          dismiss: false,
+        },
+        h,
       ),
       ...(state === 'Loading' || state === 'NotFound' || state === 'LoadFailed'
         ? []
@@ -106,7 +162,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
       h.p(
         [h.Class('lede')],
         [
-          'An edit shows at once. Saving… stays until the server confirms it. Another tab sees it on the next refresh.',
+          'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the next refresh.',
         ],
       ),
       h.label(

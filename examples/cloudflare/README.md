@@ -111,12 +111,14 @@ two routes. `src/client.ts` drives the wire for the test and the demo;
 
 - `Todo` is `Entity.define`. `done` is the integer `0 | 1` the column stores.
 - `AddTodoForm` and `RenameTodoForm` are `Form.make` over `Entity.input`.
-- `Crud.list` joins the `AllTodos` query to that selection. Until the first
-  page arrives the list says "Loading…". A later refresh keeps the rows.
+- `Crud.list` joins the `AllTodos` query to that selection. Its status line
+  is there from the first paint; `Loading.shown` says "Loading…" only once
+  the wait has lasted, and a later refresh keeps the rows.
 - Add, rename, toggle, and delete call `Data.mutate` with an optimistic
   patch. A new row is also prepended onto the `AllTodos` connection, and a
-  delete removes its edge. That paint is the same update as the click.
-  "Saving…" stays while the mutation is pending.
+  delete removes its edge. That paint is the same update as the click. The
+  "Saving…" line above the form is reserved the whole time, and its words
+  use the same delay, so a fast save neither flashes nor moves the list.
 - When the mutation succeeds, the list refreshes, so the server's title
   order replaces the optimistic prepend.
 - Another tab sees the change when its query refreshes, about once a second.
