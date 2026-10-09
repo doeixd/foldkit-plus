@@ -267,27 +267,12 @@ const follow = followPending(EditorSlot, {
 })
 
 /**
- * The site's pages asked for again when the open page is saved and not among
- * them: a save makes the entry, but a list joins something new only when it is
- * asked again. Remote returns the same Model while that is under way.
+ * The open page's revisions, asked for again once its state changed (a publish,
+ * a restore, an unpublish, an archive): a publish patches the entry and its new
+ * revision, but the revisions are a relation page, which Remote does not judge
+ * from an answer. The site's pages need nothing: the answer's patches reach them.
  */
-const listing = (model: Model): Model => {
-  const pages = sitePages.read(model)
-  return Option.match(PageEditor.storedEntry(model), {
-    onNone: () => model,
-    onSome: stored =>
-      pages._tag !== 'Ready' || pages.value.items.some(page => page.id === stored)
-        ? model
-        : Data.refresh(model, sitePages),
-  })
-}
-
-/**
- * The open page's revisions and the site's pages, asked for again once its state
- * changed (a publish, a restore, an unpublish, an archive): a publish patches the
- * entry, not its list of revisions, nor the list of pages.
- */
-const refreshedAfterChange = (before: Model, after: Model): Model => {
+const revisionsAfterChange = (before: Model, after: Model): Model => {
   const stateOf = (model: Model) =>
     Option.map(PageEditor.state(model), state => JSON.stringify(state))
   const changed =
@@ -295,11 +280,10 @@ const refreshedAfterChange = (before: Model, after: Model): Model => {
     Equal.equals(PageEditor.entry(before), PageEditor.entry(after)) &&
     !Equal.equals(stateOf(before), stateOf(after))
   if (!changed) return after
-  const withRevisions = Option.match(revisions(after), {
+  return Option.match(revisions(after), {
     onNone: () => after,
     onSome: projection => Data.refresh(after, projection),
   })
-  return Data.refresh(withRevisions, sitePages)
 }
 
 /** A page the address named as new, begun blank once the server says it has none. */
@@ -310,7 +294,7 @@ const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> =
 
 export const update = (model: Model, message: Message) => {
   const next = follow(begun(stepped(model, message)))
-  return { ...next, model: listing(refreshedAfterChange(model, next.model)) }
+  return { ...next, model: revisionsAfterChange(model, next.model) }
 }
 
 export const initial: Model = placements.initial({

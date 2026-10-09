@@ -169,23 +169,6 @@ const newPost: Command<Message> = {
   effect: Effect.sync(() => Message.StartedPost({ entry: Cms.newEntryId() })),
 }
 
-/**
- * An entry the worklist has not heard of is asked for again. A save patches the
- * entry, but a connection is a list the server put in order, and something new
- * joins it only when the query is asked again. Remote returns the same Model
- * while that is already under way, so this settles by itself.
- */
-const listing = (model: Model): Model => {
-  const page = Worklist.page(model)
-  return Option.match(PostEditor.entry(model), {
-    onNone: () => model,
-    onSome: entry =>
-      page._tag !== 'Ready' || page.value.items.some(row => row.id === entry)
-        ? model
-        : Worklist.refresh(model),
-  })
-}
-
 /** The post editor, as the address opens and names what it holds. */
 const routed = {
   entry: PostEditor.entry,
@@ -255,26 +238,26 @@ const stateOf = (model: Model): Option.Option<string> =>
   Option.map(PostEditor.state(model), state => JSON.stringify(state))
 
 /**
- * The open entry's history and the worklist, asked for again once its state
- * changed (a publish, a restore, an unpublish, an archive): a publish patches
- * the entry, not the list of revisions, nor which of the lists it belongs in.
+ * The open entry's history, asked for again once its state changed (a publish,
+ * a restore, an unpublish, an archive): a publish patches the entry and its new
+ * revision, but the history is a relation page, which Remote does not judge
+ * from an answer. The worklist needs nothing: the answer's patches reach it.
  */
-const refreshedAfterChange = (before: Model, after: Model): Model => {
+const historyAfterChange = (before: Model, after: Model): Model => {
   const changed =
     Option.isSome(stateOf(before)) &&
     Equal.equals(PostEditor.entry(before), PostEditor.entry(after)) &&
     !Equal.equals(stateOf(before), stateOf(after))
   if (!changed) return after
-  const withHistory = Option.match(history(after), {
+  return Option.match(history(after), {
     onNone: () => after,
     onSome: projection => Data.refresh(after, projection),
   })
-  return Worklist.refresh(withHistory)
 }
 
 const stepped = PostEditor.after((model: Model, message: Message) => {
   const next = placed(model, message)
-  return { ...next, model: listing(refreshedAfterChange(model, next.model)) }
+  return { ...next, model: historyAfterChange(model, next.model) }
 })
 
 /**

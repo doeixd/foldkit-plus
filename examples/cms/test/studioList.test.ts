@@ -13,11 +13,16 @@ import { Studio } from '../src/views/view.js'
 
 const step = (model: Model, message: Message): Model => update(model, message).model
 
-/** The worklist as it stands after its query read failed. */
-const failedList = (model: Model): Model => {
+/** The identity of the worklist's connection as `model` asks for it. */
+const worklistIdentity = (model: Model): string => {
   const active = Worklist.active.projectionOf(model)
   const connections = Option.isSome(active) ? connectionsOf(active.value as never) : []
-  const connection = (connections[0] as { readonly identity?: string } | undefined)?.identity ?? ''
+  return (connections[0] as { readonly identity?: string } | undefined)?.identity ?? ''
+}
+
+/** The worklist as it stands after its query read failed. */
+const failedList = (model: Model): Model => {
+  const connection = worklistIdentity(model)
   return step(
     model,
     Message.QueryFailed({ connection, error: { _tag: 'ReadFailed', message: 'unreachable' } }),
@@ -33,5 +38,52 @@ describe('the posts list', () => {
     // The retry asks the list again: it is no longer a failure.
     const retried = step(failed, Message.RetriedList())
     expect(Worklist.page(retried)._tag).not.toBe('Failed')
+  })
+})
+
+describe('an entry saved for the first time', () => {
+  it('joins the worklist: the save’s answer marks the list to be asked again', () => {
+    const identity = worklistIdentity(initial)
+    const entry = (id: string, label: string) => ({
+      entity: 'CmsEntry',
+      id,
+      values: { id, type: 'posts', label, createdAt: '2026-01-01', archivedAt: null },
+    })
+    const loaded = step(
+      step(
+        initial,
+        Message.ConnectionMerged({
+          connection: identity,
+          page: {
+            edges: [{ key: 'CmsEntry:e1', ref: { entity: 'CmsEntry', id: 'e1' } }],
+            start: { _tag: 'Terminal' },
+            end: { _tag: 'Terminal' },
+          },
+        }),
+      ),
+      Message.ReadReceived({
+        requests: [
+          {
+            entity: 'CmsEntry',
+            id: 'e1',
+            fields: ['id', 'type', 'label', 'createdAt', 'archivedAt'],
+          },
+        ],
+        result: { settled: [], entities: [entry('e1', 'First')] },
+        now: 0,
+      }),
+    )
+    expect(loaded.remote.connections[identity]?.stale).toBe(false)
+
+    // No code in the application asks for the list again; the answer does.
+    const saved = step(
+      loaded,
+      Message.MutationSucceeded({
+        requestId: 'save-e9',
+        entities: [entry('e9', 'Second')],
+        now: 1,
+      }),
+    )
+    expect(saved.remote.connections[identity]?.stale).toBe(true)
   })
 })
