@@ -51,8 +51,10 @@ describe('the HTTP transport the browser uses', () => {
     const settled = await run(submitted.commands![0]!.effect)
     const saved = update(submitted.model, settled as Message).model
     expect(PostEditor.status(saved)).toBe('Saved')
+    // The row shows the edit at once; the list is sorted by title, so it is also
+    // fetched again in case the edit moved it.
     const after = Posts.page(saved)
-    expect(after._tag === 'Ready' && after.value.items[1]?.title).toBe('Over HTTP')
+    expect(after._tag === 'Refreshing' && after.value.items[1]?.title).toBe('Over HTTP')
   })
 
   it('sorts and searches a list by changing the query’s input, which the Model holds', async () => {

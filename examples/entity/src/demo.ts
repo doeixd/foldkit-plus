@@ -132,13 +132,18 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     )
     // What to load is what the form writes: its fields, and each relation as a ref.
     // --- Managing ---
+    // A list a save may have reordered keeps its rows while it is fetched again.
     const describeList = (root: Model): string => {
-      const page = Posts.page(root)
-      return page._tag === 'Ready'
-        ? page.value.items
-            .map(row => `${row.id} "${row.title}"${row.published ? '' : ' (draft)'}`)
-            .join(', ')
-        : page._tag
+      const rows = (items: ReadonlyArray<{ id: string; title: string; published: boolean }>) =>
+        items.map(row => `${row.id} "${row.title}"${row.published ? '' : ' (draft)'}`).join(', ')
+      return RemoteData.match(Posts.page(root), {
+        Initial: () => 'Initial',
+        Loading: () => 'Loading',
+        Ready: page => rows(page.items),
+        Refreshing: page => `${rows(page.items)} (refetching)`,
+        Failed: error => `Failed ${error._tag}`,
+        NotFound: () => 'NotFound',
+      })
     }
     let listed = both
     for (const list of [Posts, Authors]) {
@@ -196,7 +201,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // The mutation's patches reached the store, so every Projection over the post moved.
     lines.push(`edited: ${describe(editing.read(model) as RemoteData<unknown>)}`)
     lines.push(`author again: ${describe(author.read(model).author)}`)
-    // The list too: its row is the same normalized post.
+    // The list too: its row is the same normalized post. The title is what the
+    // list is sorted by, so the save also marked it to be fetched again.
     lines.push(`post list again: ${describeList(model)}`)
 
     // --- Deleting ---

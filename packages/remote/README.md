@@ -1306,6 +1306,26 @@ A mutation that deletes says so. The server's outcome carries
 server names no list. Patches apply first, so an entity named both ways is
 deleted; a retry of the same request deletes nothing again.
 
+**Which lists a mutation changed is worked out from its answer.** Each patch
+says which fields of which row changed, and every loaded list over that Entity
+is judged by its query's body against the store the answer left:
+
+- a list whose body reads none of the changed fields stands;
+- a row it holds that still matches, or a row it does not hold that still does
+  not, leaves it standing;
+- a row that starts or stops matching, a held row whose ordering field changed,
+  or a row the client cannot judge (it lacks a field the body reads)
+  invalidates it, and its read entry fetches it again; a read of it already in
+  flight is restarted, since it could answer with the rows before the write;
+- a list over a `Query.make` query, which declares no body, is invalidated by
+  any change to its Entity.
+
+So a rename updates every view of the row and fetches nothing, and a status
+change refetches the lists filtered by status. Where a joining row goes is the
+server's to say, so a list a row joins is fetched rather than spliced.
+`Data.refresh` stays for what an answer cannot say, such as a server-side
+effect on rows it did not return.
+
 `Data.mutation(model, requestId)` reads what became of it from the Model:
 `Pending`, `Applied`, `Failed` with the error the server or transport gave, or
 `Unknown` for an id never started here (or settled so long ago it left the

@@ -53,6 +53,7 @@ import {
   type EntityRef,
   type FieldsFrom,
 } from './entity.js'
+import { changesOf, impactOn, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 
 /** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
@@ -86,6 +87,7 @@ import {
   remoteMessageSchema,
   remoteModelSchema,
   retentionRootsSchema,
+  invalidateConnections,
   updateRemote,
   withRefreshRequested,
   writeRead,
@@ -2531,8 +2533,52 @@ const bindDomain = <
         ? message
         : { ...live, policy: livePolicyFor(model, live.event) }
     const remote = store.get(model)
-    const next = updateRemote(remote, resolved as RemoteMessage)
+    const reduced = updateRemote(remote, resolved as RemoteMessage)
+    const answer =
+      message._tag === 'MutationSucceeded'
+        ? (message as Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>)
+        : undefined
+    // An answer is applied once per request: a repeat changes nothing, so it
+    // invalidates nothing either.
+    const next =
+      answer === undefined || remote.mutations.applied.has(answer.requestId)
+        ? reduced
+        : invalidateConnections(reduced, invalidatedBy(reduced, answer))
     return next === remote ? model : store.set(model, next as Store)
+  }
+
+  /**
+   * The loaded connections a write may have changed the rows of, judged by
+   * each connection's body against the store as the write left it.
+   */
+  const invalidatedBy = (
+    remote: RemoteModel,
+    answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
+  ): ReadonlyArray<string> => {
+    const changes = changesOf(answer)
+    if (changes.length === 0) return []
+    // A list the answer itself changed is as the server says it is now.
+    const named = new Set((answer.connections ?? []).map(change => change.connection))
+    const visible = visibleStoreOf(remote.entities, remote.optimistic)
+    return Object.keys(remote.connections).filter(identity => {
+      if (named.has(identity)) return false
+      const separator = identity.indexOf(IDENTITY_SEPARATOR)
+      const descriptor = definition.registry.queries.get(identity.slice(0, separator))
+      if (descriptor === undefined) return false
+      const held: HeldConnection = {
+        descriptor,
+        encoded: JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>,
+        holds: new Set(
+          visibleItems(
+            remote.connections[identity]!,
+            identity,
+            remote.optimistic.overlays,
+            remote.entities,
+          ).map(edge => entityKey(edge.ref.entity, edge.ref.id)),
+        ),
+      }
+      return changes.some(change => impactOn(held, visible, change)._tag === 'Invalidated')
+    })
   }
   // Two applications can have the same Model type; the owner token tells them apart.
   const assertOwned = (entry: ActiveEntry<AppModel>) => {

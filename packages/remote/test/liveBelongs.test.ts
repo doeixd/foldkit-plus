@@ -293,6 +293,13 @@ describe('An invalidating live event actually invalidates', () => {
     expect(edges(model, refetched)).toEqual(['p1'])
   })
 
+  it('restarts a read of it already in flight, as any invalidation does', () => {
+    const before = loaded([], refetched)
+    const model = insert(before, 'p9', refetched)
+
+    expect(model.remote.refresh.generation).toBe(before.remote.refresh.generation + 1)
+  })
+
   it('leaves every other connection alone', () => {
     const model = Data.reduce(loaded(), {
       _tag: 'LiveReceived',

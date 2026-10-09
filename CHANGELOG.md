@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: a mutation's answer invalidates the loaded lists it may
+  have changed.** Each patch is judged against every loaded list over its
+  Entity by the list's query body: a list stands when its rows and order are
+  provably unchanged (a rename, a row that still matches), and is otherwise
+  marked stale for its read entry to fetch again, restarting a read of it in
+  flight. A list over a `Query.make` query, with no body to judge by, is
+  invalidated by any change to its Entity, so such lists now refetch after a
+  mutation of their rows. A live `ConnectionInvalidate` also restarts a read in
+  flight now.
 - **`foldkit-remote-server`: a mutation Source is given the client's
   `requestId`**, which the client already sent and which is the same on every
   retry of a request. Record a write under it to recognise a retry; nothing

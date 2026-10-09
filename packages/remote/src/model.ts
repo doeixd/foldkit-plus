@@ -613,6 +613,23 @@ export const withRefreshRequested = (
 }
 
 /**
+ * Marks connections as needing to be asked again, and restarts a read of them
+ * already in flight: a page requested before what invalidated it could land
+ * after it, saying what is no longer true. `Remote.refresh` marks the same way.
+ */
+export const invalidateConnections = (
+  model: RemoteModel,
+  connections: ReadonlyArray<string>,
+): RemoteModel => {
+  if (connections.length === 0) return model
+  const marked = connections.reduce(
+    (current, connection) => updateRemote(current, { _tag: 'ConnectionInvalidated', connection }),
+    model,
+  )
+  return { ...marked, refresh: withRefreshRequested(marked.refresh, [], connections) }
+}
+
+/**
  * Records that a read of `requests` began under `generation`. A read that
  * carries no generation began under none, and leaves the marks as they are.
  */
@@ -927,7 +944,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // so it goes through the same reduction rather than a parallel one.
       return applied.invalidated === undefined
         ? next
-        : updateRemote(next, { _tag: 'ConnectionInvalidated', connection: applied.invalidated })
+        : invalidateConnections(next, [applied.invalidated])
     }
     case 'GapCleared':
       return clearGap(model, message.stream)

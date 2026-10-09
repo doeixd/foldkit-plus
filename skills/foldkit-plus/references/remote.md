@@ -387,6 +387,14 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 outcome. The client tombstones them: `NotFound`, and gone from every connection
 and relation, so the server names no list.
 
+**Lists after a mutation.** Each answered patch is judged against every loaded
+list over its Entity by the list's query body (`Query.dependencies`'
+`predicate`/`order`, `belongsEncoded`): a list stands when the body proves its
+rows and order unchanged, and is otherwise invalidated, restarting any read of
+it in flight, so its read entry refetches it. A `Query.make` list (no body) is
+invalidated by any change to its Entity. A joining row is fetched, never
+spliced. `Data.refresh` remains for effects the answer does not name.
+
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
 returned. A read the server answers with nothing about an id it was asked for

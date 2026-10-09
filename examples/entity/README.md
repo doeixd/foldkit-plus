@@ -109,7 +109,7 @@ status: Saved
 row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":"a1"}
 edited: Ready {"id":"p2","title":"Compilers, revised","published":true,"editor":{"entity":"Author","id":"a1"}}
 author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
-post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
+post list again: p1 "Notes on the Engine", p2 "Compilers, revised" (refetching)
 ```
 
 - **`form controls`** is what `Form.make` resolved from the input and the Entity,
@@ -137,7 +137,11 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
   `editor_id` changed by an ordinary Drizzle `update`.
 - **`edited`**, **`author again`** and **`post list again`** moved without a refetch. The mutation
   returned patches for the columns it wrote, and both Projections read the one
-  normalized post.
+  normalized post. The list is also marked to be fetched again: the save
+  changed a title, and `Posts` is a `Query.make` query, which declares no body
+  Remote could judge its order by, so the server says where the row now sits.
+  Its rows stay drawn meanwhile; this demo runs no read entry, so it stays
+  marked.
 
 ### A page of a relation
 
@@ -209,7 +213,7 @@ as `chosen`, and `pickers.active` is wired beside the lists.
 asked to delete p1: Confirming; rows 2 posts, 2 comments
   command Remote.mutate(DeletePost): MutationSucceeded
 confirmed: Deleted; rows 1 posts, 0 comments
-post list after delete: p2 "Compilers, revised"
+post list after delete: p2 "Compilers, revised" (refetching)
 author after delete: Ready {"name":"Ada","posts":[{"title":"Compilers, revised", …}]}
 ```
 
