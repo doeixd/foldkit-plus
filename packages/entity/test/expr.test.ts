@@ -193,17 +193,31 @@ describe('Query composes which rows, as data', () => {
     expect(one.where).toEqual([published, byTitle])
   })
 
-  it('says what the whole query reads, predicates and ordering together', () => {
+  it('says what the whole query reads, and which fields decide membership and which order', () => {
     const q = Query.from(Post).pipe(Query.where(byTitle), Query.orderBy(Order.asc(Post.fields.id)))
+    const title = { entity: 'Post', key: 'title', owner: Post.identity }
+    const id = { entity: 'Post', key: 'id', owner: Post.identity }
 
     expect(Query.dependencies(q)).toEqual({
-      fields: [
-        { entity: 'Post', key: 'title', owner: Post.identity },
-        { entity: 'Post', key: 'id', owner: Post.identity },
-      ],
+      fields: [title, id],
       inputs: ['title'],
       operations: ['eq'],
+      predicate: [title],
+      order: [id],
     })
+  })
+
+  it('names a field that both filters and orders in both roles, and once in fields', () => {
+    const q = Query.from(Post).pipe(
+      Query.where(byTitle),
+      Query.orderBy(Order.desc(Post.fields.title), Order.asc(Post.fields.id)),
+    )
+    const keys = (fields: ReadonlyArray<{ readonly key: string }>) => fields.map(f => f.key)
+    const found = Query.dependencies(q)
+
+    expect(keys(found.fields)).toEqual(['title', 'id'])
+    expect(keys(found.predicate)).toEqual(['title'])
+    expect(keys(found.order)).toEqual(['title', 'id'])
   })
 })
 

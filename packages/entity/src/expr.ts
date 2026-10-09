@@ -219,6 +219,16 @@ export interface Dependencies {
   readonly operations: ReadonlyArray<Operation>
 }
 
+/**
+ * What a query reads, with each field's role. A change to a `predicate` field
+ * can move a row into or out of the result; a change to an `order` field can
+ * move it within. A field in both is in both; `fields` is their union.
+ */
+export interface QueryDependencies extends Dependencies {
+  readonly predicate: ReadonlyArray<FieldDependency>
+  readonly order: ReadonlyArray<FieldDependency>
+}
+
 export const Expr = {
   /** A constant. Comparisons coerce a plain value, so this is rarely written. */
   literal,
@@ -508,9 +518,14 @@ export const Query = {
 
   /**
    * What the whole query reads: the fields and inputs of every predicate and
-   * every ordering term, and the operations it uses.
+   * every ordering term, and the operations it uses, with the fields also
+   * split by role.
    */
-  dependencies: (self: AnyQuery): Dependencies => dependenciesOf(...self.where, ...self.orderBy),
+  dependencies: (self: AnyQuery): QueryDependencies => ({
+    ...dependenciesOf(...self.where, ...self.orderBy),
+    predicate: dependenciesOf(...self.where).fields,
+    order: dependenciesOf(...self.orderBy).fields,
+  }),
 
   /**
    * The operations this query needs that `supported` does not list, in the

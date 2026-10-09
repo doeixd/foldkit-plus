@@ -245,7 +245,7 @@ const onlyPublished = Query.where(published)          // a reusable fragment
 const newest = Query.orderBy(Order.desc(Blog.Post.fields.title))
 
 const recent = Query.from(Blog.Post).pipe(onlyPublished, newest)
-Query.dependencies(recent)     // every predicate and ordering term at once
+Query.dependencies(recent)     // every field it reads, also split into `predicate` and `order`
 ```
 
 - **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a

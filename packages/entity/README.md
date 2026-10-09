@@ -574,7 +574,7 @@ from queries, not from what a database could express.
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
 | `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
-| `Query.dependencies(query)` | What the whole query reads: every predicate and ordering term. |
+| `Query.dependencies(query)` | What the whole query reads, with its fields also split by role: `predicate` (can change which rows match) and `order` (can change where a row sits). |
 | `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
 | `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |
 

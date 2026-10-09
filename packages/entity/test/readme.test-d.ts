@@ -11,6 +11,7 @@ import {
   Relation,
   dependenciesOf,
   type Dependencies,
+  type QueryDependencies,
   type EntityRef,
   type IdOf,
 } from '../src/index.js'
@@ -159,7 +160,7 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   const recent = Query.from(Blog.Post).pipe(onlyPublished, newestFirst)
 
   expectTypeOf(recent).toEqualTypeOf<Query<typeof Blog.Post>>()
-  expectTypeOf(Query.dependencies(recent)).toEqualTypeOf<Dependencies>()
+  expectTypeOf(Query.dependencies(recent)).toEqualTypeOf<QueryDependencies>()
 }
 
 {

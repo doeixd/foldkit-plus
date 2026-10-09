@@ -67,6 +67,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: `Query.dependencies` names each field's role.** Beside
+  `fields`, it returns `predicate` (fields that can change which rows match)
+  and `order` (fields that can change where a row sits), typed
+  `QueryDependencies`. A field that filters and orders is in both.
 - **`foldkit-primitives`: place a popup on a viewport point.**
   `Placing.placeAtPoint` is that point in the offset parent's coordinates.
   `placeAtTrigger` takes `at`: a point wins, and none places under the
