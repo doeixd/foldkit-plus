@@ -577,9 +577,10 @@ are built. Each phase lists its deliverables and acceptance there.
 ## UI platform
 
 [ui-DESIGN.md](./ui-DESIGN.md) orders this as a contract, then capabilities,
-then widgets. None of the pieces below exists yet; `mixins-ui` has a Field,
-Recipes and accessibility patterns to build from. Its Phase 1A is the gated
-`@foldkit/ui` adapter item above.
+then widgets. Phases 0–6 below are done. What landed after them, and what is
+still open, is [ui-INVENTORY.md](./ui-INVENTORY.md). The design's wave names
+and the changelog's wave names are different lists; the inventory records
+both.
 
 - [x] **Phase 0:** the UI contract in `docs/ui-architecture.md`:
   anatomy, capability, pattern, behavior, state, style, recipe, theme, widget
@@ -624,9 +625,17 @@ Recipes and accessibility patterns to build from. Its Phase 1A is the gated
   `foldkit-mixins-form`'s per-control validation wiring (no universal
   `Field` component: the derivation lives in the renderers that own the
   controls).
-- [ ] **Phases 7 to 10:** the component matrix in three waves, the stateless
-  visual vocabulary, patterns (CommandPalette among them; DataGrid is its own
-  section above), and blocks.
+- [x] **Phase 7, the waves that landed:** changelog Wave A and Wave B in
+  `examples/widgets`, plus progress, palette, sidebar, resizable, and
+  native-select. Separator and ScrollArea live in `foldkit-mixins-ui`.
+  The design's Wave C has not started. [ui-INVENTORY.md](./ui-INVENTORY.md).
+- [x] **Phase 8:** the stateless vocabulary in `foldkit-mixins-ui`, including
+  AspectRatio and Icon. `VisuallyHidden` is `U.srOnly`. Universal `Field`
+  stays unbuilt.
+- [ ] **Phase 9 as packages, and Phase 10 blocks:** palette, sidebar, and
+  resizable stay examples. Settings, search, date-range, file browser, tree
+  editor, and property panel are open. Blocks are not started. DataGrid is
+  its own section above.
 
 ## Mixins and styling
 
@@ -746,17 +755,15 @@ its README the details.
   showcase Dialog; keep `.extend` additive. Preserve known output keys where
   useful to avoid `?? Style.empty`, without requiring every Slot in partial
   styles. Removing a style does not remove markup. Design review §8.
-- [ ] **Mixins-UI: missing adapters and recipes.** No adapter for FileDrop,
-  Nav, DragAndDrop, Animation or VirtualList (each hands out attributes), nor
-  Menu, Listbox, Combobox, DatePicker or Toast. Audit upstream seams first;
-  prioritize Listbox/Combobox/DatePicker across Query Sync and Job Application.
+- [ ] **Mixins-UI: adapters still missing.** Nav, DragAndDrop, Animation, and
+  VirtualList still hand out attributes with no adapter. Menu, Listbox,
+  Combobox, DatePicker, Toast, FileDrop, and Calendar have adapters.
+  Recipes exist for Select, Popover, Tooltip, Slider, and RadioGroup.
+  Fieldset, Disclosure, HoverIntent, and Calendar still have no recipe.
   Internal items with class-only hooks need upstream render/attribute hooks,
-  not a second accessibility/state owner. Add recipes for Select, Fieldset,
-  Disclosure, Popover, Tooltip, HoverIntent, Slider, RadioGroup and Calendar
-  after their contracts are stable; verify focus, disabled, invalid, selected
-  and high-contrast states. `Textarea.resolve` and its result types are fixed;
-  review any remaining direct `SlotBuilder.attrs()` textarea issue separately.
-  `foldkit-ui-showcase`. Design review §6.
+  not a second accessibility/state owner. `Textarea.resolve` and its result
+  types are fixed; review any remaining direct `SlotBuilder.attrs()` textarea
+  issue separately. `foldkit-ui-showcase`. Design review §6.
 - [x] **Mixins-form: its fixed layout cannot show a check in progress or a
   page-level submitting state.** Done: the `checking` Slot, `data-validation`,
   and the `submitting` view input.

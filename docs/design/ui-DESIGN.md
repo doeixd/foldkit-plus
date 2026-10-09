@@ -10,7 +10,7 @@ Yes. I looked at the current `foldkit-plus` main branch, Foldkit’s `@foldkit/u
 
 So I **wouldn't build “a shadcn clone.”** I'd turn what you already have into a complete **Foldkit UI platform**.
 
-Base UI is a useful target because its philosophy is almost exactly where you're already heading: accessible, headless, composable primitives. :chatgpt-content-reference{index="0"} Shadcn adds the other half: coherent styled recipes, higher-level assemblies, distribution, and predictable composition. :chatgpt-content-reference{index="1"}
+Base UI is a useful target because its philosophy is almost exactly where you're already heading: accessible, headless, composable primitives. Shadcn adds the other half: coherent styled recipes, higher-level assemblies, distribution, and predictable composition.
 
 ## The architecture I think Foldkit-plus wants
 
@@ -124,7 +124,7 @@ MenuSlots = Slots.define({
 
 This is extremely high leverage.
 
-Base UI's Menu alone exposes trigger, popup, item, link item, submenu, groups, checkbox items, radio items, separators, positioning, etc. :chatgpt-content-reference{index="2"} You want Foldkit's Menu to expose a similarly complete *part vocabulary* without copying Base UI's React API.
+Base UI's Menu alone exposes trigger, popup, item, link item, submenu, groups, checkbox items, radio items, separators, positioning, etc. You want Foldkit's Menu to expose a similarly complete *part vocabulary* without copying Base UI's React API.
 
 ---
 
@@ -154,7 +154,7 @@ These are not merely styling recipes.
 | `ToggleGroup` | Toggle + Selection |
 | `Toolbar` | RovingTabindex + arbitrary controls |
 
-That gets you essentially all of the major Base UI interaction vocabulary. Base UI currently exposes things including Accordion, Alert Dialog, Autocomplete, Checkbox Group, Context Menu, Drawer, Menubar, Navigation Menu, Number Field, OTP Field, Scroll Area, Toggle Group and Toolbar that aren't first-class Foldkit-plus concepts today. :chatgpt-content-reference{index="3"}
+That gets you essentially all of the major Base UI interaction vocabulary. Base UI currently exposes things including Accordion, Alert Dialog, Autocomplete, Checkbox Group, Context Menu, Drawer, Menubar, Navigation Menu, Number Field, OTP Field, Scroll Area, Toggle Group and Toolbar that aren't first-class Foldkit-plus concepts today.
 
 And several of these become almost trivial given your primitives.
 
@@ -198,7 +198,7 @@ This is where your architecture starts paying dividends.
 
 This is where shadcn differs from Zag/Base UI.
 
-A **huge** portion of shadcn is really reusable visual grammar, not interactive state machines. Its current catalog includes things like Card, Badge, Alert, Aspect Ratio, Button Group, Empty, Input Group, Item, Kbd, Skeleton, Spinner, Table and Typography in addition to interactive widgets. :chatgpt-content-reference{index="4"}
+A **huge** portion of shadcn is really reusable visual grammar, not interactive state machines. Its current catalog includes things like Card, Badge, Alert, Aspect Ratio, Button Group, Empty, Input Group, Item, Kbd, Skeleton, Spinner, Table and Typography in addition to interactive widgets.
 
 These should **not** become Bundles.
 
@@ -274,7 +274,7 @@ No state machine required.
 
 These are surprisingly valuable.
 
-Shadcn has been moving toward reusable boring composition pieces such as `ButtonGroup`, `InputGroup`, `Field`, `Item`, and `Empty`, precisely because applications recreate them constantly. :chatgpt-content-reference{index="5"}
+Shadcn has been moving toward reusable boring composition pieces such as `ButtonGroup`, `InputGroup`, `Field`, `Item`, and `Empty`, precisely because applications recreate them constantly.
 
 Foldkit-plus should absolutely have equivalents.
 
@@ -482,7 +482,7 @@ Carousel
 Pagination
 ```
 
-Zag's great insight is that robust widgets are really coordinated state machines rather than piles of component callbacks. :chatgpt-content-reference{index="6"} Foldkit is naturally positioned to take that idea even further.
+Zag's great insight is that robust widgets are really coordinated state machines rather than piles of component callbacks. Foldkit is naturally positioned to take that idea even further.
 
 ---
 
@@ -1001,9 +1001,9 @@ If I were opening issues right now, I'd group them like this:
 
 **P0 — complete the foundation:** expose render seams upstream for Menu, Listbox, Combobox and DatePicker; add Mixins adapters for those plus Toast, FileDrop, VirtualList, DragAndDrop and Animation; formalize `Overlay`; formalize `Collection`; create shared Control/Surface/Field recipes; expand Theme with global knobs.
 
-**P1 — Base UI completeness:** Accordion, AlertDialog, Autocomplete, CheckboxGroup, ContextMenu, Drawer, Field, Menubar, Meter, NavigationMenu, NumberField, OTPField, Progress, ScrollArea, Separator, Toggle, ToggleGroup, Toolbar and Preview/HoverCard. Base UI's present component set is a very sensible minimum completeness target. :chatgpt-content-reference{index="7"}
+**P1 — Base UI completeness:** Accordion, AlertDialog, Autocomplete, CheckboxGroup, ContextMenu, Drawer, Field, Menubar, Meter, NavigationMenu, NumberField, OTPField, Progress, ScrollArea, Separator, Toggle, ToggleGroup, Toolbar and Preview/HoverCard. Base UI's present component set is a very sensible minimum completeness target.
 
-**P2 — shadcn application vocabulary:** Alert, AspectRatio, Avatar, Badge, Breadcrumb, ButtonGroup, Card, Command, Empty, InputGroup, Item, Kbd, NativeSelect, Pagination, Resizable, Skeleton, Spinner, Table, DataTable, Sidebar and Typography. :chatgpt-content-reference{index="8"}
+**P2 — shadcn application vocabulary:** Alert, AspectRatio, Avatar, Badge, Breadcrumb, ButtonGroup, Card, Command, Empty, InputGroup, Item, Kbd, NativeSelect, Pagination, Resizable, Skeleton, Spinner, Table, DataTable, Sidebar and Typography.
 
 **P3 — advanced/Zag territory:** ColorPicker, Editable, Rating, TagsInput, TreeView, Carousel, Splitter, Tour, Clipboard, richer FileUpload and more sophisticated composite widgets.
 
@@ -1895,7 +1895,7 @@ From what I've seen already, the high-value candidates are:
 So yes: I think our previous Foldkit-plus UI roadmap was actually missing an important source. **Zag + Base UI + shadcn tell us what surface area to cover; Affe tells us a lot about how the Foldkit-native architecture for covering it should work.**
 
 
-I’d tackle this as an **architecture-first program**, not a component sprint. The source material points to the same core conclusion repeatedly: the real goal is a Foldkit-native UI platform where components are thin compositions over reusable capabilities, anatomy, styles, behaviors, recipes, and state. :chatgpt-content-reference{index="0"}
+I’d tackle this as an **architecture-first program**, not a component sprint. The source material points to the same core conclusion repeatedly: the real goal is a Foldkit-native UI platform where components are thin compositions over reusable capabilities, anatomy, styles, behaviors, recipes, and state.
 
 The work should therefore be sequenced so that every new primitive unlocks multiple components instead of adding isolated widgets.
 
@@ -1921,7 +1921,7 @@ Higher-level Patterns
 Blocks
 ```
 
-This combines the Affe six-layer research with Foldkit’s stronger state/message architecture. The Affe material specifically argues for anatomy, recipes, state, behavior, and assembled widgets as separately replaceable layers, with a “no-fork guarantee” for customization. :chatgpt-content-reference{index="1"} :chatgpt-content-reference{index="2"}
+This combines the Affe six-layer research with Foldkit’s stronger state/message architecture. The Affe material specifically argues for anatomy, recipes, state, behavior, and assembled widgets as separately replaceable layers, with a “no-fork guarantee” for customization.
 
 The deliverable for this phase should be a short `docs/ui-architecture.md` that defines:
 
@@ -1936,7 +1936,7 @@ The deliverable for this phase should be a short `docs/ui-architecture.md` that 
 - **Widget:** assembled default.
 - **Block:** application-level composition.
 
-That vocabulary should become canonical before APIs proliferate. The same Anatomy → Capability → Pattern distinction is already identified in the research as the clean conceptual center. :chatgpt-content-reference{index="3"}
+That vocabulary should become canonical before APIs proliferate. The same Anatomy → Capability → Pattern distinction is already identified in the research as the clean conceptual center.
 
 ---
 
@@ -1969,7 +1969,7 @@ DragAndDrop
 Animation
 ```
 
-The current source explicitly identifies these as the major hole in `mixins-ui`. :chatgpt-content-reference{index="4"}
+The current source explicitly identifies these as the major hole in `mixins-ui`.
 
 Every adapted component should expose a full typed anatomy, not just the minimum currently needed.
 
@@ -2008,7 +2008,7 @@ backed by existing Slots.
 
 But every widget should expose one.
 
-Affe’s research showed the value of anatomy as the common target for styles, behaviors, accessibility, tooling, testing, and agents. :chatgpt-content-reference{index="5"}
+Affe’s research showed the value of anatomy as the common target for styles, behaviors, accessibility, tooling, testing, and agents.
 
 ### 1C. Expand slot capabilities
 
@@ -2044,7 +2044,7 @@ Behavior.attach(...)
 
 should reject incompatible anatomy at compile time.
 
-Affe already researched exactly this behavior-slot compatibility model. :chatgpt-content-reference{index="6"}
+Affe already researched exactly this behavior-slot compatibility model.
 
 ### 1D. Add public/internal slot visibility
 
@@ -2074,7 +2074,7 @@ focusProxy
 
 while public anatomy remains stable.
 
-This gives you a very useful compatibility boundary for a long-lived component library. :chatgpt-content-reference{index="7"}
+This gives you a very useful compatibility boundary for a long-lived component library.
 
 ---
 
@@ -2099,7 +2099,7 @@ Focus
 Press
 ```
 
-plus Drag, Validation, Disclosure, form semantics, etc. :chatgpt-content-reference{index="8"}
+plus Drag, Validation, Disclosure, form semantics, etc.
 
 I’d work them in this order.
 
@@ -2131,7 +2131,7 @@ DragReorder
 
 Collection should be usable by both stateful Bundles and Behaviors.
 
-This one primitive eventually powers Listbox, Select, Combobox, Menu, Command, RadioGroup, ToggleGroup, Tabs, Tree, Grid, Carousel, Pagination, etc. :chatgpt-content-reference{index="9"}
+This one primitive eventually powers Listbox, Select, Combobox, Menu, Command, RadioGroup, ToggleGroup, Tabs, Tree, Grid, Carousel, Pagination, etc.
 
 This is probably the **highest-leverage primitive in the project**.
 
@@ -2173,7 +2173,7 @@ top-layer/native behavior
 
 Dialog, Popover, Tooltip, Menu, Select, Combobox, ContextMenu, NavigationMenu, CommandPalette, DatePicker, HoverCard should all use it.
 
-The existing research explicitly warns against those widgets evolving nine subtly different overlay implementations. :chatgpt-content-reference{index="10"}
+The existing research explicitly warns against those widgets evolving nine subtly different overlay implementations.
 
 ### 2C. Selection/navigation family
 
@@ -2263,7 +2263,7 @@ Elevated
 Scrollable
 ```
 
-This idea appears both in the Affe style work and the Foldkit-plus plan: components should not independently reimplement border, radius, focus, disabled state, transitions, typography, etc. :chatgpt-content-reference{index="11"}
+This idea appears both in the Affe style work and the Foldkit-plus plan: components should not independently reimplement border, radius, focus, disabled state, transitions, typography, etc.
 
 For example:
 
@@ -2304,7 +2304,7 @@ Recipe.define(Menu.Anatomy, {
 })
 ```
 
-That prevents recipe drift and invalid slot names. Affe’s multipart recipe research strongly supports this model. :chatgpt-content-reference{index="12"}
+That prevents recipe drift and invalid slot names. Affe’s multipart recipe research strongly supports this model.
 
 ### Add composition
 
@@ -2349,7 +2349,6 @@ contrast: soft | normal | strong
 controlSize: sm | md | lg
 ```
 
-:chatgpt-content-reference{index="13"}
 
 Then make:
 
@@ -2383,7 +2382,7 @@ Style.when(Container.atLeast("sm"), ...)
 Style.when(Preference.reducedMotion, ...)
 ```
 
-The research specifically calls responsive/container/preference-aware styles a missing primitive. :chatgpt-content-reference{index="14"}
+The research specifically calls responsive/container/preference-aware styles a missing primitive.
 
 ---
 
@@ -2409,7 +2408,7 @@ Dialog.platform = Platform.dialog({
 
 rather than automatically recreating all of those in JS.
 
-That is directly borrowed from Affe’s “platform floor” research and already fits Foldkit-plus’s existing `floor` metadata. :chatgpt-content-reference{index="15"}
+That is directly borrowed from Affe’s “platform floor” research and already fits Foldkit-plus’s existing `floor` metadata.
 
 Then create one central registry:
 
@@ -2437,7 +2436,7 @@ CI should iterate it and enforce:
 A widget without a passing accessibility pattern does not ship.
 ```
 
-Affe already explored exactly this mechanized registry/gate design. :chatgpt-content-reference{index="16"}
+Affe already explored exactly this mechanized registry/gate design.
 
 Later this same catalog can generate:
 
@@ -2475,7 +2474,7 @@ Dismiss
 Field
 ```
 
-The existing source already identifies Combobox as the canonical example of capability composition. :chatgpt-content-reference{index="17"}
+The existing source already identifies Combobox as the canonical example of capability composition.
 
 ### `Menu`
 
@@ -2504,7 +2503,7 @@ optional DragAndDrop
 optional virtualization
 ```
 
-The current plan specifically identifies Tree as a showcase for the architecture. :chatgpt-content-reference{index="18"}
+The current plan specifically identifies Tree as a showcase for the architecture.
 
 ### `Field`
 
@@ -2518,7 +2517,7 @@ visual recipes
 control anatomy
 ```
 
-and should automatically derive things like invalid/description/error/touched state from the Form package. :chatgpt-content-reference{index="19"}
+and should automatically derive things like invalid/description/error/touched state from the Form package.
 
 ### `Drawer`
 
@@ -2555,7 +2554,7 @@ Toolbar          ✓       ✓
 ...
 ```
 
-This was one of the strongest conclusions in the source: **track missing capabilities, not merely missing component names.** :chatgpt-content-reference{index="20"}
+This was one of the strongest conclusions in the source: **track missing capabilities, not merely missing component names.**
 
 Build components in dependency order.
 
@@ -2602,7 +2601,7 @@ FileUpload
 SignaturePad
 ```
 
-The current backlog already groups the work naturally into Base UI completeness, shadcn application vocabulary, and advanced/Zag-style territory. :chatgpt-content-reference{index="21"}
+The current backlog already groups the work naturally into Base UI completeness, shadcn application vocabulary, and advanced/Zag-style territory.
 
 ---
 
@@ -2632,7 +2631,7 @@ Typography
 VisuallyHidden
 ```
 
-That distinction matters: the research explicitly argues against making every visual unit a stateful component. :chatgpt-content-reference{index="22"}
+That distinction matters: the research explicitly argues against making every visual unit a stateful component.
 
 Also add compositional pieces like:
 
@@ -2644,7 +2643,7 @@ Item
 Empty
 ```
 
-because these eliminate huge amounts of application-level repetition. :chatgpt-content-reference{index="23"}
+because these eliminate huge amounts of application-level repetition.
 
 ---
 
@@ -2681,7 +2680,6 @@ Collection
 + ColumnSizing
 ```
 
-:chatgpt-content-reference{index="24"}
 
 ---
 
@@ -2712,7 +2710,7 @@ Form
 + Remote
 ```
 
-rather than just giving users a lump of view code. :chatgpt-content-reference{index="25"}
+rather than just giving users a lump of view code.
 
 ---
 
@@ -2760,4 +2758,4 @@ component expansion
 
 That avoids ending up with 50 widgets that all contain slightly different solutions to the same problems.
 
-The end-state you’re aiming for is essentially the one stated in the source: **shadcn-level completeness, Zag/Base UI-level interaction rigor, and Foldkit-native composability from low-level primitives all the way to application blocks.** :chatgpt-content-reference{index="26"}
+The end-state you’re aiming for is essentially the one stated in the source: **shadcn-level completeness, Zag/Base UI-level interaction rigor, and Foldkit-native composability from low-level primitives all the way to application blocks.**
