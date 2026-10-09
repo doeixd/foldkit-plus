@@ -77,6 +77,15 @@ describe('placeAt', () => {
   })
 })
 
+describe('placeAtPoint', () => {
+  it('puts the top-left on the point, in the offset parent', () => {
+    expect(Placing.placeAtPoint({ x: 200, y: 80 }, { left: 20, top: 16 })).toEqual({
+      left: 180,
+      top: 64,
+    })
+  })
+})
+
 const placedPanel = () => {
   const builders = SlotView.buildersFor(
     PanelSlots,

@@ -6,7 +6,7 @@
 import { Effect, Fiber, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import { afterEach, expect, it, vi } from 'vitest'
-import { PlaceAt, placedTop } from '../src/interaction/placing.js'
+import { PlaceAt, PlaceAtPoint, placedTop } from '../src/interaction/placing.js'
 
 afterEach(() => {
   document.body.replaceChildren()
@@ -42,6 +42,22 @@ it('opens under the named trigger and clears the offset when it goes', async () 
     expect(placed.left).toBeCloseTo(trigger.left, 0)
     expect(placed.top).toBeCloseTo(trigger.bottom + 4, 0)
     expect(placed.left).toBeGreaterThan(file.getBoundingClientRect().left + 40)
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+  expect(popup.style.left).toBe('')
+  expect(popup.style.getPropertyValue(placedTop)).toBe('')
+})
+
+it('opens with its top-left on a viewport point', async () => {
+  const { popup } = layout()
+  const point = { x: 140, y: 90 }
+  const fiber = Effect.runFork(Stream.runDrain(PlaceAtPoint(point).f(popup, liveViewStateChanges)))
+  try {
+    await vi.waitFor(() => expect(popup.style.left).not.toBe(''))
+    const placed = popup.getBoundingClientRect()
+    expect(placed.left).toBeCloseTo(point.x, 0)
+    expect(placed.top).toBeCloseTo(point.y, 0)
   } finally {
     await Effect.runPromise(Fiber.interrupt(fiber))
   }

@@ -40,6 +40,17 @@ export default [
     tests,
   },
   {
+    name: 'a point is placed at the origin',
+    edits: [
+      {
+        file: '../src/interaction/placing.ts',
+        find: 'left: point.x - origin.left,\n  top: point.y - origin.top,',
+        replace: 'left: origin.left,\n  top: origin.top,',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the popup sits on the trigger instead of under it',
     edits: [
       {

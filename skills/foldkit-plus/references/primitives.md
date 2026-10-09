@@ -173,9 +173,11 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   is the pure rule. No timers or repositioning, inert without layout. Not `dom`'s `KeepInView`, which scrolls
   content into view instead.
 - **Open a popup under its trigger:** `Placing.placeAt(trigger, origin, gap?)` is the offset;
-  `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap? })` writes `left` and `--fk-placed-top`
-  (`Placing.placedTop`) once. The stylesheet reads the variable as `top`, so `keepWithin` can still
-  flip. Key the popup by the trigger. Not `Anchor.behavior`, which portals and tracks.
+  `Placing.placeAtPoint(point, origin)` is the same offset for a viewport point.
+  `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap?, at? })` writes `left` and `--fk-placed-top`
+  (`Placing.placedTop`) once; `at` returning a point wins over the trigger. The stylesheet reads the
+  variable as `top`, so `keepWithin` can still flip. Key the popup by what the args depend on.
+  Not `Anchor.behavior`, which portals and tracks.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
   `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).

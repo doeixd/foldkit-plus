@@ -11,6 +11,8 @@
  * the popup's offset parent; the panel's stylesheet reads the variable as
  * `top`, so `keepWithin` can still replace `top` when it flips. Key the
  * popup by the trigger: a Mount reads its args at insert and never again.
+ * `placeAtPoint` is the same write for a viewport point, when the open
+ * event carried coordinates the message builder dropped.
  * Zero-size rects stay at the origin, so an inert document writes nothing
  * a layout pass would have to undo.
  *
@@ -27,7 +29,7 @@
  * - `Overlay.behaviors` owns dismissal, focus, scroll lock, and inertness,
  *   but no positioning; spread this alongside it for the full overlay.
  */
-import { Effect, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { Behavior, Capability } from 'foldkit-mixins'
 
@@ -92,6 +94,19 @@ export const placeAt = (trigger: AnchorRect, origin: OriginRect, gap = 4): Place
   }
 }
 
+export interface ViewportPoint {
+  readonly x: number
+  readonly y: number
+}
+
+/** Where a popup's top-left sits on a viewport point, in the offset parent's
+ *  coordinates. A context menu uses it: the right-click event carries the
+ *  point, and `OnContextMenu` does not. */
+export const placeAtPoint = (point: ViewportPoint, origin: OriginRect): PlacedAt => ({
+  left: point.x - origin.left,
+  top: point.y - origin.top,
+})
+
 export const KeepWithin = Mount.defineStream('KeepWithin', {
   messages: [Schema.Never],
   execute: ({ element }) =>
@@ -127,6 +142,21 @@ const paddingEdge = (node: HTMLElement): OriginRect => {
   return { left: rect.left + node.clientLeft, top: rect.top + node.clientTop }
 }
 
+const originOf = (element: HTMLElement): OriginRect => {
+  const originNode = element.offsetParent
+  return originNode instanceof HTMLElement ? paddingEdge(originNode) : { left: 0, top: 0 }
+}
+
+const applyPlaced = (element: HTMLElement, placed: PlacedAt): void => {
+  element.style.left = `${placed.left}px`
+  element.style.setProperty(placedTop, `${placed.top}px`)
+}
+
+const clearPlaced = (element: HTMLElement): void => {
+  element.style.left = ''
+  element.style.removeProperty(placedTop)
+}
+
 export const PlaceAt = Mount.defineStream('PlaceAt', {
   messages: [Schema.Never],
   args: {
@@ -142,29 +172,50 @@ export const PlaceAt = Mount.defineStream('PlaceAt', {
           if (!(element instanceof HTMLElement)) return
           const trigger = document.getElementById(triggerId)
           if (!(trigger instanceof HTMLElement)) return
-          const originNode = element.offsetParent
-          const origin =
-            originNode instanceof HTMLElement ? paddingEdge(originNode) : { left: 0, top: 0 }
           const rect = trigger.getBoundingClientRect()
-          const placed = placeAt(
-            {
-              left: rect.left,
-              top: rect.top,
-              bottom: rect.bottom,
-              width: rect.width,
-              height: rect.height,
-            },
-            origin,
-            gap,
+          applyPlaced(
+            element,
+            placeAt(
+              {
+                left: rect.left,
+                top: rect.top,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
+              },
+              originOf(element),
+              gap,
+            ),
           )
-          element.style.left = `${placed.left}px`
-          element.style.setProperty(placedTop, `${placed.top}px`)
         }),
         () =>
           Effect.sync(() => {
             if (!(element instanceof HTMLElement)) return
-            element.style.left = ''
-            element.style.removeProperty(placedTop)
+            clearPlaced(element)
+          }),
+      ),
+    ),
+})
+
+export const PlaceAtPoint = Mount.defineStream('PlaceAtPoint', {
+  messages: [Schema.Never],
+  args: {
+    /** Viewport x of the popup's top-left. */
+    x: Schema.Number,
+    /** Viewport y of the popup's top-left. */
+    y: Schema.Number,
+  },
+  execute: ({ element, x, y }) =>
+    Stream.callback<never>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          if (!(element instanceof HTMLElement)) return
+          applyPlaced(element, placeAtPoint({ x, y }, originOf(element)))
+        }),
+        () =>
+          Effect.sync(() => {
+            if (!(element instanceof HTMLElement)) return
+            clearPlaced(element)
           }),
       ),
     ),
@@ -177,12 +228,19 @@ export const placeAtTrigger =
     /** The trigger this open belongs to. Read at insert, so key the panel by it. */
     readonly triggerId: (input: Input) => string
     readonly gap?: number
+    /** A viewport point wins over the trigger. None places under `triggerId`. */
+    readonly at?: (input: Input) => Option.Option<ViewportPoint>
   }): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.panel]: Behavior.slot({
           requires: { capability: Capability.Container },
-          mount: input => PlaceAt({ triggerId: options.triggerId(input), gap: options.gap ?? 4 }),
+          mount: input => {
+            const at = options.at?.(input) ?? Option.none()
+            return Option.isSome(at)
+              ? PlaceAtPoint({ x: at.value.x, y: at.value.y })
+              : PlaceAt({ triggerId: options.triggerId(input), gap: options.gap ?? 4 })
+          },
         }),
         // Keyed by a value the caller chose; `forSlots` checks the key exists.
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,

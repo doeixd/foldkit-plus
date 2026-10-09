@@ -27,6 +27,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-primitives`: place a popup on a viewport point.**
+  `Placing.placeAtPoint` is that point in the offset parent's coordinates.
+  `placeAtTrigger` takes `at`: a point wins, and none places under the
+  trigger. `OnContextMenu` carries no coordinates, so a right-click records
+  its own.
+
 - **`foldkit-data-grid`: a date column edits in a date field.** A schema
   that decodes to a date (`Schema.DateFromString`) is `CellEditor.Date`.
   The draft the field opens on is the local calendar day, `YYYY-MM-DD`.

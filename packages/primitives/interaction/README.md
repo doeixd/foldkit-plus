@@ -445,8 +445,9 @@ the right edge and flips above its trigger when the bottom overflows and
 the room overhead fits; on release every inline prop goes.
 `Placing.placeFor(rect, viewport)` is that pure rule. `Placing.placeAt(trigger,
 origin, gap?)` is the other: the popup's `left` and top under the trigger,
-relative to the offset parent. `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap? })`
-mounts it. The Mount writes `left` and the `--fk-placed-top` custom property
+relative to the offset parent. `Placing.placeAtPoint(point, origin)` is that
+offset for a viewport point. `Placing.placeAtTrigger(Slots)({ panel, triggerId, gap?, at? })`
+mounts one of them: `at` returning a point wins, and none places under the trigger. The Mount writes `left` and the `--fk-placed-top` custom property
 (`Placing.placedTop`); the panel's stylesheet reads that property as `top`,
 so a flip, which sets the `top` property, still wins. Key the popup by the
 trigger, because a Mount reads its args once. No timers, observers, or
