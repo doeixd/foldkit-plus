@@ -2849,12 +2849,21 @@ importers:
         specifier: workspace:*
         version: link:../surface
     devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261008.1
+        version: 5.20261008.1
       '@effect/platform-browser':
+        specifier: 4.0.0
+        version: 4.0.0(effect@4.0.0)
+      '@effect/sql-d1':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
       effect:
         specifier: 4.0.0
         version: 4.0.0
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       foldkit:
         specifier: 0.165.0
         version: 0.165.0(@effect/platform-browser@4.0.0(effect@4.0.0))(effect@4.0.0)
@@ -2867,6 +2876,9 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
+      miniflare:
+        specifier: 3.20250718.3
+        version: 3.20250718.3
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

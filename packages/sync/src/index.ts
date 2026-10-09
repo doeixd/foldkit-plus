@@ -30,6 +30,7 @@ import {
   portSocket,
   serveSocket,
   toPromise,
+  workerSocket,
 } from './transport.js'
 
 /**
@@ -68,6 +69,8 @@ export const Sync = {
     toPromise,
     /** The server side of one accepted socket connection. */
     serve: serveSocket,
+    /** The accepted end of a Cloudflare `WebSocketPair`, for `serve`. */
+    workerSocket,
     /** The default socket factory: the platform `WebSocket`. */
     nativeSocket,
     /** A socket over a `MessagePort`, closed by `close()` or an abort signal. */
@@ -167,6 +170,7 @@ export {
   portSocket,
   serveSocket,
   toPromise,
+  workerSocket,
   Transport,
   TransportError,
   type ExchangeFrame,

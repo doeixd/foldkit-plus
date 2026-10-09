@@ -279,6 +279,47 @@ the exchange by hand, with an effect policy per committed operation.
 
 A server that is not Durable implements the same [exchange](#the-exchange).
 
+## Serving from a Durable Object
+
+On Cloudflare, one object per document is the single writer the journal
+wants. `defineDocumentHost` from `foldkit-sync/do` defines that class: each
+accepted socket exchanges against the same journal through `serveJournal`,
+and the replica side is the socket transport it already speaks:
+
+```ts
+import { DurableObject } from 'cloudflare:workers'
+import { defineDocumentHost } from 'foldkit-sync/do'
+
+export class SyncHost extends defineDocumentHost(DurableObject, {
+  sync: TodoSync,
+  // A D1 journal as the durable D1 guide opens one.
+  openJournal: (_ctx, env) => openTodosJournal(env.DB),
+  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
+}) {}
+```
+
+```ts
+// The worker: one object per document.
+export default {
+  fetch: (request: Request, env: Env): Promise<Response> =>
+    env.SYNC_HOST.get(env.SYNC_HOST.idFromName('todos')).fetch(request),
+}
+```
+
+```ts
+// A replica: the reconnecting client it already speaks.
+Sync.transport.socket({ url: 'wss://example.com/sync' })
+```
+
+- The base class is a parameter, so the module imports no worker runtime.
+  `openJournal` runs once, on the first upgrade: over D1 (`d1: true`, see
+  [the durable D1 guide](../durable/README.md#on-cloudflare-d1-d1-true)), or
+  the object's SQLite storage through `ctx`.
+- Each upgrade resolves its own principal; non-upgrades are 404s that open
+  nothing. A journal that never opened is a 500 that says nothing of it.
+- `Sync.transport.workerSocket` wraps the accepted end of a `WebSocketPair`
+  for `serveJournal`, anywhere else a platform hands one over.
+
 ## What makes a Message durable
 
 Replay runs a durable Message through `update` on another machine, later,
@@ -745,14 +786,15 @@ peer-to-peer merging, or migration of your own Messages and snapshots.
   implement.
 - One server order per document; no CRDT and no collaborative text algorithm.
 - Binding the socket transport to a platform WebSocket server is glue the
-  examples show with `ws`.
+  examples show with `ws`; on workers, `foldkit-sync/do` defines the object
+  and `Sync.transport.workerSocket` wraps its accepted pair.
 
 ## Older spellings
 
 `Sync` groups the exports and wraps nothing; every name is also exported on its
 own with the same signature: `defineSync` is `Sync.define`, `syncMetrics` is
 `Sync.metrics`, `layerSocket`/`layerLoopback`/`layerFromPromise`/`toPromise`/
-`serveSocket`/`nativeSocket` are `Sync.transport.*`, `createPresence`/
+`serveSocket`/`nativeSocket`/`workerSocket` are `Sync.transport.*`, `createPresence`/
 `createPresenceHub`/`servePresence`/`socketPresenceChannel`/
 `loopbackPresenceChannel` are `Sync.presence.*`, and `lwwRegister`/`openLwwClock`
 are `Sync.lww.*`. `documentId('todos')` and `DocumentId.make('todos')` make the

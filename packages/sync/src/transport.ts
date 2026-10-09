@@ -286,6 +286,62 @@ export const portSocket = (
   }
 }
 
+/**
+ * A socket over an existing `WebSocket`: the accepted end of a Cloudflare
+ * `WebSocketPair`, or any other socket the platform hands over. Unlike
+ * `nativeSocket` it opens nothing — accept the pair first — and unlike
+ * `portSocket` there is no signal: the socket closing, erroring, or being
+ * closed fires `onClose` once, which is how a host stops serving it.
+ */
+export const workerSocket = (socket: WebSocket): SocketLike => {
+  const messageListeners = new Set<(data: string) => void>()
+  const closeListeners = new Set<() => void>()
+  let closed = false
+  const forget = (): void => {
+    socket.removeEventListener('message', onMessageEvent)
+    socket.removeEventListener('close', onClosedEvent)
+    socket.removeEventListener('error', onClosedEvent)
+  }
+  const fireClose = (): void => {
+    closed = true
+    forget()
+    for (const listener of [...closeListeners]) listener()
+    closeListeners.clear()
+  }
+  const onMessageEvent = (event: MessageEvent): void => {
+    for (const listener of [...messageListeners]) listener(String(event.data))
+  }
+  const onClosedEvent = (): void => {
+    fireClose()
+  }
+  socket.addEventListener('message', onMessageEvent)
+  socket.addEventListener('close', onClosedEvent)
+  socket.addEventListener('error', onClosedEvent)
+  return {
+    send: data => socket.send(data),
+    close: () => {
+      try {
+        socket.close()
+      } catch {
+        // Already gone: still report the close.
+      }
+      fireClose()
+    },
+    onMessage: listener => {
+      messageListeners.add(listener)
+      return () => messageListeners.delete(listener)
+    },
+    onClose: listener => {
+      if (closed) {
+        listener()
+        return () => {}
+      }
+      closeListeners.add(listener)
+      return () => closeListeners.delete(listener)
+    },
+  }
+}
+
 const connector = (options: SocketOptions): (() => SocketLike) => {
   if (options.makeSocket !== undefined) return options.makeSocket
   const { url } = options

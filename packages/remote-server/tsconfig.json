@@ -12,6 +12,7 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-server": ["./src/index.ts"],
+      "foldkit-remote-server/fetch": ["./src/fetch.ts"],
       "foldkit-remote-server/port": ["./src/port.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]

@@ -284,6 +284,15 @@ const server = Effect.gen(function* () {
   `journalContract()`, and replicas replay the stamped Message in place of
   what they sent. Refuse a client-sent stamped field in `validate`.
 
+**Serving from a Durable Object.** `defineDocumentHost(DurableObject, { sync,
+openJournal, resolvePrincipal })` (`foldkit-sync/do`) defines the
+single-writer class: each accepted socket exchanges against one journal,
+opened once on the first upgrade (D1 with `d1: true`, or object storage),
+non-upgrades are 404s, and the replica side is the socket transport it
+already speaks (`Sync.transport.socket({ url })`). `Sync.transport
+.workerSocket` wraps an accepted pair end anywhere else a platform hands one
+over.
+
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it
 differs, the server answers from sequence 0 (skipping its cursor-ahead check)

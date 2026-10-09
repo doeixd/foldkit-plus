@@ -5,105 +5,28 @@
  * reply carries what committed since, a checkpoint below the compacted floor,
  * and whether more follows.
  */
-import { Effect, Exit, Fiber, Schema, Scope } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import type * as Update from 'foldkit/update'
+import { Effect, Exit, Fiber, Scope } from 'effect'
 import { ActorId, DocumentId, Journal, OpId, Sequence } from 'foldkit-durable'
-import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { MessageSet, Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  Sync,
-  documentId,
-  replicaId,
-  sequence,
-  type Operation,
-  type TransportClient,
-} from '../src/index.js'
+import { Sync, documentId, sequence, type Operation, type TransportClient } from '../src/index.js'
 import { journalChanges, journalExchange, serveJournal } from '../src/journal.js'
 import { socketPair } from './sockets.js'
-import { memoryStorage } from './memoryStorage.js'
+import {
+  App,
+  Message,
+  Todos,
+  closeScopes,
+  openJournal,
+  openScope,
+  pendingOf,
+  replica,
+  send,
+} from './fixtures/todos.js'
 
-const Todo = Schema.Struct({ id: Schema.String, title: Schema.NonEmptyString })
-const Model = Schema.Struct({ todos: Schema.Array(Todo) })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  CreatedTodo: { id: Schema.String, title: Schema.NonEmptyString },
-})
-type Message = typeof Message.Type
-const update = (model: Model, message: Message): Update.Return<Model, Message> =>
-  Message.match<Update.Return<Model, Message>>(message, {
-    CreatedTodo: ({ id, title }) => ({ model: { todos: [...model.todos, { id, title }] } }),
-  })
-const App = Surface.application({ Model, Message, initial: { todos: [] }, update })
-const Todos = Sync.forApplication(App).make({
-  documentId: documentId('todos'),
-  shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [Message.CreatedTodo]),
-})
-
-const scopes: Array<Scope.Closeable> = []
 afterEach(() => {
-  for (const scope of scopes.splice(0)) Effect.runSync(Scope.close(scope, Exit.void))
+  closeScopes()
 })
-
-const openJournal = () => {
-  const scope = Effect.runSync(Scope.make())
-  scopes.push(scope)
-  return Effect.runSync(
-    Journal.make<Operation, typeof Todos extends Sync<Message, infer S> ? S : never, string>({
-      ...Todos.journalContract(),
-      file: ':memory:',
-      opId: operation => OpId.make(operation.opId),
-      actorId: principal => ActorId.make(principal),
-      // The journal's own check, as a server makes one: no operation from the future.
-      validate: ({ operation, cursor }) => {
-        if (operation.baseCursor > cursor)
-          throw new Error('Operation cursor is ahead of the server')
-      },
-    }).pipe(Effect.provideService(Scope.Scope, scope)),
-  )
-}
-
-const replica = (name: string) =>
-  Effect.runPromise(Todos.openReplica(replicaId(name), memoryStorage()))
-
-/** The operations a replica would send, held back. */
-const pendingOf = async (name: string, titles: ReadonlyArray<string>) => {
-  const writer = await replica(name)
-  for (const [index, title] of titles.entries()) {
-    await Effect.runPromise(writer.submit(Message.CreatedTodo({ id: `${name}${index}`, title })))
-  }
-  let held: ReadonlyArray<Operation> = []
-  await Effect.runPromise(
-    writer.synchronize.pipe(
-      Effect.provide(
-        Sync.transport.fromPromise({
-          exchange: async (_, pending) => {
-            held = pending
-            throw new Error('held')
-          },
-        }),
-      ),
-      Effect.ignore,
-    ),
-  )
-  return held
-}
-
-/** One exchange's reply, decoded as the replica decodes it. */
-const send = async (
-  exchange: TransportClient,
-  cursor: number,
-  pending: ReadonlyArray<Operation>,
-) => {
-  const reply = Todos.codec.decodeExchange(await exchange.exchange(sequence(cursor), pending))
-  return {
-    ...reply,
-    committed: reply.operations.map(
-      operation => Todos.codec.committedFrom(operation, documentId('todos')).opId,
-    ),
-  }
-}
 
 describe('journalExchange', () => {
   it('appends what a replica sends, acknowledges it, and replicas converge through it', async () => {
@@ -206,8 +129,7 @@ describe('journalExchange', () => {
               : message.title !== 'Gin',
         },
       })
-    const scope = Effect.runSync(Scope.make())
-    scopes.push(scope)
+    const scope = openScope()
     const journal = Effect.runSync(
       Journal.make<Operation, typeof Ruled extends Sync<Message, infer S> ? S : never, string>({
         ...Ruled.journalContract(),

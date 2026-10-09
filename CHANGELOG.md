@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-sync/do`: serve one document's exchange from a Durable Object.**
+  `defineDocumentHost(DurableObject, { sync, openJournal, resolvePrincipal })`
+  defines the single-writer class: each accepted socket exchanges against the
+  same journal, opened once on the first upgrade over D1 or object storage.
+  `Sync.transport.workerSocket` wraps an accepted `WebSocketPair` end anywhere
+  else. Proven in-process and, bundled, against workerd with D1.
+
 - **`foldkit-remote-drizzle`: proven over Cloudflare D1.**
   The same reads run through `drizzle-orm/d1` with no adapter changes
   (`databaseLayer(drizzle(env.DB))`); `test/d1.test.ts` covers refs,
