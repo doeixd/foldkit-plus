@@ -44,6 +44,7 @@
     { "path": "./packages/cms-drizzle" },
     { "path": "./examples/todo" },
     { "path": "./examples/sync" },
+    { "path": "./examples/cloudflare" },
     { "path": "./examples/mixins" },
     { "path": "./examples/tree" },
     { "path": "./examples/drawer" },

@@ -1,0 +1,50 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "paths": {
+      "foldkit-durable": ["../../packages/durable/src/index.ts"],
+      "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
+      "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
+      "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-sync": ["../../packages/sync/src/index.ts"],
+      "foldkit-sync/do": ["../../packages/sync/src/do.ts"],
+      "foldkit-sync/entity": ["../../packages/sync/src/entity.ts"],
+      "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    {
+      "path": "../../packages/durable/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/sync/tsconfig.build.json"
+    }
+  ]
+}

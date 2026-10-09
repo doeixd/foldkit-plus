@@ -32,6 +32,8 @@ beforeAll(async () => {
     script,
     durableObjects: { SYNC_HOST: 'SyncHost' },
     d1Databases: ['DB'],
+    host: '127.0.0.1',
+    port: 0,
   })
   await mf.ready
 }, 120_000)

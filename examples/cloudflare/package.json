@@ -1,0 +1,29 @@
+{
+  "name": "foldkit-example-cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
+    "effect": "4.0.0",
+    "foldkit": "0.165.0",
+    "foldkit-durable": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*",
+    "foldkit-sync": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261008.1",
+    "@effect/sql-d1": "4.0.0",
+    "esbuild": "0.28.2",
+    "miniflare": "3.20250718.3",
+    "typescript": "5.9.3"
+  }
+}

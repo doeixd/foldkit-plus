@@ -1,0 +1,23 @@
+name = "foldkit-cloudflare"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+# Live streams build a `ReadableStream`, which needs this flag on older
+# compatibility dates; recent dates enable it by default.
+compatibility_flags = ["streams_enable_constructors"]
+
+# Local runs use miniflare (`pnpm demo`, `pnpm test`), which needs no account.
+# To deploy: `wrangler login`, `wrangler d1 create foldkit-cloudflare`, then
+# replace `database_id` below and `wrangler deploy`.
+[[d1_databases]]
+binding = "DB"
+database_name = "foldkit-cloudflare"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[durable_objects.bindings]]
+name = "SYNC_HOST"
+class_name = "SyncHost"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncHost"]

@@ -35,6 +35,8 @@ beforeAll(async () => {
     modules: true,
     script: 'export default { fetch() { return new Response("ok") } }',
     d1Databases: ['DB'],
+    host: '127.0.0.1',
+    port: 0,
   })
   db = await mf.getD1Database('DB')
 }, 60_000)
