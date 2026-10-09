@@ -28,4 +28,22 @@ export default [
     ],
     tests: ['packages/remote-drizzle/test/conformance.test.ts'],
   },
+  {
+    name: 'searched text holding NUL is answered',
+    edits: [
+      {
+        file: '../src/compile.ts',
+        find: "(typeof value === 'string' && value.includes(nul))",
+        replace: 'false',
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/conformance.test.ts'],
+  },
+  {
+    name: 'a search holding NUL is answered',
+    edits: [
+      { file: '../src/compile.ts', find: 'if (search.includes(nul) ||', replace: 'if (false ||' },
+    ],
+    tests: ['packages/remote-drizzle/test/conformance.test.ts'],
+  },
 ]

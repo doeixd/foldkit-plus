@@ -303,3 +303,30 @@ export const cases: ReadonlyArray<ConformanceCase> = [
   // subset rather than pretending one of them is the rule. A case asserting an
   // order would only pin whichever engine was written first.
 ]
+
+/**
+ * A body whose answer no two interpreters agree on, so every interpreter must
+ * refuse it rather than answer. Run each through yours and expect a failure.
+ */
+export interface ConformanceRefusal {
+  readonly what: string
+  readonly body: AnyQuery
+  /** The inputs, encoded, as in `ConformanceCase`. */
+  readonly input: Readonly<Record<string, unknown>>
+}
+
+const NUL = String.fromCharCode(0)
+
+export const refusals: ReadonlyArray<ConformanceRefusal> = [
+  // Postgres text cannot hold NUL and SQLite's `like` stops at it.
+  {
+    what: 'contains refuses a search holding NUL',
+    body: from.pipe(Query.where(Expr.contains(Subject.fields.label, label)), byId),
+    input: { label: `in${NUL}` },
+  },
+  {
+    what: 'contains refuses searched text holding NUL',
+    body: from.pipe(Query.where(Expr.contains(text, label)), byId),
+    input: { text: `a${NUL}b`, label: 'b' },
+  },
+]

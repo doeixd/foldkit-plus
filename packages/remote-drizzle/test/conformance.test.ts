@@ -14,7 +14,7 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Query } from 'foldkit-remote'
-import { Subject, cases, rows } from 'foldkit-entity/conformance'
+import { Subject, cases, refusals, rows } from 'foldkit-entity/conformance'
 import { databaseLayer, entity, query } from '../src/index.js'
 
 const table = sqliteTable('conformance_rows', {
@@ -27,11 +27,9 @@ const table = sqliteTable('conformance_rows', {
 
 const binding = entity('Subject', table)
 
-type Case = (typeof cases)[number]
-
 /** The ids one case's query answers with, over one binding and database. */
 const answer = (
-  { body, input }: Case,
+  { body, input }: Pick<(typeof cases)[number], 'body' | 'input'>,
   i: number,
   target: typeof binding | typeof pgBinding,
   layer: ReturnType<typeof databaseLayer>,
@@ -70,6 +68,21 @@ describe('foldkit-remote-drizzle conforms to the query semantics', () => {
   })
 })
 
+const refused = refusals.map((c, i) => ({ c, i: cases.length + i, name: c.what }))
+
+describe('foldkit-remote-drizzle refuses what no two interpreters agree on', () => {
+  it.each(refused)('$name', async ({ c, i }) => {
+    const sqlite = new DatabaseSync(':memory:')
+    try {
+      sqlite.exec(create)
+      const layer = databaseLayer(drizzle({ client: sqlite }))
+      await expect(answer(c, i, binding, layer)).rejects.toThrow(/NUL/)
+    } finally {
+      sqlite.close()
+    }
+  })
+})
+
 const pgRows = pgTable('conformance_rows', {
   id: pgText('id').primaryKey(),
   label: pgText('label').notNull(),
@@ -98,5 +111,9 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
   it.each(named)('$name', async ({ c, i }) => {
     const layer = databaseLayer(drizzlePg({ client: pglite }))
     expect(await answer(c, i, pgBinding, layer)).toEqual(c.expected)
+  })
+  it.each(refused)('refuses on Postgres too: $name', async ({ c, i }) => {
+    const layer = databaseLayer(drizzlePg({ client: pglite }))
+    await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL/)
   })
 })

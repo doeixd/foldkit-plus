@@ -11,8 +11,8 @@
  *    partial rows, and §9.2's encoding, which no runtime error would catch.
  */
 import { Schema, SchemaGetter } from 'effect'
-import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
-import { Subject, cases, rows, type ConformanceCase } from 'foldkit-entity/conformance'
+import { Entity as DomainEntity, Expr, Order, QueryEvaluateError } from 'foldkit-entity'
+import { Subject, cases, refusals, rows, type ConformanceCase } from 'foldkit-entity/conformance'
 import { describe, expect, it } from 'vitest'
 import {
   Query,
@@ -53,6 +53,14 @@ describe('It agrees with the conformance suite, over a store', () => {
       expect(judged.skipped).toEqual([])
     },
   )
+})
+
+describe('It refuses what the suite says no interpreter may answer', () => {
+  it.each(refusals.map(one => ({ ...one, name: one.what })))('$name', ({ body, input }) => {
+    expect(() => matching(conformanceStore(), descriptorFor(body, input) as never, input)).toThrow(
+      QueryEvaluateError,
+    )
+  })
 })
 
 // A domain of its own for the refusals, so they are not tangled with the suite.

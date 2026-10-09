@@ -268,7 +268,8 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   it may depend on the IR and nothing else. `foldkit-remote-server` re-exports
   it. The conformance suite that checks an interpreter against it is
   `foldkit-entity/conformance`, a subpath so the fixtures stay out of the main
-  bundle.
+  bundle: `cases` each name the ids a body matches, and `refusals` are bodies
+  every interpreter must refuse rather than answer (text holding NUL).
 - `Expr.contains` takes a **text or nullable-text** operand only, checked by the
   type parameter: over a number it would compile to `lower(rank) like …`, which
   SQLite coerces and Postgres rejects. The check is a constraint rather than an

@@ -161,12 +161,14 @@ const predicate = (
       if (typeof search !== 'string') {
         throw new QueryCompileError(`query "${query}" searches for something that is not text`)
       }
-      // Postgres text cannot hold NUL and SQLite's `like` stops at it, so a
-      // search holding one means nothing portable; the reference interpreter
-      // refuses it too. A NUL inside a stored value cannot be seen from here.
-      if (search.includes(String.fromCharCode(0))) {
+      // Postgres text cannot hold NUL and SQLite's `like` stops at it, so text
+      // holding one means nothing portable; the reference interpreter refuses
+      // it too. A searched value that is an input or a literal is seen here; a
+      // NUL inside a stored column is not.
+      const nul = String.fromCharCode(0)
+      if (search.includes(nul) || (typeof value === 'string' && value.includes(nul))) {
         throw new QueryCompileError(
-          `query "${query}" searches for text holding a NUL character, which SQL text cannot hold portably`,
+          `query "${query}" searches text holding a NUL character, which SQL text cannot hold portably`,
         )
       }
       // Folded on both sides rather than left to `like`, which is

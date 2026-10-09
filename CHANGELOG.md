@@ -19,6 +19,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote-drizzle`: `contains` refuses searched text holding NUL
+  when that text is an input or a literal**, as `evaluate` does. It refused a
+  NUL only in the search, and answered `[]` on SQLite and Postgres for the
+  rest. `foldkit-entity/conformance` now exports `refusals`, bodies every
+  interpreter must refuse, and the reference, Drizzle (SQLite and Postgres)
+  and Remote matching suites run them.
 - **`foldkit-crud`: any authored edit after a save returns the editor to
   `Editing`.** It used to take only a typed field (`Changed`), so a nested row
   added or removed, or a Bundle-backed control's edit, left it at `Saved` or
