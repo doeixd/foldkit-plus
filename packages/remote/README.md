@@ -1333,6 +1333,24 @@ effect on rows it did not return.
 `Unknown` for an id never started here (or settled so long ago it left the
 bounded ledger). A retry reuses its id, and the latest outcome wins.
 
+A mutation can say what the server may refuse it with, as data rather than a
+message to parse:
+
+```ts
+const SetPrice = Mutation.make('SetPrice', {
+  Input: { id: Schema.String, price: Schema.Number },
+  Output: {},
+  Refusal: Schema.Union([Refusal.field('price', Schema.String), Refusal.conflict]),
+})
+
+Data.refusal(model, requestId, SetPrice) // Option<{ _tag: 'Field', key: 'price', reason: string } | { _tag: 'Conflict' }>
+```
+
+`Refusal.field(key, reason)` names an input key and why; `Refusal.conflict`
+says the row moved on. The server sends the refusal encoded by this schema and
+`Data.refusal` decodes it by the same one; it is none while the mutation is
+pending or applied, or when it failed for another reason.
+
 Optimistic entity patches are **layers over the base store**, not inverse
 patches. If multiple mutations overlap, the visible cache is recomputed as base
 plus the still-pending layers, so settling one does not require trying to undo

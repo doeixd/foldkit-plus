@@ -56,6 +56,17 @@ export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
   },
 ) {}
 
+/**
+ * A mutation Source's refusal, as the value its descriptor's `Refusal`
+ * declares: made with `RemoteServer.refuse`, which checks the value's type
+ * against the mutation, and sent to the client encoded, beside a message.
+ */
+export class MutationRefused extends Schema.TaggedError<MutationRefused>()('MutationRefused', {
+  /** The mutation the refusal was made for: a Source refusing as another is a bug. */
+  mutation: Schema.String,
+  refusal: Schema.Unknown,
+}) {}
+
 export interface EntityRecord {
   readonly id: string
   readonly values: Readonly<Record<string, unknown>>
@@ -143,6 +154,7 @@ export interface MutationSource<P, R = never> {
   readonly mutation: string
   readonly Input: Schema.Codec<unknown>
   readonly Output: Schema.Codec<unknown>
+  readonly Refusal: Schema.Codec<unknown, unknown>
   readonly run: (context: {
     readonly input: unknown
     readonly principal: P
@@ -158,7 +170,7 @@ export interface MutationSource<P, R = never> {
       readonly connections: ReadonlyArray<ConnectionChange>
       readonly deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }>
     },
-    RemoteServerError,
+    RemoteServerError | MutationRefused,
     R
   >
 }
@@ -896,6 +908,28 @@ const memory = <P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> => {
   }
 }
 
+/**
+ * A Source's refusal as the client receives it: encoded by the mutation's own
+ * `Refusal`. A refusal made for another mutation, or one the mutation does not
+ * declare, is this side's bug, and says so without the value.
+ */
+const refusalError = (
+  Refusal: Schema.Codec<unknown, unknown>,
+  mutation: string,
+  refused: MutationRefused,
+): Effect.Effect<never, RemoteMutationError> =>
+  Effect.gen(function* () {
+    const invalid = new RemoteMutationError({ message: 'Invalid mutation refusal' })
+    if (refused.mutation !== mutation) return yield* invalid
+    const encoded = yield* Schema.encodeUnknownEffect(Refusal)(refused.refusal).pipe(
+      Effect.mapError(() => invalid),
+    )
+    return yield* new RemoteMutationError({
+      message: `Mutation ${mutation} was refused`,
+      refusal: encoded,
+    })
+  })
+
 export const RemoteServer = {
   /** A backend held in memory, for a first run, a test or a demo. See `memory`. */
   memory,
@@ -945,18 +979,20 @@ export const RemoteServer = {
     Name extends string = string,
     Input = unknown,
     Output = unknown,
+    Refused = unknown,
   >(
-    mutation: MutationDescriptor<Name, Input, Output>,
+    mutation: MutationDescriptor<Name, Input, Output, Refused>,
     run: (context: {
       readonly input: Input
       readonly principal: P
       /** The client's id for this request, the same on every retry of it. */
       readonly requestId: string
-    }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError, R>,
+    }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError | MutationRefused, R>,
   ): MutationSource<P, R> => ({
     mutation: mutation.name,
     Input: mutation.Input,
     Output: mutation.Output,
+    Refusal: mutation.Refusal,
     run: context =>
       run({
         input: context.input as Input,
@@ -971,6 +1007,16 @@ export const RemoteServer = {
         })),
       ),
   }),
+
+  /**
+   * A refusal of `mutation`, as a value of its declared `Refusal`: fail a
+   * Source with it (`yield* RemoteServer.refuse(SavePost, { _tag: 'Field', ... })`)
+   * and the client reads it, decoded, with `Data.refusal`.
+   */
+  refuse: <Refused>(
+    mutation: MutationDescriptor<string, any, any, Refused>,
+    refusal: NoInfer<Refused>,
+  ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal }),
 
   query: <P = unknown, R = never, Input = unknown>(
     query: QueryDescriptor<string, Input, unknown>,
@@ -1224,7 +1270,7 @@ export const RemoteServer = {
     handlers: RemoteRpcClient<R>,
     body: unknown,
   ): Effect.Effect<
-    { readonly status: 200 | 400 | 500; readonly body: RemoteJsonAnswer },
+    { readonly status: 200 | 400 | 422 | 500; readonly body: RemoteJsonAnswer },
     never,
     R
   > => {
@@ -1249,6 +1295,14 @@ export const RemoteServer = {
       Effect.map(result => ({ status: 200 as const, body: { result } })),
       Effect.catchTag('SchemaError', error =>
         Effect.succeed({ status: 400 as const, body: { error: error.message } }),
+      ),
+      // A refusal is the mutation's answer, not a failure of the server.
+      Effect.catchTag('RemoteMutationError', error =>
+        Effect.succeed(
+          error.refusal === undefined
+            ? { status: 500 as const, body: { error: error.message } }
+            : { status: 422 as const, body: { error: error.message, refusal: error.refusal } },
+        ),
       ),
       Effect.catch(error =>
         Effect.succeed({ status: 500 as const, body: { error: error.message } }),
@@ -1285,13 +1339,14 @@ export const RemoteServer = {
         ),
       )
 
-      const outcome = yield* source
-        .run({ input, principal, requestId: payload.requestId })
-        .pipe(
-          Effect.catchTag('RemoteServerError', error =>
-            Effect.fail(new RemoteMutationError({ message: error.message })),
-          ),
-        )
+      const outcome = yield* source.run({ input, principal, requestId: payload.requestId }).pipe(
+        Effect.catchTag('RemoteServerError', error =>
+          Effect.fail(new RemoteMutationError({ message: error.message })),
+        ),
+        Effect.catchTag('MutationRefused', refused =>
+          refusalError(source.Refusal, payload.mutation, refused),
+        ),
+      )
 
       const output = yield* Schema.encodeUnknownEffect(source.Output)(outcome.output).pipe(
         Effect.catchTag('SchemaError', () =>

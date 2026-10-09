@@ -4,6 +4,11 @@ import { Option, Schema } from 'effect'
 export interface RemoteError {
   readonly _tag: string
   readonly message: string
+  /**
+   * A refused mutation's refusal, encoded as the server sent it. Read it
+   * decoded, by its mutation, with `Data.refusal`.
+   */
+  readonly refusal?: unknown
 }
 
 export type RemoteData<A> =
@@ -29,7 +34,11 @@ export type Freshness =
 const fresh: Freshness = { _tag: 'Fresh' }
 const refreshing: Freshness = { _tag: 'Refreshing' }
 
-export const remoteErrorSchema = Schema.Struct({ _tag: Schema.String, message: Schema.String })
+export const remoteErrorSchema = Schema.Struct({
+  _tag: Schema.String,
+  message: Schema.String,
+  refusal: Schema.optional(Schema.Unknown),
+})
 
 /** A `RemoteData` schema, so a projection that reads remote state is typed. */
 // A projection is rebuilt on every Model change (a Surface's `model` callback

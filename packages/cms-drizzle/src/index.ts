@@ -39,6 +39,7 @@ import {
 } from 'foldkit-remote-drizzle'
 import {
   RemoteServer,
+  MutationRefused,
   RemoteServerError,
   type EntitySource,
   type MutationOutcome,
@@ -448,7 +449,11 @@ export const CmsServer = {
       run: (context: {
         readonly input: Input
         readonly principal: P
-      }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError, DrizzleDatabase>,
+      }) => Effect.Effect<
+        MutationOutcome<Output>,
+        RemoteServerError | MutationRefused,
+        DrizzleDatabase
+      >,
     ): MutationSource<P, DrizzleDatabase> =>
       // Asked before anything is looked up: a visitor is not told which entries there are.
       // Then the whole of it is one transaction: a save that made an entry and

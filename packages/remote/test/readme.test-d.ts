@@ -17,6 +17,7 @@ import {
   Entity,
   Mutation,
   Query,
+  Refusal,
   Remote,
   RemoteData,
   RemoteClient,
@@ -284,3 +285,22 @@ const overPort = port(() => {
   return channel.port1
 })
 void overPort
+
+// A refusal as data.
+const SetPrice = Mutation.make('SetPrice', {
+  Input: { id: Schema.String, price: Schema.Number },
+  Output: {},
+  Refusal: Schema.Union([Refusal.field('price', Schema.String), Refusal.conflict]),
+})
+declare const priced: typeof TicketModel.Type
+const Priced = Remote.make({
+  model: TicketApp.model.remote,
+  entities: [Ticket],
+  mutations: [SetPrice],
+})
+expectTypeOf(Priced.refusal(priced, 'SetPrice-1', SetPrice)).toEqualTypeOf<
+  Option.Option<
+    | { readonly _tag: 'Field'; readonly key: 'price'; readonly reason: string }
+    | { readonly _tag: 'Conflict' }
+  >
+>()

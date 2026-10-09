@@ -97,6 +97,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`, `foldkit-remote-server`: a mutation refuses with data.**
+  `Mutation.make` takes `Refusal`, a codec of what the server may refuse with
+  (`Refusal.field(key, reason)`, `Refusal.conflict`). A Source fails with
+  `RemoteServer.refuse(mutation, value)`; the server checks the refusal is
+  that mutation's, encodes it, and sends it on `RemoteMutationError.refusal`
+  (a 422 over JSON). `Data.refusal(model, requestId, mutation)` reads it
+  decoded. `MutationDescriptor` gains a fourth parameter, `Refused`, and a
+  `Refusal` field; `MutationSource` a `Refusal` codec.
 - **`foldkit-entity`: `Query.where` refuses predicates that expand past
   `maxQueryNodes` (1,000) nodes.** A shared node (`Expr.eq(n, n)`) is counted
   on each path that reaches it, because `evaluate` and the SQL compiler read a

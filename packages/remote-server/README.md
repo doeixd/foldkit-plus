@@ -418,7 +418,11 @@ const RenameProjectSource = RemoteServer.mutation(
 ```
 
 The input is decoded before the Source runs and the output is encoded before it
-crosses the wire. The Source is also given `requestId`, the client's id for the
+crosses the wire. A Source refuses with a value of the mutation's `Refusal`:
+`Effect.fail(RemoteServer.refuse(SetPrice, { _tag: 'Field', key: 'price', reason: 'too low' }))`.
+The value is type-checked against that mutation, encoded by its schema, and
+sent beside a message (a 422 over JSON); a refusal made for another mutation,
+or not one the mutation declares, is sent as an invalid refusal instead. The Source is also given `requestId`, the client's id for the
 request, which is the same on every retry of it: record a write under it, and a
 retry can find that the write was made. Nothing deduplicates by it yet. A Source
 may additionally return connection changes:

@@ -138,10 +138,25 @@ export const reconcileMutation = (
 }
 
 /** A mutation an application declares: its name and input/output codecs. */
-export interface MutationDescriptor<Name extends string, Input, Output> {
+export interface MutationDescriptor<Name extends string, Input, Output, Refused = unknown> {
   readonly name: Name
   readonly Input: Schema.Codec<Input>
   readonly Output: Schema.Codec<Output>
+  /**
+   * What the server may refuse the mutation with, as a value a client can
+   * match on rather than a message to parse: `Schema.Never` when it declares
+   * none.
+   */
+  readonly Refusal: Schema.Codec<Refused, unknown>
+}
+
+/** Refusals a form or an editor knows how to show. */
+export const Refusal = {
+  /** One input key was refused, for `reason`, which a form shows beside that key. */
+  field: <const Key extends string, Reason extends Schema.Top>(key: Key, reason: Reason) =>
+    Schema.TaggedStruct('Field', { key: Schema.Literal(key), reason }),
+  /** The row moved on since the client read it; the author decides what wins. */
+  conflict: Schema.TaggedStruct('Conflict', {}),
 }
 
 /** A codec, or the fields of a `Schema.Struct` where one is expected. */
@@ -165,13 +180,25 @@ export const Mutation = {
   /**
    * Declares a mutation. `Input` and `Output` are codecs, or the fields of the
    * `Schema.Struct` they would be (`{ id: ProjectId, name: Schema.String }`).
+   * `Refusal`, when given, is what the server may refuse with: a codec, usually
+   * a union of `Refusal.field(...)` and `Refusal.conflict`.
    */
-  make: <const Name extends string, Input extends SchemaOrFields, Output extends SchemaOrFields>(
+  make: <
+    const Name extends string,
+    Input extends SchemaOrFields,
+    Output extends SchemaOrFields,
+    Refused = never,
+  >(
     name: Name,
-    config: { readonly Input: Input; readonly Output: Output },
-  ): MutationDescriptor<Name, TypeOf<Input>, TypeOf<Output>> => ({
+    config: {
+      readonly Input: Input
+      readonly Output: Output
+      readonly Refusal?: Schema.Codec<Refused, any>
+    },
+  ): MutationDescriptor<Name, TypeOf<Input>, TypeOf<Output>, Refused> => ({
     name,
     Input: schemaOf(config.Input),
     Output: schemaOf(config.Output),
+    Refusal: config.Refusal ?? Schema.Never,
   }),
 }

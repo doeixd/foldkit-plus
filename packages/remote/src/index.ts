@@ -602,6 +602,16 @@ export interface RemoteDomain<
    * pending, applied, or failed with the error the server or transport gave.
    */
   mutation(model: AppModel, requestId: string): MutationStatus
+  /**
+   * Why the server refused a mutation, as the value its `Refusal` declares:
+   * none while it is pending or applied, when it failed for another reason,
+   * or when the refusal does not decode as `mutation`'s.
+   */
+  refusal<Refused>(
+    model: AppModel,
+    requestId: string,
+    mutation: MutationDescriptor<string, any, any, Refused>,
+  ): Option.Option<Refused>
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
   /**
@@ -3136,6 +3146,14 @@ const bindDomain = <
       }
     },
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
+    refusal: (model, requestId, mutation) => {
+      const status = mutationStatus(store.get(model).mutations, requestId)
+      if (status._tag !== 'Failed') return Option.none()
+      const { refusal } = status.error
+      return refusal === undefined
+        ? Option.none()
+        : Schema.decodeUnknownOption(mutation.Refusal)(refusal)
+    },
     reduce,
     inspect: model => inspectRemote(store.get(model)),
     wiring: (active, options): RemoteWiring<AppModel> => ({

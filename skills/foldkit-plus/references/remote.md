@@ -396,6 +396,11 @@ it in flight, so its read entry refetches it. A `Query.make` list (no body) is
 invalidated by any change to its Entity. A joining row is fetched, never
 spliced. `Data.refresh` remains for effects the answer does not name.
 
+**Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
+the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
+or any codec); a Source fails with `RemoteServer.refuse(mutation, value)`, and
+`Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
+
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
 returned. A read the server answers with nothing about an id it was asked for

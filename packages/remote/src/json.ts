@@ -19,7 +19,7 @@ export type RemoteJsonRequest = typeof RemoteJsonRequest.Type
 /** An answer: the call's result, or why there is none. */
 export const RemoteJsonAnswer = Schema.Union([
   Schema.Struct({ result: Schema.Unknown }),
-  Schema.Struct({ error: Schema.String }),
+  Schema.Struct({ error: Schema.String, refusal: Schema.optional(Schema.Unknown) }),
 ])
 export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type
 
@@ -35,20 +35,22 @@ const call = <A, E>(
   send: RemoteJsonSend,
   operation: RemoteJsonRequest['operation'],
   payload: unknown,
-  fail: (message: string) => E,
+  fail: (answer: { readonly error: string; readonly refusal?: unknown }) => E,
 ): Effect.Effect<A, E> =>
   Effect.tryPromise({
     try: () => send(JSON.stringify({ operation, payload })),
-    catch: error => fail(error instanceof Error ? error.message : String(error)),
+    catch: error => fail({ error: error instanceof Error ? error.message : String(error) }),
   }).pipe(
     Effect.flatMap(answer =>
       decodeAnswer(answer).pipe(
-        Effect.mapError(() => fail('The server answered with something that is not an answer')),
+        Effect.mapError(() =>
+          fail({ error: 'The server answered with something that is not an answer' }),
+        ),
       ),
     ),
     Effect.flatMap(answer =>
       'error' in answer
-        ? Effect.fail(fail(answer.error))
+        ? Effect.fail(fail(answer))
         : // The answer is to the request this call sent, so its result is this call's.
           Effect.succeed(answer.result as A),
     ),
@@ -57,11 +59,16 @@ const call = <A, E>(
 /** Remote's client over `send`, for `Remote.clientLayer`. */
 export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
   FoldkitRemoteRead: payload =>
-    call(send, 'read', payload, message => new RemoteReadError({ message })),
+    call(send, 'read', payload, ({ error }) => new RemoteReadError({ message: error })),
   FoldkitRemoteQuery: payload =>
-    call(send, 'query', payload, message => new RemoteQueryError({ message })),
+    call(send, 'query', payload, ({ error }) => new RemoteQueryError({ message: error })),
   FoldkitRemoteMutate: payload =>
-    call(send, 'mutate', payload, message => new RemoteMutationError({ message })),
+    call(
+      send,
+      'mutate',
+      payload,
+      ({ error, refusal }) => new RemoteMutationError({ message: error, refusal }),
+    ),
   FoldkitRemoteLive: () => Stream.empty,
 })
 

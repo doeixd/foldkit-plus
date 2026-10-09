@@ -16,7 +16,7 @@ export const chairOf = (search: string, fallback: Chair = 'wren'): Chair => {
 
 /** What the endpoint answers: `RemoteServer.answer`'s status and body. */
 export type Answer = {
-  readonly status: 200 | 400 | 500
+  readonly status: 200 | 400 | 422 | 500
   readonly body: RemoteJsonAnswer
 }
 

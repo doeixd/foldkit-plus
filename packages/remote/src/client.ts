@@ -139,9 +139,11 @@ export const liveEventOf = (change: Schema.Schema.Type<typeof LiveChange>): Live
 export const remoteError = (error: {
   readonly _tag: string
   readonly message: string
+  readonly refusal?: unknown
 }): RemoteError => ({
   _tag: error._tag,
   message: error.message,
+  ...(error.refusal === undefined ? {} : { refusal: error.refusal }),
 })
 
 export const coalescedLayer = <E, R>(

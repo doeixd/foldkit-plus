@@ -20,7 +20,11 @@ export class RemoteReadError extends Schema.TaggedError<RemoteReadError>()('Remo
 
 export class RemoteMutationError extends Schema.TaggedError<RemoteMutationError>()(
   'RemoteMutationError',
-  { message: Schema.String },
+  {
+    message: Schema.String,
+    /** The mutation's own `Refusal`, encoded, when the server refused it as one. */
+    refusal: Schema.optional(Schema.Unknown),
+  },
 ) {}
 
 export class RemoteLiveError extends Schema.TaggedError<RemoteLiveError>()('RemoteLiveError', {
