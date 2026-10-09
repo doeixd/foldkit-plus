@@ -132,7 +132,7 @@ new (`Cms.newEntryId()`), and the first save of an id nobody has makes the entry
 
 - **A save names what it was made from** (`basedOn`, the draft's `updatedAt`). A
   newer one on the server means someone else saved in between, and the save is
-  refused with `CmsConflict: ...` instead of undoing their work. It is one
+  refused with `Cms.refusal.conflict` instead of undoing their work. It is one
   statement, compare and set, so two saves cannot both win.
 - A draft is bounded: `maxDraftSize` characters of JSON, values and Model
   together, one million by default. More is refused, and nothing is written.
@@ -171,7 +171,7 @@ fails after writing leaves nothing behind.
   done. A write of your own on the same connection does not take a turn unless
   you make it inside `Transaction.statements` too.
 - **A publish names the revision it was made from** (`basedOn`, the entry's
-  `revision`, or `null`). A newer one is `CmsConflict: ...`, not a publish over
+  `revision`, or `null`). A newer one is refused with `Cms.refusal.conflict`, not a publish over
   someone else's. The entry's `revision` is compared and set first, inside the
   transaction, so of two publishes made from one revision one writes nothing.
 - A draft your mutation's Input refuses is not published, and the error says why.
@@ -187,9 +187,9 @@ A content type with a `slug` role is found by it: `cms.queries` has
 `Cms.bySlug(Posts)`, behind the same `visible` rule as every other read, so a
 visitor does not find what is not published.
 
-A publish to a slug another row has is refused as
-`CmsSlugTaken: slug: "hello" is already used`, and `Cms.slugTaken.key(message)`
-is the form key to show it on. **The check is advice; a unique index is the
+A publish to a slug another row has is refused with
+`Cms.refusal.field('slug', 'That address is taken: "hello" is already used')`,
+which names the form key to show it on; a client reads it with `Data.refusal`. **The check is advice; a unique index is the
 rule.** Two publishes can both pass the check, and the one the index refuses
 gets the same error. Without a unique index on the column, that race publishes
 two rows at one address. The slug is read from the publish input's member of the

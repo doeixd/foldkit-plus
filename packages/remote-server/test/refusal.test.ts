@@ -75,6 +75,19 @@ describe('A refused mutation', () => {
     })
   })
 
+  it('carries the message the Source gave it, for a person to read', async () => {
+    refusing = () =>
+      Effect.fail(RemoteServer.refuse(SetPrice, { _tag: 'Conflict' }, 'Someone changed it first'))
+    const answered = await answer({
+      operation: 'mutate',
+      payload: { requestId: 'r5', mutation: 'SetPrice', input: { id: 'a', price: 50 } },
+    })
+    expect(answered).toEqual({
+      status: 422,
+      body: { error: 'Someone changed it first', refusal: { _tag: 'Conflict' } },
+    })
+  })
+
   it('crosses RPC too, as a field of the mutation error', async () => {
     const failed = await Effect.runPromise(
       Effect.scoped(

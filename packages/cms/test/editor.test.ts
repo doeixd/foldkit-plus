@@ -49,10 +49,11 @@ const Editor = Cms.editor('PostEditor', { content: Posts, rest: 0 })
 type Root = { readonly editor: ReturnType<typeof Editor.bundle.init>['model'] }
 
 /**
- * The entry, its draft and its row as the editor reads them, and one failed
- * publish; the entry's state read waiting when `stateLoading`.
+ * The entry, its draft and its row as the editor reads them, and one publish,
+ * refused with `refused` when it is some; the entry's state read waiting when
+ * `stateLoading`.
  */
-const world = (failure: string | undefined, { stateLoading = false } = {}) => {
+const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) => {
   const ready = (value: unknown) => ({ _tag: 'Ready' as const, value })
   const held: Readonly<Record<string, unknown>> = {
     CmsEntry: { id: 'e1', type: 'posts', targetId: 'p1', revision: 1, archivedAt: null },
@@ -74,9 +75,10 @@ const world = (failure: string | undefined, { stateLoading = false } = {}) => {
             : ready(held[selection.entity.name]),
     }),
     mutation: (): MutationStatus =>
-      failure === undefined
+      Option.isNone(refused)
         ? { _tag: 'Unknown' }
-        : { _tag: 'Failed', error: { _tag: 'RemoteMutationError', message: failure } },
+        : { _tag: 'Failed', error: { _tag: 'RemoteMutationError', message: 'refused' } },
+    refusal: () => refused,
     mutate: () => {
       throw new Error('nothing here starts a mutation')
     },
@@ -106,16 +108,16 @@ const world = (failure: string | undefined, { stateLoading = false } = {}) => {
 
 describe('opening an entry', () => {
   it('is loading until the entry’s state is read too, so its badge and history arrive with the form', () => {
-    const waiting = world(undefined, { stateLoading: true })
+    const waiting = world(Option.none(), { stateLoading: true })
     // The form is filled from the entry, draft and row already.
     expect(waiting.opened.editor.filled).toBe(true)
     expect(waiting.placed.status(waiting.opened)).toBe('Loading')
-    const read = world(undefined)
+    const read = world(Option.none())
     expect(read.placed.status(read.opened)).toBe('Opened')
   })
 
   it('waits for no state for something new, which the server does not hold yet', () => {
-    const { placed } = world(undefined, { stateLoading: true })
+    const { placed } = world(Option.none(), { stateLoading: true })
     // As the `create` helper opens it: filled, blank, with no save yet.
     const fresh = placed.sync({
       editor: {
@@ -131,8 +133,14 @@ describe('opening an entry', () => {
 })
 
 describe('a server’s word about one key', () => {
+  const taken = Option.some({
+    _tag: 'Field',
+    key: 'slug',
+    reason: 'That address is taken: "live" is already used',
+  })
+
   it('lands a taken address on the address, keeping what was typed', () => {
-    const { root } = world(Cms.slugTaken.message('slug', 'live'))
+    const { root } = world(taken)
     const field = PostForm.field(root.editor.form, 'slug')
     expect(field._tag).toBe('Invalid')
     expect(field.value).toBe('live')
@@ -142,18 +150,25 @@ describe('a server’s word about one key', () => {
   })
 
   it('says it once, however often the editor settles', () => {
-    const { placed, root } = world(Cms.slugTaken.message('slug', 'live'))
+    const { placed, root } = world(taken)
     const again = placed.sync(placed.sync(root).model).model
     expect(again.editor.form).toBe(root.editor.form)
   })
 
-  it('leaves the form alone for a failure that is about something else', () => {
-    const { root } = world('CmsConflict: this entry was published by someone else since')
+  it('leaves the form alone for a refusal that is about something else, and says what it is', () => {
+    const { placed, root } = world(Option.some({ _tag: 'Conflict' }))
+    expect(PostForm.field(root.editor.form, 'slug')._tag).not.toBe('Invalid')
+    expect(placed.status(root)).toBe('Conflict')
+  })
+
+  it('leaves a refusal of another key to the status: only the address is the editor’s to mark', () => {
+    const { root } = world(Option.some({ _tag: 'Field', key: 'title', reason: 'Too long' }))
+    expect(PostForm.field(root.editor.form, 'title')._tag).not.toBe('Invalid')
     expect(PostForm.field(root.editor.form, 'slug')._tag).not.toBe('Invalid')
   })
 
   it('is gone once the author edits the address again', () => {
-    const { root } = world(Cms.slugTaken.message('slug', 'live'))
+    const { root } = world(taken)
     const edited = Editor.bundle.update(
       root.editor,
       PostForm.Message.Changed({ key: 'slug', value: 'elsewhere' }),
@@ -172,7 +187,7 @@ describe('what starts a save', () => {
       .map(command => command.name)
 
   it('starts a rest for an edit, and not for a blur or a no-op', () => {
-    const { root } = world(undefined)
+    const { root } = world(Option.none())
     const typed = Editor.bundle.update(
       root.editor,
       PostForm.Message.Changed({ key: 'title', value: 'New' }),
@@ -210,14 +225,14 @@ describe('a Message that changes nothing', () => {
     ],
     ['hiding a preview that is not shown', Editor.Message.PreviewHidden()],
   ])('keeps the Model: %s', (_, message) => {
-    const { root } = world(undefined)
+    const { root } = world(Option.none())
     expect(Editor.bundle.update(root.editor, message, undefined).model).toBe(root.editor)
   })
 })
 
 describe('the entry the server knows', () => {
   it('is none for something new until its first save, and the open entry otherwise', () => {
-    const { placed, root } = world(undefined)
+    const { placed, root } = world(Option.none())
     const editor = (patch: Partial<Root['editor']>): Root => ({
       editor: { ...root.editor, ...patch },
     })
@@ -234,12 +249,12 @@ describe('the entry the server knows', () => {
 
 describe('telling the form which row it is editing', () => {
   it('gives it the row id, so a check can pass over the row’s own address', () => {
-    const { root } = world(undefined)
+    const { root } = world(Option.none())
     expect(PostForm.subject(root.editor.form)).toEqual({ id: 'p1' })
   })
 
   it('says it once: settling again changes nothing', () => {
-    const { placed, root } = world(undefined)
+    const { placed, root } = world(Option.none())
     expect(placed.sync(root).model.editor.form).toBe(root.editor.form)
   })
 })
@@ -345,7 +360,7 @@ describe('a form control backed by a Bundle', () => {
 
 describe('a publish the form stops', () => {
   it('says so until the next edit, where the last save would have said "saved"', () => {
-    const { placed, root } = world(undefined)
+    const { placed, root } = world(Option.none())
     const status = (editor: Root['editor']) => placed.status({ ...root, editor })
     const blank = Editor.bundle.update(
       root.editor,

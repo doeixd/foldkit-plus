@@ -72,4 +72,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the message the Source gave is replaced by a generic one',
+    edits: [
+      {
+        file: server,
+        find: 'return yield* new RemoteMutationError({ message: refused.message, refusal: encoded })',
+        replace: "return yield* new RemoteMutationError({ message: 'refused', refusal: encoded })",
+      },
+    ],
+    tests,
+  },
 ]

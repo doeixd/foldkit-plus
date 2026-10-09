@@ -21,11 +21,17 @@ import {
   SchemaShape,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
-import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
+import {
+  Mutation,
+  Query,
+  Refusal,
+  type MutationDescriptor,
+  type OptimisticOperation,
+} from 'foldkit-remote'
 import { Transitions, offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { editorView, makeEditor } from './editor.js'
 import { historyCard, moreCard, revisionsOf, stateBadge, stateIs } from './views.js'
-import { addressFree, slugTaken } from './slug.js'
+import { addressFree } from './slug.js'
 import { Display } from 'foldkit-crud'
 import { Kinds, stateAttribute } from './kinds.js'
 
@@ -169,6 +175,21 @@ const entryInput = { entry: EntryId }
  * content type; the entry says which type it is. The server runs each after
  * asking the application's `allow`.
  */
+/**
+ * Why a save or a publish is refused, as data: one key of the content's form
+ * (a taken address, named by the content type's slug key, so the key is any
+ * string here), or a conflict with work saved or published since.
+ */
+const RefusedField = Schema.TaggedStruct('Field', { key: Schema.String, reason: Schema.String })
+const Refused = Schema.Union([RefusedField, Refusal.conflict])
+
+/** The values a server refuses a save or a publish with, for `RemoteServer.refuse`. */
+const refusal = {
+  /** One key of the content's form, and why, as text a form shows beside it. */
+  field: (key: string, reason: string) => RefusedField.make({ key, reason }),
+  conflict: Refusal.conflict.make({}),
+}
+
 const Operations = {
   /**
    * Saves the working copy, valid or not. The first save of an id nobody has
@@ -187,6 +208,7 @@ const Operations = {
       basedOn: Schema.NullOr(Schema.String),
     },
     Output: { entry: EntryId, updatedAt: Schema.String },
+    Refusal: Refused,
   }),
   DiscardDraft: Mutation.make('CmsDiscardDraft', { Input: entryInput, Output: {} }),
   /**
@@ -196,6 +218,7 @@ const Operations = {
   Publish: Mutation.make('CmsPublish', {
     Input: { entry: EntryId, basedOn: Schema.NullOr(Schema.Number) },
     Output: { entry: EntryId, targetId: Schema.String, revision: Schema.Number },
+    Refusal: Refused,
   }),
   Unpublish: Mutation.make('CmsUnpublish', { Input: entryInput, Output: {} }),
   Schedule: Mutation.make('CmsSchedule', {
@@ -359,6 +382,12 @@ export const Cms = {
   /** The operations, to register with Remote's `mutations`. */
   Operations,
   operations: Object.values(Operations),
+  /**
+   * What a server refuses `SaveDraft` and `Publish` with: `refusal.field(key,
+   * reason)` for one key of the content's form, `refusal.conflict` for work
+   * saved or published since. An editor reads them with `Data.refusal`.
+   */
+  refusal,
   /** The worklist query, to register with Remote's `queries` and list with `Crud.list`. */
   Entries,
   /**
@@ -385,11 +414,6 @@ export const Cms = {
         ),
     ) as ReturnType<typeof Query.make<`${Name}BySlug`, { slug: typeof Schema.String }, E>>
   },
-  /**
-   * How a server says a slug is taken, as a mutation's error: `CmsSlugTaken: <key>: ...`.
-   * `slugTaken.key(message)` is the form key it names, or `undefined` for another error.
-   */
-  slugTaken,
   /**
    * A form check that asks, while the author types, whether an address is already
    * used: `checks: { slug: Cms.addressFree('posts') }`. Named by the content type,

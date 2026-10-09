@@ -204,8 +204,9 @@ PostEditor.storedEntry(model) // Option: the entry the server knows, none until 
   `ReloadAsked` shows the server's copy; `OverwriteAsked` saves over it, based on
   it. Merging is not attempted.
 - **A taken address lands on the address.** A publish refused with
-  `CmsSlugTaken` marks the slug's own field invalid, keeping what was typed, and
-  clears when the author edits it. Nothing to wire: the editor does it.
+  `Cms.refusal.field(slugKey, reason)` marks the slug's own field invalid,
+  keeping what was typed, and clears when the author edits it. Nothing to wire:
+  the editor reads it with `Data.refusal`.
 - **Restoring** a revision replaces what is in the form with that value, as a
   draft. It publishes nothing.
 - **Preview is the application's own views.** Give the content type `preview`,
@@ -303,7 +304,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
 | `Cms.Entries` | The worklist query: one content type's entries, by label, archived or not. |
 | `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Throws with no `slug` role. |
-| `Cms.slugTaken.key(message)` | The form key a server's `CmsSlugTaken: ...` error names, or `undefined`. |
+| `Cms.refusal` | What a server refuses `SaveDraft` and `Publish` with: `field(key, reason)` for one key of the form, `conflict` for work saved or published since. Both operations declare it as their `Refusal`. |
 
 ## End-to-end example
 

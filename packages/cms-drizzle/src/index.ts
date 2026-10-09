@@ -566,7 +566,11 @@ export const CmsServer = {
         // The first draft of an entry has nothing to have been based on. Asked before
         // anything is written, so a refusal leaves no entry behind.
         if (previous === null && input.basedOn !== null)
-          return yield* refuse('CmsConflict: this draft was discarded')
+          return yield* RemoteServer.refuse(
+            Cms.Operations.SaveDraft,
+            Cms.refusal.conflict,
+            'This draft was discarded',
+          )
         if (existing === undefined) {
           yield* Effect.promise(() =>
             Promise.resolve(
@@ -604,7 +608,11 @@ export const CmsServer = {
             ),
           )
           if (changed.length === 0)
-            return yield* refuse('CmsConflict: this draft was saved by someone else since')
+            return yield* RemoteServer.refuse(
+              Cms.Operations.SaveDraft,
+              Cms.refusal.conflict,
+              'This draft was saved by someone else since',
+            )
         }
         if (existing !== undefined && existing.label !== input.label) {
           yield* Effect.promise(() =>
@@ -704,7 +712,11 @@ export const CmsServer = {
         const { entry, served } = found
         const database = yield* DrizzleDatabase
         const held = entry.revision
-        const conflict = refuse('CmsConflict: this entry was published by someone else since')
+        const conflict = RemoteServer.refuse(
+          Cms.Operations.Publish,
+          Cms.refusal.conflict,
+          'This entry was published by someone else since',
+        )
         if (held !== basedOn) return yield* conflict
         const { draft, creating, handler, decoded } = yield* readied(found)
 
@@ -715,7 +727,11 @@ export const CmsServer = {
           address === undefined
             ? undefined
             : (decoded as Readonly<Record<string, unknown>> | null)?.[address.key]
-        const taken = (key: string) => refuse(Cms.slugTaken.message(key, String(slug)))
+        const taken = (key: string) =>
+          RemoteServer.refuse(
+            Cms.Operations.Publish,
+            Cms.refusal.field(key, `That address is taken: "${String(slug)}" is already used`),
+          )
         if (address !== undefined && typeof slug === 'string') {
           const column = served.binding.columns[address.key]!
           const id = served.binding.columns.id!

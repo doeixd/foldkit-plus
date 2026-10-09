@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-cms`, `foldkit-cms-drizzle`: refusals are data, not prefixes.**
+  `SaveDraft` and `Publish` declare `Refusal`: `Cms.refusal.field(key, reason)`
+  for a taken address on its key, `Cms.refusal.conflict` for work saved or
+  published since. The editor reads both with `Data.refusal`. `Cms.slugTaken`
+  is removed, and the `CmsConflict: ` and `CmsSlugTaken: ` message prefixes are
+  gone: a message is now only for a person to read. `EditorDomain` gains
+  `refusal`. `RemoteServer.refuse` takes an optional message for that person.
 - **`foldkit-remote`: a mutation's answer invalidates the loaded lists it may
   have changed.** Each patch is judged against every loaded list over its
   Entity by the list's query body: a list stands when its rows and order are

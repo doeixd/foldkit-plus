@@ -125,6 +125,13 @@ const open = () => {
       )
     return {
       mutate,
+      /** The error a mutation is refused with, as the client receives it. */
+      refused: (mutation: string, input: unknown) =>
+        Effect.runPromise(
+          handlers
+            .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
+            .pipe(Effect.flip, Effect.provide(layer)),
+        ),
       bySlug: (slug: string) =>
         Effect.runPromise(
           handlers
@@ -178,11 +185,12 @@ describe('publishing to a slug that is taken', () => {
   it('is refused by name, on the slug’s key, and nothing is published', async () => {
     const { as, count } = open()
     await as('author').draft('e5', { title: 'New', slug: 'hidden' })
-    const refused = await as('author')
-      .mutate('CmsPublish', { entry: 'e5', basedOn: null })
-      .catch((error: unknown) => String(error))
-    expect(refused).toContain('CmsSlugTaken: slug: "hidden" is already used')
-    expect(Cms.slugTaken.key(String(refused))).toBe('slug')
+    const refused = await as('author').refused('CmsPublish', { entry: 'e5', basedOn: null })
+    expect(refused.refusal).toEqual({
+      _tag: 'Field',
+      key: 'slug',
+      reason: 'That address is taken: "hidden" is already used',
+    })
     expect(count('articles')).toBe(2)
     expect(count(`cms_drafts where id = 'e5'`)).toBe(1)
   })
@@ -190,10 +198,8 @@ describe('publishing to a slug that is taken', () => {
   it('is the same news when the check passed and the unique index refused', async () => {
     const { as, count } = open()
     await as('author').draft('e5', { title: 'Raced', slug: 'fresh' })
-    const refused = await as('author')
-      .mutate('CmsPublish', { entry: 'e5', basedOn: null })
-      .catch((error: unknown) => String(error))
-    expect(Cms.slugTaken.key(String(refused))).toBe('slug')
+    const refused = await as('author').refused('CmsPublish', { entry: 'e5', basedOn: null })
+    expect(refused.refusal).toMatchObject({ _tag: 'Field', key: 'slug' })
     // The transaction took the other writer's row with it: in a real race that
     // row is another connection's, and stays.
     expect(count('articles')).toBe(2)
@@ -203,11 +209,12 @@ describe('publishing to a slug that is taken', () => {
   it('does not blame the slug for another unique index', async () => {
     const { as } = open()
     await as('author').draft('e5', { title: 'Collides', slug: 'fresh' })
-    const refused = await as('author')
+    // A defect, not a refusal: nothing is said about the slug.
+    const failed = await as('author')
       .mutate('CmsPublish', { entry: 'e5', basedOn: null })
       .catch((error: unknown) => String(error))
-    expect(refused).toContain('Failed query')
-    expect(Cms.slugTaken.key(String(refused))).toBeUndefined()
+    expect(failed).toContain('Failed query')
+    expect(failed).not.toContain('That address is taken')
   })
 
   it('lets a row keep its own slug', async () => {
@@ -220,12 +227,6 @@ describe('publishing to a slug that is taken', () => {
     const refused = await as('author')
       .mutate('CmsPublish', { entry: 'e1', basedOn: null })
       .catch((error: unknown) => String(error))
-    expect(Cms.slugTaken.key(String(refused))).toBeUndefined()
-  })
-
-  it('says nothing of slugs for an error that is not about one', () => {
-    expect(Cms.slugTaken.key('CmsConflict: this draft was saved by someone else since')).toBe(
-      undefined,
-    )
+    expect(refused).not.toContain('That address is taken')
   })
 })

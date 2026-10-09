@@ -375,7 +375,8 @@ describe('saving a draft', () => {
       await expect(
         as(ada).mutate('CmsSaveDraft', save({ entry, basedOn: updatedAt })),
       ).rejects.toMatchObject({
-        message: 'CmsConflict: this draft was saved by someone else since',
+        message: 'This draft was saved by someone else since',
+        refusal: { _tag: 'Conflict' },
       })
     } finally {
       sqlite.close()
@@ -407,7 +408,7 @@ describe('saving a draft', () => {
     [
       'a save made from a draft that is gone, and makes no entry for it',
       save({ entry: 'nope', basedOn: '2026-01-01T00:00:00.000Z' }),
-      'CmsConflict: this draft was discarded',
+      'This draft was discarded',
     ],
     ['an entry of another type', save({ entry: 'e1', type: 'pages' }), 'This entry is of "posts"'],
     ['an archived entry', save({ entry: 'e4' }), 'An archived entry takes no draft'],
@@ -541,9 +542,12 @@ describe('publishing', () => {
 
   it('refuses a publish made from an older revision than the latest', async () => {
     const { as, count } = open()
-    await expect(as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: null })).rejects.toThrow(
-      'CmsConflict',
-    )
+    await expect(
+      as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: null }),
+    ).rejects.toMatchObject({
+      message: 'This entry was published by someone else since',
+      refusal: { _tag: 'Conflict' },
+    })
     expect(count(`cms_revisions where entry_id = 'e1'`)).toBe(1)
     expect(count(`cms_drafts where id = 'e1'`)).toBe(1)
   })

@@ -163,13 +163,13 @@ RemoteServer.make({
 - `CmsServer.make` throws for a content type with a `published` role whose
   binding has no `visible`.
 - `CmsSaveDraft` carries `basedOn` (the draft's `updatedAt`); a stale one is
-  refused as `CmsConflict: ...`. The first save of an id nobody has makes the entry.
+  refused with `Cms.refusal.conflict` (read it with `Data.refusal`). The first save of an id nobody has makes the entry.
 - `CmsPublish` runs `create` (no row yet) or `update` (the draft's value plus the
   row's `id`) inside `transaction`, with the row shown, the revision appended and
   the draft removed, all or nothing. Do not register `create`/`update` with
   `RemoteServer.make` yourself unless authors should also bypass drafts.
 - `CmsPublish` carries `basedOn` (the latest revision's `n`, or `null`); a stale
-  one is `CmsConflict: ...`. A draft the mutation's Input refuses is not published.
+  one is refused with `Cms.refusal.conflict`. A draft the mutation's Input refuses is not published.
 - `CmsUnpublish` empties the `published` column; the row is kept.
 - `CmsSchedule { entry, at }` promises a draft that would publish now; nothing runs
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
@@ -201,7 +201,7 @@ RemoteServer.make({
   id) and `foldkit-cms-drizzle` registers it as `query(descriptor, { entity })`
   with no `where` or `orderBy` of its own; the audience boundary is conjoined as
   ever. A taken slug fails a publish
-  as `CmsSlugTaken: <key>: ...`; `Cms.slugTaken.key(message)` is the key. Put a
+  with `Cms.refusal.field(key, reason)`, a typed refusal on the slug's key. Put a
   unique index on the column: the check alone loses a race. To say so while the
   author types, add `Cms.addressFree('posts')` to the form's slug key with the
   `Form.checks` step; it asks that query and excepts the row the editor says the

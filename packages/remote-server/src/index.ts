@@ -65,6 +65,8 @@ export class MutationRefused extends Schema.TaggedError<MutationRefused>()('Muta
   /** The mutation the refusal was made for: a Source refusing as another is a bug. */
   mutation: Schema.String,
   refusal: Schema.Unknown,
+  /** What a person reads: the error's message beside the refusal. */
+  message: Schema.String,
 }) {}
 
 export interface EntityRecord {
@@ -924,10 +926,7 @@ const refusalError = (
     const encoded = yield* Schema.encodeUnknownEffect(Refusal)(refused.refusal).pipe(
       Effect.mapError(() => invalid),
     )
-    return yield* new RemoteMutationError({
-      message: `Mutation ${mutation} was refused`,
-      refusal: encoded,
-    })
+    return yield* new RemoteMutationError({ message: refused.message, refusal: encoded })
   })
 
 export const RemoteServer = {
@@ -1011,12 +1010,14 @@ export const RemoteServer = {
   /**
    * A refusal of `mutation`, as a value of its declared `Refusal`: fail a
    * Source with it (`yield* RemoteServer.refuse(SavePost, { _tag: 'Field', ... })`)
-   * and the client reads it, decoded, with `Data.refusal`.
+   * and the client reads it, decoded, with `Data.refusal`. `message` is what a
+   * person reads, beside it.
    */
   refuse: <Refused>(
     mutation: MutationDescriptor<string, any, any, Refused>,
     refusal: NoInfer<Refused>,
-  ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal }),
+    message = `Mutation ${mutation.name} was refused`,
+  ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal, message }),
 
   query: <P = unknown, R = never, Input = unknown>(
     query: QueryDescriptor<string, Input, unknown>,

@@ -16,6 +16,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
 import {
+  Refusal,
   RemoteData,
   type MutationStatus,
   type OptimisticOperation,
@@ -33,7 +34,6 @@ import * as Subscription from 'foldkit/subscription'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import type { State, Transition } from './lifecycle.js'
-import { slugTaken } from './slug.js'
 
 /** How the form came to hold what it holds. */
 export type Resumed =
@@ -179,6 +179,7 @@ export interface EditorDomain<Root> {
   }
   get(selection: any, id: string): Projection<Root, RemoteData<any>>
   mutation(model: Root, requestId: string): MutationStatus
+  refusal(model: Root, requestId: string, mutation: any): Option.Option<unknown>
   refresh(model: Root, target: any): Root
   overlay(model: Root, id: string, optimistic: ReadonlyArray<OptimisticOperation>): Root
   lift(model: Root, id: string): Root
@@ -594,6 +595,13 @@ export const makeEditor =
 
         const statusOf = (root: Root, requestId: string | null): MutationStatus =>
           requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
+        /** Why the server refused a request, as the data its mutation declares. */
+        const refusalOf = (
+          root: Root,
+          requestId: string | null,
+          mutation: unknown,
+        ): Option.Option<unknown> =>
+          requestId === null ? Option.none() : data.refusal(root, requestId, mutation)
 
         /** Shows what was loaded, once: the draft by the ladder, else what is published. */
         const fill = (root: Root): Root => {
@@ -793,11 +801,14 @@ export const makeEditor =
          */
         const refused = (root: Root): Root => {
           const editor = slice.get(root)
-          const failure = statusOf(root, editor.publishId)
-          if (failure._tag !== 'Failed') return root
-          const key = slugTaken.key(failure.error.message)
-          if (key === undefined || content.roles.slug?.key !== key) return root
-          const reason = slugTaken.reason(failure.error.message)
+          const refusal = Option.filter(
+            refusalOf(root, editor.publishId, cms.Operations.Publish),
+            Refusal.isField,
+          )
+          if (Option.isNone(refusal)) return root
+          const { key } = refusal.value
+          if (content.roles.slug?.key !== key) return root
+          const reason = String(refusal.value.reason)
           const field = form.field(editor.form, key as never)
           if (field._tag === 'Invalid' && field.errors.includes(reason)) return root
           return slice.set(root, {
@@ -1057,10 +1068,17 @@ export const makeEditor =
               return later ? 'Scheduling' : 'Publishing'
             if (save._tag === 'Pending' || editor.settling === 'overwrite') return 'Saving'
             if (editor.submit === 'stopped') return 'Incomplete'
-            const conflicted = (status: MutationStatus) =>
-              status._tag === 'Failed' && status.error.message.includes('CmsConflict')
+            const conflicted =
+              Option.exists(
+                refusalOf(root, editor.saveId, cms.Operations.SaveDraft),
+                Refusal.isConflict,
+              ) ||
+              Option.exists(
+                refusalOf(root, editor.publishId, cms.Operations.Publish),
+                Refusal.isConflict,
+              )
             if (editor.edits > editor.savedEdit) return 'Editing'
-            if (conflicted(save) || conflicted(publish)) return 'Conflict'
+            if (conflicted) return 'Conflict'
             // A failed save outranks what the publish says; neither is pending here.
             switch (save._tag) {
               case 'Failed':
