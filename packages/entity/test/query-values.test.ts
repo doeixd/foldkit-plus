@@ -14,6 +14,7 @@ import {
   QueryEvaluateError,
   dependenciesOf,
   evaluate,
+  maxQueryNodes,
   type Predicate,
   type Row,
 } from '../src/index.js'
@@ -39,19 +40,40 @@ const counted = (): { readonly predicate: Predicate; readonly visits: () => numb
 const shared = (leaf: Predicate, depth: number): Predicate =>
   Array.from({ length: depth }).reduce<Predicate>(node => Expr.eq(node, node), leaf)
 
+// A leaf of three nodes under `depth` levels expands to 2^(depth + 2) - 1:
+// 511 at depth 7, inside the budget, and 1,023 at depth 8, past it.
 describe('a shared expression node (#137)', () => {
   it('is visited a bounded number of times by Query.where, not once per path', () => {
     const { predicate, visits } = counted()
-    Query.from(Item).pipe(Query.where(shared(predicate, 12)))
+    Query.from(Item).pipe(Query.where(shared(predicate, 7)))
     expect(visits()).toBeLessThan(20)
   })
 
   it('is visited a bounded number of times by Query.dependencies', () => {
     const { predicate, visits } = counted()
-    const query = Query.from(Item).pipe(Query.where(shared(predicate, 12)))
+    const query = Query.from(Item).pipe(Query.where(shared(predicate, 7)))
     const before = visits()
     expect(Query.dependencies(query).fields.map(field => field.key)).toEqual(['id'])
     expect(visits() - before).toBeLessThan(20)
+  })
+
+  it('is refused by Query.where once the tree it expands to passes the budget', () => {
+    const leaf = Expr.eq(Item.fields.id, 'a')
+    expect(() => Query.from(Item).pipe(Query.where(shared(leaf, 8)))).toThrow(
+      new RegExp(`${maxQueryNodes} nodes`),
+    )
+    // Thirty levels: thirty-one objects, and more nodes than evaluate could ever walk.
+    expect(() => Query.from(Item).pipe(Query.where(shared(leaf, 30)))).toThrow(
+      new RegExp(`${maxQueryNodes} nodes`),
+    )
+  })
+
+  it('counts every predicate of the query, not only those of one step', () => {
+    const half = shared(Expr.eq(Item.fields.id, 'a'), 7)
+    const once = Query.from(Item).pipe(Query.where(half))
+    expect(() => once.pipe(Query.where(shared(Expr.eq(Item.fields.id, 'b'), 7)))).toThrow(
+      new RegExp(`${maxQueryNodes} nodes`),
+    )
   })
 })
 

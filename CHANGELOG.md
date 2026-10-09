@@ -77,6 +77,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: `Query.where` refuses predicates that expand past
+  `maxQueryNodes` (1,000) nodes.** A shared node (`Expr.eq(n, n)`) is counted
+  on each path that reaches it, because `evaluate` and the SQL compiler read a
+  predicate as a tree: thirty nested levels were thirty-one objects and a
+  billion nodes of work at every row.
 - **`foldkit-entity`: `Query.dependencies` names each field's role.** Beside
   `fields`, it returns `predicate` (fields that can change which rows match)
   and `order` (fields that can change where a row sits), typed

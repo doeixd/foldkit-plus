@@ -461,6 +461,43 @@ const checkOwnership = (
   }
 }
 
+/**
+ * The most nodes a query's predicates may hold once every shared node is
+ * counted on each path that reaches it. Interpreters read a predicate as a
+ * tree: `evaluate` once per row, and the SQL compiler into text that repeats a
+ * shared operand wherever it appears. So `eq(n, n)` nested thirty deep is
+ * thirty-one objects and a billion nodes of work. Real queries are tens.
+ */
+export const maxQueryNodes = 1_000
+
+const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicate> => {
+  switch (expr._tag) {
+    case 'Literal':
+    case 'Field':
+    case 'Input':
+      return []
+    case 'Eq':
+      return [expr.left, expr.right]
+    case 'Null':
+      return [expr.operand]
+    case 'Contains':
+      return [expr.value, expr.search]
+  }
+}
+
+/** A node's size as a tree, each distinct node sized once. */
+const expandedSize = (expr: AnyExpr | Predicate, sizes: Map<object, number>): number => {
+  const known = sizes.get(expr)
+  if (known !== undefined) return known
+  // Capped, so a graph deep enough to overflow a number still compares as too big.
+  const size = Math.min(
+    maxQueryNodes + 1,
+    childrenOf(expr).reduce((sum, child) => sum + expandedSize(child, sizes), 1),
+  )
+  sizes.set(expr, size)
+  return size
+}
+
 const QueryProto = {
   _tag: 'Query' as const,
   pipe() {
@@ -500,7 +537,15 @@ export const Query = {
     <E extends AnyEntity>(self: Query<E>): Query<E> => {
       if (predicates.length === 0) return self
       checkOwnership('where', 'a predicate', self.entity, predicates)
-      return query(self.entity, [...self.where, ...predicates], self.orderBy)
+      const where = [...self.where, ...predicates]
+      const sizes = new Map<object, number>()
+      const size = where.reduce((sum, predicate) => sum + expandedSize(predicate, sizes), 0)
+      if (size > maxQueryNodes) {
+        throw new Error(
+          `[foldkit-entity] Query.where: the predicates expand to more than ${maxQueryNodes} nodes, counting a shared node on every path that reaches it`,
+        )
+      }
+      return query(self.entity, where, self.orderBy)
     },
 
   /**

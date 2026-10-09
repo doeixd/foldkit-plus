@@ -423,6 +423,12 @@ name are two entries.
 
 Every node is frozen as it is built, so a query is the value it was when
 `Query.where` checked it: nothing can swap a field or a literal in afterwards.
+
+A node can be shared (`Expr.eq(n, n)`), and the analysis visits each one once.
+An interpreter does not: `evaluate` reads a predicate as a tree on every row,
+and the SQL compiler writes a shared operand out wherever it appears. So
+`Query.where` refuses predicates that expand past `maxQueryNodes` (1,000)
+nodes, counting a shared node on each path that reaches it.
 A node may be shared, `Expr.eq(n, n)`, and every walk over one visits each
 node once, so a deeply shared predicate costs its size, not its paths.
 

@@ -219,6 +219,9 @@ database, runs no query, and nothing can change it after `Query.where` checked i
 An interpreter compiles it (`foldkit-remote-drizzle` to SQL, an in-memory
 evaluator to a row predicate). `Expr.eq` coerces a field or a plain value on
 either side; a field compared to the wrong type is an error where it is written.
+`Query.where` refuses predicates that expand past `maxQueryNodes` (1,000) nodes,
+counting a shared node (`Expr.eq(n, n)`) on every path, since interpreters read
+a predicate as a tree.
 
 `Expr.isNull` / `Expr.isNotNull` (one node, the answer to absence flipped) and
 `Expr.contains` exist too. The operator set grows from real queries, not from
