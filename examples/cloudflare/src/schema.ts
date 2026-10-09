@@ -60,7 +60,9 @@ const Model = Schema.Struct({
 type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   CreatedTodo: { id: Schema.String, title: Schema.String },
+  RenamedTodo: { id: Schema.String, title: Schema.String },
   ToggledTodo: { id: Schema.String },
+  DeletedTodo: { id: Schema.String },
 })
 export type Message = typeof Message.Type
 const update = (model: Model, message: Message): Update.Return<Model, Message> =>
@@ -68,17 +70,30 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
     CreatedTodo: ({ id, title }) => ({
       model: { todos: [...model.todos, { id, title, done: false }] },
     }),
+    RenamedTodo: ({ id, title }) => ({
+      model: {
+        todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      },
+    }),
     ToggledTodo: ({ id }) => ({
       model: {
         todos: model.todos.map(todo => (todo.id === id ? { ...todo, done: !todo.done } : todo)),
       },
+    }),
+    DeletedTodo: ({ id }) => ({
+      model: { todos: model.todos.filter(todo => todo.id !== id) },
     }),
   })
 const App = Surface.application({ Model, Message, initial: { todos: [] }, update })
 export const Todos: SyncContract<Message, Model> = Sync.forApplication(App).make({
   documentId: documentId('todos'),
   shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [Message.CreatedTodo, Message.ToggledTodo]),
+  durable: MessageSet.make(App, [
+    Message.CreatedTodo,
+    Message.RenamedTodo,
+    Message.ToggledTodo,
+    Message.DeletedTodo,
+  ]),
 })
 
 export type Shared = typeof Todos extends Sync<Message, infer S> ? S : never
@@ -151,10 +166,16 @@ const applyTodo = (db: D1Database, operation: Operation): Effect.Effect<void, un
             .bind(id, title)
             .run(),
         ),
+      RenamedTodo: ({ id, title }) =>
+        Effect.promise(() =>
+          db.prepare('UPDATE todos SET title = ? WHERE id = ?').bind(title, id).run(),
+        ),
       ToggledTodo: ({ id }) =>
         Effect.promise(() =>
           db.prepare('UPDATE todos SET done = 1 - done WHERE id = ?').bind(id).run(),
         ),
+      DeletedTodo: ({ id }) =>
+        Effect.promise(() => db.prepare('DELETE FROM todos WHERE id = ?').bind(id).run()),
     })
   })
 

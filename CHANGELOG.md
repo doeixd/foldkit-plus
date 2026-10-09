@@ -11,10 +11,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`examples/cloudflare`: the whole stack in one deployable worker.** Reads
   are Remote over D1 through `foldkit-remote-drizzle`; writes are Sync through a
-  Durable Object's D1 journal, whose `settle` applies each committed operation to
-  the table Remote reads back; live is a polling `LiveSource` that re-reads D1
-  from inside the subscriber's own request. `pnpm demo` prints the loop against
-  real workerd and `pnpm test` asserts it, both on miniflare over real HTTP.
+  Durable Object's D1 journal, whose `settle` applies each committed operation
+  (create, rename, toggle, delete) to the table Remote reads back; live is a
+  polling `LiveSource` that re-reads D1 from inside the subscriber's own
+  request. `pages/` is a Pages site that serves the list. It forwards
+  `/remote` to that Worker and calls the Worker's Durable Object for `/sync`
+  (a service binding drops the socket's replies). `pnpm demo` prints the loop
+  against real workerd and
+  `pnpm test` asserts it, both on miniflare over real HTTP.
 
 - **`foldkit-sync/do`: serve one document's exchange from a Durable Object.**
   `defineDocumentHost(DurableObject, { sync, openJournal, resolvePrincipal })`

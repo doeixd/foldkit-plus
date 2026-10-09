@@ -22,20 +22,49 @@ export interface WorkerEnv {
 
 const { server } = makeServer()
 
+/**
+ * The actor is a header when the caller can set one, and a query otherwise.
+ * A browser `WebSocket` cannot set headers, so the page passes `?actor=`.
+ */
+const actorOf = (request: Request): string => {
+  const header = request.headers.get('x-actor')
+  if (header !== null && header.length > 0) return header
+  const query = new URL(request.url).searchParams.get('actor')
+  if (query !== null && query.length > 0) return query
+  return 'anon'
+}
+
 const answerRemote = serveFetch({
   server,
   // A short heartbeat: an idle stream must keep moving to survive.
   liveHeartbeat: '1 second',
-  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
+  resolvePrincipal: actorOf,
   layer: (env: WorkerEnv) => databaseFrom(env.DB),
 })
 
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync: Todos,
   openJournal: (_ctx, env: WorkerEnv) => openTodosJournal(env.DB),
-  resolvePrincipal: request => request.headers.get('x-actor') ?? 'anon',
+  resolvePrincipal: actorOf,
   settle: (env: WorkerEnv, journal) => settleTodos(journal, env.DB),
 }) {}
+
+/** The Pages origin calls this worker from another host. Sockets need no CORS. */
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'content-type, x-actor',
+  'access-control-allow-methods': 'POST, OPTIONS',
+} as const
+
+const withCors = (response: Response): Response => {
+  const headers = new Headers(response.headers)
+  for (const [name, value] of Object.entries(CORS)) headers.set(name, value)
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
 
 export default {
   fetch: async (request: Request, env: WorkerEnv): Promise<Response> => {
@@ -46,6 +75,7 @@ export default {
       return env.SYNC_HOST.get(env.SYNC_HOST.idFromName('todos')).fetch(
         request as never,
       ) as unknown as Promise<Response>
-    return answerRemote(request, env)
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
+    return withCors(await answerRemote(request, env))
   },
 }

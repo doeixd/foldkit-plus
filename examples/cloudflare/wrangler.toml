@@ -1,17 +1,20 @@
 name = "foldkit-cloudflare"
-main = "src/worker.ts"
+# Produced by `pnpm --filter foldkit-example-cloudflare build:worker`.
+# Already bundled the way the tests bundle it, source condition included.
+main = "dist/worker.js"
+no_bundle = true
 compatibility_date = "2026-10-01"
 # Live streams build a `ReadableStream`, which needs this flag on older
 # compatibility dates; recent dates enable it by default.
 compatibility_flags = ["streams_enable_constructors"]
 
 # Local runs use miniflare (`pnpm demo`, `pnpm test`), which needs no account.
-# To deploy: `wrangler login`, `wrangler d1 create foldkit-cloudflare`, then
-# replace `database_id` below and `wrangler deploy`.
+# `database_id` is the D1 database behind the public demo. A fork creates its
+# own with `wrangler d1 create foldkit-cloudflare` and replaces this id.
 [[d1_databases]]
 binding = "DB"
 database_name = "foldkit-cloudflare"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "c1fabe99-8aab-498a-a88b-09dd5d0f4b00"
 migrations_dir = "migrations"
 
 [[durable_objects.bindings]]

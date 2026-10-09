@@ -134,8 +134,86 @@ describe('cloudflare example', () => {
     })
   }, 120_000)
 
+  it('renames and deletes a row, and live drops it', async () => {
+    const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
+    const writer = await upgradeSync(stack.mf, 'ada')
+    expect(writer.status).toBe(101)
+    expect(writer.socket).not.toBeNull()
+    sockets.push(writer.socket!)
+
+    const created = await exchange(writer.socket!, {
+      id: '1',
+      cursor: 0,
+      pending: [syncOp('crud', 1, { _tag: 'CreatedTodo', id: 't-crud', title: 'Eggs' })],
+    })
+    expect(created.error).toBeUndefined()
+    const renamed = await exchange(writer.socket!, {
+      id: '2',
+      cursor: 0,
+      pending: [syncOp('crud', 2, { _tag: 'RenamedTodo', id: 't-crud', title: 'Rolls' })],
+    })
+    expect(renamed.error).toBeUndefined()
+
+    const read = await readTodo(remote, 't-crud', ['title', 'done'])
+    expect(read.entities).toEqual([
+      { entity: 'Todo', id: 't-crud', values: { title: 'Rolls', done: 0 } },
+    ])
+    const rows = await stack.db
+      .prepare('SELECT title, done FROM todos WHERE id = ?')
+      .bind('t-crud')
+      .all()
+    expect(rows.results).toEqual([{ title: 'Rolls', done: 0 }])
+
+    const waiting = Effect.runFork(
+      firstChange(remote, [{ entity: 'Todo', id: 't-crud', fields: ['title', 'done'] }]),
+    )
+    await pause(300)
+    const deleted = await exchange(writer.socket!, {
+      id: '3',
+      cursor: 0,
+      pending: [syncOp('crud', 3, { _tag: 'DeletedTodo', id: 't-crud' })],
+    })
+    expect(deleted.error).toBeUndefined()
+    const gone = await firstWithin(waiting)
+    expect(gone).toEqual({
+      _tag: 'EntityDeleted',
+      cursor: 1,
+      entity: 'Todo',
+      id: 't-crud',
+    })
+
+    const after = await readTodo(remote, 't-crud', ['title'])
+    expect(after.entities).toEqual([])
+    expect(await queryTodos(remote, { first: 50 })).not.toContain('t-crud')
+    const left = await stack.db.prepare('SELECT id FROM todos WHERE id = ?').bind('t-crud').all()
+    expect(left.results).toEqual([])
+  }, 120_000)
+
   it('answers a non-upgrade without opening anything', async () => {
     const response = await fetch(`${stack.origin}/sync`)
     expect(response.status).toBe(404)
+  }, 120_000)
+
+  it('accepts a header-less read and answers a preflight', async () => {
+    const response = await fetch(`${stack.origin}/remote?actor=ada`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'query',
+        payload: { query: 'AllTodos', input: {}, window: { first: 1 } },
+      }),
+    })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    const body = (await response.json()) as { result?: { edges: unknown }; error?: string }
+    expect(body.error).toBeUndefined()
+    expect(Array.isArray(body.result?.edges)).toBe(true)
+
+    const preflight = await fetch(`${stack.origin}/remote`, {
+      method: 'OPTIONS',
+      headers: { 'access-control-request-headers': 'content-type, x-actor' },
+    })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-headers')).toBe('content-type, x-actor')
   }, 120_000)
 })

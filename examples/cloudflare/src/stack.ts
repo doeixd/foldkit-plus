@@ -20,20 +20,27 @@ export interface CloudflareStack {
   readonly stop: () => Promise<void>
 }
 
-export const startStack = async (): Promise<CloudflareStack> => {
-  const bundled = await build({
+/** The worker esbuild produces, for miniflare and for `wrangler deploy`. */
+export const bundleWorker = (outfile?: string) =>
+  build({
     entryPoints: [here('./worker.ts')],
     bundle: true,
     format: 'esm',
     platform: 'browser',
     conditions: ['foldkit-plus:source'],
     external: ['cloudflare:workers'],
-    write: false,
+    write: outfile !== undefined,
+    ...(outfile === undefined ? {} : { outfile }),
     logLevel: 'silent',
   })
+
+export const startStack = async (): Promise<CloudflareStack> => {
+  const bundled = await bundleWorker()
+  const script = bundled.outputFiles?.[0]?.text
+  if (script === undefined) throw new Error('The worker bundle was empty')
   const mf = new Miniflare({
     modules: true,
-    script: bundled.outputFiles[0]!.text,
+    script,
     durableObjects: { SYNC_HOST: 'SyncHost' },
     d1Databases: ['DB'],
     compatibilityFlags: ['streams_enable_constructors'],

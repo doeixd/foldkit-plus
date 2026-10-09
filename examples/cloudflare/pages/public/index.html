@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Todos</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #f6f5f2;
+        color: #1c1915;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          background: #1a1916;
+          color: #f3efe6;
+        }
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 36rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.4rem;
+      }
+      .lede,
+      .status {
+        margin: 0 0 1rem;
+        line-height: 1.45;
+      }
+      .lede {
+        color: #5c564c;
+      }
+      @media (prefers-color-scheme: dark) {
+        .lede {
+          color: #c3bbae;
+        }
+      }
+      form,
+      .who {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0 0 1rem;
+      }
+      input,
+      button {
+        font: inherit;
+      }
+      input[type="text"] {
+        flex: 1;
+        min-width: 0;
+        padding: 0.55rem 0.7rem;
+        border: 1px solid #c9c2b4;
+        border-radius: 0.4rem;
+        background: transparent;
+        color: inherit;
+      }
+      button,
+      .add {
+        padding: 0.55rem 0.9rem;
+        border: 0;
+        border-radius: 0.4rem;
+        background: #1c1915;
+        color: #f6f5f2;
+        cursor: pointer;
+      }
+      @media (prefers-color-scheme: dark) {
+        button,
+        .add {
+          background: #f3efe6;
+          color: #1c1915;
+        }
+      }
+      button.ghost {
+        background: transparent;
+        color: inherit;
+        border: 1px solid #c9c2b4;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      li {
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        padding: 0.35rem 0;
+      }
+      li input[type="checkbox"] {
+        width: 1.1rem;
+        height: 1.1rem;
+      }
+      li.done input[type="text"] {
+        text-decoration: line-through;
+        opacity: 0.7;
+      }
+      .empty {
+        margin: 0.5rem 0 0;
+      }
+      .status {
+        min-height: 1.4rem;
+      }
+      .status[data-kind="error"] {
+        color: #9a3412;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Todos</h1>
+      <p class="lede">
+        Create, rename, complete, and delete. A write goes through one Durable Object into D1.
+        The list is read back from that table. Open another tab, with another name, and a change
+        shows up here on its own.
+      </p>
+      <label class="who">
+        <span>Name</span>
+        <input id="actor" type="text" maxlength="40" autocomplete="nickname" />
+      </label>
+      <form id="create">
+        <input id="title" type="text" name="title" maxlength="200" placeholder="Add a todo" required />
+        <button class="add" type="submit">Add</button>
+      </form>
+      <p id="status" class="status" role="status"></p>
+      <ul id="list"></ul>
+      <p id="empty" class="empty" hidden>Nothing here yet.</p>
+    </main>
+    <script>
+      // Same number as `REMOTE_PROTOCOL_VERSION` in packages/remote/src/wire.ts.
+      const REMOTE_PROTOCOL_VERSION = 4
+      const rows = new Map()
+      let order = []
+      let cursor = 0
+      let epoch
+      let frameId = 0
+      let socket = null
+      let refreshGen = 0
+      let liveAbort = null
+      let liveKey = ''
+      const waiters = new Map()
+
+      const status = document.querySelector('#status')
+      const list = document.querySelector('#list')
+      const empty = document.querySelector('#empty')
+      const actorInput = document.querySelector('#actor')
+      const titleInput = document.querySelector('#title')
+      const createForm = document.querySelector('#create')
+
+      const actor = () => actorInput.value.trim()
+
+      const replicaId = () => {
+        const saved = sessionStorage.getItem('foldkit-crud-replica')
+        if (saved !== null) return saved
+        const minted = crypto.randomUUID()
+        sessionStorage.setItem('foldkit-crud-replica', minted)
+        return minted
+      }
+
+      const nextSequence = () => {
+        const next = Number(sessionStorage.getItem('foldkit-crud-seq') ?? '0') + 1
+        sessionStorage.setItem('foldkit-crud-seq', String(next))
+        return next
+      }
+
+      const setStatus = (text, kind) => {
+        status.textContent = text
+        status.dataset.kind = kind ?? ''
+      }
+
+      const showError = error => {
+        setStatus(error instanceof Error ? error.message : String(error), 'error')
+      }
+
+      const operation = message => {
+        const localSequence = nextSequence()
+        const replica = replicaId()
+        return {
+          protocolVersion: 1,
+          schemaVersion: 1,
+          documentId: 'todos',
+          replicaId: replica,
+          localSequence,
+          opId: `${replica}:${localSequence}`,
+          baseCursor: 0,
+          message,
+        }
+      }
+
+      const remote = async (operationName, payload) => {
+        const response = await fetch('/remote', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-actor': actor() },
+          body: JSON.stringify({ operation: operationName, payload }),
+        })
+        const body = await response.json()
+        if (typeof body.error === 'string') throw new Error(body.error)
+        return body.result
+      }
+
+      const rowFrom = values => ({
+        title: typeof values.title === 'string' ? values.title : '',
+        done: values.done === 1 || values.done === true,
+      })
+
+      const refresh = async () => {
+        const gen = ++refreshGen
+        const page = await remote('query', {
+          query: 'AllTodos',
+          input: {},
+          window: { first: 200 },
+          select: { entity: 'Todo', fields: ['title', 'done'] },
+        })
+        if (gen !== refreshGen) return
+        const values = new Map((page.entities ?? []).map(entity => [entity.id, entity.values]))
+        const missing = page.edges.filter(edge => !values.has(edge.id))
+        if (missing.length > 0) {
+          const read = await remote('read', {
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: missing.map(edge => ({
+              entity: 'Todo',
+              id: edge.id,
+              fields: ['title', 'done'],
+            })),
+          })
+          if (gen !== refreshGen) return
+          for (const entity of read.entities ?? []) values.set(entity.id, entity.values)
+        }
+        order = page.edges.map(edge => edge.id)
+        const seen = new Set(order)
+        for (const id of rows.keys()) if (!seen.has(id)) rows.delete(id)
+        for (const id of order) {
+          const current = rows.get(id) ?? {}
+          const next = rowFrom(values.get(id) ?? {})
+          rows.set(id, { ...current, ...next })
+        }
+        render()
+        ensureLive(order)
+      }
+
+      const syncItem = (item, row) => {
+        item.classList.toggle('done', row.done)
+        const box = item.querySelector('input[type="checkbox"]')
+        const title = item.querySelector('input[type="text"]')
+        if (box !== null) box.checked = row.done
+        if (title !== null && document.activeElement !== title) {
+          title.value = row.title
+          title.dataset.saved = row.title
+        }
+      }
+
+      const render = () => {
+        const existing = new Map([...list.children].map(item => [item.dataset.id, item]))
+        const fragment = document.createDocumentFragment()
+        for (const id of order) {
+          const row = rows.get(id)
+          if (row === undefined) continue
+          const item = existing.get(id) ?? rowElement(id, row)
+          if (existing.has(id)) syncItem(item, row)
+          fragment.append(item)
+        }
+        list.replaceChildren(fragment)
+        empty.hidden = order.length > 0
+      }
+
+      const rowElement = (id, row) => {
+        const item = document.createElement('li')
+        item.dataset.id = id
+        if (row.done) item.classList.add('done')
+        const box = document.createElement('input')
+        box.type = 'checkbox'
+        box.checked = row.done
+        box.setAttribute('aria-label', `Done: ${row.title}`)
+        box.addEventListener('change', () => {
+          submit({ _tag: 'ToggledTodo', id }).catch(error => {
+            box.checked = !box.checked
+            showError(error)
+          })
+        })
+        const title = document.createElement('input')
+        title.type = 'text'
+        title.value = row.title
+        title.dataset.saved = row.title
+        title.setAttribute('aria-label', 'Title')
+        title.addEventListener('change', () => {
+          const next = title.value.trim()
+          if (next === '' || next === title.dataset.saved) {
+            title.value = title.dataset.saved ?? ''
+            return
+          }
+          submit({ _tag: 'RenamedTodo', id, title: next })
+            .then(() => {
+              title.dataset.saved = next
+            })
+            .catch(error => {
+              title.value = title.dataset.saved ?? ''
+              showError(error)
+            })
+        })
+        const remove = document.createElement('button')
+        remove.type = 'button'
+        remove.className = 'ghost'
+        remove.textContent = 'Delete'
+        remove.addEventListener('click', () => {
+          submit({ _tag: 'DeletedTodo', id }).catch(showError)
+        })
+        item.append(box, title, remove)
+        return item
+      }
+
+      const patchRow = (id, values) => {
+        const row = rows.get(id)
+        if (row === undefined) {
+          refresh().catch(showError)
+          return
+        }
+        if (Object.hasOwn(values, 'title') && typeof values.title === 'string') row.title = values.title
+        if (Object.hasOwn(values, 'done')) row.done = values.done === 1 || values.done === true
+        render()
+      }
+
+      const applyChange = change => {
+        if (change._tag === 'EntityDeleted') {
+          rows.delete(change.id)
+          order = order.filter(id => id !== change.id)
+          render()
+          ensureLive(order)
+          return
+        }
+        if (change._tag === 'EntityPatched') patchRow(change.id, change.values ?? {})
+      }
+
+      const ensureLive = ids => {
+        const key = ids.join('\n')
+        if (key === liveKey && liveAbort !== null) return
+        liveKey = key
+        liveAbort?.abort()
+        liveAbort = null
+        if (ids.length === 0) return
+        const controller = new AbortController()
+        liveAbort = controller
+        readLive(controller, ids)
+      }
+
+      const readLive = async (controller, ids) => {
+        try {
+          const response = await fetch('/remote', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-actor': actor() },
+            body: JSON.stringify({
+              operation: 'live',
+              payload: {
+                version: REMOTE_PROTOCOL_VERSION,
+                requirements: ids.map(id => ({ entity: 'Todo', id, fields: ['title', 'done'] })),
+                after: 0,
+              },
+            }),
+            signal: controller.signal,
+          })
+          if (!response.ok || response.body === null) {
+            const body = await response.json().catch(() => null)
+            throw new Error(body?.error ?? `Live failed (${response.status})`)
+          }
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+          for (;;) {
+            const next = await reader.read()
+            if (next.done) break
+            buffer += decoder.decode(next.value, { stream: true }).replaceAll('\r\n', '\n')
+            for (;;) {
+              const split = buffer.indexOf('\n\n')
+              if (split < 0) break
+              takeFrame(buffer.slice(0, split))
+              buffer = buffer.slice(split + 2)
+            }
+          }
+        } catch (error) {
+          if (controller.signal.aborted) return
+          showError(error)
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          if (!controller.signal.aborted) readLive(controller, ids)
+        }
+      }
+
+      const takeFrame = text => {
+        let event = 'message'
+        const data = []
+        for (const line of text.split('\n')) {
+          if (line.startsWith(':') || line === '') continue
+          const colon = line.indexOf(':')
+          if (colon < 0) continue
+          const field = line.slice(0, colon)
+          const value = line.slice(colon + 1).startsWith(' ')
+            ? line.slice(colon + 2)
+            : line.slice(colon + 1)
+          if (field === 'event') event = value
+          else if (field === 'data') data.push(value)
+        }
+        if (data.length === 0) return
+        const parsed = JSON.parse(data.join('\n'))
+        if (event === 'error') throw new Error(parsed.message ?? 'Live failed')
+        applyChange(parsed)
+      }
+
+      const absorb = result => {
+        if (typeof result.epoch === 'string') epoch = result.epoch
+        for (const committed of result.operations ?? []) {
+          if (typeof committed.serverSequence === 'number' && committed.serverSequence > cursor) {
+            cursor = committed.serverSequence
+          }
+        }
+        if (typeof result.checkpoint?.cursor === 'number' && result.checkpoint.cursor > cursor) {
+          cursor = result.checkpoint.cursor
+        }
+      }
+
+      const exchange = pending =>
+        new Promise((resolve, reject) => {
+          if (socket === null || socket.readyState !== WebSocket.OPEN) {
+            reject(new Error('Not connected'))
+            return
+          }
+          const id = String(++frameId)
+          waiters.set(id, { resolve, reject })
+          const frame = { id, cursor, pending }
+          if (epoch !== undefined) frame.epoch = epoch
+          socket.send(JSON.stringify(frame))
+        }).then(async result => {
+          absorb(result)
+          if (result.more === true) await exchange([])
+          return result
+        })
+
+      let tail = Promise.resolve()
+      const enqueue = task => {
+        const run = tail.then(task)
+        tail = run.then(
+          () => undefined,
+          () => undefined,
+        )
+        return run
+      }
+
+      // A notice is sent when the journal appends, which is before `settle`
+      // has written the table. Pulling is itself an exchange, so the object
+      // runs it after that settle, and the refresh below sees the row.
+      let pullQueued = false
+      const pull = () => {
+        if (pullQueued) return tail
+        pullQueued = true
+        return enqueue(async () => {
+          pullQueued = false
+          await exchange([])
+          await refresh()
+        })
+      }
+
+      const submit = message =>
+        enqueue(async () => {
+          const result = await exchange([operation(message)])
+          const rejected = result.rejected ?? []
+          if (rejected.length > 0) {
+            const reason = result.reasons?.find(item => item.opId === rejected[0])?.reason
+            throw new Error(reason ?? 'The server refused that edit')
+          }
+          await refresh()
+        })
+
+      const failWaiters = error => {
+        for (const waiter of waiters.values()) waiter.reject(error)
+        waiters.clear()
+      }
+
+      const connect = () => {
+        failWaiters(new Error('Reconnecting'))
+        if (socket !== null) {
+          socket.onclose = null
+          socket.close()
+        }
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const ws = new WebSocket(
+          `${protocol}//${location.host}/sync?actor=${encodeURIComponent(actor())}`,
+        )
+        socket = ws
+        setStatus('Connecting…')
+        ws.onopen = () => {
+          setStatus('Connected')
+          pull().catch(showError)
+        }
+        ws.onmessage = event => {
+          if (typeof event.data !== 'string') return
+          const message = JSON.parse(event.data)
+          if (message.notify === true) {
+            pull().catch(showError)
+            return
+          }
+          const waiter = waiters.get(message.id)
+          if (waiter === undefined) return
+          waiters.delete(message.id)
+          if (typeof message.error === 'string') waiter.reject(new Error(message.error))
+          else waiter.resolve(message.result)
+        }
+        ws.onclose = () => {
+          if (socket !== ws) return
+          setStatus('Reconnecting…')
+          setTimeout(() => {
+            if (socket === ws) connect()
+          }, 1000)
+        }
+      }
+
+      const savedActor = sessionStorage.getItem('foldkit-crud-actor')
+      actorInput.value =
+        savedActor !== null && savedActor.length > 0
+          ? savedActor
+          : `guest-${crypto.randomUUID().slice(0, 4)}`
+      sessionStorage.setItem('foldkit-crud-actor', actor())
+      actorInput.addEventListener('change', () => {
+        const name = actor()
+        if (name === '') {
+          actorInput.value = sessionStorage.getItem('foldkit-crud-actor') ?? ''
+          return
+        }
+        sessionStorage.setItem('foldkit-crud-actor', name)
+        connect()
+      })
+      createForm.addEventListener('submit', event => {
+        event.preventDefault()
+        const title = titleInput.value.trim()
+        if (title === '') return
+        titleInput.disabled = true
+        submit({ _tag: 'CreatedTodo', id: crypto.randomUUID(), title })
+          .then(() => {
+            titleInput.value = ''
+            setStatus('Connected')
+          })
+          .catch(showError)
+          .finally(() => {
+            titleInput.disabled = false
+            titleInput.focus()
+          })
+      })
+      connect()
+    </script>
+  </body>
+</html>

@@ -5,6 +5,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
+    "build:worker": "tsx src/bundle.ts",
     "demo": "tsx src/demo.ts",
     "typecheck": "tsc -b"
   },

@@ -102,7 +102,9 @@ export const syncOp = (
   localSequence: number,
   message:
     | { readonly _tag: 'CreatedTodo'; readonly id: string; readonly title: string }
-    | { readonly _tag: 'ToggledTodo'; readonly id: string },
+    | { readonly _tag: 'RenamedTodo'; readonly id: string; readonly title: string }
+    | { readonly _tag: 'ToggledTodo'; readonly id: string }
+    | { readonly _tag: 'DeletedTodo'; readonly id: string },
 ) => ({
   protocolVersion: 1,
   schemaVersion: 1,

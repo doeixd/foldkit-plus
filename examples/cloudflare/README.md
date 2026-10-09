@@ -3,7 +3,9 @@
 The stack of the other examples, in the shape you would deploy it: a
 Cloudflare Worker whose **reads** are Remote over D1, whose **writes** are
 Sync through a Durable Object's D1 journal, and whose **live** stream tells a
-Remote reader what changed.
+Remote reader what changed. The visitable page is a Cloudflare Pages site
+(`pages/`). It forwards `/remote` to that Worker and calls the Worker's
+Durable Object for `/sync`. Pages cannot host the Durable Object class itself.
 
 ```
 POST /remote  ->  serveFetch            (D1 reads, queries, live)
@@ -12,7 +14,8 @@ POST /sync    ->  DocumentHost          (upgrade; one object per document)
 
 `pnpm demo` runs it against local [miniflare](https://miniflare.dev) — a real
 `workerd`, over real HTTP — and prints the loop. `pnpm test` asserts it.
-Neither needs an account; deploy is `wrangler deploy` once you have one.
+Neither needs an account. The commands that publish the Worker and the page
+are at the end of [Run it](#run-it).
 
 ## What each piece owns
 
@@ -67,8 +70,8 @@ applying an operation twice a no-op, and the settled cursor persists in
 1. A replica's frames arrive at `/sync`; the object upgrades, resolves its
    principal, and **opens the journal once**.
 2. The journal validates, authorizes, orders and appends the operation to D1.
-3. `settle` then applies it — the `INSERT` or the `UPDATE` — through
-   `journal.recover`, and persists the cursor.
+3. `settle` then applies it — the insert, the rename, the toggle, or the
+   delete — through `journal.recover`, and persists the cursor.
 4. `POST /remote` reads the row back through `remote-drizzle`, under the
    request's own principal.
 5. A live stream polls D1, sees `done` change, and emits an `EntityPatched`
@@ -90,9 +93,25 @@ bindings, the contract, the journal open, `settle` and the polling source.
 `src/worker.ts` is the two routes. `src/client.ts` drives the wire for the
 test and the demo; `src/stack.ts` boots miniflare for both.
 
-To deploy for real, add `wrangler` (`npm i -D wrangler`), `wrangler d1 create
-foldkit-cloudflare`, put that `database_id` in `wrangler.toml`, and
-`wrangler deploy`. The worker needs no account to run locally.
+To deploy for real, add `wrangler` (`npm i -D wrangler`) and run it from this
+directory, one command at a time:
+
+```bash
+pnpm --filter foldkit-example-cloudflare build:worker
+wrangler d1 create foldkit-cloudflare
+# put that database_id in wrangler.toml
+wrangler d1 migrations apply foldkit-cloudflare --remote
+wrangler deploy
+wrangler pages deploy --config pages/wrangler.toml pages/public --commit-dirty=true
+```
+
+The Worker owns D1 and the `SyncHost` class. The Pages project
+`foldkit-crud` serves `pages/public`. `/remote` is forwarded to that Worker.
+`/sync` calls the Durable Object binding directly: a service binding delivers
+the upgrade and then drops the socket's replies. The page creates, renames,
+toggles, and deletes. Another tab hears the notice, pulls once the object has
+finished settling, and reads the table back. The worker needs no account to
+run locally.
 
 ## See also
 
